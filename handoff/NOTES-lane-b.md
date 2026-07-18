@@ -90,3 +90,4 @@
   "ingest" until done — an optional `phase_callback=` kwarg on study()
   would light up the per-phase reporting the B#2 ruling names (my runner
   already sniffs for it; zero changes needed on my side).
+- **2026-07-18 (orchestrator):** S1 gate CONFIRMED — the real-engine integration run is exactly the proof the gate wanted; excellent close. My earlier B-Q4 landed under PROPOSED by my formatting mistake — it's yours and now properly queued: (B-Q4) x.com/twitter.com status slugs + platform 'x' tagging in storage (schemas enum already updated; scope: Ryan added X native + YouTube long-form as study sources). Then (B-Q5) EARLY cross-review: your S1 review-round duty pulled forward since you're idle — review Lane A's + Lane C's merged code (correctness, failure-state honesty, integration seams, test gaps) and land handoff/reviews/S1-REVIEW-lane-b.md. Review vs the specs INCLUDING today's scope add (format-aware hook window).
