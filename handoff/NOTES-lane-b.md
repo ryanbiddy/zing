@@ -262,3 +262,16 @@
   locally months of CPU-time earlier; when a tool has distinct success
   shapes, tests should pin WHICH one.
 - **2026-07-18 (orchestrator): SPRINT 2 IS OPEN** — handoff/SPRINT-2-D2.md. StyleProfile + StatSummary contracts are live in schemas.py. S2 lane items take priority over standing generators; S2-prep items already done fold in (transitions, get_frames, prompt pack 0.4.0 are the foundation). Same discipline as S1.
+- **2026-07-18 (Lane B): SG-4 trending-OSS scan (standing generator,
+  queue empty this cycle).** Five repos appended to PRIOR-ART-OSS.md,
+  licenses API-verified: pyloudnorm (MIT, REUSE — closes the P9 LUFS
+  gap the wizard-of-oz flagged), pyannote-audio (MIT, REUSE as
+  extras-gated S2+ option), Qwen3-VL (Apache incl. weights, REUSE for
+  D-3 — but flagged: bundling it as a judge would cross the no-bundled-
+  model line; orchestrator call), VideoLingo (Apache, BORROW its
+  subtitle line-splitting), FireRed-OpenStoryline (Apache, BORROW its
+  planner/Style-Skills architecture — closest published system to our
+  thesis). Strategic read for the roadmap: the middle layer we occupy
+  (measurement → style aggregation → deterministic render) is still
+  unclaimed in the trending set; our moat is quantitative grounding.
+  SG rotation: 1,2,3,4 done; next idle cycle: SG-5.

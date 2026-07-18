@@ -507,3 +507,83 @@ videos, per the taste rubric) rather than one hardcoded look.
 5. **Dependency policy footnote:** espeak-ng (GPL-3.0) must never enter
    the default install graph; CI could grep the lockfile for
    GPL/AGPL SPDX ids as a cheap guard.
+
+---
+
+## SG-4 trending scan · 2026-07-18 · Lane B (standing generator)
+
+Method: GitHub trending + topic searches (video-editing, creator-tools,
+subtitles, media-ml, video-understanding, MCP media) via research agent;
+licenses verified against GitHub API SPDX per repo. Five repos not in the
+original R-B survey.
+
+### pyloudnorm — https://github.com/csteinmetz1/pyloudnorm
+- **What:** Python ITU-R BS.1770-4 integrated loudness (LUFS) metering.
+- **License:** MIT (API SPDX verified). **Health:** 775 stars, pushed
+  2026-01-04; single academic maintainer — small finished algorithm lib,
+  not abandonware.
+- **Verdict: REUSE (audio measurement).** Numeric LUFS per clip/segment
+  as plain Python floats (block-gated, custom block sizes for short
+  windows) — far easier to aggregate into style profiles and ducking
+  targets than parsing ffmpeg ebur128 stderr; pure numpy/scipy. Directly
+  serves the S2 LUFS candidate named in schemas' AudioLayout docstring
+  and the wizard-of-oz P9 gap (−14 LUFS unverifiable from RMS).
+
+### pyannote-audio — https://github.com/pyannote/pyannote-audio
+- **What:** Neural speaker diarization (VAD, speaker change, overlap,
+  embeddings).
+- **License:** MIT (verified); pretrained pipelines MIT but HF-gated
+  (token + terms) with a commercial pyannoteAI tier — install-friction
+  note for doctor if adopted. **Health:** 10.3k stars, pushed
+  2026-07-17, commercially backed.
+- **Verdict: REUSE (optional extra, S2+).** Speaker-count/talk-time/
+  overlap stats are exactly the talking-head vs dialogue vs voiceover
+  signal style profiles need (silero-vad only says speech/non-speech).
+  Heavy torch dep — extras-gated only.
+
+### Qwen3-VL — https://github.com/QwenLM/Qwen3-VL
+- **What:** Open-weight multimodal LLM series with first-class video
+  understanding (timestamped video QA, dense captioning).
+- **License:** Apache-2.0 incl. weights (verified — unlike Qwen's
+  earlier research-licensed VL checkpoints). **Health:** 19.6k stars,
+  pushed 2026-01-30, large funded team.
+- **Verdict: REUSE (D-3 directing, local-judgment option).** 2B–8B
+  variants run locally (vLLM/llama.cpp/Ollama) and can caption shots or
+  answer "what's missing between shot 4 and 5" — semantic shot
+  understanding is the one pipeline piece current deps don't cover.
+  NOTE: adopting it as a bundled judge would cross the "no bundled
+  model" architecture line — the honest fit is an OPTIONAL local
+  judgment backend the user's AI can call, or a documented recipe;
+  orchestrator call before any S3 use.
+
+### VideoLingo — https://github.com/Huanshere/VideoLingo
+- **What:** End-to-end subtitle pipeline (transcribe, NLP+LLM sentence
+  split, align, translate, dub).
+- **License:** Apache-2.0 (verified). **Health:** 17.8k stars, pushed
+  2026-07-02; active, Streamlit-app-shaped, cloud-LLM-dependent.
+- **Verdict: BORROW (caption rendering).** Its two-stage subtitle
+  line-splitting (syntactic spaCy split, then LLM semantic split against
+  CPS/length limits) is the best documented answer to where-to-break-
+  lines — the hardest part of word-timed .ass rendering. Monolithic app,
+  not a library: lift the approach, not the dependency.
+
+### FireRed-OpenStoryline — https://github.com/FireRedTeam/FireRed-OpenStoryline
+- **What:** Xiaohongshu's AI video-editing agent: NL intent → LLM plan →
+  ffmpeg-tool orchestration, reusable "Style Skills."
+- **License:** Apache-2.0 (verified). **Health:** 3.1k stars, created
+  2026-02, pushed 2026-05; young, corporate-backed.
+- **Verdict: BORROW (directing/render architecture).** The closest
+  published system to Zing's thesis (measure → plan → render,
+  human-in-the-loop, style as reusable artifact); its Style Skills
+  validate the aggregated-style-profile design. FastAPI + cloud-LLM
+  shape rules out dependency; study the planner/tool-schema layering.
+
+**Scan summary:** the 2025–2026 trend is agentic wrappers converging on
+Zing's territory from both sides — thin ffmpeg-MCP servers below, full
+editing agents (OpenStoryline, OpenCut-style) above — while the middle
+layer Zing occupies (local measurement, style aggregation, deterministic
+rendering) remains unclaimed. Licensing has swung our way: the strongest
+new models are Apache/MIT, so the local-first permissive stack no longer
+forces quality compromises. Differentiation should lean on
+measurement-derived style profiles: nobody in the trending set grounds
+edit decisions in quantitative analysis of reference footage.
