@@ -4,9 +4,14 @@ Three tiers (binding, SPRINT-1-D1 §Critique resolutions B#5):
 
 - required     ffmpeg/ffprobe — without them Zing measures nothing;
                missing required => exit 1.
-- recommended  yt-dlp, faster-whisper, an OCR backend — each missing one
-               names its degraded mode; never fails the machine.
+- recommended  yt-dlp, scenedetect, faster-whisper, rapidocr — each
+               missing one names its degraded mode; never fails the
+               machine, but "Ready." is qualified while any are missing.
 - optional     the uoink helper on localhost — silently absent is fine.
+
+Doctor checks exactly what the study pipeline imports (F-05/F-10): the
+module names below are asserted against the study sources by tests, so a
+backend swap in the pipeline breaks the build until doctor agrees.
 
 Every failing line prints the exact command that fixes it. ``--json``
 emits the same result machine-readably; the MCP ``zing_status`` tool is
@@ -38,6 +43,11 @@ UOINK_DEFAULT_URL = "http://127.0.0.1:5179"
 
 # yt-dlp versions are calendar-based (e.g. 2026.06.09); extractors rot fast.
 YTDLP_STALE_DAYS = 90
+
+# What the study pipeline actually imports — the single source of truth for
+# the ocr and shot-detection verdicts (tests assert the sources agree):
+OCR_MODULE = "rapidocr"        # study/captions.py: from rapidocr import RapidOCR
+SHOT_MODULE = "scenedetect"    # study/shots.py: import scenedetect
 
 
 @dataclass
@@ -186,33 +196,64 @@ def check_whisper() -> Check:
 
 
 def check_ocr() -> Check:
-    for module, label in (
-        ("rapidocr_onnxruntime", "RapidOCR (rapidocr_onnxruntime)"),
-        ("rapidocr", "RapidOCR (rapidocr)"),
-    ):
-        if _has_module(module):
-            return Check(
-                name="ocr", tier=RECOMMENDED, ok=True, detail=f"{label} installed"
-            )
-    tesseract = _which("tesseract")
-    if tesseract:
+    """ok only when the exact module the pipeline imports is importable.
+
+    study/captions.py does ``from rapidocr import RapidOCR`` — nothing
+    else. The old ``rapidocr_onnxruntime`` package and a ``tesseract``
+    binary are reported honestly as found-but-not-wired: with either
+    alone, every study still skips OCR (F-05).
+    """
+    if _has_module(OCR_MODULE):
         return Check(
             name="ocr",
             tier=RECOMMENDED,
             ok=True,
-            detail=f"tesseract found at {tesseract} (fallback backend; "
-            "RapidOCR reads stylized captions better)",
-            fix='python -m pip install "myzing[study]"   (installs RapidOCR)',
+            detail="rapidocr installed (the module the study pipeline imports)",
+        )
+    found_instead = []
+    if _has_module("rapidocr_onnxruntime"):
+        found_instead.append("the rapidocr_onnxruntime module")
+    tesseract = _which("tesseract")
+    if tesseract:
+        found_instead.append(f"tesseract at {tesseract}")
+    detail = "the `rapidocr` package is not importable"
+    if found_instead:
+        detail += (
+            f" — found {' and '.join(found_instead)}, but Zing's OCR "
+            "imports `rapidocr` only, so OCR is still skipped"
         )
     return Check(
         name="ocr",
         tier=RECOMMENDED,
         ok=False,
-        detail="no OCR backend (RapidOCR module or tesseract binary)",
-        fix='python -m pip install "myzing[study]"',
+        detail=detail,
+        fix='python -m pip install "myzing[study]"   (installs rapidocr)',
         degraded_mode=(
             "caption OCR is skipped: empty captions list + a warning in the "
             "breakdown (caption style can't be measured)"
+        ),
+    )
+
+
+def check_scenedetect() -> Check:
+    """Shot detection is the core measurement — doctor must check it (F-10)."""
+    if _has_module(SHOT_MODULE):
+        return Check(
+            name="scenedetect",
+            tier=RECOMMENDED,
+            ok=True,
+            detail="scenedetect installed (PySceneDetect AdaptiveDetector)",
+        )
+    return Check(
+        name="scenedetect",
+        tier=RECOMMENDED,
+        ok=False,
+        detail="scenedetect not importable — Zing cannot detect shots without it",
+        fix='python -m pip install "myzing[study]"',
+        degraded_mode=(
+            "shot detection is skipped: zero shots + a warning in the "
+            "breakdown (cut rhythm, keyframes, and the eval cut score "
+            "are all unavailable)"
         ),
     )
 
@@ -246,6 +287,7 @@ def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
         check_ytdlp(today),
+        check_scenedetect(),
         check_whisper(),
         check_ocr(),
         check_uoink(),
@@ -282,11 +324,19 @@ def _print_human(checks: list[Check]) -> None:
         if c.fix and (not c.ok or c.data.get("stale")):
             print(f"           fix: {c.fix}")
     missing = [c for c in checks if c.tier == REQUIRED and not c.ok]
+    degraded = [c for c in checks if c.tier == RECOMMENDED and not c.ok]
     if missing:
         names = ", ".join(c.name for c in missing)
         print(f"\nNOT ready: required tool(s) missing: {names} — fix above, then re-run.")
+    elif degraded:
+        # Never an unqualified "Ready." while a measurement is degraded (F-10).
+        names = ", ".join(c.name for c in degraded)
+        print(
+            f"\nReady for basic use, but degraded — missing recommended "
+            f"tool(s): {names} (fixes above)."
+        )
     else:
-        print("\nReady. (Recommended items above may name degraded modes.)")
+        print("\nReady.")
 
 
 def run(argv: list[str]) -> int:
