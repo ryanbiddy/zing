@@ -87,3 +87,16 @@ the bottom but never claim outside their lane.
 - **C-Q9 (gated on docs/taste/TRANSITIONS-AND-MIX.md):** transition-detection prototype — implement frame-diff/optical-flow/audio features for the top 5 detectable transition signatures from R3-A; extend make_goldens with synthetic transitions (dissolve, wipe, zoom punch); report per-signature precision on goldens. Honest about what is NOT detectable.
 - **C-Q10 (gated on docs/taste/PACKAGING-INTROS-THUMBNAILS.md):** `zing thumbs` deterministic half — candidate freeze-frame selection per the R3-B spec (emotional peaks via audio energy, object reveals via shot boundaries, contrast/sharpness scoring), CLI + MCP tool emitting frames + the three crafted image-LLM prompts from the spec template.
 - **D-Q6:** Zing product-surface UX study (doc-only): audit the CLI/breakdown.md/MCP ergonomics as a NEW USER; study uoink's brand system at E:\AI\projects\uoink\brand (brand-system HTML + launch kit) and propose how Zing's look/voice should rhyme with it (sibling, not clone); sketch the eventual local dashboard surface (uoink-style) as a doc. Design implementation stays LATER — this is the thinking doc.
+
+## V-round: define VIRALITY per platform (Ryan, 2026-07-18) — one per lane, doc-only
+The taste director must know what virality measurably IS on each channel.
+Per platform: a measurable definition (metrics/thresholds that mark a video
+as viral there), the spread mechanism (what surfaces drive it), leading
+indicators in the first hours, genre differences, and what the taste engine
+should score as viral-potential. House format: tiers, sources, Deeper
+Threads. Deliverable: docs/taste/VIRALITY-<platform>.md.
+- **V-A · Lane A:** YouTube + Shorts.
+- **V-B · Lane B:** TikTok.
+- **V-C · Lane C:** X native video (fold in handoff/research/R3-grok-x-findings.md when it lands).
+- **V-D · Lane D (AG):** Instagram Reels.
+Orchestrator synthesizes the cross-platform comparison after all four land.
