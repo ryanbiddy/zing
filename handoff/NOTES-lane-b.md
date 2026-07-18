@@ -182,3 +182,29 @@
   packaging work — research rounds are cheap insurance; the uv-type
   manifest worked first try BECAUSE the failure mode was known in
   advance.
+- **2026-07-18 (Lane B): B-Q10 done — SG-1 review of Lane A's #70
+  (caption-region clustering v2) + keyframes.py (post-F-07), surface/
+  consumer lens.** Verdict: the measurement is a real fix for the
+  wizard-of-oz layer-conflation finding and the code is honest about its
+  thresholds. Two seam gaps found ON MY SIDE, fixed in this PR:
+  (1) `get_breakdown` served breakdown-relative paths (meta.media_path,
+  shots[].keyframe) with no base dir in the same response — dead ends
+  for a filesystem-capable MCP client; result now carries `dir`.
+  (2) prompts/study.md 0.3.1: layer-separation rule updated to A-Q8
+  reality (persistent overlays pre-excluded → read warnings; shorter
+  labels may still pollute), keyframe access now via the `dir` field
+  incl. the frames/hook_*.jpg stills.
+  **Judgment calls for Lane A (file:line, no action required from me):**
+  (a) captions.py `_overlay_threshold_s` — sub-threshold overlays (e.g.
+  a 10s location tag on a 30s short → threshold 15s) still enter
+  captions[]; residual pollution my prompt still guards. S2 idea:
+  position-persistence as a secondary signal, not just duration.
+  (b) keyframes.py writes frames/hook_<second>.jpg but nothing in the
+  Breakdown references them — only discoverable by listing the dir. My
+  `dir` field makes them REACHABLE; consider recording them in
+  provenance (or a schema field, orchestrator's call) so clients don't
+  glob. SG-1 coverage log: reviewed #70 (captions), keyframes.py
+  (current main). PROCESS OBSERVATION: the aimed-review queue item
+  named the exact lens ("does what MCP serves match what was
+  measured?") — that focus found two real seam gaps a generic review
+  would have skimmed past; recommend every SG-1 assignment name a lens.

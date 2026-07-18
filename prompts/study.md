@@ -1,7 +1,7 @@
 ---
 name: study
 description: How to judge a Zing Breakdown — hook, beats, caption style, why it works — and write the judgment back.
-version: 0.3.0
+version: 0.3.1
 required_keys: [hook, beats, caption_style, why_it_works]
 ---
 
@@ -35,9 +35,11 @@ the JSON). It contains:
   nobody speaks.
 
 If your client can read local image files, view the shot `keyframe`
-images (they live next to `breakdown.json` in the Zing workspace —
-`zing_status()` shows the workspace root) before judging the hook.
-Otherwise judge from text and numbers only.
+images: join each relative path against the `dir` field in the
+`get_breakdown` result (the breakdown's folder — its `frames/` subdir
+also holds ~1fps `hook_*.jpg` stills over the hook window). Otherwise
+use the `get_frames` tool; only judge blind from text and numbers as
+the last resort.
 
 ## 2. Ground rules (these outrank everything below)
 
@@ -128,10 +130,15 @@ and `all_caps` from the observed majority. Weight evidence by OCR
 
 **`captions[]` is one stream, the screen is many layers.** OCR captures
 everything: subtitles, UI labels, location tags, watermarks, on-screen
-props. Separate them before judging: an event that persists for many
-seconds pinned at `top` is a label or watermark, not a caption; judge
+props. Zing pre-excludes the worst of it: text regions persisting
+≥ max(15s, 25% of runtime) are diverted out of `captions[]` and named in
+`warnings` ("persistent on-screen text … excluded") — read those notes
+so you know what was on screen without counting it as caption craft.
+Shorter non-caption text (a 10-second location tag, scene text) can
+still appear in `captions[]`: an event whose position or content doesn't
+behave like the subtitle stream is a layer, not a caption — judge
 caption style from the subtitle layer only, and say which events you
-excluded and why. Layer pollution also skews the aggregates
+excluded and why. Layer pollution skews the aggregates
 (`words_visible`, `position`, `all_caps`) — recompute your read from the
 subtitle events, don't trust the majority blindly.
 
@@ -180,7 +187,7 @@ required — `save_judgment` rejects the write otherwise.
   "caption_style": {
     "evidence": [
       "41 caption events, median words_visible = 1, median confidence 0.84",
-      "38/41 events all_caps at position 'lower'; 2 excluded as a persistent top-pinned channel watermark (16s+ duration)",
+      "38/41 events all_caps at position 'lower'; warnings name 1 pre-excluded persistent overlay (channel watermark, 0.0-34.1s at top)",
       "caption starts track word starts within one sample in the hook window (~125ms at 8fps per provenance), within ~250ms (4fps) after 3s"
     ],
     "reasoning": "Word-timed pop captions, uppercase, lower-third, synced to speech at the resolution OCR can see.",
@@ -210,6 +217,11 @@ tighter than the OCR sampling interval.
 
 ## Changelog
 
+- **0.3.1** (2026-07-18, aligned with measurement A-Q8): persistent
+  overlays are now pre-excluded from `captions[]` at measurement time
+  and named in `warnings` — the layer-separation rule reflects that;
+  keyframe access now goes through `get_breakdown`'s `dir` field
+  (includes the `frames/hook_*.jpg` stills).
 - **0.3.0** (2026-07-18): the visual-hook rule now says look before you
   abstain — `get_frames(slug, timestamps)` serves labeled stills at shot
   boundaries; `cannot_judge` remains the honest fallback for clients
