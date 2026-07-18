@@ -1,0 +1,68 @@
+{
+  "meta": {
+    "source_url": "synthetic://checked-in-scorer-sample",
+    "platform": "file",
+    "author": "",
+    "title": "checked-in scorer sample",
+    "duration": 3.0,
+    "width": 320,
+    "height": 568,
+    "fps": 30.0,
+    "media_path": ""
+  },
+  "shots": [
+    {
+      "index": 0,
+      "start": 0.0,
+      "end": 1.0,
+      "keyframe": ""
+    },
+    {
+      "index": 1,
+      "start": 1.0,
+      "end": 2.0,
+      "keyframe": ""
+    },
+    {
+      "index": 2,
+      "start": 2.0,
+      "end": 3.0,
+      "keyframe": ""
+    }
+  ],
+  "words": [],
+  "captions": [
+    {
+      "text": "hello zing",
+      "start": 0.25,
+      "end": 1.75,
+      "position": "center",
+      "all_caps": false,
+      "words_visible": 2,
+      "confidence": 1.0
+    }
+  ],
+  "audio": {
+    "has_music": false,
+    "music_confidence": 0.0,
+    "has_voiceover": false,
+    "speech_ratio": 0.0,
+    "loudness_curve": [
+      -18.0,
+      -80.0,
+      -18.0
+    ]
+  },
+  "avg_shot_duration": 1.0,
+  "cuts_per_10s": [
+    2.0
+  ],
+  "warnings": [
+    "speech ratio unavailable: no redistributable spoken fixture"
+  ],
+  "provenance": {
+    "fixture": "checked-in"
+  },
+  "judgment": {},
+  "schema_version": 1
+}
