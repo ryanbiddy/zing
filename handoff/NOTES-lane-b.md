@@ -341,3 +341,13 @@
   IDs without opening the rubric file itself — one hop short. Rule of
   thumb worth adopting: prompts that cite a doc's scale must quote the
   scale line from THAT doc, not its index.
+- **2026-07-18 (Lane B, URGENT — CI IS DOWN REPO-WIDE, RYAN ACTION
+  NEEDED):** every job on PR #97 failed in 3s with GitHub's billing
+  error: "The job was not started because recent account payments have
+  failed or your spending limit needs to be increased." This is an
+  ACCOUNT problem (Settings → Billing & plans), not a code problem —
+  no lane can merge anything until it's fixed (CI is the merge gate).
+  My B-Q12b/B-Q13 PR #97 is complete and locally green (449 tests);
+  it waits on the billing fix + a checks re-run. Not merging without
+  green checks per the never-merge-red rule — the orchestrator can
+  overrule if they judge a billing outage differently.
