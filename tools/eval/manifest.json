@@ -1,10 +1,15 @@
 {
   "schema_version": 1,
-  "scorer_version": "1.0.0",
+  "scorer_version": "1.1.0",
+  "scorer_changelog": {
+    "1.1.0": "F-09/F-12: leftover cuts are never positionally zipped into fabricated out-of-tolerance matches — a pair requires a delta within out_of_tolerance_pairing_window_seconds, everything else is reported missing/extra; matcher rewritten iteratively for real-video event counts. Pass/fail semantics unchanged; per-event match lists differ from 1.0.0.",
+    "1.0.0": "Initial S1 scorer."
+  },
   "cuts": {
     "count_exact": true,
     "time_tolerance_seconds": 0.15,
-    "matching": "maximum-cardinality one-to-one chronological"
+    "out_of_tolerance_pairing_window_seconds": 0.3,
+    "matching": "maximum-cardinality one-to-one chronological; leftovers pair as out-of-tolerance matches only within the pairing window, otherwise they are reported as missing/extra, never paired"
   },
   "captions": {
     "minimum_text_similarity": 0.8,
