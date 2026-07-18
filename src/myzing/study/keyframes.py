@@ -9,10 +9,18 @@ Writes into the breakdown folder:
 
 Extraction failures degrade per-frame (empty keyframe + one warning), the
 study never dies over a thumbnail.
+
+Cache honesty (F-07): the frames dir is cleared at the start of every
+study. Filenames are keyed by shot INDEX, so a leftover shot_001.jpg from
+a previous study would silently attach an old boundary's frame to a new
+boundary (detector retune, scenedetect upgrade, first-run-without /
+second-run-with scenedetect) — the judgment AI would see the wrong shot.
+Stale eyes are worse than none; re-extraction is cheap, so we never reuse.
 """
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from myzing.schemas import Shot
@@ -32,6 +40,10 @@ def extract_keyframes(
 ) -> None:
     """Mutates ``shots`` in place, setting relative keyframe paths."""
     frames_dir = breakdown_dir / FRAMES_DIR
+    if frames_dir.exists():
+        # F-07: frames from a previous study belong to that study's shot
+        # boundaries; every study starts from an empty dir.
+        shutil.rmtree(frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
     failures = 0
 
@@ -56,8 +68,6 @@ def extract_keyframes(
 
 
 def _grab(media_path: Path, at: float, target: Path) -> bool:
-    if target.exists():
-        return True
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-ss", f"{max(0.0, at):.3f}", "-i", str(media_path),

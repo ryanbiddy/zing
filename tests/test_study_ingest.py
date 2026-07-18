@@ -41,18 +41,33 @@ def ok(cmd: list[str], stdout: str = "") -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(cmd, 0, stdout=stdout, stderr="")
 
 
+def pts_csv(deltas: list[float], start: float = 0.0) -> str:
+    """Packet pts_time CSV as the F-06 scan reads it: one packet per line,
+    times built by accumulating the given per-frame deltas."""
+    times = [start]
+    for d in deltas:
+        times.append(times[-1] + d)
+    return "\n".join(f"{t:.6f}" for t in times) + "\n"
+
+
+CFR_30 = pts_csv([1 / 30] * 240)  # a clean constant-frame-rate packet scan
+
+
 class FakeTools:
     """Dispatches proc.run calls per tool; records every command."""
 
     def __init__(self, probe_stdout: str = probe_json()):
         self.calls: list[list[str]] = []
         self.probe_stdouts = [probe_stdout]
+        self.pts_csv = CFR_30
         self.info: dict = {"uploader": "cleo", "title": "why ice"}
 
     def __call__(self, cmd: list[str], timeout: float | None = None):
         self.calls.append(cmd)
         tool = cmd[0]
         if tool == "ffprobe":
+            if any("packet=pts_time" in part for part in cmd):
+                return ok(cmd, self.pts_csv)
             out = (
                 self.probe_stdouts.pop(0)
                 if len(self.probe_stdouts) > 1
@@ -203,6 +218,167 @@ def test_foreign_codec_webm_is_normalized_to_single_mp4(
     assert not (result.breakdown_dir / "media.webm").exists()  # original replaced
     assert storage.find_media(result.slug) == result.media_path
     assert any("re-encoded to H.264" in w for w in result.warnings)
+
+
+# -- F-06: locally-VFR H.264 (per-frame PTS delta scan) ----------------------
+
+def test_locally_vfr_h264_is_normalized(zing_workspace, tmp_path, monkeypatch):
+    """Bursty frame drops: avg-vs-declared is 0.23% (sails through the old
+    2% gate) but per-frame PTS deltas betray real VFR — must normalize."""
+    fake = FakeTools()
+    fake.probe_stdouts = [probe_json(avg="2993/100", declared="30/1"), probe_json()]
+    d = 1 / 30
+    fake.pts_csv = pts_csv([d] * 100 + [2 * d] * 8 + [d] * 192)
+    use(monkeypatch, fake)
+    src = tmp_path / "bursty.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    (ffmpeg_cmd,) = fake.commands("ffmpeg")
+    assert "cfr" in ffmpeg_cmd and "libx264" in ffmpeg_cmd
+    assert result.media_path.read_bytes() == b"fake-cfr-video"
+    assert any("variable frame timing" in w for w in result.warnings)
+
+
+def test_rare_drops_normalized_on_drift_budget(zing_workspace, tmp_path, monkeypatch):
+    """Long clip with a few drops: delta variation stays under the CV
+    threshold but cumulative frame-index drift breaks the ±0.15s budget."""
+    fake = FakeTools()
+    fake.probe_stdouts = [probe_json(), probe_json()]
+    d = 1 / 30
+    deltas = [d] * 3000
+    for i in (400, 900, 1400, 1900, 2400, 2900):
+        deltas[i] = 2 * d                     # 6 drops -> 0.2s total drift
+    fake.pts_csv = pts_csv(deltas)
+    use(monkeypatch, fake)
+    src = tmp_path / "rare-drops.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    assert len(fake.commands("ffmpeg")) == 1
+    assert any("variable frame timing" in w for w in result.warnings)
+
+
+def test_mild_jitter_skips_normalization_but_names_residual_risk(
+    zing_workspace, tmp_path, monkeypatch
+):
+    """Drift measurable (0.1s) but under the ±0.15s budget: normalization is
+    skipped, and that skip must be an explicit warning, not silence."""
+    fake = FakeTools()
+    d = 1 / 30
+    deltas = [d] * 1800
+    for i in (500, 1000, 1500):
+        deltas[i] = 2 * d                     # 3 drops -> 0.1s drift
+    fake.pts_csv = pts_csv(deltas)
+    use(monkeypatch, fake)
+    src = tmp_path / "mild.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    assert fake.commands("ffmpeg") == []      # not normalized
+    assert any("residual risk" in w for w in result.warnings)
+
+
+def test_clean_cfr_pts_scan_stays_quiet(zing_workspace, tmp_path, monkeypatch):
+    """Exactly constant deltas: no normalization, no scare warnings."""
+    fake = FakeTools()
+    fake.pts_csv = pts_csv([1 / 30] * 300)
+    use(monkeypatch, fake)
+    src = tmp_path / "clean.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    assert fake.commands("ffmpeg") == []
+    assert result.warnings == []
+
+
+def test_timebase_rounding_jitter_stays_quiet(zing_workspace, tmp_path, monkeypatch):
+    """29.97fps in a millisecond timebase alternates 33/34ms deltas — bounded
+    rounding, not VFR; the gate must not cry wolf."""
+    fake = FakeTools()
+    fake.pts_csv = pts_csv([0.033, 0.034] * 150)
+    use(monkeypatch, fake)
+    src = tmp_path / "ntsc.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    assert fake.commands("ffmpeg") == []
+    assert result.warnings == []
+
+
+def test_decode_order_packets_are_sorted_before_analysis(
+    zing_workspace, tmp_path, monkeypatch
+):
+    """ffprobe emits packets in decode order (B-frames arrive out of
+    presentation order); the scan must sort, not mistake reordering for VFR."""
+    fake = FakeTools()
+    d = 1 / 30
+    times = [i * d for i in range(240)]
+    for i in range(0, 238, 3):                # I P B pattern: swap each P/B pair
+        times[i + 1], times[i + 2] = times[i + 2], times[i + 1]
+    fake.pts_csv = "\n".join(f"{t:.6f}" for t in times) + "\n"
+    use(monkeypatch, fake)
+    src = tmp_path / "bframes.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    assert fake.commands("ffmpeg") == []
+    assert result.warnings == []
+
+
+def test_unusable_pts_scan_warns_residual_risk(zing_workspace, tmp_path, monkeypatch):
+    """When the packet scan cannot run, we must say the CFR assumption is
+    unverified instead of silently trusting it."""
+    inner = FakeTools()
+
+    def failing_scan(cmd, timeout=None):
+        if cmd[0] == "ffprobe" and any("packet=pts_time" in p for p in cmd):
+            return subprocess.CompletedProcess(cmd, 1, "", "demux error\n")
+        return inner(cmd, timeout)
+    use(monkeypatch, failing_scan)
+    src = tmp_path / "unscannable.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    assert inner.commands("ffmpeg") == []     # nothing to justify a re-encode
+    assert any("residual risk" in w for w in result.warnings)
+
+
+def test_too_few_timestamps_is_unusable_not_verdict(
+    zing_workspace, tmp_path, monkeypatch
+):
+    fake = FakeTools()
+    fake.pts_csv = "0.000000\n0.033333\nN/A\n"
+    use(monkeypatch, fake)
+    src = tmp_path / "tiny.mp4"
+    src.write_bytes(b"fake")
+
+    result = ingest.ingest(str(src))
+
+    assert fake.commands("ffmpeg") == []
+    assert any("residual risk" in w for w in result.warnings)
+
+
+def test_already_normalizing_skips_pts_scan(zing_workspace, tmp_path, monkeypatch):
+    """The cheap codec gate already decided to normalize: no packet scan."""
+    fake = FakeTools()
+    fake.probe_stdouts = [probe_json(codec="vp9"), probe_json()]
+    use(monkeypatch, fake)
+    src = tmp_path / "clip.webm"
+    src.write_bytes(b"fake")
+
+    ingest.ingest(str(src))
+
+    scans = [c for c in fake.commands("ffprobe")
+             if any("packet=pts_time" in p for p in c)]
+    assert scans == []
 
 
 # -- honesty on missing pieces ----------------------------------------------
