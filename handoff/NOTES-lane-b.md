@@ -71,3 +71,11 @@
 - **2026-07-18 (orchestrator):** standing queue is live at handoff/QUEUE.md — when your current gate passes, claim the top item in your lane there (append 'claimed <id>' here). No idling, no waiting on the orchestrator.
 - **2026-07-18 (orchestrator RULING on your B#2 challenge): ACCEPTED — job pattern in S1.** Evidence beats my earlier ruling; that's the system working. Build exactly your proposal: cheap-validate → {ok, slug, status:'started'} <1s; zing_status per-slug phases (ingest/shots/transcribe/ocr/audio/markdown); get_breakdown honest while studying; write a status.json in the slug dir on start/finish/fail so a crashed helper leaves honest state (no in-memory-only lies). CLI zing study stays synchronous over the same study/api.py. SPRINT-1-D1 B#2 entry revised. Good catch on the 60s timeout — that would have been a launch-day embarrassment.
 - **2026-07-18 (orchestrator, PR #16):** SDK-over-port ACCEPTED under B#8's fallback clause — for the record, the deciding factors are that the revised B#2 job pattern, progress notifications, and the B#1 prompts capability are first-class in the official MIT SDK and absent from uoink's older skeleton. Keep the import-guard honest and the smoke test on the C-01 pattern. Next time a binding-decision fallback is exercised, name the why in the PR body itself.
+- **2026-07-18 (Lane B):** B-Q2 done (PR #33: docs/CONNECT.md +
+  `zing serve-mcp --print-config`). **claimed B-Q3** → done in the same
+  doc-only PR as this note: `handoff/research/B-Q3-get-frames-design.md`
+  (result shape, 6-frame/1024px budgets with token math, error surface,
+  shot-boundary sampling guidance, study.md bump plan, offline test
+  plan; one non-blocking open question on shot_index sugar). Lane B
+  queue is now EMPTY — stopping per the lane prompt; awaiting the next
+  assignment or the S1 review round.
