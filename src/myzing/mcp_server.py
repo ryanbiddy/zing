@@ -450,10 +450,54 @@ def build_server():
     return mcp
 
 
+def _print_connect_config(target: str) -> int:
+    """``zing serve-mcp --print-config [desktop|code]`` — the exact,
+    copy-pasteable client config with this environment's real paths.
+    Works without the SDK installed (it only prints), but says so."""
+    python = sys.executable
+    desktop = json.dumps(
+        {
+            "mcpServers": {
+                "zing": {"command": python, "args": ["-m", "myzing.cli", "serve-mcp"]}
+            }
+        },
+        indent=2,
+    )
+    code_cmd = f'claude mcp add zing -- "{python}" -m myzing.cli serve-mcp'
+    if target in ("desktop", ""):
+        print("# Claude Desktop — merge into claude_desktop_config.json")
+        print("# (Windows: %APPDATA%\\Claude\\  macOS: ~/Library/Application Support/Claude/)")
+        print(desktop)
+    if target in ("code", ""):
+        if target == "":
+            print()
+        print("# Claude Code — run this once:")
+        print(code_cmd)
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        print(
+            '\n# NOTE: the mcp SDK is not installed in this Python yet — run'
+            '\n#   python -m pip install "myzing[mcp]"'
+            "\n# before connecting a client, or the server will exit at launch.",
+        )
+    return 0
+
+
 def run(argv: list[str]) -> int:
     if any(a in ("-h", "--help") for a in argv):
-        print("usage: zing serve-mcp\n\n" + (__doc__ or ""))
+        print(
+            "usage: zing serve-mcp [--print-config [desktop|code]]\n\n"
+            + (__doc__ or "")
+        )
         return 0
+    if "--print-config" in argv:
+        i = argv.index("--print-config")
+        target = argv[i + 1] if i + 1 < len(argv) else ""
+        if target not in ("", "desktop", "code"):
+            print(f"unknown --print-config target '{target}' (use: desktop, code)")
+            return 2
+        return _print_connect_config(target)
     try:
         import mcp  # noqa: F401
     except ImportError:
