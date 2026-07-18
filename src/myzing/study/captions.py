@@ -148,15 +148,100 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
             f"caption OCR: {errors} frame(s) failed to OCR and were treated "
             "as empty"
         )
-    result.captions = cluster(observations)
+    result.captions, overlay_notes = cluster_regions(observations, duration)
+    result.warnings.extend(overlay_notes)
     result.provenance = {
         "ocr_backend": f"rapidocr-{version}",
         "conf_threshold": CONF_THRESHOLD,
         "hook_fps": HOOK_FPS,
         "body_fps": formats.body_fps(duration),
         "hook_window_s": formats.hook_window_s(duration),
+        "clustering": "region-tracked v2 (A-Q8)",
     }
     return result
+
+
+# -- region tracking (A-Q8) -------------------------------------------------
+# One OCR stream carries many text layers (burned captions, watermarks,
+# channel labels, scene text). Joining every line per frame conflated them
+# — watermark fragments leaked into caption event text on all three real
+# videos. Concurrent regions are now tracked independently by vertical
+# position; persistent static overlays are excluded from captions and
+# reported in warnings instead (honest, but no longer polluting the
+# caption stream that style metrics and sync judgment read).
+
+BLOB_GAP_Y = 0.07        # y gap that separates two text regions in a frame
+TRACK_MATCH_Y = 0.08     # blob-to-track vertical matching distance
+OVERLAY_MIN_S = 15.0     # static text at least this old = overlay (short-form)
+OVERLAY_MIN_FRACTION = 0.25   # long-form: at least 25% of runtime
+
+
+@dataclass
+class RegionTrack:
+    y: float
+    observations: list[Observation] = field(default_factory=list)
+
+
+def _frame_blobs(lines: list[Line]) -> list[tuple[float, list[Line]]]:
+    """Group one frame's lines into vertical text regions."""
+    blobs: list[tuple[float, list[Line]]] = []
+    for line in sorted(lines, key=lambda l: l.y_center):
+        if blobs and line.y_center - blobs[-1][1][-1].y_center <= BLOB_GAP_Y:
+            blobs[-1][1].append(line)
+            blobs[-1] = (
+                sum(l.y_center for l in blobs[-1][1]) / len(blobs[-1][1]),
+                blobs[-1][1],
+            )
+        else:
+            blobs.append((line.y_center, [line]))
+    return blobs
+
+
+def track_regions(observations: list[Observation]) -> list[RegionTrack]:
+    """Split frame-level observations into per-region observation streams."""
+    tracks: list[RegionTrack] = []
+    for obs in observations:
+        for y, blob_lines in _frame_blobs(obs.lines):
+            best = None
+            best_d = TRACK_MATCH_Y
+            for track in tracks:
+                d = abs(track.y - y)
+                if d < best_d:
+                    best, best_d = track, d
+            if best is None:
+                best = RegionTrack(y=y)
+                tracks.append(best)
+            best.observations.append(
+                Observation(t=obs.t, step=obs.step, lines=blob_lines)
+            )
+            best.y = 0.7 * best.y + 0.3 * y
+    return tracks
+
+
+def _overlay_threshold_s(duration: float) -> float:
+    return max(OVERLAY_MIN_S, OVERLAY_MIN_FRACTION * duration)
+
+
+def cluster_regions(
+    observations: list[Observation], duration: float
+) -> tuple[list[CaptionEvent], list[str]]:
+    """Region-aware clustering: events per concurrent text region, with
+    persistent static overlays diverted into warning notes."""
+    events: list[CaptionEvent] = []
+    notes: list[str] = []
+    threshold = _overlay_threshold_s(duration)
+    for track in track_regions(observations):
+        for event in cluster(track.observations):
+            if event.end - event.start >= threshold:
+                notes.append(
+                    "persistent on-screen text (likely watermark/label) "
+                    f'excluded from captions: "{event.text}" '
+                    f"{event.start:.1f}-{event.end:.1f}s at {event.position}"
+                )
+            else:
+                events.append(event)
+    events.sort(key=lambda e: (e.start, e.position))
+    return events, notes
 
 
 # -- clustering (pure logic, fully unit-tested) -----------------------------
@@ -166,12 +251,16 @@ def _normalize(text: str) -> str:
 
 
 def _same_event(a: str, b: str) -> bool:
-    """Prefix containment (pop captions grow word by word) or fuzzy match."""
+    """Prefix containment (pop captions grow word by word), identical word
+    sets (OCR box order flickers between samples on multi-box regions), or
+    fuzzy match."""
     na, nb = _normalize(a), _normalize(b)
     if not na or not nb:
         return False
     short, long_ = (na, nb) if len(na) <= len(nb) else (nb, na)
     if long_.startswith(short):
+        return True
+    if set(na.split()) == set(nb.split()):
         return True
     return SequenceMatcher(None, na, nb).ratio() >= SIMILARITY
 

@@ -108,6 +108,79 @@ def test_position_buckets(y, bucket):
     assert captions._position_bucket(y) == bucket
 
 
+# -- region tracking (A-Q8) -------------------------------------------------
+
+def frame(t, *line_specs, step=0.25):
+    """line_specs: (text, y) or (text, y, x)."""
+    lines = [
+        Line(text=s[0], score=0.9, y_center=s[1], x_center=s[2] if len(s) > 2 else 0.5)
+        for s in line_specs
+    ]
+    return Observation(t=t, step=step, lines=lines)
+
+
+def test_concurrent_regions_become_separate_events():
+    # A watermark at the top and a caption lower on screen, same frames:
+    # one event per region, never a concatenated "WATERMARK CAPTION" event.
+    frames = [
+        frame(0.0, ("MetalWood", 0.1), ("HELLO WORLD", 0.6)),
+        frame(0.25, ("MetalWood", 0.1), ("HELLO WORLD", 0.6)),
+        frame(0.5, ("MetalWood", 0.1), ("NEXT CAPTION", 0.6)),
+    ]
+    events, notes = captions.cluster_regions(frames, duration=10.0)
+    texts = [e.text for e in events]
+    assert "HELLO WORLD" in texts and "NEXT CAPTION" in texts
+    assert "MetalWood" in texts          # short video: not yet overlay-length
+    assert not any("MetalWood HELLO" in t for t in texts)
+    assert notes == []
+
+
+def test_two_line_caption_is_one_region():
+    frames = [
+        frame(0.0, ("stop scrolling", 0.60), ("right now", 0.65)),
+        frame(0.25, ("stop scrolling", 0.60), ("right now", 0.65)),
+    ]
+    events, _ = captions.cluster_regions(frames, duration=10.0)
+    assert len(events) == 1
+    assert events[0].text == "stop scrolling right now"
+
+
+def test_persistent_overlay_excluded_with_warning():
+    # Static label across 20s of a 30s video -> overlay note, not a caption.
+    frames = [
+        frame(t * 0.25, ("Raw Video Preview:", 0.05), ("real caption" if t % 8 < 4 else "other words", 0.6))
+        for t in range(80)
+    ]
+    events, notes = captions.cluster_regions(frames, duration=30.0)
+    assert all("Raw Video Preview" not in e.text for e in events)
+    assert any("Raw Video Preview" in n and "excluded from captions" in n for n in notes)
+    assert any("real caption" in e.text for e in events)
+
+
+def test_overlay_threshold_scales_with_long_form():
+    assert captions._overlay_threshold_s(40.0) == 15.0
+    assert captions._overlay_threshold_s(600.0) == 150.0
+
+
+def test_box_order_flicker_is_one_event():
+    # Multi-box scene text whose OCR box order alternates between samples
+    # must not shatter into per-sample events.
+    frames = [
+        frame(0.0, ("WHITE DESERT ANTARCTICA", 0.4)),
+        frame(0.25, ("ANTARCTICA WHITE DESERT", 0.4)),
+        frame(0.5, ("WHITE DESERT ANTARCTICA", 0.4)),
+    ]
+    events, _ = captions.cluster_regions(frames, duration=10.0)
+    assert len(events) == 1
+
+
+def test_region_jitter_stays_one_track():
+    # Slight vertical wobble must not split a region into multiple tracks.
+    frames = [frame(t * 0.25, ("bouncy caption", 0.60 + 0.02 * (t % 2)), step=0.25) for t in range(8)]
+    tracks = captions.track_regions(frames)
+    assert len(tracks) == 1
+
+
 def test_reading_order_is_row_major_not_y_jitter():
     # Word boxes on ONE caption line jitter a few pixels vertically; the
     # join must keep left-to-right order within the row band, and rows
