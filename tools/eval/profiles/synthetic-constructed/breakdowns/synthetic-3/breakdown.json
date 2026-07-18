@@ -22,6 +22,7 @@
   ],
   "audio": {
     "has_music": false,
+    "music_confidence": 1.0,
     "speech_ratio": 0.5
   },
   "avg_shot_duration": 5.0,

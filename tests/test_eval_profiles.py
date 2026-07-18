@@ -282,3 +282,44 @@ def test_eval_report_includes_profile_results(tmp_path: Path) -> None:
         json.loads(report_path.read_text(encoding="utf-8"))["profile_eval"]
         == report["profile_eval"]
     )
+
+
+def test_profile_failure_gates_report_without_cross_failing_breakdown(
+    tmp_path: Path,
+) -> None:
+    profile_case = tmp_path / "mutated-profile"
+    profile_case.mkdir()
+    expected = _profile()
+    (profile_case / "expected-profile.json").write_text(
+        expected.to_json(indent=2) + "\n",
+        encoding="utf-8",
+    )
+    for slug in expected.source_slugs:
+        breakdown_path = (
+            profile_case / "breakdowns" / slug / "breakdown.json"
+        )
+        breakdown_path.parent.mkdir(parents=True)
+        breakdown_path.write_text("{}\n", encoding="utf-8")
+
+    def mutated_builder(
+        name: str,
+        slugs: list[str],
+        workspace: Path,
+    ) -> StyleProfile:
+        actual = copy.deepcopy(expected)
+        actual.duration.median += 1.0
+        return actual
+
+    report = evaluate(
+        [SAMPLE_DIRECTORY],
+        tmp_path / "mutated-report.json",
+        ffmpeg="not-installed-ffmpeg",
+        profile_case_directories=[profile_case],
+        profile_builder=mutated_builder,
+    )
+
+    assert report["passed"] is False
+    assert report["cases"][0]["score"]["passed"] is True
+    assert report["profile_eval"]["passed"] is False
+    profile_score = report["profile_eval"]["cases"][0]["score"]
+    assert profile_score["failed_dimensions"] == ["duration"]
