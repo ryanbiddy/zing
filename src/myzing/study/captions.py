@@ -43,6 +43,15 @@ HOOK_FPS = 8.0
 SIMILARITY = 0.8
 MAX_FLICKER_GAP_S = 0.5
 
+NO_SCORES_WARNING = "OCR backend returned no confidence scores; captions skipped"
+
+
+class OcrNoScores(RuntimeError):
+    """rapidocr returned recognized text without confidence scores (API
+    drift, F-08). Confidence gates every line; without scores, silently
+    scoring everything 0.0 would turn 'no captions' into a guess — the
+    condition must surface as a warning, never as an empty result."""
+
 
 def sampling_note(duration: float) -> str:
     return (
@@ -108,6 +117,7 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
 
     observations: list[Observation] = []
     errors = 0
+    no_scores = False
     try:
         prev_frame = None
         prev_lines: list[Line] = []
@@ -117,6 +127,11 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
             else:
                 try:
                     lines = _ocr(engine, frame)
+                except OcrNoScores:
+                    # F-08: API drift, not a per-frame crash — one honest
+                    # warning after the loop, lines treated as unobserved.
+                    no_scores = True
+                    lines = []
                 except Exception:
                     errors += 1
                     lines = []
@@ -126,6 +141,8 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
         result.warnings.append(f"caption OCR failed while reading frames: {e}")
         return result
 
+    if no_scores:
+        result.warnings.append(NO_SCORES_WARNING)
     if errors:
         result.warnings.append(
             f"caption OCR: {errors} frame(s) failed to OCR and were treated "
@@ -285,17 +302,28 @@ def _changed(prev, cur) -> bool:
 
 
 def _ocr(engine, frame) -> list[Line]:
-    """Run rapidocr on one frame -> confident Lines with normalized y."""
+    """Run rapidocr on one frame -> confident Lines with normalized y.
+
+    Raises OcrNoScores when text came back without a matching confidence
+    score per line (F-08): the confidence gate cannot run, and defaulting
+    scores to 0.0 would silently drop every caption in the video."""
     out = engine(frame)
     boxes = getattr(out, "boxes", None)
     txts = getattr(out, "txts", None)
     scores = getattr(out, "scores", None)
     if boxes is None or txts is None:
         return []
+    boxes, txts = list(boxes), list(txts)
+    scores = list(scores) if scores is not None else []
+    if txts and len(scores) != len(txts):
+        raise OcrNoScores(
+            f"{len(txts)} recognized line(s) but {len(scores)} confidence "
+            "score(s) — rapidocr result API drift"
+        )
     height = frame.shape[0] or 1
     width = frame.shape[1] or 1
     lines: list[Line] = []
-    for box, txt, score in zip(boxes, txts, scores or [0.0] * len(txts)):
+    for box, txt, score in zip(boxes, txts, scores):
         score = float(score)
         text = str(txt).strip()
         if not text or score < CONF_THRESHOLD:

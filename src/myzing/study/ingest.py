@@ -11,12 +11,25 @@ TikTok/IG) or in codecs the measurement stack can't decode reliably are
 normalized to CFR H.264 once, here, and the normalized file REPLACES the
 staged media. The re-encode is recorded as a warning — we say what we did
 to the evidence.
+
+VFR detection is two-tier (F-06): the cheap avg-vs-declared fps gate keeps
+catching gross VFR, but locally-VFR H.264 (bursty frame drops on
+phone/TikTok sources) can sit well under that 2% while frame-index
+timestamps drift past the eval's own ±0.15s cut budget. So h264 sources
+that pass the cheap gate get a per-frame PTS delta scan (ffprobe packet
+timestamps, demux-only — no decode): normalize when delta variation
+exceeds ``_PTS_DELTA_CV_MAX`` or worst frame-index drift exceeds
+``_PTS_DRIFT_BUDGET_S``; when normalization is skipped despite measurable
+drift — or the scan itself cannot run — the residual risk is recorded as
+an explicit warning, never assumed away.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import shutil
+import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
@@ -32,7 +45,24 @@ from .proc import MediaError
 YTDLP_FORMAT = "bv*[vcodec^=avc1][ext=mp4]+ba[ext=m4a]/b[ext=mp4]/b"
 
 _SAFE_VCODECS = {"h264"}
-_VFR_TOLERANCE = 0.02  # relative avg-vs-declared fps disagreement
+_VFR_TOLERANCE = 0.02  # relative avg-vs-declared fps disagreement (cheap gate)
+
+# F-06 PTS-delta scan thresholds (documented, deliberate):
+# - _PTS_DELTA_CV_MAX: normalize when the coefficient of variation
+#   (stddev/mean) of per-frame PTS deltas exceeds 5%. Clean CFR is ~0%;
+#   millisecond-timebase rounding jitter (33/34ms at 29.97fps) stays ~1.5-3%;
+#   real dropped/duplicated frames blow past 5% on short-form lengths.
+# - _PTS_DRIFT_BUDGET_S: normalize when the worst deviation between true PTS
+#   and the constant-rate timeline (frame_index/fps, what shots/OCR assume)
+#   exceeds the eval's own ±0.15s cut tolerance — on long clips a few drops
+#   keep CV low while drift quietly breaks the budget.
+# - _PTS_DRIFT_WARN_S: below both normalize thresholds but drifting more
+#   than a third of the budget, we skip normalization AND say so — an
+#   explicit residual-risk warning instead of silence.
+_PTS_DELTA_CV_MAX = 0.05
+_PTS_DRIFT_BUDGET_S = 0.15
+_PTS_DRIFT_WARN_S = 0.05
+_PTS_MIN_SAMPLES = 10  # fewer usable timestamps than this = no verdict
 
 
 @dataclass
@@ -80,6 +110,10 @@ def ingest(source: str) -> IngestResult:
     vstream = _video_stream(probed, media)
 
     need, why = _needs_normalize(vstream)
+    if not need:
+        # Cheap gates passed — verify the CFR assumption against real
+        # per-frame PTS before trusting frame-index timestamps (F-06).
+        need, why = _check_frame_timing(media, warnings)
     if need:
         warnings.append(why)
         target_fps = _fps(vstream.get("avg_frame_rate", "0/0")) or 30.0
@@ -208,6 +242,86 @@ def _needs_normalize(vstream: dict) -> tuple[bool, str]:
             "stay trustworthy"
         )
     return False, ""
+
+
+def _check_frame_timing(media: Path, warnings: list[str]) -> tuple[bool, str]:
+    """F-06: per-frame PTS delta scan for locally-VFR sources the cheap
+    avg-vs-declared gate cannot see. Returns (normalize?, reason) and
+    appends residual-risk warnings itself when normalization is skipped
+    but the CFR assumption is not fully verified."""
+    pts, problem = _read_packet_pts(media)
+    if problem:
+        warnings.append(
+            f"could not verify constant frame timing ({problem}); timestamps "
+            "assume CFR — residual risk: a variable-frame-rate source would "
+            "drift frame-index timestamps beyond the ±0.15s eval budget "
+            "without detection"
+        )
+        return False, ""
+    cv, drift = _pts_delta_stats(pts)
+    if cv > _PTS_DELTA_CV_MAX or drift > _PTS_DRIFT_BUDGET_S:
+        return True, (
+            f"variable frame timing detected (per-frame PTS delta variation "
+            f"{cv:.1%}, worst frame-index drift {drift:.3f}s vs thresholds "
+            f"{_PTS_DELTA_CV_MAX:.0%} / {_PTS_DRIFT_BUDGET_S:.2f}s); "
+            "normalized to constant frame rate so timestamps stay trustworthy"
+        )
+    if drift > _PTS_DRIFT_WARN_S:
+        warnings.append(
+            f"frame-timing jitter detected (per-frame PTS delta variation "
+            f"{cv:.1%}, worst frame-index drift {drift:.3f}s) is under the "
+            "normalization thresholds, so normalization was skipped — "
+            f"residual risk: frame-index timestamps may sit up to "
+            f"{drift:.3f}s off true PTS (eval cut budget is ±0.15s)"
+        )
+    return False, ""
+
+
+def _read_packet_pts(media: Path) -> tuple[list[float], str]:
+    """All video packet presentation timestamps, sorted into presentation
+    order (demux-only; no decode). Returns ([], problem) when no verdict
+    is possible — the caller must warn, not guess."""
+    res = proc.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(media)],
+        timeout=300,
+    )
+    if res.returncode != 0:
+        return [], f"ffprobe packet scan failed: {proc.tail(res.stderr)}"
+    pts: list[float] = []
+    for line in res.stdout.splitlines():
+        token = line.strip().strip(",")
+        if not token or token.upper() == "N/A":
+            continue
+        try:
+            pts.append(float(token))
+        except ValueError:
+            continue
+    if len(pts) < _PTS_MIN_SAMPLES:
+        return [], f"only {len(pts)} usable packet timestamp(s)"
+    # Packets arrive in decode order; B-frames land out of presentation
+    # order. Sort so reordering is never mistaken for VFR.
+    pts.sort()
+    return pts, ""
+
+
+def _pts_delta_stats(pts: list[float]) -> tuple[float, float]:
+    """(cv, worst_drift) for sorted presentation timestamps.
+
+    cv: coefficient of variation (stddev/mean) of per-frame PTS deltas —
+    0 for clean CFR, small for timebase rounding, large for real VFR.
+    worst_drift: max |true PTS - constant-rate timeline| where the
+    constant-rate timeline steps by the median delta (the nominal frame
+    duration downstream frame-index math assumes)."""
+    deltas = [b - a for a, b in zip(pts, pts[1:])]
+    mean = sum(deltas) / len(deltas)
+    if mean <= 0:
+        return float("inf"), float("inf")  # duplicate PTS everywhere: broken
+    variance = sum((d - mean) ** 2 for d in deltas) / len(deltas)
+    cv = math.sqrt(variance) / mean
+    step = statistics.median(deltas)
+    drift = max(abs(t - (pts[0] + i * step)) for i, t in enumerate(pts))
+    return cv, drift
 
 
 def _normalize(media: Path, fps: float) -> Path:

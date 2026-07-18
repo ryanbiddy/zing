@@ -184,3 +184,82 @@ def test_read_captions_zero_duration_skips(monkeypatch):
     result = captions.read_captions(Path("m.mp4"), duration=0.0)
     assert result.captions == []
     assert any("unknown duration" in w for w in result.warnings)
+
+
+# -- F-08: rapidocr returning no confidence scores must be loud --------------
+
+NO_SCORES_WARNING = "OCR backend returned no confidence scores; captions skipped"
+
+BOX = [(100, 1500), (500, 1500), (500, 1600), (100, 1600)]
+
+
+class FakeOcrOut:
+    """Shape of a rapidocr result object, minus whatever a future API drops."""
+
+    def __init__(self, boxes=None, txts=None, scores=None):
+        self.boxes = boxes
+        self.txts = txts
+        self.scores = scores
+
+
+class FakeFrame:
+    shape = (1920, 1080, 3)
+
+
+def wire_engine(monkeypatch, out):
+    """Wire read_captions through the REAL _ocr adapter with a fake engine."""
+    monkeypatch.setattr(captions, "_engine", lambda: (lambda frame: out, "9.9.9"))
+    monkeypatch.setattr(
+        captions, "_iter_frames", lambda p, d: iter([(0.0, 0.125, FakeFrame())])
+    )
+
+
+def test_no_scores_api_drift_warns_instead_of_silent_zero(monkeypatch):
+    """rapidocr returns text but scores=None: every line must NOT be scored
+    0.0 and dropped in silence — one honest warning, captions skipped."""
+    wire_engine(monkeypatch, FakeOcrOut(boxes=[BOX], txts=["STOP"], scores=None))
+
+    result = captions.read_captions(Path("m.mp4"), duration=1.0)
+
+    assert result.captions == []
+    assert any(NO_SCORES_WARNING in w for w in result.warnings)
+    # This is API drift, not a per-frame OCR crash — don't misreport it.
+    assert not any("failed to OCR" in w for w in result.warnings)
+
+
+def test_scores_length_mismatch_is_treated_as_no_scores(monkeypatch):
+    """A scores list that doesn't cover every line is the same API drift;
+    zip() must not silently truncate lines."""
+    wire_engine(
+        monkeypatch,
+        FakeOcrOut(boxes=[BOX, BOX], txts=["STOP", "SCROLLING"], scores=[0.9]),
+    )
+
+    result = captions.read_captions(Path("m.mp4"), duration=1.0)
+
+    assert result.captions == []
+    assert any(NO_SCORES_WARNING in w for w in result.warnings)
+
+
+def test_ocr_raises_dedicated_no_scores_error():
+    out = FakeOcrOut(boxes=[BOX], txts=["STOP"], scores=None)
+    with pytest.raises(captions.OcrNoScores):
+        captions._ocr(lambda frame: out, FakeFrame())
+
+
+def test_empty_frame_without_scores_is_not_drift():
+    """No text at all (txts empty, scores None) is a normal empty frame."""
+    out = FakeOcrOut(boxes=[], txts=[], scores=None)
+    assert captions._ocr(lambda frame: out, FakeFrame()) == []
+
+
+def test_valid_scores_still_flow_through_real_ocr_adapter(monkeypatch):
+    wire_engine(
+        monkeypatch, FakeOcrOut(boxes=[BOX], txts=["hello world"], scores=[0.9])
+    )
+
+    result = captions.read_captions(Path("m.mp4"), duration=1.0)
+
+    assert [c.text for c in result.captions] == ["hello world"]
+    assert result.captions[0].position == "bottom"
+    assert not any(NO_SCORES_WARNING in w for w in result.warnings)
