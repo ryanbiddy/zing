@@ -571,6 +571,107 @@ def h_zing_status() -> dict[str, Any]:
     )
 
 
+# ---------------------------------------------------------------------------
+# get_frames (B-Q8, built to handoff/research/B-Q3-get-frames-design.md)
+# ---------------------------------------------------------------------------
+
+FRAMES_RECOMMENDED = 6
+FRAMES_HARD_CAP = 8
+FRAME_MAX_EDGE = 1024
+
+
+def _extract_frame_jpeg(media: Path, t: float) -> bytes:
+    """One frame at ``t`` seconds as JPEG bytes via ffmpeg (no disk cache)."""
+    import subprocess
+
+    cmd = [
+        "ffmpeg", "-loglevel", "error",
+        "-ss", f"{t:.3f}", "-i", str(media),
+        "-frames:v", "1",
+        "-vf", f"scale='min({FRAME_MAX_EDGE},iw)':-2",
+        "-c:v", "mjpeg", "-q:v", "5",
+        "-f", "image2pipe", "-",
+    ]
+    out = subprocess.run(cmd, capture_output=True, timeout=60, check=False)
+    if out.returncode != 0 or not out.stdout:
+        detail = out.stderr.decode(errors="replace").strip().splitlines()
+        raise RuntimeError(detail[-1] if detail else f"ffmpeg exit {out.returncode}")
+    return out.stdout
+
+
+def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
+    """SDK-free core: returns {ok, frames: [{label, jpeg|None, error}]}.
+
+    The MCP wrapper turns this into interleaved text + image content.
+    Per-frame failures (past-the-end timestamps, decode errors) become
+    text entries so valid frames in the same call still arrive.
+    """
+    if not isinstance(timestamps, list) or not timestamps:
+        return _err(
+            "timestamps required: a list of seconds, e.g. the start times "
+            "of the shots you want to see (shots[].start in the breakdown)"
+        )
+    try:
+        times = sorted(float(t) for t in timestamps)
+    except (TypeError, ValueError):
+        return _err("timestamps must be numbers (seconds from video start)")
+    if len(times) > FRAMES_HARD_CAP:
+        return _err(
+            f"{len(times)} timestamps requested — the cap is "
+            f"{FRAMES_HARD_CAP} per call ({FRAMES_RECOMMENDED} recommended "
+            "for token budget). Split into a second call."
+        )
+    if any(t < 0 for t in times):
+        return _err("timestamps must be non-negative seconds")
+    if not shutil.which("ffmpeg"):
+        return _err(
+            "ffmpeg not found on PATH — run `zing doctor` for the install "
+            "command."
+        )
+    try:
+        b = storage.load_breakdown(slug)
+    except FileNotFoundError:
+        return _err(
+            f"no breakdown for slug '{slug}' — call list_breakdowns() to "
+            "see what exists, or study_video() to create it"
+        )
+    except (ValueError, storage.SlugError) as e:
+        return _err(str(e))
+    media = storage.find_media(slug)
+    if media is None:
+        return _err(
+            f"breakdown '{slug}' exists but its media file is gone "
+            "(media.* not in the workspace) — re-run study_video to refetch "
+            "before requesting frames"
+        )
+    duration = b.meta.duration
+
+    frames: list[dict[str, Any]] = []
+    for i, t in enumerate(times, start=1):
+        label = f"Frame {i} @ t={t:.2f}s"
+        if duration and t > duration:
+            frames.append({
+                "label": label,
+                "jpeg": None,
+                "error": f"t={t:.2f}s is past the video's end "
+                f"(duration {duration:.2f}s)",
+            })
+            continue
+        try:
+            frames.append({
+                "label": label,
+                "jpeg": _extract_frame_jpeg(media, t),
+                "error": "",
+            })
+        except Exception as e:  # noqa: BLE001 — per-frame honesty beats a dead call
+            frames.append({
+                "label": label,
+                "jpeg": None,
+                "error": f"frame extraction failed: {e}",
+            })
+    return _ok(slug=slug, frames=frames)
+
+
 def h_push_to_uoink(slug: str) -> dict[str, Any]:
     from myzing import uoink_bridge
 
@@ -696,6 +797,35 @@ def build_server():
             "Zing is fully standalone without it."
         ),
     )(h_push_to_uoink)
+
+    from mcp.server.fastmcp.utilities.types import Image
+
+    def get_frames(slug: str, timestamps: list[float]) -> list:
+        result = h_get_frames(slug, timestamps)
+        if not result.get("ok"):
+            return [json.dumps(result)]
+        content: list = []
+        for frame in result["frames"]:
+            if frame["jpeg"] is not None:
+                content.append(frame["label"])
+                content.append(Image(data=frame["jpeg"], format="jpeg"))
+            else:
+                content.append(f"{frame['label']}: {frame['error']}")
+        return content
+
+    mcp.tool(
+        name="get_frames",
+        description=(
+            "SEE the video: extract labeled still frames at the given "
+            "timestamps (seconds) from a studied video's stored media. "
+            f"Up to {FRAMES_HARD_CAP} per call ({FRAMES_RECOMMENDED} "
+            "recommended). Sample at shot boundaries (shots[].start), "
+            "hook window 0-3s first, and judge frames together with the "
+            "transcript — frames alone under-perform. Frames are "
+            f"{FRAME_MAX_EDGE}px longest-edge JPEGs extracted on demand; "
+            "nothing is cached."
+        ),
+    )(get_frames)
     mcp.tool(
         name="get_prompt",
         description=(
