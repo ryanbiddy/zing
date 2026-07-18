@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "source": {
+    "work": "Ripe Figs",
+    "author": "Kate Chopin",
+    "reader": "Alan Davis Drake",
+    "collection": "Short Story Collection Vol. 026",
+    "catalog_url": "https://librivox.org/short-story-collection-vol-026/",
+    "archive_item": "short_story_026_0804_librivox",
+    "download_url": "https://archive.org/download/short_story_026_0804_librivox/shortstory026_ripefigs_add_64kb.mp3",
+    "downloaded_at": "2026-07-18",
+    "sha256": "5523e498c195471763a8c6a3c1a8d8a2dffdecac9f68da55fffa3aaf8a116ae1",
+    "archive_md5": "410414c385dc4240a38deb37a6d80e5f",
+    "archive_sha1": "8707fa38c627ba8c37326518f86843e3c7cde57b"
+  },
+  "license": {
+    "name": "Creative Commons Public Domain Dedication and Certification",
+    "spdx": "CC-PDDC",
+    "url": "https://creativecommons.org/licenses/publicdomain/",
+    "scope": "LibriVox states that its recordings are public domain in the United States."
+  },
+  "artifact": {
+    "path": "ripe-figs-spoken.wav",
+    "sha256": "3716dca025d6bad001e15ab32307fa2f35f64f91402be0f2d02c15bd6c706556",
+    "source_interval_seconds": [
+      38.0,
+      39.0
+    ],
+    "format": "PCM signed 16-bit little-endian, mono, 16000 Hz",
+    "sample_count": 16000,
+    "command": "ffmpeg -i SOURCE.mp3 -map_metadata -1 -af atrim=start=38:end=39,asetpts=PTS-STARTPTS,aresample=16000 -ac 1 -c:a pcm_s16le -fflags +bitexact -flags:a +bitexact ripe-figs-spoken.wav"
+  }
+}

@@ -12,6 +12,7 @@ from typing import Any, Sequence
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = HERE / "goldens"
+SPEECH_FIXTURE = HERE / "fixtures" / "speech" / "ripe-figs-spoken.wav"
 
 CASES: tuple[dict[str, Any], ...] = (
     {
@@ -102,12 +103,12 @@ def _command_for(
             ]
         )
     for window in case["audio"]:
-        source = (
-            "sine=frequency=880:sample_rate=48000:duration=1"
-            if window == "signal"
-            else "anullsrc=r=48000:cl=mono:d=1"
-        )
-        command.extend(["-f", "lavfi", "-i", source])
+        if window == "signal":
+            command.extend(["-i", str(SPEECH_FIXTURE)])
+        else:
+            command.extend(
+                ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono:d=1"]
+            )
     command.extend(
         [
             "-filter_complex_script",
@@ -143,6 +144,10 @@ def generate_goldens(output: Path = DEFAULT_OUTPUT, ffmpeg: str = "ffmpeg") -> l
     """Generate all media and truth files, returning the case directories."""
     if shutil.which(ffmpeg) is None:
         raise GoldenGenerationError(f"ffmpeg executable not found: {ffmpeg}")
+    if not SPEECH_FIXTURE.is_file():
+        raise GoldenGenerationError(
+            f"spoken fixture not found: {SPEECH_FIXTURE}"
+        )
 
     case_directories = []
     for case in CASES:
@@ -172,7 +177,10 @@ def generate_goldens(output: Path = DEFAULT_OUTPUT, ffmpeg: str = "ffmpeg") -> l
             "captions": [case["caption"]],
             "audio": {
                 "windows": case["audio"],
-                "speech_ratio": None,
+                "speech_ratio": round(
+                    case["audio"].count("signal") / len(case["audio"]),
+                    3,
+                ),
             },
         }
         (case_directory / "truth.json").write_text(

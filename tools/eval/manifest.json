@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
-  "scorer_version": "1.1.0",
+  "scorer_version": "1.2.0",
   "scorer_changelog": {
+    "1.2.0": "C-Q6: speech-ratio scoring is enabled against the public-domain spoken fixture, with the existing ±0.1 tolerance. Pass/fail semantics now include speech ratio.",
     "1.1.0": "F-09/F-12: leftover cuts are never positionally zipped into fabricated out-of-tolerance matches — a pair requires a delta within out_of_tolerance_pairing_window_seconds, everything else is reported missing/extra; matcher rewritten iteratively for real-video event counts. Pass/fail semantics unchanged; per-event match lists differ from 1.0.0.",
     "1.0.0": "Initial S1 scorer."
   },
@@ -22,9 +23,9 @@
     "signal_floor_dbfs": -50.0,
     "window_pattern_exact": true,
     "speech_ratio": {
-      "enabled": false,
+      "enabled": true,
       "tolerance": 0.1,
-      "reason": "Unavailable until a redistributable spoken fixture is approved; tone is not speech."
+      "reason": "Unavailable only when a truth fixture omits speech_ratio."
     }
   }
 }
