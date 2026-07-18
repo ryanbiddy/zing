@@ -1,6 +1,10 @@
 """The study engine's programmatic seam (binding, critique A#4):
 
-    study(source: str, workspace: Path | None = None) -> Breakdown
+    study(
+        source: str,
+        workspace: Path | None = None,
+        detect_transitions: bool = False,
+    ) -> Breakdown
 
 Lane B's MCP `study_video` and Lane C's eval harness call this function;
 the CLI is a thin wrapper. It orchestrates ingest -> shots -> keyframes ->
@@ -29,12 +33,14 @@ from . import keyframes as keyframes_mod
 from . import report
 from . import shots as shots_mod
 from . import transcribe as transcribe_mod
+from . import transitions as transitions_mod
 
 
 def study(
     source: str,
     workspace: Path | None = None,
     phase_callback: Callable[[str], None] | None = None,
+    detect_transitions: bool = False,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -44,8 +50,14 @@ def study(
 
     ``phase_callback`` (A-Q5), when given, is called with the phase name as
     each stage begins: ingest, shots, keyframes, transcribe, ocr, audio,
-    markdown. Callback errors are swallowed — status reporting must never
+    optional transitions, markdown. Callback errors are swallowed —
+    status reporting must never
     kill a measurement.
+
+    Transition detection is disabled by default because the v2 detector is
+    calibrated only on synthetic precision fixtures. When enabled, a probe
+    failure produces no observations, a named warning, and detector
+    provenance instead of aborting the rest of the study.
 
     Workspace threading (A-Q7 / F-15): when storage exposes explicit
     ``root=`` parameters, ``workspace`` is passed straight through and NO
@@ -95,6 +107,21 @@ def study(
         warnings += audio_r.warnings
         provenance.update(audio_r.provenance)
 
+        transitions = []
+        if detect_transitions:
+            _phase(phase_callback, "transitions")
+            try:
+                transitions_r = transitions_mod.detect_transitions(
+                    ing.media_path
+                )
+            except transitions_mod.TransitionProbeError as exc:
+                warnings.append(f"transition detection skipped: {exc}")
+                provenance.update(transitions_mod.detector_provenance())
+            else:
+                transitions = transitions_r.transitions
+                warnings += transitions_r.warnings
+                provenance.update(transitions_r.provenance)
+
         provenance["zing_version"] = _zing_version()
         provenance["measured_at"] = datetime.now(timezone.utc).isoformat(
             timespec="seconds"
@@ -111,6 +138,7 @@ def study(
             cuts_per_10s=shots_mod.cuts_per_10s(
                 shots_r.shots, ing.meta.duration
             ),
+            transitions=transitions,
             warnings=warnings,
             provenance=provenance,
         )

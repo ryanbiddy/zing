@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-USAGE = "zing study <url|file> [--workspace DIR] [--json]"
+USAGE = "zing study <url|file> [--workspace DIR] [--transitions] [--json]"
 
 
 def run(argv: list[str]) -> int:
@@ -21,6 +21,11 @@ def run(argv: list[str]) -> int:
     parser.add_argument(
         "--json", action="store_true", help="print the full breakdown JSON to stdout"
     )
+    parser.add_argument(
+        "--transitions",
+        action="store_true",
+        help="run the opt-in synthetic-calibrated transition detector",
+    )
     args = parser.parse_args(argv)
 
     from myzing import storage
@@ -28,7 +33,10 @@ def run(argv: list[str]) -> int:
     from myzing.study.proc import MediaError
 
     try:
-        breakdown = study(args.source, workspace=args.workspace)
+        study_kwargs = {"workspace": args.workspace}
+        if args.transitions:
+            study_kwargs["detect_transitions"] = True
+        breakdown = study(args.source, **study_kwargs)
     except MediaError as e:
         print(f"zing study: {e}")
         return 1
