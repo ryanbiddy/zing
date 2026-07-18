@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from myzing.schemas import Breakdown
+from myzing.study.ingest import detect_platform
 
 from .performance import StudyBenchmarkAdapter
 
@@ -90,7 +91,7 @@ def _portable_breakdown(
 ) -> Breakdown:
     frozen = Breakdown.from_dict(measured.to_dict())
     frozen.meta.source_url = case["source_url"]
-    frozen.meta.platform = "youtube"
+    frozen.meta.platform = detect_platform(case["source_url"])
     frozen.meta.author = case["creator"]
     frozen.meta.title = case["title"]
     frozen.meta.media_path = ""
@@ -186,7 +187,7 @@ def _freeze_with_adapter(
             },
             "normalizations": [
                 "Replaced the temporary local source path with the canonical URL.",
-                "Restored canonical YouTube title, creator, and platform metadata.",
+                "Restored canonical title, creator, and platform metadata.",
                 "Cleared meta.media_path because source media is not committed.",
                 (
                     "Cleared shot keyframe paths because derived source frames "

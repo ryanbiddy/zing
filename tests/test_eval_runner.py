@@ -123,6 +123,27 @@ def test_module_cli_passes_on_checked_in_sample(tmp_path: Path) -> None:
     assert json.loads(report_path.read_text(encoding="utf-8"))["passed"] is True
 
 
+def test_bare_module_cli_names_the_default_sample_mode(tmp_path: Path) -> None:
+    report_path = tmp_path / "default report.json"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "tools.eval.run",
+            "--report",
+            str(report_path),
+            "--ffmpeg",
+            "not-installed-ffmpeg",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "mode: checked-in sample" in result.stdout
+
+
 def test_module_cli_writes_report_on_error(tmp_path: Path) -> None:
     report_path = tmp_path / "error report.json"
     empty_goldens = tmp_path / "empty goldens"

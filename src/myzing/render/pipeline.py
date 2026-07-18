@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import json
 import math
 import os
@@ -30,6 +31,28 @@ class RenderResult:
     command: tuple[str, ...]
     filtergraph: str
     work_dir: Path | None
+
+
+def _publish_output(staged_output: Path, output_path: Path) -> None:
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise RenderError(f"could not create output directory: {exc}") from exc
+    try:
+        os.replace(staged_output, output_path)
+        return
+    except OSError as exc:
+        cross_device = (
+            exc.errno == errno.EXDEV or getattr(exc, "winerror", None) == 17
+        )
+        if not cross_device:
+            raise RenderError(f"could not publish rendered output: {exc}") from exc
+    try:
+        shutil.move(staged_output, output_path)
+    except OSError as exc:
+        raise RenderError(
+            f"could not publish rendered output across filesystems: {exc}"
+        ) from exc
 
 
 def probe_media(path: Path, ffprobe: str = "ffprobe") -> MediaInfo:
@@ -181,11 +204,7 @@ def _render_in_directory(
     if not staged_output.is_file() or staged_output.stat().st_size == 0:
         raise RenderError("ffmpeg reported success but produced no output")
 
-    try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(staged_output, output_path)
-    except OSError as exc:
-        raise RenderError(f"could not publish rendered output: {exc}") from exc
+    _publish_output(staged_output, output_path)
     return RenderResult(
         output_path=output_path,
         duration=validated.duration,

@@ -53,19 +53,21 @@ regression test that fails before the fix.
 
 ## P3 — quality (fix after P1/P2 or bundle where trivial)
 
-- [ ] **F-13 · Lane C ·** 9:16-hardcoded caption geometry mis-places
-  captions on landscape EDLs (matters once long-form output exists).
-- [ ] **F-14 · Lane C ·** word-timed captions strobe during inter-word
-  gaps.
+- [x] **F-13 · FIXED #51 ·** caption geometry now derives from validated
+  9:16, 16:9, or 1:1 output presets, with a real landscape content probe.
+- [x] **F-14 · FIXED #51 ·** word-timed captions hold through inter-word
+  gaps and to the caption end.
 - [ ] **F-15 · Lane B (+A) ·** env-var workspace override is thread-unsafe
   under the MCP job pattern — pass workspace explicitly through study().
-- [ ] **F-16 · Lane D/orchestrator ·** truth-data error: the "raw,
-  no-edit" example video measured 34 shots (15 cuts in 20–30s) — either
-  D-Q2's truth is wrong or the clip genuinely has cuts. Re-verify by eye;
-  replace the clip if it's actually edited; correct
-  EXAMPLE-DATASET(-TRUTH).md.
+- [x] **F-16 · FIXED #52/#54 ·** the published upload is now labeled an
+  extremely edited showcase; the corrected truth and dependent Lane C
+  provenance were re-verified and re-pinned.
 - [ ] **F-17 · all ·** remaining P3s as listed in the three review files
   (review each file's tail section during the fix sprint).
+  - **Lane C sweep complete (C-Q8):** fixed canonical-platform derivation
+    in real-video freezes, cross-filesystem render publishing, and explicit
+    default-sample CLI disclosure. The overlapping-word item remains an
+    upstream EDL-sanitization contract; F-15 remains assigned to Lanes A+B.
 
 ## Passed with credit
 

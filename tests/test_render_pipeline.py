@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import subprocess
 from pathlib import Path
 
@@ -39,3 +40,28 @@ def test_probe_wraps_subprocess_timeout(tmp_path: Path, monkeypatch) -> None:
 
     with pytest.raises(RenderError, match="could not run ffprobe"):
         probe_media(source)
+
+
+def test_publish_falls_back_for_cross_device_work_directory(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    staged = tmp_path / "work" / "rendered.mp4"
+    staged.parent.mkdir()
+    staged.write_bytes(b"rendered")
+    output = tmp_path / "output" / "final.mp4"
+
+    def cross_device(source: Path, destination: Path) -> None:
+        raise OSError(errno.EXDEV, "cross-device link")
+
+    def move(source: Path, destination: Path) -> None:
+        destination.write_bytes(source.read_bytes())
+        source.unlink()
+
+    monkeypatch.setattr(pipeline.os, "replace", cross_device)
+    monkeypatch.setattr(pipeline.shutil, "move", move)
+
+    pipeline._publish_output(staged, output)
+
+    assert output.read_bytes() == b"rendered"
+    assert not staged.exists()
