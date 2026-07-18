@@ -18,3 +18,4 @@
 - 2026-07-18 ~06:50 · it#16 (lean) · C-Q4 regression baselines frozen (#43); S1-REVIEW-lane-c landed (#44). Awaiting lane A+B reviews before S1-FIXLIST. No open PRs, main green.
 - 2026-07-18 ~07:25 · it#17 (quiet) · No new activity; lanes A/B sessions likely ended pre-review. Plan post-reset: agent-substitute the missing cross-reviews, compile S1-FIXLIST, MORNING-DIGEST.
 - 2026-07-18 ~08:05 · it#18 (full cadence) · uoink #187 keep_media MERGED. Two fresh-eyes review agents launched (lane A/B duties). MORNING-DIGEST-2026-07-18 written. Next: S1-FIXLIST when reviews land.
+- 2026-07-18 ~08:50 · it#19 · All 3 S1 reviews in. S1-FIXLIST compiled: 5 P1 (hollow CI gate — incl. my own gate-review miss on C-Q1; MCP slug traversal SECURITY; crash-state lies; stale-ready breakdowns; doctor OCR lie), 7 P2, P3 batch incl. example-dataset truth error. Fix sprint OPEN; core promises held under adversarial review.

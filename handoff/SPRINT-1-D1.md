@@ -207,6 +207,7 @@ admired shorts (uoink them) as the real reference set.
 - [x] Lane B — doctor/storage/MCP/prompt pack (gate passed #31; real-engine e2e verified #35)
 - [x] Lane C-1 — eval harness (#24, Ubuntu+Windows CI green)
 - [x] Lane C-2 — renderer (#39, content-probe oracle green) · C-Q3 perf harness (#42)
-- [ ] S1 REVIEW ROUND (open as of 2026-07-18): each lane reviews the OTHER lanes → handoff/reviews/S1-REVIEW-<lane>.md → orchestrator fixlist → fix sprint
+- [x] S1 REVIEW ROUND — all three reviews landed (lane-c by Sol; lane-a/b duties covered by fresh-eyes agents)
+- [ ] S1 FIX SPRINT (open): work handoff/reviews/S1-FIXLIST.md — 5 P1, 7 P2, P3 batch. Nothing new starts until P1/P2 clear.
 - [ ] Wizard-of-oz exit gate (orchestrator + Ryan — the last S1 box)
 - Orchestrator log lives in `handoff/ORCHESTRATOR-LOG.md`.
