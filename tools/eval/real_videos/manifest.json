@@ -5,8 +5,8 @@
   "media_policy": {
     "committed": false,
     "reason": "The Uoink corpus deletes source media after extraction.",
-    "derived_frames_committed": false,
-    "derived_frames_reason": "Redistribution terms for extracted source frames are not documented.",
+    "derived_frames_committed": true,
+    "derived_frames_reason": "A-Q6: small downscaled analysis thumbnails (<=360px JPEG) are committed so visual judgment criteria are scoreable; source media itself stays uncommitted.",
     "recovery": "Refetch each canonical URL with yt-dlp and verify the frozen source-media SHA-256 before comparing measurements."
   },
   "source_acquisition": {
@@ -43,7 +43,7 @@
       "source_url": "https://www.youtube.com/watch?v=FHMXO_VikdA",
       "title": "Raw Footage for Editing Practice",
       "creator": "MrDenoise",
-      "truth_section": "2. RAW VIDEO",
+      "truth_section": "2. EXTREMELY EDITED SHOWCASE",
       "truth_caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link."
     }
   ]

@@ -10,9 +10,10 @@
   },
   "human_truth": {
     "path": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
-    "section": "2. RAW VIDEO",
-    "sha256": "b0d05f1b14c5d0610141f7a7c48d135d803aa6cde2a3472e830a9e370d644d02",
-    "caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link."
+    "section": "2. EXTREMELY EDITED SHOWCASE",
+    "sha256": "fbdc1f9980cf55c58b35a853ddafe952b524fc5e4321e5ee5863a467186f03e3",
+    "caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link.",
+    "note": "hash re-recorded after the human-truth doc was corrected post-freeze (D-Q4/F-16); fixture measurements unchanged, truth section verified present"
   },
   "source_media": {
     "committed": false,
@@ -40,7 +41,7 @@
     "Replaced the temporary local source path with the canonical URL.",
     "Restored canonical YouTube title, creator, and platform metadata.",
     "Cleared meta.media_path because source media is not committed.",
-    "Cleared shot keyframe paths because derived source frames are not committed without documented redistribution terms."
+    "Backfilled shot keyframe paths and committed downscaled analysis thumbnails (A-Q6); frames grabbed from SHA-verified source media at frozen timestamps — measurements untouched."
   ],
   "measurement": {
     "shot_detector": "scenedetect-0.7 AdaptiveDetector",
@@ -134,9 +135,57 @@
   },
   "manifest": {
     "path": "tools/eval/real_videos/manifest.json",
-    "sha256": "5ed01c48ff0b0870adda73cae5e244b22d9e2b1f1a6c28bccdce6a538ee2dde6"
+    "sha256": "493d64ad0e74b4fd750754a422527ed2a8aa553c7cfad01312a94ed6b2b755e5"
   },
   "artifacts": {
-    "breakdown.json": "b20496c61970e1ae96fa4a903a5c72c3bb26af87f08a9256b7637b6181e8be66"
+    "breakdown.json": "2723d5d23122526bac2347d3a67007dae11c370554da003855dc3f94055e8832",
+    "frames/shot_000.jpg": "f85955a9943ac95d773289f3b0b09845ccdea160a3023dd8489ddb5be47e7b6e",
+    "frames/shot_001.jpg": "1f4cb2a2994a51c9f47a86cdf7e77195ee15b1d8c2e0217bfe8fb7add422defa",
+    "frames/shot_002.jpg": "19868a2b321808017abdb3a2f5d724c0d6a79d662bc5faae787140ed86157eef",
+    "frames/shot_003.jpg": "5dfcc27166236dae0f68f8ea85aae640d1426a20450125a949aba22bdcf89638",
+    "frames/shot_004.jpg": "4ec358557aacbe3274556de55a94d1b9efb48dba0bc429e7e1b120939977bd99",
+    "frames/shot_005.jpg": "9962ff1dc3173eba6cf725659c91c1ca97f9a92b6ebbac39984b9599487af22b",
+    "frames/shot_006.jpg": "55d8fd2da1d471195f6490dce0be057b58322b5baff8927fbcb7edcd882ca85c",
+    "frames/shot_007.jpg": "5807f665ae75ceef4a0b7a4f82943dce30ea97c123f9e4ad320e206d9e88a1c5",
+    "frames/shot_008.jpg": "acacba26c5b0f43b48275b1ebeb582f6f5324a45b48bd8bf25c9e2b27fed572e",
+    "frames/shot_009.jpg": "6e3cfc86b5a13396563639158abb967aff5f26b1c508c01bfdf3940a2ab4ce43",
+    "frames/shot_010.jpg": "9ad30dc0feb43bcefc226012c63dab31f2fc6b7c912ace33a4c79bd421d7386e",
+    "frames/shot_011.jpg": "41e395855f5fe3aac1cdadd8e93ed34b81663eec655090031792b3e1c8450cb2",
+    "frames/shot_012.jpg": "f30884da25a03eb98331b06ff17feeeb0c6bbc5d604ff2de8cc5c84ea58e87fa",
+    "frames/shot_013.jpg": "8fe809f7d1f23278da35822c8d77ccb4a69475e92217f701af63e4505d69c554",
+    "frames/shot_014.jpg": "1815cb81f3d42773b486add62327a5ac3d16d05ab1ce8b8e71b6e2bbd63ee663",
+    "frames/shot_015.jpg": "8712ba5c3ef41d491bda49a8929a27f38b6b75c96c67de4dda5a5a66f8eafc71",
+    "frames/shot_016.jpg": "e927c683e4805c37462e99f433eb428dcf2825279cd1e71e14a75ada0881cef8",
+    "frames/shot_017.jpg": "60bcb71581ee82791742ee1816f49d844901ddeeb6bcad13f5085a95b42e4003",
+    "frames/shot_018.jpg": "0517e3d88784cc07063431bd2f0716156db82fbe33af7c091ffa177cb3da5e3c",
+    "frames/shot_019.jpg": "0e2d07c2d2ac6e7b7440dfef701f49c52021996f76046f24b1edaeaf205d5d3d",
+    "frames/shot_020.jpg": "71eb4c5b45cfc8f7552d7dc242ad308f80997d7de23f6ea660b616e6651cdcfc",
+    "frames/shot_021.jpg": "68cc3eab27a9b4d64498d3b64357980ccbb8390fc0a182410fab20272b81b0ca",
+    "frames/shot_022.jpg": "da0ef66deb173048f740f22aae5ee790ab175a0c4c1c2b2aabca2c10b6052c01",
+    "frames/shot_023.jpg": "bb15a66356bb975266c2ac2fffdb446af9bd7045fb43c49da23b1e1b594d1c2a",
+    "frames/shot_024.jpg": "ba892e35a4863061fac383f171de72a520ef35938ea09bdb60a338a44de7d177",
+    "frames/shot_025.jpg": "3d46d6554e095cfc9129f57dae85244219e6cdc6ff719df7ce6b62e09888b356",
+    "frames/shot_026.jpg": "cf42024ded3b239d575bb558da249c3f0b4e0245eb45cf6b5b0d834229b2cabb",
+    "frames/shot_027.jpg": "0825c04ee28f944d58ee9a1a55964ee9aa4c1562bb5fe9b95471b27d3ce04369",
+    "frames/shot_028.jpg": "7236d2e2d012159135df40c9c0900fb452dfb0c4cc3e4fa5abc2eb13d96f829e",
+    "frames/shot_029.jpg": "3897de32c5ea2b78ba18f7cccd93e448a1e1865620a667bf44968b3b498661fa",
+    "frames/shot_030.jpg": "3979be84e72f2386edbfdb7c00344592a4febdfae2e214c49333c4d44972bb81",
+    "frames/shot_031.jpg": "084f42367b209a276db637f635d66da71e52918d1eb5317e2a34e3d81d73b500",
+    "frames/shot_032.jpg": "ff9779b1c2e5e4ed4c2899c933e94aa2ac78c0dc02e327d4fcf9b6c03e6c74ee",
+    "frames/shot_033.jpg": "2df8d9562707f20635d81c655c720760453fd50a0de245d1ed0191c1bcf7953a",
+    "frames/hook_0s.jpg": "f85955a9943ac95d773289f3b0b09845ccdea160a3023dd8489ddb5be47e7b6e",
+    "frames/hook_1s.jpg": "eefa7c4b1042c5ca9416d09aa479b353c20ea706b04f04dfb6f1434b544f7917",
+    "frames/hook_2s.jpg": "a35e0114dafb52cdd7496929df2e7a2a443abc8089f741cb637a028a9af3140c"
+  },
+  "derived_frames": {
+    "committed": true,
+    "decision": "A-Q6 (orchestrator, 2026-07-18): small analysis thumbnails ship with baselines so visual judgment criteria are scoreable",
+    "recipe": {
+      "source": "sha256-verified source media (see source_media)",
+      "timestamps": "frozen shot starts + 1 fps over the hook window",
+      "scale": "height<=360",
+      "jpeg_quality": "7"
+    },
+    "count": 37
   }
 }
