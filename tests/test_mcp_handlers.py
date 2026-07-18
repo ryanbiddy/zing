@@ -319,6 +319,11 @@ def test_get_breakdown_full_and_summary(zing_workspace):
     assert summary["ok"] is True
     assert "words" not in summary["breakdown"]
     assert summary["breakdown"]["counts"]["words"] == 30
+    # every per-event array in the contract is countable in the summary —
+    # a new schema field must not silently vanish from the compact view
+    assert set(summary["breakdown"]["counts"]) == {
+        "shots", "words", "captions", "transitions",
+    }
     bad = mcp_server.h_get_breakdown(SLUG, detail="everything")
     assert bad["ok"] is False
 
