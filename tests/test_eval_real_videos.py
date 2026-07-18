@@ -22,6 +22,15 @@ CHECKED_IN = ROOT / "tools" / "eval" / "real_videos"
 
 
 def _sha256(path: Path) -> str:
+    """Normalized text hash, matching ``freeze_real_videos._text_sha256``.
+
+    ``read_text`` decodes with universal newlines, so CRLF worktrees
+    (Windows checkouts with ``core.autocrlf``) and LF checkouts (CI) hash
+    identically: every text pin is the sha256 of the LF-normalized UTF-8
+    text. Do not "simplify" this to ``read_bytes`` — that would make the
+    pins line-ending dependent and break on one side or the other. Binary
+    artifacts (keyframe JPEGs) are hashed raw where they are checked.
+    """
     content = path.read_text(encoding="utf-8")
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
@@ -122,6 +131,18 @@ def test_freeze_real_videos_writes_portable_outputs_and_provenance(
 
 
 def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
+    """Frozen fixtures stay pinned to the documents they were frozen against.
+
+    Pin chain (dependency order): each ``provenance.json`` pins the truth
+    doc and the manifest by normalized-text sha256 (see ``_sha256`` —
+    line-ending independent by construction), and its own artifacts —
+    text artifacts normalized, binary keyframe JPEGs by raw bytes.
+    Nothing pins the provenance files themselves, so a sanctioned
+    truth-document correction (e.g. fixlist item F-16, PR #52) is
+    recorded by re-pinning the ``human_truth``/``manifest`` hashes and
+    keeping a ``human_truth.supersession`` record (date, superseded
+    hash) — without touching the frozen measurements.
+    """
     manifest_path = CHECKED_IN / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     truth_path = ROOT / manifest["human_truth"]
