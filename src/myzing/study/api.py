@@ -161,9 +161,19 @@ def _zing_version() -> str:
 @contextmanager
 def _workspace_override(workspace: Path | None):
     """Point storage at a caller-chosen workspace for the duration of one
-    study; storage reads ZING_HOME at call time, never caches."""
+    study.
+
+    F-15 closed: storage's ``use_workspace`` (ContextVar-based) pins the
+    workspace for this thread/context only — safe under concurrent MCP
+    jobs, no process-global state. The env-var mutation below survives
+    solely as a fallback for a storage build without ``use_workspace``.
+    """
     if workspace is None:
         yield
+        return
+    if hasattr(storage, "use_workspace"):
+        with storage.use_workspace(workspace):
+            yield
         return
     prior = os.environ.get(storage.ENV_VAR)
     os.environ[storage.ENV_VAR] = str(workspace)

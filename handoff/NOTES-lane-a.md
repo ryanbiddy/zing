@@ -1,5 +1,41 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): A-Q10 DELIVERED — cross-review of Lane C's day,
+  measurement-scientist lens. PRs covered: #65 (transitions), #66
+  (thumbs), #51 (caption presets, skimmed), C-Q6 speech fixture.**
+  Overall: honesty discipline is genuinely good — limitations blocks ship
+  IN the artifacts (transition report, thumbs manifest), refusal paths
+  raise instead of padding, the speech fixture carries provenance + a
+  README. Findings (file:line), judgment calls for Lane C:
+  1. `tools/eval/transitions.py:282` — `_audio_onsets` returns `[]` when
+     ffmpeg audio decode FAILS: a failed probe is indistinguishable from
+     measured-no-onsets, so `audio_aligned_cut` silently can't fire and
+     the report shows an empty onset list as if measured. The
+     skipped-vs-empty conflation the Breakdown contract bans — suggest
+     raising TransitionProbeError or an `audio_probe: failed` field.
+  2. `tools/eval/transitions.py:408` — a signature with zero predictions
+     reports `precision: 0.0`; reads as "always wrong" when it means
+     "never fired", and `macro_precision` averages those zeros down.
+     Suggest `null` + excluding no-prediction signatures from the macro.
+  3. `tools/eval/transitions.py:77,232` — pair times are frame-index/fps
+     math off `r_frame_rate` (declared, not average). Fine on synthetic
+     goldens; when C-Q12 integrates into the study pipeline it MUST
+     consume ingest's CFR-normalized media (guaranteed post-F-06) — worth
+     a code comment now so the integration can't grab raw source media.
+  4. `src/myzing/thumbs.py:636,750` — `-ss` placed AFTER `-i` = output
+     seeking: decodes from t=0 for every frame, so 5 candidates on a
+     10-min video ≈ 5 full decodes. Input seeking (`-ss` before `-i`) is
+     frame-exact on modern ffmpeg and O(1); my keyframes.py uses it.
+  5. `src/myzing/thumbs.py:428` — hook-promise window hardcoded to 30s;
+     for a 45s Short the "promise" quote may come from t≈30 (most of the
+     video). Suggest `formats.hook_window_s(duration)` (3s short-form).
+  **Fixed directly (my file): F-15 is now closed end-to-end** — found
+  storage's new ContextVar `use_workspace()` while reviewing #66;
+  `study(workspace=...)` now uses it (thread-safe, no process-global
+  state) with the env mutation kept only as a fallback for older storage;
+  test proves env is untouched even mid-study. My earlier root-param ask
+  is withdrawn — the ContextVar design is better.
+
 - **2026-07-18 (Lane A): A-Q9 DELIVERED (measured honestly)** — long-form
   (>180s) transcription now routes through faster-whisper's
   BatchedInferencePipeline (batch_size 8, VAD-segmented); short-form
