@@ -109,6 +109,38 @@ def test_slug_missing_file_still_deterministic(tmp_path):
     assert storage.slug_for(p) == storage.slug_for(p)
 
 
+# -- use_workspace (F-15) ----------------------------------------------------
+
+def test_use_workspace_beats_env_and_restores(zing_workspace, tmp_path):
+    other = tmp_path / "other-root"
+    assert storage.workspace_root() == zing_workspace
+    with storage.use_workspace(other):
+        assert storage.workspace_root() == other
+        with storage.use_workspace(tmp_path / "nested"):
+            assert storage.workspace_root() == tmp_path / "nested"
+        assert storage.workspace_root() == other
+    assert storage.workspace_root() == zing_workspace
+
+
+def test_use_workspace_is_thread_isolated(zing_workspace, tmp_path):
+    import threading
+
+    seen: dict[str, object] = {}
+    ready = threading.Barrier(2, timeout=10)
+
+    def worker(name: str, root):
+        with storage.use_workspace(root):
+            ready.wait()  # both threads inside their overrides at once
+            seen[name] = storage.workspace_root()
+
+    t1 = threading.Thread(target=worker, args=("a", tmp_path / "root-a"))
+    t2 = threading.Thread(target=worker, args=("b", tmp_path / "root-b"))
+    t1.start(); t2.start(); t1.join(10); t2.join(10)
+    assert seen["a"] == tmp_path / "root-a"
+    assert seen["b"] == tmp_path / "root-b"
+    assert storage.workspace_root() == zing_workspace  # main thread untouched
+
+
 # -- persistence -------------------------------------------------------------
 
 def test_save_and_load_roundtrip(zing_workspace):
