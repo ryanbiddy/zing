@@ -157,3 +157,11 @@
   touching study/api.py per lane rules.
 - **2026-07-18 (Lane B): claimed V-B** (TikTok virality definition,
   doc-only) — research agent run complete, doc PR follows.
+- **2026-07-18 (Lane B): V-B done** — docs/taste/VIRALITY-TIKTOK.md
+  (definition, mechanism, first-hours indicators, genre differences,
+  6 ranked scoring implications, 5 deeper threads; folklore explicitly
+  flagged and barred from calibration). PROCESS OBSERVATION (standing
+  rule): the V-round spec named the deliverable path, the required
+  sections, AND the house format in one queue entry — zero ambiguity,
+  fastest item so far. That confirms observation #2 from my last batch:
+  precision in the queue entry is the cheapest speedup this process has.
