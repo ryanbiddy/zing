@@ -1,11 +1,16 @@
 """Media ingest: URL or local file -> media staged in the breakdown folder
 plus an honest `VideoMeta`.
 
-Measurement-critical policy: every downstream timestamp assumes a constant
-frame rate, so sources that are VFR (common on TikTok/IG) or in codecs the
-measurement stack can't decode reliably are normalized to CFR H.264 once,
-here, and the normalized file is what gets measured. The re-encode is
-recorded as a warning — we say what we did to the evidence.
+Storage (paths, slugs, layout) belongs to `myzing.storage` — this module
+never invents paths. The one canonical media file per breakdown is
+``media.<ext>`` (storage's `find_media` contract).
+
+Measurement-critical policy (critique A#5, binding): every downstream
+timestamp assumes a constant frame rate, so sources that are VFR (common on
+TikTok/IG) or in codecs the measurement stack can't decode reliably are
+normalized to CFR H.264 once, here, and the normalized file REPLACES the
+staged media. The re-encode is recorded as a warning — we say what we did
+to the evidence.
 """
 
 from __future__ import annotations
@@ -16,9 +21,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
+from myzing import storage
 from myzing.schemas import VideoMeta
 
-from . import proc, workspace
+from . import proc
 from .proc import MediaError
 
 # Prefer H.264 mp4 from yt-dlp: it is the one container/codec combo that
@@ -31,14 +37,19 @@ _VFR_TOLERANCE = 0.02  # relative avg-vs-declared fps disagreement
 
 @dataclass
 class IngestResult:
+    slug: str
     meta: VideoMeta
     media_path: Path              # absolute path to the file measurements run on
     breakdown_dir: Path
     warnings: list[str] = field(default_factory=list)
 
 
+def is_url(source: str) -> bool:
+    return source.lower().startswith(("http://", "https://"))
+
+
 def detect_platform(source: str) -> str:
-    if not workspace.is_url(source):
+    if not is_url(source):
         return "file"
     host = urlparse(source).netloc.lower()
     if "tiktok" in host:
@@ -50,16 +61,17 @@ def detect_platform(source: str) -> str:
     return "url"
 
 
-def ingest(source: str, root: Path | None = None) -> IngestResult:
+def ingest(source: str) -> IngestResult:
     warnings: list[str] = []
-    slug = workspace.slug_for_source(source)
-    dest = workspace.breakdown_dir(slug, root)
+    slug = storage.slug_for(source)
+    dest = storage.breakdown_dir(slug)
+    dest.mkdir(parents=True, exist_ok=True)
 
-    if workspace.is_url(source):
-        media = _fetch(source, dest, warnings)
+    if is_url(source):
+        media = _fetch(source, slug, dest, warnings)
         info = _read_info_json(dest)
     else:
-        media = _stage_local(source, dest)
+        media = _stage_local(source, slug)
         info = {}
 
     probed = probe(media)
@@ -69,7 +81,7 @@ def ingest(source: str, root: Path | None = None) -> IngestResult:
     if need:
         warnings.append(why)
         target_fps = _fps(vstream.get("avg_frame_rate", "0/0")) or 30.0
-        media = _normalize(media, target_fps, warnings)
+        media = _normalize(media, target_fps)
         probed = probe(media)
         vstream = _video_stream(probed, media)
 
@@ -80,24 +92,27 @@ def ingest(source: str, root: Path | None = None) -> IngestResult:
 
     duration = _duration(probed, vstream)
     meta = VideoMeta(
-        source_url=source if workspace.is_url(source) else str(Path(source).resolve()),
+        source_url=source if is_url(source) else str(Path(source).resolve()),
         platform=detect_platform(source),
         author=str(info.get("uploader") or info.get("channel") or ""),
-        title=str(info.get("title") or ("" if workspace.is_url(source) else Path(source).stem)),
+        title=str(info.get("title") or ("" if is_url(source) else Path(source).stem)),
         duration=round(duration, 3),
         width=int(vstream.get("width", 0) or 0),
         height=int(vstream.get("height", 0) or 0),
         fps=round(_fps(vstream.get("avg_frame_rate", "0/0")), 3),
-        # Relative to the breakdown folder so the folder survives being moved.
+        # Relative to the breakdown folder (contract rule): the folder
+        # survives being moved; storage resolves to absolute at load.
         media_path=media.name,
     )
-    return IngestResult(meta=meta, media_path=media, breakdown_dir=dest, warnings=warnings)
+    return IngestResult(
+        slug=slug, meta=meta, media_path=media, breakdown_dir=dest, warnings=warnings
+    )
 
 
 # -- fetch / stage ----------------------------------------------------------
 
-def _fetch(url: str, dest: Path, warnings: list[str]) -> Path:
-    existing = _find_media(dest)
+def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
+    existing = storage.find_media(slug)
     if existing is not None:
         warnings.append(f"reusing already-downloaded media: {existing.name}")
         return existing
@@ -117,7 +132,7 @@ def _fetch(url: str, dest: Path, warnings: list[str]) -> Path:
             f"yt-dlp could not fetch {url} (exit {res.returncode}):\n"
             f"{proc.tail(res.stderr)}"
         )
-    media = _find_media(dest)
+    media = storage.find_media(slug)
     if media is None:
         raise MediaError(
             f"yt-dlp exited 0 but no media file landed in {dest} — "
@@ -126,21 +141,14 @@ def _fetch(url: str, dest: Path, warnings: list[str]) -> Path:
     return media
 
 
-def _stage_local(path_str: str, dest: Path) -> Path:
+def _stage_local(path_str: str, slug: str) -> Path:
     src = Path(path_str)
     if not src.is_file():
         raise MediaError(f"no such file: {src}")
-    target = dest / ("media" + src.suffix.lower())
+    target = storage.media_target(slug, src.suffix)
     if not (target.exists() and target.stat().st_size == src.stat().st_size):
         shutil.copy2(src, target)
     return target
-
-
-def _find_media(dest: Path) -> Path | None:
-    for p in sorted(dest.glob("media*")):
-        if p.suffix.lower() not in (".json", ".md") and p.is_file():
-            return p
-    return None
 
 
 def _read_info_json(dest: Path) -> dict:
@@ -187,40 +195,46 @@ def _needs_normalize(vstream: dict) -> tuple[bool, str]:
     if codec not in _SAFE_VCODECS:
         return True, (
             f"source codec '{codec}' is not reliable for frame-accurate "
-            "measurement here; re-encoding to H.264"
+            "measurement here; re-encoded to H.264"
         )
     avg = _fps(vstream.get("avg_frame_rate", "0/0"))
     declared = _fps(vstream.get("r_frame_rate", "0/0"))
     if avg > 0 and declared > 0 and abs(declared - avg) / avg > _VFR_TOLERANCE:
         return True, (
             f"variable frame rate detected (average {avg:.2f} fps vs declared "
-            f"{declared:.2f}); normalizing to constant frame rate so timestamps "
+            f"{declared:.2f}); normalized to constant frame rate so timestamps "
             "stay trustworthy"
         )
     return False, ""
 
 
-def _normalize(media: Path, fps: float, warnings: list[str]) -> Path:
-    out = media.with_name("media_cfr.mp4")
-    if out.exists():
-        warnings.append("reusing previously normalized media_cfr.mp4")
-        return out
+def _normalize(media: Path, fps: float) -> Path:
+    """Re-encode to CFR H.264 and replace the staged media in place, so
+    ``media.mp4`` stays the single canonical file storage knows about.
+    The original is refetchable (URL) or still at the user's source path
+    (local copy), so nothing irreplaceable is discarded."""
+    tmp = media.with_name("media_normalizing.mp4")
     cmd = [
         "ffmpeg", "-y", "-i", str(media),
         "-fps_mode", "cfr", "-r", f"{fps:.3f}",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-c:a", "aac", "-b:a", "192k",
-        str(out),
+        str(tmp),
     ]
     res = proc.run(cmd, timeout=900)
     if res.returncode != 0:
+        tmp.unlink(missing_ok=True)
         raise MediaError(
             f"ffmpeg failed to normalize {media.name} (exit {res.returncode}):\n"
             f"{proc.tail(res.stderr)}"
         )
-    if not out.is_file():
+    if not tmp.is_file():
         raise MediaError("ffmpeg exited 0 but produced no normalized file")
-    return out
+    final = media.with_name("media.mp4")
+    if media != final:
+        media.unlink()
+    tmp.replace(final)
+    return final
 
 
 # -- parsing helpers --------------------------------------------------------
