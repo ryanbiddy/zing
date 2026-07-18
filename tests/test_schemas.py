@@ -9,6 +9,7 @@ from myzing.schemas import (
     CaptionSpec,
     Clip,
     Shot,
+    TransitionObservation,
     VideoMeta,
     Word,
 )
@@ -33,6 +34,10 @@ def _sample_breakdown() -> Breakdown:
         audio=AudioLayout(True, 0.8, True, 0.72, [-14.0, -13.2]),
         avg_shot_duration=1.52,
         cuts_per_10s=[6.0, 7.0, 5.0],
+        transitions=[
+            TransitionObservation("hard_cut", 1.4, 1.4, 2, True, -0.02),
+            TransitionObservation("dissolve", 3.0, 3.4),
+        ],
         warnings=["ocr sampled at 4fps outside hook window"],
         provenance={"zing": "0.1.0", "detector": "adaptive@3.0"},
         judgment={"study": {"hook_type": "pattern_interrupt",
@@ -48,6 +53,8 @@ def test_breakdown_roundtrip():
     assert b2.shots[0].keyframe == "frames/shot_0000.jpg"
     assert b2.words[0].confidence == 0.98
     assert b2.warnings and b2.provenance["zing"] == "0.1.0"
+    assert b2.transitions[0].audio_aligned and b2.transitions[0].audio_onset_delta == -0.02
+    assert b2.transitions[1].kind == "dissolve" and b2.transitions[1].audio_onset_delta is None
     assert b2.judgment["study"]["hook_type"] == "pattern_interrupt"
 
 

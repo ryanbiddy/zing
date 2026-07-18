@@ -88,6 +88,26 @@ class AudioLayout:
 
 
 @dataclass
+class TransitionObservation:
+    """A detected transition (C-Q12, approved 2026-07-18).
+
+    kind v1 vocabulary: hard_cut | dissolve | wipe | zoom_punch. An
+    audio-aligned cut is kind="hard_cut" with audio_aligned=True and the
+    signed onset-minus-cut delta — never a duplicate event. Confidence is
+    deliberately ABSENT: the detector has synthetic per-signature
+    precision, not calibrated per-event probabilities; adding one would be
+    a lie. Detection is opt-in; failures yield an empty list plus a named
+    warning, and provenance records detector/version/thresholds.
+    """
+    kind: str
+    start: float
+    end: float
+    frame_pair_count: int = 0
+    audio_aligned: bool = False
+    audio_onset_delta: float | None = None
+
+
+@dataclass
 class VideoMeta:
     source_url: str
     platform: str                 # tiktok | instagram | youtube | x | file
@@ -121,6 +141,8 @@ class Breakdown:
     # the window list length implies coverage.
     avg_shot_duration: float = 0.0
     cuts_per_10s: list[float] = field(default_factory=list)  # windowed cut rate
+    # Typed transition observations (opt-in detection; empty when not run).
+    transitions: list[TransitionObservation] = field(default_factory=list)
     # Measurement honesty: every skipped/degraded measurement MUST be named
     # here (e.g. "transcription skipped: faster-whisper not installed").
     # Empty lists downstream are ambiguous without this.
@@ -154,6 +176,7 @@ class Breakdown:
             audio=AudioLayout(**d.get("audio", {})),
             avg_shot_duration=d.get("avg_shot_duration", 0.0),
             cuts_per_10s=d.get("cuts_per_10s", []),
+            transitions=[TransitionObservation(**t) for t in d.get("transitions", [])],
             warnings=d.get("warnings", []),
             provenance=d.get("provenance", {}),
             judgment=d.get("judgment", {}),
