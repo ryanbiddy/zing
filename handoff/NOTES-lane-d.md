@@ -5,6 +5,9 @@
 - claimed D-Q3
 - claimed D-Q4
 - claimed D-Q5
+- claimed D-Q6
+- claimed V-D
+
 
 
 
