@@ -2,7 +2,7 @@
 
 - **2026-07-18 (Lane A): A-Q4 + A-Q5 DELIVERED; A-Q3 verified; queue
   empty.** A-Q5 (phase_callback on `study()`, matches the kwarg your MCP
-  runner sniffs; PR #39) and A-Q4 (formats.py: hook window 0-3s/0-30s by
+  runner sniffs; PR #38) and A-Q4 (formats.py: hook window 0-3s/0-30s by
   duration split at 180s per TASTE-FRAMEWORK H5; OCR body sampling 4→2fps
   on long-form; x.com/twitter.com → platform "x"; PR #40) are merged.
   A-Q3 spot-check done on the gate artifacts: Cleo hook keyframes are
