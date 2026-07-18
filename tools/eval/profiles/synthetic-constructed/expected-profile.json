@@ -1,0 +1,80 @@
+{
+  "name": "synthetic-profile",
+  "source_slugs": [
+    "synthetic-1",
+    "synthetic-2",
+    "synthetic-3",
+    "synthetic-4",
+    "synthetic-5"
+  ],
+  "genre": "",
+  "platform": "youtube",
+  "duration": {
+    "median": 10.0,
+    "p25": 10.0,
+    "p75": 10.0,
+    "n": 5
+  },
+  "shot_duration": {
+    "median": 5.0,
+    "p25": 5.0,
+    "p75": 5.0,
+    "n": 5
+  },
+  "cuts_per_10s_curve": [
+    {"median": 1.0, "p25": 1.0, "p75": 1.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5},
+    {"median": 0.0, "p25": 0.0, "p75": 0.0, "n": 5}
+  ],
+  "time_to_first_cut": {
+    "median": 0.5,
+    "p25": 0.5,
+    "p75": 0.5,
+    "n": 5
+  },
+  "time_to_first_word": {
+    "median": 0.2,
+    "p25": 0.1,
+    "p75": 0.3,
+    "n": 5
+  },
+  "time_to_first_caption": {
+    "median": 0.4,
+    "p25": 0.2,
+    "p75": 0.6,
+    "n": 5
+  },
+  "caption_all_caps_rate": 0.6,
+  "caption_words_visible_mode": 2,
+  "speech_ratio": {
+    "median": 0.5,
+    "p25": 0.2,
+    "p75": 0.8,
+    "n": 5
+  },
+  "music_present_rate": 0.4,
+  "transition_kind_counts": {
+    "hard_cut": 5,
+    "dissolve": 1,
+    "wipe": 1,
+    "zoom_punch": 2
+  },
+  "judged": {},
+  "unjudged_source_slugs": [
+    "synthetic-1",
+    "synthetic-2",
+    "synthetic-3",
+    "synthetic-4",
+    "synthetic-5"
+  ],
+  "warnings": [],
+  "provenance": {},
+  "schema_version": 1
+}

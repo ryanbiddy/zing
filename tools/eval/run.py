@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
-from myzing.schemas import Breakdown
+from myzing.schemas import Breakdown, StyleProfile
 
 from .audio_delivery import (
     measure_audio_delivery,
@@ -25,12 +25,17 @@ from .performance import (
     summarize_performance,
     unavailable_performance,
 )
+from .profile_scoring import (
+    ProfileBuilder,
+    evaluate_profile_cases,
+)
 from .scoring import MANIFEST, MANIFEST_PATH, score
 
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_REPORT = HERE / "eval-report.json"
 SAMPLE_DIRECTORY = HERE / "sample"
+DEFAULT_PROFILE_CASES = HERE / "profiles"
 
 
 def study_adapter(media_path: Path) -> Breakdown:
@@ -42,6 +47,22 @@ def study_adapter(media_path: Path) -> Breakdown:
             "Lane A study API is unavailable; run with --sample until it lands"
         ) from exc
     return study(str(media_path))
+
+
+def profile_builder_adapter(
+    name: str,
+    slugs: list[str],
+    workspace: Path,
+) -> StyleProfile:
+    """Adapt Lane A's stable workspace API to the profile scorer."""
+    try:
+        from myzing.profile.api import build_profile
+    except ImportError as exc:
+        raise RuntimeError(
+            "Lane A profile builder is unavailable; omit --profiles until "
+            "it lands"
+        ) from exc
+    return build_profile(name, slugs, workspace=workspace)
 
 
 def _adapter_performance(
@@ -120,6 +141,8 @@ def evaluate(
     *,
     adapter: Callable[[Path], Breakdown] | None = None,
     ffmpeg: str = "ffmpeg",
+    profile_case_directories: Sequence[Path] = (),
+    profile_builder: ProfileBuilder | None = None,
 ) -> dict[str, Any]:
     """Evaluate a non-empty case set and write a machine-readable report."""
     if not case_directories:
@@ -152,8 +175,12 @@ def evaluate(
             }
         )
 
+    profile_eval = evaluate_profile_cases(
+        profile_case_directories,
+        builder=profile_builder,
+    )
     report = {
-        "report_schema_version": 3,
+        "report_schema_version": 4,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -161,9 +188,13 @@ def evaluate(
         "python": platform.python_version(),
         "ffmpeg": _ffmpeg_version(ffmpeg),
         "wall_clock_seconds": round(time.perf_counter() - started, 6),
-        "passed": all(case["score"]["passed"] for case in cases),
+        "passed": (
+            all(case["score"]["passed"] for case in cases)
+            and profile_eval["passed"] is not False
+        ),
         "audio_delivery": summarize_audio_delivery(cases),
         "performance": summarize_performance(cases),
+        "profile_eval": profile_eval,
         "cases": cases,
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -178,7 +209,7 @@ def evaluate(
 
 def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
     report = {
-        "report_schema_version": 3,
+        "report_schema_version": 4,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -190,6 +221,7 @@ def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
         "error": {"type": type(exc).__name__, "message": str(exc)},
         "audio_delivery": summarize_audio_delivery([]),
         "performance": summarize_performance([]),
+        "profile_eval": evaluate_profile_cases([], builder=None),
         "cases": [],
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -222,6 +254,11 @@ def run(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
+    parser.add_argument(
+        "--profiles",
+        action="store_true",
+        help="also build and score the checked-in Sprint 2 profile cases",
+    )
     args = parser.parse_args(argv)
 
     if args.study:
@@ -242,12 +279,33 @@ def run(argv: Sequence[str] | None = None) -> int:
         case_directories = [SAMPLE_DIRECTORY]
         adapter = None
 
+    if args.profiles:
+        if not DEFAULT_PROFILE_CASES.is_dir():
+            parser.error(
+                f"profile cases directory not found: {DEFAULT_PROFILE_CASES}"
+            )
+        profile_case_directories = sorted(
+            path
+            for path in DEFAULT_PROFILE_CASES.iterdir()
+            if (path / "expected-profile.json").is_file()
+        )
+        if not profile_case_directories:
+            parser.error(
+                f"no profile cases found in: {DEFAULT_PROFILE_CASES}"
+            )
+        profile_builder = profile_builder_adapter
+    else:
+        profile_case_directories = []
+        profile_builder = None
+
     try:
         report = evaluate(
             case_directories,
             args.report,
             adapter=adapter,
             ffmpeg=args.ffmpeg,
+            profile_case_directories=profile_case_directories,
+            profile_builder=profile_builder,
         )
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         _write_error_report(args.report, args.ffmpeg, exc)

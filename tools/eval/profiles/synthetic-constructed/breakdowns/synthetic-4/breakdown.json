@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "source_url": "synthetic://profile/4",
+    "platform": "youtube",
+    "duration": 10.0
+  },
+  "shots": [
+    {"index": 0, "start": 0.0, "end": 0.5},
+    {"index": 1, "start": 0.5, "end": 10.0}
+  ],
+  "words": [
+    {"text": "four", "start": 0.3, "end": 0.4}
+  ],
+  "captions": [
+    {
+      "text": "four",
+      "start": 0.6,
+      "end": 1.4,
+      "all_caps": false,
+      "words_visible": 2
+    }
+  ],
+  "audio": {
+    "has_music": false,
+    "speech_ratio": 0.8
+  },
+  "avg_shot_duration": 5.0,
+  "cuts_per_10s": [1.0],
+  "transitions": [
+    {"kind": "hard_cut", "start": 0.5, "end": 0.5},
+    {"kind": "zoom_punch", "start": 6.0, "end": 6.3}
+  ],
+  "provenance": {
+    "transition_detection": {"enabled": true}
+  }
+}
