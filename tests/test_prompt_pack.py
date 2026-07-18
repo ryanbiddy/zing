@@ -26,8 +26,31 @@ def real_pack(monkeypatch):
 
 # -- shipped pack integrity --------------------------------------------------
 
-def test_pack_ships_study_and_direct(real_pack):
-    assert prompt_pack.available_prompts() == ["direct", "study"]
+def test_pack_ships_expected_prompts(real_pack):
+    assert prompt_pack.available_prompts() == ["compare", "direct", "study"]
+
+
+def test_compare_frontmatter_and_example_contract(real_pack, zing_workspace):
+    """S2: compare.md's own example must pass save_judgment(section='compare')."""
+    meta, text = prompt_pack.load_prompt("compare")
+    assert re.fullmatch(r"\d+\.\d+\.\d+", meta["version"])
+    assert set(meta["required_keys"]) == {
+        "fit", "rubric_scores", "deviations", "overall",
+    }
+    example = json.loads(
+        re.search(
+            r"<example_judgment>\s*(\{.*?\})\s*</example_judgment>", text, re.DOTALL
+        ).group(1)
+    )
+    b = Breakdown(meta=VideoMeta(source_url="https://youtu.be/c", platform="youtube"))
+    storage.save_breakdown(b, slug="youtube-c")
+    result = mcp_server.h_save_judgment(
+        "youtube-c", example, section="compare", model="test"
+    )
+    assert result["ok"] is True, result.get("error")
+    assert result["prompt_version"] == meta["version"]
+    # the example must practice band honesty: both numbers cited
+    assert "vs profile" in json.dumps(example) or "vs band" in json.dumps(example)
 
 
 def test_study_frontmatter_contract(real_pack):
@@ -108,7 +131,7 @@ def test_mcp_prompts_capability_serves_the_real_pack(real_pack):
     import anyio
 
     prompts = anyio.run(server.list_prompts)
-    assert {p.name for p in prompts} == {"direct", "study"}
+    assert {p.name for p in prompts} == {"compare", "direct", "study"}
 
 
 # -- CLI ---------------------------------------------------------------------

@@ -141,6 +141,9 @@ EXPECTED_TOOLS = {
     "push_to_uoink",
     "generate_thumbnails",
     "get_frames",
+    "build_profile",
+    "get_profile",
+    "list_profiles",
 }
 
 
