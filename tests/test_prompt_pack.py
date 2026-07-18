@@ -39,6 +39,18 @@ def test_study_frontmatter_contract(real_pack):
     assert len(text.splitlines()) < 500  # skills guidance: stay lean
 
 
+def test_study_v04_transitions_and_tools_present(real_pack):
+    """B-Q11: transitions vocabulary + honest-states rule + thumbs tool."""
+    meta, text = prompt_pack.load_prompt("study")
+    flat = " ".join(text.split())  # markdown wraps phrases across lines
+    assert tuple(int(p) for p in meta["version"].split(".")) >= (0, 4, 0)
+    assert "`transitions[]`" in flat
+    assert "detector ran, found none" in flat          # three-states rule
+    assert "no per-event confidence" in flat.lower()
+    assert "audio_onset_delta" in flat
+    assert "generate_thumbnails" in flat               # tools overview
+
+
 def test_study_v02_wizard_of_oz_fixes_present(real_pack):
     """B-Q6: the four v0.2 additions from WIZARD-OF-OZ-2026-07-18 §4."""
     meta, text = prompt_pack.load_prompt("study")

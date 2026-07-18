@@ -221,3 +221,16 @@
   noted: F-15 fully closed by Lane A's #80 adopting use_workspace —
   the NOTES-relay handshake worked end to end. SG rotation log: SG-1
   done (B-Q10, aimed), SG-2 done (this); next idle cycle: SG-3.
+- **2026-07-18 (Lane B): claimed B-Q11 (gate opened by #84) → done in
+  this PR.** study.md 0.4.0: transitions[] reading rules (the three
+  honest states from A-Q11's render logic, mirrored for the AI: observed
+  / ran-none / not-run via provenance; the deliberate no-per-event-
+  confidence rule quoted from the contract; audio-aligned cuts taught as
+  beat evidence with the example modeling a citation), a compact tools
+  overview (incl. generate_thumbnails: it measures, you judge the art),
+  changelog. get_frames teaching was already in 0.3.x. PROCESS
+  OBSERVATION: the C-Q12 contract docstring was written so precisely
+  (three states, why confidence is absent) that the prompt teaching was
+  mostly transcription — contract docstrings that explain WHY are the
+  cheapest cross-lane documentation this process has; recommend the
+  schema-change checklist require a why-sentence per new field.
