@@ -78,7 +78,11 @@ def _stat(values: list[float]) -> StatSummary:
     if len(values) == 1:
         v = round(values[0], 3)
         return StatSummary(median=v, p25=v, p75=v, n=1)
-    q1, q2, q3 = quantiles(sorted(values), n=4)
+    # Inclusive method: percentiles interpolate WITHIN the observed range.
+    # The exclusive default extrapolates beyond it at small n — the S2
+    # gate run produced time_to_first_word p25 = −1.085s from two
+    # non-negative observations, which reads as a bug to every consumer.
+    q1, q2, q3 = quantiles(sorted(values), n=4, method="inclusive")
     return StatSummary(
         median=round(q2, 3), p25=round(q1, 3), p75=round(q3, 3), n=len(values)
     )
@@ -220,29 +224,45 @@ def _aggregate(
     if judged:
         judged["_meta"] = {"prompt_versions": sorted(prompt_versions)}
 
+    duration_values = _collect(
+        sources, warnings, "duration",
+        lambda b: b.meta.duration if b.meta.duration > 0 else None,
+    )
+    duration_stat = _stat(duration_values)
+    # Coherence check (S2 gate-pack finding): quartiles smooth over an
+    # 18s-next-to-635s source mix, but such a profile can't falsify
+    # anything on duration. Judge the RAW spread and say so up front.
+    if len(duration_values) >= 2:
+        low, high = min(duration_values), max(duration_values)
+        if low > 0 and high > 3 * low:
+            warnings.append(
+                f"profile coherence: source durations span {low:g}–{high:g}s "
+                f"(more than 3× spread) — sources may not share a format"
+            )
+    shot_stat = _stat(_collect(
+        sources, warnings, "shot duration",
+        lambda b: b.avg_shot_duration if b.shots else None,
+    ))
+    first_cut_stat = _stat(_collect(
+        sources, warnings, "time to first cut", _first_cut,
+    ))
+    first_word_stat = _stat(_collect(
+        sources, warnings, "time to first word", _first_word,
+    ))
+    first_caption_stat = _stat(_collect(
+        sources, warnings, "time to first caption", _first_caption,
+    ))
     return StyleProfile(
         name=name,
         source_slugs=[slug for slug, _ in sources],
         genre=genre,
         platform=platform,
-        duration=_stat(_collect(
-            sources, warnings, "duration",
-            lambda b: b.meta.duration if b.meta.duration > 0 else None,
-        )),
-        shot_duration=_stat(_collect(
-            sources, warnings, "shot duration",
-            lambda b: b.avg_shot_duration if b.shots else None,
-        )),
+        duration=duration_stat,
+        shot_duration=shot_stat,
         cuts_per_10s_curve=curve_stats,
-        time_to_first_cut=_stat(_collect(
-            sources, warnings, "time to first cut", _first_cut,
-        )),
-        time_to_first_word=_stat(_collect(
-            sources, warnings, "time to first word", _first_word,
-        )),
-        time_to_first_caption=_stat(_collect(
-            sources, warnings, "time to first caption", _first_caption,
-        )),
+        time_to_first_cut=first_cut_stat,
+        time_to_first_word=first_word_stat,
+        time_to_first_caption=first_caption_stat,
         caption_all_caps_rate=round(
             sum(c.all_caps for c in all_captions) / len(all_captions), 3
         ) if all_captions else 0.0,

@@ -1,5 +1,25 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): both S2 gate-pack findings for Lane A FIXED**
+  (thanks Lane B — both were real).
+  1. Impossible percentiles: switched `_stat` to inclusive quartiles —
+     percentiles now interpolate WITHIN the observed range (reproduced
+     your −1.085s case exactly: exclusive quantiles on {0, 11.065} give
+     p25 = −2.77; inclusive give 2.77). Regression test pins
+     0 ≤ p25 ≤ p75 ≤ max on an n=2 first-word pair.
+  2. Coherence warning: implemented on RAW duration spread (max > 3×min),
+     not the IQR — with inclusive quartiles an 18s/635s pair compresses
+     to an IQR that never trips a band×median rule; the raw spread is
+     the honest signal. Warning text names the span and says "sources
+     may not share a format". Fires on {18, 635}, quiet on {30, 45}
+     (both tested).
+  - Cross-lane note for Lane C: your profile scorer correctly CAUGHT the
+    quartile-method change (nice) — `real-frozen/expected-profile.json`
+    re-frozen from the fixed builder via your own adapter, medians
+    untouched, only p25/p75 moved (the old expectation had duration
+    p75 = 347.4s — the extrapolation artifact itself). Synthetic case
+    needed no change (method-invariant by construction).
+
 - **2026-07-18 (Lane A): S2 LANE GATE PASSED — profile builder complete.**
   `myzing/profile`: `build_profile(name, slugs, workspace=None)` per the
   S2 spec — robust stats via exclusive quartiles (StatSummary.n honest per
