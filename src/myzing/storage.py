@@ -181,6 +181,17 @@ def slug_for(url_or_path: str) -> str:
         elif host.endswith("instagram.com"):
             if parts and parts[0] in ("reel", "reels", "p", "tv") and len(parts) > 1:
                 return f"instagram-{_sanitize(parts[1])}"
+        elif (
+            host in ("x.com", "twitter.com")
+            or host.endswith(".x.com")
+            or host.endswith(".twitter.com")
+        ):
+            # /user/status/<id>, /i/status/<id> — same status id must map to
+            # the same slug whether shared as x.com or twitter.com.
+            if "status" in parts:
+                i = parts.index("status")
+                if i + 1 < len(parts):
+                    return f"x-{_sanitize(parts[i + 1])}"
 
         domain = _sanitize(host.split(":")[0])
         return f"{domain}-{_hash8(s.encode())}"
