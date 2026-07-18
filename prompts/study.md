@@ -1,7 +1,7 @@
 ---
 name: study
 description: How to judge a Zing Breakdown — hook, beats, caption style, why it works — and write the judgment back.
-version: 0.3.1
+version: 0.4.0
 required_keys: [hook, beats, caption_style, why_it_works]
 ---
 
@@ -29,6 +29,17 @@ the JSON). It contains:
 - `audio` — `speech_ratio`, `has_music` (+ `music_confidence`),
   per-second `loudness_curve` in dBFS.
 - `avg_shot_duration`, `cuts_per_10s` — pacing, precomputed.
+- `transitions[]` — detected edit transitions (opt-in measurement):
+  `kind` ∈ `hard_cut` | `dissolve` | `wipe` | `zoom_punch`, with timing;
+  hard cuts may carry `audio_aligned: true` plus a signed
+  `audio_onset_delta` (cut landing on a sound onset — cutting on the
+  beat, measured). **Three states, never conflate them:** entries
+  present = observed; empty with a `transition*` key in `provenance` =
+  detector ran, found none; empty without one = detection was not run —
+  say nothing about transitions in that case. There is deliberately NO
+  per-event confidence: the detector has known per-signature precision,
+  not calibrated probabilities — cite kinds, counts, and timings; never
+  invent certainty about any single event.
 - `warnings[]` — **read this first.** Every measurement that was skipped
   or degraded is named here. A skipped measurement is not evidence of
   absence: if transcription was skipped, empty `words` does NOT mean
@@ -40,6 +51,15 @@ images: join each relative path against the `dir` field in the
 also holds ~1fps `hook_*.jpg` stills over the hook window). Otherwise
 use the `get_frames` tool; only judge blind from text and numbers as
 the last resort.
+
+**Your Zing tools** (over MCP; skip any your client lacks):
+`get_breakdown(slug)` the measurements + `dir` for local files ·
+`get_frames(slug, timestamps)` labeled stills, ≤6 per call, sample at
+`shots[].start` · `save_judgment(slug, judgment)` write your verdict
+back · `generate_thumbnails(slug)` deterministic freeze-frame
+candidates + grounded image prompts (use when asked for thumbnails —
+it measures, you and the user judge the art) · `zing_status()` what
+works on this machine.
 
 ## 2. Ground rules (these outrank everything below)
 
@@ -103,8 +123,10 @@ Also answer the checklist booleans from measurements alone:
 
 Segment the runtime into labeled spans using `label` ∈ `hook` | `build` |
 `payoff` | `cta` | `retake` | `other`. Evidence per beat: what in the
-transcript, captions, pacing, or loudness marks the span (e.g.
-"cuts_per_10s jumps 4→9 at 20s and the transcript pivots to the reveal").
+transcript, captions, pacing, loudness, or transitions marks the span
+(e.g. "cuts_per_10s jumps 4→9 at 20s and the transcript pivots to the
+reveal"; audio-aligned cuts clustering in a span are strong evidence of
+a deliberately edited beat — cite their timings and onset deltas).
 Spans should cover the video without overlaps; leave a span out rather
 than invent one. If structure is genuinely unreadable from measurements,
 return a single span labeled `other` whose `evidence` says why.
@@ -181,7 +203,7 @@ required — `save_judgment` rejects the write otherwise.
   "beats": [
     {"label": "hook", "start": 0.0, "end": 2.8, "evidence": "claim + caption pop; 3 cuts in first 2.8s"},
     {"label": "build", "start": 2.8, "end": 21.5, "evidence": "transcript lists three pricing mistakes; pacing steady at cuts_per_10s ≈ 4"},
-    {"label": "payoff", "start": 21.5, "end": 33.0, "evidence": "'here's the exact number I use' at 21.7s; cuts_per_10s rises to 8"},
+    {"label": "payoff", "start": 21.5, "end": 33.0, "evidence": "'here's the exact number I use' at 21.7s; cuts_per_10s rises to 8; transitions: 3 audio-aligned hard cuts in 21.5-24.0s (onset deltas +0.02/-0.03/+0.01s) — cut on the beat"},
     {"label": "cta", "start": 33.0, "end": 36.2, "evidence": "words 33.1–35.9s: 'follow for part two'; final caption event 33.2–36.0s"}
   ],
   "caption_style": {
@@ -217,6 +239,11 @@ tighter than the OCR sampling interval.
 
 ## Changelog
 
+- **0.4.0** (2026-07-18, B-Q11): transitions vocabulary — the three
+  honest states (observed / ran-none / not-run), the no-per-event-
+  confidence rule, audio-aligned cuts as beat evidence; tools overview
+  including `generate_thumbnails`; example models a transitions
+  citation.
 - **0.3.1** (2026-07-18, aligned with measurement A-Q8): persistent
   overlays are now pre-excluded from `captions[]` at measurement time
   and named in `warnings` — the layer-separation rule reflects that;
