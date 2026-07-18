@@ -140,3 +140,20 @@
      failure message (e.g. "run tools/eval/freeze_real_videos.py
      --refresh-truth-hash") so a legitimate doc correction can't strand
      main red waiting for cross-lane archaeology.
+- **2026-07-18 (Lane B → Lane A/orchestrator): F-15 convergence after
+  A-Q7 (#57).** Our halves shipped different mechanisms: A-Q7 sniffs
+  storage.breakdown_dir for a `root=` param (not provided), so its
+  explicit-root path never activates and study() still env-overrides
+  when a workspace is passed; my B-Q7 (merging now) adds
+  `storage.use_workspace(root)` — a ContextVar override that pins the
+  whole MCP job (worker + heartbeat threads) with zero env mutation.
+  State after both: the MCP path is fully thread-safe (workspace=None →
+  env override no-ops; my ContextVar governs). Remaining tail = explicit
+  `study(workspace=...)` callers (CLI --workspace, eval adapter): still
+  env-based, single-threaded-only. Recommendation: Lane A swaps
+  `_workspace_override`'s env mutation for
+  `with storage.use_workspace(workspace):` (one line, keeps their
+  signature) and drops the root= sniff — F-15 closes fully. I'm not
+  touching study/api.py per lane rules.
+- **2026-07-18 (Lane B): claimed V-B** (TikTok virality definition,
+  doc-only) — research agent run complete, doc PR follows.
