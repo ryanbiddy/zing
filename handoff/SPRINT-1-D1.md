@@ -134,10 +134,16 @@ CFR-normalize on ingest, prefer avc1 mp4 (A#5). Extract keyframes per shot +
 warnings/report (A#9). Heavy deps imported lazily inside functions (B#7).
 
 **Lane B:** prompt delivery = MCP prompts capability + `get_prompt` tool
-fallback + `zing prompt <name>` CLI (B#1). `study_video` stays synchronous
-in S1 with cheap validation first, MCP progress notifications when
-progressToken present, and timeout honesty in the tool description; result
-shape designed so an S2 job-pattern upgrade isn't breaking (B#2).
+fallback + `zing prompt <name>` CLI (B#1). `study_video` — RULING REVISED
+2026-07-18 on R1-B evidence (Claude Desktop's hardcoded ~60s MCP request
+timeout; progress does not extend it): **job pattern IN S1**. study_video
+validates cheaply (bad input / missing required tools → immediate honest
+error), else starts a worker thread and returns `{ok, slug,
+status:"started"}` in <1s; `zing_status()` reports per-slug job phase;
+`get_breakdown(slug)` answers honestly while studying and returns the
+breakdown when done; a status file in the slug dir keeps crash states
+honest. The CLI `zing study` stays synchronous (same `study/api.py`
+pipeline, two surfaces) (B#2, revised).
 `save_judgment(slug, judgment, section="study")` = per-section REPLACE with
 `_meta` stamp; prompt pack carries a version header and defines the
 judgment JSON shape (B#3). Storage owns `slug_for()`; re-study overwrites
