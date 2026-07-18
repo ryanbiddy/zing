@@ -36,16 +36,21 @@ from typing import Any, Iterator
 
 from myzing.schemas import CaptionEvent
 
+from . import formats
+
 CONF_THRESHOLD = 0.75
-HOOK_WINDOW_S = 3.0
 HOOK_FPS = 8.0
-BODY_FPS = 4.0
 SIMILARITY = 0.8
 MAX_FLICKER_GAP_S = 0.5
-SAMPLING_NOTE = (
-    f"caption OCR sampled at {HOOK_FPS:.0f} fps in 0-{HOOK_WINDOW_S:.0f}s, "
-    f"{BODY_FPS:.0f} fps after; text between samples is unobserved"
-)
+
+
+def sampling_note(duration: float) -> str:
+    return (
+        f"caption OCR sampled at {HOOK_FPS:.0f} fps in "
+        f"0-{formats.hook_window_s(duration):.0f}s, "
+        f"{formats.body_fps(duration):.0f} fps after; text between samples "
+        "is unobserved"
+    )
 
 
 @dataclass
@@ -85,7 +90,7 @@ class CaptionsResult:
 
 
 def read_captions(media_path: Path, duration: float) -> CaptionsResult:
-    result = CaptionsResult(warnings=[SAMPLING_NOTE])
+    result = CaptionsResult(warnings=[sampling_note(duration)])
     if duration <= 0:
         result.warnings.append("caption OCR skipped: unknown duration")
         return result
@@ -131,7 +136,8 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
         "ocr_backend": f"rapidocr-{version}",
         "conf_threshold": CONF_THRESHOLD,
         "hook_fps": HOOK_FPS,
-        "body_fps": BODY_FPS,
+        "body_fps": formats.body_fps(duration),
+        "hook_window_s": formats.hook_window_s(duration),
     }
     return result
 
@@ -215,11 +221,14 @@ def _position_bucket(y_center: float) -> str:
 
 
 def sample_schedule(duration: float) -> list[tuple[float, float]]:
-    """(time, step) pairs: dense over the hook window, sparser after."""
+    """(time, step) pairs: dense over the format's hook window (3s
+    short-form / 30s long-form), sparser after (4 fps / 2 fps)."""
+    window = formats.hook_window_s(duration)
+    body_step = 1.0 / formats.body_fps(duration)
     times: list[tuple[float, float]] = []
     t = 0.0
     while t < duration:
-        step = 1.0 / HOOK_FPS if t < HOOK_WINDOW_S else 1.0 / BODY_FPS
+        step = 1.0 / HOOK_FPS if t < window else body_step
         times.append((round(t, 3), step))
         t += step
     return times
