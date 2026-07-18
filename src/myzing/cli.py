@@ -9,6 +9,7 @@ should almost never change. Each command module exposes
   zing serve-mcp         -> myzing.mcp_server        (Lane B)
   zing prompt <name>     -> myzing.prompt_pack       (Lane B)
   zing render <edl.json> -> myzing.render.command    (Lane C)
+  zing thumbs <video>    -> myzing.thumbs            (Lane C)
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ _COMMANDS = {
     "serve-mcp": "myzing.mcp_server",
     "prompt": "myzing.prompt_pack",
     "render": "myzing.render.command",
+    "thumbs": "myzing.thumbs",
 }
 
 

@@ -1,6 +1,6 @@
 """``zing serve-mcp``: the MCP stdio server — how AIs touch Zing.
 
-Five tools + prompt delivery, built on the official MCP Python SDK
+Tool handlers + prompt delivery, built on the official MCP Python SDK
 (FastMCP), stdio transport. Design is bound by SPRINT-1-D1 §Critique
 resolutions and the B#2 ruling (2026-07-18):
 
@@ -452,6 +452,37 @@ def h_list_breakdowns() -> dict[str, Any]:
     return _ok(count=len(entries), breakdowns=entries)
 
 
+def h_generate_thumbnails(slug: str) -> dict[str, Any]:
+    """Plain handler: package metadata stays testable without the MCP SDK."""
+    bad = _check_slug(slug)
+    if bad:
+        return bad
+    from myzing.thumbs import ThumbnailError, generate_thumbnails
+
+    try:
+        package = generate_thumbnails(slug)
+    except (OSError, ThumbnailError) as exc:
+        return _err(str(exc))
+    return _ok(**package)
+
+
+def mcp_thumbnail_content(slug: str) -> list[Any]:
+    """MCP adapter: JSON maps prompts to the attached image blocks."""
+    package = h_generate_thumbnails(slug)
+    payload = json.dumps(package, ensure_ascii=False)
+    if not package.get("ok"):
+        return [payload]
+    from mcp.server.fastmcp import Image
+
+    return [
+        payload,
+        *(
+            Image(path=candidate["frame_path"])
+            for candidate in package["candidates"]
+        ),
+    ]
+
+
 def h_save_judgment(
     slug: str,
     judgment: dict[str, Any],
@@ -625,6 +656,19 @@ def build_server():
             "title, duration, measurement counts, judgment sections."
         ),
     )(h_list_breakdowns)
+    mcp.tool(
+        name="generate_thumbnails",
+        description=(
+            "For a studied video slug, extract 3-5 source-resolution "
+            "thumbnail candidate frames and attach them with three distinct "
+            "YouTube image-model prompts (emotion, object/result tease, "
+            "story contrast). Deterministic selectors exclude burned-caption "
+            "times and cut-adjacent frames, deduplicate near-matches, and "
+            "ground every prompt promise in the first-30s transcript. "
+            "Requires stored media and ffmpeg."
+        ),
+        structured_output=False,
+    )(mcp_thumbnail_content)
     mcp.tool(
         name="save_judgment",
         description=(
