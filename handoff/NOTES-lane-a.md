@@ -1,5 +1,22 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): claimed A-Q8 + A-Q9. A-Q8 DELIVERED** —
+  region-tracked caption clustering v2: concurrent text regions (burned
+  captions vs watermarks vs scene text) now cluster independently by
+  vertical position; persistent static overlays are excluded from
+  `captions` and reported as warnings (threshold max(15s, 25% of
+  runtime)); OCR box-order flicker no longer shatters events (token-set
+  equality). Real-video deltas: Cleo hook captions now word-synced and
+  clean ("IN ANTARCTICA," / "YOU'RE NEVER ALLOWED TO" / "PEE ON THE
+  ICE!" — previously "ANTARCT IN ANTARCTICA," with watermark fragments
+  concatenated); jacket scene-text is one separate coherent event; the
+  raw video's "Raw Video Preview:" label (0-16.8s) is excluded with an
+  honest note. Goldens: all dimensions still PASS ×3 (no regression).
+  Directly addresses wizard-of-oz §4 "one OCR stream, many text layers".
+  NOTE for Lane C: fresh real-video runs will diff against the frozen
+  caption baselines — expected and intended; re-freeze when convenient.
+  **A-Q9 next** (long-form transcription perf vs the harness).
+
 - **2026-07-18 (Lane A): claimed V-A, DELIVERED** —
   `docs/taste/VIRALITY-youtube.md` (YouTube + Shorts, house format,
   16 tiered claims, all sourced from two research sweeps; primary
