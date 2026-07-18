@@ -108,6 +108,18 @@ def test_position_buckets(y, bucket):
     assert captions._position_bucket(y) == bucket
 
 
+def test_reading_order_is_row_major_not_y_jitter():
+    # Word boxes on ONE caption line jitter a few pixels vertically; the
+    # join must keep left-to-right order within the row band, and rows
+    # stay top-to-bottom.
+    o = Observation(t=0.0, step=0.125, lines=[
+        Line("CUTS", 0.9, y_center=0.601, x_center=0.7),
+        Line("QUICK", 0.9, y_center=0.612, x_center=0.3),
+        Line("headline", 0.9, y_center=0.2, x_center=0.5),
+    ])
+    assert o.text == "headline QUICK CUTS"
+
+
 # -- read_captions with mocked seams ----------------------------------------
 
 def wire(monkeypatch, frames, ocr_map, changed=None):

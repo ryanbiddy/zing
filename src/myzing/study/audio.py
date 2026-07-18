@@ -26,6 +26,7 @@ measurement, and stays with the AI.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from statistics import median
@@ -55,6 +56,7 @@ class AudioResult:
 def measure_audio(media_path: Path, duration: float) -> AudioResult:
     result = AudioResult()
     curve = _loudness_curve(media_path, result.warnings)
+    curve = _trim_to_duration(curve, duration)
     segments = _speech_segments(media_path, result.warnings)
 
     speech_ratio = 0.0
@@ -84,6 +86,17 @@ def measure_audio(media_path: Path, duration: float) -> AudioResult:
 
 
 # -- loudness ---------------------------------------------------------------
+
+def _trim_to_duration(curve: list[float], duration: float) -> list[float]:
+    """Audio streams often outlast the video by a fraction of a second
+    (AAC priming/padding); the decoder then emits a garbage near-silent
+    trailing bucket. The contract is one bucket per second of VIDEO, so
+    extra buckets beyond ceil(duration) are dropped."""
+    if duration <= 0 or not curve:
+        return curve
+    expected = max(1, math.ceil(duration - 1e-6))
+    return curve[:expected]
+
 
 def _loudness_curve(media_path: Path, warnings: list[str]) -> list[float]:
     cmd = [

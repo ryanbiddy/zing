@@ -54,6 +54,9 @@ class Line:
     text: str
     score: float
     y_center: float               # 0..1, normalized to frame height
+    x_center: float = 0.0         # 0..1, normalized to frame width
+
+ROW_BAND = 0.05                   # boxes within ~5% of frame height = one row
 
 
 @dataclass
@@ -65,7 +68,13 @@ class Observation:
 
     @property
     def text(self) -> str:
-        return " ".join(ln.text for ln in sorted(self.lines, key=lambda l: l.y_center))
+        """Reading order: row-major (y bands, then left-to-right). OCR
+        word boxes on one caption line jitter by a few pixels of y; a plain
+        y sort scrambles their order, a banded sort does not."""
+        ordered = sorted(
+            self.lines, key=lambda l: (int(l.y_center / ROW_BAND), l.x_center)
+        )
+        return " ".join(ln.text for ln in ordered)
 
 
 @dataclass
@@ -275,6 +284,7 @@ def _ocr(engine, frame) -> list[Line]:
     if boxes is None or txts is None:
         return []
     height = frame.shape[0] or 1
+    width = frame.shape[1] or 1
     lines: list[Line] = []
     for box, txt, score in zip(boxes, txts, scores or [0.0] * len(txts)):
         score = float(score)
@@ -282,7 +292,13 @@ def _ocr(engine, frame) -> list[Line]:
         if not text or score < CONF_THRESHOLD:
             continue
         ys = [pt[1] for pt in box]
+        xs = [pt[0] for pt in box]
         lines.append(
-            Line(text=text, score=score, y_center=(min(ys) + max(ys)) / 2 / height)
+            Line(
+                text=text,
+                score=score,
+                y_center=(min(ys) + max(ys)) / 2 / height,
+                x_center=(min(xs) + max(xs)) / 2 / width,
+            )
         )
     return lines
