@@ -140,6 +140,45 @@ def test_print_config_unknown_target(capsys):
     assert "desktop, code" in capsys.readouterr().out
 
 
+# -- generate_thumbnails -----------------------------------------------------
+
+def test_generate_thumbnails_returns_frames_and_prompts(
+    zing_workspace, monkeypatch, tmp_path
+):
+    frame = tmp_path / "candidate.jpg"
+    frame.write_bytes(b"jpeg")
+    package = {
+        "slug": SLUG,
+        "candidates": [
+            {
+                "frame": "thumbnails/candidate.jpg",
+                "frame_path": str(frame),
+            }
+        ],
+        "prompts": [{"archetype": name} for name in ("A", "B", "C")],
+        "manifest_path": str(tmp_path / "thumbs.json"),
+    }
+    monkeypatch.setattr(
+        "myzing.thumbs.generate_thumbnails",
+        lambda slug: package,
+    )
+
+    result = mcp_server.h_generate_thumbnails(SLUG)
+
+    assert result["ok"] is True
+    assert result["slug"] == SLUG
+    assert result["candidates"][0]["frame_path"] == str(frame)
+    content = mcp_server.mcp_thumbnail_content(SLUG)
+    assert json.loads(content[0])["ok"] is True
+    assert content[1].path == frame
+
+
+def test_generate_thumbnails_rejects_path_slug(zing_workspace):
+    result = mcp_server.h_generate_thumbnails("../../outside")
+    assert result["ok"] is False
+    assert "invalid slug" in result["error"]
+
+
 # -- study_video -------------------------------------------------------------
 
 def test_study_video_requires_source(zing_workspace):

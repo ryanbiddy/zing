@@ -139,6 +139,7 @@ EXPECTED_TOOLS = {
     "zing_status",
     "get_prompt",
     "push_to_uoink",
+    "generate_thumbnails",
 }
 
 
