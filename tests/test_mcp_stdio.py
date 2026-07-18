@@ -138,6 +138,7 @@ EXPECTED_TOOLS = {
     "save_judgment",
     "zing_status",
     "get_prompt",
+    "push_to_uoink",
 }
 
 
