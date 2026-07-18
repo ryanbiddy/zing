@@ -208,3 +208,16 @@
   named the exact lens ("does what MCP serves match what was
   measured?") — that focus found two real seam gaps a generic review
   would have skimmed past; recommend every SG-1 assignment name a lens.
+- **2026-07-18 (Lane B): SG-2 coverage sweep (standing generator, queue
+  empty this cycle).** Target: mcp_server.py, my lowest-covered module
+  (86%, worst in lane; storage 94, doctor 93, prompt_pack 95, bridge
+  94). The uncovered cluster was the F-03 crash-honesty machinery —
+  _pid_alive (incl. the Windows kernel32 branch), _parse_ts, and every
+  _reconcile_running branch (orphaned own-pid, dead foreign pid, live
+  foreign pid with fresh/stale/absent heartbeat, no-pid legacy). 13 new
+  tests using real spawned live/dead processes, not mocks. **Coverage
+  86% → 89%** (53 → 42 missed lines; remainder is the FastMCP
+  registration body exercised only via the stdio smoke test). Also
+  noted: F-15 fully closed by Lane A's #80 adopting use_workspace —
+  the NOTES-relay handshake worked end to end. SG rotation log: SG-1
+  done (B-Q10, aimed), SG-2 done (this); next idle cycle: SG-3.
