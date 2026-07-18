@@ -42,7 +42,9 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
 
     assert report["passed"] is True
     assert report["report_schema_version"] == 2
-    assert report["scorer_version"] == "1.0.0"
+    # 1.1.0: F-09 honest pairing — the machine-readable report must carry
+    # the bumped scorer version so runs are comparable across the change.
+    assert report["scorer_version"] == "1.1.0"
     assert len(report["manifest_sha256"]) == 64
     assert report["ffmpeg"] is None
     assert report["wall_clock_seconds"] >= 0

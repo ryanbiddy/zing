@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import bisect
 import json
 import math
 import re
 import unicodedata
-from functools import lru_cache
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 
 from myzing.schemas import Breakdown
 
@@ -52,75 +52,144 @@ def levenshtein_similarity(left: str, right: str) -> float:
 
 
 def _best_monotonic_pairs(
-    truth_count: int,
-    predicted_count: int,
-    allowed: Callable[[int, int], bool],
-    quality: Callable[[int, int], float],
+    candidates: Sequence[tuple[int, int]],
+    weight: Callable[[int, int], tuple[float, ...]],
 ) -> tuple[tuple[int, int], ...]:
-    """Find a deterministic maximum-cardinality chronological matching."""
+    """Find a deterministic maximum-weight chronological matching.
 
-    def rank(pairs: tuple[tuple[int, int], ...]) -> tuple[int, float, tuple]:
-        return (
-            len(pairs),
-            round(sum(quality(i, j) for i, j in pairs), 12),
-            tuple((-i, -j) for i, j in pairs),
-        )
+    ``candidates`` lists every (truth_index, predicted_index) pair that is
+    allowed to match, sorted by (truth_index, predicted_index). The result
+    is the chain with strictly increasing indices on both sides whose
+    componentwise sum of ``weight(i, j)`` tuples is lexicographically
+    largest; every ``weight`` tuple must beat the empty tuple so a longer
+    chain never loses to an empty one. Ties prefer the earliest candidates,
+    keeping the matching deterministic.
 
-    @lru_cache(maxsize=None)
-    def visit(i: int, j: int) -> tuple[tuple[int, int], ...]:
-        if i >= truth_count or j >= predicted_count:
-            return ()
-        choices = [visit(i + 1, j), visit(i, j + 1)]
-        if allowed(i, j):
-            choices.append(((i, j),) + visit(i + 1, j + 1))
-        return max(choices, key=rank)
+    Iterative by design (F-12): an explicit choice table plus a Fenwick
+    tree of prefix maxima over the predicted index, so real-video event
+    counts can never hit Python's recursion limit. O(len(candidates) *
+    log(predicted_count)) instead of the previous O(n * m) recursion.
+    """
+    if not candidates:
+        return ()
+    total = len(candidates)
+    weights = [weight(i, j) for i, j in candidates]
+    size = max(j for _, j in candidates) + 1
+    # tree[position] covers a Fenwick range of predicted indices and holds
+    # the best (chain value, candidate index) seen there; querying position
+    # p returns the best chain ending at any predicted index < p.
+    tree: list[tuple[tuple[float, ...], int] | None] = [None] * (size + 1)
 
-    return visit(0, 0)
+    def push(position: int, value: tuple[float, ...], index: int) -> None:
+        while position <= size:
+            entry = tree[position]
+            if entry is None or value > entry[0]:
+                tree[position] = (value, index)
+            position += position & -position
+
+    def prefix_best(position: int) -> tuple[tuple[float, ...], int] | None:
+        best: tuple[tuple[float, ...], int] | None = None
+        while position > 0:
+            entry = tree[position]
+            if entry is not None and (
+                best is None
+                or entry[0] > best[0]
+                or (entry[0] == best[0] and entry[1] < best[1])
+            ):
+                best = entry
+            position -= position & -position
+        return best
+
+    values: list[tuple[float, ...]] = [()] * total
+    parents = [-1] * total
+    group_start = 0
+    while group_start < total:
+        # Process all candidates sharing one truth index as a group: they
+        # query the tree before any of them is inserted, so a chain can
+        # never reuse a truth event.
+        group_end = group_start
+        truth_index = candidates[group_start][0]
+        while group_end < total and candidates[group_end][0] == truth_index:
+            group_end += 1
+        for index in range(group_start, group_end):
+            predecessor = prefix_best(candidates[index][1])
+            if predecessor is None:
+                values[index] = weights[index]
+            else:
+                values[index] = tuple(
+                    previous + step
+                    for previous, step in zip(predecessor[0], weights[index])
+                )
+                parents[index] = predecessor[1]
+        for index in range(group_start, group_end):
+            push(candidates[index][1] + 1, values[index], index)
+        group_start = group_end
+
+    best_index = 0
+    for index in range(1, total):
+        if values[index] > values[best_index]:
+            best_index = index
+    chain: list[tuple[int, int]] = []
+    index = best_index
+    while index != -1:
+        chain.append(candidates[index])
+        index = parents[index]
+    chain.reverse()
+    return tuple(chain)
 
 
 def _score_cuts(truth: dict[str, Any], breakdown: Breakdown) -> dict[str, Any]:
     tolerance = float(MANIFEST["cuts"]["time_tolerance_seconds"])
+    pairing_window = float(
+        MANIFEST["cuts"]["out_of_tolerance_pairing_window_seconds"]
+    )
     truth_cuts = sorted(float(value) for value in truth.get("cuts", []))
     ordered_shots = sorted(
         breakdown.shots, key=lambda shot: (shot.start, shot.end, shot.index)
     )
     predicted_cuts = [float(shot.start) for shot in ordered_shots[1:]]
 
-    in_tolerance = _best_monotonic_pairs(
-        len(truth_cuts),
-        len(predicted_cuts),
-        lambda i, j: abs(truth_cuts[i] - predicted_cuts[j]) <= tolerance,
-        lambda i, j: -abs(truth_cuts[i] - predicted_cuts[j]),
-    )
-    used_truth = {i for i, _ in in_tolerance}
-    used_predicted = {j for _, j in in_tolerance}
-    unmatched_truth = [i for i in range(len(truth_cuts)) if i not in used_truth]
-    unmatched_predicted = [
-        j for j in range(len(predicted_cuts)) if j not in used_predicted
+    # F-09 (C#3): a truth event may only ever pair with a RELATED prediction
+    # — one inside the declared pairing window. One matching pass maximizes
+    # (in-tolerance matches, then total related pairs, then closeness), so
+    # near-miss pairs stay chronologically consistent with real matches and
+    # everything unrelated is reported as missing/extra, never as a pair.
+    candidates = [
+        (i, j)
+        for i, cut in enumerate(truth_cuts)
+        for j in range(
+            bisect.bisect_left(predicted_cuts, cut - pairing_window),
+            bisect.bisect_right(predicted_cuts, cut + pairing_window),
+        )
     ]
-
-    out_of_tolerance = list(zip(unmatched_truth, unmatched_predicted))
-    paired_truth = used_truth | {i for i, _ in out_of_tolerance}
-    paired_predicted = used_predicted | {j for _, j in out_of_tolerance}
-    missing = [truth_cuts[i] for i in range(len(truth_cuts)) if i not in paired_truth]
+    pairs = _best_monotonic_pairs(
+        candidates,
+        lambda i, j: (
+            1.0 if abs(truth_cuts[i] - predicted_cuts[j]) <= tolerance else 0.0,
+            1.0,
+            -abs(truth_cuts[i] - predicted_cuts[j]),
+        ),
+    )
+    used_truth = {i for i, _ in pairs}
+    used_predicted = {j for _, j in pairs}
+    missing = [
+        truth_cuts[i] for i in range(len(truth_cuts)) if i not in used_truth
+    ]
     extra = [
         predicted_cuts[j]
         for j in range(len(predicted_cuts))
-        if j not in paired_predicted
+        if j not in used_predicted
     ]
 
-    all_pairs = sorted(
-        [(i, j, True) for i, j in in_tolerance]
-        + [(i, j, False) for i, j in out_of_tolerance]
-    )
     matches = [
         {
             "truth_seconds": truth_cuts[i],
             "predicted_seconds": predicted_cuts[j],
             "delta_seconds": round(predicted_cuts[j] - truth_cuts[i], 6),
-            "within_tolerance": within_tolerance,
+            "within_tolerance": abs(truth_cuts[i] - predicted_cuts[j])
+            <= tolerance,
         }
-        for i, j, within_tolerance in all_pairs
+        for i, j in pairs
     ]
     count_passed = len(truth_cuts) == len(predicted_cuts)
     timing_passed = (
@@ -138,6 +207,7 @@ def _score_cuts(truth: dict[str, Any], breakdown: Breakdown) -> dict[str, Any]:
         "timing": {
             "passed": timing_passed,
             "tolerance_seconds": tolerance,
+            "pairing_window_seconds": pairing_window,
             "matches": matches,
             "missing_seconds": missing,
             "extra_seconds": extra,
@@ -164,15 +234,32 @@ def _score_captions(truth: dict[str, Any], breakdown: Breakdown) -> dict[str, An
         key=lambda caption: (caption.start, caption.end, caption.text),
     )
 
-    pairs = _best_monotonic_pairs(
-        len(truth_captions),
-        len(predicted_captions),
-        lambda i, j: _positive_overlap(
-            truth_captions[i], predicted_captions[j]
+    # Candidate pairs are exactly the temporally overlapping ones. The
+    # running prefix maximum of predicted end times is monotone, so both
+    # window edges can be found by bisection; candidates stay sorted by
+    # (truth_index, predicted_index) as _best_monotonic_pairs requires.
+    predicted_starts = [float(caption.start) for caption in predicted_captions]
+    prefix_max_end: list[float] = []
+    running_end = -math.inf
+    for caption in predicted_captions:
+        running_end = max(running_end, float(caption.end))
+        prefix_max_end.append(running_end)
+    candidates = [
+        (i, j)
+        for i, expected in enumerate(truth_captions)
+        for j in range(
+            bisect.bisect_right(prefix_max_end, float(expected["start"])),
+            bisect.bisect_left(predicted_starts, float(expected["end"])),
         )
-        > 0.0,
-        lambda i, j: levenshtein_similarity(
-            truth_captions[i]["text"], predicted_captions[j].text
+        if _positive_overlap(expected, predicted_captions[j]) > 0.0
+    ]
+    pairs = _best_monotonic_pairs(
+        candidates,
+        lambda i, j: (
+            1.0,
+            levenshtein_similarity(
+                truth_captions[i]["text"], predicted_captions[j].text
+            ),
         ),
     )
     used_truth = {i for i, _ in pairs}
