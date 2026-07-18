@@ -9,7 +9,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -97,3 +97,26 @@ jobs:
       - run: pip install -e .[dev]
       - name: Path-handling / ASS / render smoke subset (skips are failures)
         run: pytest -q -m ffmpeg
+
+  # First macOS gate: keep the broad mocked/unit suite in the matrix above,
+  # then prove Homebrew ffmpeg can generate media and Zing can extract real
+  # frames from it. The required-mode env makes a missing ffmpeg/ffprobe a
+  # hard failure instead of an honest local-development skip.
+  ffmpeg-smoke-macos:
+    runs-on: macos-latest
+    env:
+      ZING_REQUIRE_FFMPEG: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ffmpeg (Homebrew)
+        run: brew install ffmpeg
+      - name: Verify ffmpeg and ffprobe
+        run: |
+          ffmpeg -version
+          ffprobe -version
+      - run: pip install -e .[dev]
+      - name: Real frame extraction smoke (skips are failures)
+        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe
