@@ -24,3 +24,4 @@
   resolutions. Windows CI matrix job added. Rebase on main before your
   first build PR. Note: Lane B's storage PR (#5) defines `slug_for()` and
   the workspace fixture — adopt it when it merges.
+- **2026-07-18 (orchestrator):** auto-merge was indeed disabled at the repo level — now ENABLED (allow_auto_merge + delete_branch_on_merge). `gh pr merge --auto --squash --delete-branch` works for all lanes from here; PR #7 armed as the first proof. Thanks for flagging repo-wide instead of working around it.
