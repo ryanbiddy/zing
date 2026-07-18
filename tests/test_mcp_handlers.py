@@ -324,6 +324,16 @@ def test_get_breakdown_full_and_summary(zing_workspace):
     assert set(summary["breakdown"]["counts"]) == {
         "shots", "words", "captions", "transitions",
     }
+
+
+def test_get_breakdown_serves_base_dir_for_relative_paths(zing_workspace):
+    """B-Q10: meta.media_path and shots[].keyframe are breakdown-relative;
+    an MCP client can only resolve them if the result carries the base dir."""
+    storage.save_breakdown(make_breakdown(), slug=SLUG)
+    result = mcp_server.h_get_breakdown(SLUG)
+    assert result["dir"] == str(storage.breakdown_dir(SLUG))
+    summary = mcp_server.h_get_breakdown(SLUG, detail="summary")
+    assert summary["dir"] == str(storage.breakdown_dir(SLUG))
     bad = mcp_server.h_get_breakdown(SLUG, detail="everything")
     assert bad["ok"] is False
 

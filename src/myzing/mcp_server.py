@@ -427,6 +427,11 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
     data = b.to_dict()
     if detail == "summary":
         data = _summarize_breakdown(data)
+    # Paths inside a Breakdown (meta.media_path, shots[].keyframe) are
+    # relative to the breakdown's own directory (portable on disk) — but an
+    # MCP client only sees this JSON, so serve the base dir alongside or
+    # those paths are dead ends for filesystem-capable clients.
+    b_dir = str(storage.breakdown_dir(slug))
     if state == "failed":
         # The most recent (re-)study failed but an earlier study succeeded:
         # serve that last-good measurement, explicitly marked, so the
@@ -437,6 +442,7 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
             ready=True,
             state="failed",
             restudy_error=status.get("error", "unknown"),
+            dir=b_dir,
             breakdown=data,
             hint=(
                 "the most recent re-study FAILED — this breakdown is the "
@@ -445,7 +451,7 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
                 "data knowingly."
             ),
         )
-    return _ok(slug=slug, ready=True, state="done", breakdown=data)
+    return _ok(slug=slug, ready=True, state="done", dir=b_dir, breakdown=data)
 
 
 def h_list_breakdowns() -> dict[str, Any]:
