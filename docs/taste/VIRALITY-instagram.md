@@ -8,7 +8,7 @@ How Zing defines and measures virality on Instagram Reels — grounding platform
 
 - **V-IG-1 (T1).** Instagram recommendation engine is driven by likelihood predictions. The most important predictions for Reels distribution are: **resharing** (sharing the video), **watching the Reel all the way through** (completion rate), **liking** the Reel, and **going to the audio page** (creating a Reel of their own using the same audio track). [Instagram Ranking Explained](https://about.instagram.com/blog/announcements/instagram-ranking-explained)
 - **V-IG-2 (T2).** The Instagram algorithm evaluates content using a tiered hierarchy of engagement signals. Sharing and completion rates represent the highest tier of algorithmic signal, while comments and likes represent lower tiers. [Instagram Creators Guide [DEAD 2026-07-18]](https://about.instagram.com/blog/announcements/instagram-ranking-explained)
-- **V-IG-3 (T3).** Viral benchmarks for Reels are categorized by view-to-follower ratio. A Reel is considered viral if it exceeds a view-to-follower ratio of 10x within the first 7 days `[practitioner-consensus]`.
+- **V-IG-3 (T4 / FOLKLORE).** Viral benchmarks for Reels are categorized by view-to-follower ratio: a Reel is considered viral if it exceeds a view-to-follower ratio of 10x within the first 7 days — **FOLKLORE**, no primary source found (cross-reference `VIRALITY-SYNTHESIS.md` §4.1).
 - **V-IG-4 (T3).** Save-to-Like ratio (S:L) is the primary indicator of educational or high-value virality. A ratio > 0.15 indicates standard healthy reach; a ratio > 0.30 indicates high evergreen viral velocity `[practitioner-consensus]`.
 
 ---
@@ -22,8 +22,8 @@ How Zing defines and measures virality on Instagram Reels — grounding platform
 
 ## 3. Leading Indicators in the First Hours
 
-- **V-IG-7 (T3).** The first-hour velocity (views per follower) determines the expansion tier. If the completion rate is below 50% in the initial test audience of followers and non-followers, the video is throttled `[practitioner-consensus]`.
-- **V-IG-8 (T3).** Share velocity (shares per 1,000 views) is the single most predictive leading indicator of 1M+ view virality. A share rate > 30 per 1,000 views in the first 2 hours predicts algorithmic push `[practitioner-consensus]`.
+- **V-IG-7 (T4 / FOLKLORE).** First-hour velocity (views per follower) determines the expansion tier: if the completion rate is below 50% in the initial test audience of followers and non-followers, the video is throttled — **FOLKLORE**, no primary source found (cross-reference `VIRALITY-SYNTHESIS.md` §4.1).
+- **V-IG-8 (T4 / FOLKLORE).** Share velocity (shares per 1,000 views) is the single most predictive leading indicator of 1M+ view virality: a share rate > 30 per 1,000 views in the first 2 hours predicts algorithmic push — **FOLKLORE**, no primary source found (cross-reference `VIRALITY-SYNTHESIS.md` §4.1).
 
 ---
 
