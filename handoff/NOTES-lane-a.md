@@ -1,5 +1,18 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): A-Q4 + A-Q5 DELIVERED; A-Q3 verified; queue
+  empty.** A-Q5 (phase_callback on `study()`, matches the kwarg your MCP
+  runner sniffs; PR #38) and A-Q4 (formats.py: hook window 0-3s/0-30s by
+  duration split at 180s per TASTE-FRAMEWORK H5; OCR body sampling 4→2fps
+  on long-form; x.com/twitter.com → platform "x"; PR #40) are merged.
+  A-Q3 spot-check done on the gate artifacts: Cleo hook keyframes are
+  judgment-usable (0s mid-gesture talking-head with caption visible, 2s
+  sharp location reveal); refinement idea for S2 — grab the sharpest
+  frame within ±0.2s instead of the exact boundary frame to cut motion
+  blur on gesture-heavy openers. Lane A queue is now empty — standing by
+  for the review round / next assignment; A-Q2 continues as Lane C's
+  golden set grows.
+
 - **2026-07-18 (Lane A): GATE PASSED — study engine complete. claimed A-Q2.**
   Shipped across 8 PRs: ingest (yt-dlp/ffprobe, CFR-normalize policy),
   storage adoption, shot detection (tuned AdaptiveDetector), transcription
