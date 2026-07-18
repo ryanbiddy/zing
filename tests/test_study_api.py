@@ -7,11 +7,20 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from myzing import storage
-from myzing.schemas import AudioLayout, Breakdown, CaptionEvent, Shot, VideoMeta, Word
+from myzing.schemas import (
+    AudioLayout,
+    Breakdown,
+    CaptionEvent,
+    Shot,
+    TransitionObservation,
+    VideoMeta,
+    Word,
+)
 from myzing.study import api
 from myzing.study.audio import AudioResult
 from myzing.study.captions import CaptionsResult
@@ -136,6 +145,86 @@ def test_study_survives_crashing_phase_callback(zing_workspace, monkeypatch):
     assert b.meta.platform == "tiktok"  # measurement completed regardless
 
 
+def test_study_transition_detection_is_opt_in(zing_workspace, monkeypatch):
+    wire_stages(monkeypatch)
+    calls: list[Path] = []
+    observation = TransitionObservation(
+        kind="hard_cut",
+        start=12.0,
+        end=12.0,
+        frame_pair_count=1,
+        audio_aligned=True,
+        audio_onset_delta=-0.02,
+    )
+
+    def fake_detect(media_path):
+        calls.append(media_path)
+        return SimpleNamespace(
+            transitions=[observation],
+            warnings=[],
+            provenance={
+                "transition_detector": "test-v2",
+                "transition_thresholds": {"hard_cut_difference": 15.0},
+            },
+        )
+
+    monkeypatch.setattr(
+        api,
+        "transitions_mod",
+        SimpleNamespace(detect_transitions=fake_detect),
+        raising=False,
+    )
+
+    disabled = api.study(SOURCE)
+    phases: list[str] = []
+    enabled = api.study(
+        SOURCE,
+        detect_transitions=True,
+        phase_callback=phases.append,
+    )
+
+    assert disabled.transitions == []
+    assert "transition_detector" not in disabled.provenance
+    assert calls == [storage.breakdown_dir("tiktok-777") / "media.mp4"]
+    assert enabled.transitions == [observation]
+    assert enabled.provenance["transition_detector"] == "test-v2"
+    assert enabled.schema_version == 1
+    assert phases[-2:] == ["transitions", "markdown"]
+
+
+def test_study_transition_failure_is_named(zing_workspace, monkeypatch):
+    wire_stages(monkeypatch)
+
+    class ProbeError(RuntimeError):
+        pass
+
+    def failing_detect(media_path):
+        raise ProbeError("ffmpeg could not decode transition frames")
+
+    monkeypatch.setattr(
+        api,
+        "transitions_mod",
+        SimpleNamespace(
+            TransitionProbeError=ProbeError,
+            detect_transitions=failing_detect,
+            detector_provenance=lambda: {
+                "transition_detector": "test-v2",
+                "transition_thresholds": {},
+            },
+        ),
+        raising=False,
+    )
+
+    breakdown = api.study(SOURCE, detect_transitions=True)
+
+    assert breakdown.transitions == []
+    assert breakdown.provenance["transition_detector"] == "test-v2"
+    assert breakdown.warnings[-1] == (
+        "transition detection skipped: "
+        "ffmpeg could not decode transition frames"
+    )
+
+
 def test_workspace_override_never_touches_env_with_use_workspace(
     tmp_path, monkeypatch
 ):
@@ -238,6 +327,33 @@ def test_command_json_output(zing_workspace, monkeypatch, capsys):
     assert rc == 0
     parsed = json.loads(capsys.readouterr().out)
     assert parsed["meta"]["platform"] == "tiktok"
+
+
+def test_command_forwards_transition_opt_in(monkeypatch, capsys):
+    seen: dict[str, object] = {}
+
+    def fake_study(source, workspace=None, detect_transitions=False):
+        seen.update(
+            source=source,
+            workspace=workspace,
+            detect_transitions=detect_transitions,
+        )
+        return Breakdown(
+            meta=VideoMeta(source_url=source, platform="file"),
+        )
+
+    monkeypatch.setattr("myzing.study.api.study", fake_study)
+    from myzing.study import command
+
+    rc = command.run(["clip.mp4", "--transitions", "--json"])
+
+    assert rc == 0
+    assert seen == {
+        "source": "clip.mp4",
+        "workspace": None,
+        "detect_transitions": True,
+    }
+    assert json.loads(capsys.readouterr().out)["transitions"] == []
 
 
 def test_command_media_error_is_exit_1(zing_workspace, monkeypatch, capsys):
