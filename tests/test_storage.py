@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from myzing import storage
 from myzing.schemas import Breakdown, Shot, VideoMeta
 
@@ -118,6 +120,112 @@ def test_save_judgment_rejects_non_dict(zing_workspace):
         raise AssertionError("expected TypeError")
     except TypeError as e:
         assert "dict" in str(e)
+
+
+# -- F-02: slug validation (path traversal, SECURITY) -------------------------
+# Regression tests for S1-FIXLIST F-02 / S1-REVIEW-lane-c finding 1:
+# caller-supplied slugs must never resolve outside breakdowns_root().
+
+TRAVERSAL_SLUGS = [
+    "../../escape",              # POSIX relative traversal
+    "..\\..\\escape",            # Windows relative traversal
+    "../escape",
+    "..",
+    ".",
+    "breakdowns/../../escape",   # traversal hidden behind a normal segment
+    "/etc/passwd",               # POSIX absolute
+    "/tmp/escape",
+    "C:\\Windows\\escape",       # drive-letter absolute (backslashes)
+    "C:/Windows/escape",         # drive-letter absolute (forward slashes)
+    "c:evil",                    # drive-relative
+    "\\\\server\\share\\escape", # UNC
+    "nested/inside",             # embedded POSIX separator
+    "nested\\inside",            # embedded Windows separator
+    ".hidden",                   # dot segment
+    "trailing.",
+    "has.dot",
+    "",                          # empty
+    "   ",                       # whitespace-only
+    "a" * 200,                   # oversize
+    "UPPER-Case",                # outside the slug character contract
+    "spaced slug",
+]
+
+_BOUNDARY_TRAVERSALS = [
+    "../../escape", "..\\..\\escape", "/etc/passwd", "C:\\Windows\\escape",
+]
+
+
+@pytest.mark.parametrize("bad", TRAVERSAL_SLUGS)
+def test_validate_slug_rejects_traversal_and_junk(zing_workspace, bad):
+    with pytest.raises(storage.SlugError):
+        storage.validate_slug(bad)
+
+
+@pytest.mark.parametrize("bad", _BOUNDARY_TRAVERSALS)
+def test_read_boundaries_reject_traversal(zing_workspace, bad):
+    for fn in (
+        storage.breakdown_dir,
+        storage.load_breakdown,
+        storage.find_media,
+        storage.read_status,
+    ):
+        with pytest.raises(storage.SlugError):
+            fn(bad)
+
+
+@pytest.mark.parametrize("bad", _BOUNDARY_TRAVERSALS)
+def test_write_boundaries_reject_traversal_and_touch_nothing(
+    zing_workspace, tmp_path, bad
+):
+    # With ZING_HOME at tmp_path/"zing-home", breakdowns/../../escape
+    # resolves to tmp_path/"escape" — the review's repro target.
+    outside = tmp_path / "escape"
+
+    with pytest.raises(storage.SlugError):
+        storage.save_breakdown(make_breakdown(), slug=bad)
+    with pytest.raises(storage.SlugError):
+        storage.save_judgment(bad, {"study": {"hook_type": "question"}})
+    with pytest.raises(storage.SlugError):
+        storage.media_target(bad, "mp4")
+    with pytest.raises(storage.SlugError):
+        storage.write_status(bad, state="running")
+
+    assert not outside.exists()  # nothing escaped the workspace
+    root = storage.breakdowns_root()
+    assert not root.exists() or list(root.iterdir()) == []  # no junk inside either
+
+
+def test_validate_slug_accepts_everything_slug_for_produces(zing_workspace, tmp_path):
+    sources = [
+        "https://www.tiktok.com/@user/video/7301234567890123456",
+        "https://vm.tiktok.com/ZMabc123/",
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        "https://youtu.be/dQw4w9WgXcQ",
+        "https://www.youtube.com/shorts/dQw4w9WgXcQ",
+        "https://www.instagram.com/reel/C1a_B2c/",
+        "https://example.com/some/video?x=1",
+        "https://x.com/creator/status/1234567890",
+        "https://" + "a" * 300 + ".example.com/v/1",  # oversize host still caps
+    ]
+    f = tmp_path / "My Raw Take 01.mp4"
+    f.write_bytes(b"fake video bytes")
+    sources.append(str(f))
+    sources.append(str(tmp_path / "Ghost Clip.mp4"))  # missing file form
+
+    for src in sources:
+        slug = storage.slug_for(src)
+        assert storage.validate_slug(slug) == slug, src
+
+
+def test_list_breakdowns_reports_invalid_dir_names_honestly(zing_workspace):
+    root = storage.breakdowns_root()
+    root.mkdir(parents=True)
+    (root / "Weird Name.dir").mkdir()
+    entries = storage.list_breakdowns()
+    assert len(entries) == 1
+    assert entries[0]["slug"] == "Weird Name.dir"
+    assert "error" in entries[0]
 
 
 # -- media -------------------------------------------------------------------
