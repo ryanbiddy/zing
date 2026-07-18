@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "human_truth": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
+  "source_document": "handoff/research/EXAMPLE-DATASET.md",
+  "media_policy": {
+    "committed": false,
+    "reason": "The Uoink corpus deletes source media after extraction.",
+    "derived_frames_committed": false,
+    "derived_frames_reason": "Redistribution terms for extracted source frames are not documented.",
+    "recovery": "Refetch each canonical URL with yt-dlp and verify the frozen source-media SHA-256 before comparing measurements."
+  },
+  "source_acquisition": {
+    "tool": "yt-dlp",
+    "version": "2026.7.4",
+    "format_selector": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    "merge_output_format": "mp4",
+    "no_playlist": true
+  },
+  "cases": [
+    {
+      "fixture_id": "reference-cleo-antarctica",
+      "role": "reference",
+      "video_id": "nlGYV0bmddI",
+      "selected_format_ids": [
+        "788",
+        "251"
+      ],
+      "media_filename": "nlGYV0bmddI.mp4",
+      "source_url": "https://www.youtube.com/shorts/nlGYV0bmddI",
+      "title": "Why You Can't Pee On Antarctica",
+      "creator": "Cleo Abram",
+      "truth_section": "1. REFERENCE VIDEO"
+    },
+    {
+      "fixture_id": "raw-editing-practice",
+      "role": "raw-proxy",
+      "video_id": "FHMXO_VikdA",
+      "selected_format_ids": [
+        "399",
+        "251"
+      ],
+      "media_filename": "FHMXO_VikdA.mp4",
+      "source_url": "https://www.youtube.com/watch?v=FHMXO_VikdA",
+      "title": "Raw Footage for Editing Practice",
+      "creator": "MrDenoise",
+      "truth_section": "2. RAW VIDEO",
+      "truth_caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link."
+    }
+  ]
+}

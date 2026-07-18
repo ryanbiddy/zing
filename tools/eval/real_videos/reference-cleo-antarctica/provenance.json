@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "fixture_id": "reference-cleo-antarctica",
+  "source": {
+    "url": "https://www.youtube.com/shorts/nlGYV0bmddI",
+    "video_id": "nlGYV0bmddI",
+    "role": "reference",
+    "title": "Why You Can't Pee On Antarctica",
+    "creator": "Cleo Abram"
+  },
+  "human_truth": {
+    "path": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
+    "section": "1. REFERENCE VIDEO",
+    "sha256": "b0d05f1b14c5d0610141f7a7c48d135d803aa6cde2a3472e830a9e370d644d02",
+    "caveat": null
+  },
+  "source_media": {
+    "committed": false,
+    "filename": "nlGYV0bmddI.mp4",
+    "byte_size": 3868006,
+    "sha256": "840c39d46aa4587ce99fb6743a947a76e88b4056af7ae9ab250038ca64b8a226",
+    "acquisition": {
+      "tool": "yt-dlp",
+      "version": "2026.7.4",
+      "format_selector": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+      "merge_output_format": "mp4",
+      "no_playlist": true,
+      "selected_format_ids": [
+        "788",
+        "251"
+      ]
+    }
+  },
+  "measured_media": {
+    "committed": false,
+    "byte_size": 17343038,
+    "sha256": "14c3667fa13253e64d623e53f9adbac05d68c913f2e4c081cce9f1b8924850cd"
+  },
+  "normalizations": [
+    "Replaced the temporary local source path with the canonical URL.",
+    "Restored canonical YouTube title, creator, and platform metadata.",
+    "Cleared meta.media_path because source media is not committed.",
+    "Cleared shot keyframe paths because derived source frames are not committed without documented redistribution terms."
+  ],
+  "measurement": {
+    "shot_detector": "scenedetect-0.7 AdaptiveDetector",
+    "adaptive_threshold": 3.0,
+    "min_scene_len_s": 0.3,
+    "whisper_model": "large-v2",
+    "device": "cpu",
+    "compute_type": "int8",
+    "faster_whisper": "1.2.1",
+    "language": "en",
+    "language_probability": 1.0,
+    "vad_filter": true,
+    "condition_on_previous_text": false,
+    "ocr_backend": "rapidocr-3.9.1",
+    "conf_threshold": 0.75,
+    "hook_fps": 8.0,
+    "body_fps": 4.0,
+    "hook_window_s": 3.0,
+    "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
+    "vad": "silero (faster-whisper bundled), upstream-style params",
+    "vad_params": {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 250,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 30
+    },
+    "has_music": "gap-floor heuristic v1",
+    "zing_version": "0.1.0",
+    "measured_at": "2026-07-18T09:02:24+00:00",
+    "regression_fixture": {
+      "fixture_id": "reference-cleo-antarctica",
+      "video_id": "nlGYV0bmddI",
+      "role": "reference",
+      "human_truth": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
+      "truth_section": "1. REFERENCE VIDEO"
+    }
+  },
+  "performance": {
+    "study_total_seconds": 59.300629,
+    "stage_order": [
+      "ingest",
+      "shots",
+      "keyframes",
+      "transcribe",
+      "ocr",
+      "audio",
+      "markdown",
+      "render"
+    ],
+    "stages": {
+      "ingest": 1.410566,
+      "shots": 0.928682,
+      "keyframes": 1.638688,
+      "transcribe": 31.461448,
+      "ocr": 23.653438,
+      "audio": 0.205356,
+      "markdown": 0.00242,
+      "render": 7.667012
+    },
+    "render_seconds": 7.667012,
+    "total_seconds": 66.967641,
+    "input_duration_seconds": 42.534,
+    "real_time_factor": 1.57445,
+    "render_profile": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 30.0
+    },
+    "study_warnings": [
+      "source codec 'av1' is not reliable for frame-accurate measurement here; re-encoded to H.264",
+      "caption OCR sampled at 8 fps in 0-3s, 4 fps after; text between samples is unobserved",
+      "music detection inconclusive: speech is wall-to-wall, no non-speech gaps to measure a bed in"
+    ],
+    "budget_assessment": {
+      "status": "tracked-not-gated",
+      "comparable_duration": true,
+      "reason": "input is in the ROADMAP's 30-60 second reference range"
+    },
+    "available": true
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "python": "3.14.6",
+    "ffmpeg": "ffmpeg version 8.1.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "myzing": "0.1.0",
+    "scenedetect": "0.7",
+    "faster_whisper": "1.2.1",
+    "rapidocr": "3.9.1",
+    "onnxruntime": "1.27.0",
+    "yt_dlp": "2026.7.4"
+  },
+  "manifest": {
+    "path": "tools/eval/real_videos/manifest.json",
+    "sha256": "5ed01c48ff0b0870adda73cae5e244b22d9e2b1f1a6c28bccdce6a538ee2dde6"
+  },
+  "artifacts": {
+    "breakdown.json": "2905783c4088729bb2dab4a2bea47992f37f08e935a34ce37748775b436cd3d7"
+  }
+}

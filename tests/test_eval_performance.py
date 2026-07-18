@@ -6,6 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
+from myzing import storage
 from myzing.schemas import Breakdown, VideoMeta
 from tools.eval.performance import (
     PhaseTimer,
@@ -148,3 +149,36 @@ def test_performance_summary_tracks_budget_without_gating() -> None:
     )
     assert budget_assessment(45.0)["status"] == "tracked-not-gated"
     assert budget_assessment(3.0)["status"] == "not-comparable"
+
+
+def test_benchmark_adapter_can_preserve_study_artifacts(tmp_path: Path) -> None:
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fixture")
+    workspace = tmp_path / "workspace"
+
+    def fake_study(source, workspace, phase_callback):
+        phase_callback("ingest")
+        artifact_directory = (
+            workspace / "breakdowns" / storage.slug_for(source)
+        )
+        artifact_directory.mkdir(parents=True)
+        return Breakdown(
+            meta=VideoMeta(
+                source_url=source,
+                platform="file",
+                duration=3.0,
+            )
+        )
+
+    adapter = StudyBenchmarkAdapter(
+        study_fn=fake_study,
+        render_fn=lambda *args: None,
+        clock=FakeClock([0.0, 1.0, 2.0, 3.0, 4.0]),
+        workspace=workspace,
+    )
+
+    adapter(media)
+
+    assert adapter.artifact_directory_for(media) == (
+        workspace / "breakdowns" / storage.slug_for(str(media))
+    )
