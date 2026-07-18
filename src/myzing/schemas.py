@@ -189,6 +189,99 @@ class Breakdown:
 
 
 # ---------------------------------------------------------------------------
+# Style profiles (S2 / D-2): N admired references -> one taste target
+# ---------------------------------------------------------------------------
+
+@dataclass
+class StatSummary:
+    """Robust summary of one measured quantity across profile sources."""
+    median: float = 0.0
+    p25: float = 0.0
+    p75: float = 0.0
+    n: int = 0                    # sources that contributed a value
+
+
+@dataclass
+class StyleProfile:
+    """Aggregation of N breakdowns of ADMIRED references into a taste target
+    (S2 contract, 2026-07-18). Two strictly separated halves:
+
+    - MEASURED aggregates: computed by Zing's code from Breakdown fields
+      (never judged). Sources missing a measurement are excluded from that
+      stat and named in `warnings` — n tells the truth about coverage.
+    - JUDGED aggregates (`judged`): assembled ONLY from stored
+      Breakdown.judgment sections (hook types, structure beats, rubric
+      scores). Zing collects; it never judges. Keys mirror the prompt
+      pack's judgment shape; `judged["_meta"]` records prompt versions
+      seen. Sources with no judgment are listed in
+      `unjudged_source_slugs` — a profile built on unjudged sources says
+      so instead of pretending.
+
+    Genre/platform reference the rubric docs (docs/taste/) by their IDs so
+    S3 gap reports can cite criteria, not vibes.
+    """
+    name: str
+    source_slugs: list[str] = field(default_factory=list)
+    genre: str = ""               # rubric doc key, e.g. "talking-head"
+    platform: str = ""            # tiktok | instagram | youtube | x | ""
+    # Measured aggregates:
+    duration: StatSummary = field(default_factory=StatSummary)
+    shot_duration: StatSummary = field(default_factory=StatSummary)
+    cuts_per_10s_curve: list[StatSummary] = field(default_factory=list)
+    time_to_first_cut: StatSummary = field(default_factory=StatSummary)
+    time_to_first_word: StatSummary = field(default_factory=StatSummary)
+    time_to_first_caption: StatSummary = field(default_factory=StatSummary)
+    caption_all_caps_rate: float = 0.0
+    caption_words_visible_mode: int = 0
+    speech_ratio: StatSummary = field(default_factory=StatSummary)
+    music_present_rate: float = 0.0
+    transition_kind_counts: dict[str, int] = field(default_factory=dict)
+    # Judged aggregates (collected, never computed):
+    judged: dict[str, Any] = field(default_factory=dict)
+    unjudged_source_slugs: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    provenance: dict[str, Any] = field(default_factory=dict)
+    schema_version: int = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def to_json(self, **kw: Any) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, **kw)
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "StyleProfile":
+        def stat(v: dict[str, Any] | None) -> StatSummary:
+            return StatSummary(**v) if v else StatSummary()
+        return cls(
+            name=d["name"],
+            source_slugs=d.get("source_slugs", []),
+            genre=d.get("genre", ""),
+            platform=d.get("platform", ""),
+            duration=stat(d.get("duration")),
+            shot_duration=stat(d.get("shot_duration")),
+            cuts_per_10s_curve=[stat(s) for s in d.get("cuts_per_10s_curve", [])],
+            time_to_first_cut=stat(d.get("time_to_first_cut")),
+            time_to_first_word=stat(d.get("time_to_first_word")),
+            time_to_first_caption=stat(d.get("time_to_first_caption")),
+            caption_all_caps_rate=d.get("caption_all_caps_rate", 0.0),
+            caption_words_visible_mode=d.get("caption_words_visible_mode", 0),
+            speech_ratio=stat(d.get("speech_ratio")),
+            music_present_rate=d.get("music_present_rate", 0.0),
+            transition_kind_counts=d.get("transition_kind_counts", {}),
+            judged=d.get("judged", {}),
+            unjudged_source_slugs=d.get("unjudged_source_slugs", []),
+            warnings=d.get("warnings", []),
+            provenance=d.get("provenance", {}),
+            schema_version=d.get("schema_version", 1),
+        )
+
+    @classmethod
+    def from_json(cls, s: str) -> "StyleProfile":
+        return cls.from_dict(json.loads(s))
+
+
+# ---------------------------------------------------------------------------
 # Assembly primitives (Lane C consumes these; D-2/D-3 produce them later)
 # ---------------------------------------------------------------------------
 

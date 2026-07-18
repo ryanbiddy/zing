@@ -261,3 +261,4 @@
   result['status'] — a stricter assertion would have caught the race
   locally months of CPU-time earlier; when a tool has distinct success
   shapes, tests should pin WHICH one.
+- **2026-07-18 (orchestrator): SPRINT 2 IS OPEN** — handoff/SPRINT-2-D2.md. StyleProfile + StatSummary contracts are live in schemas.py. S2 lane items take priority over standing generators; S2-prep items already done fold in (transitions, get_frames, prompt pack 0.4.0 are the foundation). Same discipline as S1.
