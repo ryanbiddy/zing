@@ -200,7 +200,13 @@ def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
 
 
 def run(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=(
+            "Default mode: score the checked-in sample. Pass --study to "
+            "measure generated goldens through the live study adapter."
+        ),
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--sample",
@@ -231,6 +237,8 @@ def run(argv: Sequence[str] | None = None) -> int:
             ffprobe=args.ffprobe,
         )
     else:
+        if not args.sample:
+            print("mode: checked-in sample (default; pass --study for live study)")
         case_directories = [SAMPLE_DIRECTORY]
         adapter = None
 

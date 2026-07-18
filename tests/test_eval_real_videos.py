@@ -14,6 +14,7 @@ from myzing.schemas import Breakdown, Shot, VideoMeta
 from tools.eval.freeze_real_videos import (
     DEFAULT_MANIFEST,
     RegressionFreezeError,
+    _portable_breakdown,
     freeze_real_videos,
 )
 
@@ -77,6 +78,28 @@ class FakeBenchmarkAdapter:
             "available": True,
             "stages": {"ingest": 1.0, "render": 2.0},
         }
+
+
+def test_portable_breakdown_derives_platform_from_canonical_source() -> None:
+    measured = Breakdown(
+        meta=VideoMeta(
+            source_url="C:/staged/media.mp4",
+            platform="file",
+        )
+    )
+    case = {
+        "source_url": "https://x.com/creator/status/1234567890",
+        "creator": "Creator",
+        "title": "Long-form post",
+        "fixture_id": "x-long-form",
+        "video_id": "1234567890",
+        "role": "reference",
+        "truth_section": "X VIDEO",
+    }
+
+    frozen = _portable_breakdown(measured, case)
+
+    assert frozen.meta.platform == "x"
 
 
 def test_freeze_real_videos_writes_portable_outputs_and_provenance(
