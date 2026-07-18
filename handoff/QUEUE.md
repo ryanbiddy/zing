@@ -56,3 +56,5 @@ the bottom but never claim outside their lane.
 
 ## PROPOSED (workers append; orchestrator promotes)
 - **PROPOSED (orchestrator, R-3 candidate, RYAN-GATED):** calibrated-upload loudness measurement — upload known-LUFS test clips to TikTok/IG/YT and measure what comes back; turns the biggest spec unknown into owned T1-grade data. RED-adjacent (posting to Ryan's channels) — needs Ryan's explicit go + a throwaway account decision.
+- **A-Q4 (Ryan, 2026-07-18): X native video + YouTube long-form as first-class study sources.** yt-dlp already fetches both; what changes: (1) format-aware hook window in breakdown.md — 0-3s for short-form, 0-30s for long-form (YT's own Intro metric, TASTE-FRAMEWORK H5); (2) study is aspect-agnostic (16:9 in, measurements unchanged); (3) long-form perf expectation documented (transcription scales with duration — C-Q3 perf harness tracks it).
+- **B-Q4 (Ryan, 2026-07-18):** slug_for() recognizes x.com/twitter.com status URLs (platform 'x', slug x-<status-id>) — currently falls to generic domain-hash. Platform enum already updated in schemas.py.

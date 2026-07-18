@@ -90,7 +90,7 @@ class AudioLayout:
 @dataclass
 class VideoMeta:
     source_url: str
-    platform: str                 # tiktok | instagram | youtube | file
+    platform: str                 # tiktok | instagram | youtube | x | file
     author: str = ""
     title: str = ""
     duration: float = 0.0
