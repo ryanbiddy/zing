@@ -7,7 +7,7 @@ How Zing defines and measures virality on Instagram Reels — grounding platform
 ## 1. Measurable Virality Definition (Thresholds)
 
 - **V-IG-1 (T1).** Instagram recommendation engine is driven by likelihood predictions. The most important predictions for Reels distribution are: **resharing** (sharing the video), **watching the Reel all the way through** (completion rate), **liking** the Reel, and **going to the audio page** (creating a Reel of their own using the same audio track). [Instagram Ranking Explained](https://about.instagram.com/blog/announcements/instagram-ranking-explained)
-- **V-IG-2 (T2).** The Instagram algorithm evaluates content using a tiered hierarchy of engagement signals. Sharing and completion rates represent the highest tier of algorithmic signal, while comments and likes represent lower tiers. [Instagram Creators Guide](https://creators.instagram.com/blog/instagram-algorithm-explained)
+- **V-IG-2 (T2).** The Instagram algorithm evaluates content using a tiered hierarchy of engagement signals. Sharing and completion rates represent the highest tier of algorithmic signal, while comments and likes represent lower tiers. [Instagram Creators Guide [DEAD 2026-07-18]](https://about.instagram.com/blog/announcements/instagram-ranking-explained)
 - **V-IG-3 (T3).** Viral benchmarks for Reels are categorized by view-to-follower ratio. A Reel is considered viral if it exceeds a view-to-follower ratio of 10x within the first 7 days `[practitioner-consensus]`.
 - **V-IG-4 (T3).** Save-to-Like ratio (S:L) is the primary indicator of educational or high-value virality. A ratio > 0.15 indicates standard healthy reach; a ratio > 0.30 indicates high evergreen viral velocity `[practitioner-consensus]`.
 
@@ -16,7 +16,7 @@ How Zing defines and measures virality on Instagram Reels — grounding platform
 ## 2. The Spread Mechanism (Surfaces)
 
 - **V-IG-5 (T1).** Reels are distributed primarily through the Reels Tab and Explore Tab recommendations. These discovery feeds are designed for non-follower distribution, with Instagram explicitly stating that Reels recommendations focus on showing videos from accounts you do not follow. [Instagram Ranking Explained](https://about.instagram.com/blog/announcements/instagram-ranking-explained)
-- **V-IG-6 (T1).** Instagram applies algorithmic demotions (reducing distribution) to Reels that contain visible watermarks (e.g. TikTok logos), are low-resolution, or are heavily political. [Instagram Reels Reach Best Practices](https://creators.instagram.com/blog/reels-reach-best-practices)
+- **V-IG-6 (T1).** Instagram applies algorithmic demotions (reducing distribution) to Reels that contain visible watermarks (e.g. TikTok logos), are low-resolution, or are heavily political. [Instagram Reels Reach Best Practices [DEAD 2026-07-18]](https://creators.instagram.com/blog)
 
 ---
 
