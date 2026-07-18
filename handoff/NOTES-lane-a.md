@@ -1,5 +1,42 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): GATE PASSED — study engine complete. claimed A-Q2.**
+  Shipped across 8 PRs: ingest (yt-dlp/ffprobe, CFR-normalize policy),
+  storage adoption, shot detection (tuned AdaptiveDetector), transcription
+  (large-v2 + word confidence), caption OCR (rapidocr/PP-OCRv6,
+  pop-caption clustering), audio (pinned loudness/speech_ratio, honest
+  has_music), keyframes, breakdown.md, `study()` seam + CLI, eval-driven
+  fixes. 171 offline tests; Windows+Ubuntu CI green.
+  - **Gate evidence:** (1) 3 real videos spot-checked locally — Cleo short
+    (hook transcript verbatim, word-pop caps captions, front-loaded cut
+    density), the EXAMPLE-DATASET "raw" video, and an MKBHD short (slower
+    talking-head pacing reads correctly). (2) `from_json(to_json())`
+    lossless on all three real breakdowns. (3) **Lane C's eval harness:
+    all scored dimensions PASS on all 3 goldens** (baseline had audio
+    FAIL×3 + captions FAIL×1 — fixed: AAC-padding trailing loudness
+    bucket trimmed to ceil(duration); OCR line join is now row-major so
+    y-jitter can't scramble word order). speech_ratio N/A by scorer
+    design until a spoken fixture lands.
+  - **Finding for R-C/D-Q2 (needs orchestrator attention):** the
+    EXAMPLE-DATASET "raw no-edit" video is NOT unedited as uploaded — my
+    keyframes prove the 20–30s stretch is a fast-cut b-roll montage
+    (watch close-ups, car interior; 15 cuts in that window). The genuinely
+    raw file is behind the video's download link. Either fetch that file
+    or pick a new no-edit proxy before it's used as regression truth.
+  - **Finding for D-Q1:** at least one R1-exemplar-teardowns video ID is
+    fabricated (kYJ-wL3m-64 → "Video unavailable"). Verify every URL
+    before the rubrics cite them.
+  - **Honest-missing (tracked):** OCR mixes watermarks/scene text into
+    caption events (Cleo "WHITE DESERT", MKBHD logo garble) — S2
+    caption-vs-scene-text separation; emoji unrepresentable (classic OCR
+    limitation); music call on wall-to-wall-speech videos is honest
+    unknown (S2 tagger anchor); word-spacing repair via word boxes
+    pending (S2). All pre-documented in R1-lane-a-measurement.md.
+  - **A-Q1 note:** already delivered before the queue existed —
+    handoff/research/R1-lane-a-measurement.md merged as PR #13.
+  - **claimed A-Q2** (first iteration = the eval fixes above; continuing
+    as Lane C's golden set / real-video regression grows).
+
 - **2026-07-18 (Lane A, tooling heads-up for ALL lanes):** the three lane
   worktrees share one user Python environment, so `pip install -e .`
   clobbers across lanes — mid-session my `myzing` import silently started
