@@ -79,7 +79,9 @@ def study(
         )
 
         _phase(phase_callback, "transcribe")
-        words_r = transcribe_mod.transcribe(ing.media_path)
+        words_r = transcribe_mod.transcribe(
+            ing.media_path, duration=ing.meta.duration
+        )
         warnings += words_r.warnings
         provenance.update(words_r.provenance)
 

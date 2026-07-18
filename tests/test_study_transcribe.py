@@ -87,6 +87,54 @@ def test_transcription_crash_is_honest_skip(monkeypatch):
     assert any("transcription failed" in w for w in result.warnings)
 
 
+def test_long_form_routes_to_batched_pipeline(monkeypatch):
+    fake_load(monkeypatch)
+    called = {}
+
+    def batched(model, path):
+        called["batched"] = True
+        return [Word("hi", 0.0, 0.2, 0.9)], "en", 0.99
+    monkeypatch.setattr(transcribe, "_run_model_batched", batched)
+    monkeypatch.setattr(
+        transcribe, "_run_model",
+        lambda m, p: (_ for _ in ()).throw(AssertionError("sequential used")),
+    )
+
+    result = transcribe.transcribe(Path("long.mp4"), duration=600.0)
+
+    assert called.get("batched")
+    assert result.provenance["pipeline"] == "batched(batch_size=8)"
+    assert result.warnings == []
+
+
+def test_short_form_stays_sequential(monkeypatch):
+    fake_load(monkeypatch)
+    fake_run(monkeypatch, [])
+    monkeypatch.setattr(
+        transcribe, "_run_model_batched",
+        lambda m, p: (_ for _ in ()).throw(AssertionError("batched used")),
+    )
+
+    result = transcribe.transcribe(Path("short.mp4"), duration=45.0)
+
+    assert result.provenance["pipeline"] == "sequential"
+
+
+def test_batched_failure_falls_back_to_sequential(monkeypatch):
+    fake_load(monkeypatch)
+    fake_run(monkeypatch, [Word("ok", 0.0, 0.2, 0.9)])
+
+    def boom(model, path):
+        raise RuntimeError("batch collation error")
+    monkeypatch.setattr(transcribe, "_run_model_batched", boom)
+
+    result = transcribe.transcribe(Path("long.mp4"), duration=600.0)
+
+    assert [w.text for w in result.words] == ["ok"]
+    assert result.provenance["pipeline"] == "sequential"
+    assert any("fell back to sequential" in w for w in result.warnings)
+
+
 def test_run_model_extracts_and_strips_words(monkeypatch):
     """_run_model's own parsing logic, driven with faux segment objects."""
     seg = SimpleNamespace(words=[
