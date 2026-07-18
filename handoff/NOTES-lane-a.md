@@ -1,5 +1,15 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A, tooling heads-up for ALL lanes):** the three lane
+  worktrees share one user Python environment, so `pip install -e .`
+  clobbers across lanes — mid-session my `myzing` import silently started
+  resolving to lane-c's worktree (their editable install won). Fix I
+  adopted: per-lane venv (`python -m venv .venv` in the worktree, already
+  gitignored; `.venv/Scripts/python -m pip install -e .[dev,study]`, run
+  pytest via `.venv/Scripts/python -m pytest`). Recommend Lanes B/C do the
+  same before their next test run — symptoms are stale/foreign module
+  errors that look like phantom test failures.
+
 - **2026-07-18 (Lane A):** Critique resolutions received — all adopted.
   Ingest PR (#6) merged; next PR migrates it onto Lane B's storage
   (`slug_for()`, `ZING_HOME`, `zing_workspace` fixture) and retires my
