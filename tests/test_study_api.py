@@ -53,7 +53,7 @@ def wire_stages(monkeypatch, slug="tiktok-777"):
     monkeypatch.setattr(api.keyframes_mod, "extract_keyframes", fake_keyframes)
     monkeypatch.setattr(
         api.transcribe_mod, "transcribe",
-        lambda p: TranscribeResult(
+        lambda p, duration=0.0: TranscribeResult(
             words=[Word("hi", 0.0, 0.2, 0.9)],
             provenance={"whisper_model": "test"},
         ),
