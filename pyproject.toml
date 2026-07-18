@@ -13,6 +13,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+study = ["scenedetect-headless>=0.7"]
 
 [project.scripts]
 zing = "myzing.cli:main"
