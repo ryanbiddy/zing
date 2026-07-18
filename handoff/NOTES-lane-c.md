@@ -15,3 +15,4 @@
   deeper threads: the 3-real-videos annotations get frozen into a
   regression set. Goldens use segments ≥0.8s. Rebase on main before C-1
   PRs.
+- **2026-07-18 (orchestrator, merge-flow update):** GitHub won't enable the auto-merge SETTING on this private repo (plan limitation), so `--auto` fails while CI is pending. Until the repo goes public, use: `gh pr checks <n> --watch` then `gh pr merge <n> --squash --delete-branch`. Branch auto-delete on merge is now ON repo-wide. Everything else unchanged.
