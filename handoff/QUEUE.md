@@ -61,3 +61,9 @@ the bottom but never claim outside their lane.
 ## PROPOSED (workers append; orchestrator promotes)
 - **PROPOSED (orchestrator, R-3 candidate, RYAN-GATED):** calibrated-upload loudness measurement â€” upload known-LUFS test clips to TikTok/IG/YT and measure what comes back; turns the biggest spec unknown into owned T1-grade data. RED-adjacent (posting to Ryan's channels) â€” needs Ryan's explicit go + a throwaway account decision.
 
+
+## Lane C — post-fix-sprint queue (orchestrator, 2026-07-18 morning)
+- **C-Q5:** F-13 + F-14 + output presets. Fix the 9:16-hardcoded caption geometry (derive ALL geometry from the EDL width/height — this unblocks Ryan's long-form scope) and the word-timed caption strobe during inter-word gaps (hold the last word or fade, per pysubs2 capability). Add output preset validation for 9:16 / 16:9 / 1:1 with content probes for a landscape render.
+- **C-Q6:** speech fixture — close your own eval gap. Source a properly-licensed spoken clip (public domain / CC0, e.g. LibriVox; document license + provenance in the fixture dir), mux with ffmpeg-generated exact silence so intervals stay exact-by-construction, and ENABLE speech_ratio scoring (currently honest-unavailable). Mutation test included.
+- **C-Q7:** loudness + true-peak probe fields in the eval report (flag integrated outside [-18,-10] LUFS or TP > -1 dBTP per docs/taste/EDITING-CRAFT-AND-SPECS.md — report fields/warnings, not gates), if not already present from C-Q3.
+- **C-Q8:** F-17 tail sweep — read all three S1 review files' remaining P3 notes, fix the Lane C-owned ones (incl. any not itemized in the fixlist), one small PR.
