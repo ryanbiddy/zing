@@ -90,6 +90,14 @@ def _check_slug(slug: Any) -> dict[str, Any] | None:
     return None
 
 
+def _missing_slug_err(slug: str) -> dict[str, Any]:
+    """The one canonical unknown-slug message (was duplicated and drifting)."""
+    return _err(
+        f"no breakdown for slug '{slug}' — call list_breakdowns() to see "
+        "what exists, or study_video() to create it"
+    )
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -272,7 +280,12 @@ def _run_study(study_fn: Any, source: str, slug: str, root: Path) -> None:
             )
         finally:
             with _JOBS_LOCK:
-                _JOBS.pop(slug, None)
+                # Identity-guarded: if a re-study has already replaced this
+                # slug's registration, a finishing old worker must not evict
+                # the new thread (a missing entry would make _reconcile_running
+                # falsely fail the live job as "worker thread gone").
+                if _JOBS.get(slug) is threading.current_thread():
+                    _JOBS.pop(slug, None)
 
 
 def h_study_video(url_or_path: str) -> dict[str, Any]:
@@ -314,13 +327,20 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
     with _JOBS_LOCK:
         job = _JOBS.get(slug)
         if job is not None and job.is_alive():
+            # A live thread alone is not proof of a live STUDY: a finished
+            # worker is briefly still alive (and registered) between its
+            # final status write and its cleanup pop. Only refuse when the
+            # on-disk state agrees the study is running — otherwise fall
+            # through and start the requested re-study (the old thread's
+            # identity-guarded pop can't evict the new registration).
             status = storage.read_status(slug) or {}
-            return _ok(
-                slug=slug,
-                status="already_studying",
-                phase=status.get("phase", ""),
-                hint="poll zing_status() or get_breakdown(slug)",
-            )
+            if status.get("state") == "running":
+                return _ok(
+                    slug=slug,
+                    status="already_studying",
+                    phase=status.get("phase", ""),
+                    hint="poll zing_status() or get_breakdown(slug)",
+                )
         _write_status(
             slug,
             state="running",
@@ -417,13 +437,7 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
                 ),
                 "state": "failed",
             }
-        return {
-            **_err(
-                f"no breakdown for slug '{slug}' — call list_breakdowns() to see "
-                "what exists, or study_video() to create it"
-            ),
-            "state": "absent",
-        }
+        return {**_missing_slug_err(slug), "state": "absent"}
     data = b.to_dict()
     if detail == "summary":
         data = _summarize_breakdown(data)
@@ -635,14 +649,14 @@ def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
             "ffmpeg not found on PATH — run `zing doctor` for the install "
             "command."
         )
+    bad = _check_slug(slug)
+    if bad:
+        return bad
     try:
         b = storage.load_breakdown(slug)
     except FileNotFoundError:
-        return _err(
-            f"no breakdown for slug '{slug}' — call list_breakdowns() to "
-            "see what exists, or study_video() to create it"
-        )
-    except (ValueError, storage.SlugError) as e:
+        return _missing_slug_err(slug)
+    except ValueError as e:  # corrupt breakdown.json stays errors-as-data
         return _err(str(e))
     media = storage.find_media(slug)
     if media is None:

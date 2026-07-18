@@ -152,3 +152,88 @@ def test_reconcile_live_foreign_never_heartbeat_fails(
     result = mcp_server._reconcile_running(SLUG, status)
     assert result["state"] == "failed"
     assert "never heartbeat" in result["error"]
+
+
+# -- dispatch race: finished-but-not-yet-popped worker -----------------------
+
+def test_restudy_starts_even_while_old_worker_is_mid_cleanup(
+    zing_workspace, monkeypatch
+):
+    """CI-caught race: a completed worker is briefly still alive (and in
+    _JOBS) between its final status write and its cleanup pop. A re-study
+    arriving in that window used to get 'already_studying' and never ran."""
+    import sys as _sys
+    import threading
+    import types
+
+    api = types.ModuleType("myzing.study.api")
+
+    def study(source: str):
+        from myzing.schemas import Breakdown, VideoMeta
+
+        return Breakdown(
+            meta=VideoMeta(source_url=source, platform="tiktok")
+        )
+
+    api.study = study
+    monkeypatch.setitem(_sys.modules, "myzing.study.api", api)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+
+    url = "https://www.tiktok.com/@a/video/424242"
+    slug = "tiktok-424242"
+    # First study already finished: done on disk...
+    storage.write_status(
+        slug, state="done", phase="markdown", pid=1, finished_at="t"
+    )
+    # ...but its worker thread is still alive and registered (mid-cleanup).
+    lingering_done = threading.Event()
+    lingering = threading.Thread(target=lingering_done.wait, daemon=True)
+    lingering.start()
+    with mcp_server._JOBS_LOCK:
+        mcp_server._JOBS[slug] = lingering
+    try:
+        result = mcp_server.h_study_video(url)
+        assert result["ok"] is True
+        assert result["status"] == "started", (
+            "re-study must start; a finished-but-unpopped worker is not a "
+            "running study"
+        )
+        import time
+
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            s = storage.read_status(slug)
+            if s and s.get("state") in ("done", "failed") and s.get("finished_at") != "t":
+                break
+            time.sleep(0.01)
+        assert storage.load_breakdown(slug).meta.source_url == url
+    finally:
+        lingering_done.set()
+        lingering.join(timeout=10)
+
+
+def test_finishing_worker_pop_is_identity_guarded(zing_workspace):
+    """The old worker's cleanup must not evict a newer thread registered
+    under the same slug (that would make _reconcile_running falsely fail
+    the live job as 'worker thread gone')."""
+    import threading
+
+    slug = "tiktok-guard"
+    newer = threading.Thread(target=lambda: None)
+    with mcp_server._JOBS_LOCK:
+        mcp_server._JOBS[slug] = newer
+
+    def old_worker():
+        raise RuntimeError("boom")
+
+    # run an old worker's full body for the same slug; its finally must
+    # leave the newer thread's registration in place
+    mcp_server._run_study(
+        lambda source: (_ for _ in ()).throw(RuntimeError("boom")),
+        "src", slug, storage.workspace_root(),
+    )
+    try:
+        assert mcp_server._JOBS.get(slug) is newer
+    finally:
+        with mcp_server._JOBS_LOCK:
+            mcp_server._JOBS.pop(slug, None)

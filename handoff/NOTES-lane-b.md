@@ -234,3 +234,30 @@
   mostly transcription — contract docstrings that explain WHY are the
   cheapest cross-lane documentation this process has; recommend the
   schema-change checklist require a why-sentence per new field.
+- **2026-07-18 (Lane B): SG-3 simplification pass (standing generator,
+  queue empty this cycle).** Three duplications removed, zero behavior
+  change (401 tests green unchanged): (1) the unknown-slug error message
+  existed twice in mcp_server and had already drifted in wording —
+  now one _missing_slug_err; (2) h_get_frames hand-rolled the slug
+  validation _check_slug exists for — now consistent with every other
+  handler (and kept the corrupt-json ValueError catch the old inline
+  code had); (3) breakdown.json serialization existed in two storage
+  sites — now one _write_breakdown_json so the format can't drift.
+  Net -6 lines of logic, +2 single-purpose helpers. SG rotation: SG-1
+  done, SG-2 done, SG-3 done (this); next idle cycle: SG-4
+  (trending-OSS scan).
+- **2026-07-18 (Lane B): CI caught a REAL dispatch race on PR #87** (not
+  an SG-3 breakage — latent since the B#2 job runner, exposed by slower
+  CI runners): a completed worker thread is briefly still alive and
+  registered in _JOBS between its final status write and its cleanup
+  pop; a re-study of the same slug arriving in that window got
+  'already_studying' and never started — user-visible bug, not just
+  test flake. Fix: already_studying now requires thread-alive AND
+  on-disk state 'running'; the worker's cleanup pop is identity-guarded
+  so a finishing old thread can't evict a new registration (which would
+  have made _reconcile_running falsely kill the live job). Two
+  regression tests, red-then-green proven. PROCESS OBSERVATION: the
+  test that caught this asserted only result['ok'], not
+  result['status'] — a stricter assertion would have caught the race
+  locally months of CPU-time earlier; when a tool has distinct success
+  shapes, tests should pin WHICH one.
