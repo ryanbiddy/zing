@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "source_url": "synthetic://profile/1",
+    "platform": "youtube",
+    "duration": 10.0
+  },
+  "shots": [
+    {"index": 0, "start": 0.0, "end": 0.5},
+    {"index": 1, "start": 0.5, "end": 10.0}
+  ],
+  "words": [
+    {"text": "one", "start": 0.1, "end": 0.2}
+  ],
+  "captions": [
+    {
+      "text": "ONE",
+      "start": 0.2,
+      "end": 1.0,
+      "all_caps": true,
+      "words_visible": 1
+    }
+  ],
+  "audio": {
+    "has_music": true,
+    "music_confidence": 1.0,
+    "speech_ratio": 0.2
+  },
+  "avg_shot_duration": 5.0,
+  "cuts_per_10s": [1.0],
+  "transitions": [
+    {"kind": "hard_cut", "start": 0.5, "end": 0.5}
+  ],
+  "provenance": {
+    "transition_detection": {"enabled": true}
+  }
+}

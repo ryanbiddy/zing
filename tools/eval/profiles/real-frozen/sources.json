@@ -1,0 +1,24 @@
+{
+  "sources": [
+    {
+      "slug": "landscape-big-buck-bunny",
+      "breakdown": "../../real_videos/landscape-big-buck-bunny/breakdown.json"
+    },
+    {
+      "slug": "raw-editing-practice",
+      "breakdown": "../../real_videos/raw-editing-practice/breakdown.json"
+    },
+    {
+      "slug": "reference-cleo-antarctica",
+      "breakdown": "../../real_videos/reference-cleo-antarctica/breakdown.json"
+    },
+    {
+      "slug": "short-daily-dweebs",
+      "breakdown": "../../real_videos/short-daily-dweebs/breakdown.json"
+    },
+    {
+      "slug": "x-nasa-artemis-backseat-drivers",
+      "breakdown": "../../real_videos/x-nasa-artemis-backseat-drivers/breakdown.json"
+    }
+  ]
+}
