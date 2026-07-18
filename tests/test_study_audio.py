@@ -147,6 +147,30 @@ def test_measure_audio_no_audio_frames_warns(monkeypatch):
     assert any("loudness curve empty" in w for w in result.warnings)
 
 
+def test_trailing_padding_bucket_is_trimmed(monkeypatch):
+    # AAC priming/padding makes the audio stream outlast the 3.0s video;
+    # the decoder emits a 4th near-silent bucket that must not survive
+    # (contract: one bucket per second of VIDEO).
+    four_buckets = ASTATS_STDOUT + "frame:3 pts:144000 pts_time:3\nlavfi.astats.Overall.RMS_level=-96.8\n"
+    monkeypatch.setattr("myzing.study.audio.proc.run", ffmpeg_ok(stdout=four_buckets))
+    monkeypatch.setattr(audio, "_run_vad", lambda p: [(0.0, 1.5)])
+
+    result = audio.measure_audio(Path("m.mp4"), duration=3.0)
+
+    assert result.audio.loudness_curve == [-21.4, -19.9, -99.0]
+
+
+def test_partial_final_second_keeps_its_bucket(monkeypatch):
+    # duration 3.5 -> ceil = 4 buckets: a real partial second stays.
+    four_buckets = ASTATS_STDOUT + "frame:3 pts:144000 pts_time:3\nlavfi.astats.Overall.RMS_level=-30.0\n"
+    monkeypatch.setattr("myzing.study.audio.proc.run", ffmpeg_ok(stdout=four_buckets))
+    monkeypatch.setattr(audio, "_run_vad", lambda p: [(0.0, 1.5)])
+
+    result = audio.measure_audio(Path("m.mp4"), duration=3.5)
+
+    assert len(result.audio.loudness_curve) == 4
+
+
 def test_speech_ratio_clamped_and_rounded(monkeypatch):
     monkeypatch.setattr("myzing.study.audio.proc.run", ffmpeg_ok())
     monkeypatch.setattr(audio, "_run_vad", lambda p: [(0.0, 5.0)])
