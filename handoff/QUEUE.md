@@ -116,3 +116,16 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 - **D-Q9:** reference candidates for Ryan — find 10 candidate reference shorts across our genres (tech, comedy, informative, product, vlog) that exemplify the rubrics; verify each URL is live; one-line "why this one" per pick citing a rubric criterion. Save handoff/research/REFERENCE-CANDIDATES.md. This feeds Ryan's S3 pick-list.
 - **D-Q10:** breakdown.md readability QA — read the frozen real-video breakdown.md files as a CREATOR would; list every jargon term, unclear number, or missing explanation; doc-only findings note.
 - **D-Q11 (mechanical re-tier):** VIRALITY-instagram.md claims V-IG-3, V-IG-7, V-IG-8 assert exact numbers (10x follower ratio, completion-gate thresholds) as fact that VIRALITY-TIKTOK.md tags FOLKLORE and VIRALITY-X.md bans outright — see VIRALITY-SYNTHESIS.md contradictions section. Re-tier those three claims to T4/folklore with the same wording pattern the TikTok doc uses, add a cross-reference note to the synthesis, and update INDEX.md rows accordingly. Do not change any other claims.
+
+## STANDING GENERATORS (all lanes — NEVER idle: when your lane queue is empty, run ONE of these per cycle, rotating)
+- **SG-1 · cross-review for tightness:** pick the most recent 2-3 merged PRs from OTHER lanes you have not yet reviewed; review the actual diffs for correctness, simplification, test gaps, honesty of failure states. Small safe fixes = direct fix PR; judgment calls = findings in your NOTES with file:line. Log which PRs you covered so reviews do not repeat.
+- **SG-2 · coverage sweep:** find the lowest-covered module in YOUR lane, add happy-path + one error-path test. Coverage number must rise (state before/after).
+- **SG-3 · simplification pass:** the smallest change that genuinely reduces complexity in your lane (dead code, duplicated logic, over-clever constructs). Tests green, no behavior change, PR explains the reduction.
+- **SG-4 · trending-OSS scan:** GitHub trending + topic searches (video, creator tools, social, subtitles, media-ml). Evaluate 3-5 repos not yet in PRIOR-ART-OSS.md: license, health, REUSE/BORROW/SKIP for us. Append to handoff/research/PRIOR-ART-OSS.md with date stamps.
+- **SG-5 · feature-gap analysis (challenge required):** propose ONE roadmap candidate grounded in evidence (sentiment docs, competitor surface, taste research), then write your OWN refutation (why it might be wrong/bloat/premature). Only if the proposal survives your refutation, add it to QUEUE §PROPOSED with both halves. No unchallenged proposals.
+
+## Cross-review wave (concrete, claim now)
+- **A-Q10:** SG-1 aimed: review Lane C's shipped day — transition prototype (#65), thumbs (#66), output presets, speech fixture. Measurement-scientist lens: are the signatures/selectors honest about their limits in code, not just in NOTES?
+- **B-Q10:** SG-1 aimed: review Lane A's caption-region clustering (#70) + keyframe work — surface/consumer lens: does what MCP serves match what was measured?
+- **B-Q11 (gated on C-Q12 merge):** prompt pack v0.3 — teach prompts/study.md the transitions vocabulary + thumbs + get_frames tools (what the judging AI can now see and how to use it honestly).
+- **A-Q11 (gated on C-Q12 merge):** breakdown.md renders transition observations (plain-language line per transition, honest about opt-in/absence).
