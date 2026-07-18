@@ -29,7 +29,7 @@ import hashlib
 import json
 import os
 import re
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -39,6 +39,19 @@ ENV_VAR = "ZING_HOME"
 
 _SLUG_MAX = 80
 _MEDIA_EXTS = (".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".ts")
+
+# The slug contract (everything slug_for() produces): lowercase ascii
+# letters/digits/hyphens, starting with a letter or digit. slug_for()'s
+# longest possible output is ~90 chars (an 80-char sanitized stem plus a
+# platform prefix or content hash); 100 leaves headroom without letting
+# junk through.
+SLUG_MAX_LEN = 100
+_SLUG_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
+
+
+class SlugError(ValueError):
+    """A slug failed validation: path traversal attempt, characters outside
+    the slug contract, or a value that resolves outside the workspace."""
 
 
 def workspace_root() -> Path:
@@ -53,7 +66,59 @@ def breakdowns_root() -> Path:
     return workspace_root() / "breakdowns"
 
 
+def validate_slug(slug: str) -> str:
+    """The one canonical slug validator (F-02, SECURITY).
+
+    Slugs are storage-owned names, never paths. MCP tool arguments are
+    AI-generated and may be influenced by untrusted video text, so every
+    public slug boundary must reject anything that could resolve outside
+    ``breakdowns_root()``. Raises :class:`SlugError` (a ``ValueError``)
+    unless ``slug`` matches the contract ``slug_for()`` produces AND
+    ``breakdowns_root()/slug`` resolves to a location strictly inside
+    ``breakdowns_root()``. Returns the slug unchanged on success.
+    """
+    if not isinstance(slug, str):
+        raise SlugError(f"slug must be a string, got {type(slug).__name__}")
+    if not slug.strip():
+        raise SlugError("slug must not be empty")
+    if len(slug) > SLUG_MAX_LEN:
+        raise SlugError(f"slug is too long ({len(slug)} chars, max {SLUG_MAX_LEN})")
+    if "/" in slug or "\\" in slug:
+        raise SlugError(f"slug must not contain path separators: {slug!r}")
+    if "." in slug:
+        # covers '.', '..', '..\\..'-style segments and hidden/dotted names;
+        # slug_for() never emits a dot
+        raise SlugError(f"slug must not contain '.': {slug!r}")
+    if (
+        PurePosixPath(slug).is_absolute()
+        or PureWindowsPath(slug).is_absolute()
+        or PureWindowsPath(slug).drive
+    ):
+        raise SlugError(f"slug must not be an absolute or drive path: {slug!r}")
+    if not _SLUG_RE.fullmatch(slug):
+        raise SlugError(
+            f"slug {slug!r} is outside the slug contract (lowercase letters, "
+            "digits, and hyphens, starting with a letter or digit)"
+        )
+    # Belt and braces: even a contract-shaped slug must land inside the
+    # workspace once the filesystem has its say (symlinks, junctions, …).
+    root = breakdowns_root()
+    try:
+        resolved = (root / slug).resolve()
+        resolved.relative_to(root.resolve())
+    except ValueError:
+        raise SlugError(
+            f"slug {slug!r} resolves outside the breakdowns workspace"
+        ) from None
+    except OSError as e:
+        raise SlugError(f"slug {slug!r} cannot be resolved: {e}") from None
+    return slug
+
+
 def breakdown_dir(slug: str) -> Path:
+    """The directory for ``slug``. Validates the slug (see ``validate_slug``);
+    every path this module hands out funnels through here."""
+    validate_slug(slug)
     return breakdowns_root() / slug
 
 
@@ -133,14 +198,14 @@ def media_target(slug: str, ext: str) -> Path:
     Lane A downloads/copies to exactly this path: ``media.<ext>``.
     """
     ext = ext.lstrip(".").lower() or "mp4"
-    d = breakdown_dir(slug)
+    d = breakdown_dir(validate_slug(slug))
     d.mkdir(parents=True, exist_ok=True)
     return d / f"media.{ext}"
 
 
 def find_media(slug: str) -> Path | None:
     """The stored media file for ``slug``, or None if absent."""
-    d = breakdown_dir(slug)
+    d = breakdown_dir(validate_slug(slug))
     if not d.is_dir():
         return None
     for p in sorted(d.iterdir()):
@@ -203,12 +268,13 @@ def save_breakdown(
 ) -> Path:
     """Write a Breakdown to the workspace; returns its directory.
 
-    - ``slug`` defaults to ``slug_for(meta.source_url)``.
+    - ``slug`` defaults to ``slug_for(meta.source_url)``; an explicit slug
+      is caller input and gets the full ``validate_slug`` treatment.
     - If a previous breakdown.json exists it is kept as breakdown.json.bak,
       and its ``judgment`` is carried forward when ``b.judgment`` is empty.
     - ``markdown``, when given, is written as breakdown.md.
     """
-    slug = slug or slug_for(b.meta.source_url)
+    slug = validate_slug(slug) if slug else slug_for(b.meta.source_url)
     d = breakdown_dir(slug)
     d.mkdir(parents=True, exist_ok=True)
     json_path = d / "breakdown.json"
@@ -233,7 +299,7 @@ def load_breakdown(slug: str) -> Breakdown:
     """Load a stored Breakdown. Raises FileNotFoundError with the looked-up
     path when the slug has no breakdown (the caller turns this into an
     actionable message)."""
-    json_path = breakdown_dir(slug) / "breakdown.json"
+    json_path = breakdown_dir(validate_slug(slug)) / "breakdown.json"
     if not json_path.is_file():
         raise FileNotFoundError(
             f"no breakdown for slug '{slug}' (looked in {json_path})"
@@ -250,6 +316,7 @@ def save_judgment(slug: str, judgment: dict[str, Any]) -> Breakdown:
     """
     if not isinstance(judgment, dict):
         raise TypeError(f"judgment must be a dict of sections, got {type(judgment).__name__}")
+    validate_slug(slug)
     b = load_breakdown(slug)
     b.judgment.update(judgment)
     d = breakdown_dir(slug)
@@ -270,6 +337,12 @@ def list_breakdowns() -> list[dict[str, Any]]:
     index: list[dict[str, Any]] = []
     for d in sorted(root.iterdir()):
         if not d.is_dir():
+            continue
+        try:
+            validate_slug(d.name)
+        except SlugError as e:
+            # a hand-made or foreign directory: report it, never serve it
+            index.append({"slug": d.name, "error": f"invalid slug: {e}"})
             continue
         json_path = d / "breakdown.json"
         if not json_path.is_file():

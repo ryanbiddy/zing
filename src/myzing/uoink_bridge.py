@@ -47,6 +47,13 @@ def push_breakdown(slug: str) -> dict[str, Any]:
     Returns the uoink house envelope: {"ok": True, ...} or
     {"ok": False, "error": actionable}.
     """
+    try:
+        storage.validate_slug(slug)  # F-02: slugs are caller input, never paths
+    except storage.SlugError as e:
+        return {
+            "ok": False,
+            "error": f"invalid slug: {e} — use a slug from list_breakdowns()",
+        }
     md_path = storage.breakdown_dir(slug) / "breakdown.md"
     if not md_path.is_file():
         return {

@@ -59,6 +59,19 @@ def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
 
 
+def _check_slug(slug: Any) -> dict[str, Any] | None:
+    """F-02: slugs are AI-supplied — validate before any storage touch.
+    Returns an errors-as-data envelope for a bad slug, None when valid."""
+    try:
+        storage.validate_slug(slug)
+    except storage.SlugError as e:
+        return _err(
+            f"invalid slug: {e} — slugs are storage-owned names, never "
+            "paths; use one returned by study_video() or list_breakdowns()"
+        )
+    return None
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -209,6 +222,9 @@ def _summarize_breakdown(d: dict[str, Any]) -> dict[str, Any]:
 def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
     if detail not in ("full", "summary"):
         return _err("detail must be 'full' or 'summary'")
+    bad = _check_slug(slug)
+    if bad:
+        return bad
     status = storage.read_status(slug)
     try:
         b = storage.load_breakdown(slug)
@@ -248,6 +264,9 @@ def h_save_judgment(
     section: str = "study",
     model: str = "",
 ) -> dict[str, Any]:
+    bad = _check_slug(slug)
+    if bad:
+        return bad
     if not isinstance(judgment, dict) or not judgment:
         return _err(
             "judgment must be a non-empty JSON object — the shape is defined "
@@ -324,6 +343,9 @@ def h_zing_status() -> dict[str, Any]:
 def h_push_to_uoink(slug: str) -> dict[str, Any]:
     from myzing import uoink_bridge
 
+    bad = _check_slug(slug)  # the bridge validates too; reject here so the
+    if bad:                  # tool's own envelope names the problem
+        return bad
     return uoink_bridge.push_breakdown(slug)
 
 

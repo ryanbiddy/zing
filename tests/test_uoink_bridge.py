@@ -100,6 +100,20 @@ def test_push_declined_by_uoink_reports_its_error(studied, monkeypatch):
     assert "note text required" in result["error"]
 
 
+@pytest.mark.parametrize(
+    "bad", ["../../escape", "..\\..\\escape", "/etc/passwd", "C:\\Windows\\escape"]
+)
+def test_push_rejects_traversal_slug_as_data(zing_workspace, bad, monkeypatch):
+    """F-02: a traversal slug gets the envelope, not a traceback or a read."""
+    def no_network(*a, **k):
+        raise AssertionError("a traversal slug must never reach the network")
+
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", no_network)
+    result = uoink_bridge.push_breakdown(bad)
+    assert result["ok"] is False
+    assert "slug" in result["error"]
+
+
 def test_url_override(monkeypatch):
     monkeypatch.setenv(uoink_bridge.UOINK_URL_ENV, "http://127.0.0.1:9999")
     assert uoink_bridge.helper_url() == "http://127.0.0.1:9999"

@@ -210,6 +210,93 @@ def test_save_judgment_rejects_junk(zing_workspace):
     assert mcp_server.h_save_judgment(SLUG, {"a": 1}, section="Bad Section!")["ok"] is False
 
 
+# -- F-02: slug traversal must be an errors-as-data rejection -----------------
+# S1-REVIEW-lane-c finding 1 repro: h_get_breakdown("../../escape") -> ok=true
+# and h_save_judgment("../../escape", ...) rewrote a file OUTSIDE ZING_HOME.
+
+TRAVERSAL_SLUGS = [
+    "../../escape",
+    "..\\..\\escape",
+    "/etc/passwd",
+    "C:\\Windows\\escape",
+    "C:/Windows/escape",
+    "nested/inside",
+    "nested\\inside",
+    "..",
+]
+
+
+def plant_outside_breakdown(tmp_path):
+    """With ZING_HOME at tmp_path/'zing-home', breakdowns/../../escape
+    resolves to tmp_path/'escape' — plant a victim breakdown there."""
+    outside = tmp_path / "escape"
+    outside.mkdir(parents=True, exist_ok=True)
+    (outside / "breakdown.json").write_text(
+        make_breakdown().to_json(indent=2) + "\n", encoding="utf-8"
+    )
+    (outside / "breakdown.md").write_text("# outside the workspace\n", encoding="utf-8")
+    return outside
+
+
+@pytest.mark.parametrize("bad", TRAVERSAL_SLUGS)
+def test_get_breakdown_rejects_traversal_as_data(zing_workspace, bad):
+    result = mcp_server.h_get_breakdown(bad)
+    assert result["ok"] is False
+    assert "slug" in result["error"]
+
+
+@pytest.mark.parametrize("bad", TRAVERSAL_SLUGS)
+def test_save_judgment_rejects_traversal_as_data(zing_workspace, bad):
+    result = mcp_server.h_save_judgment(bad, {"anything": 1}, section="notes")
+    assert result["ok"] is False
+    assert "slug" in result["error"]
+
+
+@pytest.mark.parametrize("bad", TRAVERSAL_SLUGS)
+def test_push_to_uoink_rejects_traversal_as_data(zing_workspace, bad, monkeypatch):
+    def no_network(*a, **k):
+        raise AssertionError("a traversal slug must never reach the network")
+
+    monkeypatch.setattr(
+        "myzing.uoink_bridge.urllib.request.urlopen", no_network
+    )
+    result = mcp_server.h_push_to_uoink(bad)
+    assert result["ok"] is False
+    assert "slug" in result["error"]
+
+
+def test_get_breakdown_cannot_read_outside_workspace(zing_workspace, tmp_path):
+    plant_outside_breakdown(tmp_path)
+    result = mcp_server.h_get_breakdown("../../escape")
+    assert result["ok"] is False  # the review repro returned ok=true here
+
+
+def test_save_judgment_cannot_write_outside_workspace(zing_workspace, tmp_path):
+    outside = plant_outside_breakdown(tmp_path)
+    before = (outside / "breakdown.json").read_text(encoding="utf-8")
+    result = mcp_server.h_save_judgment(
+        "../../escape", {"pwned": True}, section="notes"
+    )
+    assert result["ok"] is False
+    # the out-of-workspace file is byte-identical — nothing was rewritten
+    assert (outside / "breakdown.json").read_text(encoding="utf-8") == before
+
+
+def test_push_to_uoink_cannot_push_outside_workspace(
+    zing_workspace, tmp_path, monkeypatch
+):
+    plant_outside_breakdown(tmp_path)
+
+    def no_network(*a, **k):
+        raise AssertionError("out-of-workspace markdown must never be pushed")
+
+    monkeypatch.setattr(
+        "myzing.uoink_bridge.urllib.request.urlopen", no_network
+    )
+    result = mcp_server.h_push_to_uoink("../../escape")
+    assert result["ok"] is False
+
+
 # -- zing_status / get_prompt ------------------------------------------------
 
 def test_zing_status_shape(zing_workspace, prompts_dir, monkeypatch):
