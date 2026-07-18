@@ -136,6 +136,29 @@ def test_study_survives_crashing_phase_callback(zing_workspace, monkeypatch):
     assert b.meta.platform == "tiktok"  # measurement completed regardless
 
 
+def test_workspace_override_never_touches_env_with_use_workspace(
+    tmp_path, monkeypatch
+):
+    """F-15 closed: with storage.use_workspace available (ContextVar pin),
+    study(workspace=...) must not mutate process env at any point."""
+    wire_stages(monkeypatch)
+    monkeypatch.delenv(storage.ENV_VAR, raising=False)
+    ws = tmp_path / "ctx-ws"
+    probes: list[bool] = []
+
+    real_detect = api.shots_mod.detect_shots
+
+    def probing_detect(p, d, f):
+        probes.append(storage.ENV_VAR in os.environ)  # mid-study probe
+        return real_detect(p, d, f)
+    monkeypatch.setattr(api.shots_mod, "detect_shots", probing_detect)
+
+    api.study(SOURCE, workspace=ws)
+
+    assert probes == [False]  # env untouched even DURING the study
+    assert (ws / "breakdowns" / "tiktok-777" / "breakdown.json").is_file()
+
+
 def test_study_threads_root_explicitly_when_storage_supports_it(
     tmp_path, monkeypatch
 ):
