@@ -55,3 +55,4 @@ the bottom but never claim outside their lane.
   doc-only PR of fixes or a findings note.
 
 ## PROPOSED (workers append; orchestrator promotes)
+- **PROPOSED (orchestrator, R-3 candidate, RYAN-GATED):** calibrated-upload loudness measurement — upload known-LUFS test clips to TikTok/IG/YT and measure what comes back; turns the biggest spec unknown into owned T1-grade data. RED-adjacent (posting to Ryan's channels) — needs Ryan's explicit go + a throwaway account decision.

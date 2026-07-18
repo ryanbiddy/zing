@@ -138,7 +138,16 @@ Genre-specific weightings and criteria (talking-head / tech launch / vlog):
 drafted after R1-D exemplar teardowns + R-2 land — angle 3 produced no
 verified claims this round.
 
-## R-2 agenda (from this round's verified gaps)
+> **R-2 LANDED (2026-07-18):** see `EDITING-CRAFT-AND-SPECS.md` for criteria
+> E5–E10, P3–P11, A4–A7 — Murch weights confirmed from the primary text
+> (E5–E7), universal safe box for 1080×1920 (P6), -14 LUFS / -1 dBTP
+> mastering targets with honest sourcing tiers (P7–P9), Netflix-verified
+> caption limits (E9/P11), and the corrected anti-slop foundation: a
+> 56-paper meta-analysis (N=86k) shows humans detect AI video at only
+> ~57% — so anti-slop rests on platform policy + completion-quality, NOT
+> "viewers can tell" (A4 supersedes the refuted A3 angle).
+
+## R-2 agenda (from this round's verified gaps — status after R-2)
 
 1. Editing craft verification: Murch primary text, pacing evidence, caption
    conventions, music ducking practice, loudness targets (-14 LUFS claim).
