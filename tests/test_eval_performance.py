@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT))
 
 from myzing.schemas import Breakdown, VideoMeta
 from tools.eval.performance import (
