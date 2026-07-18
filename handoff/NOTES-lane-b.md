@@ -323,3 +323,7 @@
   real-video set paid for itself again — a full S2 gate ran with zero
   network and zero heavy deps because real measurements were checked
   in; keep growing that set.
+- **2026-07-18 (Lane B): claimed B-Q12 + B-Q13** (gate-pack defects).
+  This tiny PR: yt-dlp into [study] (doctor's fix command finally
+  installs what it promises). Next PR: doctor JS-runtime data point +
+  compare.md 1-5 scale fix.
