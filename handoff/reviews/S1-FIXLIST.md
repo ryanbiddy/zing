@@ -20,35 +20,35 @@ regression test that fails before the fix.
   rejected; resolved path verified under breakdowns_root) applied at every
   public slug boundary; Windows + POSIX traversal tests. File-verified on
   main post-merge.
-- [ ] **F-03 · Lane B (agent dispatched) · crash states never become
+- [x] **F-03 · FIXED (agent) · crash states never become
   honest.** status.json stays `running` after the server dies →
   `get_breakdown` says "still studying" forever, `zing_status` lists
   phantom jobs. Stamp pid + heartbeat; readers reclassify dead-runner
   states as failed with an actionable message.
-- [ ] **F-04 · Lane B (agent dispatched) · stale breakdown served as ready
+- [x] **F-04 · FIXED (agent) · stale breakdown served as ready
   during re-study.** Check status FIRST; expose `state` on every
   get_breakdown response.
-- [ ] **F-05 · Lane B (agent dispatched) · doctor's OCR verdict checks the
+- [x] **F-05 · FIXED (agent) · doctor's OCR verdict checks the
   wrong packages.** Align doctor with the pipeline's actual import
   (`rapidocr`); fix the test that enshrines the lie.
 
 ## P2 — correctness / honesty
 
-- [ ] **F-06 · Lane A (agent dispatched) · VFR gate hole.** Locally-VFR
+- [x] **F-06 · FIXED (agent) · VFR gate hole.** Locally-VFR
   H.264 passes the 2% avg-fps check; timestamps drift past ±0.15s with no
   warning. Per-frame PTS delta detection; warn on skipped normalization.
-- [ ] **F-07 · Lane A (agent dispatched) · stale keyframe cache.**
+- [x] **F-07 · FIXED (agent) · stale keyframe cache.**
   Re-study attaches old-timestamp frames to new boundaries. Invalidate on
   re-study.
-- [ ] **F-08 · Lane A (agent dispatched) · OCR fails closed silently.**
+- [x] **F-08 · FIXED (agent) · OCR fails closed silently.**
   No-scores condition → recorded warning, not silent drop.
-- [ ] **F-09 · Lane C (agent dispatched) · cut scorer fabricates pairs.**
+- [x] **F-09 · FIXED (agent) · cut scorer fabricates pairs.**
   Report missing/extra/out-of-tolerance strictly separately (C#3).
-- [ ] **F-10 · Lane B (agent dispatched) · doctor omits scenedetect.**
+- [x] **F-10 · FIXED (agent) · doctor omits scenedetect.**
   Recommended tier + pip fix.
-- [ ] **F-11 · Lane B (agent dispatched) · study_video path mismatch.**
+- [x] **F-11 · FIXED (agent) · study_video path mismatch.**
   Dispatch the validated path, not the raw one.
-- [ ] **F-12 · Lane C (agent dispatched) · eval matcher recursion.**
+- [x] **F-12 · FIXED (agent) · eval matcher recursion.**
   Iterative rewrite, tested at 5000+ events; scorer version bumped.
 
 ## P3 — quality (fix after P1/P2 or bundle where trivial)
