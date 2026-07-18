@@ -361,6 +361,7 @@ def _summarize_breakdown(d: dict[str, Any]) -> dict[str, Any]:
             "shots": len(d.get("shots", [])),
             "words": len(d.get("words", [])),
             "captions": len(d.get("captions", [])),
+            "transitions": len(d.get("transitions", [])),
         },
         "audio": {
             k: v
