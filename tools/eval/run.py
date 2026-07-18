@@ -16,6 +16,11 @@ from typing import Any, Callable, Sequence
 from myzing.schemas import Breakdown
 
 from .make_goldens import DEFAULT_OUTPUT as DEFAULT_GOLDENS
+from .performance import (
+    StudyBenchmarkAdapter,
+    summarize_performance,
+    unavailable_performance,
+)
 from .scoring import MANIFEST, MANIFEST_PATH, score
 
 
@@ -33,6 +38,22 @@ def study_adapter(media_path: Path) -> Breakdown:
             "Lane A study API is unavailable; run with --sample until it lands"
         ) from exc
     return study(str(media_path))
+
+
+def _adapter_performance(
+    adapter: Callable[[Path], Breakdown] | None,
+    media_path: Path,
+) -> dict[str, Any]:
+    if adapter is None:
+        return unavailable_performance(
+            "checked-in Breakdown: no live study or render was timed"
+        )
+    getter = getattr(adapter, "performance_for", None)
+    if not callable(getter):
+        return unavailable_performance(
+            "adapter does not expose per-stage performance"
+        )
+    return getter(media_path)
 
 
 def _sha256(path: Path) -> str:
@@ -122,11 +143,12 @@ def evaluate(
                 "directory": case_directory.name,
                 "fixture_hashes": hashes,
                 "score": score(truth, breakdown),
+                "performance": _adapter_performance(adapter, media_path),
             }
         )
 
     report = {
-        "report_schema_version": 1,
+        "report_schema_version": 2,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -135,6 +157,7 @@ def evaluate(
         "ffmpeg": _ffmpeg_version(ffmpeg),
         "wall_clock_seconds": round(time.perf_counter() - started, 6),
         "passed": all(case["score"]["passed"] for case in cases),
+        "performance": summarize_performance(cases),
         "cases": cases,
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -149,7 +172,7 @@ def evaluate(
 
 def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
     report = {
-        "report_schema_version": 1,
+        "report_schema_version": 2,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -159,6 +182,7 @@ def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
         "wall_clock_seconds": None,
         "passed": False,
         "error": {"type": type(exc).__name__, "message": str(exc)},
+        "performance": summarize_performance([]),
         "cases": [],
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -174,7 +198,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     mode.add_argument(
         "--sample",
         action="store_true",
-        help="score the checked-in sample (the default until Lane A lands)",
+        help="score the checked-in sample without live performance timings",
     )
     mode.add_argument(
         "--study",
@@ -184,6 +208,7 @@ def run(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--goldens", type=Path, default=DEFAULT_GOLDENS)
     parser.add_argument("--report", type=Path, default=DEFAULT_REPORT)
     parser.add_argument("--ffmpeg", default="ffmpeg")
+    parser.add_argument("--ffprobe", default="ffprobe")
     args = parser.parse_args(argv)
 
     if args.study:
@@ -194,7 +219,10 @@ def run(argv: Sequence[str] | None = None) -> int:
         case_directories = sorted(
             path for path in args.goldens.iterdir() if (path / "truth.json").is_file()
         )
-        adapter = study_adapter
+        adapter = StudyBenchmarkAdapter(
+            ffmpeg=args.ffmpeg,
+            ffprobe=args.ffprobe,
+        )
     else:
         case_directories = [SAMPLE_DIRECTORY]
         adapter = None
