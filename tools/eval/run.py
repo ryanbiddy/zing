@@ -15,6 +15,10 @@ from typing import Any, Callable, Sequence
 
 from myzing.schemas import Breakdown
 
+from .audio_delivery import (
+    measure_audio_delivery,
+    summarize_audio_delivery,
+)
 from .make_goldens import DEFAULT_OUTPUT as DEFAULT_GOLDENS
 from .performance import (
     StudyBenchmarkAdapter,
@@ -143,12 +147,13 @@ def evaluate(
                 "directory": case_directory.name,
                 "fixture_hashes": hashes,
                 "score": score(truth, breakdown),
+                "audio_delivery": measure_audio_delivery(media_path, ffmpeg),
                 "performance": _adapter_performance(adapter, media_path),
             }
         )
 
     report = {
-        "report_schema_version": 2,
+        "report_schema_version": 3,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -157,6 +162,7 @@ def evaluate(
         "ffmpeg": _ffmpeg_version(ffmpeg),
         "wall_clock_seconds": round(time.perf_counter() - started, 6),
         "passed": all(case["score"]["passed"] for case in cases),
+        "audio_delivery": summarize_audio_delivery(cases),
         "performance": summarize_performance(cases),
         "cases": cases,
     }
@@ -172,7 +178,7 @@ def evaluate(
 
 def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
     report = {
-        "report_schema_version": 2,
+        "report_schema_version": 3,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -182,6 +188,7 @@ def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
         "wall_clock_seconds": None,
         "passed": False,
         "error": {"type": type(exc).__name__, "message": str(exc)},
+        "audio_delivery": summarize_audio_delivery([]),
         "performance": summarize_performance([]),
         "cases": [],
     }
