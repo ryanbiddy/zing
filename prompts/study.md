@@ -1,7 +1,7 @@
 ---
 name: study
 description: How to judge a Zing Breakdown — hook, beats, caption style, why it works — and write the judgment back.
-version: 0.1.0
+version: 0.2.0
 required_keys: [hook, beats, caption_style, why_it_works]
 ---
 
@@ -70,6 +70,10 @@ Label vocabulary for `type` — pick exactly one:
 
 - `question` — opens by asking the viewer something.
 - `claim` — a bold/surprising statement ("this changed everything").
+- `curiosity_gap` — an open loop: names or teases a payoff and withholds
+  it ("the third one broke me", "wait for the end"). Distinguish from
+  `claim`: a claim asserts; a curiosity gap promises. If the opening
+  words point forward to something not yet said, prefer this label.
 - `pattern_interrupt` — abrupt visual/audio jolt engineered to stop the
   scroll (hard cut rhythm, loudness spike, jarring image).
 - `demonstration` — the payoff shown immediately, explained after.
@@ -93,21 +97,48 @@ Also answer the checklist booleans from measurements alone:
 ### beats (structure)
 
 Segment the runtime into labeled spans using `label` ∈ `hook` | `build` |
-`payoff` | `cta` | `other`. Evidence per beat: what in the transcript,
-captions, pacing, or loudness marks the span (e.g. "cuts_per_10s jumps
-4→9 at 20s and the transcript pivots to the reveal"). Spans should cover
-the video without overlaps; leave a span out rather than invent one. If
-structure is genuinely unreadable from measurements, return a single
-span labeled `other` whose `evidence` says why.
+`payoff` | `cta` | `retake` | `other`. Evidence per beat: what in the
+transcript, captions, pacing, or loudness marks the span (e.g.
+"cuts_per_10s jumps 4→9 at 20s and the transcript pivots to the reveal").
+Spans should cover the video without overlaps; leave a span out rather
+than invent one. If structure is genuinely unreadable from measurements,
+return a single span labeled `other` whose `evidence` says why.
+
+**Raw footage reads differently — expect it.** Unedited recordings (the
+input to direct mode) are made of retakes, not beats. In measurements a
+`retake` looks like: a near-verbatim repeated word run in `words[]`
+(same n-gram sequence twice, often with a false start or a "no, again"
+between), typically inside one long static shot, sometimes separated by
+a loudness spike + silence (a clap/slate). Label each attempt span
+`retake` and say in `evidence` which words repeat and where. Do not
+force hook/build/payoff onto footage that is structurally a take reel —
+"this is raw footage: N takes of the same line" is the honest, useful
+read.
 
 ### caption_style
 
 `style` ∈ `word_pop` (one word at a time, `words_visible` ≈ 1) |
 `phrase` (2–6 words) | `sentence` (full lines) | `none` (no captions) |
 `cannot_judge` (OCR skipped or all-low confidence). Report `position`
-and `all_caps` from the observed majority; note timing sync (do caption
-events land within ~150ms of their spoken words?). Weight evidence by
-OCR `confidence` and say when you're reading low-confidence tea leaves.
+and `all_caps` from the observed majority. Weight evidence by OCR
+`confidence` and say when you're reading low-confidence tea leaves.
+
+**`captions[]` is one stream, the screen is many layers.** OCR captures
+everything: subtitles, UI labels, location tags, watermarks, on-screen
+props. Separate them before judging: an event that persists for many
+seconds pinned at `top` is a label or watermark, not a caption; judge
+caption style from the subtitle layer only, and say which events you
+excluded and why. Layer pollution also skews the aggregates
+(`words_visible`, `position`, `all_caps`) — recompute your read from the
+subtitle events, don't trust the majority blindly.
+
+**Sync claims are bounded by sampling resolution.** OCR samples frames
+at a rate recorded in `provenance` (hook window is sampled faster than
+the body). Caption timing can never be known more precisely than that
+interval — at 4fps sampling, "within 150ms of the spoken word" is
+unknowable. State sync at the resolution you actually have ("caption
+starts track word starts within one sample (~250ms) after 3s") and
+never claim tighter sync than the sampling interval supports.
 
 ### why_it_works
 
@@ -146,17 +177,17 @@ required — `save_judgment` rejects the write otherwise.
   "caption_style": {
     "evidence": [
       "41 caption events, median words_visible = 1, median confidence 0.84",
-      "38/41 events all_caps at position 'lower'",
-      "caption starts track word starts within ~120ms through 0–20s"
+      "38/41 events all_caps at position 'lower'; 2 excluded as a persistent top-pinned channel watermark (16s+ duration)",
+      "caption starts track word starts within one sample in the hook window (~125ms at 8fps per provenance), within ~250ms (4fps) after 3s"
     ],
-    "reasoning": "Word-timed pop captions, uppercase, lower-third, tightly synced to speech.",
+    "reasoning": "Word-timed pop captions, uppercase, lower-third, synced to speech at the resolution OCR can see.",
     "present": true,
     "style": "word_pop",
     "position": "lower",
     "all_caps": true,
     "notes": "sync drifts to ~400ms after 30s — either burned-in drift or OCR timing noise"
   },
-  "why_it_works": "The open stacks claim, caption, cut, and level inside 1.1s (evidence above), so every channel says 'stay'. Pacing is the real device: a calm build (cuts_per_10s ≈ 4) makes the payoff acceleration (≈ 8 at 21.5s) feel like an arrival rather than noise. Word-pop captions at words_visible = 1 keep silent viewers parsing one beat at a time, and the sub-150ms sync means the captions read as the voice, not subtitles of it. The CTA stays inside the energy envelope instead of tacking on a cold outro (final caption event ends 0.2s before the video does)."
+  "why_it_works": "The open stacks claim, caption, cut, and level inside 1.1s (evidence above), so every channel says 'stay'. Pacing is the real device: a calm build (cuts_per_10s ≈ 4) makes the payoff acceleration (≈ 8 at 21.5s) feel like an arrival rather than noise. Word-pop captions at words_visible = 1 keep silent viewers parsing one beat at a time, and sync tight to the sampling limit means the captions read as the voice, not subtitles of it. The CTA stays inside the energy envelope instead of tacking on a cold outro (final caption event ends 0.2s before the video does)."
 }
 </example_judgment>
 
@@ -171,4 +202,13 @@ block.
 Restating the contract: read `warnings` first; cite verbatim
 measurements or abstain with `cannot_judge`; evidence and reasoning
 before verdicts; all four top-level keys present; visual hooks are
-`cannot_judge` unless you saw keyframes.
+`cannot_judge` unless you saw keyframes; never claim caption sync
+tighter than the OCR sampling interval.
+
+## Changelog
+
+- **0.2.0** (2026-07-18, from the wizard-of-oz round): added
+  `curiosity_gap` hook label; sync judgments now bounded by OCR sampling
+  resolution; multi-layer OCR separation guidance (labels/watermarks vs
+  subtitles); `retake` beat label + raw-footage reading rules.
+- **0.1.0** (2026-07-18): initial contract.
