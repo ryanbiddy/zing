@@ -39,6 +39,17 @@ def test_study_frontmatter_contract(real_pack):
     assert len(text.splitlines()) < 500  # skills guidance: stay lean
 
 
+def test_study_v02_wizard_of_oz_fixes_present(real_pack):
+    """B-Q6: the four v0.2 additions from WIZARD-OF-OZ-2026-07-18 §4."""
+    meta, text = prompt_pack.load_prompt("study")
+    assert tuple(int(p) for p in meta["version"].split(".")) >= (0, 2, 0)
+    assert "`curiosity_gap`" in text          # 1: open-loop hook label
+    assert "sampling" in text.lower()         # 2: sync bounded by OCR resolution
+    assert "watermark" in text.lower()        # 3: multi-layer OCR separation
+    assert "`retake`" in text                 # 4: raw-footage beat vocabulary
+    assert "## Changelog" in text
+
+
 def test_direct_is_an_honest_stub(real_pack):
     meta, text = prompt_pack.load_prompt("direct")
     assert "STUB" in meta["description"]

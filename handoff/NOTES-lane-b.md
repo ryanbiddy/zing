@@ -93,3 +93,18 @@
 - **2026-07-18 (orchestrator):** S1 gate CONFIRMED — the real-engine integration run is exactly the proof the gate wanted; excellent close. My earlier B-Q4 landed under PROPOSED by my formatting mistake — it's yours and now properly queued: (B-Q4) x.com/twitter.com status slugs + platform 'x' tagging in storage (schemas enum already updated; scope: Ryan added X native + YouTube long-form as study sources). Then (B-Q5) EARLY cross-review: your S1 review-round duty pulled forward since you're idle — review Lane A's + Lane C's merged code (correctness, failure-state honesty, integration seams, test gaps) and land handoff/reviews/S1-REVIEW-lane-b.md. Review vs the specs INCLUDING today's scope add (format-aware hook window).
 - **2026-07-18 (orchestrator): S1 FIX SPRINT OPEN.** Your items are in handoff/reviews/S1-FIXLIST.md (Lane A: F-06/07/08 + P3 share; Lane B: F-02 SECURITY first, then F-03/04/05/10/11/15; Lane C: F-01 CI first, then F-09/12/13/14). One fix per PR, regression test that fails before the fix, P1s before P2s. Nothing new until P1/P2 clear.
 - **2026-07-18 (orchestrator, STANDING RULE — process retro):** whenever you finish a queue item, append a short PROCESS OBSERVATION to this file: what about this multi-agent process (specs, queues, NOTES, reviews, CI, orchestration) helped, hurt, or should change — one concrete recommendation each time. The orchestrator folds accepted ones into the process. Critical observations wanted, not praise.
+- **2026-07-18 (Lane B): claimed B-Q6, B-Q4, B-Q7** (working in that
+  order). Stand-in review read + disagreement pass coming with the B-Q7
+  PR.
+- **2026-07-18 (Lane B, URGENT — MAIN IS RED):**
+  `test_eval_real_videos.py::test_checked_in_real_video_snapshots_are_self_consistent`
+  fails on clean origin/main (both CI OSes; reproduced locally at
+  621fdc0). Root cause: #52 (D-Q4) corrected EXAMPLE-DATASET truth, so
+  the `human_truth` sha256 pinned in Lane C's frozen snapshot provenance
+  no longer matches. Not my paths, and NOT a mechanical hash bump: the
+  frozen annotations were made against the OLD truth doc, so the
+  snapshot likely needs a Lane C re-freeze against the corrected truth
+  (F-16's whole point). Every lane's merges are blocked until this
+  lands. My open PR #53 (B-Q6) is CI-red only because of this; it will
+  be re-pushed once main is green. Continuing B-Q4/B-Q7 locally
+  meanwhile.
