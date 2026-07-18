@@ -109,3 +109,9 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 - **A-Q9:** long-form study performance — chunked/streamed transcription strategy for 10min+ videos, measured against the perf harness.
 - **B-Q8:** build get_frames(slug, timestamps[]) per your own B-Q3 design note (S2 fast-follow pulled forward — judgment needs eyes; wizard-of-oz proved it).
 - **B-Q9:** .mcpb packaging — build the one-click bundle for Claude Desktop per docs/CONNECT.md, tested install flow documented.
+
+## Lane D — light-work wave (orchestrator, 2026-07-18 evening; sized for fast collation/verification)
+- **D-Q7:** taste-docs master index — build docs/taste/INDEX.md: one table of EVERY criterion ID across all taste docs (ID, one-line claim, tier, source doc, link). Pure collation, high value: the judgment prompts need a single lookup surface. Keep it regenerable (note your method at the top).
+- **D-Q8:** link-rot + source verification pass across all docs/taste/*.md — check every source link resolves, mark dead ones inline with [DEAD 2026-07-18] + a replacement if findable, summary note in NOTES.
+- **D-Q9:** reference candidates for Ryan — find 10 candidate reference shorts across our genres (tech, comedy, informative, product, vlog) that exemplify the rubrics; verify each URL is live; one-line "why this one" per pick citing a rubric criterion. Save handoff/research/REFERENCE-CANDIDATES.md. This feeds Ryan's S3 pick-list.
+- **D-Q10:** breakdown.md readability QA — read the frozen real-video breakdown.md files as a CREATOR would; list every jargon term, unclear number, or missing explanation; doc-only findings note.
