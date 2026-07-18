@@ -280,7 +280,12 @@ def _run_study(study_fn: Any, source: str, slug: str, root: Path) -> None:
             )
         finally:
             with _JOBS_LOCK:
-                _JOBS.pop(slug, None)
+                # Identity-guarded: if a re-study has already replaced this
+                # slug's registration, a finishing old worker must not evict
+                # the new thread (a missing entry would make _reconcile_running
+                # falsely fail the live job as "worker thread gone").
+                if _JOBS.get(slug) is threading.current_thread():
+                    _JOBS.pop(slug, None)
 
 
 def h_study_video(url_or_path: str) -> dict[str, Any]:
@@ -322,13 +327,20 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
     with _JOBS_LOCK:
         job = _JOBS.get(slug)
         if job is not None and job.is_alive():
+            # A live thread alone is not proof of a live STUDY: a finished
+            # worker is briefly still alive (and registered) between its
+            # final status write and its cleanup pop. Only refuse when the
+            # on-disk state agrees the study is running — otherwise fall
+            # through and start the requested re-study (the old thread's
+            # identity-guarded pop can't evict the new registration).
             status = storage.read_status(slug) or {}
-            return _ok(
-                slug=slug,
-                status="already_studying",
-                phase=status.get("phase", ""),
-                hint="poll zing_status() or get_breakdown(slug)",
-            )
+            if status.get("state") == "running":
+                return _ok(
+                    slug=slug,
+                    status="already_studying",
+                    phase=status.get("phase", ""),
+                    hint="poll zing_status() or get_breakdown(slug)",
+                )
         _write_status(
             slug,
             state="running",
