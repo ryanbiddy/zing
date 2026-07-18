@@ -40,7 +40,7 @@
     "Replaced the temporary local source path with the canonical URL.",
     "Restored canonical YouTube title, creator, and platform metadata.",
     "Cleared meta.media_path because source media is not committed.",
-    "Cleared shot keyframe paths because derived source frames are not committed without documented redistribution terms."
+    "Backfilled shot keyframe paths and committed downscaled analysis thumbnails (A-Q6); frames grabbed from SHA-verified source media at frozen timestamps — measurements untouched."
   ],
   "measurement": {
     "shot_detector": "scenedetect-0.7 AdaptiveDetector",
@@ -138,6 +138,43 @@
     "sha256": "5ed01c48ff0b0870adda73cae5e244b22d9e2b1f1a6c28bccdce6a538ee2dde6"
   },
   "artifacts": {
-    "breakdown.json": "2905783c4088729bb2dab4a2bea47992f37f08e935a34ce37748775b436cd3d7"
+    "breakdown.json": "d134a3d3e1e12927da9fb9b4f545763d2080aa5163b0552f8f21df443e673a56",
+    "frames/shot_000.jpg": "33aeed1a6682fff0a36ff2390ab7364d2eec6213419fd0fdf341a5cb80796354",
+    "frames/shot_001.jpg": "0b7c7f4fa178131266bddd053a44a90e921bb550770995f777185fb3c7ff538f",
+    "frames/shot_002.jpg": "b6c73b3a320cd19190ee389214faed90e064a64e2998bdd2adc0e0d241456d7c",
+    "frames/shot_003.jpg": "631e783a0bdb4e89dec5294da514cd7db36bb48589220d8a39f47454dacff7ee",
+    "frames/shot_004.jpg": "7ac904415a255b4f9cba3eb45defc4784c4890b2cbca129de5e13898bef62196",
+    "frames/shot_005.jpg": "4eba108e67c899825c6abf234851a7c405d15165484f71971c1ca23ceef9e87e",
+    "frames/shot_006.jpg": "dc39eff0cb01dff66451796f457cf0e37f35d8e4f76fa5f860b40d0ef68f9cf4",
+    "frames/shot_007.jpg": "e8addaeea6cfb5cac78a4eeb2ec26ce6a7d3705a1d667c28e056224ef3393688",
+    "frames/shot_008.jpg": "589d29b665bc81c9835f245b38b142291eb54c3f28abf7ad4e2e0a1413a4016f",
+    "frames/shot_009.jpg": "f8dd883b93664f3d08fe7033a5ab64bfdbab8edd1aadb91ac12ca5e61adc084f",
+    "frames/shot_010.jpg": "ceb873aa0ead8145cc8176c44beff8599756709c2bfc1f03f78cdeed40fabc69",
+    "frames/shot_011.jpg": "3cdd4a97e1b815604ec93770e2f94684fa74b0365a3a692dd7fd4a861c84b97d",
+    "frames/shot_012.jpg": "e495b7fc4e7ac50cdebf3ad73576194840c718093545a5cb9d8cb4bdc4b8b27b",
+    "frames/shot_013.jpg": "e81c9a69d7ea6da9b5b38a5011f7e02feccdfc561ac97ae08ceb83b5519cd62e",
+    "frames/shot_014.jpg": "3ba25aa91851341dae14fadbdebe67bc4a546dbb97a19575d0f017242841a6d2",
+    "frames/shot_015.jpg": "dccd4b6ed094814d236141ba43c06c58b63255890b3361a823fd6b0f759894f1",
+    "frames/shot_016.jpg": "c9d5e70ce283e9b81e7038327099ef47a88f3ff1120dca5a722d9874dc573896",
+    "frames/shot_017.jpg": "63fb457f46253612268680aced0abc061af029f937ba5f163f231e014dd8e949",
+    "frames/shot_018.jpg": "623be5a115e9cceebd3a3f56e5d03f39de778e76803fb6dd36190bba42ed2134",
+    "frames/shot_019.jpg": "ec921d2cbf04cec2e13bd651f40ff7c7dffa96535cde25ece04de6e7bb1a9afa",
+    "frames/shot_020.jpg": "68abf8b7e4690f20419f808b27500720ccd99966d66f95d9f3ca7d77b032db2e",
+    "frames/shot_021.jpg": "7580a1d8b1b17385069dc3be8d0f29a6ad3c366eff8f6a15e190bed182873b4f",
+    "frames/shot_022.jpg": "b325143fb215f10856076592486cb4de0d1237a129e0edefc804025b88db2566",
+    "frames/hook_0s.jpg": "33aeed1a6682fff0a36ff2390ab7364d2eec6213419fd0fdf341a5cb80796354",
+    "frames/hook_1s.jpg": "b3e3ffce45b61c316f5f069aa8bbad809285b4f1941fecd42d40c580288164f7",
+    "frames/hook_2s.jpg": "bf88efbfd30cb1bb85a17d5864b8655700cb25446cda2e2d9d6e4471df9aaaf4"
+  },
+  "derived_frames": {
+    "committed": true,
+    "decision": "A-Q6 (orchestrator, 2026-07-18): small analysis thumbnails ship with baselines so visual judgment criteria are scoreable",
+    "recipe": {
+      "source": "sha256-verified source media (see source_media)",
+      "timestamps": "frozen shot starts + 1 fps over the hook window",
+      "scale": "height<=360",
+      "jpeg_quality": "7"
+    },
+    "count": 26
   }
 }
