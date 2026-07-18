@@ -294,3 +294,16 @@
   the real Cleo-vs-profile judgment half needs Lane A's builder —
   will run it the cycle their api.py merges. build_profile is sync (ms
   aggregation — the B#2 timeout math doesn't apply).
+- **2026-07-18 (Lane B): SG-5 feature-gap analysis (standing generator;
+  S2 lane items done on my side, gate half blocked on Lane A's
+  builder).** Proposed P-B1 (loop-ability as a measured Breakdown
+  field) to QUEUE §PROPOSED with the required self-refutation. The
+  refutation bit hard enough that the surviving form is gated: a
+  zero-schema base-rate check against the frozen references BEFORE any
+  build — if no admired reference actually loops, the feature dies
+  with evidence instead of shipping as speculation. SG rotation:
+  1-5 all run once; restarting at SG-1 next idle cycle. PROCESS
+  OBSERVATION: SG-5's mandatory self-refutation changed the proposal
+  materially (unconditional build → gated check) — the mechanism works;
+  suggest requiring the refutation to name the CHEAPEST test that would
+  kill the proposal, since that's what reshaped this one.
