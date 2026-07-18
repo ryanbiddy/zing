@@ -79,3 +79,14 @@
   plan; one non-blocking open question on shot_index sugar). Lane B
   queue is now EMPTY — stopping per the lane prompt; awaiting the next
   assignment or the S1 review round.
+- **2026-07-18 (Lane B): honest-missing (a) CLOSED.** Ran the first real
+  integration after Lane A's api.py merged (#32): synthetic 2.5s video →
+  `h_study_video` on the REAL engine → job returned in <1s, status.json
+  running→done, breakdown.json + breakdown.md + media.mp4 persisted,
+  get_breakdown served summary. Engine degraded honestly in a bare venv
+  (each skip named with its pip fix in warnings). The B#2 job pattern and
+  the seam auto-wire are verified against the real engine, not the fake.
+  Note for Lane A: seam has no phase callback, so zing_status shows phase
+  "ingest" until done — an optional `phase_callback=` kwarg on study()
+  would light up the per-phase reporting the B#2 ruling names (my runner
+  already sniffs for it; zero changes needed on my side).
