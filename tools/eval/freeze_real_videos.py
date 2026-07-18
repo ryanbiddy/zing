@@ -36,6 +36,10 @@ def _sha256(path: Path) -> str:
 
 
 def _text_sha256(path: Path) -> str:
+    # ``read_text`` decodes with universal newlines, so text pins are
+    # sha256 of the LF-normalized UTF-8 text — identical on LF (CI) and
+    # CRLF (Windows core.autocrlf) checkouts. Keep in sync with
+    # ``tests/test_eval_real_videos._sha256``.
     content = path.read_text(encoding="utf-8")
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 

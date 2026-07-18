@@ -13,7 +13,14 @@
     "section": "1. REFERENCE VIDEO",
     "sha256": "fbdc1f9980cf55c58b35a853ddafe952b524fc5e4321e5ee5863a467186f03e3",
     "caveat": null,
-    "note": "hash re-recorded after the human-truth doc was corrected post-freeze (D-Q4/F-16); fixture measurements unchanged, truth section verified present"
+    "note": "hash re-recorded after the human-truth doc was corrected post-freeze (D-Q4/F-16); fixture measurements unchanged, truth section verified present",
+    "supersession": {
+      "fixlist_item": "F-16",
+      "corrected_in": "PR #52 (a1fc332)",
+      "date": "2026-07-18",
+      "previous_sha256": "b0d05f1b14c5d0610141f7a7c48d135d803aa6cde2a3472e830a9e370d644d02",
+      "note": "Auditable record of the pin the F-16 correction superseded: EXAMPLE-DATASET-TRUTH.md was corrected because the corpus's 'raw' example is a pre-edited showcase and a genuinely unedited replacement was documented. Section '1. REFERENCE VIDEO' content is unchanged; only the document hash moved. Frozen measurements are unchanged."
+    }
   },
   "source_media": {
     "committed": false,

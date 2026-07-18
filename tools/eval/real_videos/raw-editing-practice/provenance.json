@@ -13,7 +13,15 @@
     "section": "2. EXTREMELY EDITED SHOWCASE",
     "sha256": "fbdc1f9980cf55c58b35a853ddafe952b524fc5e4321e5ee5863a467186f03e3",
     "caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link.",
-    "note": "hash re-recorded after the human-truth doc was corrected post-freeze (D-Q4/F-16); fixture measurements unchanged, truth section verified present"
+    "note": "hash re-recorded after the human-truth doc was corrected post-freeze (D-Q4/F-16); fixture measurements unchanged, truth section verified present",
+    "supersession": {
+      "fixlist_item": "F-16",
+      "corrected_in": "PR #52 (a1fc332)",
+      "date": "2026-07-18",
+      "previous_sha256": "b0d05f1b14c5d0610141f7a7c48d135d803aa6cde2a3472e830a9e370d644d02",
+      "previous_section": "2. RAW VIDEO",
+      "note": "Auditable record of the pin the F-16 correction superseded: measurements (34 shots / 33 cuts, phrase subtitles, music bed) proved the published upload is a pre-edited showcase, not raw footage. The corrected doc retitles this section to '2. EXTREMELY EDITED SHOWCASE' and documents a genuinely unedited replacement in section 3. The measurement-time record in measurement.regression_fixture keeps the original section title on purpose; frozen measurements are unchanged."
+    }
   },
   "source_media": {
     "committed": false,
