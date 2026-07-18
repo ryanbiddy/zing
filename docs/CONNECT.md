@@ -76,10 +76,28 @@ the `get_prompt` tool instead.
   disk (`status.json`), and survives restarts — a crashed study shows
   `failed` with its error, never a silent hang.
 
-## One-click bundle (.mcpb) — not yet
+## One-click bundle (.mcpb)
 
-A `.mcpb` bundle (double-click install into Claude Desktop) is queued
-for the hardening sprint: Python servers need their compiled deps
-bundled per-platform (the MCP SDK's pydantic doesn't bundle portably),
-so it ships when we can test it on a clean machine rather than promise
-it now.
+Build it (needs Node for the pack step; network on first run):
+
+```
+python packaging/build_mcpb.py        # -> dist/myzing.mcpb
+```
+
+Then double-click `myzing.mcpb` (or drag it into Claude Desktop →
+Settings → Extensions). The bundle is `server.type: "uv"`: Claude
+Desktop's runtime resolves Python + dependencies from the bundled
+`pyproject.toml` at install time, so nothing compiled is packed and one
+bundle serves Windows/macOS/Linux. The install dialog offers one
+optional setting — the Zing workspace directory (default `~/.zing`).
+
+**What is verified** (2026-07-18, this machine): the staged bundle tree
+is complete and CI-tested; `mcpb pack` produces the bundle; the
+manifest's exact launch command (`uv run --directory <bundle> --extra
+mcp python -m myzing.cli serve-mcp`) boots the server cold from the
+staged tree — initialize handshake, all 9 tools listed, both prompt-pack
+prompts served via the `${__dirname}/prompts` pin. **What still needs a
+human:** the Claude Desktop double-click dialog itself (GUI). If it
+fails, the fallback is the manual config above — same server, same
+behavior. Requires a Claude Desktop recent enough to support uv-type
+bundles; older versions should use the manual config.

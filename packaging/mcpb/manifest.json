@@ -1,0 +1,48 @@
+{
+  "manifest_version": "0.4",
+  "name": "myzing",
+  "display_name": "Zing",
+  "version": "0.1.0",
+  "description": "Zing studies short videos: deterministic edit measurements (shots, word-timed transcript, caption OCR, audio) your AI turns into style judgments over MCP.",
+  "author": {
+    "name": "Ryan Biddy"
+  },
+  "server": {
+    "type": "uv",
+    "entry_point": "src/myzing/mcp_server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "--extra",
+        "mcp",
+        "python",
+        "-m",
+        "myzing.cli",
+        "serve-mcp"
+      ],
+      "env": {
+        "ZING_PROMPTS_DIR": "${__dirname}/prompts",
+        "ZING_HOME": "${user_config.workspace}"
+      }
+    }
+  },
+  "user_config": {
+    "workspace": {
+      "type": "directory",
+      "title": "Zing workspace",
+      "description": "Where breakdowns and media are stored. Leave empty for the default (~/.zing).",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux", "win32"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  },
+  "keywords": ["video", "editing", "analysis", "tiktok", "study", "director"],
+  "license": "MIT"
+}
