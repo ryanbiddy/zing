@@ -24,6 +24,42 @@ Priority: working > pretty. No brand/design/copy work until the tool is built.
 4. **NEXT:** orchestrator seeds the next sprint spec (`SPRINT-<N+1>-*.md`),
    folding in any accepted critique items.
 
+## R-track — Research (parallel to S1; lands BEFORE S2 build)
+
+Taste is a first-class product pillar (Ryan, 2026-07-18): Zing must be able
+to say WHY a video is good — per genre, against sourced criteria, never
+vibes. "How do we know if a video is good" is a thing Zing solves, and the
+framing gets built before launch.
+
+- **R-A · Taste corpus (orchestrator, deep research):** what makes video
+  good — hook craft + retention-curve evidence, pacing/cut rhythm, caption
+  craft, structure, sound; genre-specific rubrics for **creator
+  talking-head**, **tech launch / product**, and **vlog**; plus TikTok/
+  short-form platform mechanics. Deliverable: `docs/taste/TASTE-FRAMEWORK.md`
+  + one rubric per genre + `docs/taste/SOURCES.md` — every claim cited, as
+  many quality sources as we can find.
+- **R-B · Prior art & reusable OSS (agent):** GitHub survey of auto-edit /
+  scene-detect / caption / EDL / TTS repos and similar products. Deliverable:
+  `handoff/research/PRIOR-ART-OSS.md` with a reuse / borrow-ideas / avoid
+  decision AND license per component; orchestrator folds into lane specs.
+- **R-C · Example dataset (agent + uoink):** one exemplary edited short and
+  one raw no-edit talking-head video, both uoinked into the corpus, documented
+  in `handoff/research/EXAMPLE-DATASET.md` — Zing's standing demo case,
+  available before Ryan's own footage lands.
+- **R-D · Technical platform specs (inside R-A/R-B):** vertical safe zones,
+  duration norms, loudness targets (streaming platforms normalize ~-14 LUFS),
+  caption conventions + accessibility — concrete renderer inputs.
+- **Standing research loop:** every sprint REVIEW round asks "does new
+  research change the specs?" — taste docs are living documents; new
+  learnings from real breakdowns get folded back in.
+
+**Taste integration:** S2 adds taste scoring — `Breakdown.judgment.taste`
+carries rubric scores WITH cited reasons; `prompts/study.md` gets grounded
+in `docs/taste/` (the AI quotes the rubric it's scoring against). S3 gap
+reports cite rubric criteria, not opinions ("hook 2/5 per creator rubric —
+no pattern interrupt inside 1.5s"), and shot prompts say which criterion
+they fix.
+
 ## Sprint sequence
 
 - **S1 — D-1 Study (current, spec: SPRINT-1-D1.md):** measurement engine,
