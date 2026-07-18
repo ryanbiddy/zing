@@ -118,3 +118,24 @@ def test_missing_pack_dir_is_honest(monkeypatch, tmp_path, capsys):
     monkeypatch.setenv(prompt_pack.PROMPTS_DIR_ENV, str(tmp_path / "void"))
     assert prompt_pack.run(["study"]) == 1
     assert "no prompt pack found" in capsys.readouterr().out
+
+
+def test_cli_survives_legacy_windows_console(real_pack):
+    """Regression: study.md contains characters (e.g. U+2192) outside
+    cp1252; on a default Windows console `zing prompt study` crashed with
+    UnicodeEncodeError. cli.main now replaces rather than crashes."""
+    import os
+    import subprocess
+    import sys
+
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "cp1252"  # simulate the legacy console
+    proc = subprocess.run(
+        [sys.executable, "-m", "myzing.cli", "prompt", "study"],
+        capture_output=True,
+        text=False,
+        env=env,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr.decode(errors="replace")
+    assert b"Judging a Zing breakdown" in proc.stdout

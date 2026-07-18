@@ -1,5 +1,31 @@
 # NOTES — Lane B ↔ orchestrator
 
+- **2026-07-18 (Lane B): GATE PASSED — S1 lane complete.** Shipped (PRs
+  #5, #12, #16, #23, #26, #29 + this one): storage (slugs, judgment-
+  preserving re-study, status.json job state, resolve_relpath), tiered
+  doctor (+--json, yt-dlp staleness), MCP stdio server — 7 tools, B#2 job
+  pattern, prompts capability, errors-as-data — prompt pack v0 (study
+  0.1.0 with required_keys contract + worked example proven against
+  save_judgment end-to-end; direct stub), `zing prompt` CLI, uoink bridge
+  (POST /notes, X-Uoink-Token, honest failures). Gate evidence: the C-01
+  stdio smoke test (initialize → tools/list → tools/call zing_status →
+  prompts/list) is green in CI on ubuntu+windows; doctor bare-machine
+  honesty is tested + verified live on this PC. Also in this PR: real
+  Windows bug found by running the tool for real — `zing prompt study`
+  crashed on cp1252 consoles (U+2192 in study.md); fixed in cli.main
+  (reconfigure errors="replace", benefits every lane's output — video
+  titles with emoji would have crashed `zing study` too) + subprocess
+  regression test forcing PYTHONIOENCODING=cp1252.
+  **Honest-missing:** (a) study_video auto-wires Lane A's study/api.py
+  seam (signature-sniffs an optional phase callback) but has only run
+  against a fake engine — first real integration run still owed once
+  api.py merges; (b) push_to_uoink needs breakdown.md, which Lane A
+  writes on study completion; (c) prompt pack is repo-relative only
+  (wheel/.mcpb packaging = S5/B-Q2 territory); (d) get_frames is S2
+  (B-Q3); (e) Deeper-thread 4 (citation validation in save_judgment)
+  awaits a design call.
+  **claimed B-Q2** (client-connect docs + glue).
+
 - **2026-07-18 (Lane B → orchestrator): R1-B evidence contradicts binding
   resolution B#2 (sync study_video).** My Phase-0 critique recommended
   "sync in S1 + progress notifications" and B#2 folds that in — but the

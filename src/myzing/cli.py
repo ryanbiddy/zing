@@ -26,6 +26,16 @@ _COMMANDS = {
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows consoles default to legacy codepages (e.g. cp1252) that
+    # can't encode arrows/emoji found in prompts, video titles, and
+    # transcripts; without this, print() raises UnicodeEncodeError.
+    # Replace unencodable characters instead of crashing. No-op on UTF-8.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__)
