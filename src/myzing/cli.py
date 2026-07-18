@@ -7,6 +7,7 @@ should almost never change. Each command module exposes
   zing doctor            -> myzing.doctor            (Lane B)
   zing study <url|file>  -> myzing.study.command     (Lane A)
   zing serve-mcp         -> myzing.mcp_server        (Lane B)
+  zing prompt <name>     -> myzing.prompt_pack       (Lane B)
   zing render <edl.json> -> myzing.render.command    (Lane C)
 """
 
@@ -19,6 +20,7 @@ _COMMANDS = {
     "doctor": "myzing.doctor",
     "study": "myzing.study.command",
     "serve-mcp": "myzing.mcp_server",
+    "prompt": "myzing.prompt_pack",
     "render": "myzing.render.command",
 }
 
