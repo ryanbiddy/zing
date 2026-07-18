@@ -1,5 +1,17 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): claimed V-A, DELIVERED** —
+  `docs/taste/VIRALITY-youtube.md` (YouTube + Shorts, house format,
+  16 tiered claims, all sourced from two research sweeps; primary
+  anchors: Goodrow blog + RecSys 2016/2019 papers, Sherman's Shorts
+  interview, the 2025-03-31 view-count divergence). Headline for the
+  synthesis: on both surfaces the official viral signature is NOT a high
+  metric but a metric HOLDING while distribution scales (CTR under
+  impression growth; engaged-view share under public-view inflation) —
+  and the top-weighted official signal (satisfaction surveys) is
+  invisible to creators and to Zing, which caps honest virality-score
+  confidence (Deeper Thread 3).
+
 - **2026-07-18 (Lane A): claimed A-Q6 + A-Q7; A-Q6 DELIVERED (PR #54),
   A-Q7 Lane-A half DELIVERED.** A-Q6: keyframes now ship with both frozen
   baselines (63 sha-tracked thumbnails ≤360px, extracted from
