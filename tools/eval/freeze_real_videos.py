@@ -75,14 +75,68 @@ def _tool_version(command: str) -> str | None:
 
 def _load_manifest(path: Path) -> dict[str, Any]:
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != 1:
+    schema_version = manifest.get("schema_version")
+    if schema_version not in {1, 2}:
         raise RegressionFreezeError(
-            f"unsupported real-video manifest schema: {manifest.get('schema_version')}"
+            f"unsupported real-video manifest schema: {schema_version}"
         )
     cases = manifest.get("cases")
     if not isinstance(cases, list) or not cases:
         raise RegressionFreezeError("real-video manifest has no cases")
+    if schema_version == 2:
+        for case in cases:
+            fixture_id = case.get("fixture_id", "<missing fixture_id>")
+            human_truth = case.get("human_truth")
+            if (
+                not isinstance(human_truth, dict)
+                or not isinstance(human_truth.get("available"), bool)
+            ):
+                raise RegressionFreezeError(
+                    f"{fixture_id}: schema 2 requires human_truth.available"
+                )
+            if not human_truth["available"] and not human_truth.get("reason"):
+                raise RegressionFreezeError(
+                    f"{fixture_id}: unavailable human truth requires a reason"
+                )
+            if human_truth["available"] and (
+                not human_truth.get("path")
+                or not human_truth.get("section")
+            ):
+                raise RegressionFreezeError(
+                    f"{fixture_id}: available human truth requires path and section"
+                )
+            rights = case.get("rights")
+            if (
+                not isinstance(rights, dict)
+                or not rights.get("label")
+                or not rights.get("evidence_url")
+                or not rights.get("attribution")
+            ):
+                raise RegressionFreezeError(
+                    f"{fixture_id}: schema 2 requires rights evidence"
+                )
     return manifest
+
+
+def _human_truth(
+    manifest: dict[str, Any],
+    case: dict[str, Any],
+) -> dict[str, Any]:
+    if "human_truth" in case:
+        return dict(case["human_truth"])
+    return {
+        "available": True,
+        "path": manifest["human_truth"],
+        "section": case["truth_section"],
+        "caveat": case.get("truth_caveat"),
+    }
+
+
+def _manifest_display_path(path: Path) -> str:
+    try:
+        return path.relative_to(HERE.parents[1]).as_posix()
+    except ValueError:
+        return path.name
 
 
 def _portable_breakdown(
@@ -97,13 +151,19 @@ def _portable_breakdown(
     frozen.meta.media_path = ""
     for shot in frozen.shots:
         shot.keyframe = ""
-    frozen.provenance["regression_fixture"] = {
+    fixture_provenance = {
         "fixture_id": case["fixture_id"],
         "video_id": case["video_id"],
         "role": case["role"],
-        "human_truth": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
-        "truth_section": case["truth_section"],
     }
+    if "human_truth" in case:
+        fixture_provenance["human_truth"] = dict(case["human_truth"])
+    else:
+        fixture_provenance["human_truth"] = (
+            "handoff/research/EXAMPLE-DATASET-TRUTH.md"
+        )
+        fixture_provenance["truth_section"] = case["truth_section"]
+    frozen.provenance["regression_fixture"] = fixture_provenance
     return frozen
 
 
@@ -116,12 +176,24 @@ def _freeze_with_adapter(
     *,
     ffmpeg: str,
 ) -> list[Path]:
-    truth_path = HERE.parents[1] / manifest["human_truth"]
-    if not truth_path.is_file():
-        raise RegressionFreezeError(f"human truth file not found: {truth_path}")
+    source_document_path = None
+    if manifest.get("source_document"):
+        source_document_path = HERE.parents[1] / manifest["source_document"]
+        if not source_document_path.is_file():
+            raise RegressionFreezeError(
+                f"source document not found: {source_document_path}"
+            )
     output.mkdir(parents=True, exist_ok=True)
     frozen_directories = []
     for case in manifest["cases"]:
+        human_truth = _human_truth(manifest, case)
+        truth_path = None
+        if human_truth["available"]:
+            truth_path = HERE.parents[1] / human_truth["path"]
+            if not truth_path.is_file():
+                raise RegressionFreezeError(
+                    f"human truth file not found: {truth_path}"
+                )
         media_path = media_root / case["media_filename"]
         if not media_path.is_file():
             raise RegressionFreezeError(
@@ -154,8 +226,17 @@ def _freeze_with_adapter(
         )
 
         artifacts = [breakdown_path]
+        if truth_path is None:
+            truth_provenance = human_truth
+        else:
+            truth_provenance = {
+                **human_truth,
+                "sha256": _text_sha256(truth_path),
+            }
+            if "available" not in case.get("human_truth", {}):
+                truth_provenance.pop("available", None)
         provenance = {
-            "schema_version": 1,
+            "schema_version": manifest["schema_version"],
             "fixture_id": case["fixture_id"],
             "source": {
                 "url": case["source_url"],
@@ -164,12 +245,8 @@ def _freeze_with_adapter(
                 "title": case["title"],
                 "creator": case["creator"],
             },
-            "human_truth": {
-                "path": manifest["human_truth"],
-                "section": case["truth_section"],
-                "sha256": _text_sha256(truth_path),
-                "caveat": case.get("truth_caveat"),
-            },
+            "human_truth": truth_provenance,
+            **({"rights": case["rights"]} if "rights" in case else {}),
             "source_media": {
                 "committed": False,
                 "filename": case["media_filename"],
@@ -177,6 +254,7 @@ def _freeze_with_adapter(
                 "sha256": _sha256(media_path),
                 "acquisition": {
                     **manifest["source_acquisition"],
+                    **case.get("acquisition", {}),
                     "selected_format_ids": case["selected_format_ids"],
                 },
             },
@@ -209,9 +287,19 @@ def _freeze_with_adapter(
                 "yt_dlp": _package_version("yt-dlp"),
             },
             "manifest": {
-                "path": manifest_path.relative_to(HERE.parents[1]).as_posix(),
+                "path": _manifest_display_path(manifest_path),
                 "sha256": _text_sha256(manifest_path),
             },
+            **(
+                {
+                    "source_document": {
+                        "path": manifest["source_document"],
+                        "sha256": _text_sha256(source_document_path),
+                    }
+                }
+                if source_document_path is not None
+                else {}
+            ),
             "artifacts": {
                 path.relative_to(case_directory).as_posix(): _artifact_sha256(path)
                 for path in artifacts

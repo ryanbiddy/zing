@@ -1,0 +1,308 @@
+{
+  "meta": {
+    "source_url": "https://x.com/NASAArtemis/status/2040619776100147411",
+    "platform": "x",
+    "author": "NASA Artemis",
+    "title": "The Orion spacecraft has a couple of backseat drivers.",
+    "duration": 18.282,
+    "width": 1280,
+    "height": 720,
+    "fps": 29.969,
+    "media_path": ""
+  },
+  "shots": [
+    {
+      "index": 0,
+      "start": 0.0,
+      "end": 18.252,
+      "keyframe": "frames/shot_000.jpg"
+    }
+  ],
+  "words": [
+    {
+      "text": "And",
+      "start": 0.94,
+      "end": 1.42,
+      "confidence": 0.542
+    },
+    {
+      "text": "Houston,",
+      "start": 1.42,
+      "end": 1.9,
+      "confidence": 0.75
+    },
+    {
+      "text": "we",
+      "start": 2.04,
+      "end": 2.06,
+      "confidence": 0.881
+    },
+    {
+      "text": "have",
+      "start": 2.06,
+      "end": 2.24,
+      "confidence": 0.886
+    },
+    {
+      "text": "some",
+      "start": 2.24,
+      "end": 2.44,
+      "confidence": 0.787
+    },
+    {
+      "text": "Earth",
+      "start": 2.44,
+      "end": 2.66,
+      "confidence": 0.638
+    },
+    {
+      "text": "and",
+      "start": 2.66,
+      "end": 2.82,
+      "confidence": 0.866
+    },
+    {
+      "text": "Moon",
+      "start": 2.82,
+      "end": 3.44,
+      "confidence": 0.548
+    },
+    {
+      "text": "viewers",
+      "start": 3.44,
+      "end": 3.96,
+      "confidence": 0.784
+    },
+    {
+      "text": "here",
+      "start": 3.96,
+      "end": 4.28,
+      "confidence": 0.753
+    },
+    {
+      "text": "who",
+      "start": 4.28,
+      "end": 4.48,
+      "confidence": 0.752
+    },
+    {
+      "text": "are",
+      "start": 4.48,
+      "end": 4.62,
+      "confidence": 0.716
+    },
+    {
+      "text": "seeing",
+      "start": 7.79,
+      "end": 8.15,
+      "confidence": 0.669
+    },
+    {
+      "text": "things",
+      "start": 8.15,
+      "end": 8.43,
+      "confidence": 0.697
+    },
+    {
+      "text": "in",
+      "start": 8.43,
+      "end": 8.55,
+      "confidence": 0.813
+    },
+    {
+      "text": "the",
+      "start": 8.55,
+      "end": 8.65,
+      "confidence": 0.81
+    },
+    {
+      "text": "window.",
+      "start": 8.65,
+      "end": 9.05,
+      "confidence": 0.824
+    },
+    {
+      "text": "We're",
+      "start": 11.78,
+      "end": 12.26,
+      "confidence": 0.799
+    },
+    {
+      "text": "seeing",
+      "start": 12.26,
+      "end": 12.58,
+      "confidence": 0.824
+    },
+    {
+      "text": "them",
+      "start": 12.58,
+      "end": 12.74,
+      "confidence": 0.734
+    },
+    {
+      "text": "in",
+      "start": 12.74,
+      "end": 12.84,
+      "confidence": 0.895
+    },
+    {
+      "text": "the",
+      "start": 12.84,
+      "end": 12.96,
+      "confidence": 0.809
+    },
+    {
+      "text": "camera",
+      "start": 12.96,
+      "end": 13.24,
+      "confidence": 0.844
+    },
+    {
+      "text": "views",
+      "start": 13.24,
+      "end": 13.56,
+      "confidence": 0.672
+    },
+    {
+      "text": "and",
+      "start": 13.56,
+      "end": 13.68,
+      "confidence": 0.638
+    },
+    {
+      "text": "we're",
+      "start": 13.68,
+      "end": 13.86,
+      "confidence": 0.922
+    },
+    {
+      "text": "enjoying",
+      "start": 13.86,
+      "end": 14.22,
+      "confidence": 0.792
+    },
+    {
+      "text": "it.",
+      "start": 14.22,
+      "end": 14.46,
+      "confidence": 0.868
+    },
+    {
+      "text": "Look",
+      "start": 14.62,
+      "end": 15.1,
+      "confidence": 0.749
+    },
+    {
+      "text": "at",
+      "start": 15.1,
+      "end": 15.2,
+      "confidence": 0.905
+    },
+    {
+      "text": "those",
+      "start": 15.2,
+      "end": 15.36,
+      "confidence": 0.85
+    },
+    {
+      "text": "scientists",
+      "start": 15.36,
+      "end": 15.76,
+      "confidence": 0.74
+    },
+    {
+      "text": "go.",
+      "start": 15.76,
+      "end": 16.16,
+      "confidence": 0.906
+    }
+  ],
+  "captions": [
+    {
+      "text": "NASA",
+      "start": 0.0,
+      "end": 18.25,
+      "position": "top",
+      "all_caps": true,
+      "words_visible": 1,
+      "confidence": 0.998
+    }
+  ],
+  "audio": {
+    "has_music": true,
+    "music_confidence": 0.742,
+    "has_voiceover": true,
+    "speech_ratio": 0.422,
+    "loudness_curve": [
+      -49.7,
+      -35.9,
+      -36.3,
+      -36.1,
+      -35.2,
+      -35.6,
+      -35.3,
+      -37.5,
+      -34.8,
+      -43.3,
+      -53.9,
+      -36.2,
+      -34.3,
+      -35.4,
+      -37.4,
+      -36.7,
+      -41.5,
+      -71.9,
+      -77.1
+    ]
+  },
+  "avg_shot_duration": 18.252,
+  "cuts_per_10s": [
+    0.0,
+    0.0
+  ],
+  "warnings": [
+    "variable frame timing detected (per-frame PTS delta variation 1.4%, worst frame-index drift 0.200s vs thresholds 5% / 0.15s); normalized to constant frame rate so timestamps stay trustworthy",
+    "caption OCR sampled at 8 fps in 0-3s, 4 fps after; text between samples is unobserved"
+  ],
+  "provenance": {
+    "shot_detector": "scenedetect-0.7 AdaptiveDetector",
+    "adaptive_threshold": 3.0,
+    "min_scene_len_s": 0.3,
+    "whisper_model": "large-v2",
+    "device": "cpu",
+    "compute_type": "int8",
+    "faster_whisper": "1.2.1",
+    "language": "en",
+    "language_probability": 0.995,
+    "vad_filter": true,
+    "condition_on_previous_text": false,
+    "ocr_backend": "rapidocr-3.9.1",
+    "conf_threshold": 0.75,
+    "hook_fps": 8.0,
+    "body_fps": 4.0,
+    "hook_window_s": 3.0,
+    "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
+    "vad": "silero (faster-whisper bundled), upstream-style params",
+    "vad_params": {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 250,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 30
+    },
+    "has_music": "gap-floor heuristic v1",
+    "zing_version": "0.1.0",
+    "measured_at": "2026-07-18T21:32:49+00:00",
+    "regression_fixture": {
+      "fixture_id": "x-nasa-artemis-backseat-drivers",
+      "video_id": "2040619776100147411",
+      "role": "x-native",
+      "human_truth": {
+        "available": false,
+        "reason": "C-Q13 adds measured X-native coverage; no independent human annotation was commissioned for this source."
+      }
+    }
+  },
+  "judgment": {},
+  "schema_version": 1
+}
