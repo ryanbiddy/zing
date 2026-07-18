@@ -16,6 +16,14 @@ Open a PR for it (auto-merge). Do not wait for a reply — proceed to your
 lane work; the orchestrator folds accepted items into the specs and will
 notify you via `handoff/NOTES-lane-b.md` if your spec changes.
 
+## Then (Phase 0.5 — research round R-1)
+
+Do YOUR research assignment in `handoff/research/ASSIGNMENTS-R1.md`
+(section R1-B, surface & judgment design) and land the deliverable as a
+doc-only PR before heavy build work. Exception: the storage layout (your
+item 1) is small and Lane A depends on it — you may land storage first,
+then do R1-B, then continue building.
+
 ## Your work
 
 Current assignment: **Lane B in `handoff/SPRINT-1-D1.md`** — the lane spec,

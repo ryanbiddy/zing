@@ -49,6 +49,16 @@ framing gets built before launch.
 - **R-D · Technical platform specs (inside R-A/R-B):** vertical safe zones,
   duration norms, loudness targets (streaming platforms normalize ~-14 LUFS),
   caption conventions + accessibility — concrete renderer inputs.
+- **R-1 · Worker research rounds (Phase 0.5):** each worker researches the
+  ground its own lane depends on before heavy build — assignments in
+  `handoff/research/ASSIGNMENTS-R1.md` (A: measurement science; B: surface +
+  LLM-judge design; C: render/eval engineering; D: Antigravity exemplar
+  teardowns).
+- **Recursive probing:** every research deliverable ends with a "Deeper
+  threads" section; the orchestrator mines those + surprising findings into
+  R-2/R-3 rounds (worker rounds or deep-research workflows) until returns
+  diminish. Research lands into specs between sprints; it never blocks the
+  build.
 - **Standing research loop:** every sprint REVIEW round asks "does new
   research change the specs?" — taste docs are living documents; new
   learnings from real breakdowns get folded back in.

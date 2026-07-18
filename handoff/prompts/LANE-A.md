@@ -15,6 +15,13 @@ leverage, each item with a concrete recommendation. Open a PR for it
 orchestrator folds accepted items into the specs and will notify you via
 `handoff/NOTES-lane-a.md` if your spec changes.
 
+## Then (Phase 0.5 — research round R-1)
+
+Do YOUR research assignment in `handoff/research/ASSIGNMENTS-R1.md`
+(section R1-A, measurement science) and land the deliverable as a doc-only
+PR before heavy build work — your implementation choices should be
+evidence-based, not defaults.
+
 ## Your work
 
 Current assignment: **Lane A in `handoff/SPRINT-1-D1.md`** — the lane spec

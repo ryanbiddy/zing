@@ -1,0 +1,479 @@
+# Prior art & reusable OSS survey (R-B)
+
+Researcher: Claude agent (R-B lane). Date: 2026-07-18.
+Method: GitHub API metadata (license SPDX, stars, last push, archived flag)
+pulled 2026-07-18 via authenticated `gh api`; license texts read directly for
+every NOASSERTION; product teardowns from vendor pages + 2026 reviews.
+Scope: components and comparables for Zing's pipeline — yt-dlp fetch, shot
+detection, faster-whisper word timestamps, caption OCR, pacing/audio
+measurement, EDL JSON -> ffmpeg renderer with word-timed .ass + ducking,
+local TTS (Kokoro/Piper), MCP server.
+
+Verdict key: **REUSE** = take as dependency. **BORROW** = study the
+approach/design, reimplement. **SKIP** = not worth time. Anything not
+MIT/BSD/Apache/Unlicense/ISC is **ideas only — never code** (flagged).
+
+---
+
+## Top 5 highest-leverage findings
+
+1. **pysubs2 (MIT, active) — REUSE now for the C-2 renderer.** Mature Python
+   library for generating/editing .ass subtitles, including karaoke `\k` tags
+   and full style/positioning control. Hand-rolling the ASS format for
+   word-timed captions is a classic time sink with encoding and timing-format
+   gotchas; pysubs2 removes the whole category. Small, zero heavy deps.
+2. **Piper TTS is a license trap; Kokoro has a quieter one.** The MIT
+   `rhasspy/piper` is **archived**; its official successor is literally named
+   `piper1-gpl` (**GPL-3.0**, because it links espeak-ng in-process). Kokoro
+   itself is Apache-2.0, but its G2P library misaki uses **espeak-ng
+   (GPL-3.0)** as an *optional* English fallback. Recommendation: ship Kokoro
+   as the only default TTS (via `kokoro-onnx`, MIT — no torch needed on
+   Windows), do NOT install the espeak fallback in the default extra, and
+   drop Piper from S4 or support only the archived MIT version as
+   user-supplied. Update ROADMAP S4 wording accordingly.
+3. **auto-editor (Unlicense, active, 4.6k stars) — the closest living
+   relative.** Measurement-driven editing (audio loudness / motion analysis
+   -> cut list) with export to Premiere XML, Final Cut XML, ShotCut, and its
+   own timeline JSON. Public domain, so we can read *and lift* anything.
+   Borrow: its silence/loudness cut heuristics for pacing measurement, and
+   its timeline-export formats as the model for Zing's S4 "executor export
+   package."
+4. **whisperX (BSD-2, active, 23k stars) — the word-timestamp accuracy
+   upgrade path.** faster-whisper's built-in word timestamps are decent but
+   drift on fast speech; whisperX does phoneme-level forced alignment
+   (wav2vec2) on top of faster-whisper and is the standard fix. Keep
+   faster-whisper for S1 (already spec'd); if the eval harness shows caption
+   word-timing misses, whisperX is the drop-in S2 upgrade — same backend,
+   compatible license.
+5. **OpenTimelineIO (Apache-2.0, ASWF, active) — keep the EDL schema
+   OTIO-mappable.** The industry-standard interchange format for timelines
+   with adapters for Premiere/Resolve/etc. Don't adopt it as the internal
+   format (heavyweight for Zing's needs), but a one-way `zing export --otio`
+   in S4 turns Zing's draft EDL into something a real NLE opens — that is the
+   highest-credibility version of the "executor export package."
+
+Runners-up: **RapidOCR** (Apache, ONNX, pip-installable — no tesseract binary
+to detect on Windows) for caption OCR; **clipsai** (MIT) for its face-tracked
+9:16 auto-crop code; **silero-vad** (MIT) for honest speech-ratio
+measurement; Opus Clip's 4-signal virality score as direct input to the R-A
+taste rubric.
+
+## License landmines (never vendor code from these)
+
+| Project | License | Note |
+|---|---|---|
+| Remotion | Source-available "Remotion License" (NOASSERTION) | Free only for individuals / for-profits <=3 employees / nonprofits; company license via remotion.pro above that; no derivative relicensing. **Not OSI.** Ideas only. |
+| piper1-gpl | GPL-3.0 | The *active* Piper. GPL because espeak-ng is embedded in-process. |
+| espeak-ng | GPL-3.0 | Transitive risk via Kokoro/misaki fallback and Piper phonemization. Keep out of default install; subprocess-only if ever used. |
+| whisper-timestamped | AGPL-3.0 | The DTW-on-cross-attention idea is readable; the code is radioactive for MIT. |
+| videogrep | Anti-Capitalist License | Not OSI; excludes for-profit use. Ideas only. |
+| LosslessCut | GPL-2.0 | UX ideas only (keyframe-accurate cuts, smart cut). |
+| AI-Youtube-Shorts-Generator | **NO LICENSE** | All rights reserved by default despite "open-source" marketing. Do not copy anything. |
+| supoclip | AGPL-3.0 | Ideas only. |
+| ffmpeg (binary) | LGPL/GPL by build | Calling the user's binary via subprocess (Zing's pattern) is fine and standard. Never *bundle* a GPL ffmpeg build in a distributed MIT package without doing the homework. |
+
+---
+
+## Core measurement & editing components
+
+### auto-editor — https://github.com/WyattBlue/auto-editor
+- **What:** CLI that auto-cuts video by analyzing audio loudness/motion;
+  renders directly or exports timelines (Premiere XML, FCP XML, ShotCut,
+  own JSON format, v1/v3 timeline spec).
+- **License:** Unlicense (public domain). **Health:** 4,560 stars, pushed
+  2026-07-17, single strong maintainer, years of steady releases.
+- **Verdict: BORROW (heavily).** Different product goal (it edits; Zing
+  directs), but its loudness-threshold cut detection informs pacing
+  measurement, and its timeline export formats are the blueprint for S4
+  exports. Public domain means snippets can be lifted with attribution as
+  courtesy, not obligation. Not a dependency: its pipeline is monolithic and
+  CLI-shaped, not library-shaped.
+
+### PySceneDetect — https://github.com/Breakthrough/PySceneDetect
+- **What:** The standard Python shot/cut detector: ContentDetector (HSV
+  delta), AdaptiveDetector (rolling average — better on fast motion),
+  ThresholdDetector (fades). Library + CLI, frame-accurate timecodes,
+  stats CSV.
+- **License:** BSD-3-Clause. **Health:** 5,024 stars, pushed 2026-07-18,
+  actively maintained for a decade.
+- **Verdict: REUSE.** This is the S1 Lane A shot-detection choice.
+  AdaptiveDetector handles short-form's fast cuts better than plain
+  content mode; ffmpeg scdet is the zero-dep fallback but gives less
+  control over thresholds and no stats output for the eval harness.
+
+### TransNetV2 — https://github.com/soCzech/TransNetV2
+- **What:** Learned shot-boundary-detection network (research SOTA on
+  ClipShots/BBC); catches gradual transitions and effects-heavy cuts that
+  histogram methods miss. TF weights in-repo, community PyTorch port on PyPI
+  (`transnetv2-pytorch`).
+- **License:** MIT (code and weights). **Health:** 990 stars, last push
+  2023-12 — research code, effectively frozen.
+- **Verdict: BORROW (S2 fallback).** If the eval harness or real short-form
+  data shows PySceneDetect missing flash/transition-heavy cuts, TransNetV2 is
+  the licensed upgrade. Don't take the dependency in S1 — frozen repo, TF/
+  torch weight-loading friction, and goldens are hard-cut synthetic anyway.
+
+### AutoShot — https://github.com/wentaozhu/AutoShot
+- **What:** Research model + dataset (SHOT) for shot boundaries specifically
+  in *short-form* videos (Kuaishou); claims to beat TransNetV2 on that
+  domain.
+- **License:** MIT. **Health:** 246 stars, frozen since 2023.
+- **Verdict: BORROW (bookmark).** Same story as TransNetV2 but tuned to
+  exactly Zing's domain. Worth an eval-harness bake-off in S2 if shot
+  detection quality becomes the bottleneck; the SHOT dataset is also useful
+  ground truth for expanding the golden set.
+
+### whisperX — https://github.com/m-bain/whisperX
+- **What:** faster-whisper batching + wav2vec2 forced alignment for accurate
+  word-level timestamps + optional pyannote diarization. 70x realtime on GPU.
+- **License:** BSD-2-Clause (pyannote itself is MIT; its models need HF
+  token acceptance — an install-friction note for doctor if ever adopted).
+- **Health:** 23,128 stars, pushed 2026-07-13, active.
+- **Verdict: BORROW now, REUSE if needed.** S1 stays on plain faster-whisper
+  (already spec'd, lighter). The forced-alignment pass is the known fix if
+  word-timed .ass captions look off against goldens. Diarization is out of
+  scope until multi-speaker videos matter.
+
+### faster-whisper — https://github.com/SYSTRAN/faster-whisper
+- **What:** CTranslate2 Whisper inference; 4x faster than openai/whisper,
+  word timestamps, built-in Silero VAD filter.
+- **License:** MIT. **Health:** 24,353 stars, pushed 2025-11 — cadence has
+  slowed post-SYSTRAN-acquisition churn, but it is the ecosystem default and
+  whisperX rides on it.
+- **Verdict: REUSE (already core).** Confirmed right choice. Use its
+  `vad_filter=True` and segment output for speech-ratio measurement before
+  reaching for a separate VAD dependency.
+
+### silero-vad — https://github.com/snakers4/silero-vad
+- **What:** Tiny (~2MB) enterprise-grade voice-activity detector, ONNX,
+  <1ms per chunk on CPU.
+- **License:** MIT. **Health:** 9,610 stars, pushed 2026-07-16, active.
+- **Verdict: REUSE (thin).** For `AudioLayout.speech_ratio` when whisper
+  isn't available/installed — doctor can report "VAD-only mode" honestly.
+  Also already embedded inside faster-whisper, so it may come along free.
+
+### librosa — https://github.com/librosa/librosa
+- **What:** The standard Python audio-analysis library: onset detection,
+  beat/tempo tracking, spectral features.
+- **License:** ISC (BSD-equivalent). **Health:** 8,504 stars, pushed
+  2026-07-17, institutionally maintained.
+- **Verdict: REUSE (S2).** `has_music` as an honest heuristic and any
+  cut-on-beat pacing analysis (does the editor cut on music beats?) come
+  almost free from onset strength + tempogram. Heavier import than S1 needs;
+  ffmpeg loudness curve suffices for S1.
+
+### inaSpeechSegmenter — https://github.com/ina-foss/inaSpeechSegmenter
+- **What:** CNN speech/music/noise segmenter from INA (French national
+  archive); the credible dedicated music-detection option.
+- **License:** MIT. **Health:** 902 stars, pushed 2026-03. TensorFlow
+  dependency — heavy.
+- **Verdict: BORROW.** Right answer if `has_music` must become a real
+  classifier, but the TF dep is disproportionate. Prefer librosa heuristics
+  first; revisit only if eval shows music detection failing.
+
+### ffmpeg-normalize — https://github.com/slhck/ffmpeg-normalize
+- **What:** Two-pass EBU R128 `loudnorm` wrapper targeting e.g. -14 LUFS.
+- **License:** MIT (license text verified; GitHub shows NOASSERTION only
+  because the file is nonstandard-formatted). **Health:** 1,517 stars,
+  pushed 2026-07-10, same maintainer for a decade.
+- **Verdict: BORROW.** Zing's renderer already shells to ffmpeg; lift the
+  two-pass loudnorm filtergraph pattern (measure pass -> apply pass with
+  measured values) rather than adding a wrapper dep. Directly serves R-D's
+  ~-14 LUFS platform target.
+
+## Caption OCR
+
+### RapidOCR — https://github.com/RapidAI/RapidOCR
+- **What:** ONNX-runtime OCR (PaddleOCR PP-OCR models repackaged), pip
+  install, CPU-fast, no system binary.
+- **License:** Apache-2.0. **Health:** 7,192 stars, pushed 2026-07-09,
+  active.
+- **Verdict: REUSE.** The right S1 OCR backend for Windows-first local
+  install: `pip install rapidocr-onnxruntime` beats "go install tesseract
+  and put it on PATH" for doctor UX, and PP-OCR scene-text models tolerate
+  stylized captions better than tesseract's document-trained engine.
+  Keep tesseract as a detected-if-present alternative.
+
+## Rendering & timeline
+
+### pysubs2 — https://github.com/tkarabela/pysubs2
+- **What:** Read/write/edit SubStation Alpha (.ass), SRT, WebVTT; styles,
+  positioning, karaoke tags; CLI converter.
+- **License:** MIT. **Health:** 433 stars, pushed 2026-07-13, maintained
+  10+ years. Low stars because it's plumbing, not a product.
+- **Verdict: REUSE (C-2, now).** Generate word-timed .ass from
+  `CaptionSpec.words` with real style objects instead of string templates.
+  Also useful in the eval harness to parse the .ass back and assert word
+  timing.
+
+### moviepy — https://github.com/Zulko/moviepy
+- **What:** Pythonic video editing — clips, concat, compositing, text — by
+  decoding frames through ffmpeg pipes and re-encoding.
+- **License:** MIT. **Health:** 14,789 stars, pushed 2026-03; v2 (2024)
+  revived it after years of drift.
+- **Verdict: SKIP (as renderer).** Frame-by-frame Python processing is 10 to
+  100x slower than a single ffmpeg filtergraph and adds a fragile dep. Zing's
+  direct-ffmpeg EDL executor is the right architecture. Borrow nothing;
+  its caption rendering (ImageMagick/PIL) is exactly what .ass burning
+  avoids.
+
+### editly — https://github.com/mifi/editly
+- **What:** Declarative JSON edit spec -> video (Node): clips, transitions,
+  Ken Burns, text layers, audio ducking (`mixVolume`-style).
+- **License:** MIT. **Health:** 5,452 stars, pushed 2025-05, effectively
+  unmaintained (maintainer moved on; issues stack up).
+- **Verdict: BORROW.** The closest existing "EDL JSON in, video out" design.
+  Study its spec shape — layer model, per-clip transitions, `audioNorm` and
+  ducking options, `cutFrom/cutTo` semantics — as a checklist for what Zing's
+  EDL schema will eventually need. Node runtime and dead repo rule out reuse.
+
+### remotion — https://github.com/remotion-dev/remotion
+- **What:** Videos as React components, rendered via headless Chrome;
+  excellent captioning/animation ergonomics; huge ecosystem.
+- **License:** **NOT open source.** Custom "Remotion License": free for
+  individuals, for-profits up to 3 people, and nonprofits; paid company
+  license beyond that; no reselling/relicensing derivatives. **Health:**
+  53,542 stars, pushed 2026-07-17, VC-grade active.
+- **Verdict: IDEAS ONLY (license).** Never vendor code or take it as a dep
+  of an MIT tool. Worth studying: `@remotion/captions` word-token model
+  (their TikTok-style caption pages/tokens structure is a clean data shape
+  for word-timed captions) and their determinism discipline (frame-pure
+  rendering) as a mindset for reproducible EDL renders.
+
+### OpenTimelineIO — https://github.com/AcademySoftwareFoundation/OpenTimelineIO
+- **What:** Academy Software Foundation interchange format + Python API for
+  editorial timelines; adapters for CMX EDL, FCP XML, and (via ecosystem)
+  Premiere/Resolve.
+- **License:** Apache-2.0. **Health:** 1,920 stars, pushed 2026-07-14,
+  foundation-backed (used by Pixar, Netflix pipelines).
+- **Verdict: BORROW now, REUSE in S4.** Keep Zing's EDL JSON conceptually
+  mappable (tracks, clips with source ranges, markers) and add an OTIO
+  export in S4 so a human editor can open Zing's draft cut in a real NLE.
+  Do not adopt as the internal format — Zing's EDL needs captions/ducking
+  semantics OTIO doesn't model natively.
+
+### ffmpeg-python — https://github.com/kkroening/ffmpeg-python
+- **What:** Filtergraph-builder DSL for ffmpeg.
+- **License:** Apache-2.0. **Health:** 11,001 stars, but last push 2024-08
+  and maintainer absent for years; community forks fragment.
+- **Verdict: SKIP.** Zing's own thin subprocess wrapper (already the CI
+  mocking pattern) is more debuggable than a dead DSL. Complex filtergraphs
+  are better written explicitly and unit-tested as strings.
+
+## Similar tools (auto-edit / clip generators)
+
+### videogrep — https://github.com/antiboredom/videogrep
+- **What:** Search a transcript, supercut matching moments; n-gram tooling.
+- **License:** **Anti-Capitalist License — not OSI, excludes for-profit
+  use. Ideas only.** **Health:** 3,461 stars, frozen since 2024.
+- **Verdict: IDEAS ONLY.** The core idea — transcript as the query surface
+  for cuts — validates Zing's words-first Breakdown. Nothing else needed.
+
+### jumpcutter — https://github.com/carykh/jumpcutter
+- **What:** The 2019 original silence-speedup script (carykh).
+- **License:** MIT. **Health:** 3,149 stars, abandoned; author points users
+  elsewhere.
+- **Verdict: SKIP.** Historically important, technically superseded by
+  auto-editor in every way.
+
+### ShortGPT — https://github.com/RayVentura/ShortGPT
+- **What:** Framework for automated faceless-content shorts: LLM script,
+  EdgeTTS voice, stock assets, captions.
+- **License:** MIT. **Health:** 7,711 stars, last push 2025-02 — stalling.
+- **Verdict: SKIP.** It is the slop machine Zing positions against. Its
+  asset-sourcing abstraction is the only mildly interesting part, and Zing
+  doesn't source assets.
+
+### MoneyPrinterTurbo — https://github.com/harry0703/MoneyPrinterTurbo
+- **What:** Text prompt -> finished faceless video (script, stock clips,
+  TTS, burned subtitles), web UI + API. Massive adoption.
+- **License:** MIT. **Health:** 97,916 stars, pushed 2026-07-18, very
+  active.
+- **Verdict: SKIP (with one note).** Same anti-slop reasoning as ShortGPT.
+  The note: 98k stars is market proof that "one command -> finished
+  vertical video" is what people want — Zing's demo path (`zing study` ->
+  direct -> render) must feel that effortless. Its MIT code is legible if
+  we ever want a reference for ffmpeg subtitle burn on Windows paths.
+
+### clipsai — https://github.com/ClipsAI/clipsai
+- **What:** Python lib: transcript-based clip finding (podcast -> shorts) +
+  face-tracked dynamic 9:16 reframing (mediapipe).
+- **License:** MIT. **Health:** 521 stars, dead since 2024-01.
+- **Verdict: BORROW.** The resize/reframe module is the useful half: scene
+  segmentation + face detection -> crop keyframes. When Zing's S3 direct
+  stage needs "this 16:9 source shot, reframed vertical," this is MIT
+  reference code worth reading before writing our own.
+
+### FunClip — https://github.com/modelscope/FunClip
+- **What:** Alibaba's LLM-assisted clipping tool on FunASR (excellent
+  Chinese ASR + accurate timestamps), Gradio UI, LLM picks segments.
+- **License:** MIT. **Health:** 5,936 stars, pushed 2026-07-18, active.
+- **Verdict: BORROW.** Their prompt patterns for "LLM reads transcript with
+  timestamps, returns clip decisions" parallel prompts/study.md and
+  prompts/direct.md. Also the reference if Chinese-language sources ever
+  matter. Dependency itself is heavy (FunASR stack) — not worth it.
+
+### captacity — https://github.com/unconv/captacity
+- **What:** Small script: Whisper word timestamps -> styled burned captions
+  via moviepy.
+- **License:** MIT. **Health:** 139 stars, frozen 2024.
+- **Verdict: SKIP.** Zing's .ass pipeline is strictly better (styling,
+  positioning, performance). Nothing here that pysubs2 + ffmpeg doesn't do
+  better. (Category note: most "auto caption burner" repos are this same
+  200-line shape; none found worth a dependency.)
+
+### stable-ts — https://github.com/jianfch/stable-ts
+- **What:** Whisper timestamp stabilization: word regrouping, silence
+  suppression, gap adjustment — years of accumulated heuristics.
+- **License:** MIT. **Health:** 2,278 stars, **archived 2026** — read-only.
+- **Verdict: BORROW.** Archived means no dependency, but its regrouping
+  heuristics (merge stray words, snap boundaries to silence) are documented,
+  MIT, and directly applicable when polishing caption word windows in S2.
+
+### whisper-timestamped — https://github.com/linto-ai/whisper-timestamped
+- **License:** **AGPL-3.0 — ideas only.** DTW on cross-attention weights for
+  word timing. whisperX covers the same need under BSD. **Verdict: SKIP.**
+
+### LosslessCut — https://github.com/mifi/lossless-cut
+- **License:** **GPL-2.0 — ideas only.** 42k stars, active. Keyframe-aware
+  lossless cutting and "smart cut" (re-encode only around the cut point) is
+  a genuinely good idea if Zing ever offers no-reencode exports.
+  **Verdict: IDEAS ONLY.**
+
+### Newer "Opus Clip alternative" wave (2025-2026)
+- `SamurAIGPT/AI-Youtube-Shorts-Generator` (4.3k stars): **NO LICENSE — all
+  rights reserved. Do not copy.** `FujiwaraChoki/supoclip` (965 stars):
+  **AGPL-3.0.** Various ComfyUI clipping nodes: API-tethered.
+- **Verdict: SKIP as code.** Useful only as market evidence that
+  LLM-highlight + auto-reframe + word captions is the expected feature
+  bundle.
+
+## Fetch & TTS
+
+### yt-dlp — https://github.com/yt-dlp/yt-dlp
+- **License:** Unlicense. **Health:** 178,589 stars, pushed 2026-07-14, the
+  most maintained project in this survey. **Verdict: REUSE (already core).**
+  Call as subprocess/binary and have doctor check version freshness —
+  extractors rot fast, and TikTok/IG breakage is a when-not-if support
+  issue (R5 disclaimer inherits from uoink).
+
+### Kokoro — https://github.com/hexgrad/kokoro
+- **What:** 82M-param TTS, near-SOTA quality-per-watt, CPU-viable, voices on
+  HF under Apache.
+- **License:** Apache-2.0 (code, weights, and misaki G2P all Apache).
+  **Landmine adjacent:** misaki's English G2P is dictionary-based, but its
+  documented OOV *fallback* is espeak-ng (**GPL-3.0**, in-process binding).
+  **Health:** 8,025 stars; main repo quiet since 2025-08 but ecosystem
+  active.
+- **Verdict: REUSE (default S4 TTS)** — via **kokoro-onnx
+  (thewh1teagle/kokoro-onnx, MIT, 2.6k stars, pushed 2026-07)**: ONNX
+  runtime, no torch install on Windows, ships with misaki dictionary G2P.
+  Ship without the espeak fallback; unknown words degrade gracefully and
+  doctor can say so. (remsky/Kokoro-FastAPI, Apache, is the server-shaped
+  alternative — SKIP, Zing wants in-process.)
+
+### Piper — https://github.com/rhasspy/piper (archived) / OHF-Voice/piper1-gpl
+- **What:** Fast local neural TTS for low-end hardware, big voice catalog.
+- **License:** Original rhasspy/piper is MIT but **archived 2025**. The
+  active successor **piper1-gpl is GPL-3.0** (espeak-ng embedded). Voice
+  models additionally carry **per-voice dataset licenses** — several are
+  non-commercial.
+- **Verdict: DROP from the S4 default (was "Kokoro/Piper").** Kokoro beats
+  it on quality anyway. If a second engine is wanted: support "point Zing
+  at any local TTS CLI" as a config hook instead of depending on a GPL
+  package. Never wrap piper1-gpl as a Python dep of MIT Zing.
+
+## Closed products — feature teardowns (ideas only)
+
+### Stanley (getstanley.ai)
+Prompt-driven "AI editor you hire": send raw footage, get back a finished
+captioned edit — silence/umm removal, follow-the-speaker captions,
+punch-in zooms *where you ask for them*, auto music bed ducked under
+dialog, and crucially an **editable timeline after the prompt** so users
+nudge cuts instead of re-running. ~$149/mo positioning. Takeaways for Zing:
+(1) the editable artifact is the product — Zing's EDL JSON is exactly that,
+lean into "every decision is inspectable and re-renderable"; (2) zoom
+punch-ins as an EDL primitive (crop-scale on a clip span) is cheap in
+ffmpeg and high perceived value; (3) music-under-dialog with ducking as the
+*default* deliverable, not an option.
+
+### Opus Clip (opus.pro)
+Long video in -> ranked shorts out. Its **virality score (0-99) built from
+four named signals: hook strength, emotional flow, perceived value, trend
+alignment** is the commercial cousin of Zing's R-A taste rubric — proof
+that scored, criteria-based judgment sells; Zing's edge is *citing* the
+rubric instead of a black-box number. ReframeAnything (object-tracked
+16:9 -> 9:16), AI b-roll gap-filling, 97%-claim captions, direct-to-platform
+scheduling. Takeaway: gap reports that say "hook 2/5 — no pattern interrupt
+in 1.5s" beat "virality 62" on trust, which is Zing's whole thesis.
+
+### Descript
+Text-based editing (delete words -> deletes video) plus **Underlord**, an
+agentic co-editor you instruct in natural language ("remove filler words,
+tighten pacing, clip the ending for social"); real-world reviews put a
+31-min interview edit at ~4 min with it. Zing's MCP server + prompts/study.md
+is structurally the same pattern with the user's own AI as the agent —
+Descript validates the architecture. Borrow-idea: expressing edit operations
+*as transcript operations* (cut = word-range deletion) is the most human
+way to render a gap report or draft-EDL diff.
+
+### CapCut (ByteDance)
+The default free-tier editor for short-form creators: template-driven
+styled auto-captions (trend-keyed animation presets), auto-cut, script-to-
+video, beat-synced templates; 2025 ToS changes (broad content rights) and
+paywalling pushed some creators to look for local alternatives — a real
+wedge for a local-first MIT tool. Takeaway: **caption style presets** are a
+solved UX pattern creators expect — Zing's .ass generator should ship a
+handful of named, genre-appropriate caption styles (measured from studied
+videos, per the taste rubric) rather than one hardcoded look.
+
+---
+
+## Consolidated verdict table
+
+| Component | License | Verdict |
+|---|---|---|
+| yt-dlp | Unlicense | REUSE (core) |
+| PySceneDetect | BSD-3 | REUSE (S1 shot detection) |
+| faster-whisper | MIT | REUSE (core) |
+| RapidOCR | Apache-2.0 | REUSE (S1 caption OCR) |
+| pysubs2 | MIT | REUSE (C-2 .ass generation) |
+| kokoro-onnx (+ Kokoro/misaki) | MIT/Apache | REUSE (S4 default TTS, no espeak fallback) |
+| silero-vad | MIT | REUSE (thin, honest speech ratio) |
+| librosa | ISC | REUSE (S2 music/beat analysis) |
+| OpenTimelineIO | Apache-2.0 | BORROW now, REUSE for S4 export |
+| auto-editor | Unlicense | BORROW (cut heuristics, timeline exports) |
+| whisperX | BSD-2 | BORROW (S2 word-timing upgrade path) |
+| TransNetV2 / AutoShot | MIT | BORROW (S2 shot-detection fallback) |
+| editly | MIT | BORROW (EDL spec design) |
+| clipsai | MIT | BORROW (face-tracked 9:16 reframe) |
+| stable-ts | MIT (archived) | BORROW (timestamp heuristics) |
+| FunClip | MIT | BORROW (LLM-clipping prompts) |
+| ffmpeg-normalize | MIT | BORROW (two-pass loudnorm pattern) |
+| inaSpeechSegmenter | MIT | BORROW (only if has_music needs ML) |
+| moviepy | MIT | SKIP (wrong renderer architecture) |
+| ffmpeg-python | Apache-2.0 | SKIP (unmaintained DSL) |
+| jumpcutter, captacity, auto-subtitle | MIT | SKIP (superseded) |
+| ShortGPT, MoneyPrinterTurbo | MIT | SKIP (slop generators; market signal only) |
+| Remotion | Source-available | IDEAS ONLY |
+| videogrep | Anti-Capitalist | IDEAS ONLY |
+| LosslessCut | GPL-2.0 | IDEAS ONLY |
+| whisper-timestamped, supoclip | AGPL-3.0 | IDEAS ONLY |
+| piper1-gpl | GPL-3.0 | AVOID (drop Piper from S4 default) |
+| AI-Youtube-Shorts-Generator | NONE | AVOID (unlicensed) |
+
+## Spec-change recommendations for the orchestrator
+
+1. **S4 spec:** change "Kokoro/Piper" to "Kokoro (kokoro-onnx) default;
+   arbitrary local TTS via CLI hook" — Piper's active line is GPL-3.0 and
+   its voices carry per-voice licenses.
+2. **S1 Lane A:** OCR backend recommendation = rapidocr-onnxruntime
+   (Apache, pip-only) with tesseract as detected-alternative; shot
+   detection = PySceneDetect AdaptiveDetector.
+3. **C-2 renderer:** add pysubs2 (MIT) as the .ass dependency; adopt the
+   two-pass loudnorm pattern targeting -14 LUFS integrated.
+4. **S4 export package:** include `.otio` export via OpenTimelineIO;
+   study auto-editor's Premiere/FCP XML exports as the compatibility bar.
+5. **Dependency policy footnote:** espeak-ng (GPL-3.0) must never enter
+   the default install graph; CI could grep the lockfile for
+   GPL/AGPL SPDX ids as a cheap guard.

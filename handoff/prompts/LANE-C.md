@@ -16,6 +16,12 @@ it (auto-merge). Do not wait for a reply — proceed to your lane work; the
 orchestrator folds accepted items into the specs and will notify you via
 `handoff/NOTES-lane-c.md` if your spec changes.
 
+## Then (Phase 0.5 — research round R-1)
+
+Do YOUR research assignment in `handoff/research/ASSIGNMENTS-R1.md`
+(section R1-C, render & eval engineering) and land the deliverable as a
+doc-only PR before heavy build work.
+
 ## Your work
 
 Current assignment: **Lane C in `handoff/SPRINT-1-D1.md`** — C-1 (eval
