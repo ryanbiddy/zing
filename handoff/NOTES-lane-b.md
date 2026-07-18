@@ -307,3 +307,19 @@
   materially (unconditional build → gated check) — the mechanism works;
   suggest requiring the refutation to name the CHEAPEST test that would
   kill the proposal, since that's what reshaped this one.
+- **2026-07-18 (Lane B): S2 GATE COMPLETE — real chain run** (record:
+  handoff/S2-GATE-lane-b.md). Lane A's builder (#92) auto-wired through
+  my build_profile tool on first contact (keyword-only genre/platform
+  sniff worked); real profile from 3 frozen real breakdowns; real
+  compare judgment of Cleo per compare.md 0.5.0, saved through
+  save_judgment with the 0.5.0 stamp. Honest headline: the gate profile
+  describes NO coherent taste (heterogeneous unjudged sources → bands
+  unfalsifiable) and the judgment SAYS so — which is the anti-slop
+  design working. Two Lane A findings filed in the gate record:
+  n=2 percentile interpolation emits negative time values (clamp to
+  observed range), and a profile-coherence warning would name loose
+  profiles before judgment. Sprint-gate remainder is Ryan-side: real
+  reference set, then his read. PROCESS OBSERVATION: the frozen
+  real-video set paid for itself again — a full S2 gate ran with zero
+  network and zero heavy deps because real measurements were checked
+  in; keep growing that set.
