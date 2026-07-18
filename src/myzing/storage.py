@@ -25,17 +25,29 @@ Rules this module enforces (the rest of the codebase relies on them):
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import os
 import re
+from contextlib import contextmanager
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any
+from typing import Any, Iterator
 from urllib.parse import parse_qs, urlparse
 
 from myzing.schemas import Breakdown
 
 ENV_VAR = "ZING_HOME"
+
+# F-15: per-context workspace override. The ZING_HOME env var is process-
+# global, so mutating it (the old _workspace_override pattern in study/api)
+# races under the MCP job pattern where studies run in worker threads. A
+# ContextVar is isolated per thread/async context: set it with
+# use_workspace() and every storage call in that context resolves against
+# it — no env mutation, no cross-thread bleed.
+_WORKSPACE_OVERRIDE: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "zing_workspace_override", default=None
+)
 
 _SLUG_MAX = 80
 _MEDIA_EXTS = (".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".ts")
@@ -55,11 +67,32 @@ class SlugError(ValueError):
 
 
 def workspace_root() -> Path:
-    """The Zing workspace directory (not created by this call)."""
+    """The Zing workspace directory (not created by this call).
+
+    Resolution order: use_workspace() context override, then ZING_HOME,
+    then ``~/.zing``.
+    """
+    ctx = _WORKSPACE_OVERRIDE.get()
+    if ctx:
+        return Path(ctx).expanduser()
     override = os.environ.get(ENV_VAR, "").strip()
     if override:
         return Path(override).expanduser()
     return Path.home() / ".zing"
+
+
+@contextmanager
+def use_workspace(root: Path | str) -> Iterator[Path]:
+    """Pin the workspace for the current thread/context (F-15).
+
+    Thread-safe replacement for mutating ZING_HOME: other threads and the
+    enclosing context are unaffected. Nests; restores on exit.
+    """
+    token = _WORKSPACE_OVERRIDE.set(str(root))
+    try:
+        yield Path(root)
+    finally:
+        _WORKSPACE_OVERRIDE.reset(token)
 
 
 def breakdowns_root() -> Path:

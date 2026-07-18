@@ -221,6 +221,36 @@ def test_study_video_tilde_path_dispatches_expanded(
     assert status["source"] == str(video)
 
 
+def test_study_job_pinned_to_dispatch_workspace(zing_workspace, monkeypatch):
+    """F-15 regression: mutating ZING_HOME mid-run must not redirect a
+    running job's writes. Fails before the use_workspace fix (the worker
+    re-resolved env at write time and finished into the wrong root)."""
+    import threading
+
+    gate = threading.Event()
+    api = types.ModuleType("myzing.study.api")
+
+    def study(source: str):
+        assert gate.wait(10), "test gate never opened"
+        return make_breakdown(source)
+
+    api.study = study
+    monkeypatch.setitem(sys.modules, "myzing.study.api", api)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+
+    result = mcp_server.h_study_video(SRC_URL)
+    assert result["ok"] is True and result["status"] == "started"
+
+    hijack = zing_workspace.parent / "hijacked-home"
+    monkeypatch.setenv(storage.ENV_VAR, str(hijack))  # env changes mid-run
+    gate.set()
+    with storage.use_workspace(zing_workspace):  # read where the job SHOULD write
+        status = wait_done(SLUG)
+        assert status["state"] == "done"
+        assert (storage.breakdown_dir(SLUG) / "breakdown.json").is_file()
+    assert not (hijack / "breakdowns").exists()  # nothing leaked to the new root
+
+
 # -- get_breakdown -----------------------------------------------------------
 
 def test_get_breakdown_missing_slug(zing_workspace):

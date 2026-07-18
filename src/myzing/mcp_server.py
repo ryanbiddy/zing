@@ -207,8 +207,15 @@ def _study_api():
         return None
 
 
-def _run_study(study_fn: Any, source: str, slug: str) -> None:
+def _run_study(study_fn: Any, source: str, slug: str, root: Path) -> None:
     """Worker-thread body: run the engine, persist, record honest state.
+
+    ``root`` is the workspace captured when the job was dispatched (F-15):
+    the whole run — engine storage calls, heartbeats, final writes — is
+    pinned to it via ``storage.use_workspace``, so a ZING_HOME mutation
+    elsewhere in the process mid-run cannot redirect this job's writes.
+    ContextVars do not propagate into child threads, so the heartbeat
+    thread pins itself too.
 
     While the engine runs, a side thread refreshes ``heartbeat_at`` every
     ``HEARTBEAT_INTERVAL`` seconds (F-03): a ``running`` status is only
@@ -232,38 +239,40 @@ def _run_study(study_fn: Any, source: str, slug: str) -> None:
     stop_beating = threading.Event()
 
     def _beat() -> None:
-        while not stop_beating.wait(HEARTBEAT_INTERVAL):
-            _write_status(slug, heartbeat_at=_now())
+        with storage.use_workspace(root):
+            while not stop_beating.wait(HEARTBEAT_INTERVAL):
+                _write_status(slug, heartbeat_at=_now())
 
     beater = threading.Thread(
         target=_beat, name=f"zing-heartbeat-{slug}", daemon=True
     )
-    beater.start()
-    try:
+    with storage.use_workspace(root):
+        beater.start()
         try:
-            breakdown = study_fn(source, **kwargs)
+            try:
+                breakdown = study_fn(source, **kwargs)
+            finally:
+                # stop the heartbeat BEFORE the final write so a late beat
+                # can never resurrect a finished job's `running` state
+                stop_beating.set()
+                beater.join(timeout=HEARTBEAT_INTERVAL + 5)
+            json_path = storage.breakdown_dir(slug) / "breakdown.json"
+            if breakdown is not None and not json_path.is_file():
+                storage.save_breakdown(breakdown, slug=slug)
+            _write_status(
+                slug, state="done", finished_at=_now(), updated_at=_now(), error=""
+            )
+        except Exception as e:  # noqa: BLE001 — boundary: everything becomes honest disk state
+            _write_status(
+                slug,
+                state="failed",
+                error=f"{type(e).__name__}: {e}",
+                finished_at=_now(),
+                updated_at=_now(),
+            )
         finally:
-            # stop the heartbeat BEFORE the final write so a late beat can
-            # never resurrect a finished job's `running` state
-            stop_beating.set()
-            beater.join(timeout=HEARTBEAT_INTERVAL + 5)
-        json_path = storage.breakdown_dir(slug) / "breakdown.json"
-        if breakdown is not None and not json_path.is_file():
-            storage.save_breakdown(breakdown, slug=slug)
-        _write_status(
-            slug, state="done", finished_at=_now(), updated_at=_now(), error=""
-        )
-    except Exception as e:  # noqa: BLE001 — boundary: everything becomes honest disk state
-        _write_status(
-            slug,
-            state="failed",
-            error=f"{type(e).__name__}: {e}",
-            finished_at=_now(),
-            updated_at=_now(),
-        )
-    finally:
-        with _JOBS_LOCK:
-            _JOBS.pop(slug, None)
+            with _JOBS_LOCK:
+                _JOBS.pop(slug, None)
 
 
 def h_study_video(url_or_path: str) -> dict[str, Any]:
@@ -299,6 +308,9 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
         )
 
     slug = storage.slug_for(source)
+    # F-15: capture the workspace NOW and pin the whole job to it — the
+    # worker thread must not re-resolve env that may change under it.
+    root = storage.workspace_root()
     with _JOBS_LOCK:
         job = _JOBS.get(slug)
         if job is not None and job.is_alive():
@@ -321,7 +333,7 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
             error="",
         )
         thread = threading.Thread(
-            target=_run_study, args=(api.study, source, slug), daemon=True
+            target=_run_study, args=(api.study, source, slug, root), daemon=True
         )
         _JOBS[slug] = thread
         thread.start()
