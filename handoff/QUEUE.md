@@ -100,3 +100,12 @@ Threads. Deliverable: docs/taste/VIRALITY-<platform>.md.
 - **V-C · Lane C:** X native video (fold in handoff/research/R3-grok-x-findings.md when it lands).
 - **V-D · Lane D (AG):** Instagram Reels.
 Orchestrator synthesizes the cross-platform comparison after all four land.
+
+## S2-prep wave (orchestrator, 2026-07-18 evening — sanctioned ahead of the formal S2 spec; keep lanes busy)
+- **C-Q11:** V-C X virality definition if not yet claimed (docs/taste/VIRALITY-x.md; fold handoff/research/R3-grok-x-findings.md).
+- **C-Q12:** transition detector v2 — integrate the #65 prototype into the study pipeline behind a flag: Breakdown gains typed transition observations via the judgment-free measurement path (orchestrator will add a schema field on request — write the proposed field shape to NOTES first, do NOT touch schemas.py).
+- **C-Q13:** real-video eval expansion — add 3 more real videos to the frozen regression set (one landscape long-form, one X-native if fetchable, one more short), full provenance discipline.
+- **A-Q8:** OCR caption quality iteration against the real-video set — drive caption recall/precision up, per-fix eval deltas.
+- **A-Q9:** long-form study performance — chunked/streamed transcription strategy for 10min+ videos, measured against the perf harness.
+- **B-Q8:** build get_frames(slug, timestamps[]) per your own B-Q3 design note (S2 fast-follow pulled forward — judgment needs eyes; wizard-of-oz proved it).
+- **B-Q9:** .mcpb packaging — build the one-click bundle for Claude Desktop per docs/CONNECT.md, tested install flow documented.
