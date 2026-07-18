@@ -159,3 +159,7 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   (they were designed to loop), promote to a schema request for S3;
   if none do, drop it with the evidence recorded. No build before the
   base-rate check.
+- **B-Q12 (small):** yt-dlp is not in the [study] extras and the gate-pack run failed honestly on it — add it (one-dep PR) and confirm doctor's staleness check covers the JS-runtime deprecation warning surfaced on every fetch.
+- **B-Q13 (tiny):** prompts/compare.md's worked example uses a 0-2 scale while the genre rubric scores 1-5 — fix the example, bump prompt pack patch version.
+- **C-Q14 (calibration):** gate-pack run measured 29 dissolves on a talking-head video — likely detector over-calling on real footage. Calibrate the dissolve signature against the frozen real-video set; report precision honestly; tighten or downgrade to warning.
+- **D-Q12 (light):** REFERENCE-CANDIDATES.md re-verification — gate-pack found 2 of 3 sampled entries stale/misattributed (#7 wrong channel, #9 re-upload). Re-verify all 10 rows, fix or replace, note method.
