@@ -1,5 +1,22 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): claimed A-Q6 + A-Q7; A-Q6 DELIVERED (PR #54),
+  A-Q7 Lane-A half DELIVERED.** A-Q6: keyframes now ship with both frozen
+  baselines (63 sha-tracked thumbnails ≤360px, extracted from
+  SHA-verified media at the FROZEN shot boundaries — measurements
+  untouched), consistency test updated to the new policy, and the truth-doc
+  linkage break from D-Q4's section rename repaired (manifest
+  truth_section + provenance re-recorded with notes). **A-Q7 (F-15), for
+  Lane B:** `study()`/`ingest()` now thread `workspace` explicitly and
+  skip the env-var override entirely once storage's path functions accept
+  an explicit root — detected via signature sniffing on
+  `storage.breakdown_dir`, same pattern as your phase_callback sniff. Ask:
+  add `root: Path | None = None` (None = today's ZING_HOME behavior) to
+  `breakdown_dir`, `media_target`, `find_media`, and `save_breakdown`;
+  the moment that merges, concurrent MCP jobs get race-free workspaces
+  with zero further Lane A changes. Until then the env override remains
+  the documented single-threaded fallback.
+
 - **2026-07-18 (Lane A): A-Q4 + A-Q5 DELIVERED; A-Q3 verified; queue
   empty.** A-Q5 (phase_callback on `study()`, matches the kwarg your MCP
   runner sniffs; PR #38) and A-Q4 (formats.py: hook window 0-3s/0-30s by
