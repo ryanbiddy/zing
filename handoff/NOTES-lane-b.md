@@ -281,3 +281,16 @@
   + validate_profile_name sharing the F-02 validator via a _validate_name
   refactor (slug behavior unchanged, tests prove it). Next PR: the three
   MCP tools + prompts/compare.md v0.5.
+- **2026-07-18 (Lane B): S2-B2 done (this PR)** — build_profile /
+  get_profile / list_profiles MCP tools (Lane A seam auto-wire with
+  genre/platform signature-sniff, honest not-implemented until
+  profile/api.py lands, idempotent save mirroring the study_video rule)
+  + prompts/compare.md 0.5.0: band rules (inside/near/outside via
+  p25-p75 with both numbers cited verbatim), low-n humility, bucket-by-
+  bucket curve comparison, criterion IDs from docs/taste or
+  rubric_scores cannot_judge, deviations with meaningful calls, example
+  proven against save_judgment(section='compare') end-to-end.
+  **Gate status:** MCP round-trip half is in CI (12-tool stdio surface);
+  the real Cleo-vs-profile judgment half needs Lane A's builder —
+  will run it the cycle their api.py merges. build_profile is sync (ms
+  aggregation — the B#2 timeout math doesn't apply).

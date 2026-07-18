@@ -593,6 +593,110 @@ def h_zing_status() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# StyleProfile tools (S2)
+# ---------------------------------------------------------------------------
+
+def _profile_api():
+    """Lane A's profile-builder seam, or None while it hasn't merged."""
+    try:
+        api = importlib.import_module("myzing.profile.api")
+        return api if hasattr(api, "build_profile") else None
+    except ImportError:
+        return None
+
+
+def h_build_profile(
+    name: str,
+    slugs: list[str],
+    genre: str = "",
+    platform: str = "",
+) -> dict[str, Any]:
+    try:
+        storage.validate_profile_name(name)
+    except storage.SlugError as e:
+        return _err(f"invalid profile name: {e}")
+    if not isinstance(slugs, list) or not slugs:
+        return _err(
+            "slugs required: the studied videos to aggregate — see "
+            "list_breakdowns()"
+        )
+    for slug in slugs:
+        bad = _check_slug(slug)
+        if bad:
+            return bad
+    missing = [
+        s for s in slugs
+        if not (storage.breakdown_dir(s) / "breakdown.json").is_file()
+    ]
+    if missing:
+        return _err(
+            f"no breakdown for: {', '.join(missing)} — study these first "
+            "(study_video), or drop them from the list"
+        )
+    api = _profile_api()
+    if api is None:
+        return _err(
+            "the profile builder is not in this build yet (Sprint 2 in "
+            "progress) — build_profile will work here unchanged once it "
+            "lands"
+        )
+
+    kwargs: dict[str, Any] = {}
+    try:
+        params = inspect.signature(api.build_profile).parameters
+        if "genre" in params:
+            kwargs["genre"] = genre
+        if "platform" in params:
+            kwargs["platform"] = platform
+    except (TypeError, ValueError):
+        pass
+    try:
+        profile = api.build_profile(name, slugs, **kwargs)
+    except (ValueError, FileNotFoundError, storage.SlugError) as e:
+        return _err(f"profile build failed: {e}")
+    if genre and not profile.genre:
+        profile.genre = genre
+    if platform and not profile.platform:
+        profile.platform = platform
+    if not (storage.profile_dir(name) / "profile.json").is_file():
+        storage.save_profile(profile)
+    return _ok(
+        name=name,
+        sources=len(profile.source_slugs),
+        unjudged_sources=len(profile.unjudged_source_slugs),
+        warnings=profile.warnings,
+        path=str(storage.profile_dir(name) / "profile.json"),
+        hint="get_profile(name) for the full aggregate",
+    )
+
+
+def h_get_profile(name: str) -> dict[str, Any]:
+    try:
+        storage.validate_profile_name(name)
+    except storage.SlugError as e:
+        return _err(f"invalid profile name: {e}")
+    try:
+        p = storage.load_profile(name)
+    except FileNotFoundError:
+        return _err(
+            f"no profile named '{name}' — call list_profiles() to see what "
+            "exists, or build_profile(name, slugs) to create it"
+        )
+    except ValueError as e:
+        return _err(str(e))
+    return _ok(
+        name=name,
+        dir=str(storage.profile_dir(name)),
+        profile=p.to_dict(),
+    )
+
+
+def h_list_profiles() -> dict[str, Any]:
+    entries = storage.list_profiles()
+    return _ok(count=len(entries), profiles=entries)
+
+
+# ---------------------------------------------------------------------------
 # get_frames (B-Q8, built to handoff/research/B-Q3-get-frames-design.md)
 # ---------------------------------------------------------------------------
 
@@ -818,6 +922,32 @@ def build_server():
             "Zing is fully standalone without it."
         ),
     )(h_push_to_uoink)
+
+    mcp.tool(
+        name="build_profile",
+        description=(
+            "Aggregate N studied+judged reference videos into a "
+            "StyleProfile: robust stats (median/p25/p75) of pacing, hook "
+            "timing, captions, audio, plus collected judgments. Honest "
+            "about coverage (n per stat, unjudged sources named). Fast. "
+            "genre = a docs/taste rubric key (e.g. 'talking-head')."
+        ),
+    )(h_build_profile)
+    mcp.tool(
+        name="get_profile",
+        description=(
+            "Fetch a StyleProfile by name: the measured aggregates and "
+            "collected judgments to compare new videos against (see the "
+            "'compare' prompt)."
+        ),
+    )(h_get_profile)
+    mcp.tool(
+        name="list_profiles",
+        description=(
+            "List stored StyleProfiles: name, genre, platform, source "
+            "counts, unjudged-source count, warnings."
+        ),
+    )(h_list_profiles)
 
     from mcp.server.fastmcp.utilities.types import Image
 
