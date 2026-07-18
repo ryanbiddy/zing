@@ -11,8 +11,9 @@
   "human_truth": {
     "path": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
     "section": "1. REFERENCE VIDEO",
-    "sha256": "b0d05f1b14c5d0610141f7a7c48d135d803aa6cde2a3472e830a9e370d644d02",
-    "caveat": null
+    "sha256": "fbdc1f9980cf55c58b35a853ddafe952b524fc5e4321e5ee5863a467186f03e3",
+    "caveat": null,
+    "note": "hash re-recorded after the human-truth doc was corrected post-freeze (D-Q4/F-16); fixture measurements unchanged, truth section verified present"
   },
   "source_media": {
     "committed": false,
@@ -135,7 +136,7 @@
   },
   "manifest": {
     "path": "tools/eval/real_videos/manifest.json",
-    "sha256": "35998bac29f2c61b9186acd5295bd9b9c5cd96c69e4144fe272b14b1752bae02"
+    "sha256": "493d64ad0e74b4fd750754a422527ed2a8aa553c7cfad01312a94ed6b2b755e5"
   },
   "artifacts": {
     "breakdown.json": "d134a3d3e1e12927da9fb9b4f545763d2080aa5163b0552f8f21df443e673a56",

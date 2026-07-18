@@ -176,6 +176,7 @@ def backfill_case(
     provenance["normalizations"] = kept
 
     provenance["manifest"]["sha256"] = manifest_sha
+    provenance["human_truth"]["section"] = truth_section
     if provenance["human_truth"]["sha256"] != truth_sha:
         provenance["human_truth"]["sha256"] = truth_sha
         provenance["human_truth"]["note"] = (
