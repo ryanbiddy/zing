@@ -27,13 +27,16 @@ def _sample_breakdown() -> Breakdown:
             fps=30.0,
             media_path="refs/1.mp4",
         ),
-        shots=[Shot(0, 0.0, 1.4), Shot(1, 1.4, 3.05)],
-        words=[Word("stop", 0.1, 0.32), Word("scrolling", 0.32, 0.8)],
+        shots=[Shot(0, 0.0, 1.4, keyframe="frames/shot_0000.jpg"), Shot(1, 1.4, 3.05)],
+        words=[Word("stop", 0.1, 0.32, 0.98), Word("scrolling", 0.32, 0.8)],
         captions=[CaptionEvent("STOP SCROLLING", 0.0, 0.9, "center", True, 2, 0.93)],
-        audio=AudioLayout(True, True, 0.72, [-14.0, -13.2]),
+        audio=AudioLayout(True, 0.8, True, 0.72, [-14.0, -13.2]),
         avg_shot_duration=1.52,
         cuts_per_10s=[6.0, 7.0, 5.0],
-        judgment={"hook_type": "pattern_interrupt"},
+        warnings=["ocr sampled at 4fps outside hook window"],
+        provenance={"zing": "0.1.0", "detector": "adaptive@3.0"},
+        judgment={"study": {"hook_type": "pattern_interrupt",
+                            "_meta": {"prompt_version": "0.1"}}},
     )
 
 
@@ -42,7 +45,24 @@ def test_breakdown_roundtrip():
     b2 = Breakdown.from_json(b.to_json())
     assert b2.to_dict() == b.to_dict()
     assert b2.shots[0].duration == b.shots[0].duration
-    assert b2.judgment["hook_type"] == "pattern_interrupt"
+    assert b2.shots[0].keyframe == "frames/shot_0000.jpg"
+    assert b2.words[0].confidence == 0.98
+    assert b2.warnings and b2.provenance["zing"] == "0.1.0"
+    assert b2.judgment["study"]["hook_type"] == "pattern_interrupt"
+
+
+def test_breakdown_from_old_json_defaults():
+    # Pre-2026-07-18 JSON (no warnings/provenance/keyframe/confidence) must
+    # still load with safe defaults.
+    old = {
+        "meta": {"source_url": "u", "platform": "file"},
+        "shots": [{"index": 0, "start": 0.0, "end": 1.0}],
+        "words": [{"text": "hi", "start": 0.0, "end": 0.2}],
+    }
+    b = Breakdown.from_dict(old)
+    assert b.shots[0].keyframe == ""
+    assert b.words[0].confidence == 1.0
+    assert b.warnings == [] and b.provenance == {}
 
 
 def test_edl_roundtrip():

@@ -117,6 +117,74 @@ outside caption window).
 **Gate C-2:** golden EDL renders; ffprobe asserts duration/resolution/streams;
 a caption-timing probe frame contains the expected text.
 
+## Critique resolutions — BINDING (orchestrator, 2026-07-18, from Phase-0 round)
+
+All three critiques were high quality; nearly everything is accepted. The
+contract changes are already in `schemas.py` (warnings, provenance,
+Shot.keyframe, Word.confidence, music_confidence, pinned measurement
+definitions, EDL S1 timeline/audio semantics, media_path relative-to-
+breakdown rule). Additional binding decisions by lane:
+
+**Lane A:** the programmatic seam is `myzing/study/api.py:
+study(source: str, workspace: Path | None = None) -> Breakdown`; CLI is a
+thin wrapper (A#4). VFR policy accepted as proposed: PTS-derived timestamps,
+CFR-normalize on ingest, prefer avc1 mp4 (A#5). Extract keyframes per shot +
+~1fps over 0–3s into the breakdown dir (A#2). OCR sampling ~8–10fps in the
+0–3s hook window, ~4fps elsewhere, sampling rate recorded in
+warnings/report (A#9). Heavy deps imported lazily inside functions (B#7).
+
+**Lane B:** prompt delivery = MCP prompts capability + `get_prompt` tool
+fallback + `zing prompt <name>` CLI (B#1). `study_video` stays synchronous
+in S1 with cheap validation first, MCP progress notifications when
+progressToken present, and timeout honesty in the tool description; result
+shape designed so an S2 job-pattern upgrade isn't breaking (B#2).
+`save_judgment(slug, judgment, section="study")` = per-section REPLACE with
+`_meta` stamp; prompt pack carries a version header and defines the
+judgment JSON shape (B#3). Storage owns `slug_for()`; re-study overwrites
+measurements but PRESERVES judgment (+ one .bak) (B#4). Doctor tiers:
+required (ffmpeg) / recommended (yt-dlp, whisper, OCR — named degraded
+modes) / optional (uoink); exit nonzero only on required; `--json`; MCP
+`zing_status()` built on the same checks; include yt-dlp staleness check
+(B#5, A-minor). Install weight: core = stdlib-only; extras `[study]` and
+`[render]` (pysubs2) plus `[all]`; doctor prints the exact install command
+(B#7). MCP server: port uoink's proven stdio skeleton, else official MIT
+SDK — zero novel protocol code (B#8). Ship `tests/conftest.py` with the
+shared `zing_workspace` fixture in the storage PR (B#10).
+`prompts/study.md` v0 must degrade honestly on visual hooks ("cannot
+classify from measurements") — the eval scores that honesty; named S2
+fast-follow: `get_frames(slug, timestamps[])` returning MCP image content
+(B#6).
+
+**Lane C:** EDL semantics now pinned in schemas.py — build to them (C#1).
+Split audio oracle: tones/silence score loudness-window timing + silence
+detection; speech_ratio scored only against a real spoken fixture with
+documented redistribution terms — until then mark speech-ratio scoring
+unavailable, never tone-as-speech (C#2). Scoring rules live in a versioned
+eval manifest: one-to-one chronological cut matching with
+missing/extra/out-of-tolerance reported separately; captions matched by
+temporal overlap then similarity; explicit Unicode/whitespace/case/punct
+normalization; recall AND per-event similarity; extras penalized; raw
+deltas beside every pass/fail; tolerances never inside truth files (C#3).
+Eval adapter: media path → Breakdown; scorer stays pure
+`score(truth, breakdown)` (C#4). Mutation gate = fault matrix, ≥1 targeted
+mutation per scored dimension, asserting the intended metric fails and
+others stay green (C#5). ffmpeg: argv lists never shell,
+filter_complex_script files for path-hostile graphs, normalize every leg
+before concat, fixtures with spaces/apostrophes in paths (C#6). Renderer
+oracle = content probes (solid-color pixel checks, RMS windows for
+timing/gain/ducking, generated-ASS inspection + caption-region frame
+deltas) — no OCR in renderer tests (C#7). CI: ffmpeg explicitly installed +
+version/filters printed, scorer + render golden on Ubuntu, focused Windows
+job for paths/ASS/render smoke (C#8; the pytest Windows matrix job is
+already added by the orchestrator). Every eval run emits a machine-readable
+report (scorer version, fixture hashes, ffmpeg version, per-event deltas,
+wall-clock) kept as CI artifact on failure (C#9). Eval golden segments
+≥0.8s (A#3).
+
+Real-video regression discipline (C deeper-thread, accepted): when the
+3-real-videos gate runs, freeze those annotations + provenance so they
+become a regression set, not a one-time demo.
+
 ## Sprint-1 exit gate (orchestrator + Ryan): the wizard-of-oz test
 
 Before S1 closes, the riskiest assumption gets tested by hand: take ONE real
