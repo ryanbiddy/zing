@@ -17,6 +17,11 @@ CAPTION_MAX_LINES = 2
 CAPTION_MAX_CPS = 20.0
 CAPTION_POSITIONS = {"top", "center", "lower", "bottom"}
 AUDIO_KINDS = {"voiceover", "music"}
+OUTPUT_PRESETS = {
+    "vertical": (9, 16),
+    "landscape": (16, 9),
+    "square": (1, 1),
+}
 
 
 class EDLValidationError(ValueError):
@@ -51,9 +56,19 @@ class ValidatedEDL:
     audio_tracks: tuple[ResolvedAudioTrack, ...]
     duration: float
     warnings: tuple[str, ...]
+    output_preset: str = "vertical"
 
 
 Probe = Callable[[Path], MediaInfo]
+
+
+def output_preset(width: int, height: int) -> str:
+    for name, (ratio_width, ratio_height) in OUTPUT_PRESETS.items():
+        if width * ratio_height == height * ratio_width:
+            return name
+    raise EDLValidationError(
+        "output aspect ratio must match a 9:16, 16:9, or 1:1 preset"
+    )
 
 
 def _finite(value: float, field: str) -> float:
@@ -172,6 +187,7 @@ def validate_edl(edl: EDL, base_dir: Path, probe: Probe) -> ValidatedEDL:
         raise EDLValidationError("output width and height must be positive")
     if edl.width % 2 or edl.height % 2:
         raise EDLValidationError("output width and height must be even for yuv420p")
+    preset = output_preset(edl.width, edl.height)
     fps = _finite(edl.fps, "fps")
     if fps <= 0:
         raise EDLValidationError("fps must be greater than zero")
@@ -272,4 +288,5 @@ def validate_edl(edl: EDL, base_dir: Path, probe: Probe) -> ValidatedEDL:
         audio_tracks=tuple(resolved_audio),
         duration=duration,
         warnings=tuple(warnings),
+        output_preset=preset,
     )

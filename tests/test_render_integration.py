@@ -34,12 +34,13 @@ def make_color_video(
     duration: float = 1.0,
     *,
     tone_hz: int | None = None,
+    size: str = "180x320",
 ) -> None:
     arguments = [
         "-f",
         "lavfi",
         "-i",
-        f"color=c={color}:s=180x320:r=30:d={duration}",
+        f"color=c={color}:s={size}:r=30:d={duration}",
     ]
     if tone_hz is not None:
         arguments.extend(
@@ -277,6 +278,42 @@ def test_clip_audio_is_retained_at_unity(tmp_path: Path) -> None:
     render_edl(edl, output, base_dir=tmp_path)
 
     assert abs(mean_volume(source) - mean_volume(output)) <= 1.0
+
+
+def test_landscape_preset_renders_centered_captions(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "landscape source.mp4"
+    make_color_video(source, "navy", size="320x180")
+    output = tmp_path / "landscape output.mp4"
+    edl = EDL(
+        clips=[Clip(str(source), 0.0, 1.0, 0.0)],
+        captions=[
+            CaptionSpec(
+                text="long form",
+                start=0.25,
+                end=0.75,
+                position="bottom",
+                word_timed=False,
+            )
+        ],
+        width=320,
+        height=180,
+    )
+
+    render_edl(edl, output, base_dir=tmp_path)
+
+    metadata = probe(output)
+    video = next(
+        stream for stream in metadata["streams"] if stream["codec_type"] == "video"
+    )
+    assert (video["width"], video["height"]) == (320, 180)
+    anchor_x, anchor_y = caption_anchor("bottom", 320, 180)
+    assert anchor_x == 160
+    off = gray_region(output, 0.1, anchor_x - 75, anchor_y - 25, 150, 40)
+    on = gray_region(output, 0.5, anchor_x - 75, anchor_y - 25, 150, 40)
+    assert len(off) == len(on) == 150 * 40
+    assert sum(abs(left - right) for left, right in zip(off, on)) > 5_000
 
 
 def test_no_audio_inputs_still_produce_silent_track(tmp_path: Path) -> None:
