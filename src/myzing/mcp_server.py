@@ -36,8 +36,12 @@ from pathlib import Path
 from typing import Any
 
 from myzing import doctor, storage
-
-PROMPTS_DIR_ENV = "ZING_PROMPTS_DIR"
+from myzing.prompt_pack import (
+    PROMPTS_DIR_ENV,
+    available_prompts,
+    load_prompt,
+    prompts_dir,
+)
 
 # Study phases in pipeline order (B#2 ruling). The engine reports the
 # phase it is entering via callback when its seam supports one.
@@ -64,67 +68,6 @@ def _version() -> str:
         return importlib.metadata.version("myzing")
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
-
-
-# ---------------------------------------------------------------------------
-# Prompt pack access
-# ---------------------------------------------------------------------------
-
-def prompts_dir() -> Path:
-    """The prompt pack directory: env override, else repo-root ``prompts/``.
-
-    S1 reality is a checkout (editable install); wheel/.mcpb packaging of
-    the pack is a queued S5 item (B-Q2) and will extend this lookup.
-    """
-    import os
-
-    override = os.environ.get(PROMPTS_DIR_ENV, "").strip()
-    if override:
-        return Path(override).expanduser()
-    return Path(__file__).resolve().parents[2] / "prompts"
-
-
-def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
-    """Minimal YAML-ish frontmatter parser (stdlib only).
-
-    Understands ``key: value`` lines and inline lists ``key: [a, b]`` —
-    exactly what the prompt pack uses. Returns (meta, body).
-    """
-    if not text.startswith("---"):
-        return {}, text
-    parts = text.split("---", 2)
-    if len(parts) < 3:
-        return {}, text
-    meta: dict[str, Any] = {}
-    for line in parts[1].splitlines():
-        m = re.match(r"^(\w[\w-]*):\s*(.*)$", line.strip())
-        if not m:
-            continue
-        key, value = m.group(1), m.group(2).strip()
-        if value.startswith("[") and value.endswith("]"):
-            meta[key] = [v.strip() for v in value[1:-1].split(",") if v.strip()]
-        else:
-            meta[key] = value
-    return meta, parts[2].lstrip("\n")
-
-
-def load_prompt(name: str) -> tuple[dict[str, Any], str] | None:
-    """(frontmatter meta, full text incl. frontmatter) or None if absent."""
-    if not re.fullmatch(r"[a-z0-9_-]+", name):
-        return None
-    path = prompts_dir() / f"{name}.md"
-    if not path.is_file():
-        return None
-    text = path.read_text(encoding="utf-8")
-    meta, _body = _parse_frontmatter(text)
-    return meta, text
-
-
-def available_prompts() -> list[str]:
-    d = prompts_dir()
-    if not d.is_dir():
-        return []
-    return sorted(p.stem for p in d.glob("*.md"))
 
 
 # ---------------------------------------------------------------------------
