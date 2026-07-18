@@ -3,6 +3,8 @@
 Orchestrator: Claude (Ryan's chat session). Workers: two Claude Fable 5
 terminals (Lanes A, B) + one Codex GPT-5.6 Sol session (Lane C).
 Vision: `E:\AI\projects\uoink\handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`.
+Lifecycle + sprint sequence: `handoff/ROADMAP.md`. Worker standing prompts:
+`handoff/prompts/LANE-{A,B,C}.md` (Phase-0 plan critique lands BEFORE build).
 Priority: WORKING > pretty. No brand/design/copy work this sprint.
 
 ## Rules for every lane
