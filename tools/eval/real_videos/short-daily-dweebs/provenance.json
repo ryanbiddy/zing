@@ -1,0 +1,170 @@
+{
+  "schema_version": 2,
+  "fixture_id": "short-daily-dweebs",
+  "source": {
+    "url": "https://video.blender.org/w/gdfAeNysimipmpo7AbgaTp",
+    "video_id": "gdfAeNysimipmpo7AbgaTp",
+    "role": "additional-short",
+    "title": "The Daily Dweebs",
+    "creator": "Blender Animation Studio"
+  },
+  "human_truth": {
+    "available": false,
+    "reason": "C-Q13 adds a second measured short-form case; no independent human annotation was commissioned for this source."
+  },
+  "rights": {
+    "label": "Attribution",
+    "spdx": null,
+    "evidence_url": "https://video.blender.org/w/gdfAeNysimipmpo7AbgaTp",
+    "evidence_checked_at": "2026-07-18",
+    "attribution": "Blender Animation Studio",
+    "limitations": "The official host labels the video Attribution but does not expose a license version; no version is inferred here."
+  },
+  "source_media": {
+    "committed": false,
+    "filename": "daily-dweebs.mp4",
+    "byte_size": 6763799,
+    "sha256": "d43cb62f12eeb73b9b420b4f1484b662e164d5682e266336782d2f81044e9c56",
+    "acquisition": {
+      "tool": "yt-dlp",
+      "version": "2026.7.4",
+      "merge_output_format": "mp4",
+      "no_playlist": true,
+      "format_selector": "720p",
+      "selected_format_ids": [
+        "720p"
+      ]
+    }
+  },
+  "measured_media": {
+    "committed": false,
+    "byte_size": 6763799,
+    "sha256": "d43cb62f12eeb73b9b420b4f1484b662e164d5682e266336782d2f81044e9c56"
+  },
+  "normalizations": [
+    "Replaced the temporary local source path with the canonical URL.",
+    "Restored canonical title, creator, and platform metadata.",
+    "Cleared meta.media_path because source media is not committed.",
+    "Backfilled shot keyframe paths and committed downscaled analysis thumbnails (A-Q6); frames grabbed from SHA-verified source media at frozen timestamps — measurements untouched."
+  ],
+  "measurement": {
+    "shot_detector": "scenedetect-0.7 AdaptiveDetector",
+    "adaptive_threshold": 3.0,
+    "min_scene_len_s": 0.3,
+    "whisper_model": "large-v2",
+    "device": "cpu",
+    "compute_type": "int8",
+    "faster_whisper": "1.2.1",
+    "language": "en",
+    "language_probability": 0.941,
+    "vad_filter": true,
+    "condition_on_previous_text": false,
+    "ocr_backend": "rapidocr-3.9.1",
+    "conf_threshold": 0.75,
+    "hook_fps": 8.0,
+    "body_fps": 4.0,
+    "hook_window_s": 3.0,
+    "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
+    "vad": "silero (faster-whisper bundled), upstream-style params",
+    "vad_params": {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 250,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 30
+    },
+    "has_music": "gap-floor heuristic v1",
+    "zing_version": "0.1.0",
+    "measured_at": "2026-07-18T21:33:35+00:00",
+    "regression_fixture": {
+      "fixture_id": "short-daily-dweebs",
+      "video_id": "gdfAeNysimipmpo7AbgaTp",
+      "role": "additional-short",
+      "human_truth": {
+        "available": false,
+        "reason": "C-Q13 adds a second measured short-form case; no independent human annotation was commissioned for this source."
+      }
+    }
+  },
+  "performance": {
+    "study_total_seconds": 44.597871,
+    "stage_order": [
+      "ingest",
+      "shots",
+      "keyframes",
+      "transcribe",
+      "ocr",
+      "audio",
+      "markdown",
+      "render"
+    ],
+    "stages": {
+      "ingest": 0.063323,
+      "shots": 1.340861,
+      "keyframes": 0.387619,
+      "transcribe": 15.062039,
+      "ocr": 27.47667,
+      "audio": 0.264753,
+      "markdown": 0.002547,
+      "render": 4.54497
+    },
+    "render_seconds": 4.54497,
+    "total_seconds": 49.142841,
+    "input_duration_seconds": 60.118,
+    "real_time_factor": 0.81744,
+    "render_profile": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 30.0
+    },
+    "study_warnings": [
+      "caption OCR sampled at 8 fps in 0-3s, 4 fps after; text between samples is unobserved"
+    ],
+    "budget_assessment": {
+      "status": "not-comparable",
+      "comparable_duration": false,
+      "reason": "input is outside the ROADMAP's 30-60 second reference range"
+    },
+    "available": true
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "python": "3.14.6",
+    "ffmpeg": "ffmpeg version 8.1.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "myzing": "0.1.0",
+    "scenedetect": "0.7",
+    "faster_whisper": "1.2.1",
+    "rapidocr": "3.9.1",
+    "onnxruntime": "1.27.0",
+    "yt_dlp": "2026.7.4"
+  },
+  "manifest": {
+    "path": "tools/eval/real_videos/manifest-cq13.json",
+    "sha256": "206048c7d7f6595180c2a4f9231e5dbd9663e8efde3a29d06c1e3948a43a95a4"
+  },
+  "source_document": {
+    "path": "tools/eval/real_videos/CQ13-SOURCES.md",
+    "sha256": "642f1cbd4f690674101657abd2e2f910b38e7536b40bd475ff1bcabebf9634d7"
+  },
+  "artifacts": {
+    "breakdown.json": "4d4d6faffd79ab43bb8500d33995ec70ed6f50c4ff8b02bc264854108ec1249b",
+    "frames/shot_000.jpg": "bb306d8a665c76f3d336a3ac0e9f6ef12e941fa5febc724959f9c110993f7256",
+    "frames/shot_001.jpg": "7f0e36fc61f5aa1933dfe972b04ad2181801d6aef7a5993f50b7009a067c78c7",
+    "frames/shot_002.jpg": "d9b3c54e79723a34aca2a586cf0dce8e9ceff61577df925250c8d988bcec6bac",
+    "frames/shot_003.jpg": "c990223d6a4dcef639add67bfcd1331758cfeca86f5b98ac1a15fd7cb8ba4303",
+    "frames/hook_0s.jpg": "bb306d8a665c76f3d336a3ac0e9f6ef12e941fa5febc724959f9c110993f7256",
+    "frames/hook_1s.jpg": "9316530065e1ceff60204fe203caee61c9e69fbbed3a656e8df0ed55f3206bc8",
+    "frames/hook_2s.jpg": "fbe2040642a0d4599d9e50109c47970f80233de5f7f880868763b784423a5683"
+  },
+  "derived_frames": {
+    "committed": true,
+    "decision": "Small analysis thumbnails ship with baselines so visual judgment criteria are scoreable; source media remains uncommitted.",
+    "recipe": {
+      "source": "sha256-verified source media (see source_media)",
+      "timestamps": "frozen shot starts + 1 fps over the hook window",
+      "scale": "height<=360",
+      "jpeg_quality": "7"
+    },
+    "count": 7
+  }
+}

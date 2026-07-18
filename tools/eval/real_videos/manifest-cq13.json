@@ -1,0 +1,116 @@
+{
+  "schema_version": 2,
+  "source_document": "tools/eval/real_videos/CQ13-SOURCES.md",
+  "media_policy": {
+    "committed": false,
+    "reason": "Source videos remain outside git. Frozen measurements, provenance, and downscaled analysis thumbnails are committed.",
+    "derived_frames_committed": true,
+    "derived_frames_reason": "Downscaled JPEG analysis thumbnails (height <=360px) are committed so visual criteria remain inspectable without redistributing source video.",
+    "recovery": "Refetch each canonical URL with the case's pinned yt-dlp format selector, then verify the source-media SHA-256 in provenance.json before comparing measurements."
+  },
+  "source_acquisition": {
+    "tool": "yt-dlp",
+    "version": "2026.7.4",
+    "merge_output_format": "mp4",
+    "no_playlist": true
+  },
+  "cases": [
+    {
+      "fixture_id": "landscape-big-buck-bunny",
+      "role": "landscape-long-form",
+      "video_id": "dmhvQNzwBnrWy1iYzVv5g7",
+      "selected_format_ids": [
+        "480p"
+      ],
+      "media_filename": "big-buck-bunny.mp4",
+      "source_url": "https://video.blender.org/w/dmhvQNzwBnrWy1iYzVv5g7",
+      "title": "Big Buck Bunny",
+      "creator": "Blender Foundation",
+      "human_truth": {
+        "available": false,
+        "reason": "C-Q13 adds measured landscape long-form coverage; no independent human annotation was commissioned for this source."
+      },
+      "rights": {
+        "label": "Creative Commons Attribution 3.0",
+        "spdx": "CC-BY-3.0",
+        "evidence_url": "https://peach.blender.org/about/",
+        "evidence_checked_at": "2026-07-18",
+        "attribution": "Copyright 2008, Blender Foundation / www.bigbuckbunny.org",
+        "limitations": "Reuse requires attribution under CC BY 3.0."
+      },
+      "acquisition": {
+        "format_selector": "480p"
+      },
+      "expected_media": {
+        "duration_seconds": 634.667,
+        "width": 852,
+        "height": 480
+      }
+    },
+    {
+      "fixture_id": "x-nasa-artemis-backseat-drivers",
+      "role": "x-native",
+      "video_id": "2040619776100147411",
+      "selected_format_ids": [
+        "hls-936",
+        "hls-audio-128000-Audio"
+      ],
+      "media_filename": "nasa-artemis-backseat-drivers.mp4",
+      "source_url": "https://x.com/NASAArtemis/status/2040619776100147411",
+      "title": "The Orion spacecraft has a couple of backseat drivers.",
+      "creator": "NASA Artemis",
+      "human_truth": {
+        "available": false,
+        "reason": "C-Q13 adds measured X-native coverage; no independent human annotation was commissioned for this source."
+      },
+      "rights": {
+        "label": "NASA media generally not subject to copyright in the United States",
+        "spdx": null,
+        "evidence_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+        "evidence_checked_at": "2026-07-18",
+        "attribution": "NASA",
+        "limitations": "NASA identifiers are protected, third-party material may carry separate rights, and use must not imply endorsement."
+      },
+      "acquisition": {
+        "format_selector": "hls-936+hls-audio-128000-Audio"
+      },
+      "expected_media": {
+        "duration_seconds": 18.282667,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "fixture_id": "short-daily-dweebs",
+      "role": "additional-short",
+      "video_id": "gdfAeNysimipmpo7AbgaTp",
+      "selected_format_ids": [
+        "720p"
+      ],
+      "media_filename": "daily-dweebs.mp4",
+      "source_url": "https://video.blender.org/w/gdfAeNysimipmpo7AbgaTp",
+      "title": "The Daily Dweebs",
+      "creator": "Blender Animation Studio",
+      "human_truth": {
+        "available": false,
+        "reason": "C-Q13 adds a second measured short-form case; no independent human annotation was commissioned for this source."
+      },
+      "rights": {
+        "label": "Attribution",
+        "spdx": null,
+        "evidence_url": "https://video.blender.org/w/gdfAeNysimipmpo7AbgaTp",
+        "evidence_checked_at": "2026-07-18",
+        "attribution": "Blender Animation Studio",
+        "limitations": "The official host labels the video Attribution but does not expose a license version; no version is inferred here."
+      },
+      "acquisition": {
+        "format_selector": "720p"
+      },
+      "expected_media": {
+        "duration_seconds": 60.118,
+        "width": 1280,
+        "height": 720
+      }
+    }
+  ]
+}

@@ -107,16 +107,20 @@ def backfill_case(
     media: Path,
     ffmpeg: str,
     manifest_sha: str,
-    truth_sha: str,
-    truth_text: str,
-    truth_section: str,
+    truth_sha: str | None,
+    truth_text: str | None,
+    truth_section: str | None,
 ) -> dict:
     breakdown_path = case_dir / "breakdown.json"
     provenance_path = case_dir / "provenance.json"
     breakdown = json.loads(breakdown_path.read_text(encoding="utf-8"))
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
 
-    if truth_section not in truth_text:
+    if (
+        truth_section is not None
+        and truth_text is not None
+        and truth_section not in truth_text
+    ):
         raise BackfillError(
             f"{case_dir.name}: truth section '{truth_section}' no longer "
             "exists in the human-truth doc — fixture linkage is broken, "
@@ -151,9 +155,9 @@ def backfill_case(
     }
     provenance["derived_frames"] = {
         "committed": True,
-        "decision": "A-Q6 (orchestrator, 2026-07-18): small analysis "
-                    "thumbnails ship with baselines so visual judgment "
-                    "criteria are scoreable",
+        "decision": "Small analysis thumbnails ship with baselines so "
+                    "visual judgment criteria are scoreable; source media "
+                    "remains uncommitted.",
         "recipe": {
             "source": "sha256-verified source media (see source_media)",
             "timestamps": "frozen shot starts + 1 fps over the hook window",
@@ -176,14 +180,15 @@ def backfill_case(
     provenance["normalizations"] = kept
 
     provenance["manifest"]["sha256"] = manifest_sha
-    provenance["human_truth"]["section"] = truth_section
-    if provenance["human_truth"]["sha256"] != truth_sha:
-        provenance["human_truth"]["sha256"] = truth_sha
-        provenance["human_truth"]["note"] = (
-            "hash re-recorded after the human-truth doc was corrected "
-            "post-freeze (D-Q4/F-16); fixture measurements unchanged, "
-            "truth section verified present"
-        )
+    if truth_section is not None and truth_sha is not None:
+        provenance["human_truth"]["section"] = truth_section
+        if provenance["human_truth"]["sha256"] != truth_sha:
+            provenance["human_truth"]["sha256"] = truth_sha
+            provenance["human_truth"]["note"] = (
+                "hash re-recorded after the human-truth doc was corrected "
+                "post-freeze (D-Q4/F-16); fixture measurements unchanged, "
+                "truth section verified present"
+            )
 
     artifacts = provenance.get("artifacts", {})
     artifacts.update(frame_artifacts)
@@ -200,31 +205,50 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--media-root", type=Path, required=True,
                         help="directory containing <video_id>.mp4 files")
+    parser.add_argument("--manifest", type=Path, default=MANIFEST)
     parser.add_argument("--ffmpeg", default="ffmpeg")
     args = parser.parse_args(argv)
 
-    manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    manifest_path = args.manifest.resolve()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
     # Manifest is updated FIRST so every fixture's provenance records the
     # hash of the manifest as committed, not a stale one.
     manifest["media_policy"]["derived_frames_committed"] = True
-    manifest["media_policy"]["derived_frames_reason"] = (
-        "A-Q6: small downscaled analysis thumbnails (<=360px JPEG) are "
-        "committed so visual judgment criteria are scoreable; source media "
-        "itself stays uncommitted."
+    manifest["media_policy"].setdefault(
+        "derived_frames_reason",
+        (
+            "A-Q6: small downscaled analysis thumbnails (<=360px JPEG) are "
+            "committed so visual judgment criteria are scoreable; source "
+            "media itself stays uncommitted."
+        ),
     )
-    MANIFEST.write_text(
+    manifest_path.write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    manifest_sha = sha256_text(MANIFEST)
-
-    truth_path = HERE.parents[1] / manifest["human_truth"]
-    truth_text = truth_path.read_text(encoding="utf-8")
-    truth_sha = sha256_text(truth_path)
+    manifest_sha = sha256_text(manifest_path)
 
     results = []
     for case in manifest["cases"]:
+        human_truth = case.get("human_truth")
+        if human_truth is not None and not human_truth["available"]:
+            truth_text = None
+            truth_sha = None
+            truth_section = None
+        else:
+            truth_path = HERE.parents[1] / (
+                human_truth["path"]
+                if human_truth is not None
+                else manifest["human_truth"]
+            )
+            truth_text = truth_path.read_text(encoding="utf-8")
+            truth_sha = sha256_text(truth_path)
+            truth_section = (
+                human_truth["section"]
+                if human_truth is not None
+                else case["truth_section"]
+            )
         case_dir = REAL_VIDEOS / case["fixture_id"]
         if not case_dir.is_dir():
             raise BackfillError(f"fixture missing: {case_dir}")
@@ -233,7 +257,7 @@ def main(argv: list[str] | None = None) -> int:
             raise BackfillError(f"media missing: {media}")
         results.append(backfill_case(
             case_dir, media, args.ffmpeg,
-            manifest_sha, truth_sha, truth_text, case["truth_section"],
+            manifest_sha, truth_sha, truth_text, truth_section,
         ))
 
     for result in results:

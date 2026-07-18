@@ -1,0 +1,169 @@
+{
+  "schema_version": 2,
+  "fixture_id": "x-nasa-artemis-backseat-drivers",
+  "source": {
+    "url": "https://x.com/NASAArtemis/status/2040619776100147411",
+    "video_id": "2040619776100147411",
+    "role": "x-native",
+    "title": "The Orion spacecraft has a couple of backseat drivers.",
+    "creator": "NASA Artemis"
+  },
+  "human_truth": {
+    "available": false,
+    "reason": "C-Q13 adds measured X-native coverage; no independent human annotation was commissioned for this source."
+  },
+  "rights": {
+    "label": "NASA media generally not subject to copyright in the United States",
+    "spdx": null,
+    "evidence_url": "https://www.nasa.gov/nasa-brand-center/images-and-media/",
+    "evidence_checked_at": "2026-07-18",
+    "attribution": "NASA",
+    "limitations": "NASA identifiers are protected, third-party material may carry separate rights, and use must not imply endorsement."
+  },
+  "source_media": {
+    "committed": false,
+    "filename": "nasa-artemis-backseat-drivers.mp4",
+    "byte_size": 2155320,
+    "sha256": "38459f540ad352cc03a2540437e130d9306b3c3f7e275d0a835b0ac1bba4607e",
+    "acquisition": {
+      "tool": "yt-dlp",
+      "version": "2026.7.4",
+      "merge_output_format": "mp4",
+      "no_playlist": true,
+      "format_selector": "hls-936+hls-audio-128000-Audio",
+      "selected_format_ids": [
+        "hls-936",
+        "hls-audio-128000-Audio"
+      ]
+    }
+  },
+  "measured_media": {
+    "committed": false,
+    "byte_size": 3393820,
+    "sha256": "84b01e609b1dafe5665c7bb549b13b1af649990f9aa6d590a8349ca83859d94c"
+  },
+  "normalizations": [
+    "Replaced the temporary local source path with the canonical URL.",
+    "Restored canonical title, creator, and platform metadata.",
+    "Cleared meta.media_path because source media is not committed.",
+    "Backfilled shot keyframe paths and committed downscaled analysis thumbnails (A-Q6); frames grabbed from SHA-verified source media at frozen timestamps — measurements untouched."
+  ],
+  "measurement": {
+    "shot_detector": "scenedetect-0.7 AdaptiveDetector",
+    "adaptive_threshold": 3.0,
+    "min_scene_len_s": 0.3,
+    "whisper_model": "large-v2",
+    "device": "cpu",
+    "compute_type": "int8",
+    "faster_whisper": "1.2.1",
+    "language": "en",
+    "language_probability": 0.995,
+    "vad_filter": true,
+    "condition_on_previous_text": false,
+    "ocr_backend": "rapidocr-3.9.1",
+    "conf_threshold": 0.75,
+    "hook_fps": 8.0,
+    "body_fps": 4.0,
+    "hook_window_s": 3.0,
+    "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
+    "vad": "silero (faster-whisper bundled), upstream-style params",
+    "vad_params": {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 250,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 30
+    },
+    "has_music": "gap-floor heuristic v1",
+    "zing_version": "0.1.0",
+    "measured_at": "2026-07-18T21:32:49+00:00",
+    "regression_fixture": {
+      "fixture_id": "x-nasa-artemis-backseat-drivers",
+      "video_id": "2040619776100147411",
+      "role": "x-native",
+      "human_truth": {
+        "available": false,
+        "reason": "C-Q13 adds measured X-native coverage; no independent human annotation was commissioned for this source."
+      }
+    }
+  },
+  "performance": {
+    "study_total_seconds": 29.368039,
+    "stage_order": [
+      "ingest",
+      "shots",
+      "keyframes",
+      "transcribe",
+      "ocr",
+      "audio",
+      "markdown",
+      "render"
+    ],
+    "stages": {
+      "ingest": 0.685705,
+      "shots": 0.510956,
+      "keyframes": 0.2191,
+      "transcribe": 16.774919,
+      "ocr": 11.029956,
+      "audio": 0.14481,
+      "markdown": 0.002532,
+      "render": 1.557992
+    },
+    "render_seconds": 1.557992,
+    "total_seconds": 30.926031,
+    "input_duration_seconds": 18.282,
+    "real_time_factor": 1.691611,
+    "render_profile": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 30.0
+    },
+    "study_warnings": [
+      "variable frame timing detected (per-frame PTS delta variation 1.4%, worst frame-index drift 0.200s vs thresholds 5% / 0.15s); normalized to constant frame rate so timestamps stay trustworthy",
+      "caption OCR sampled at 8 fps in 0-3s, 4 fps after; text between samples is unobserved"
+    ],
+    "budget_assessment": {
+      "status": "not-comparable",
+      "comparable_duration": false,
+      "reason": "input is outside the ROADMAP's 30-60 second reference range"
+    },
+    "available": true
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "python": "3.14.6",
+    "ffmpeg": "ffmpeg version 8.1.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "myzing": "0.1.0",
+    "scenedetect": "0.7",
+    "faster_whisper": "1.2.1",
+    "rapidocr": "3.9.1",
+    "onnxruntime": "1.27.0",
+    "yt_dlp": "2026.7.4"
+  },
+  "manifest": {
+    "path": "tools/eval/real_videos/manifest-cq13.json",
+    "sha256": "206048c7d7f6595180c2a4f9231e5dbd9663e8efde3a29d06c1e3948a43a95a4"
+  },
+  "source_document": {
+    "path": "tools/eval/real_videos/CQ13-SOURCES.md",
+    "sha256": "642f1cbd4f690674101657abd2e2f910b38e7536b40bd475ff1bcabebf9634d7"
+  },
+  "artifacts": {
+    "breakdown.json": "d6c65f7dcc3918952facd3262fe8aeccb43396ef324a251a17af75f95aacc7f6",
+    "frames/shot_000.jpg": "2f3307c2c4bb53bcd7fd9834a42e2537d93fc55c2d899635c4a0a8e8b4d9c226",
+    "frames/hook_0s.jpg": "2f3307c2c4bb53bcd7fd9834a42e2537d93fc55c2d899635c4a0a8e8b4d9c226",
+    "frames/hook_1s.jpg": "a4569fe0a608ccf50646e958d5aaa7bd2fc145e35ce977a19fed508483f65958",
+    "frames/hook_2s.jpg": "862346d403407a35d047cc880cb4cc49d4906c943cc8d325ecf785895b8e827e"
+  },
+  "derived_frames": {
+    "committed": true,
+    "decision": "Small analysis thumbnails ship with baselines so visual judgment criteria are scoreable; source media remains uncommitted.",
+    "recipe": {
+      "source": "sha256-verified source media (see source_media)",
+      "timestamps": "frozen shot starts + 1 fps over the hook window",
+      "scale": "height<=360",
+      "jpeg_quality": "7"
+    },
+    "count": 4
+  }
+}
