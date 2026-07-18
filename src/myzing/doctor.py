@@ -150,24 +150,49 @@ def check_ytdlp(today: date | None = None) -> Check:
         [sys.executable, "-m", "yt_dlp", "--version"]
     )
     age = _ytdlp_version_age_days(version, today) if version else None
+    # B-Q12: yt-dlp's YouTube extractor needs an external JS runtime (deno
+    # preferred, node accepted) for signature solving; without one it prints
+    # a deprecation warning on every fetch and YouTube downloads can fail.
+    # Staleness parsing never covered this — it is a separate, named fact.
+    js_runtime = next(
+        (rt for rt in ("deno", "node") if _which(rt)), None
+    )
+    js_note = ""
+    js_fix = ""
+    if js_runtime is None:
+        js_note = (
+            "; no JS runtime (deno/node) found — yt-dlp warns on every "
+            "fetch and YouTube downloads may fail"
+        )
+        js_fix = "winget install DenoLand.Deno   (yt-dlp's preferred JS runtime)"
+    data = {
+        "version": version,
+        "age_days": age,
+        "stale": False,
+        "js_runtime": js_runtime,
+    }
     if age is not None and age > YTDLP_STALE_DAYS:
+        data["stale"] = True
         return Check(
             name="yt-dlp",
             tier=RECOMMENDED,
             ok=True,
             detail=(
                 f"version {version} is ~{age} days old — platform extractors "
-                "rot fast; TikTok/Instagram fetches may fail until updated"
+                f"rot fast; TikTok/Instagram fetches may fail until updated"
+                f"{js_note}"
             ),
-            fix="python -m pip install -U yt-dlp",
-            data={"version": version, "age_days": age, "stale": True},
+            fix="python -m pip install -U yt-dlp"
+            + (f"   then: {js_fix}" if js_fix else ""),
+            data=data,
         )
     return Check(
         name="yt-dlp",
         tier=RECOMMENDED,
         ok=True,
-        detail=f"version {version}" if version else f"found at {path}",
-        data={"version": version, "age_days": age, "stale": False},
+        detail=(f"version {version}" if version else f"found at {path}") + js_note,
+        fix=js_fix,
+        data=data,
     )
 
 
@@ -321,7 +346,7 @@ def _print_human(checks: list[Check]) -> None:
         print(f"           {c.detail}")
         if c.degraded_mode and not c.ok:
             print(f"           without it: {c.degraded_mode}")
-        if c.fix and (not c.ok or c.data.get("stale")):
+        if c.fix:  # a fix line only exists when something is worth fixing
             print(f"           fix: {c.fix}")
     missing = [c for c in checks if c.tier == REQUIRED and not c.ok]
     degraded = [c for c in checks if c.tier == RECOMMENDED and not c.ok]
