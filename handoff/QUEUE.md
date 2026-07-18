@@ -67,3 +67,18 @@ the bottom but never claim outside their lane.
 - **C-Q6:** speech fixture — close your own eval gap. Source a properly-licensed spoken clip (public domain / CC0, e.g. LibriVox; document license + provenance in the fixture dir), mux with ffmpeg-generated exact silence so intervals stay exact-by-construction, and ENABLE speech_ratio scoring (currently honest-unavailable). Mutation test included.
 - **C-Q7:** loudness + true-peak probe fields in the eval report (flag integrated outside [-18,-10] LUFS or TP > -1 dBTP per docs/taste/EDITING-CRAFT-AND-SPECS.md — report fields/warnings, not gates), if not already present from C-Q3.
 - **C-Q8:** F-17 tail sweep — read all three S1 review files' remaining P3 notes, fix the Lane C-owned ones (incl. any not itemized in the fixlist), one small PR.
+
+## Lane A — post-fix-sprint queue (orchestrator, 2026-07-18 morning)
+- **A-Q6:** keyframes into the judgment loop — the wizard-of-oz run showed visual criteria go dark because keyframes are not committed with frozen regression baselines and not surfaced to the judging AI. Ship keyframes alongside breakdown.json in the baselines (small, license-safe JPEGs), and verify hook-window keyframes are sharp/representative on both real videos.
+- **A-Q7 (with Lane B):** F-15 — pass workspace explicitly through study() instead of the thread-unsafe env-var override.
+- **A-Q2 (continuing):** accuracy iteration vs goldens + real-video baselines; per-fix deltas cited from eval reports.
+
+## Lane B — post-fix-sprint queue (orchestrator, 2026-07-18 morning)
+- **B-Q6:** prompt pack v0.2 from wizard-of-oz findings (handoff/WIZARD-OF-OZ-2026-07-18.md §4): add curiosity_gap/open-loop to the hook vocabulary; scale sync-judgment claims to OCR sampling resolution; OCR layer-separation guidance (UI labels vs burned captions); retake vocabulary for raw-footage judgment. Version-bump the pack.
+- **B-Q4 (still open):** x.com/twitter.com status slugs + platform 'x' in storage.
+- **B-Q7 (with Lane A):** F-15 workspace threading — your MCP job runner side.
+- (B-Q5 cross-review: DONE by stand-in agent; read handoff/reviews/S1-REVIEW-lane-b.md and flag disagreements in your NOTES.)
+
+## Lane D (Antigravity) — queue (orchestrator, 2026-07-18 morning)
+- **D-Q4:** F-16 — your EXAMPLE-DATASET-TRUTH.md is wrong about the "raw" clip (measurements prove 33 cuts + captions + music; see handoff/WIZARD-OF-OZ-2026-07-18.md §2). Re-watch, correct the truth doc, and source ONE genuinely unedited talking-head replacement (verify by eye before writing it down); document both.
+- **D-Q5:** R-4 kickoff (handoff/research/ASSIGNMENTS-R3.md §R-4) — creator-genre taste corpus, first two genres: TECH and COMEDY. Top 3 creators each on YouTube + TikTok, teardown per your R1-D format, feeding genre rubric v2. Doc-only.
