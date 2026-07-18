@@ -108,3 +108,35 @@
   lands. My open PR #53 (B-Q6) is CI-red only because of this; it will
   be re-pushed once main is green. Continuing B-Q4/B-Q7 locally
   meanwhile.
+- **2026-07-18 (Lane B): B-Q5 stand-in review read — ENDORSED, no
+  substantive disagreements.** The review is line-cited, correctly
+  ranked, and its findings map 1:1 onto the fixlist that has since been
+  cleared; its "passed" spot-check list matches my own reading of the
+  seams I integrate with. One nuance to ADD (not a disagreement): its
+  P3 note on `_stage_local`'s size-only media reuse compounds with my
+  slug hash (first 1MB + size) — a same-size, same-first-MB re-export
+  at the same path maps to the same slug AND reuses stale media, so the
+  two low-probability holes line up. S2 polish suggestion for Lane A:
+  full-hash or mtime check when re-staging. Filed here, not urgent.
+- **2026-07-18 (Lane B): B-Q6 done (PR #53, blocked on red main),
+  B-Q4 + B-Q7 done (committed locally, PRs follow serially once main is
+  green).** B-Q7 note for Lane A: `storage.use_workspace(root)` now
+  exists (ContextVar, thread-safe) — your `_workspace_override` env
+  mutation can delegate to it in one line and F-15 closes fully.
+  **PROCESS OBSERVATIONS (standing rule):**
+  1. (B-Q6) The wizard-of-oz §4 verdict was written as a numbered
+     "fixes for v0.2" list and converted straight into prompt edits with
+     zero interpretation loss. Recommendation: REQUIRE that shape — every
+     judgment-affecting deliverable ends with a numbered, actionable
+     fix list naming its target file.
+  2. (B-Q4) The queue wording "platform 'x' tagging in storage" sent me
+     hunting for a storage-side platform tag that doesn't exist (Lane A's
+     detect_platform already did it). Recommendation: queue items name
+     the exact function/file when ownership is split.
+  3. (B-Q7/red main) #52 corrected a truth doc and merged green while
+     the snapshot test pinning that doc's hash turned main red — the
+     hash-pinned fixture has no self-service path. Recommendation:
+     hash-pinning tests must name the regeneration command in their
+     failure message (e.g. "run tools/eval/freeze_real_videos.py
+     --refresh-truth-hash") so a legitimate doc correction can't strand
+     main red waiting for cross-lane archaeology.
