@@ -321,6 +321,12 @@ def h_zing_status() -> dict[str, Any]:
     )
 
 
+def h_push_to_uoink(slug: str) -> dict[str, Any]:
+    from myzing import uoink_bridge
+
+    return uoink_bridge.push_breakdown(slug)
+
+
 def h_get_prompt(name: str = "study") -> dict[str, Any]:
     loaded = load_prompt(name)
     if loaded is None:
@@ -407,6 +413,15 @@ def build_server():
             "available prompts. Cheap — call freely."
         ),
     )(h_zing_status)
+    mcp.tool(
+        name="push_to_uoink",
+        description=(
+            "Optional: push a studied video's breakdown.md into the user's "
+            "uoink corpus as a note (only works when the uoink helper is "
+            "running locally — zing_status shows it under environment). "
+            "Zing is fully standalone without it."
+        ),
+    )(h_push_to_uoink)
     mcp.tool(
         name="get_prompt",
         description=(
