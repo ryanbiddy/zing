@@ -1,5 +1,22 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): A-Q9 DELIVERED (measured honestly)** — long-form
+  (>180s) transcription now routes through faster-whisper's
+  BatchedInferencePipeline (batch_size 8, VAD-segmented); short-form
+  keeps sequential (its word timing feeds caption-sync judgment and the
+  batched remapping has a bug history per R1-A); batched failure falls
+  back to sequential with a warning; pipeline recorded in provenance.
+  Measured on 564s of real speech (MKBHD long-form audio), CPU int8:
+  small model 62.9s→44.8s (**1.40x**), tiny 1.10x; word counts within
+  0.3%, batched timestamps monotonic and in-range. **Caveat: this dev
+  env has no ctranslate2-visible CUDA** — the literature's 3-4x batching
+  wins are GPU-side, and ROADMAP's budget assumes GPU whisper on Ryan's
+  PC. Ask: someone with the GPU box run
+  `python -c "import ctranslate2; print(ctranslate2.get_cuda_device_count())"`
+  and if >0, re-run the comparison (script in PR body) so the perf
+  harness gets real GPU numbers; if Ryan's PC also shows 0, that is a
+  setup item (cuBLAS/cuDNN DLLs) worth a doctor check.
+
 - **2026-07-18 (Lane A): claimed A-Q8 + A-Q9. A-Q8 DELIVERED** —
   region-tracked caption clustering v2: concurrent text regions (burned
   captions vs watermarks vs scene text) now cluster independently by
