@@ -90,6 +90,14 @@ def _check_slug(slug: Any) -> dict[str, Any] | None:
     return None
 
 
+def _missing_slug_err(slug: str) -> dict[str, Any]:
+    """The one canonical unknown-slug message (was duplicated and drifting)."""
+    return _err(
+        f"no breakdown for slug '{slug}' — call list_breakdowns() to see "
+        "what exists, or study_video() to create it"
+    )
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -417,13 +425,7 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
                 ),
                 "state": "failed",
             }
-        return {
-            **_err(
-                f"no breakdown for slug '{slug}' — call list_breakdowns() to see "
-                "what exists, or study_video() to create it"
-            ),
-            "state": "absent",
-        }
+        return {**_missing_slug_err(slug), "state": "absent"}
     data = b.to_dict()
     if detail == "summary":
         data = _summarize_breakdown(data)
@@ -635,14 +637,14 @@ def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
             "ffmpeg not found on PATH — run `zing doctor` for the install "
             "command."
         )
+    bad = _check_slug(slug)
+    if bad:
+        return bad
     try:
         b = storage.load_breakdown(slug)
     except FileNotFoundError:
-        return _err(
-            f"no breakdown for slug '{slug}' — call list_breakdowns() to "
-            "see what exists, or study_video() to create it"
-        )
-    except (ValueError, storage.SlugError) as e:
+        return _missing_slug_err(slug)
+    except ValueError as e:  # corrupt breakdown.json stays errors-as-data
         return _err(str(e))
     media = storage.find_media(slug)
     if media is None:

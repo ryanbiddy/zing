@@ -333,10 +333,17 @@ def save_breakdown(
                 pass  # corrupt prior file: nothing to preserve
         json_path.replace(d / "breakdown.json.bak")
 
-    json_path.write_text(b.to_json(indent=2) + "\n", encoding="utf-8")
+    _write_breakdown_json(d, b)
     if markdown is not None:
         (d / "breakdown.md").write_text(markdown, encoding="utf-8")
     return d
+
+
+def _write_breakdown_json(d: Path, b: Breakdown) -> None:
+    """The one place breakdown.json is serialized — format can't drift."""
+    (d / "breakdown.json").write_text(
+        b.to_json(indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def load_breakdown(slug: str) -> Breakdown:
@@ -363,8 +370,7 @@ def save_judgment(slug: str, judgment: dict[str, Any]) -> Breakdown:
     validate_slug(slug)
     b = load_breakdown(slug)
     b.judgment.update(judgment)
-    d = breakdown_dir(slug)
-    (d / "breakdown.json").write_text(b.to_json(indent=2) + "\n", encoding="utf-8")
+    _write_breakdown_json(breakdown_dir(slug), b)
     return b
 
 
