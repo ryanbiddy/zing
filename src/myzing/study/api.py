@@ -16,7 +16,7 @@ import os
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from myzing import storage
 from myzing.schemas import Breakdown
@@ -30,37 +30,52 @@ from . import shots as shots_mod
 from . import transcribe as transcribe_mod
 
 
-def study(source: str, workspace: Path | None = None) -> Breakdown:
+def study(
+    source: str,
+    workspace: Path | None = None,
+    phase_callback: Callable[[str], None] | None = None,
+) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
     Raises MediaError/ToolMissing when the video itself cannot be obtained
     or probed — there is no honest Breakdown without media. Every other
     stage degrades to warnings instead of raising.
+
+    ``phase_callback`` (A-Q5), when given, is called with the phase name as
+    each stage begins: ingest, shots, keyframes, transcribe, ocr, audio,
+    markdown. Callback errors are swallowed — status reporting must never
+    kill a measurement.
     """
     with _workspace_override(workspace):
+        _phase(phase_callback, "ingest")
         ing = ingest_mod.ingest(source)
         warnings: list[str] = list(ing.warnings)
         provenance: dict[str, Any] = {}
 
+        _phase(phase_callback, "shots")
         shots_r = shots_mod.detect_shots(
             ing.media_path, ing.meta.duration, ing.meta.fps
         )
         warnings += shots_r.warnings
         provenance.update(shots_r.provenance)
 
+        _phase(phase_callback, "keyframes")
         keyframes_mod.extract_keyframes(
             ing.media_path, ing.breakdown_dir, shots_r.shots,
             ing.meta.duration, warnings,
         )
 
+        _phase(phase_callback, "transcribe")
         words_r = transcribe_mod.transcribe(ing.media_path)
         warnings += words_r.warnings
         provenance.update(words_r.provenance)
 
+        _phase(phase_callback, "ocr")
         caps_r = captions_mod.read_captions(ing.media_path, ing.meta.duration)
         warnings += caps_r.warnings
         provenance.update(caps_r.provenance)
 
+        _phase(phase_callback, "audio")
         audio_r = audio_mod.measure_audio(ing.media_path, ing.meta.duration)
         warnings += audio_r.warnings
         provenance.update(audio_r.provenance)
@@ -70,6 +85,7 @@ def study(source: str, workspace: Path | None = None) -> Breakdown:
             timespec="seconds"
         )
 
+        _phase(phase_callback, "markdown")
         breakdown = Breakdown(
             meta=ing.meta,
             shots=shots_r.shots,
@@ -87,6 +103,15 @@ def study(source: str, workspace: Path | None = None) -> Breakdown:
             breakdown, slug=ing.slug, markdown=report.render_markdown(breakdown)
         )
         return breakdown
+
+
+def _phase(callback: Callable[[str], None] | None, name: str) -> None:
+    if callback is None:
+        return
+    try:
+        callback(name)
+    except Exception:
+        pass  # status reporting must never kill a measurement
 
 
 def _zing_version() -> str:

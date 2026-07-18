@@ -113,6 +113,29 @@ def test_study_workspace_override_and_env_restore(tmp_path, monkeypatch):
     assert storage.ENV_VAR not in os.environ  # restored
 
 
+def test_study_reports_phases_in_order(zing_workspace, monkeypatch):
+    wire_stages(monkeypatch)
+    phases: list[str] = []
+
+    api.study(SOURCE, phase_callback=phases.append)
+
+    assert phases == [
+        "ingest", "shots", "keyframes", "transcribe", "ocr", "audio",
+        "markdown",
+    ]
+
+
+def test_study_survives_crashing_phase_callback(zing_workspace, monkeypatch):
+    wire_stages(monkeypatch)
+
+    def boom(name):
+        raise RuntimeError("status write failed")
+
+    b = api.study(SOURCE, phase_callback=boom)
+
+    assert b.meta.platform == "tiktok"  # measurement completed regardless
+
+
 def test_study_media_error_propagates(zing_workspace, monkeypatch):
     def failing(source):
         raise MediaError("yt-dlp could not fetch")
