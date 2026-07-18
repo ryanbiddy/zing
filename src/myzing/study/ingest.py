@@ -32,6 +32,7 @@ import shutil
 import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 from myzing import storage
@@ -93,17 +94,21 @@ def detect_platform(source: str) -> str:
     return "url"
 
 
-def ingest(source: str) -> IngestResult:
+def ingest(source: str, root: Path | None = None) -> IngestResult:
+    """``root`` (A-Q7/F-15): explicit workspace root, forwarded to storage
+    when given — the caller (api.study) only passes it once storage
+    supports it, so no signature checks are needed here."""
     warnings: list[str] = []
     slug = storage.slug_for(source)
-    dest = storage.breakdown_dir(slug)
+    root_kwargs: dict[str, Any] = {} if root is None else {"root": root}
+    dest = storage.breakdown_dir(slug, **root_kwargs)
     dest.mkdir(parents=True, exist_ok=True)
 
     if is_url(source):
-        media = _fetch(source, slug, dest, warnings)
+        media = _fetch(source, slug, dest, warnings, root_kwargs)
         info = _read_info_json(dest)
     else:
-        media = _stage_local(source, slug)
+        media = _stage_local(source, slug, root_kwargs)
         info = {}
 
     probed = probe(media)
@@ -147,8 +152,14 @@ def ingest(source: str) -> IngestResult:
 
 # -- fetch / stage ----------------------------------------------------------
 
-def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
-    existing = storage.find_media(slug)
+def _fetch(
+    url: str,
+    slug: str,
+    dest: Path,
+    warnings: list[str],
+    root_kwargs: dict[str, Any],
+) -> Path:
+    existing = storage.find_media(slug, **root_kwargs)
     if existing is not None:
         warnings.append(f"reusing already-downloaded media: {existing.name}")
         return existing
@@ -168,7 +179,7 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
             f"yt-dlp could not fetch {url} (exit {res.returncode}):\n"
             f"{proc.tail(res.stderr)}"
         )
-    media = storage.find_media(slug)
+    media = storage.find_media(slug, **root_kwargs)
     if media is None:
         raise MediaError(
             f"yt-dlp exited 0 but no media file landed in {dest} — "
@@ -177,11 +188,11 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     return media
 
 
-def _stage_local(path_str: str, slug: str) -> Path:
+def _stage_local(path_str: str, slug: str, root_kwargs: dict[str, Any]) -> Path:
     src = Path(path_str)
     if not src.is_file():
         raise MediaError(f"no such file: {src}")
-    target = storage.media_target(slug, src.suffix)
+    target = storage.media_target(slug, src.suffix, **root_kwargs)
     if not (target.exists() and target.stat().st_size == src.stat().st_size):
         shutil.copy2(src, target)
     return target
