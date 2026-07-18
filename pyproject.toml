@@ -20,7 +20,8 @@ study = [
     "rapidocr>=3.9",
 ]
 mcp = ["mcp>=1.2"]
-all = ["myzing[study]", "myzing[mcp]"]
+render = ["pysubs2>=1.8.1"]
+all = ["myzing[study]", "myzing[mcp]", "myzing[render]"]
 
 [project.scripts]
 zing = "myzing.cli:main"
