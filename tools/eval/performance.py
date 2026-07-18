@@ -5,9 +5,11 @@ from __future__ import annotations
 import tempfile
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from myzing import storage
 from myzing.schemas import Breakdown, Clip, EDL
 
 
@@ -114,6 +116,16 @@ def _render_source(
     )
 
 
+@contextmanager
+def _study_workspace(root: Path | None):
+    if root is not None:
+        root.mkdir(parents=True, exist_ok=True)
+        yield root
+        return
+    with tempfile.TemporaryDirectory(prefix="zing-eval-study-") as workspace:
+        yield Path(workspace)
+
+
 class StudyBenchmarkAdapter:
     """Run Lane A study plus a representative default-profile render."""
 
@@ -125,28 +137,37 @@ class StudyBenchmarkAdapter:
         clock: Callable[[], float] = time.perf_counter,
         ffmpeg: str = "ffmpeg",
         ffprobe: str = "ffprobe",
+        workspace: Path | None = None,
     ) -> None:
         self._study_fn = study_fn
         self._render_fn = render_fn
         self._clock = clock
         self._ffmpeg = ffmpeg
         self._ffprobe = ffprobe
+        self._workspace = workspace
         self._records: dict[str, dict[str, Any]] = {}
+        self._artifact_directories: dict[str, Path] = {}
 
     def __call__(self, media_path: Path) -> Breakdown:
         media_path = media_path.resolve()
         study_fn = self._study_fn or _load_study()
         timer = PhaseTimer(self._clock)
-        with tempfile.TemporaryDirectory(prefix="zing-eval-study-") as workspace:
+        with _study_workspace(self._workspace) as workspace:
             timer.start()
             try:
                 breakdown = study_fn(
                     str(media_path),
-                    workspace=Path(workspace),
+                    workspace=workspace,
                     phase_callback=timer.begin,
                 )
             finally:
                 timer.finish()
+            if self._workspace is not None:
+                self._artifact_directories[str(media_path)] = (
+                    workspace
+                    / "breakdowns"
+                    / storage.slug_for(str(media_path))
+                )
 
         measurement = timer.report()
         render_started = self._clock()
@@ -194,6 +215,9 @@ class StudyBenchmarkAdapter:
                 "reason": "no benchmark record for this media path",
             },
         )
+
+    def artifact_directory_for(self, media_path: Path) -> Path | None:
+        return self._artifact_directories.get(str(media_path.resolve()))
 
 
 def budget_assessment(input_duration_seconds: float) -> dict[str, Any]:

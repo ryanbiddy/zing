@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "fixture_id": "raw-editing-practice",
+  "source": {
+    "url": "https://www.youtube.com/watch?v=FHMXO_VikdA",
+    "video_id": "FHMXO_VikdA",
+    "role": "raw-proxy",
+    "title": "Raw Footage for Editing Practice",
+    "creator": "MrDenoise"
+  },
+  "human_truth": {
+    "path": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
+    "section": "2. RAW VIDEO",
+    "sha256": "b0d05f1b14c5d0610141f7a7c48d135d803aa6cde2a3472e830a9e370d644d02",
+    "caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link."
+  },
+  "source_media": {
+    "committed": false,
+    "filename": "FHMXO_VikdA.mp4",
+    "byte_size": 8604917,
+    "sha256": "0450698edfaea9004aab37f1c57f5dfd2e4324bfd5e9f1b373ea33199459d031",
+    "acquisition": {
+      "tool": "yt-dlp",
+      "version": "2026.7.4",
+      "format_selector": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+      "merge_output_format": "mp4",
+      "no_playlist": true,
+      "selected_format_ids": [
+        "399",
+        "251"
+      ]
+    }
+  },
+  "measured_media": {
+    "committed": false,
+    "byte_size": 31799411,
+    "sha256": "078f593d392ba54a8558febc1c3d4e30779fdcae87be8a6dc0a86bdc0e290009"
+  },
+  "normalizations": [
+    "Replaced the temporary local source path with the canonical URL.",
+    "Restored canonical YouTube title, creator, and platform metadata.",
+    "Cleared meta.media_path because source media is not committed.",
+    "Cleared shot keyframe paths because derived source frames are not committed without documented redistribution terms."
+  ],
+  "measurement": {
+    "shot_detector": "scenedetect-0.7 AdaptiveDetector",
+    "adaptive_threshold": 3.0,
+    "min_scene_len_s": 0.3,
+    "whisper_model": "large-v2",
+    "device": "cpu",
+    "compute_type": "int8",
+    "faster_whisper": "1.2.1",
+    "language": "en",
+    "language_probability": 0.999,
+    "vad_filter": true,
+    "condition_on_previous_text": false,
+    "ocr_backend": "rapidocr-3.9.1",
+    "conf_threshold": 0.75,
+    "hook_fps": 8.0,
+    "body_fps": 4.0,
+    "hook_window_s": 3.0,
+    "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
+    "vad": "silero (faster-whisper bundled), upstream-style params",
+    "vad_params": {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 250,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 30
+    },
+    "has_music": "gap-floor heuristic v1",
+    "zing_version": "0.1.0",
+    "measured_at": "2026-07-18T09:04:25+00:00",
+    "regression_fixture": {
+      "fixture_id": "raw-editing-practice",
+      "video_id": "FHMXO_VikdA",
+      "role": "raw-proxy",
+      "human_truth": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
+      "truth_section": "2. RAW VIDEO"
+    }
+  },
+  "performance": {
+    "study_total_seconds": 112.698942,
+    "stage_order": [
+      "ingest",
+      "shots",
+      "keyframes",
+      "transcribe",
+      "ocr",
+      "audio",
+      "markdown",
+      "render"
+    ],
+    "stages": {
+      "ingest": 4.285297,
+      "shots": 2.997782,
+      "keyframes": 2.961762,
+      "transcribe": 46.019011,
+      "ocr": 56.191306,
+      "audio": 0.24139,
+      "markdown": 0.002353,
+      "render": 4.970911
+    },
+    "render_seconds": 4.970911,
+    "total_seconds": 117.669853,
+    "input_duration_seconds": 55.074,
+    "real_time_factor": 2.136577,
+    "render_profile": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 30.0
+    },
+    "study_warnings": [
+      "source codec 'av1' is not reliable for frame-accurate measurement here; re-encoded to H.264",
+      "caption OCR sampled at 8 fps in 0-3s, 4 fps after; text between samples is unobserved"
+    ],
+    "budget_assessment": {
+      "status": "tracked-not-gated",
+      "comparable_duration": true,
+      "reason": "input is in the ROADMAP's 30-60 second reference range"
+    },
+    "available": true
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "python": "3.14.6",
+    "ffmpeg": "ffmpeg version 8.1.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "myzing": "0.1.0",
+    "scenedetect": "0.7",
+    "faster_whisper": "1.2.1",
+    "rapidocr": "3.9.1",
+    "onnxruntime": "1.27.0",
+    "yt_dlp": "2026.7.4"
+  },
+  "manifest": {
+    "path": "tools/eval/real_videos/manifest.json",
+    "sha256": "5ed01c48ff0b0870adda73cae5e244b22d9e2b1f1a6c28bccdce6a538ee2dde6"
+  },
+  "artifacts": {
+    "breakdown.json": "b20496c61970e1ae96fa4a903a5c72c3bb26af87f08a9256b7637b6181e8be66"
+  }
+}
