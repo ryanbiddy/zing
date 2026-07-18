@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -14,11 +13,9 @@ from myzing.render.pipeline import render_edl
 from myzing.schemas import AudioTrack, CaptionSpec, Clip, EDL, Word
 
 
-HAS_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
-pytestmark = pytest.mark.skipif(
-    not HAS_FFMPEG,
-    reason="ffmpeg and ffprobe are required",
-)
+# Skip/fail behavior lives in tests/conftest.py: skips honestly when
+# ffmpeg is absent, fails hard under ZING_REQUIRE_FFMPEG=1 (CI gates).
+pytestmark = pytest.mark.ffmpeg
 
 
 def run_ffmpeg(*arguments: str) -> None:

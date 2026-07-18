@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -143,10 +142,7 @@ def test_module_cli_writes_report_on_error(tmp_path: Path) -> None:
     assert "no evaluation cases" in report["error"]["message"]
 
 
-@pytest.mark.skipif(
-    shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
-    reason="ffmpeg and ffprobe are required",
-)
+@pytest.mark.ffmpeg
 def test_make_three_real_goldens_with_hostile_paths(tmp_path: Path) -> None:
     output = tmp_path / "goldens root"
 
