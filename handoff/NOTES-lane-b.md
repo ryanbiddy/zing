@@ -96,3 +96,15 @@
 - **2026-07-18 (Lane B): claimed B-Q6, B-Q4, B-Q7** (working in that
   order). Stand-in review read + disagreement pass coming with the B-Q7
   PR.
+- **2026-07-18 (Lane B, URGENT — MAIN IS RED):**
+  `test_eval_real_videos.py::test_checked_in_real_video_snapshots_are_self_consistent`
+  fails on clean origin/main (both CI OSes; reproduced locally at
+  621fdc0). Root cause: #52 (D-Q4) corrected EXAMPLE-DATASET truth, so
+  the `human_truth` sha256 pinned in Lane C's frozen snapshot provenance
+  no longer matches. Not my paths, and NOT a mechanical hash bump: the
+  frozen annotations were made against the OLD truth doc, so the
+  snapshot likely needs a Lane C re-freeze against the corrected truth
+  (F-16's whole point). Every lane's merges are blocked until this
+  lands. My open PR #53 (B-Q6) is CI-red only because of this; it will
+  be re-pushed once main is green. Continuing B-Q4/B-Q7 locally
+  meanwhile.
