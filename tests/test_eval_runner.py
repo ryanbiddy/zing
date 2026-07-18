@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
+import wave
 from pathlib import Path
 
 import pytest
@@ -11,7 +13,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from myzing.schemas import Breakdown
-from tools.eval.make_goldens import CASES, generate_goldens
+from tools.eval.make_goldens import CASES, SPEECH_FIXTURE, generate_goldens
 from tools.eval.run import SAMPLE_DIRECTORY, evaluate
 
 
@@ -42,9 +44,7 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
 
     assert report["passed"] is True
     assert report["report_schema_version"] == 2
-    # 1.1.0: F-09 honest pairing — the machine-readable report must carry
-    # the bumped scorer version so runs are comparable across the change.
-    assert report["scorer_version"] == "1.1.0"
+    assert report["scorer_version"] == "1.2.0"
     assert len(report["manifest_sha256"]) == 64
     assert report["ffmpeg"] is None
     assert report["wall_clock_seconds"] >= 0
@@ -110,7 +110,7 @@ def test_module_cli_passes_on_checked_in_sample(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert "checked-in-scorer-sample" in result.stdout
-    assert "N/A" in result.stdout
+    assert "PASS" in result.stdout
     assert json.loads(report_path.read_text(encoding="utf-8"))["passed"] is True
 
 
@@ -160,6 +160,7 @@ def test_make_three_real_goldens_with_hostile_paths(tmp_path: Path) -> None:
         media = directory / truth["media"]
         assert media.stat().st_size > 0
         assert truth["cuts"] == [1.0, 2.0]
+        assert truth["audio"]["speech_ratio"] == pytest.approx(2 / 3, abs=0.001)
         assert "tolerance" not in json.dumps(truth)
         assert "drawtext=" in (directory / "filter graph.txt").read_text(
             encoding="utf-8"
@@ -199,3 +200,16 @@ def test_make_three_real_goldens_with_hostile_paths(tmp_path: Path) -> None:
             "30/1",
         )
         assert (audio["sample_rate"], audio["channels"]) == ("48000", 2)
+
+
+def test_spoken_fixture_has_pinned_public_domain_provenance() -> None:
+    provenance_path = SPEECH_FIXTURE.with_name("provenance.json")
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+    digest = hashlib.sha256(SPEECH_FIXTURE.read_bytes()).hexdigest()
+
+    assert provenance["license"]["spdx"] == "CC-PDDC"
+    assert provenance["artifact"]["sha256"] == digest
+    with wave.open(str(SPEECH_FIXTURE), "rb") as audio:
+        assert audio.getnchannels() == 1
+        assert audio.getframerate() == 16_000
+        assert audio.getnframes() == 16_000

@@ -45,8 +45,8 @@
   "audio": {
     "has_music": false,
     "music_confidence": 0.0,
-    "has_voiceover": false,
-    "speech_ratio": 0.0,
+    "has_voiceover": true,
+    "speech_ratio": 0.667,
     "loudness_curve": [
       -18.0,
       -80.0,
@@ -57,11 +57,10 @@
   "cuts_per_10s": [
     2.0
   ],
-  "warnings": [
-    "speech ratio unavailable: no redistributable spoken fixture"
-  ],
+  "warnings": [],
   "provenance": {
-    "fixture": "checked-in"
+    "fixture": "checked-in",
+    "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
   },
   "judgment": {},
   "schema_version": 1

@@ -63,15 +63,15 @@ def test_caption_normalization_is_explicit() -> None:
     assert levenshtein_similarity("Hello, Zing!", "hello zing") == 1.0
 
 
-def test_checked_in_sample_passes_and_speech_is_unavailable(
+def test_checked_in_sample_passes_with_speech_ratio_scoring(
     truth: dict, breakdown: dict
 ) -> None:
     result = score_dict(truth, breakdown)
 
     assert result["passed"]
-    assert result["audio"]["speech_ratio"]["available"] is False
-    assert result["audio"]["speech_ratio"]["passed"] is None
-    assert "tone is not speech" in result["audio"]["speech_ratio"]["reason"]
+    assert result["audio"]["speech_ratio"]["available"] is True
+    assert result["audio"]["speech_ratio"]["passed"] is True
+    assert result["audio"]["speech_ratio"]["truth"] == pytest.approx(2 / 3, abs=0.001)
 
 
 @pytest.mark.parametrize(
@@ -122,6 +122,11 @@ def test_checked_in_sample_passes_and_speech_is_unavailable(
             ("audio", "window_pattern"),
             ("cuts", "captions"),
         ),
+        (
+            lambda value: value["audio"].update(speech_ratio=0.3),
+            ("audio", "speech_ratio"),
+            ("cuts", "captions"),
+        ),
     ],
     ids=[
         "missing-cut",
@@ -131,6 +136,7 @@ def test_checked_in_sample_passes_and_speech_is_unavailable(
         "wrong-caption-text",
         "extra-caption",
         "wrong-audio-window",
+        "wrong-speech-ratio",
     ],
 )
 def test_fault_matrix_is_sensitive_and_isolated(
@@ -243,7 +249,7 @@ def test_out_of_tolerance_pairing_never_crosses_in_tolerance_matches() -> None:
 def test_scorer_version_bumped_for_pairing_semantics_change() -> None:
     result = score(_truth_for_cuts([1.0]), _breakdown_for_cuts([1.0]))
 
-    assert result["scorer_version"] == "1.1.0"
+    assert result["scorer_version"] == "1.2.0"
 
 
 # --- F-12: matcher must survive real-video event counts (iterative) -------
