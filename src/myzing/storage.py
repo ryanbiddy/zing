@@ -35,7 +35,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterator
 from urllib.parse import parse_qs, urlparse
 
-from myzing.schemas import Breakdown
+from myzing.schemas import Breakdown, StyleProfile
 
 ENV_VAR = "ZING_HOME"
 
@@ -99,53 +99,68 @@ def breakdowns_root() -> Path:
     return workspace_root() / "breakdowns"
 
 
-def validate_slug(slug: str) -> str:
-    """The one canonical slug validator (F-02, SECURITY).
+def profiles_root() -> Path:
+    return workspace_root() / "profiles"
 
-    Slugs are storage-owned names, never paths. MCP tool arguments are
+
+def _validate_name(name: str, root: Path, kind: str) -> str:
+    """Shared name validator (F-02, SECURITY): slugs and profile names.
+
+    Names are storage-owned, never paths. MCP tool arguments are
     AI-generated and may be influenced by untrusted video text, so every
-    public slug boundary must reject anything that could resolve outside
-    ``breakdowns_root()``. Raises :class:`SlugError` (a ``ValueError``)
-    unless ``slug`` matches the contract ``slug_for()`` produces AND
-    ``breakdowns_root()/slug`` resolves to a location strictly inside
-    ``breakdowns_root()``. Returns the slug unchanged on success.
+    public name boundary must reject anything that could resolve outside
+    its ``root``. Raises :class:`SlugError` (a ``ValueError``) unless
+    ``name`` matches the slug contract AND ``root/name`` resolves strictly
+    inside ``root``. Returns the name unchanged on success.
     """
-    if not isinstance(slug, str):
-        raise SlugError(f"slug must be a string, got {type(slug).__name__}")
-    if not slug.strip():
-        raise SlugError("slug must not be empty")
-    if len(slug) > SLUG_MAX_LEN:
-        raise SlugError(f"slug is too long ({len(slug)} chars, max {SLUG_MAX_LEN})")
-    if "/" in slug or "\\" in slug:
-        raise SlugError(f"slug must not contain path separators: {slug!r}")
-    if "." in slug:
+    if not isinstance(name, str):
+        raise SlugError(f"{kind} must be a string, got {type(name).__name__}")
+    if not name.strip():
+        raise SlugError(f"{kind} must not be empty")
+    if len(name) > SLUG_MAX_LEN:
+        raise SlugError(
+            f"{kind} is too long ({len(name)} chars, max {SLUG_MAX_LEN})"
+        )
+    if "/" in name or "\\" in name:
+        raise SlugError(f"{kind} must not contain path separators: {name!r}")
+    if "." in name:
         # covers '.', '..', '..\\..'-style segments and hidden/dotted names;
         # slug_for() never emits a dot
-        raise SlugError(f"slug must not contain '.': {slug!r}")
+        raise SlugError(f"{kind} must not contain '.': {name!r}")
     if (
-        PurePosixPath(slug).is_absolute()
-        or PureWindowsPath(slug).is_absolute()
-        or PureWindowsPath(slug).drive
+        PurePosixPath(name).is_absolute()
+        or PureWindowsPath(name).is_absolute()
+        or PureWindowsPath(name).drive
     ):
-        raise SlugError(f"slug must not be an absolute or drive path: {slug!r}")
-    if not _SLUG_RE.fullmatch(slug):
+        raise SlugError(f"{kind} must not be an absolute or drive path: {name!r}")
+    if not _SLUG_RE.fullmatch(name):
         raise SlugError(
-            f"slug {slug!r} is outside the slug contract (lowercase letters, "
-            "digits, and hyphens, starting with a letter or digit)"
+            f"{kind} {name!r} is outside the naming contract (lowercase "
+            "letters, digits, and hyphens, starting with a letter or digit)"
         )
-    # Belt and braces: even a contract-shaped slug must land inside the
+    # Belt and braces: even a contract-shaped name must land inside the
     # workspace once the filesystem has its say (symlinks, junctions, …).
-    root = breakdowns_root()
     try:
-        resolved = (root / slug).resolve()
+        resolved = (root / name).resolve()
         resolved.relative_to(root.resolve())
     except ValueError:
         raise SlugError(
-            f"slug {slug!r} resolves outside the breakdowns workspace"
+            f"{kind} {name!r} resolves outside its workspace directory"
         ) from None
     except OSError as e:
-        raise SlugError(f"slug {slug!r} cannot be resolved: {e}") from None
-    return slug
+        raise SlugError(f"{kind} {name!r} cannot be resolved: {e}") from None
+    return name
+
+
+def validate_slug(slug: str) -> str:
+    """The canonical breakdown-slug validator (F-02, SECURITY)."""
+    return _validate_name(slug, breakdowns_root(), "slug")
+
+
+def validate_profile_name(name: str) -> str:
+    """Profile names follow the slug contract (S2: 'validate profile names
+    like slugs') and must resolve inside profiles_root()."""
+    return _validate_name(name, profiles_root(), "profile name")
 
 
 def breakdown_dir(slug: str) -> Path:
@@ -424,4 +439,71 @@ def list_breakdowns() -> list[dict[str, Any]]:
             })
         except (OSError, ValueError) as e:
             index.append({"slug": d.name, "error": f"unreadable breakdown.json: {e}"})
+    return index
+
+# ---------------------------------------------------------------------------
+# StyleProfile persistence (S2): profiles/<name>/profile.json
+# ---------------------------------------------------------------------------
+
+def profile_dir(name: str) -> Path:
+    """The directory for profile ``name`` (validated; see
+    validate_profile_name). Every profile path funnels through here."""
+    validate_profile_name(name)
+    return profiles_root() / name
+
+
+def save_profile(p: StyleProfile) -> Path:
+    """Write a StyleProfile; returns its directory. An existing
+    profile.json is kept as profile.json.bak (rebuilds are expected as
+    the source set grows — never silently destroy the prior aggregate)."""
+    d = profile_dir(p.name)
+    d.mkdir(parents=True, exist_ok=True)
+    json_path = d / "profile.json"
+    if json_path.exists():
+        json_path.replace(d / "profile.json.bak")
+    json_path.write_text(p.to_json(indent=2) + "\n", encoding="utf-8")
+    return d
+
+
+def load_profile(name: str) -> StyleProfile:
+    """Load a stored StyleProfile. Raises FileNotFoundError with the
+    looked-up path when absent (callers turn this into an actionable
+    message)."""
+    json_path = profile_dir(name) / "profile.json"
+    if not json_path.is_file():
+        raise FileNotFoundError(
+            f"no profile named '{name}' (looked in {json_path})"
+        )
+    return StyleProfile.from_json(json_path.read_text(encoding="utf-8"))
+
+
+def list_profiles() -> list[dict[str, Any]]:
+    """Index of stored profiles, one summary per name, sorted. Corrupt
+    entries yield {"name", "error"} instead of hiding the whole index."""
+    root = profiles_root()
+    if not root.is_dir():
+        return []
+    index: list[dict[str, Any]] = []
+    for d in sorted(root.iterdir()):
+        if not d.is_dir():
+            continue
+        json_path = d / "profile.json"
+        if not json_path.is_file():
+            index.append({"name": d.name, "error": "no profile.json"})
+            continue
+        try:
+            raw = json.loads(json_path.read_text(encoding="utf-8"))
+            index.append({
+                "name": d.name,
+                "genre": raw.get("genre", ""),
+                "platform": raw.get("platform", ""),
+                "sources": len(raw.get("source_slugs", [])),
+                "unjudged_sources": len(raw.get("unjudged_source_slugs", [])),
+                "judged_sections": sorted(
+                    k for k in raw.get("judged", {}) if k != "_meta"
+                ),
+                "warnings": len(raw.get("warnings", [])),
+            })
+        except (OSError, ValueError) as e:
+            index.append({"name": d.name, "error": f"unreadable profile.json: {e}"})
     return index

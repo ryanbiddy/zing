@@ -275,3 +275,9 @@
   (measurement → style aggregation → deterministic render) is still
   unclaimed in the trending set; our moat is quantitative grounding.
   SG rotation: 1,2,3,4 done; next idle cycle: SG-5.
+- **2026-07-18 (Lane B): S2 open — claimed my lane (storage first, same
+  play as S1 so Lane A's builder lands onto it).** This PR: profile
+  storage (profiles/<name>/profile.json, .bak on rebuild, honest index)
+  + validate_profile_name sharing the F-02 validator via a _validate_name
+  refactor (slug behavior unchanged, tests prove it). Next PR: the three
+  MCP tools + prompts/compare.md v0.5.
