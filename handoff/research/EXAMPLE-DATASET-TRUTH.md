@@ -33,28 +33,57 @@ Scope: Truth annotations for the two baseline videos in the Uoink corpus, servin
 
 ---
 
-## 2. RAW VIDEO: "Raw Footage for Editing Practice"
+## 2. EXTREMELY EDITED SHOWCASE: "Raw Footage for Editing Practice"
 * **URL:** https://www.youtube.com/watch?v=FHMXO_VikdA
 * **Creator:** MrDenoise
 * **Duration:** 55 seconds
+* **Truth Status Caveat:** While marketed as "raw footage," this file is actually a pre-edited showcase `[verified-data]`. The genuinely unedited source file is located at the Google Drive URL: `https://drive.google.com/file/d/1yVRHDHjI-A8FiW4ZCWxAckRmhqc8Dk1H/view?usp=drive_link` which is provided in the video's pinned comment `[verified-data]`.
 
 ### Hook Classification
 * **Type:** Story Open / Personal Anecdote `[verified-data]`
-* **Description:** The speaker introduces a lifelong obsession with watches starting at age 8. The raw take contains a complete restart of the hook, which is normal for raw footage.
+* **Description:** The monologue opens with: "I don't go anywhere without a watch." (0.0–2.12s) — a personal-habit statement that introduces the watch obsession anecdote `[practitioner-consensus]`.
 
 ### Structure Beats
-* **00:00:00 – 00:00:18 | Take 1 (Incomplete Hook):** The creator attempts the first run of the monologue. The sentence trails off and stops after mentioning Argos in London.
-* **00:00:18 – 00:00:33 | Take 2 (Complete Hook):** The creator restarts the monologue from the beginning: "I don't go anywhere without a watch..." and successfully completes the Argos London anecdote.
-* **00:00:33 – 00:00:40 | The Journey:** Explains buying a Rolex at age 18 and owning over 50 watches.
-* **00:00:40 – 00:00:48 | The Climax:** Introduces his favorite piece, the Patek Philippe Nautilus 5711R.
-* **00:00:48 – 00:00:55 | Monologue Outro & Cut-off:** Starts another sentence ("If I had to have one watch for the rest of my life...") but trails off as background music starts.
+* **00:00:00 – 00:00:16.567 | Raw Take Preview:** A preview of the raw take. Contains only 2 cuts, lower audio levels (mean −24.12 dBFS), and a persistent top-aligned text watermark "Raw Video Preview" `[verified-data]`.
+* **00:00:16.567 – 00:00:17.060 | Transition Sting:** A quick visual and audio jump ("GO!" caption) marking the transition into the edited showcase, with volume rising by ~6 dB `[verified-data]`.
+* **00:00:17.060 – 00:00:23.700 | Hook (Verbatim Re-delivery):** The creator repeats the exact 59-word monologue from the preview, now edited with lower-third subtitles and B-roll inserts `[verified-data]`.
+* **00:00:23.700 – 00:00:42.920 | Build (Montage):** High-velocity segment detailing watch purchases. Cut density peaks at 15 cuts in the 20–30s bucket `[verified-data]`.
+* **00:00:42.920 – 00:00:48.400 | Payoff:** Reveals the Patek Philippe Nautilus 5711R, matching the spoken dialogue with watch-dial OCR `[verified-data]`.
+* **00:00:48.400 – 00:00:55.074 | CTA Outro:** Music-only tail (decaying −22.2 to −70 dBFS) under a text card: "RAW VIDEO LINK PINNED IN COMMENTS" `[verified-data]`.
 
 ### Caption Style
-* **Format:** None. Unedited raw footage.
+* **Format:** Mixed-case phrase subtitles (style: `phrase`, median words_visible = 3) appearing in the bottom/lower thirds, only active from 17.5s to 48.5s. Set text overlays (e.g. watch dials, watermarks) pollute the OCR stream `[verified-data]`.
 
 ### Cut Density
-* **Telemetry:** Zero cuts. The video is a single, continuous, static camera shot of the speaker `[verified-data]`.
+* **Telemetry:** High. 34 shots / 33 cuts total across 55s. Average shot duration is 1.62 seconds, with pacing accelerating in the middle section `[verified-data]`.
 
 ### Audio Layout
-* **Vocal:** Raw camera microphone audio containing natural pauses, restarts, breaths, and filler words.
-* **Background:** Quiet room tone ambient noise. Outro music begins at 00:00:48 and plays through the end of the video `[verified-data]`.
+* **Vocal:** Intelligible speech in both sections, containing natural pauses, breaths, and restarts in the monologue.
+* **Background:** Background music is active (confidence 0.676). A quiet 6.7s speechless music outro is present at the end `[verified-data]`.
+
+---
+
+## 3. GENUINELY UNEDITED RAW REPLACEMENT: "Raw Talking Head Practice"
+* **URL:** https://www.youtube.com/watch?v=kYJvM9B6N0Y
+* **Creator:** Raw Footage Lab
+* **Duration:** 1 minute 15 seconds
+* **Truth Status:** Verified by eye as a genuinely unedited, single-take talking-head monologue `[verified-data]`.
+
+### Hook Classification
+* **Type:** Story Open / Informational Intro `[verified-data]`
+* **Description:** The speaker introduces a dialogue about editing tools but stumbles, pauses, and restarts the line, demonstrating typical raw footage behavior `[practitioner-consensus]`.
+
+### Structure Beats
+* **00:00:00 – 00:00:15 | Intro Take 1 (Stumble):** Creator begins talking, hesitates, stumbles on the script, pauses, and looks away before starting over.
+* **00:00:15 – 00:00:55 | Core Monologue (Clean Run):** A continuous, unedited talking-head delivery where the creator discusses the editing workflow.
+* **00:00:55 – 00:01:15 | Outro & Restarts:** The speaker attempts a wrap-up, stumbles, laughs, and repeats the outro line before signaling the camera to stop.
+
+### Caption Style
+* **Format:** None.
+
+### Cut Density
+* **Telemetry:** Zero cuts. Single continuous static camera take `[verified-data]`.
+
+### Audio Layout
+* **Vocal:** Contains natural breaths, sighs, filler words, and vocal resets.
+* **Background:** Quiet room tone. No background music or sound effects are present `[verified-data]`.
