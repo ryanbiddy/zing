@@ -2,17 +2,36 @@
 
 from __future__ import annotations
 
+from fractions import Fraction
 from pathlib import Path
 
 from myzing.schemas import CaptionSpec
 
+from .validation import output_preset
 
-SAFE_BOX_1080X1920 = (65, 270, 880, 1248)
-POSITION_Y_1080X1920 = {
-    "top": 350,
-    "center": 760,
-    "lower": 1068,
-    "bottom": 1168,
+
+ANCHOR_GUIDES = {
+    "vertical": {
+        "x": Fraction(7, 16),
+        "top": Fraction(350, 1920),
+        "center": Fraction(760, 1920),
+        "lower": Fraction(1068, 1920),
+        "bottom": Fraction(1168, 1920),
+    },
+    "landscape": {
+        "x": Fraction(1, 2),
+        "top": Fraction(3, 20),
+        "center": Fraction(1, 2),
+        "lower": Fraction(3, 4),
+        "bottom": Fraction(17, 20),
+    },
+    "square": {
+        "x": Fraction(1, 2),
+        "top": Fraction(3, 20),
+        "center": Fraction(1, 2),
+        "lower": Fraction(3, 4),
+        "bottom": Fraction(17, 20),
+    },
 }
 
 
@@ -21,10 +40,8 @@ class CaptionDependencyError(RuntimeError):
 
 
 def caption_anchor(position: str, width: int, height: int) -> tuple[int, int]:
-    left, _, right, _ = SAFE_BOX_1080X1920
-    x = round(((left + right) / 2) * width / 1080)
-    y = round(POSITION_Y_1080X1920[position] * height / 1920)
-    return x, y
+    guide = ANCHOR_GUIDES[output_preset(width, height)]
+    return round(guide["x"] * width), round(guide[position] * height)
 
 
 def _ass_text(text: str) -> str:
@@ -67,8 +84,9 @@ def generate_ass(
     subs.info["WrapStyle"] = "2"
     subs.info["ScaledBorderAndShadow"] = "yes"
 
-    font_size = max(24, round(height * 0.046875))
-    outline = max(2, round(height / 480))
+    short_edge = min(width, height)
+    font_size = max(24, round(short_edge / 12))
+    outline = max(2, round(short_edge / 270))
     common = dict(
         fontname="Arial",
         fontsize=font_size,
@@ -95,8 +113,13 @@ def generate_ass(
         x, y = caption_anchor(caption.position, width, height)
         position_tag = rf"\an5\pos({x},{y})"
         if caption.word_timed:
-            for word in caption.words:
+            for index, word in enumerate(caption.words):
                 duration_ms = max(1, _milliseconds(word.end - word.start))
+                visible_end = (
+                    caption.words[index + 1].start
+                    if index + 1 < len(caption.words)
+                    else caption.end
+                )
                 karaoke_cs = max(1, round(duration_ms / 10))
                 pop_ms = min(80, max(1, duration_ms // 3))
                 settle_ms = min(160, max(pop_ms + 1, duration_ms * 2 // 3))
@@ -111,7 +134,7 @@ def generate_ass(
                 subs.events.append(
                     pysubs2.SSAEvent(
                         start=_milliseconds(word.start),
-                        end=_milliseconds(word.end),
+                        end=_milliseconds(visible_end),
                         style="Karaoke",
                         text="{" + tags + "}" + text,
                     )

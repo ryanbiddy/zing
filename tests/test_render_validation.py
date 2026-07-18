@@ -169,6 +169,33 @@ def test_output_dimensions_must_be_positive_and_even(
         validate_edl(edl, tmp_path, probe)
 
 
+@pytest.mark.parametrize(
+    ("width", "height"),
+    [(1080, 1920), (1920, 1080), (1080, 1080)],
+)
+def test_output_dimensions_accept_supported_presets(
+    tmp_path: Path, width: int, height: int
+) -> None:
+    edl = valid_edl(tmp_path)
+    edl.width = width
+    edl.height = height
+
+    validated = validate_edl(edl, tmp_path, probe)
+
+    assert validated.output_preset in {"vertical", "landscape", "square"}
+
+
+def test_output_dimensions_reject_unsupported_aspect_ratio(
+    tmp_path: Path,
+) -> None:
+    edl = valid_edl(tmp_path)
+    edl.width = 1920
+    edl.height = 1200
+
+    with pytest.raises(EDLValidationError, match="9:16, 16:9, or 1:1"):
+        validate_edl(edl, tmp_path, probe)
+
+
 def test_schema_values_do_not_accept_stringified_numbers(tmp_path: Path) -> None:
     edl = valid_edl(tmp_path)
     edl.clips[0].src_in = "1.0"  # type: ignore[assignment]
