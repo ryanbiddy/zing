@@ -1,7 +1,7 @@
 ---
 name: study
 description: How to judge a Zing Breakdown — hook, beats, caption style, why it works — and write the judgment back.
-version: 0.2.0
+version: 0.3.0
 required_keys: [hook, beats, caption_style, why_it_works]
 ---
 
@@ -50,11 +50,14 @@ Otherwise judge from text and numbers only.
    skipped, do not judge anything that depends on it.
 3. **The visual-hook rule.** If there are no `words` and no `captions`
    in the first 3 seconds, the hook is visual — you cannot classify it
-   from text measurements. Unless you actually viewed the 0–3s
-   keyframes, set `hook.type` to `cannot_judge` and say in `evidence`
-   what a human should check (e.g. "3 cuts in the first 1.4s but no
-   speech or captions — watch 0–3s: likely a visual spectacle or
-   pattern-interrupt open").
+   from text measurements. **Look before you abstain:** call
+   `get_frames(slug, timestamps)` with the start time of every shot in
+   0–3s (up to 6) and judge from the returned frames, citing them as
+   evidence ("Frame 2 @ t=0.90s: ..."). Only if you cannot view images
+   (tool unavailable or your client can't render them), set `hook.type`
+   to `cannot_judge` and say in `evidence` what a human should check
+   (e.g. "3 cuts in the first 1.4s but no speech or captions — watch
+   0–3s: likely a visual spectacle or pattern-interrupt open").
 4. **Fill `evidence` and `reasoning` before the verdict fields** in
    every object — the order in the shape below is deliberate. Judge each
    criterion independently; don't let one strong score bleed into the
@@ -207,6 +210,10 @@ tighter than the OCR sampling interval.
 
 ## Changelog
 
+- **0.3.0** (2026-07-18): the visual-hook rule now says look before you
+  abstain — `get_frames(slug, timestamps)` serves labeled stills at shot
+  boundaries; `cannot_judge` remains the honest fallback for clients
+  that cannot render images.
 - **0.2.0** (2026-07-18, from the wizard-of-oz round): added
   `curiosity_gap` hook label; sync judgments now bounded by OCR sampling
   resolution; multi-layer OCR separation guidance (labels/watermarks vs

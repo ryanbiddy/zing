@@ -165,3 +165,5 @@
   sections, AND the house format in one queue entry — zero ambiguity,
   fastest item so far. That confirms observation #2 from my last batch:
   precision in the queue entry is the cheapest speedup this process has.
+- **2026-07-18 (Lane B): claimed B-Q8 + B-Q9** (S2-prep wave). B-Q8
+  lands first (this PR); B-Q9 (.mcpb) follows.

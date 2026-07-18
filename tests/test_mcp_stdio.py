@@ -140,6 +140,7 @@ EXPECTED_TOOLS = {
     "get_prompt",
     "push_to_uoink",
     "generate_thumbnails",
+    "get_frames",
 }
 
 
