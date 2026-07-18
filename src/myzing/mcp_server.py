@@ -9,7 +9,9 @@ resolutions and the B#2 ruling (2026-07-18):
   second. Claude Desktop hard-caps tool calls at ~60s, so a synchronous
   minutes-long study would silently fail there (R1-B evidence). Job state
   lives in ``status.json`` in the slug's directory — a crashed process
-  leaves honest state on disk.
+  leaves honest state on disk. The runner stamps a liveness marker (pid +
+  heartbeat) and readers reclassify a ``running`` state whose runner is
+  dead or silent as ``failed`` (F-03) — no phantom jobs, ever.
 - Errors are DATA: tools return ``{"ok": false, "error": actionable}``
   (uoink house envelope); protocol errors are reserved for malformed calls.
 - ``zing_status`` is built on doctor's checks — one source of truth.
@@ -27,6 +29,7 @@ import importlib
 import importlib.metadata
 import inspect
 import json
+import os
 import re
 import shutil
 import sys
@@ -49,6 +52,21 @@ STUDY_PHASES = ("ingest", "shots", "transcribe", "ocr", "audio", "markdown")
 
 _JOBS: dict[str, threading.Thread] = {}
 _JOBS_LOCK = threading.Lock()
+
+# F-03: liveness. The job runner refreshes ``heartbeat_at`` this often;
+# readers stop believing a `running` status once the last beat is older
+# than the stale budget (12 missed beats — clearly not a slow phase).
+HEARTBEAT_INTERVAL = 10.0
+HEARTBEAT_STALE_AFTER = 120.0
+
+# storage.write_status is read-merge-write: concurrent phase/heartbeat/final
+# writes from different threads would silently drop each other's fields.
+_STATUS_LOCK = threading.Lock()
+
+
+def _write_status(slug: str, **fields: Any) -> None:
+    with _STATUS_LOCK:
+        storage.write_status(slug, **fields)
 
 
 def _ok(**fields: Any) -> dict[str, Any]:
@@ -84,6 +102,99 @@ def _version() -> str:
 
 
 # ---------------------------------------------------------------------------
+# Job liveness (F-03)
+# ---------------------------------------------------------------------------
+
+def _pid_alive(pid: int) -> bool:
+    """Whether ``pid`` is a currently-running process (best effort, no
+    signals sent). Windows needs kernel32 — os.kill(pid, 0) kills there."""
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        import ctypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        STILL_ACTIVE = 259
+        ERROR_ACCESS_DENIED = 5
+        handle = kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+        )
+        if not handle:
+            # access denied means the process exists but isn't ours
+            return ctypes.get_last_error() == ERROR_ACCESS_DENIED
+        try:
+            code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return False
+            return code.value == STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    return True
+
+
+def _parse_ts(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        ts = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+
+
+def _reconcile_running(slug: str, status: dict[str, Any]) -> dict[str, Any]:
+    """F-03: believe a persisted ``running`` state only while its runner is
+    demonstrably alive; otherwise rewrite it — on disk too, so every later
+    reader agrees — as ``failed`` with an actionable message.
+
+    Liveness, in order: a live worker thread in this process wins outright;
+    else the stamped pid must be a living process AND the heartbeat fresh
+    (another server process may legitimately own the job).
+    """
+    if status.get("state") != "running":
+        return status
+    with _JOBS_LOCK:
+        job = _JOBS.get(slug)
+        if job is not None and job.is_alive():
+            return status
+    pid = status.get("pid")
+    if not isinstance(pid, int) or pid <= 0:
+        reason = (
+            "it carries no runner pid — the study was started by a server "
+            "that crashed or an older Zing"
+        )
+    elif pid == os.getpid():
+        reason = f"its worker thread in this server (pid {pid}) is gone"
+    elif not _pid_alive(pid):
+        reason = f"its runner process (pid {pid}) is dead"
+    else:
+        beat = _parse_ts(status.get("heartbeat_at"))
+        if beat is not None:
+            age = (datetime.now(timezone.utc) - beat).total_seconds()
+            if age <= HEARTBEAT_STALE_AFTER:
+                return status  # live foreign runner, fresh heartbeat
+            reason = (
+                f"its last heartbeat was {int(age)}s ago "
+                f"(stale after {int(HEARTBEAT_STALE_AFTER)}s)"
+            )
+        else:
+            reason = f"process {pid} is alive but has never heartbeat"
+    error = (
+        f"study interrupted — status said 'running' but {reason}; "
+        "call study_video again to restart it"
+    )
+    _write_status(slug, state="failed", error=error, updated_at=_now())
+    return {**status, "state": "failed", "error": error}
+
+
+# ---------------------------------------------------------------------------
 # Study job runner
 # ---------------------------------------------------------------------------
 
@@ -97,9 +208,16 @@ def _study_api():
 
 
 def _run_study(study_fn: Any, source: str, slug: str) -> None:
-    """Worker-thread body: run the engine, persist, record honest state."""
+    """Worker-thread body: run the engine, persist, record honest state.
+
+    While the engine runs, a side thread refreshes ``heartbeat_at`` every
+    ``HEARTBEAT_INTERVAL`` seconds (F-03): a ``running`` status is only
+    credible while its runner demonstrably breathes.
+    """
     def set_phase(phase: str) -> None:
-        storage.write_status(slug, phase=str(phase), updated_at=_now())
+        _write_status(
+            slug, phase=str(phase), heartbeat_at=_now(), updated_at=_now()
+        )
 
     kwargs: dict[str, Any] = {}
     try:
@@ -111,16 +229,32 @@ def _run_study(study_fn: Any, source: str, slug: str) -> None:
     except (TypeError, ValueError):
         pass
 
+    stop_beating = threading.Event()
+
+    def _beat() -> None:
+        while not stop_beating.wait(HEARTBEAT_INTERVAL):
+            _write_status(slug, heartbeat_at=_now())
+
+    beater = threading.Thread(
+        target=_beat, name=f"zing-heartbeat-{slug}", daemon=True
+    )
+    beater.start()
     try:
-        breakdown = study_fn(source, **kwargs)
+        try:
+            breakdown = study_fn(source, **kwargs)
+        finally:
+            # stop the heartbeat BEFORE the final write so a late beat can
+            # never resurrect a finished job's `running` state
+            stop_beating.set()
+            beater.join(timeout=HEARTBEAT_INTERVAL + 5)
         json_path = storage.breakdown_dir(slug) / "breakdown.json"
         if breakdown is not None and not json_path.is_file():
             storage.save_breakdown(breakdown, slug=slug)
-        storage.write_status(
+        _write_status(
             slug, state="done", finished_at=_now(), updated_at=_now(), error=""
         )
     except Exception as e:  # noqa: BLE001 — boundary: everything becomes honest disk state
-        storage.write_status(
+        _write_status(
             slug,
             state="failed",
             error=f"{type(e).__name__}: {e}",
@@ -144,11 +278,18 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
             "it. Run `zing doctor` for the install command."
         )
     is_url = source.lower().startswith(("http://", "https://"))
-    if not is_url and not Path(source).expanduser().is_file():
-        return _err(
-            f"file not found: {source} — pass a video URL or an existing "
-            "local file path"
-        )
+    if not is_url:
+        # F-11: expand once, up front, and use the SAME string everywhere —
+        # validation, slug, status, and dispatch. Validating the expanded
+        # path but dispatching the raw one meant ok/started followed by an
+        # async "no such file: ~/...".
+        expanded = Path(source).expanduser()
+        if not expanded.is_file():
+            return _err(
+                f"file not found: {source} — pass a video URL or an existing "
+                "local file path"
+            )
+        source = str(expanded)
     api = _study_api()
     if api is None:
         return _err(
@@ -168,11 +309,13 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
                 phase=status.get("phase", ""),
                 hint="poll zing_status() or get_breakdown(slug)",
             )
-        storage.write_status(
+        _write_status(
             slug,
             state="running",
             phase=STUDY_PHASES[0],
             source=source,
+            pid=os.getpid(),  # F-03: liveness marker readers verify
+            heartbeat_at=_now(),
             started_at=_now(),
             updated_at=_now(),
             error="",
@@ -225,32 +368,71 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
     bad = _check_slug(slug)
     if bad:
         return bad
+    # F-04: status speaks FIRST — breakdown.json may be a superseded
+    # snapshot while a re-study runs. F-03: a `running` claim is only
+    # believed while its runner is provably alive. Every response carries
+    # `state`: running | done | failed | absent.
     status = storage.read_status(slug)
+    if status is not None:
+        status = _reconcile_running(slug, status)
+    state = (status or {}).get("state", "")
+    if state == "running":
+        prior_exists = (storage.breakdown_dir(slug) / "breakdown.json").is_file()
+        hint = "still studying — poll again shortly"
+        if prior_exists:
+            hint += (
+                "; an older, superseded breakdown exists on disk and is "
+                "deliberately not served while the re-study runs"
+            )
+        return _ok(
+            slug=slug,
+            ready=False,
+            state="running",
+            phase=status.get("phase", ""),
+            started_at=status.get("started_at", ""),
+            stale_breakdown_exists=prior_exists,
+            hint=hint,
+        )
     try:
         b = storage.load_breakdown(slug)
     except FileNotFoundError:
-        if status and status.get("state") == "running":
-            return _ok(
-                slug=slug,
-                ready=False,
-                state="running",
-                phase=status.get("phase", ""),
-                started_at=status.get("started_at", ""),
-                hint="still studying — poll again shortly",
-            )
-        if status and status.get("state") == "failed":
-            return _err(
-                f"study of '{slug}' failed: {status.get('error', 'unknown')} "
-                "— fix the cause (zing doctor helps) and call study_video again"
-            )
-        return _err(
-            f"no breakdown for slug '{slug}' — call list_breakdowns() to see "
-            "what exists, or study_video() to create it"
-        )
+        if state == "failed":
+            return {
+                **_err(
+                    f"study of '{slug}' failed: {status.get('error', 'unknown')} "
+                    "— fix the cause (zing doctor helps) and call study_video again"
+                ),
+                "state": "failed",
+            }
+        return {
+            **_err(
+                f"no breakdown for slug '{slug}' — call list_breakdowns() to see "
+                "what exists, or study_video() to create it"
+            ),
+            "state": "absent",
+        }
     data = b.to_dict()
     if detail == "summary":
-        return _ok(slug=slug, ready=True, breakdown=_summarize_breakdown(data))
-    return _ok(slug=slug, ready=True, breakdown=data)
+        data = _summarize_breakdown(data)
+    if state == "failed":
+        # The most recent (re-)study failed but an earlier study succeeded:
+        # serve that last-good measurement, explicitly marked, so the
+        # caller decides instead of being lied to (F-04 design, documented
+        # in the tool description).
+        return _ok(
+            slug=slug,
+            ready=True,
+            state="failed",
+            restudy_error=status.get("error", "unknown"),
+            breakdown=data,
+            hint=(
+                "the most recent re-study FAILED — this breakdown is the "
+                "last successful study's measurement. Fix the cause (zing "
+                "doctor helps) and call study_video again, or judge this "
+                "data knowingly."
+            ),
+        )
+    return _ok(slug=slug, ready=True, state="done", breakdown=data)
 
 
 def h_list_breakdowns() -> dict[str, Any]:
@@ -317,7 +499,13 @@ def h_zing_status() -> dict[str, Any]:
     jobs = []
     for entry in storage.list_breakdowns():
         slug = entry.get("slug", "")
-        status = storage.read_status(slug) if slug else None
+        try:
+            status = storage.read_status(slug) if slug else None
+        except storage.SlugError:
+            continue  # foreign dir: already reported by list_breakdowns
+        if status:
+            # F-03: no phantom jobs — dead runners are reclassified here too
+            status = _reconcile_running(slug, status)
         if status and status.get("state") in ("running", "failed"):
             jobs.append(
                 {
@@ -404,10 +592,18 @@ def build_server():
     mcp.tool(
         name="get_breakdown",
         description=(
-            "Fetch a studied video's Breakdown JSON by slug. "
+            "Fetch a studied video's Breakdown JSON by slug. Every response "
+            "carries a `state` field: running | done | failed | absent. The "
+            "job status is checked FIRST: while a (re-)study runs you get "
+            "ready=false with the current phase — never superseded "
+            "measurements (`stale_breakdown_exists` flags that an older "
+            "snapshot is on disk). If the latest re-study failed but an "
+            "earlier study succeeded, the last successful breakdown is "
+            "served with state='failed' plus `restudy_error`, so you decide "
+            "whether to judge it. A `running` job whose runner process died "
+            "is reported as failed with recovery instructions. "
             "detail='summary' returns meta + pacing + counts without the "
-            "per-word/per-caption arrays (use it for long videos). While a "
-            "study is running this reports the current phase instead."
+            "per-word/per-caption arrays (use it for long videos)."
         ),
     )(h_get_breakdown)
     mcp.tool(
