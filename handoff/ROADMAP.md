@@ -46,15 +46,35 @@ Priority: working > pretty. No brand/design/copy work until the tool is built.
   the `keep_media` enabler in the uoink repo — E-1 in
   `uoink\handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`); then lanes implement
   both sides.
-- **FINAL:** all models (both Fable lanes, Sol, orchestrator) run a
-  full-repo final review → flagged issues → one fix sprint → done.
+- **FINAL:** all models run a full-repo final review → flagged issues → one
+  fix sprint → done. The panel is both Fable lanes, Sol, the orchestrator,
+  **plus Antigravity as fresh eyes** — a model that never wrote a line of
+  this codebase reviews it cold.
 
 ## Done criteria
 
 Fresh machine: `uvx myzing` → `zing doctor` → `zing study <tiktok url>` →
 profile → direct → render produces a watchable vertical video; eval harness
 green; MCP server passes the smoke test from Claude Desktop; every failure
-state is honest and actionable.
+state is honest and actionable. **Performance budget:** `zing study` on a
+30–60s short completes in low single-digit minutes on Ryan's PC (GPU
+whisper) with an honest CPU fallback — a correct-but-20-minute study is a
+failed gate.
+
+## Risk register (orchestrator watches these)
+
+- R1 · Judgment quality is the product risk, not measurement — hence the S1
+  wizard-of-oz exit gate (see SPRINT-1-D1.md). If it fails, S2 pivots to
+  prompt-pack/judgment iteration before any S3 work.
+- R2 · Real data: Ryan supplies raw footage + 5–10 admired references
+  during S1; S3 cannot start without them.
+- R3 · Contract turnaround: workers blocked on schemas.py wait on the
+  orchestrator — NOTES-*.md files are read FIRST every loop iteration.
+- R4 · OCR on stylized captions is approximate — timeboxed in S1, iterated
+  in S2; confidence values keep it honest.
+- R5 · ToS honesty: fetching TikTok/IG media for local analysis carries the
+  same personal-use disclaimer uoink ships (C-06 pattern) — inherit it in
+  docs before any public release.
 
 ## Standing rules
 

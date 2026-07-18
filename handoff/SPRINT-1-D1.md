@@ -24,6 +24,10 @@ Priority: WORKING > pretty. No brand/design/copy work this sprint.
   (ffmpeg, tesseract), detect it honestly in `zing doctor` — never assume.
 - Small PRs, merged often, each leaving `main` green. Rebase on main before
   ready.
+- **Shared-file discipline:** `src/myzing/cli.py` is a dispatch registry —
+  implement `run(argv) -> int` in YOUR lane's module instead of editing it.
+  `pyproject.toml` dependency additions: one dep per tiny PR, merged
+  immediately, everyone rebases after.
 - When your gate passes, write a short completion note in
   `handoff/NOTES-<lane>.md` (what shipped, what's honest-missing) and STOP —
   the orchestrator assigns the next item.
@@ -42,7 +46,10 @@ Deliver `zing study <url|file>` producing a real `Breakdown`:
    (empty list + warning) when the model isn't available; doctor reports it.
 4. Caption OCR → `CaptionEvent[]`: sample frames (~4/s), OCR, cluster into
    timed events with position/case/words-visible observations. License-clean
-   OCR choice (tesseract binary or rapidocr).
+   OCR choice (tesseract binary or rapidocr). **TIMEBOX: best-effort with
+   honest confidence values is the S1 bar** — stylized/animated captions
+   will fool OCR; do not chase accuracy past ~1 day, iterate in S2 against
+   real data.
 5. Audio → `AudioLayout`: speech ratio (whisper segments or VAD), loudness
    curve via ffmpeg (1 sample/sec), `has_music` as an honest heuristic.
 6. Derived: `avg_shot_duration`, `cuts_per_10s` windows.
@@ -106,10 +113,21 @@ words outside caption window).
 **Gate C-2:** golden EDL renders; ffprobe asserts duration/resolution/streams;
 a caption-timing probe frame contains the expected text.
 
+## Sprint-1 exit gate (orchestrator + Ryan): the wizard-of-oz test
+
+Before S1 closes, the riskiest assumption gets tested by hand: take ONE real
+reference video Ryan admires + Ryan's raw footage, run `zing study` on both,
+have an AI (Claude, using `prompts/study.md`) produce the judgment, style
+read, gap report, and shot prompts manually. If the direction output is not
+genuinely useful, S2 priorities change — better to learn that now than in S3.
+Ryan's S1 tasks: record 2–3 min of raw talking-head footage; pick 5–10
+admired shorts (uoink them) as the real reference set.
+
 ## Status
 
 - [ ] Lane A — study engine
 - [ ] Lane B — doctor/storage/MCP/prompt pack
 - [ ] Lane C-1 — eval harness
 - [ ] Lane C-2 — renderer
+- [ ] Wizard-of-oz exit gate (orchestrator + Ryan)
 - Orchestrator log lives in `handoff/ORCHESTRATOR-LOG.md`.
