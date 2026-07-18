@@ -13,7 +13,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "mcp>=1.2"]
-study = ["scenedetect-headless>=0.7", "faster-whisper>=1.1"]
+study = ["scenedetect-headless>=0.7", "faster-whisper>=1.1", "onnxruntime>=1.16"]
 mcp = ["mcp>=1.2"]
 all = ["myzing[study]", "myzing[mcp]"]
 
