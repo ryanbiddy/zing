@@ -55,6 +55,13 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_text(path: Path) -> str:
+    """Newline-normalized hash for text artifacts — matches the freezer's
+    _text_sha256 so hashes are stable across Windows/Unix checkouts."""
+    content = path.read_text(encoding="utf-8")
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+
 def hook_seconds(duration: float) -> list[float]:
     window = 3.0 if duration <= LONG_FORM_MAX_SHORT_S else 30.0
     seconds, t = [], 0.0
@@ -95,11 +102,26 @@ def grab(ffmpeg: str, media: Path, at: float, target: Path) -> None:
         )
 
 
-def backfill_case(case_dir: Path, media: Path, ffmpeg: str) -> dict:
+def backfill_case(
+    case_dir: Path,
+    media: Path,
+    ffmpeg: str,
+    manifest_sha: str,
+    truth_sha: str,
+    truth_text: str,
+    truth_section: str,
+) -> dict:
     breakdown_path = case_dir / "breakdown.json"
     provenance_path = case_dir / "provenance.json"
     breakdown = json.loads(breakdown_path.read_text(encoding="utf-8"))
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+
+    if truth_section not in truth_text:
+        raise BackfillError(
+            f"{case_dir.name}: truth section '{truth_section}' no longer "
+            "exists in the human-truth doc — fixture linkage is broken, "
+            "fix the doc or the manifest before re-recording hashes"
+        )
 
     recorded = provenance["source_media"]["sha256"]
     actual = sha256_file(media)
@@ -140,19 +162,31 @@ def backfill_case(case_dir: Path, media: Path, ffmpeg: str) -> dict:
         },
         "count": len(plan),
     }
-    provenance["normalizations"] = [
-        note for note in provenance.get("normalizations", [])
-        if "Cleared shot keyframe paths" not in note
-    ] + [
+    backfill_note = (
         "Backfilled shot keyframe paths and committed downscaled analysis "
         "thumbnails (A-Q6); frames grabbed from SHA-verified source media "
         "at frozen timestamps — measurements untouched."
+    )
+    kept = [
+        note for note in provenance.get("normalizations", [])
+        if "Cleared shot keyframe paths" not in note
     ]
+    if backfill_note not in kept:
+        kept.append(backfill_note)
+    provenance["normalizations"] = kept
+
+    provenance["manifest"]["sha256"] = manifest_sha
+    if provenance["human_truth"]["sha256"] != truth_sha:
+        provenance["human_truth"]["sha256"] = truth_sha
+        provenance["human_truth"]["note"] = (
+            "hash re-recorded after the human-truth doc was corrected "
+            "post-freeze (D-Q4/F-16); fixture measurements unchanged, "
+            "truth section verified present"
+        )
+
     artifacts = provenance.get("artifacts", {})
     artifacts.update(frame_artifacts)
-    artifacts["breakdown.json"] = hashlib.sha256(
-        breakdown_path.read_text(encoding="utf-8").encode("utf-8")
-    ).hexdigest()
+    artifacts["breakdown.json"] = sha256_text(breakdown_path)
     provenance["artifacts"] = artifacts
     provenance_path.write_text(
         json.dumps(provenance, ensure_ascii=False, indent=2) + "\n",
@@ -169,16 +203,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
-    results = []
-    for case in manifest["cases"]:
-        case_dir = REAL_VIDEOS / case["fixture_id"]
-        if not case_dir.is_dir():
-            raise BackfillError(f"fixture missing: {case_dir}")
-        media = args.media_root / case["media_filename"]
-        if not media.is_file():
-            raise BackfillError(f"media missing: {media}")
-        results.append(backfill_case(case_dir, media, args.ffmpeg))
 
+    # Manifest is updated FIRST so every fixture's provenance records the
+    # hash of the manifest as committed, not a stale one.
     manifest["media_policy"]["derived_frames_committed"] = True
     manifest["media_policy"]["derived_frames_reason"] = (
         "A-Q6: small downscaled analysis thumbnails (<=360px JPEG) are "
@@ -189,6 +216,25 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    manifest_sha = sha256_text(MANIFEST)
+
+    truth_path = HERE.parents[1] / manifest["human_truth"]
+    truth_text = truth_path.read_text(encoding="utf-8")
+    truth_sha = sha256_text(truth_path)
+
+    results = []
+    for case in manifest["cases"]:
+        case_dir = REAL_VIDEOS / case["fixture_id"]
+        if not case_dir.is_dir():
+            raise BackfillError(f"fixture missing: {case_dir}")
+        media = args.media_root / case["media_filename"]
+        if not media.is_file():
+            raise BackfillError(f"media missing: {media}")
+        results.append(backfill_case(
+            case_dir, media, args.ffmpeg,
+            manifest_sha, truth_sha, truth_text, case["truth_section"],
+        ))
+
     for result in results:
         print(f"{result['fixture']}: {result['frames']} frames committed")
     return 0

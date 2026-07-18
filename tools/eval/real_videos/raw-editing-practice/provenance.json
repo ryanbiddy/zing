@@ -134,7 +134,7 @@
   },
   "manifest": {
     "path": "tools/eval/real_videos/manifest.json",
-    "sha256": "5ed01c48ff0b0870adda73cae5e244b22d9e2b1f1a6c28bccdce6a538ee2dde6"
+    "sha256": "35998bac29f2c61b9186acd5295bd9b9c5cd96c69e4144fe272b14b1752bae02"
   },
   "artifacts": {
     "breakdown.json": "2723d5d23122526bac2347d3a67007dae11c370554da003855dc3f94055e8832",

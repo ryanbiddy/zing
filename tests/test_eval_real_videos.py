@@ -145,11 +145,28 @@ def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
 
         assert breakdown.meta.source_url == case["source_url"]
         assert breakdown.meta.media_path == ""
-        assert all(not shot.keyframe for shot in breakdown.shots)
+        # A-Q6: analysis keyframes ARE committed (small JPEGs) so visual
+        # judgment criteria are scoreable; source media still is not.
+        assert manifest["media_policy"]["derived_frames_committed"] is True
+        assert all(
+            shot.keyframe == f"frames/shot_{shot.index:03d}.jpg"
+            for shot in breakdown.shots
+        )
+        for shot in breakdown.shots:
+            assert (case_directory / shot.keyframe).is_file()
+        assert provenance["derived_frames"]["committed"] is True
         assert not any(
-            path.suffix.lower() in {".mp4", ".mov", ".webm", ".jpg", ".png"}
+            path.suffix.lower() in {".mp4", ".mov", ".webm"}
             for path in case_directory.rglob("*")
         )
+        # every committed frame is hash-tracked in provenance artifacts
+        frame_files = {
+            f"frames/{p.name}"
+            for p in (case_directory / "frames").iterdir()
+        }
+        assert frame_files == {
+            rel for rel in provenance["artifacts"] if rel.startswith("frames/")
+        }
         assert provenance["source_media"]["committed"] is False
         assert provenance["source_media"]["acquisition"][
             "selected_format_ids"
@@ -161,7 +178,10 @@ def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
         for relative, expected_hash in provenance["artifacts"].items():
             artifact = case_directory / relative
             assert artifact.is_file()
-            assert _sha256(artifact) == expected_hash
+            if artifact.suffix.lower() in {".json", ".md", ".txt"}:
+                assert _sha256(artifact) == expected_hash
+            else:  # binary artifacts (keyframe JPEGs)
+                assert hashlib.sha256(artifact.read_bytes()).hexdigest() == expected_hash
         serialized = breakdown_path.read_text(encoding="utf-8")
         assert "AppData" not in serialized
         assert "zing-cq4-media" not in serialized
