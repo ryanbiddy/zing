@@ -3,6 +3,7 @@ job lifecycle on disk, judgment stamping/validation, prompt access."""
 
 from __future__ import annotations
 
+import json
 import sys
 import time
 import types
@@ -64,6 +65,27 @@ def wait_done(slug: str, timeout: float = 5.0) -> dict:
             return status
         time.sleep(0.01)
     raise AssertionError(f"study of {slug} never finished")
+
+
+# -- serve-mcp --print-config ------------------------------------------------
+
+def test_print_config_both_targets(capsys):
+    assert mcp_server.run(["--print-config"]) == 0
+    out = capsys.readouterr().out
+    assert sys.executable in out
+    assert "claude_desktop_config.json" in out
+    assert "claude mcp add zing" in out
+    start = out.index("{")
+    end = out.index("\n# Claude Code")
+    config = json.loads("\n".join(
+        line for line in out[start:end].splitlines() if not line.startswith("#")
+    ))
+    assert config["mcpServers"]["zing"]["args"] == ["-m", "myzing.cli", "serve-mcp"]
+
+
+def test_print_config_unknown_target(capsys):
+    assert mcp_server.run(["--print-config", "cursor"]) == 2
+    assert "desktop, code" in capsys.readouterr().out
 
 
 # -- study_video -------------------------------------------------------------
