@@ -167,3 +167,18 @@
   precision in the queue entry is the cheapest speedup this process has.
 - **2026-07-18 (Lane B): claimed B-Q8 + B-Q9** (S2-prep wave). B-Q8
   lands first (this PR); B-Q9 (.mcpb) follows.
+- **2026-07-18 (Lane B): B-Q8 done (PR #69), B-Q9 done (this PR).**
+  B-Q9 verification chain: staged tree CI-tested; mcpb pack builds
+  dist/myzing.mcpb (85KB, no compiled deps — uv resolves at install,
+  dodging the pydantic landmine); the manifest's EXACT launch command
+  verified cold from the staged bundle (initialize → 9 tools → both
+  prompts via the ${__dirname}/prompts pin). Remaining human step:
+  Ryan double-clicks the bundle in Claude Desktop — fallback is the
+  manual config, same server. PROCESS OBSERVATIONS: (B-Q8) building
+  from my own B-Q3 design note was near-zero-friction — the
+  design-note-before-build pattern pays for itself; recommend it for
+  C-Q12's transition-field proposal too. (B-Q9) the R1-B research
+  flagged the pydantic bundling landmine 12 hours before I hit the
+  packaging work — research rounds are cheap insurance; the uv-type
+  manifest worked first try BECAUSE the failure mode was known in
+  advance.
