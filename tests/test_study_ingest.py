@@ -1,5 +1,6 @@
 """Offline tests for media ingest: all external tools are mocked at the
-single proc.run choke point; no network, no real ffmpeg."""
+single proc.run choke point; no network, no real ffmpeg. Storage paths come
+from the shared zing_workspace fixture (Lane B's conftest)."""
 
 from __future__ import annotations
 
@@ -9,7 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from myzing.study import ingest, workspace
+from myzing import storage
+from myzing.study import ingest
 from myzing.study.proc import MediaError, ToolMissing
 
 
@@ -51,7 +53,11 @@ class FakeTools:
         self.calls.append(cmd)
         tool = cmd[0]
         if tool == "ffprobe":
-            out = self.probe_stdouts.pop(0) if len(self.probe_stdouts) > 1 else self.probe_stdouts[0]
+            out = (
+                self.probe_stdouts.pop(0)
+                if len(self.probe_stdouts) > 1
+                else self.probe_stdouts[0]
+            )
             return ok(cmd, out)
         if tool == "yt-dlp":
             dest = Path(cmd[cmd.index("-P") + 1])
@@ -67,28 +73,11 @@ class FakeTools:
         return [c for c in self.calls if c[0] == tool]
 
 
-@pytest.fixture
-def ws(tmp_path, monkeypatch):
-    monkeypatch.setenv("ZING_WORKSPACE", str(tmp_path / "ws"))
-    return tmp_path
-
-
 def use(monkeypatch, fake) -> None:
     monkeypatch.setattr("myzing.study.ingest.proc.run", fake)
 
 
-# -- slugs / platform -------------------------------------------------------
-
-def test_slug_for_url_is_deterministic_and_identifying():
-    url = "https://www.tiktok.com/@cleo/video/7239871234"
-    slug = workspace.slug_for_source(url)
-    assert slug == workspace.slug_for_source(url)
-    assert "7239871234" in slug
-
-
-def test_slug_for_local_file_uses_stem():
-    assert workspace.slug_for_source(r"C:\clips\my take 1.mp4") == "my-take-1"
-
+# -- platform / parsing -----------------------------------------------------
 
 @pytest.mark.parametrize("source,platform", [
     ("https://www.tiktok.com/@x/video/1", "tiktok"),
@@ -110,17 +99,19 @@ def test_fps_parses_rationals():
 
 # -- local file ingest ------------------------------------------------------
 
-def test_local_file_ingest(ws, monkeypatch):
+def test_local_file_ingest(zing_workspace, tmp_path, monkeypatch):
     fake = FakeTools()
     use(monkeypatch, fake)
-    src = ws / "take one.mp4"
+    src = tmp_path / "take one.mp4"
     src.write_bytes(b"fake-video")
 
     result = ingest.ingest(str(src))
 
+    assert result.slug == storage.slug_for(str(src))
     assert result.media_path.name == "media.mp4"
     assert result.media_path.is_file()
-    assert result.breakdown_dir.name == "take-one"
+    assert result.breakdown_dir == storage.breakdown_dir(result.slug)
+    assert storage.find_media(result.slug) == result.media_path
     m = result.meta
     assert m.platform == "file"
     assert m.title == "take one"
@@ -129,15 +120,15 @@ def test_local_file_ingest(ws, monkeypatch):
     assert result.warnings == []
 
 
-def test_local_file_missing_is_honest(ws, monkeypatch):
+def test_local_file_missing_is_honest(zing_workspace, tmp_path, monkeypatch):
     use(monkeypatch, FakeTools())
     with pytest.raises(MediaError, match="no such file"):
-        ingest.ingest(str(ws / "nope.mp4"))
+        ingest.ingest(str(tmp_path / "nope.mp4"))
 
 
 # -- URL ingest -------------------------------------------------------------
 
-def test_url_ingest_fetches_and_reads_info(ws, monkeypatch):
+def test_url_ingest_fetches_and_reads_info(zing_workspace, monkeypatch):
     fake = FakeTools()
     use(monkeypatch, fake)
     url = "https://www.tiktok.com/@cleo/video/7239871234"
@@ -147,18 +138,19 @@ def test_url_ingest_fetches_and_reads_info(ws, monkeypatch):
     (ytdlp_cmd,) = fake.commands("yt-dlp")
     assert url in ytdlp_cmd and "--no-playlist" in ytdlp_cmd
     assert ingest.YTDLP_FORMAT in ytdlp_cmd
+    assert result.slug == "tiktok-7239871234"
     m = result.meta
     assert (m.platform, m.author, m.title) == ("tiktok", "cleo", "why ice")
     assert m.source_url == url
     assert result.media_path.is_file()
 
 
-def test_url_ingest_reuses_existing_media(ws, monkeypatch):
+def test_url_ingest_reuses_existing_media(zing_workspace, monkeypatch):
     fake = FakeTools()
     use(monkeypatch, fake)
     url = "https://www.tiktok.com/@cleo/video/7239871234"
-    dest = workspace.breakdown_dir(workspace.slug_for_source(url))
-    (dest / "media.mp4").write_bytes(b"already-here")
+    target = storage.media_target(storage.slug_for(url), "mp4")
+    target.write_bytes(b"already-here")
 
     result = ingest.ingest(url)
 
@@ -166,7 +158,7 @@ def test_url_ingest_reuses_existing_media(ws, monkeypatch):
     assert any("reusing" in w for w in result.warnings)
 
 
-def test_url_fetch_failure_surfaces_stderr(ws, monkeypatch):
+def test_url_fetch_failure_surfaces_stderr(zing_workspace, monkeypatch):
     def failing(cmd, timeout=None):
         if cmd[0] == "yt-dlp":
             return subprocess.CompletedProcess(cmd, 1, "", "ERROR: rate limited\n")
@@ -178,64 +170,72 @@ def test_url_fetch_failure_surfaces_stderr(ws, monkeypatch):
 
 # -- normalization ----------------------------------------------------------
 
-def test_vfr_source_is_normalized_with_warning(ws, monkeypatch):
+def test_vfr_source_is_normalized_in_place(zing_workspace, tmp_path, monkeypatch):
     fake = FakeTools()
     fake.probe_stdouts = [probe_json(avg="30/1", declared="60/1"), probe_json()]
     use(monkeypatch, fake)
-    src = ws / "vfr.mp4"
+    src = tmp_path / "vfr.mp4"
     src.write_bytes(b"fake")
 
     result = ingest.ingest(str(src))
 
     (ffmpeg_cmd,) = fake.commands("ffmpeg")
     assert "cfr" in ffmpeg_cmd and "libx264" in ffmpeg_cmd
-    assert result.media_path.name == "media_cfr.mp4"
-    assert result.meta.media_path == "media_cfr.mp4"
+    # Normalized file REPLACES the staged media: one canonical media.mp4.
+    assert result.media_path.name == "media.mp4"
+    assert result.media_path.read_bytes() == b"fake-cfr-video"
+    assert not (result.breakdown_dir / "media_normalizing.mp4").exists()
     assert any("variable frame rate" in w for w in result.warnings)
 
 
-def test_foreign_codec_is_normalized(ws, monkeypatch):
+def test_foreign_codec_webm_is_normalized_to_single_mp4(
+    zing_workspace, tmp_path, monkeypatch
+):
     fake = FakeTools()
-    fake.probe_stdouts = [probe_json(codec="hevc"), probe_json()]
+    fake.probe_stdouts = [probe_json(codec="vp9"), probe_json()]
     use(monkeypatch, fake)
-    src = ws / "h.mp4"
+    src = tmp_path / "clip.webm"
     src.write_bytes(b"fake")
 
     result = ingest.ingest(str(src))
 
-    assert result.media_path.name == "media_cfr.mp4"
-    assert any("re-encoding to H.264" in w for w in result.warnings)
+    assert result.media_path.name == "media.mp4"
+    assert not (result.breakdown_dir / "media.webm").exists()  # original replaced
+    assert storage.find_media(result.slug) == result.media_path
+    assert any("re-encoded to H.264" in w for w in result.warnings)
 
 
 # -- honesty on missing pieces ----------------------------------------------
 
-def test_missing_ffprobe_points_at_doctor(ws, monkeypatch):
+def test_missing_ffprobe_points_at_doctor(zing_workspace, tmp_path, monkeypatch):
+    inner = FakeTools()
+
     def no_ffprobe(cmd, timeout=None):
         if cmd[0] == "ffprobe":
             raise ToolMissing("ffprobe")
-        return FakeTools()(cmd, timeout)
+        return inner(cmd, timeout)
     use(monkeypatch, no_ffprobe)
-    src = ws / "a.mp4"
+    src = tmp_path / "a.mp4"
     src.write_bytes(b"fake")
     with pytest.raises(ToolMissing, match="zing doctor"):
         ingest.ingest(str(src))
 
 
-def test_no_video_stream_is_an_error(ws, monkeypatch):
+def test_no_video_stream_is_an_error(zing_workspace, tmp_path, monkeypatch):
     fake = FakeTools(probe_stdout=json.dumps(
         {"streams": [{"codec_type": "audio"}], "format": {"duration": "3"}}
     ))
     use(monkeypatch, fake)
-    src = ws / "audio-only.mp4"
+    src = tmp_path / "audio-only.mp4"
     src.write_bytes(b"fake")
     with pytest.raises(MediaError, match="no video stream"):
         ingest.ingest(str(src))
 
 
-def test_no_audio_stream_warns_but_succeeds(ws, monkeypatch):
+def test_no_audio_stream_warns_but_succeeds(zing_workspace, tmp_path, monkeypatch):
     fake = FakeTools(probe_stdout=probe_json(with_audio=False))
     use(monkeypatch, fake)
-    src = ws / "mute.mp4"
+    src = tmp_path / "mute.mp4"
     src.write_bytes(b"fake")
 
     result = ingest.ingest(str(src))
