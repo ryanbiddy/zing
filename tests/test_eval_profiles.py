@@ -14,12 +14,21 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from myzing.schemas import Breakdown, StatSummary, StyleProfile
-from tools.eval.profile_scoring import PROFILE_DIMENSIONS, score_profile
-from tools.eval.run import SAMPLE_DIRECTORY, evaluate
+from tools.eval.profile_scoring import (
+    PROFILE_DIMENSIONS,
+    evaluate_profile_cases,
+    score_profile,
+)
+from tools.eval.run import (
+    SAMPLE_DIRECTORY,
+    evaluate,
+    profile_builder_adapter,
+)
 
 PROFILE_CASE = (
     ROOT / "tools" / "eval" / "profiles" / "synthetic-constructed"
 )
+PROFILE_CASES = ROOT / "tools" / "eval" / "profiles"
 
 
 def _stat(
@@ -136,37 +145,81 @@ def test_synthetic_breakdowns_have_exact_hand_constructed_aggregates() -> None:
     ]
 
 
-def _mutate_stat(profile: StyleProfile, field: str) -> None:
-    getattr(profile, field).p75 += 0.25
+def test_lane_a_builder_matches_synthetic_and_real_frozen_profiles() -> None:
+    cases = sorted(
+        path
+        for path in PROFILE_CASES.iterdir()
+        if (path / "expected-profile.json").is_file()
+    )
+
+    result = evaluate_profile_cases(cases, builder=profile_builder_adapter)
+
+    assert result["available"] is True
+    assert result["passed"] is True
+    assert result["case_count"] == 2
+    by_id = {case["fixture_id"]: case for case in result["cases"]}
+    assert set(by_id) == {"synthetic-constructed", "real-frozen"}
+    assert len(by_id["real-frozen"]["fixture_hashes"]) == 7
+    assert all(
+        case["score"]["failed_dimensions"] == [] for case in result["cases"]
+    )
+
+
+def _mutate_stat(
+    profile: StyleProfile,
+    field: str,
+    component: str,
+) -> None:
+    stat = getattr(profile, field)
+    setattr(stat, component, getattr(stat, component) + 1)
 
 
 @pytest.mark.parametrize(
     ("dimension", "mutate"),
     [
-        ("duration", lambda profile: _mutate_stat(profile, "duration")),
+        (
+            "duration",
+            lambda profile: _mutate_stat(profile, "duration", "median"),
+        ),
         (
             "shot_duration",
-            lambda profile: _mutate_stat(profile, "shot_duration"),
+            lambda profile: _mutate_stat(
+                profile,
+                "shot_duration",
+                "p25",
+            ),
         ),
         (
             "cuts_per_10s_curve",
             lambda profile: setattr(
                 profile.cuts_per_10s_curve[1],
-                "median",
-                profile.cuts_per_10s_curve[1].median + 1.0,
+                "n",
+                profile.cuts_per_10s_curve[1].n + 1,
             ),
         ),
         (
             "time_to_first_cut",
-            lambda profile: _mutate_stat(profile, "time_to_first_cut"),
+            lambda profile: _mutate_stat(
+                profile,
+                "time_to_first_cut",
+                "p75",
+            ),
         ),
         (
             "time_to_first_word",
-            lambda profile: _mutate_stat(profile, "time_to_first_word"),
+            lambda profile: _mutate_stat(
+                profile,
+                "time_to_first_word",
+                "n",
+            ),
         ),
         (
             "time_to_first_caption",
-            lambda profile: _mutate_stat(profile, "time_to_first_caption"),
+            lambda profile: _mutate_stat(
+                profile,
+                "time_to_first_caption",
+                "median",
+            ),
         ),
         (
             "caption_all_caps_rate",
@@ -178,7 +231,11 @@ def _mutate_stat(profile: StyleProfile, field: str) -> None:
         ),
         (
             "speech_ratio",
-            lambda profile: _mutate_stat(profile, "speech_ratio"),
+            lambda profile: _mutate_stat(
+                profile,
+                "speech_ratio",
+                "p25",
+            ),
         ),
         (
             "music_present_rate",
