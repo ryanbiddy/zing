@@ -181,6 +181,11 @@ taste rubric.
   measured values) rather than adding a wrapper dep. Directly serves R-D's
   ~-14 LUFS platform target.
 
+### demucs — https://github.com/facebookresearch/demucs
+- **What:** Meta's state-of-the-art hybrid transformer audio source separation tool. Splits audio into vocals, drums, bass, and other music beds.
+- **License:** MIT. **Health:** 11k+ stars, active updates, backed by Meta Research.
+- **Verdict: REUSE/BORROW (S2).** Excellent for isolating clean dialogue from background music before transcription (improves Whisper word accuracy on music-heavy clips) and measuring exact ducking thresholds. We should support it as an optional dependency (extra) or borrow their CLI subprocess integration pattern.
+
 ## Caption OCR
 
 ### RapidOCR — https://github.com/RapidAI/RapidOCR
@@ -259,6 +264,16 @@ taste rubric.
 - **Verdict: SKIP.** Zing's own thin subprocess wrapper (already the CI
   mocking pattern) is more debuggable than a dead DSL. Complex filtergraphs
   are better written explicitly and unit-tested as strings.
+
+### ffsubsync — https://github.com/smacke/ffsubsync
+- **What:** CLI tool to synchronize subtitles with video by analyzing speech presence/absence in the audio track and matching it with subtitle events using Fast Fourier Transforms (FFT).
+- **License:** MIT. **Health:** 5.2k+ stars, mature tool, stable releases.
+- **Verdict: BORROW (C-2 / S2).** Useful for matching timing offsets. While we don't need a full alignment tool (our pipeline generates timing natively), we can borrow their VAD-to-subtitle cross-correlation alignment logic to auto-correct drift in user-supplied external subtitles.
+
+### subaligner — https://github.com/baxtree/subaligner
+- **What:** Subtitle synchronization and translation tool using deep neural networks and forced alignment. Supports timing shift detection, alignment, and translation.
+- **License:** MIT. **Health:** 500+ stars, active, well-documented.
+- **Verdict: SKIP (S2).** Too heavy (requires PyTorch and complex DNN model files) for a simple local editor. We should stick to lighter correlation tools like `ffsubsync` or `whisperX`.
 
 ## Similar tools (auto-edit / clip generators)
 
@@ -348,6 +363,11 @@ taste rubric.
   LLM-highlight + auto-reframe + word captions is the expected feature
   bundle.
 
+### pyVideoTrans — https://github.com/jianchang512/pyvideotrans
+- **What:** A comprehensive GUI and CLI video translation, dubbing, and subtitling toolbox translating video from one language to another using whisper, translate engines, and local TTS.
+- **License:** GPL-3.0. **Health:** 11.2k+ stars, extremely active, rapid updates.
+- **Verdict: SKIP / IDEAS ONLY (GPL-3.0 License).** While highly functional, the GPL-3.0 license makes the code radioactive for direct incorporation. Furthermore, its monolithic GUI focus is too heavy for Zing's lightweight developer-focused MCP/CLI tool.
+
 ## Fetch & TTS
 
 ### yt-dlp — https://github.com/yt-dlp/yt-dlp
@@ -356,6 +376,11 @@ taste rubric.
   Call as subprocess/binary and have doctor check version freshness —
   extractors rot fast, and TikTok/IG breakage is a when-not-if support
   issue (R5 disclaimer inherits from uoink).
+
+### youtube-transcript-api — https://github.com/jdepoix/youtube-transcript-api
+- **What:** Python API to retrieve official and auto-generated transcripts from YouTube without requiring browser automation.
+- **License:** MIT. **Health:** 2.5k+ stars, active maintenance, widely used.
+- **Verdict: REUSE (S2 / Eval).** Highly useful for our evaluation and regression testing framework. It allows the pipeline to fetch YouTube's native human-written transcriptions to act as the golden truth dataset without requiring manual transcription.
 
 ### Kokoro — https://github.com/hexgrad/kokoro
 - **What:** 82M-param TTS, near-SOTA quality-per-watt, CPU-viable, voices on
@@ -434,6 +459,7 @@ videos, per the taste rubric) rather than one hardcoded look.
 | Component | License | Verdict |
 |---|---|---|
 | yt-dlp | Unlicense | REUSE (core) |
+| youtube-transcript-api | MIT | REUSE (eval/regression golden fetch) |
 | PySceneDetect | BSD-3 | REUSE (S1 shot detection) |
 | faster-whisper | MIT | REUSE (core) |
 | RapidOCR | Apache-2.0 | REUSE (S1 caption OCR) |
@@ -441,6 +467,7 @@ videos, per the taste rubric) rather than one hardcoded look.
 | kokoro-onnx (+ Kokoro/misaki) | MIT/Apache | REUSE (S4 default TTS, no espeak fallback) |
 | silero-vad | MIT | REUSE (thin, honest speech ratio) |
 | librosa | ISC | REUSE (S2 music/beat analysis) |
+| demucs | MIT | REUSE / BORROW (S2 vocal/music isolation) |
 | OpenTimelineIO | Apache-2.0 | BORROW now, REUSE for S4 export |
 | auto-editor | Unlicense | BORROW (cut heuristics, timeline exports) |
 | whisperX | BSD-2 | BORROW (S2 word-timing upgrade path) |
@@ -448,13 +475,16 @@ videos, per the taste rubric) rather than one hardcoded look.
 | editly | MIT | BORROW (EDL spec design) |
 | clipsai | MIT | BORROW (face-tracked 9:16 reframe) |
 | stable-ts | MIT (archived) | BORROW (timestamp heuristics) |
+| ffsubsync | MIT | BORROW (timing alignment/drift correction) |
 | FunClip | MIT | BORROW (LLM-clipping prompts) |
 | ffmpeg-normalize | MIT | BORROW (two-pass loudnorm pattern) |
 | inaSpeechSegmenter | MIT | BORROW (only if has_music needs ML) |
 | moviepy | MIT | SKIP (wrong renderer architecture) |
 | ffmpeg-python | Apache-2.0 | SKIP (unmaintained DSL) |
+| subaligner | MIT | SKIP (S2 heavy DNN sync) |
 | jumpcutter, captacity, auto-subtitle | MIT | SKIP (superseded) |
 | ShortGPT, MoneyPrinterTurbo | MIT | SKIP (slop generators; market signal only) |
+| pyVideoTrans | GPL-3.0 | SKIP / IDEAS ONLY (translation GUI, GPL-3.0) |
 | Remotion | Source-available | IDEAS ONLY |
 | videogrep | Anti-Capitalist | IDEAS ONLY |
 | LosslessCut | GPL-2.0 | IDEAS ONLY |
