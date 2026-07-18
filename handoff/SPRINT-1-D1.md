@@ -203,9 +203,10 @@ admired shorts (uoink them) as the real reference set.
 
 ## Status
 
-- [ ] Lane A — study engine
-- [ ] Lane B — doctor/storage/MCP/prompt pack
-- [ ] Lane C-1 — eval harness
-- [ ] Lane C-2 — renderer
-- [ ] Wizard-of-oz exit gate (orchestrator + Ryan)
+- [x] Lane A — study engine (gate passed #37; A-Q2 eval iteration continuing; A-Q4 X/long-form + A-Q5 phase_callback delivered)
+- [x] Lane B — doctor/storage/MCP/prompt pack (gate passed #31; real-engine e2e verified #35)
+- [x] Lane C-1 — eval harness (#24, Ubuntu+Windows CI green)
+- [x] Lane C-2 — renderer (#39, content-probe oracle green) · C-Q3 perf harness (#42)
+- [ ] S1 REVIEW ROUND (open as of 2026-07-18): each lane reviews the OTHER lanes → handoff/reviews/S1-REVIEW-<lane>.md → orchestrator fixlist → fix sprint
+- [ ] Wizard-of-oz exit gate (orchestrator + Ryan — the last S1 box)
 - Orchestrator log lives in `handoff/ORCHESTRATOR-LOG.md`.
