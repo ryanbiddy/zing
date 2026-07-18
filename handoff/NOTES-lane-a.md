@@ -1,5 +1,23 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): S2 LANE GATE PASSED — profile builder complete.**
+  `myzing/profile`: `build_profile(name, slugs, workspace=None)` per the
+  S2 spec — robust stats via exclusive quartiles (StatSummary.n honest per
+  field), cuts curve over 10 relative-runtime buckets (30s and 60s
+  sources align, tested), per-field exclusions NAMED in warnings (no cut,
+  no words, skipped speech ratio, inconclusive music, transitions
+  not-run), judged sections copied verbatim keyed section→slug with
+  prompt versions stamped, unjudged sources listed. CLI `zing profile
+  build|show` (+ one dispatch line in cli.py per the registry pattern).
+  **Gate evidence:** profile built from the 3 real S1-gate breakdowns
+  (Cleo/raw/MKBHD) matches hand-computed stats — duration median 55.101s
+  {42.6,55.1,60.8}, first-cut median 2.367s {0.29,2.37,6.01}, shot-length
+  median 1.932s; Cleo's inconclusive-music measurement carried into the
+  rate honestly; all three listed UNJUDGED (no judgments stored in that
+  workspace — the honest-on-mixed-sets behavior, unit-tested both ways).
+  9 new tests; suite 430. Awaiting judged sources / Lane B's
+  profile-grounded judgment for the sprint gate proper.
+
 - **2026-07-18 (Lane A): claimed A-Q11 (gate satisfied — contract +
   MCP landed), DELIVERED.** breakdown.md now renders transitions in all
   three honest states: observations as plain-language lines ("1.40s:
