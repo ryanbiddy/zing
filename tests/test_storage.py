@@ -49,6 +49,41 @@ def test_slug_youtube_forms_agree():
     assert storage.slug_for("https://www.youtube.com/shorts/dQw4w9WgXcQ") == expected
 
 
+def test_slug_x_status_dedupes_across_domains():
+    """B-Q4: the same status shared as x.com or twitter.com is one video."""
+    expected = "x-1815234567890123456"
+    assert (
+        storage.slug_for("https://x.com/somebody/status/1815234567890123456")
+        == expected
+    )
+    assert (
+        storage.slug_for("https://twitter.com/somebody/status/1815234567890123456")
+        == expected
+    )
+    assert (
+        storage.slug_for(
+            "https://mobile.twitter.com/somebody/status/1815234567890123456"
+        )
+        == expected
+    )
+    assert (
+        storage.slug_for("https://x.com/i/status/1815234567890123456") == expected
+    )
+    assert (
+        storage.slug_for(
+            "https://x.com/somebody/status/1815234567890123456?s=20&t=abc"
+        )
+        == expected
+    )
+
+
+def test_slug_x_non_status_urls_fall_back_deterministically():
+    profile = "https://x.com/somebody"
+    slug = storage.slug_for(profile)
+    assert slug.startswith("x-com-")
+    assert slug == storage.slug_for(profile)
+
+
 def test_slug_instagram_reel():
     assert storage.slug_for("https://www.instagram.com/reel/C1a_B2c/") == "instagram-c1a-b2c"
 
