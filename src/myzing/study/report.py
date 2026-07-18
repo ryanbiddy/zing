@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from myzing.schemas import Breakdown, CaptionEvent, Shot, Word
 
-HOOK_WINDOW_S = 3.0
+from . import formats
 
 
 def render_markdown(b: Breakdown) -> str:
@@ -65,10 +65,11 @@ def _pacing(b: Breakdown) -> str:
 
 
 def _first_seconds(b: Breakdown) -> str:
-    lines = [f"## First {HOOK_WINDOW_S:.0f} seconds", ""]
-    shots = [s for s in b.shots if s.start < HOOK_WINDOW_S]
-    words = [w for w in b.words if w.start < HOOK_WINDOW_S]
-    caps = [c for c in b.captions if c.start < HOOK_WINDOW_S]
+    window = formats.hook_window_s(b.meta.duration)
+    lines = [f"## First {window:.0f} seconds", ""]
+    shots = [s for s in b.shots if s.start < window]
+    words = [w for w in b.words if w.start < window]
+    caps = [c for c in b.captions if c.start < window]
 
     if shots:
         described = ", ".join(_shot_brief(s) for s in shots)

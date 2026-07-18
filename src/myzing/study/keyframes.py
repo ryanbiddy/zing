@@ -3,8 +3,9 @@
 Writes into the breakdown folder:
 - ``frames/shot_<index>.jpg`` — the first frame of every shot; the relative
   path lands in ``Shot.keyframe``.
-- ``frames/hook_<second>.jpg`` — ~1 fps over the 0-3s hook window, so the
-  visual hook is inspectable even when shot 0 is long.
+- ``frames/hook_<second>.jpg`` — ~1 fps over the format's hook window
+  (0-3s short-form, 0-30s long-form; see formats.py), so the visual hook
+  is inspectable even when shot 0 is long.
 
 Extraction failures degrade per-frame (empty keyframe + one warning), the
 study never dies over a thumbnail.
@@ -16,10 +17,9 @@ from pathlib import Path
 
 from myzing.schemas import Shot
 
-from . import proc
+from . import formats, proc
 
 FRAMES_DIR = "frames"
-HOOK_WINDOW_S = 3.0
 JPEG_QUALITY = "3"                # ffmpeg -q:v scale; 2-5 is visually fine
 
 
@@ -43,7 +43,7 @@ def extract_keyframes(
             failures += 1
 
     second = 0.0
-    while second < min(HOOK_WINDOW_S, duration):
+    while second < min(formats.hook_window_s(duration), duration):
         target = frames_dir / f"hook_{second:.0f}s.jpg"
         if not _grab(media_path, second, target):
             failures += 1
