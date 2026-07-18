@@ -11,8 +11,29 @@ import pytest
 ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
+from myzing.schemas import Breakdown
 from tools.eval.make_goldens import CASES, generate_goldens
 from tools.eval.run import SAMPLE_DIRECTORY, evaluate
+
+
+class TimedAdapter:
+    def __call__(self, media_path: Path) -> Breakdown:
+        return Breakdown.from_json(
+            (SAMPLE_DIRECTORY / "breakdown.json").read_text(encoding="utf-8")
+        )
+
+    def performance_for(self, media_path: Path) -> dict:
+        return {
+            "available": True,
+            "stages": {
+                "ingest": 1.0,
+                "shots": 2.0,
+                "transcribe": 3.0,
+                "ocr": 4.0,
+                "audio": 5.0,
+                "render": 6.0,
+            },
+        }
 
 
 def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
@@ -21,10 +42,13 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
     report = evaluate([SAMPLE_DIRECTORY], report_path, ffmpeg="not-installed-ffmpeg")
 
     assert report["passed"] is True
+    assert report["report_schema_version"] == 2
     assert report["scorer_version"] == "1.0.0"
     assert len(report["manifest_sha256"]) == 64
     assert report["ffmpeg"] is None
     assert report["wall_clock_seconds"] >= 0
+    assert report["performance"]["status"] == "tracked-not-gated"
+    assert report["performance"]["available_case_count"] == 0
     saved = json.loads(report_path.read_text(encoding="utf-8"))
     assert saved["cases"][0]["fixture_hashes"].keys() == {
         "truth.json",
@@ -41,11 +65,28 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
         -80.0,
         -18.0,
     ]
+    assert saved["cases"][0]["performance"]["available"] is False
+    assert "no live study" in saved["cases"][0]["performance"]["reason"]
 
 
 def test_runner_rejects_empty_case_set(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="no evaluation cases"):
         evaluate([], tmp_path / "report.json")
+
+
+def test_runner_captures_adapter_performance_in_case_and_summary(
+    tmp_path: Path,
+) -> None:
+    report = evaluate(
+        [SAMPLE_DIRECTORY],
+        tmp_path / "report.json",
+        adapter=TimedAdapter(),
+        ffmpeg="not-installed-ffmpeg",
+    )
+
+    assert report["cases"][0]["performance"]["stages"]["render"] == 6.0
+    assert report["performance"]["available_case_count"] == 1
+    assert report["performance"]["stages"]["transcribe"]["mean_seconds"] == 3.0
 
 
 def test_module_cli_passes_on_checked_in_sample(tmp_path: Path) -> None:
@@ -97,6 +138,7 @@ def test_module_cli_writes_report_on_error(tmp_path: Path) -> None:
     assert result.returncode == 2
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["passed"] is False
+    assert report["report_schema_version"] == 2
     assert report["error"]["type"] == "ValueError"
     assert "no evaluation cases" in report["error"]["message"]
 
