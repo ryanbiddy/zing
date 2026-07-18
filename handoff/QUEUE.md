@@ -129,3 +129,33 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 - **B-Q10:** SG-1 aimed: review Lane A's caption-region clustering (#70) + keyframe work — surface/consumer lens: does what MCP serves match what was measured?
 - **B-Q11 (gated on C-Q12 merge):** prompt pack v0.3 — teach prompts/study.md the transitions vocabulary + thumbs + get_frames tools (what the judging AI can now see and how to use it honestly).
 - **A-Q11 (gated on C-Q12 merge):** breakdown.md renders transition observations (plain-language line per transition, honest about opt-in/absence).
+
+## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
+- **P-B1 (Lane B, 2026-07-18) · loop-ability as a measured Breakdown
+  field.**
+  **Proposal:** a deterministic loop score in the study pipeline:
+  (a) visual seam — frame difference between the last and first frames
+  (the keyframe machinery already extracts both); (b) audio seam —
+  loudness-curve continuity across the end→start joint; (c) a
+  `loop_seam` observation (visual_delta, audio_delta_db) with NO
+  interpretation attached (measured, not judged; the prompt pack judges
+  whether a tight seam is intentional). Evidence: the TikTok Algo-101
+  formula weights play-time/rewatches (docs/taste/VIRALITY-TIKTOK.md,
+  verified-data tier); seamless loops are a prized short-form editing
+  pattern; VIRALITY-TIKTOK Deeper Thread 3 flagged that nobody in the
+  trending set (SG-4 scan) measures loop design; marginal cost is low —
+  both inputs (keyframes, loudness curve) already exist per breakdown.
+  **Refutation (mine):** (1) first/last-frame similarity is a weak
+  proxy — perceived loops are about motion continuity, not static
+  similarity; a cut-on-motion loop scores badly on frame diff while
+  looping beautifully. (2) Base-rate risk: if Ryan's actual reference
+  set contains no loop-designed videos, the field is dead weight —
+  nobody has checked the frozen set. (3) S3 (Direct) is the priority;
+  any Lane A capacity spent here delays the product's core loop.
+  (4) Needs an orchestrator schema change for a maybe-feature.
+  **Survives as:** a GATED proposal only — step 1 is a zero-schema
+  check: run the seam measurements ad hoc against the frozen reference
+  set + Ryan's picks when they land; if ≥2 references show tight seams
+  (they were designed to loop), promote to a schema request for S3;
+  if none do, drop it with the evidence recorded. No build before the
+  base-rate check.
