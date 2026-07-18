@@ -77,12 +77,19 @@ they fix.
 - **S2 — D-2 Profile:** `zing profile` aggregating N breakdowns into a
   StyleProfile (schema added by orchestrator after S1 learnings); judgment
   pipeline proven end-to-end (AI reads breakdowns over MCP, writes judgment
-  back); analysis-quality hardening against the eval harness.
+  back); analysis-quality hardening against the eval harness. Known upgrade
+  path if word timestamps drift: whisperX forced alignment (BSD-2, same
+  faster-whisper backend — PRIOR-ART-OSS.md).
 - **S3 — D-3 Direct:** map raw footage (studied like any video) onto a
   StyleProfile → draft EDL + honest gap report + numbered, filmable shot
   prompts. The anti-slop core.
 - **S4 — D-4 Assemble:** render quality pass; TTS providers — local default
-  (Kokoro/Piper), ElevenLabs as optional plugin; executor export package.
+  is **Kokoro via `kokoro-onnx` (MIT, torch-free on Windows)**; ElevenLabs
+  as optional plugin. Piper is OUT (MIT repo archived; active successor
+  `piper1-gpl` is GPL-3.0) and espeak-ng (GPL-3.0) stays out of the default
+  install — see PRIOR-ART-OSS.md. Export package: NLE timelines
+  (auto-editor's Premiere/FCP exports are the bar) + `.otio`
+  (OpenTimelineIO, Apache) so drafts open in real editors.
 - **S5 — Hardening:** end-to-end runs on real videos across all three
   platforms; eval set expansion; fresh-install path (`uvx myzing` → doctor →
   study) on a clean machine; failure-state honesty sweep.

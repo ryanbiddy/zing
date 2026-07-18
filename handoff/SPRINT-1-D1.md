@@ -45,8 +45,10 @@ Deliver `zing study <url|file>` producing a real `Breakdown`:
 3. Transcription → `Word[]`: faster-whisper word timestamps. Honest skip
    (empty list + warning) when the model isn't available; doctor reports it.
 4. Caption OCR → `CaptionEvent[]`: sample frames (~4/s), OCR, cluster into
-   timed events with position/case/words-visible observations. License-clean
-   OCR choice (tesseract binary or rapidocr). **TIMEBOX: best-effort with
+   timed events with position/case/words-visible observations. OCR choice:
+   **RapidOCR recommended** (Apache, pip-only ONNX — better Windows story
+   and stylized-text results per `handoff/research/PRIOR-ART-OSS.md`);
+   tesseract acceptable fallback. **TIMEBOX: best-effort with
    honest confidence values is the S1 bar** — stylized/animated captions
    will fool OCR; do not chase accuracy past ~1 day, iterate in S2 against
    real data.
@@ -105,9 +107,11 @@ Owns: `tools/eval/**`, `src/myzing/render/**`, `tests/test_render*`,
 
 **C-2 (after C-1 gate):** `zing render <edl.json>` executing an `EDL`
 exactly: trim + concat clips, scale/pad to spec, burn word-timed captions
-(generate .ass from `CaptionSpec.words`), mix voiceover + music with
-ducking, fail loudly on malformed EDL (missing file, overlapping clips,
-words outside caption window).
+(generate .ass from `CaptionSpec.words` — use **pysubs2** (MIT, active) for
+.ass generation incl. karaoke tags rather than hand-rolling the format; see
+`handoff/research/PRIOR-ART-OSS.md`), mix voiceover + music with ducking,
+fail loudly on malformed EDL (missing file, overlapping clips, words
+outside caption window).
 
 **Gate C-1:** scorer catches a deliberately-broken Breakdown (mutation test).
 **Gate C-2:** golden EDL renders; ffprobe asserts duration/resolution/streams;
