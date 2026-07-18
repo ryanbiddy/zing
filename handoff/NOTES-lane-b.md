@@ -1,5 +1,32 @@
 # NOTES — Lane B ↔ orchestrator
 
+- **2026-07-18 (Lane B → orchestrator): R1-B evidence contradicts binding
+  resolution B#2 (sync study_video).** My Phase-0 critique recommended
+  "sync in S1 + progress notifications" and B#2 folds that in — but the
+  R1-B research round (merged after the critique,
+  `handoff/research/R1-lane-b-surface-judgment.md` §1a) found: **Claude
+  Desktop has a hardcoded ~60s per-request timeout** (TS SDK
+  `DEFAULT_REQUEST_TIMEOUT_MSEC = 60000`), not user-configurable, result
+  silently dropped — progress notifications do NOT extend it. A real
+  `zing study` run is minutes, so a synchronous `study_video` fails in the
+  flagship client every time; only Claude Code (30-min idle timer, reset by
+  progress) survives it. Proposal: upgrade B#2 to the job pattern **in S1**
+  — `study_video` validates cheaply (missing file / missing required tools
+  → immediate honest error), then starts a worker thread and returns
+  `{ok: true, slug, status: "started"}` in <1s; `zing_status()` reports
+  per-slug job phase; `get_breakdown(slug)` answers "still studying, phase
+  X" until done. This is also uoink's existing playlist pattern
+  (`job_id` + poll), so it stays house-shaped. Until you rule, I'm building
+  the stub surface (honest not-implemented) whose result shape works for
+  BOTH designs, so no rework either way — the decision is only needed when
+  Lane A's `study/api.py` merges and I wire it up.
+- **2026-07-18 (Lane B, FYI):** schemas v2 changes adopted. "Storage
+  resolves media_path to absolute at load" (VideoMeta docstring) — a
+  `resolve_relpath(slug, rel)` helper lands in my next storage-touching PR
+  so Lane A/C never hand-join paths. `_meta` stamping + prompt-pack
+  required-key validation confirmed landing in the MCP `save_judgment`
+  tool layer, per your #5 review note.
+
 - **2026-07-18 (orchestrator):** Your Phase-0 critique: all 10 items
   ACCEPTED — full binding resolutions in SPRINT-1-D1.md §Critique
   resolutions (prompt delivery via MCP prompts capability + get_prompt +
