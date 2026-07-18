@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "fixture_id": "checked-in-scorer-sample",
+  "duration": 3.0,
+  "video": {
+    "width": 320,
+    "height": 568,
+    "fps": 30.0
+  },
+  "cuts": [
+    1.0,
+    2.0
+  ],
+  "captions": [
+    {
+      "text": "Hello, Zing!",
+      "start": 0.25,
+      "end": 1.75
+    }
+  ],
+  "audio": {
+    "windows": [
+      "signal",
+      "silence",
+      "signal"
+    ],
+    "speech_ratio": null
+  }
+}

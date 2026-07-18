@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "scorer_version": "1.0.0",
+  "cuts": {
+    "count_exact": true,
+    "time_tolerance_seconds": 0.15,
+    "matching": "maximum-cardinality one-to-one chronological"
+  },
+  "captions": {
+    "minimum_text_similarity": 0.8,
+    "matching": "positive temporal overlap, one-to-one chronological",
+    "normalization": "Unicode NFKC, casefold, punctuation removal, whitespace collapse",
+    "require_full_recall": true,
+    "penalize_extras": true
+  },
+  "audio": {
+    "signal_floor_dbfs": -50.0,
+    "window_pattern_exact": true,
+    "speech_ratio": {
+      "enabled": false,
+      "tolerance": 0.1,
+      "reason": "Unavailable until a redistributable spoken fixture is approved; tone is not speech."
+    }
+  }
+}
