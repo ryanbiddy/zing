@@ -8,6 +8,9 @@ from pathlib import Path
 
 import pytest
 
+ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT))
+
 from tools.eval.make_goldens import CASES, generate_goldens
 from tools.eval.run import SAMPLE_DIRECTORY, evaluate
 

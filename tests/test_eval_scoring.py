@@ -2,15 +2,19 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from pathlib import Path
 
 import pytest
+
+ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT))
 
 from myzing.schemas import Breakdown
 from tools.eval.scoring import levenshtein_similarity, normalize_caption, score
 
 
-SAMPLE = Path(__file__).parents[1] / "tools" / "eval" / "sample"
+SAMPLE = ROOT / "tools" / "eval" / "sample"
 
 
 @pytest.fixture
