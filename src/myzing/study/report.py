@@ -18,6 +18,7 @@ def render_markdown(b: Breakdown) -> str:
     parts = [
         _header(b),
         _pacing(b),
+        _transitions(b),
         _first_seconds(b),
         _shot_table(b.shots),
         _captions(b.captions),
@@ -61,7 +62,56 @@ def _pacing(b: Breakdown) -> str:
             f"- densest window: {fastest * 10}-{fastest * 10 + 10}s "
             f"({b.cuts_per_10s[fastest]:g} cuts)"
         )
+    if b.transitions:
+        lines.append(
+            f"- transitions: {len(b.transitions)} observed (see Transitions)"
+        )
+    elif _transition_ran(b):
+        lines.append("- transitions: detector ran, none observed")
+    else:
+        lines.append("- transitions: detection not run (opt-in)")
     return "\n".join(lines)
+
+
+def _transition_ran(b: Breakdown) -> bool:
+    """Detection is opt-in (C-Q12); the detector self-records under a
+    transition* provenance key when it actually ran."""
+    return any(key.startswith("transition") for key in b.provenance)
+
+
+def _transition_line(t) -> str:
+    kind = t.kind.replace("_", " ")
+    if t.end - t.start < 0.05:
+        when = f"{t.start:.2f}s"
+    else:
+        when = f"{t.start:.2f}-{t.end:.2f}s (over {t.end - t.start:.2f}s)"
+    line = f"- {when}: {kind}"
+    if t.audio_aligned:
+        delta = (
+            f", onset {t.audio_onset_delta:+.3f}s"
+            if t.audio_onset_delta is not None
+            else ""
+        )
+        line += f" — audio-aligned{delta}"
+    return line
+
+
+def _transitions(b: Breakdown) -> str:
+    """Honest in all three states (A-Q11): observations rendered plainly;
+    ran-but-none stated; not-run stated as opt-in, never implied-measured."""
+    if b.transitions:
+        lines = ["## Transitions", ""]
+        lines += [
+            _transition_line(t)
+            for t in sorted(b.transitions, key=lambda t: t.start)
+        ]
+        return "\n".join(lines)
+    if _transition_ran(b):
+        return (
+            "## Transitions\n\n(detector ran: no transitions beyond plain "
+            "hard cuts observed)"
+        )
+    return ""  # not run — stated in _pacing, not padded into a section
 
 
 def _first_seconds(b: Breakdown) -> str:

@@ -1,5 +1,17 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-18 (Lane A): claimed A-Q11 (gate satisfied — contract +
+  MCP landed), DELIVERED.** breakdown.md now renders transitions in all
+  three honest states: observations as plain-language lines ("1.40s:
+  hard cut — audio-aligned, onset +0.030s"; "3.20-3.80s (over 0.60s):
+  dissolve"), ran-but-none stated explicitly, not-run stated as
+  "detection not run (opt-in)" in the Pacing summary without padding an
+  empty section. Micro-contract for Lane C's pipeline integration: the
+  renderer treats any `transition*` provenance key as "detector ran" —
+  matches the schema docstring's promise that provenance records
+  detector/version/thresholds; keep that naming and the states light up
+  correctly with zero coordination.
+
 - **2026-07-18 (Lane A): A-Q10 DELIVERED — cross-review of Lane C's day,
   measurement-scientist lens. PRs covered: #65 (transitions), #66
   (thumbs), #51 (caption presets, skimmed), C-Q6 speech fixture.**

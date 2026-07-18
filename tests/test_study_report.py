@@ -79,6 +79,40 @@ def test_render_empty_breakdown_is_honest():
     assert "scenedetect not installed" in md
 
 
+def test_transitions_render_plain_language():
+    from myzing.schemas import TransitionObservation
+
+    b = sample()
+    b.transitions = [
+        TransitionObservation("dissolve", 3.2, 3.8, frame_pair_count=9),
+        TransitionObservation(
+            "hard_cut", 1.4, 1.42, audio_aligned=True, audio_onset_delta=0.03
+        ),
+        TransitionObservation("zoom_punch", 12.1, 12.5),
+    ]
+    b.provenance["transition_detector"] = "prototype-1"
+    md = report.render_markdown(b)
+    assert "## Transitions" in md
+    assert "- 1.40s: hard cut — audio-aligned, onset +0.030s" in md
+    assert "- 3.20-3.80s (over 0.60s): dissolve" in md
+    assert "- 12.10-12.50s (over 0.40s): zoom punch" in md
+    assert "transitions: 3 observed" in md
+
+
+def test_transitions_ran_but_none_is_stated():
+    b = sample()
+    b.provenance["transition_detector"] = "prototype-1"
+    md = report.render_markdown(b)
+    assert "detector ran: no transitions beyond plain hard cuts" in md
+    assert "transitions: detector ran, none observed" in md
+
+
+def test_transitions_not_run_is_honest_opt_in():
+    md = report.render_markdown(sample())
+    assert "## Transitions" not in md
+    assert "transitions: detection not run (opt-in)" in md
+
+
 def test_render_roundtrips_through_schema_json():
     b = Breakdown.from_json(sample().to_json())
     assert report.render_markdown(b) == report.render_markdown(sample())
