@@ -149,6 +149,51 @@ def find_media(slug: str) -> Path | None:
     return None
 
 
+def resolve_relpath(slug: str, rel: str) -> Path:
+    """Absolute path for a breakdown-relative path (media_path, keyframes).
+
+    The contract stores paths relative to the breakdown's own directory so a
+    breakdown folder survives being moved or synced; this is the one place
+    that joins them back. Absolute inputs pass through unchanged.
+    """
+    p = Path(rel)
+    if p.is_absolute():
+        return p
+    return breakdown_dir(slug) / p
+
+
+# ---------------------------------------------------------------------------
+# Study job status (status.json in the slug dir)
+# ---------------------------------------------------------------------------
+# Binding B#2 ruling (2026-07-18): study runs as a background job; state
+# lives ON DISK so a crashed helper leaves honest state, never an
+# in-memory-only lie. States: running | done | failed.
+
+def write_status(slug: str, **fields: Any) -> Path:
+    """Merge fields into the slug's status.json (created if absent)."""
+    d = breakdown_dir(slug)
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / "status.json"
+    current = read_status(slug) or {}
+    current.update(fields)
+    path.write_text(
+        json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return path
+
+
+def read_status(slug: str) -> dict[str, Any] | None:
+    """The slug's study status, or None when absent/unreadable."""
+    path = breakdown_dir(slug) / "status.json"
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Breakdown persistence
 # ---------------------------------------------------------------------------
@@ -228,7 +273,16 @@ def list_breakdowns() -> list[dict[str, Any]]:
             continue
         json_path = d / "breakdown.json"
         if not json_path.is_file():
-            index.append({"slug": d.name, "error": "no breakdown.json"})
+            status = read_status(d.name)
+            if status and status.get("state") in ("running", "failed"):
+                entry: dict[str, Any] = {"slug": d.name, "study": status["state"]}
+                if status.get("phase"):
+                    entry["phase"] = status["phase"]
+                if status.get("error"):
+                    entry["error"] = status["error"]
+                index.append(entry)
+            else:
+                index.append({"slug": d.name, "error": "no breakdown.json"})
             continue
         try:
             raw = json.loads(json_path.read_text(encoding="utf-8"))
