@@ -147,6 +147,16 @@ verified claims this round.
 > ~57% — so anti-slop rests on platform policy + completion-quality, NOT
 > "viewers can tell" (A4 supersedes the refuted A3 angle).
 
+> **R3-B LANDED (2026-07-18):** see `PACKAGING-INTROS-THUMBNAILS.md` for
+> criteria H6–H9, O1–O4, K1–K10, U1–U5 — the official 30s intro grading
+> that deepens H3's congruence (H6), the outro "don't signal the end"
+> canon, the thumbnail canon with a data-vs-lore split (current spec is
+> 3840×2160/50MB, NOT the copied 1280×720/2MB; native A/B tests titles
+> too and judges on watch time, not CTR), the `zing thumbs` freeze-frame
+> + three-prompt spec, upload mechanics (chapters 00:00/≥3/≥10s verified;
+> scheduling folklore refuted), and intro/outro tool recommendations
+> (Motion Array / Resolve+Fusion; CapCut license warning).
+
 ## R-2 agenda (from this round's verified gaps — status after R-2)
 
 1. Editing craft verification: Murch primary text, pacing evidence, caption
