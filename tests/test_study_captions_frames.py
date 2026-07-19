@@ -8,9 +8,9 @@ the study extra (shots.py), so requiring them here adds nothing new.
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
+np = pytest.importorskip("numpy")
 cv2 = pytest.importorskip("cv2")
 
 from myzing.study import captions
