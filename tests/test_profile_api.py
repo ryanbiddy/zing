@@ -218,3 +218,58 @@ def test_cli_show_missing_profile_is_honest(zing_workspace, capsys):
     rc = cli.main(["profile", "show", "ghost"])
     assert rc == 1
     assert "ghost" in capsys.readouterr().out
+
+
+def test_cli_pack_json_and_failed_refs(zing_workspace, tmp_path, capsys, monkeypatch):
+    """pack --json emits the profile; failed refs print FAILED lines."""
+    import json as json_mod
+    from myzing import cli, storage
+    from myzing.study.proc import MediaError
+    from tests.test_profile_packs import ref, write_manifest
+
+    good = "https://youtube.com/shorts/pk-good"
+    make_source(storage.slug_for(good), 30.0, [5.0], 10.0)
+    monkeypatch.setattr(
+        "myzing.study.api.study",
+        lambda url, workspace=None, **kw: (_ for _ in ()).throw(
+            MediaError("Video unavailable")
+        ),
+    )
+    manifest = write_manifest(tmp_path / "pack.json", references=[
+        ref(1, good), ref(2, "https://youtube.com/shorts/pk-dead"),
+    ])
+
+    rc = cli.main(["profile", "pack", str(manifest)])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "FAILED AITTH-02: Video unavailable" in out
+
+    rc = cli.main(["profile", "pack", str(manifest), "--json"])
+    parsed = json_mod.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert parsed["provenance"]["preset_pack"]["pack_id"] == "ai-tech-talking-head"
+
+
+def test_cli_pack_error_is_honest(zing_workspace, tmp_path, capsys):
+    from myzing import cli
+
+    rc = cli.main(["profile", "pack", str(tmp_path / "missing.json")])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "zing profile:" in out
+
+
+def test_render_text_transitions_and_judged_sections(zing_workspace):
+    from myzing.profile.command import render_text
+
+    make_source("rt-1", 20.0, [4.0], 10.0)
+    profile = api.build_profile("rt", ["rt-1"])
+    profile.transition_kind_counts = {"hard_cut": 4, "whip_pan": 1}
+    profile.judged["study"] = {"hook": "x"}
+    profile.judged["_meta"] = {"prompt_version": "t"}
+
+    text = render_text(profile)
+
+    assert "hard cutx4, whip panx1" in text
+    assert "judged sections: study" in text
