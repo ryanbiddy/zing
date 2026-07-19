@@ -12,6 +12,10 @@ LATEST_REVIEW_MARKER = (
     "- **2026-07-19 (Lane C, SG-1 cross-review complete — "
     "PRs #185, #183, #182):**"
 )
+RECENT_REVIEW_MARKER = (
+    "- **2026-07-19 (Lane C, SG-1 cross-review complete — "
+    "PRs #197, #195, #193):**"
+)
 
 
 def test_sg1_review_pins_prs_reproduction_and_evidence_gaps():
@@ -59,3 +63,29 @@ def test_sg1_review_records_latest_unreviewed_diffs_and_verdicts():
     assert "`York New`" in normalized
     assert "`START_DENIED`" in normalized
     assert "`[not-started] tiktok-111`" in normalized
+
+
+def test_sg1_review_checks_fetch_install_and_status_cost_claims():
+    notes = LANE_NOTES.read_text(encoding="utf-8")
+
+    assert RECENT_REVIEW_MARKER in notes
+    review = notes.split(RECENT_REVIEW_MARKER, 1)[1].split(
+        "\n- **2026-07-19 (Lane C, PROCESS OBSERVATION SG-1):**", 1
+    )[0]
+    normalized = " ".join(review.split())
+
+    for pr in ("#197", "#195", "#193"):
+        assert pr in normalized
+    assert "reviewed the actual diffs" in normalized
+    assert "docs/FETCH-TROUBLESHOOTING.md:10-33" in normalized
+    assert "pyproject.toml:16-18" in normalized
+    assert "src/myzing/doctor.py:136-203" in normalized
+    assert "`yt_dlp_ejs=False`" in normalized
+    assert "`n challenge solving failed`" in normalized
+    assert "`yt-dlp[default]`" in normalized
+    assert "`h_zing_status()`" in normalized
+    assert "0.288–0.379s" in normalized
+    assert "median 0.302s" in normalized
+    assert "68s" in normalized
+    assert "1920×1080" in normalized
+    assert "5,380,884" in normalized
