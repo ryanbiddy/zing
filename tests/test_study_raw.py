@@ -196,6 +196,27 @@ def test_measure_raw_warnings_summaries():
     assert any("filler" in w and "um×1" in w for w in result.warnings)
 
 
+def test_keepers_skipped_when_vad_unavailable():
+    """Lane C's SG-1 P1 repro: clean words + no VAD must NOT yield a
+    keeper claiming 'no interior dead air' — the check never ran."""
+    words = words_from(clean_take(0.0))
+    result = raw.measure_raw(words, None, duration=10.0, loudness_curve=[])
+    assert result.keepers == []
+    assert any(
+        "keeper derivation skipped" in w and "dead-air" in w
+        for w in result.warnings
+    )
+    assert not any("no keeper segments passed" in w for w in result.warnings)
+
+
+def test_keeper_evidence_carries_loudness_caveat_without_curve():
+    words = words_from(clean_take(0.0))
+    keepers = raw.find_keepers(words, [], [], [], loudness_curve=[])
+    assert len(keepers) == 1
+    assert any("loudness not verified" in e for e in keepers[0].evidence)
+    assert not any("loudness within" in e for e in keepers[0].evidence)
+
+
 def test_measure_raw_honest_when_vad_missing():
     result = raw.measure_raw([], None, duration=10.0)
     assert any("dead-air measurement skipped" in w for w in result.warnings)

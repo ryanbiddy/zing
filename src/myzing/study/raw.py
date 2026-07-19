@@ -157,6 +157,10 @@ def find_keepers(
                     f"loudness within {KEEPER_LEVEL_TOLERANCE_DB:.0f} dB of "
                     "speech level throughout"
                 )
+            else:
+                # Degraded state stated at the consumer artifact, not
+                # silently omitted (Lane C SG-1 process observation).
+                evidence.append("CAVEAT: loudness not verified (no curve)")
 
             repeated_with = None
             for take in repeated_takes:
@@ -240,6 +244,17 @@ def measure_raw(
             f'"{take.text[:80]}"'
         )
 
+    # Keeper honesty (Lane C SG-1 P1 finding): a keeper's definition
+    # REQUIRES the dead-air check, so when VAD never ran the check cannot
+    # pass — deriving keepers anyway would hand the judging AI the false
+    # evidence "no interior dead air". Skip derivation and say so.
+    if speech_segments is None:
+        result.warnings.append(
+            "raw: keeper derivation skipped — its definition requires "
+            "dead-air measurement, which was unavailable (VAD)"
+        )
+        return result
+
     result.keepers = find_keepers(
         words,
         result.filler_locations,
@@ -258,7 +273,7 @@ def measure_raw(
         result.warnings.append(
             f"raw: {len(result.keepers)} keeper segment(s) — {spans}{more}"
         )
-    elif words:
+    else:
         result.warnings.append(
             "raw: no keeper segments passed every check — every span has "
             "fillers, dead air, level drops, or is too short"
