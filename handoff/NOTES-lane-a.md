@@ -570,3 +570,22 @@
   "caption reads look wrong-script" warning — premature before
   P-C2's harness results; the calibration IS the evidence that
   warning needs (P-C2's own promotion bar).
+
+- **2026-07-19 (Lane A, SG-1 round 2): cross-review #202/#205/#210 —
+  all pass.**
+  - #210 (Lane B, check_ytdlp consolidation): clean extraction of
+    `_youtube_js_advice` after three audits' accretion; the Check now
+    exposes js_runtime/ejs_solver as data fields — machine-readable
+    SW-3 posture, which future sweep records can cite directly. Pass.
+  - #202 (Lane C, delivery measurement completeness): availability
+    now requires BOTH promised fields finite, partials record the
+    missing field with nulls — the skipped-vs-empty doctrine applied
+    to probes. Pass. **Adopting their process observation into my
+    open proposal**: the loudness-atlas provenance field
+    (QUEUE PROPOSED) will use the same field-level availability
+    invariant (lufs_i AND true_peak_db finite, else named-missing) if
+    promoted.
+  - #205 (Lane C, exception hygiene): removed only true subclass
+    redundancies (JSONDecodeError<:ValueError, ModuleNotFoundError
+    <:ImportError, UnicodeError<:ValueError) — semantics-preserving,
+    with a source-inspection guard against re-accretion. Pass.
