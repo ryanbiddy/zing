@@ -16,6 +16,10 @@ RECENT_REVIEW_MARKER = (
     "- **2026-07-19 (Lane C, SG-1 cross-review complete — "
     "PRs #197, #195, #193):**"
 )
+CURRENT_REVIEW_MARKER = (
+    "- **2026-07-19 (Lane C, SG-1 cross-review complete \u2014 "
+    "PRs #210, #208, #206):**"
+)
 
 
 def test_sg1_review_pins_prs_reproduction_and_evidence_gaps():
@@ -89,3 +93,29 @@ def test_sg1_review_checks_fetch_install_and_status_cost_claims():
     assert "68s" in normalized
     assert "1920×1080" in normalized
     assert "5,380,884" in normalized
+
+
+def test_sg1_review_checks_readiness_side_effects_and_vacuous_provenance():
+    notes = LANE_NOTES.read_text(encoding="utf-8")
+
+    assert CURRENT_REVIEW_MARKER in notes
+    review = notes.split(CURRENT_REVIEW_MARKER, 1)[1].split(
+        "\n- **2026-07-19 (Lane C, PROCESS OBSERVATION SG-1):**", 1
+    )[0]
+    normalized = " ".join(review.split())
+
+    for pr in ("#210", "#208", "#206"):
+        assert pr in normalized
+    assert "reviewed the actual diffs" in normalized
+    assert "src/myzing/doctor.py:166-257,448-464" in normalized
+    assert "`ok=True`" in normalized
+    assert "`Verdict: fully ready`" in normalized
+    assert "`WILL fail`" in normalized
+    assert "src/myzing/tts_providers.py:99-129" in normalized
+    assert "`.mp3`" in normalized
+    assert "`network_calls=1`" in normalized
+    assert "before `urlopen`" in normalized
+    assert "handoff/QUEUE.md:63-84" in normalized
+    assert "`zing_version`" in normalized
+    assert "`measured_at`" in normalized
+    assert "vacuous" in normalized
