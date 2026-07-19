@@ -151,6 +151,14 @@ def _print_table(cases: list[dict[str, Any]]) -> None:
         print("  ".join(str(value).ljust(widths[index]) for index, value in enumerate(row)))
 
 
+def _write_report(report_path: Path, report: dict[str, Any]) -> None:
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
 def evaluate(
     case_directories: Sequence[Path],
     report_path: Path,
@@ -213,11 +221,7 @@ def evaluate(
         "direction_eval": direction_eval,
         "cases": cases,
     }
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    _write_report(report_path, report)
     _print_table(cases)
     print(f"\nreport: {report_path}")
     return report
@@ -235,11 +239,7 @@ def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
         "direction_eval": evaluate_direction_paths([]),
         "cases": [],
     }
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(
-        json.dumps(report, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    _write_report(report_path, report)
 
 
 def _parser_error_with_report(
