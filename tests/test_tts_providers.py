@@ -148,3 +148,56 @@ def test_doctor_reports_tts(monkeypatch, tmp_path):
     assert check.ok is False
     assert "without voiceover" in check.degraded_mode
     assert "ELEVENLABS_API_KEY" in check.fix or "kokoro" in check.fix
+
+# -- SG-2: remaining ElevenLabs error paths ----------------------------------
+
+def test_quota_429_names_the_plan(monkeypatch, tmp_path):
+    monkeypatch.setenv(tts_providers.ELEVENLABS_KEY_ENV, "k")
+
+    def limited(request, timeout=0):
+        raise urllib.error.HTTPError(request.full_url, 429, "slow down", {}, io.BytesIO())
+
+    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", limited)
+    with pytest.raises(TTSGenerationError, match="quota"):
+        tts_providers.ElevenLabsProvider().synthesize(
+            SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.wav"
+        )
+
+
+def test_server_error_includes_status_and_body(monkeypatch, tmp_path):
+    monkeypatch.setenv(tts_providers.ELEVENLABS_KEY_ENV, "k")
+
+    def boom(request, timeout=0):
+        raise urllib.error.HTTPError(
+            request.full_url, 500, "oops", {}, io.BytesIO(b"internal fire")
+        )
+
+    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", boom)
+    with pytest.raises(TTSGenerationError, match="HTTP 500.*internal fire"):
+        tts_providers.ElevenLabsProvider().synthesize(
+            SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.wav"
+        )
+
+
+def test_empty_audio_body_is_loud(monkeypatch, tmp_path):
+    monkeypatch.setenv(tts_providers.ELEVENLABS_KEY_ENV, "k")
+    monkeypatch.setattr(
+        tts_providers.urllib.request, "urlopen",
+        lambda request, timeout=0: FakeResponse(b""),
+    )
+    with pytest.raises(TTSGenerationError, match="empty audio"):
+        tts_providers.ElevenLabsProvider().synthesize(
+            SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.wav"
+        )
+
+
+def test_non_wav_output_rejected(monkeypatch, tmp_path):
+    monkeypatch.setenv(tts_providers.ELEVENLABS_KEY_ENV, "k")
+    monkeypatch.setattr(
+        tts_providers.urllib.request, "urlopen",
+        lambda request, timeout=0: FakeResponse(b"ok" * 50),
+    )
+    with pytest.raises(TTSGenerationError, match=".wav extension"):
+        tts_providers.ElevenLabsProvider().synthesize(
+            SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.mp3"
+        )

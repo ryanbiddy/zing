@@ -773,3 +773,13 @@
   claim now carries its command and distribution. Lane C's process
   observation ADOPTED: performance claims without command/tier/samples/
   distribution can't dispose proposals — mine didn't, and it reversed.
+- **2026-07-19 (Lane B): SG-2 fifth pass (rotation; queue empty).**
+  Lane coverage now uniform 91-97% across all eight modules; the
+  lowest honest gaps were tts_providers' remaining ElevenLabs error
+  paths — quota-429 (names the plan), server-error (status + body
+  excerpt), empty-audio-body, and non-wav-output rejection. 4 tests,
+  **91% → 97%**. Remaining misses lane-wide are documented plumbing
+  (argparse/print/registration glue). Confession for the record: a
+  shell-escaping mishap put literal NUL bytes into a test file and
+  cost three debugging round-trips — heredoc-into-python-into-bash is
+  now on my personal banned list; stdin scripts or the Edit tool only.
