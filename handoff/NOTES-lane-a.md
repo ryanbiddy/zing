@@ -857,3 +857,11 @@
   process, not a product defect; the in-process rerun above is the
   valid record, and the MCP status tools reconcile dead workers by
   design.)
+
+- **2026-07-19 (Lane A, SG-1 round 5): review #256/#258/#262 — all
+  pass.** #262's canonical FakeHTTPResponse (conftest) is a clean 4x
+  dedup; my test files untouched and re-verified green under the new
+  shared conftest (76 tests). #256's mcp handler coverage is additive
+  with one docstring touch. #258's on-the-record correction of its
+  own earlier scan claim is exactly the honesty culture working —
+  noted with approval, nothing to act on.
