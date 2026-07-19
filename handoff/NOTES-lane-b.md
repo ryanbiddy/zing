@@ -416,3 +416,13 @@
   v1-contract test: example passes save_judgment(section='direct')
   end-to-end, severity ordering enforced, jargon ban asserted. Next
   PRs: direction.md renderer, MCP flow doc + gate run.
+- **2026-07-19 (Lane B): S3-B part 2 — direction.md renderer (this
+  PR).** New module myzing/direction.py claimed for Lane B: renders
+  judgment['direct'] in creator order (what works → what's missing →
+  what to film), severity labels in plain words (MUST FIX/SHOULD FIX/
+  POLISH), internal evidence collapsed into a receipts section instead
+  of deleted, honest fallbacks on empty sections. Wired into
+  save_judgment(section='direct') — render failure degrades to an
+  honest receipt note, never loses the saved judgment. The shipped
+  prompt's worked example IS the render fixture, so prompt, tool, and
+  renderer cannot drift apart. Part 3 (flow doc + gate run) next.
