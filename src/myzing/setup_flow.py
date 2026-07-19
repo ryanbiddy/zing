@@ -65,9 +65,7 @@ def _pack_path(name: str) -> Path | None:
 def load_pack(name: str) -> dict[str, Any] | None:
     """A pack manifest by name, or None. Raises ValueError on a manifest
     that exists but lies (missing fields) — a bad pack must be loud."""
-    if not name or any(c in name for c in "/\\") or name.startswith("."):
-        return None
-    path = _pack_path(name)
+    path = pack_manifest_path(name)
     if path is None:
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -151,7 +149,9 @@ def plan_setup(
 
 
 def pack_manifest_path(name: str) -> Path | None:
-    """Public manifest-path lookup (build_pack needs the file, not the dict)."""
+    """The one pack-name guard + manifest-path lookup: every pack access
+    (load_pack, finish_pack/build_pack) funnels through here so the
+    path-shaped-name rejection can never diverge between callers."""
     if not name or any(c in name for c in "/\\") or name.startswith("."):
         return None
     return _pack_path(name)

@@ -639,3 +639,11 @@
   ("doctor already checks that") contained a REAL bug precisely in the
   gap between "detected" and "usable" — when triaging routed findings,
   re-verify against the reporter's evidence before closing as done.
+- **2026-07-19 (Lane B): SG-3 third pass (rotation; queue empty — P-C2
+  is Lane A/C's).** Small and real: the pack-name path-shaped-name
+  guard existed twice in setup_flow (load_pack and pack_manifest_path,
+  introduced across the D-5 work); load_pack now funnels through
+  pack_manifest_path, which documents itself as the single guard.
+  Net -4 lines, 638 tests green unchanged (the path-shaped-name
+  rejection tests pin the behavior at both call sites). Smallest
+  honest reduction available; nothing else qualified this cycle.
