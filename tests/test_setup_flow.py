@@ -249,3 +249,14 @@ def test_load_pack_rejects_path_shaped_names(pack_dir):
     assert setup_flow.load_pack("../escape") is None
     assert setup_flow.load_pack(".hidden") is None
     assert setup_flow.load_pack("") is None
+
+def test_taste_prompt_flows_into_judgment_backlog():
+    """P-B2 surviving form: guidance, not a tool — the taste prompt must
+    point at the derivable backlog (judgment_sections via list_breakdowns)."""
+    from myzing import prompt_pack
+
+    meta, text = prompt_pack.load_prompt("taste")
+    flat = " ".join(text.split())
+    assert tuple(int(x) for x in meta["version"].split(".")) >= (0, 1, 1)
+    assert "judgment_sections" in flat
+    assert "list_breakdowns()" in flat

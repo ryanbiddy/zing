@@ -228,3 +228,21 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   provenance. Actual NLE import and human listening remain separate manual
   gates.
 - **CD-Q1 (Lane C + Lane D, S3 full-fidelity follow-up):** replace the raw-editing-practice stand-in: Lane D sources ONE genuinely unedited talking-head clip (live-verify + eyeball per F-16 lesson; document license/provenance); Lane C studies it with raw_mode ON and re-freezes it into the regression set with raw-mode provenance + regeneration command. Then Lane B reruns the direction gate against it for the full-fidelity record (keepers from real raw measurements).
+- **P-B2 (Lane B, SG-5, 2026-07-19) · judgment-backlog surface.**
+  PROPOSAL: a `list_unjudged()` MCP tool / `zing judge-queue` CLI
+  listing breakdowns lacking judgment sections, so onboarding flows
+  into judging instead of stalling (S2-gate evidence: profiles from
+  unjudged sources describe no taste; Track 2 ends on a bare "judge
+  them" hint).
+  REFUTATION (mine): (1) REDUNDANT — list_breakdowns already returns
+  judgment_sections per slug; any AI can derive the backlog with a
+  filter it writes itself; a dedicated tool is surface sprawl (the
+  kinocut 150-tool cautionary verdict applies to us too). (2) The gap
+  is GUIDANCE, not capability: nothing TELLS the judging AI to check
+  the backlog at the right moment. (3) A tool adds a 18th surface to
+  test and document for a one-line derivation.
+  SURVIVES AS: prompt guidance only — taste.md and the setup_taste
+  hint teach "check judgment_sections in list_breakdowns() and offer
+  to work through unjudged references now." Implemented in the same
+  PR (two lines, Lane B files). NO new tool; recommend disposing P-B2
+  as build-rejected/guidance-shipped.
