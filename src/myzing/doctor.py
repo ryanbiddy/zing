@@ -283,6 +283,51 @@ def check_scenedetect() -> Check:
     )
 
 
+def check_tts() -> Check:
+    """S4: voiceover rendering state — optional tier (assemble works
+    without VO; the render degrades honestly)."""
+    try:
+        from myzing.tts_providers import tts_status
+
+        status = tts_status()
+    except ImportError:
+        return Check(
+            name="tts",
+            tier=OPTIONAL,
+            ok=False,
+            detail="TTS surface not importable (render extras missing)",
+            fix='python -m pip install "myzing[render]"',
+        )
+    selected = status["selected"]
+    provider = status["providers"].get(selected, {})
+    ready = bool(provider.get("ready"))
+    others = ", ".join(
+        f"{name}: {p['detail']}"
+        for name, p in status["providers"].items()
+        if name != selected
+    )
+    if ready:
+        return Check(
+            name="tts",
+            tier=OPTIONAL,
+            ok=True,
+            detail=f"voiceover via '{selected}' ({provider['detail']}); {others}",
+            data=status,
+        )
+    return Check(
+        name="tts",
+        tier=OPTIONAL,
+        ok=False,
+        detail=f"selected TTS '{selected}' not ready: {provider.get('detail', '?')}; {others}",
+        fix=(
+            "zing render fetches the kokoro model on first VO use, or "
+            "pre-fetch per docs; ElevenLabs is optional via ELEVENLABS_API_KEY"
+        ),
+        degraded_mode="renders proceed without voiceover tracks (stated in output)",
+        data=status,
+    )
+
+
 def check_uoink() -> Check:
     url = os.environ.get(UOINK_URL_ENV, "").strip() or UOINK_DEFAULT_URL
     try:
@@ -315,6 +360,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_scenedetect(),
         check_whisper(),
         check_ocr(),
+        check_tts(),
         check_uoink(),
     ]
 

@@ -90,7 +90,10 @@ def test_json_output_is_parseable_and_complete(full_machine, capsys):
     assert payload["ok"] is True
     assert payload["required_missing"] == []
     names = {c["name"] for c in payload["checks"]}
-    assert names == {"ffmpeg", "yt-dlp", "scenedetect", "faster-whisper", "ocr", "uoink"}
+    assert names == {
+        "ffmpeg", "yt-dlp", "scenedetect", "faster-whisper", "ocr",
+        "tts", "uoink",
+    }
     tiers = {c["name"]: c["tier"] for c in payload["checks"]}
     assert tiers["ffmpeg"] == "required"
     assert tiers["scenedetect"] == "recommended"
