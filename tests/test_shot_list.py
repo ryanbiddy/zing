@@ -154,3 +154,92 @@ def test_mcp_handler_returns_the_contract_receipt(studied, tmp_path):
     assert result["ok"] is True
     assert result["contract"] == "zing.shot-list.import"
     assert validate_contract_payload("zing.shot-list.import/1", result)["issues"] == []
+
+
+# -- SG-2: parser + persistence edges ----------------------------------------
+
+def test_non_utf8_file_is_invalid(studied, tmp_path):
+    doc = tmp_path / "bad.md"
+    doc.write_bytes(b"---\n\xff\xfe garbage")
+    receipt = shot_list.import_shot_list(str(doc), SLUG)
+    assert receipt["error"]["code"] == "invalid_file"
+    assert "UTF-8" in receipt["error"]["message"]
+
+
+def test_front_matter_line_without_colon(studied, tmp_path):
+    doc = tmp_path / "bad.md"
+    doc.write_text(VALID_DOC.replace("schema_version: 1", "schema_version 1"),
+                   encoding="utf-8")
+    receipt = shot_list.import_shot_list(str(doc), SLUG)
+    assert receipt["error"]["code"] == "invalid_file"
+    assert "key: value" in receipt["error"]["message"]
+
+
+def test_right_keys_wrong_order_is_named(studied, tmp_path):
+    reordered = VALID_DOC.replace(
+        "document_type: writer.shot-list\nschema_version: 1\n",
+        "schema_version: 1\ndocument_type: writer.shot-list\n",
+    )
+    doc = tmp_path / "bad.md"
+    doc.write_text(reordered, encoding="utf-8")
+    receipt = shot_list.import_shot_list(str(doc), SLUG)
+    assert receipt["error"]["code"] == "invalid_file"
+    assert "order" in receipt["error"]["message"]
+
+
+def test_missing_and_empty_title_heading(studied, tmp_path):
+    no_title = VALID_DOC.replace("# Cut of the pricing short\n", "")
+    doc = tmp_path / "a.md"
+    doc.write_text(no_title, encoding="utf-8")
+    assert "missing '# <title>'" in shot_list.import_shot_list(
+        str(doc), SLUG
+    )["error"]["message"]
+
+    empty_title = VALID_DOC.replace("# Cut of the pricing short", "#  ")
+    doc2 = tmp_path / "b.md"
+    doc2.write_text(empty_title, encoding="utf-8")
+    assert "empty" in shot_list.import_shot_list(
+        str(doc2), SLUG
+    )["error"]["message"]
+
+
+def test_unreadable_file_is_invalid_file(studied, tmp_path, monkeypatch):
+    doc = tmp_path / "locked.md"
+    doc.write_text(VALID_DOC, encoding="utf-8")
+    monkeypatch.setattr(
+        shot_list.Path, "read_bytes",
+        lambda self: (_ for _ in ()).throw(OSError("sharing violation")),
+    )
+    receipt = shot_list.import_shot_list(str(doc), SLUG)
+    assert receipt["error"]["code"] == "invalid_file"
+    assert "could not be read" in receipt["error"]["message"]
+
+
+def test_prefix_collision_is_conflict_never_overwrite(studied, tmp_path):
+    doc = tmp_path / "export.md"
+    doc.write_text(VALID_DOC, encoding="utf-8")
+    import hashlib
+
+    # Hash the FILE's bytes, not the source string — write_text
+    # translates newlines on Windows, and the product hashes what it
+    # reads from disk.
+    sha = hashlib.sha256(doc.read_bytes()).hexdigest()
+    imports = storage.breakdown_dir(SLUG) / shot_list.IMPORTS_DIRNAME
+    imports.mkdir(parents=True, exist_ok=True)
+    occupant = imports / f"writer-shot-list-{sha[:16]}.md"
+    occupant.write_bytes(b"different bytes at the same address")
+    receipt = shot_list.import_shot_list(str(doc), SLUG)
+    assert receipt["error"]["code"] == "conflict"
+    assert occupant.read_bytes() == b"different bytes at the same address"
+
+
+def test_unwritable_storage_is_retryable(studied, tmp_path, monkeypatch):
+    doc = tmp_path / "export.md"
+    doc.write_text(VALID_DOC, encoding="utf-8")
+    monkeypatch.setattr(
+        shot_list.Path, "write_bytes",
+        lambda self, data: (_ for _ in ()).throw(OSError("disk full")),
+    )
+    receipt = shot_list.import_shot_list(str(doc), SLUG)
+    assert receipt["error"]["code"] == "storage_unavailable"
+    assert receipt["error"]["retryable"] is True

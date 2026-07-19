@@ -1373,3 +1373,20 @@
     Standing reminder to myself: advocacy is when evidence inflation
     is most tempting — count catches the way I count test results,
     exactly.
+- **2026-07-19 (Lane B): SG-2 eighth pass (rotation; freeze,
+  tests-only) — shot_list 89%→100%, uoink_bridge 89%→100%.** 15 new
+  tests over the last unpinned edges: shot-list's non-UTF-8 /
+  colonless front matter / right-keys-wrong-order / missing-and-empty
+  title / unreadable file / prefix-collision conflict (asserts the
+  occupant's bytes survive untouched) / retryable storage failure;
+  the bridge's unparseable HTTP error bodies, non-object and
+  extra-key envelopes, wrong data/media key sets, unknown state, the
+  push title-fallback when a breakdown is unloadable, and the push
+  HTTP-status fallback. One Windows wrinkle worth recording:
+  write_text translates newlines, so a test computing a content hash
+  must hash the FILE's bytes, not the source string — the product
+  always hashed disk bytes (correct); only my first test draft
+  assumed otherwise. Lane B's B-S6 modules now sit at 100/100/95
+  (shot_list/uoink_bridge/suite_peer) with mcp_server at 93; every
+  remaining lane miss is documented plumbing. Suite 914 passed / 2
+  skipped.
