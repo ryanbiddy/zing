@@ -5,7 +5,7 @@
       "criterion_id": "H1",
       "profile_evidence": "The profile begins speaking before 1.5 seconds.",
       "footage_evidence": "The first usable words begin at 6.2 seconds.",
-      "severity": "high"
+      "severity": "blocking"
     }
   ],
   "shot_prompts": [

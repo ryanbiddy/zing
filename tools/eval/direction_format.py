@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 
-DIRECTION_VALIDATOR_VERSION = "1.0.0"
+DIRECTION_VALIDATOR_VERSION = "1.1.0"
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 DEFAULT_CRITERION_INDEX = ROOT / "docs" / "taste" / "INDEX.md"
@@ -44,6 +44,7 @@ _KEEPER_TYPES = {
     "end": (int, float),
     "why": str,
 }
+_SEVERITIES = frozenset({"blocking", "important", "polish"})
 
 
 def _sha256(path: Path) -> str:
@@ -178,6 +179,21 @@ def _shape_issues(direction: Any) -> list[dict[str, Any]]:
                     required,
                 )
             )
+    gaps = direction.get("gaps")
+    if isinstance(gaps, list):
+        for index, gap in enumerate(gaps):
+            if not isinstance(gap, Mapping):
+                continue
+            severity = gap.get("severity")
+            if isinstance(severity, str) and severity not in _SEVERITIES:
+                issues.append(
+                    {
+                        "path": f"direct.gaps[{index}].severity",
+                        "kind": "invalid_value",
+                        "expected": sorted(_SEVERITIES),
+                        "actual": severity,
+                    }
+                )
     return issues
 
 

@@ -30,7 +30,7 @@ VALID_DIRECTION = {
             "criterion_id": "H1",
             "profile_evidence": "The profile begins speaking before 1.5 seconds.",
             "footage_evidence": "The first usable words begin at 6.2 seconds.",
-            "severity": "high",
+            "severity": "blocking",
         }
     ],
     "shot_prompts": [
@@ -111,6 +111,12 @@ def test_index_parser_and_checked_in_direction_pass() -> None:
             _missing(("gaps", 0, "severity")),
             "shape",
             "missing_key",
+            "direct.gaps[0].severity",
+        ),
+        (
+            _set(("gaps", 0, "severity"), "high"),
+            "shape",
+            "invalid_value",
             "direct.gaps[0].severity",
         ),
         (
