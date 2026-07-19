@@ -825,3 +825,21 @@
   _ocr guards, and real _iter_frames/_changed seam tests via
   cv2.VideoWriter (numpy properly importorskip-guarded for the
   extras-free CI matrix).
+
+- **2026-07-19 (Lane A, consolidated NOTES — entries from closed PRs
+  #191/#257, serialized after the code PRs):**
+  - *SG-1 review #176/#185/#188 — all pass, one observation routed
+    B/C:* setup_flow's Phase-1 `thread.join()` is unbounded; an
+    alive-but-wedged worker (hung ffmpeg — Lane C's kill-switch
+    class) hangs setup and defeats the dead-worker reconciler, which
+    only detects DEAD workers. Suggest join(timeout) loop with honest
+    "worker unresponsive for Ns" naming.
+  - *Process finding (mine):* four of my PRs sat silently unmerged
+    while I reported them landed. Causes: numpy imported before its
+    importorskip guard (killed CI collection on the extras-free
+    matrix); a red-CI misattribution to the known host-dependent
+    doctor tests without reading the log; NOTES-append contention
+    making parallel PRs mutually conflicting. All recovered; lessons
+    adopted: VERIFY merges landed on a later pull ("armed" is not
+    "merged"), read the actual failing log before attributing, and
+    serialize NOTES-bearing PRs.
