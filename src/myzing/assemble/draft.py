@@ -33,6 +33,7 @@ OUTPUT_RATIOS = {
     "landscape": (16, 9),
     "square": (1, 1),
 }
+THIN_STYLE_BASIS_EVENTS = 15  # O-3: fewer measured events than this = warn
 
 
 class AssembleError(RuntimeError):
@@ -127,6 +128,17 @@ def draft_edl(
     if output_warning:
         warnings.append(output_warning)
     captions = _caption_specs(breakdown, clips)
+    # O-3 (S5 gate): style measured from a handful of on-screen text
+    # events (which may be overlays/junk, not speech captions) styled
+    # every derived caption — defensible, but a thin basis deserves a
+    # warning the way thin profile stats get one.
+    if captions and 0 < len(breakdown.captions) < THIN_STYLE_BASIS_EVENTS:
+        warnings.append(
+            f"draft EDL: caption style measured from only "
+            f"{len(breakdown.captions)} on-screen text event(s) — possibly "
+            f"non-caption text — and applied to {len(captions)} derived "
+            "caption(s); treat style as a guess, not a measurement"
+        )
     if not captions and breakdown.words:
         warnings.append(
             "draft EDL: no transcript words fall inside the chosen spans — "

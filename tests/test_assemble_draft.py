@@ -351,3 +351,39 @@ def test_assemble_cli_missing_media_is_honest(zing_workspace, tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 1
     assert "no stored media" in out
+def test_thin_caption_style_basis_warns(media):
+    """O-3 (S5 gate): a handful of measured on-screen text events styling
+    every derived caption is a guess, and says so."""
+    from myzing.schemas import CaptionEvent, Word
+
+    b = make_breakdown()
+    b.words = [Word("hi", 5.0, 5.3, 0.9), Word("there", 5.4, 5.7, 0.9)]
+    b.captions = [
+        CaptionEvent("junk", 1.0, 2.0, "center", True, 1, 0.8)
+        for _ in range(13)
+    ]
+    result = draft_edl(b, direction_with([
+        {"start": 4.5, "end": 8.0, "why": "x"},
+    ]), media)
+
+    assert result.edl.captions
+    assert any(
+        "caption style measured from only 13" in w and "guess" in w
+        for w in result.warnings
+    )
+
+
+def test_rich_caption_style_basis_does_not_warn(media):
+    from myzing.schemas import CaptionEvent, Word
+
+    b = make_breakdown()
+    b.words = [Word("hi", 5.0, 5.3, 0.9)]
+    b.captions = [
+        CaptionEvent(f"word {i}", i * 1.0, i * 1.0 + 0.5, "lower", False, 1, 0.9)
+        for i in range(20)
+    ]
+    result = draft_edl(b, direction_with([
+        {"start": 4.5, "end": 8.0, "why": "x"},
+    ]), media)
+
+    assert not any("style measured from only" in w for w in result.warnings)

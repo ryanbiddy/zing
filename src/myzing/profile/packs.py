@@ -120,9 +120,17 @@ def build_pack(
         ref_provenance.append(entry)
 
     if not slugs:
+        # D-12: when everything fails (often one shared root cause), the
+        # collected per-reference causes are the only actionable detail —
+        # they must survive into the error.
+        causes = "; ".join(
+            f"{ref_id}: {cause}" for ref_id, cause in failed[:3]
+        )
+        more = f" (+{len(failed) - 3} more)" if len(failed) > 3 else ""
         raise PackError(
             f"pack '{manifest['pack_id']}': no reference could be studied — "
-            "a preset built from nothing would be a lie"
+            "a preset built from nothing would be a lie. Failures: "
+            f"{causes}{more}"
         )
 
     profile = build_profile(
