@@ -80,8 +80,14 @@ def _run_detector(
         ),
         start_in_scene=True,
     )
+    def _t(tc):
+        # scenedetect renamed get_seconds() -> .seconds (deprecation seen
+        # live by the real-seam test); support both so the floating dep
+        # can't break us in either direction.
+        return tc.seconds if hasattr(tc, "seconds") else tc.get_seconds()
+
     return (
-        [(start.get_seconds(), end.get_seconds()) for start, end in scenes],
+        [(_t(start), _t(end)) for start, end in scenes],
         getattr(scenedetect, "__version__", "unknown"),
     )
 

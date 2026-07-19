@@ -806,3 +806,12 @@
   Lane B's non-tty UTF-8 reconfigure (my ASCII pass covered summary
   lines; their layer covers warning strings). study/profile/assemble
   all verified for the sitting.
+
+- **2026-07-19 (Lane A, SG-2 finisher): shots.py 92% -> 100% via a
+  real-scenedetect seam test — which immediately caught a live
+  deprecation.** The synthetic two-scene clip test exercised
+  _run_detector for real (every other test mocks it) and surfaced
+  scenedetect's get_seconds() -> .seconds rename in the installed
+  version — invisible to mocked tests by construction. Fixed
+  version-tolerantly (property with fallback). Every Lane A module
+  is now >=95%, most at 96-100. Suite 823, deprecation-clean.
