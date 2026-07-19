@@ -64,7 +64,15 @@ the bottom but never claim outside their lane.
   PROPOSAL: before study() writes breakdown.json, run the invariant
   checks the S5 sweep applied by hand (shot spans positive and within
   duration ±0.5s; word timestamps monotonic and within duration ±1s;
-  caption events within duration ±1s; provenance non-empty) and
+  caption events within duration ±1s; stage-evidence reconciliation —
+  AMENDED per Lane C audit #212 P2: "provenance non-empty" was
+  vacuous because zing_version/measured_at are added unconditionally
+  (study/api.py:147). The real invariant: for each pipeline stage,
+  EITHER its named provenance evidence is present (shots →
+  shot_detector; transcribe → whisper_model; captions → ocr_backend;
+  audio → loudness/vad) OR a warning names why that stage was
+  skipped. A breakdown with neither is the defect this check exists
+  to catch) and
   append a named warning per violation — never block, never mutate.
   Evidence: these exact checks were rewritten 4+ times in throwaway
   scripts during the sweep (repetition = missing tool), and SW-4

@@ -589,3 +589,17 @@
     redundancies (JSONDecodeError<:ValueError, ModuleNotFoundError
     <:ImportError, UnicodeError<:ValueError) — semantics-preserving,
     with a source-inspection guard against re-accretion. Pass.
+
+- **2026-07-19 (Lane A): audit #212 P2 against my SG-5 proposal —
+  CONFIRMED and amended same cycle.** Lane C is right: "provenance
+  non-empty" was vacuous (zing_version/measured_at are unconditional,
+  study/api.py:147 — verified). The proposal now requires
+  stage-evidence reconciliation:each stage either presents its named
+  provenance key (shot_detector / whisper_model / ocr_backend /
+  loudness+vad) or a warning names the skip; neither = the exact
+  defect the check exists to catch. This is also the stronger check:
+  it would catch a stage silently dying, which "non-empty" never
+  could. Their process observation (findings close only on a passing
+  consumer-boundary regression) is adopted for the self-check's
+  eventual implementation: SW-4's inversion becomes the pinned
+  regression case.
