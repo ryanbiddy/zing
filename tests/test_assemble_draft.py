@@ -133,6 +133,50 @@ def test_missing_dimensions_fail_instead_of_inventing_portrait(media):
         ]), media)
 
 
+@pytest.mark.parametrize(
+    ("measured", "expected", "preset"),
+    [
+        ((240, 426), (234, 416), "vertical"),
+        ((426, 240), (416, 234), "landscape"),
+        ((1079, 1080), (1078, 1078), "square"),
+    ],
+)
+def test_near_preset_source_maps_to_exact_even_output(
+    media,
+    measured,
+    expected,
+    preset,
+):
+    from myzing.render.validation import output_preset
+
+    b = make_breakdown()
+    b.meta.width, b.meta.height = measured
+
+    result = draft_edl(b, direction_with([
+        {"start": 5.0, "end": 10.0, "why": "x"},
+    ]), media)
+
+    assert (result.edl.width, result.edl.height) == expected
+    assert output_preset(*expected) == preset
+    assert any(
+        f"measured {measured[0]}x{measured[1]}" in warning
+        and f"output {expected[0]}x{expected[1]}" in warning
+        for warning in result.warnings
+    )
+    assert (b.meta.width, b.meta.height) == measured
+
+
+def test_non_preset_source_aspect_fails_before_render(media):
+    b = make_breakdown()
+    b.meta.width = 1000
+    b.meta.height = 700
+
+    with pytest.raises(AssembleError, match="not within 2%"):
+        draft_edl(b, direction_with([
+            {"start": 5.0, "end": 10.0, "why": "x"},
+        ]), media)
+
+
 def test_missing_media_is_an_error(tmp_path):
     with pytest.raises(AssembleError, match="source media missing"):
         draft_edl(make_breakdown(), direction_with([
