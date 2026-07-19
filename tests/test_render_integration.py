@@ -8,8 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from myzing.render.assemble import VoiceoverScript, render_assembled_edl
 from myzing.render.captions import caption_anchor
 from myzing.render.pipeline import render_edl
+from myzing.render.tts import SynthesisResult
 from myzing.schemas import AudioTrack, CaptionSpec, Clip, EDL, Word
 
 
@@ -359,3 +361,67 @@ def test_zing_render_command_dispatches_end_to_end(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert str(output) in result.stdout
     assert output.stat().st_size > 0
+
+
+def test_scripted_voiceover_is_audible_in_rendered_output(tmp_path: Path) -> None:
+    source = tmp_path / "silent source.mp4"
+    make_color_video(source, "teal", duration=1.5)
+    output = tmp_path / "scripted draft.mp4"
+
+    class ToneVoiceProvider:
+        name = "constructed-tone"
+
+        def synthesize(self, request, output_path: Path) -> SynthesisResult:
+            make_tone(output_path, 3_000, 0.6)
+            return SynthesisResult(
+                path=output_path.resolve(),
+                provider=self.name,
+                voice=request.voice,
+                sample_rate=48_000,
+                duration=0.6,
+            )
+
+    result = render_assembled_edl(
+        EDL(
+            clips=[Clip(str(source), 0.0, 1.5, 0.0)],
+            captions=[
+                CaptionSpec(
+                    "Result first",
+                    0.4,
+                    1.0,
+                    word_timed=False,
+                )
+            ],
+            width=180,
+            height=320,
+        ),
+        output,
+        scripts=[VoiceoverScript("The result comes first.", timeline_start=0.4)],
+        provider=ToneVoiceProvider(),
+        base_dir=tmp_path,
+    )
+
+    before_voice = mean_volume(output, 0.05, 0.2, band_hz=3_000)
+    during_voice = mean_volume(output, 0.55, 0.2, band_hz=3_000)
+    assert during_voice - before_voice >= 30.0
+    anchor_x, anchor_y = caption_anchor("lower", 180, 320)
+    caption_off = gray_region(
+        output,
+        0.1,
+        anchor_x - 70,
+        anchor_y - 25,
+        140,
+        50,
+    )
+    caption_on = gray_region(
+        output,
+        0.7,
+        anchor_x - 70,
+        anchor_y - 25,
+        140,
+        50,
+    )
+    assert sum(
+        abs(left - right) for left, right in zip(caption_off, caption_on)
+    ) > 5_000
+    assert result.voiceovers[0].path.name == "voiceover-01.wav"

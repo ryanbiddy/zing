@@ -9,7 +9,10 @@ from pathlib import Path
 
 from myzing.schemas import EDL
 
+from .assemble import VoiceoverScript, render_assembled_edl
+from .otio_export import OTIOExportError
 from .pipeline import RenderError, render_edl
+from .tts import TTSGenerationError, TTSUnavailableError, default_tts_provider
 from .validation import EDLValidationError
 
 
@@ -32,6 +35,39 @@ def _parser() -> argparse.ArgumentParser:
         "--keep-work",
         type=Path,
         help="retain generated ASS and filtergraph in this directory",
+    )
+    parser.add_argument(
+        "--voiceover-script",
+        type=Path,
+        help="UTF-8 text file to synthesize as a Kokoro voiceover track",
+    )
+    parser.add_argument(
+        "--voiceover-start",
+        type=float,
+        default=0.0,
+        help="voiceover placement on the output timeline in seconds",
+    )
+    parser.add_argument("--voice", default="af_sarah", help="Kokoro voice ID")
+    parser.add_argument(
+        "--voice-language",
+        default="en-us",
+        help="Kokoro language ID",
+    )
+    parser.add_argument(
+        "--voice-speed",
+        type=float,
+        default=1.0,
+        help="positive Kokoro speaking-speed multiplier",
+    )
+    parser.add_argument(
+        "--kokoro-model-dir",
+        type=Path,
+        help="directory containing kokoro-v1.0.onnx and voices-v1.0.bin",
+    )
+    parser.add_argument(
+        "--otio",
+        type=Path,
+        help="also export the assembled timeline to this .otio file",
     )
     return parser
 
@@ -63,20 +99,81 @@ def run(argv: list[str]) -> int:
         if args.output
         else edl_path.with_suffix(".mp4")
     )
-    try:
-        result = render_edl(
-            edl,
-            output,
-            base_dir=edl_path.parent,
-            work_dir=args.keep_work,
-            ffmpeg=args.ffmpeg,
-            ffprobe=args.ffprobe,
+    scripts = []
+    provider = None
+    if args.voiceover_script is not None:
+        script_path = args.voiceover_script.expanduser().resolve()
+        if not script_path.is_file():
+            print(
+                f"zing render: voiceover script does not exist: {script_path}",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            script_text = script_path.read_text(encoding="utf-8")
+            scripts.append(
+                VoiceoverScript(
+                    text=script_text,
+                    timeline_start=args.voiceover_start,
+                    voice=args.voice,
+                    speed=args.voice_speed,
+                    language=args.voice_language,
+                )
+            )
+        except (OSError, UnicodeError, ValueError) as exc:
+            print(f"zing render: invalid voiceover script: {exc}", file=sys.stderr)
+            return 2
+        provider = default_tts_provider(args.kokoro_model_dir)
+    elif args.kokoro_model_dir is not None:
+        print(
+            "zing render: --kokoro-model-dir requires --voiceover-script",
+            file=sys.stderr,
         )
-    except (EDLValidationError, RenderError) as exc:
+        return 2
+    otio_path = args.otio.expanduser().resolve() if args.otio else None
+    try:
+        if scripts or otio_path is not None:
+            assembled = render_assembled_edl(
+                edl,
+                output,
+                scripts=scripts,
+                provider=provider,
+                otio_path=otio_path,
+                base_dir=edl_path.parent,
+                work_dir=args.keep_work,
+                ffmpeg=args.ffmpeg,
+                ffprobe=args.ffprobe,
+            )
+            result = assembled.render
+        else:
+            assembled = None
+            result = render_edl(
+                edl,
+                output,
+                base_dir=edl_path.parent,
+                work_dir=args.keep_work,
+                ffmpeg=args.ffmpeg,
+                ffprobe=args.ffprobe,
+            )
+    except (
+        EDLValidationError,
+        OTIOExportError,
+        RenderError,
+        TTSGenerationError,
+        TTSUnavailableError,
+    ) as exc:
         print(f"zing render: {exc}", file=sys.stderr)
         return 1
 
     for warning in result.warnings:
         print(f"zing render: warning: {warning}", file=sys.stderr)
+    if assembled is not None:
+        for voiceover in assembled.voiceovers:
+            print(f"zing render: voiceover: {voiceover.path}", file=sys.stderr)
+        if assembled.otio is not None:
+            print(
+                f"zing render: OpenTimelineIO: {assembled.otio.output_path}",
+                file=sys.stderr,
+            )
     print(result.output_path)
     return 0
