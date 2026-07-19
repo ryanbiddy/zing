@@ -373,6 +373,18 @@ def run(argv: list[str]) -> int:
     # D-3 (links path): the CLI must outlive its own background studies —
     # advance, wait for the jobs it started, advance again; a bounded
     # number of restart rounds so repeated failures end honestly.
+    # Last-known error per slug, carried ACROSS retry rounds: the give-up
+    # report must never lose detail to a transient status read (main-red
+    # regression, 2026-07-19 — a mid-rewrite read once blanked the report).
+    last_errors: dict[str, str] = {}
+
+    def _harvest_errors() -> None:
+        for url in links:
+            slug = storage.slug_for(url)
+            status = storage.read_status(slug) or {}
+            if status.get("error"):
+                last_errors[slug] = status["error"]
+
     for attempt in range(4):
         try:
             outcome = advance_setup(name, links, genre, platform)
@@ -381,6 +393,7 @@ def run(argv: list[str]) -> int:
             return 1
         for line in outcome["start_errors"]:
             print(f"  could not start study: {line}")
+        _harvest_errors()
         plan = outcome["plan"]
 
         if outcome["built"]:
@@ -413,10 +426,12 @@ def run(argv: list[str]) -> int:
         wait_for_studies(name, links, genre, platform, progress=_progress)
 
     plan = plan_setup(name, links, genre, platform)
+    _harvest_errors()
     print(f"Taste '{name}' could not be completed:")
     for s in plan["references"]:
         status = storage.read_status(s["slug"]) or {}
-        detail = f" — {status.get('error', '')}" if s["state"] == "failed" else ""
+        error = status.get("error") or last_errors.get(s["slug"], "")
+        detail = f" — {error}" if error else ""
         print(f"  [{s['state']:>9}] {s['slug']}{detail}")
     print("Fix the causes above (zing doctor helps) and re-run.")
     return 1
