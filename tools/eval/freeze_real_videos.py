@@ -183,11 +183,8 @@ def _freeze_with_adapter(
             raise RegressionFreezeError(
                 f"source document not found: {source_document_path}"
             )
-    output.mkdir(parents=True, exist_ok=True)
-    frozen_directories = []
     for case in manifest["cases"]:
         human_truth = _human_truth(manifest, case)
-        truth_path = None
         if human_truth["available"]:
             truth_path = HERE.parents[1] / human_truth["path"]
             if not truth_path.is_file():
@@ -204,6 +201,16 @@ def _freeze_with_adapter(
             raise RegressionFreezeError(
                 f"refusing to replace frozen fixture: {case_directory}"
             )
+
+    output.mkdir(parents=True, exist_ok=True)
+    frozen_directories = []
+    for case in manifest["cases"]:
+        human_truth = _human_truth(manifest, case)
+        truth_path = None
+        if human_truth["available"]:
+            truth_path = HERE.parents[1] / human_truth["path"]
+        media_path = media_root / case["media_filename"]
+        case_directory = output / case["fixture_id"]
 
         measured = adapter(media_path)
         artifact_directory = adapter.artifact_directory_for(media_path)

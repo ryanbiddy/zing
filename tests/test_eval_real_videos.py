@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 from myzing.schemas import Breakdown, Shot, VideoMeta
 from tools.eval import backfill_frames
+from tools.eval import freeze_real_videos as freeze_real_videos_module
 from tools.eval.freeze_real_videos import (
     DEFAULT_MANIFEST,
     RegressionFreezeError,
@@ -153,6 +154,80 @@ def test_freeze_real_videos_writes_portable_outputs_and_provenance(
             adapter=adapter,
             ffmpeg="not-installed-ffmpeg",
         )
+
+
+def test_freeze_run_prints_every_frozen_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    media_root = tmp_path / "media"
+    output = tmp_path / "frozen"
+    manifest_path = tmp_path / "manifest.json"
+    frozen = [output / "first", output / "second"]
+
+    def fake_freeze(
+        actual_media_root: Path,
+        actual_output: Path,
+        actual_manifest: Path,
+        *,
+        ffmpeg: str,
+        ffprobe: str,
+    ) -> list[Path]:
+        assert actual_media_root == media_root
+        assert actual_output == output
+        assert actual_manifest == manifest_path
+        assert ffmpeg == "fixture-ffmpeg"
+        assert ffprobe == "fixture-ffprobe"
+        return frozen
+
+    monkeypatch.setattr(
+        freeze_real_videos_module,
+        "freeze_real_videos",
+        fake_freeze,
+    )
+
+    assert freeze_real_videos_module.run(
+        [
+            "--media-root",
+            str(media_root),
+            "--output",
+            str(output),
+            "--manifest",
+            str(manifest_path),
+            "--ffmpeg",
+            "fixture-ffmpeg",
+            "--ffprobe",
+            "fixture-ffprobe",
+        ]
+    ) == 0
+    assert capsys.readouterr().out == f"{frozen[0]}\n{frozen[1]}\n"
+
+
+def test_freeze_preflights_all_media_before_writing(
+    tmp_path: Path,
+) -> None:
+    manifest = json.loads(DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    first_case = manifest["cases"][0]
+    (media_root / first_case["media_filename"]).write_bytes(
+        first_case["video_id"].encode("ascii")
+    )
+    output = tmp_path / "frozen"
+    adapter = FakeBenchmarkAdapter(tmp_path / "study")
+
+    with pytest.raises(RegressionFreezeError, match="media not found"):
+        freeze_real_videos(
+            media_root,
+            output,
+            DEFAULT_MANIFEST,
+            adapter=adapter,
+            ffmpeg="not-installed-ffmpeg",
+        )
+
+    assert not output.exists()
+    assert adapter.artifacts == {}
 
 
 def test_freeze_supports_measurement_only_cases_with_rights_provenance(
