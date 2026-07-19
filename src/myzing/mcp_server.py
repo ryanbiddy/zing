@@ -713,6 +713,187 @@ def h_list_profiles() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Render / export tools (S4 Track 1, Lane B surface over Lane C's engine)
+# ---------------------------------------------------------------------------
+
+_RENDER_JOBS: dict[str, threading.Thread] = {}
+
+
+def _load_edl(edl_path: str):
+    """(edl, base_dir, err) — parse cheaply before any job spawns."""
+    from myzing.schemas import EDL
+
+    p = Path(edl_path).expanduser()
+    if not p.is_file():
+        return None, None, _err(
+            f"EDL file not found: {edl_path} — pass a path to an edl.json"
+        )
+    try:
+        edl = EDL.from_json(p.read_text(encoding="utf-8"))
+    except (ValueError, KeyError, TypeError) as e:
+        return None, None, _err(
+            f"could not parse EDL {p.name}: {e} — the EDL contract is in "
+            "schemas.py (clips/captions/audio)"
+        )
+    return edl, p.resolve().parent, None
+
+
+def _render_id_for(edl_path: str) -> str:
+    import hashlib
+
+    p = Path(edl_path).expanduser().resolve()
+    stem = re.sub(r"[^a-z0-9]+", "-", p.stem.lower()).strip("-") or "edl"
+    digest = hashlib.sha256(str(p).encode()).hexdigest()[:8]
+    return f"{stem}-{digest}"
+
+
+def _run_render(edl, base_dir: Path, out_path: Path, render_id: str, root: Path) -> None:
+    from myzing.render import pipeline
+
+    with storage.use_workspace(root):
+        d = storage.render_dir(render_id)
+        try:
+            result = pipeline.render_edl(edl, out_path, base_dir=base_dir)
+            storage.write_status_at(
+                d,
+                state="done",
+                output=str(result.output_path if hasattr(result, "output_path") else out_path),
+                finished_at=_now(),
+                updated_at=_now(),
+                error="",
+            )
+        except Exception as e:  # noqa: BLE001 — boundary: honest disk state
+            storage.write_status_at(
+                d,
+                state="failed",
+                error=f"{type(e).__name__}: {e}",
+                finished_at=_now(),
+                updated_at=_now(),
+            )
+        finally:
+            with _JOBS_LOCK:
+                if _RENDER_JOBS.get(render_id) is threading.current_thread():
+                    _RENDER_JOBS.pop(render_id, None)
+
+
+def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
+    if not shutil.which("ffmpeg"):
+        return _err(
+            "ffmpeg not found on PATH — run `zing doctor` for the install "
+            "command."
+        )
+    edl, base_dir, bad = _load_edl(edl_path)
+    if bad:
+        return bad
+    render_id = _render_id_for(edl_path)
+    root = storage.workspace_root()
+    d = storage.render_dir(render_id)
+    out = (
+        Path(output_path).expanduser().resolve()
+        if output_path
+        else d / "output.mp4"
+    )
+    with _JOBS_LOCK:
+        job = _RENDER_JOBS.get(render_id)
+        if job is not None and job.is_alive():
+            status = storage.read_status_at(d) or {}
+            if status.get("state") == "running":
+                return _ok(
+                    render_id=render_id,
+                    status="already_rendering",
+                    hint="poll get_render(render_id)",
+                )
+        storage.write_status_at(
+            d,
+            state="running",
+            edl=str(Path(edl_path).expanduser().resolve()),
+            output=str(out),
+            pid=os.getpid(),
+            started_at=_now(),
+            updated_at=_now(),
+            error="",
+        )
+        thread = threading.Thread(
+            target=_run_render,
+            args=(edl, base_dir, out, render_id, root),
+            daemon=True,
+        )
+        _RENDER_JOBS[render_id] = thread
+        thread.start()
+    return _ok(
+        render_id=render_id,
+        status="started",
+        output=str(out),
+        hint=(
+            "rendering in the background (seconds to a few minutes). Poll "
+            "get_render(render_id)."
+        ),
+    )
+
+
+def h_get_render(render_id: str) -> dict[str, Any]:
+    try:
+        d = storage.render_dir(render_id)
+    except storage.SlugError as e:
+        return _err(f"invalid render id: {e}")
+    status = storage.read_status_at(d)
+    if status is None:
+        return _err(
+            f"no render named '{render_id}' — render_edl(edl_path) starts one"
+        )
+    if status.get("state") == "running":
+        with _JOBS_LOCK:
+            job = _RENDER_JOBS.get(render_id)
+            if (job is None or not job.is_alive()) and status.get(
+                "pid"
+            ) == os.getpid():
+                # crash honesty, same rule as studies: a running state
+                # without its worker is rewritten, not believed
+                error = (
+                    "render interrupted — status said 'running' but its "
+                    "worker is gone; call render_edl again"
+                )
+                storage.write_status_at(
+                    d, state="failed", error=error, updated_at=_now()
+                )
+                return _ok(render_id=render_id, state="failed", error=error)
+    return _ok(render_id=render_id, **{
+        k: v for k, v in status.items() if k != "pid"
+    })
+
+
+def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
+    edl, base_dir, bad = _load_edl(edl_path)
+    if bad:
+        return bad
+    try:
+        from myzing.render.otio_export import OTIOExportError, export_otio
+    except ImportError:
+        return _err(
+            "OTIO export needs the render extras: "
+            'python -m pip install "myzing[render]"'
+        )
+    src = Path(edl_path).expanduser().resolve()
+    out = (
+        Path(output_path).expanduser().resolve()
+        if output_path
+        else src.with_suffix(".otio")
+    )
+    try:
+        result = export_otio(edl, out, base_dir=base_dir)
+    except OTIOExportError as e:
+        return _err(f"OTIO export failed: {e}")
+    return _ok(
+        output=str(out),
+        clips=len(edl.clips),
+        captions=len(edl.captions),
+        audio_tracks=len(edl.audio),
+        hint="open the .otio in an NLE (Resolve/Premiere via adapters)",
+        detail=str(result),
+    )
+
+
+# ---------------------------------------------------------------------------
 # get_frames (B-Q8, built to handoff/research/B-Q3-get-frames-design.md)
 # ---------------------------------------------------------------------------
 
@@ -939,6 +1120,30 @@ def build_server():
         ),
     )(h_push_to_uoink)
 
+    mcp.tool(
+        name="render_edl",
+        description=(
+            "Render an EDL json to a video file with ffmpeg (cuts, "
+            "word-timed captions, audio mix). Validates cheaply and returns "
+            "a render_id immediately; rendering runs in the background "
+            "(seconds to a few minutes) — poll get_render(render_id). "
+            "Renders without voiceover when no TTS is available (stated)."
+        ),
+    )(h_render_edl)
+    mcp.tool(
+        name="get_render",
+        description=(
+            "A render job's honest state: running / done (with the output "
+            "path) / failed (with the error and next step)."
+        ),
+    )(h_get_render)
+    mcp.tool(
+        name="export_otio",
+        description=(
+            "Export an EDL json as an OpenTimelineIO (.otio) timeline that "
+            "opens in real NLEs. Fast and synchronous."
+        ),
+    )(h_export_otio)
     mcp.tool(
         name="build_profile",
         description=(

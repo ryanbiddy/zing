@@ -293,12 +293,12 @@ def resolve_relpath(slug: str, rel: str) -> Path:
 # lives ON DISK so a crashed helper leaves honest state, never an
 # in-memory-only lie. States: running | done | failed.
 
-def write_status(slug: str, **fields: Any) -> Path:
-    """Merge fields into the slug's status.json (created if absent)."""
-    d = breakdown_dir(slug)
+def write_status_at(d: Path, **fields: Any) -> Path:
+    """Merge fields into ``d/status.json`` (created if absent) — the
+    generic on-disk job state used by study AND render jobs (S4)."""
     d.mkdir(parents=True, exist_ok=True)
     path = d / "status.json"
-    current = read_status(slug) or {}
+    current = read_status_at(d) or {}
     current.update(fields)
     path.write_text(
         json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -306,9 +306,9 @@ def write_status(slug: str, **fields: Any) -> Path:
     return path
 
 
-def read_status(slug: str) -> dict[str, Any] | None:
-    """The slug's study status, or None when absent/unreadable."""
-    path = breakdown_dir(slug) / "status.json"
+def read_status_at(d: Path) -> dict[str, Any] | None:
+    """``d/status.json`` as a dict, or None when absent/unreadable."""
+    path = d / "status.json"
     if not path.is_file():
         return None
     try:
@@ -316,6 +316,26 @@ def read_status(slug: str) -> dict[str, Any] | None:
         return data if isinstance(data, dict) else None
     except (OSError, ValueError):
         return None
+
+
+def write_status(slug: str, **fields: Any) -> Path:
+    """Merge fields into the slug's status.json (created if absent)."""
+    return write_status_at(breakdown_dir(slug), **fields)
+
+
+def read_status(slug: str) -> dict[str, Any] | None:
+    """The slug's study status, or None when absent/unreadable."""
+    return read_status_at(breakdown_dir(slug))
+
+
+def renders_root() -> Path:
+    return workspace_root() / "renders"
+
+
+def render_dir(render_id: str) -> Path:
+    """The directory for one render job (validated like a slug)."""
+    _validate_name(render_id, renders_root(), "render id")
+    return renders_root() / render_id
 
 
 # ---------------------------------------------------------------------------

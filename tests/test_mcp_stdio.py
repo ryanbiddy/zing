@@ -144,6 +144,9 @@ EXPECTED_TOOLS = {
     "build_profile",
     "get_profile",
     "list_profiles",
+    "render_edl",
+    "get_render",
+    "export_otio",
 }
 
 
