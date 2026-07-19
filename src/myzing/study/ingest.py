@@ -26,6 +26,7 @@ an explicit warning, never assumed away.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import shutil
@@ -73,6 +74,7 @@ class IngestResult:
     media_path: Path              # absolute path to the file measurements run on
     breakdown_dir: Path
     warnings: list[str] = field(default_factory=list)
+    provenance: dict[str, Any] = field(default_factory=dict)
 
 
 def is_url(source: str) -> bool:
@@ -94,22 +96,57 @@ def detect_platform(source: str) -> str:
     return "url"
 
 
-def ingest(source: str) -> IngestResult:
+def ingest(
+    source: str, kept_media: str | Path | None = None
+) -> IngestResult:
     """Workspace routing is storage's job (ContextVar pin via
-    use_workspace); ingest never carries roots around."""
+    use_workspace); ingest never carries roots around.
+
+    ``kept_media`` (A-S6): a locally kept copy of a URL source (uoink
+    keep_media). When usable it is staged with a sha256 anchor and ZERO
+    network fetch; when missing, unreadable, or failing the probe, the
+    fallback to a normal fetch is named in warnings — never silent.
+    """
     warnings: list[str] = []
+    provenance: dict[str, Any] = {}
     slug = storage.slug_for(source)
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
 
+    probed = None
     if is_url(source):
-        media = _fetch(source, slug, dest, warnings)
-        info = _read_info_json(dest)
+        media = None
+        info = {}
+        if kept_media is not None:
+            media = _stage_kept(kept_media, slug, warnings, provenance)
+        if media is not None:
+            try:
+                probed = probe(media)
+            except MediaError as exc:
+                warnings.append(
+                    f"kept media failed probe ({exc}) — falling back to fetch"
+                )
+                provenance.clear()
+                # The staged copy is the same bad bytes — remove it so the
+                # fetch fallback cannot "reuse" it as existing media.
+                try:
+                    media.unlink()
+                except OSError:
+                    pass
+                media = None
+        if media is None:
+            media = _fetch(source, slug, dest, warnings)
+            info = _read_info_json(dest)
     else:
+        if kept_media is not None:
+            warnings.append(
+                "kept_media ignored: source is already a local file"
+            )
         media = _stage_local(source, slug)
         info = {}
 
-    probed = probe(media)
+    if probed is None:
+        probed = probe(media)
     vstream = _video_stream(probed, media)
 
     need, why = _needs_normalize(vstream)
@@ -144,11 +181,49 @@ def ingest(source: str) -> IngestResult:
         media_path=media.name,
     )
     return IngestResult(
-        slug=slug, meta=meta, media_path=media, breakdown_dir=dest, warnings=warnings
+        slug=slug, meta=meta, media_path=media, breakdown_dir=dest,
+        warnings=warnings, provenance=provenance,
     )
 
 
 # -- fetch / stage ----------------------------------------------------------
+
+def _stage_kept(
+    kept: str | Path,
+    slug: str,
+    warnings: list[str],
+    provenance: dict[str, Any],
+) -> Path | None:
+    """A-S6: stage an already-kept media file instead of refetching.
+
+    Returns the staged path, or None (with a named warning) when the
+    kept file cannot be used — the caller then fetches normally.
+    """
+    src = Path(kept)
+    if not src.is_file():
+        warnings.append(
+            f"kept media unavailable ({src}) — falling back to fetch"
+        )
+        return None
+    try:
+        digest = hashlib.sha256()
+        with src.open("rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                digest.update(chunk)
+        target = storage.media_target(slug, src.suffix or ".mp4")
+        if not (
+            target.exists() and target.stat().st_size == src.stat().st_size
+        ):
+            shutil.copy2(src, target)
+    except OSError as exc:
+        warnings.append(
+            f"kept media unreadable ({exc}) — falling back to fetch"
+        )
+        return None
+    provenance["media_source"] = "kept-media"
+    provenance["kept_media_path"] = str(src.resolve())
+    provenance["kept_media_sha256"] = digest.hexdigest()
+    return target
 
 def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     existing = storage.find_media(slug)

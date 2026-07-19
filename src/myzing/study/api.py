@@ -42,6 +42,7 @@ def study(
     phase_callback: Callable[[str], None] | None = None,
     detect_transitions: bool = False,
     raw_mode: bool = False,
+    kept_media: Path | str | None = None,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -68,9 +69,11 @@ def study(
     """
     with _workspace_override(workspace):
         _phase(phase_callback, "ingest")
-        ing = ingest_mod.ingest(source)
+        ing = ingest_mod.ingest(source, kept_media=kept_media)
         warnings: list[str] = list(ing.warnings)
-        provenance: dict[str, Any] = {}
+        # A-S6: ingest provenance (kept-media evidence) merges first so
+        # stage provenance never masks how the media was obtained.
+        provenance: dict[str, Any] = dict(ing.provenance)
 
         _phase(phase_callback, "shots")
         shots_r = shots_mod.detect_shots(
