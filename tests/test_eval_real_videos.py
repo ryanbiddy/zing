@@ -311,6 +311,111 @@ def test_backfill_supports_measurement_only_fixture(
     }
 
 
+def _backfill_cli_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    write_media: bool,
+) -> tuple[Path, Path, list[tuple]]:
+    real_videos = tmp_path / "tools" / "eval" / "real_videos"
+    case_directory = real_videos / "sample"
+    case_directory.mkdir(parents=True)
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    if write_media:
+        (media_root / "sample.mp4").write_bytes(b"verified media")
+    (tmp_path / "truth.md").write_text(
+        "# Sample fixture\n",
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "media_policy": {"derived_frames_committed": False},
+                "human_truth": "truth.md",
+                "cases": [
+                    {
+                        "fixture_id": "sample",
+                        "media_filename": "sample.mp4",
+                        "truth_section": "Sample fixture",
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    calls: list[tuple] = []
+
+    def fake_backfill_case(*args: object) -> dict:
+        calls.append(args)
+        return {"fixture": "sample", "frames": 2}
+
+    monkeypatch.setattr(backfill_frames, "HERE", tmp_path / "tools" / "eval")
+    monkeypatch.setattr(backfill_frames, "REAL_VIDEOS", real_videos)
+    monkeypatch.setattr(backfill_frames, "backfill_case", fake_backfill_case)
+    return manifest_path, media_root, calls
+
+
+def test_backfill_main_preflights_and_processes_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    manifest_path, media_root, calls = _backfill_cli_fixture(
+        tmp_path,
+        monkeypatch,
+        write_media=True,
+    )
+
+    assert backfill_frames.main(
+        [
+            "--media-root",
+            str(media_root),
+            "--manifest",
+            str(manifest_path),
+            "--ffmpeg",
+            "fixture-ffmpeg",
+        ]
+    ) == 0
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["media_policy"]["derived_frames_committed"] is True
+    assert len(calls) == 1
+    assert calls[0][0].name == "sample"
+    assert calls[0][1] == media_root / "sample.mp4"
+    assert calls[0][2] == "fixture-ffmpeg"
+    assert calls[0][6] == "Sample fixture"
+    assert capsys.readouterr().out == "sample: 2 frames committed\n"
+
+
+def test_backfill_main_missing_media_does_not_rewrite_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path, media_root, calls = _backfill_cli_fixture(
+        tmp_path,
+        monkeypatch,
+        write_media=False,
+    )
+    original_manifest = manifest_path.read_bytes()
+
+    with pytest.raises(backfill_frames.BackfillError, match="media missing"):
+        backfill_frames.main(
+            [
+                "--media-root",
+                str(media_root),
+                "--manifest",
+                str(manifest_path),
+            ]
+        )
+
+    assert manifest_path.read_bytes() == original_manifest
+    assert calls == []
+
+
 def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
     """Frozen fixtures stay pinned to the documents they were frozen against.
 
