@@ -124,47 +124,10 @@ def ingest(
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
 
-    probed = None
-    fallback_reason: str | None = None
     if is_url(source):
-        media = None
-        info = {}
-        if kept_media is not None:
-            media, fallback_reason = _stage_kept(
-                kept_media, slug, warnings, provenance, handoff
-            )
-        elif handoff is not None and handoff.get("state") in (
-            "not_kept", "missing"
-        ):
-            fallback_reason = str(handoff["state"])
-        if media is not None:
-            try:
-                probed = probe(media)
-            except MediaError as exc:
-                warnings.append(
-                    f"kept media failed probe ({exc}) — falling back to fetch"
-                )
-                provenance.clear()
-                fallback_reason = "integrity_mismatch"
-                # The staged copy is the same bad bytes — remove it so the
-                # fetch fallback cannot "reuse" it as existing media.
-                try:
-                    media.unlink()
-                except OSError:
-                    pass
-                media = None
-        if media is None:
-            media = _fetch(source, slug, dest, warnings)
-            info = _read_info_json(dest)
-            if handoff is not None and fallback_reason is not None:
-                provenance["source_handoff"] = {
-                    "contract": "uoink.media.handoff",
-                    "version": 1,
-                    "source_ref": str(handoff.get("source_ref", "")),
-                    "acquisition": "source_refetch",
-                    "refetch": True,
-                    "reason": fallback_reason,
-                }
+        media, info, probed = _acquire_url_media(
+            source, slug, dest, kept_media, handoff, warnings, provenance
+        )
     else:
         if kept_media is not None:
             warnings.append(
@@ -172,6 +135,7 @@ def ingest(
             )
         media = _stage_local(source, slug)
         info = {}
+        probed = None
 
     if probed is None:
         probed = probe(media)
@@ -215,6 +179,64 @@ def ingest(
 
 
 # -- fetch / stage ----------------------------------------------------------
+
+def _acquire_url_media(
+    source: str,
+    slug: str,
+    dest: Path,
+    kept_media: str | Path | None,
+    handoff: dict[str, Any] | None,
+    warnings: list[str],
+    provenance: dict[str, Any],
+) -> tuple[Path, dict, Any | None]:
+    """A-S6 acquisition policy for URL sources: kept file first (verified,
+    zero fetch), honest fallback to fetch with the reason in warnings AND
+    contract provenance. Returns (media, info_json, probed-or-None) —
+    probed is non-None when the kept file already passed ffprobe, so
+    ingest never probes twice."""
+    media = None
+    probed = None
+    fallback_reason: str | None = None
+    if kept_media is not None:
+        media, fallback_reason = _stage_kept(
+            kept_media, slug, warnings, provenance, handoff
+        )
+    elif handoff is not None and handoff.get("state") in (
+        "not_kept", "missing"
+    ):
+        fallback_reason = str(handoff["state"])
+    if media is not None:
+        try:
+            probed = probe(media)
+        except MediaError as exc:
+            warnings.append(
+                f"kept media failed probe ({exc}) — falling back to fetch"
+            )
+            provenance.clear()
+            fallback_reason = "integrity_mismatch"
+            # The staged copy is the same bad bytes — remove it so the
+            # fetch fallback cannot "reuse" it as existing media.
+            try:
+                media.unlink()
+            except OSError:
+                pass
+            media = None
+    if media is None:
+        media = _fetch(source, slug, dest, warnings)
+        info = _read_info_json(dest)
+        if handoff is not None and fallback_reason is not None:
+            provenance["source_handoff"] = {
+                "contract": "uoink.media.handoff",
+                "version": 1,
+                "source_ref": str(handoff.get("source_ref", "")),
+                "acquisition": "source_refetch",
+                "refetch": True,
+                "reason": fallback_reason,
+            }
+    else:
+        info = {}
+    return media, info, probed
+
 
 def _stage_kept(
     kept: str | Path,

@@ -667,3 +667,13 @@
   scenario is now complete across both lanes: uoink item -> kept file
   -> zero-refetch study with acquisition kept_media / refetch false.
   Lane A stands ready for the suite smoke.
+
+- **2026-07-19 (Lane A, SG-3 round 2): ingest() acquisition extraction
+  — a real one this time.** The A-S6 work had grown ingest()'s URL
+  branch to ~45 lines of acquisition policy (kept-first, verify,
+  fallback, contract provenance) inside a function about
+  normalization + metadata. Extracted `_acquire_url_media(...) ->
+  (media, info, probed)` — ingest() reads as acquire -> probe ->
+  normalize -> meta again, and the no-double-probe invariant is now
+  named in the helper's contract. Behavior-preserving: full suite
+  740 green with zero test edits.
