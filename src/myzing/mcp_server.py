@@ -308,6 +308,30 @@ def _run_study(
             json_path = storage.breakdown_dir(slug) / "breakdown.json"
             if breakdown is not None and not json_path.is_file():
                 storage.save_breakdown(breakdown, slug=slug)
+            if breakdown is None and json_path.is_file():
+                breakdown = storage.load_breakdown(slug)
+            if breakdown is not None:
+                source_handoff = breakdown.provenance.get(
+                    "source_handoff")
+                if (
+                    isinstance(source_handoff, dict)
+                    and source_handoff.get("acquisition") == "kept_media"
+                    and source_handoff.get("refetch") is False
+                    and isinstance(source_handoff.get("source_ref"), str)
+                    and isinstance(source_handoff.get("sha256"), str)
+                ):
+                    # Contract v1 §7: only after the engine independently
+                    # verified hash/size and accepted the kept file. The
+                    # receipt is persisted in the primary breakdown; an
+                    # absent peer yields a durable local spool, not failure.
+                    from myzing import engagement
+
+                    receipt = engagement.record_opened(
+                        source_handoff["source_ref"],
+                        source_handoff["sha256"],
+                    )
+                    breakdown.provenance["engagement"] = receipt
+                    storage.save_breakdown(breakdown, slug=slug)
             _write_status(
                 slug, state="done", finished_at=_now(), updated_at=_now(), error=""
             )
@@ -742,6 +766,18 @@ def h_save_judgment(
 
 def h_zing_status() -> dict[str, Any]:
     checks = doctor.summarize(doctor.run_checks())
+    from myzing import engagement
+
+    try:
+        engagement_state: dict[str, Any] = {
+            "state": "ready",
+            **engagement.status(),
+        }
+    except engagement.EngagementStorageError:
+        engagement_state = {
+            "state": "needs_attention",
+            "error": "storage_unavailable",
+        }
     jobs = []
     for entry in storage.list_breakdowns():
         slug = entry.get("slug", "")
@@ -769,6 +805,7 @@ def h_zing_status() -> dict[str, Any]:
             "root": str(storage.workspace_root()),
             "breakdowns": len(storage.list_breakdowns()),
         },
+        engagement=engagement_state,
         jobs=jobs,
         prompts=available_prompts(),
     )
