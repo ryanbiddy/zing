@@ -15,6 +15,88 @@ MIT/BSD/Apache/Unlicense/ISC is **ideas only — never code** (flagged).
 
 ---
 
+## SG-4 edit-state and reframing scan · 2026-07-19 · Lane C
+
+Method: checked GitHub's [daily trending page](https://github.com/trending?since=daily)
+and recently updated video-editing, video-editor, video-editing-tools, and
+subtitles topic searches on 2026-07-19. The four repositories below were
+absent from this survey. Licenses, default-branch source, releases,
+`pushed_at`, and contributor concentration were checked directly.
+
+### khubaib-ctrl/TurnAround — https://github.com/khubaib-ctrl/TurnAround
+
+- **What:** A local Tauri application that snapshots DaVinci Resolve projects
+  and media into a content-addressed history, with branches, restore, and
+  timeline-aware diffs. Its parsers also accept OTIO and FCPXML so a comparison
+  can name changed tracks and clips instead of treating the timeline as an
+  opaque binary.
+- **License:** MIT. **Health:** 6 stars and no forks; created 2026-02-23 and
+  pushed 2026-02-26. Release v0.1.0 shipped 2026-02-24. GitHub's contributor
+  endpoint lists 55 contributions under an unlinked identity and 1 under the
+  maintainer account, so the young project is highly concentrated.
+- **Verdict: BORROW the identity and diff fixtures; SKIP the dependency.**
+  A future Zing render manifest or edit-history surface should compare an
+  output hash, timeline hash, and normalized track/clip changes, with media
+  blobs referenced rather than copied. Zing does not need another project
+  database, branching model, Tauri shell, or Resolve integration.
+
+### panoramix360/edity — https://github.com/panoramix360/edity
+
+- **What:** An early Go terminal editor for splitting, deleting, previewing,
+  and concatenating clips. Its exporter normalizes every clip to the first
+  clip's dimensions and rate, inserts silence for missing audio, retains the
+  last 12 FFmpeg error lines, and estimates progress by parsing human stderr
+  `time=` records.
+- **License:** no license file or API-detected license, despite an MIT badge in
+  the README. **Health:** 3 stars and no forks; created 2026-05-08 and pushed
+  2026-05-25. It has no release. GitHub lists one contributor with 33
+  contributions.
+- **Verdict: SKIP the code; BORROW one negative progress case.** Human FFmpeg
+  log text is not a stable progress protocol, and first-clip geometry is the
+  same implicit-policy trap C-Q5 removed. Zing's proposed renderer lifecycle
+  experiment should prove that malformed human log lines cannot affect its
+  structured progress channel.
+
+### SamurAIGPT/AI-Youtube-Shorts-Generator — https://github.com/SamurAIGPT/AI-Youtube-Shorts-Generator
+
+- **What:** A long-video-to-shorts pipeline with API and local modes. The local
+  reframer selects the largest Haar-detected face, follows it with a fixed
+  smoothing factor, writes a silent cropped video, then muxes source audio back
+  with `-shortest`. Invalid aspect-ratio input silently falls back to 9:16.
+- **License:** no license file or API-detected license, despite the README
+  calling the project MIT-licensed. **Health:** 4,273 stars and 758 forks;
+  created 2024-06-28 and pushed 2026-06-22. It has no release. The top three
+  contributors have 16, 2, and 1 listed contributions.
+- **Verdict: SKIP the code and virality claims; BORROW reframing mutations as
+  concepts only.** A largest-face tracker needs fixtures for two speakers,
+  cut-induced jumps, profile faces, no-face spans, and a speaker leaving the
+  frame before any "smart crop" claim. A crop trace should record the selected
+  window and abstentions; silently changing malformed input to portrait is not
+  acceptable renderer behavior.
+
+### Robelob/Ambar-AI-Video-Editor-Plugin-For-Premiere-Pro — https://github.com/Robelob/Ambar-AI-Video-Editor-Plugin-For-Premiere-Pro
+
+- **What:** A local-first Premiere UXP/CEP plugin for silence cuts, transcript
+  edits, B-roll, captions, and project organization. It places review markers
+  before destructive edits, routes word-addressed cuts through one executor,
+  and updates its transcript timeline only after Premiere reports success.
+- **License:** no license file or API-detected license. **Health:** 3 stars and
+  no forks; created 2026-05-12 and pushed 2026-05-21. It has no release. The
+  two listed contributors have 12 and 1 contributions.
+- **Verdict: SKIP the code; BORROW the authority seam as a test pattern.**
+  Suggested cuts should remain reviewable evidence until one explicit commit
+  action succeeds, and derived transcript positions must not advance after a
+  failed edit. This supports the marker-only boundary in P-D1 without
+  justifying Premiere automation or any destructive Zing surface.
+
+**Scan conclusion:** TurnAround supplies the strongest reusable test idea:
+timeline identity plus normalized track/clip diffs without duplicating media.
+Ambar supplies a clean analyze/review/commit authority boundary. Edity's human
+log parser and the shorts generator's largest-face heuristic are negative
+fixtures, not dependency candidates; three missing licenses bar code reuse.
+
+---
+
 ## Top 5 highest-leverage findings
 
 1. **pysubs2 (MIT, active) — REUSE now for the C-2 renderer.** Mature Python
