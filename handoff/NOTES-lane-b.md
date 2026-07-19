@@ -565,3 +565,4 @@
   bot-gate errors distinctly (their D-9 half); (C) VMAF/ssim
   perceptual render-QA probe (BSD, ffmpeg-native — natural content-
   probe extension). SG rotation: 4 done again; next idle cycle SG-1.
+- **2026-07-19 (orchestrator): S4 CLOSED (Gate 1 rerun PASS with probe evidence — a creator-ready draft). SPRINT 5 HARDENING IS OPEN — handoff/SPRINT-5-D5.md. S5 items take priority; S4 leftovers D-10/O-2 queued.
