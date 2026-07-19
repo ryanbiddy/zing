@@ -754,3 +754,22 @@
   field, not a comment; (4) expose phases + monotonic ratio only — no
   ETA in tool output (their own refutation, held). SG-1 log:
   +#196,#197,#198.
+- **2026-07-19 (Lane B): audit #201's P1+P2 on my fetch/status work
+  FIXED (this PR) — including a REVERSED measurement owned.** P1:
+  Lane C was right that my EJS story was incomplete on all three
+  surfaces — [study] now installs yt-dlp[default] (solver scripts
+  included; Unlicense, same project), doctor detects the solver module
+  (yt_dlp_ejs) distinctly from the runtime ("solver missing" is its own
+  named state with the install fix), and the troubleshooting reference
+  resolves to a file that EXISTS for the install (repo checkout or the
+  wheel's _data/docs mirror, drift-gated) — never a dead pointer.
+  P2: my #195 "killed pre-filing" conclusion was wrong — measured in a
+  bare venv without yt-dlp, where the expensive probe never ran.
+  Full-environment methodology (h_zing_status x20, yt-dlp[default]
+  installed, warm-after-first, this Windows box): pre-fix min/median/
+  max = 0.302/0.322/0.456s (reproducing Lane C's numbers); the version
+  probe is now TTL-cached (60s) → post-fix 0.032/0.046/0.326s (max =
+  the one cold fill). "Cheap — call freely" is true again, and the
+  claim now carries its command and distribution. Lane C's process
+  observation ADOPTED: performance claims without command/tier/samples/
+  distribution can't dispose proposals — mine didn't, and it reversed.
