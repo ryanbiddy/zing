@@ -785,3 +785,13 @@
   shapes: absent-restored and prior-value-restored — the F-15
   fallback path had zero coverage), and _zing_version's unknown
   fallback. Lane A modules now all >=94%. Suite 822.
+
+- **2026-07-19 (Lane A): Ryan-path PREFLIGHT green — the packet's
+  zing test-drive steps verified working on this box before his
+  sitting.** In a fresh workspace: `zing study <local file> --raw`
+  studied clean (raw mode, honest notes, ASCII output — the P2-8 fix
+  visible live in the summary line); `zing profile build` produced a
+  profile from it; setup's pack discovery lists all 7 shipped packs
+  with their reference counts (wheel-data path). No defects found —
+  this is a verification record, not a change. The build is done and
+  Lane A's surfaces are ready for the sitting.
