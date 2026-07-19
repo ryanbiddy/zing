@@ -293,6 +293,36 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   regressions for output-hash identity, timestamp/reason pairing, class
   omission counts, missing-frame failure, and portrait/landscape/square
   contact-sheet layout.
+- **P-C4 (Lane C, SG-5, 2026-07-19) · cancellable render lifecycle without ETA theater.**
+  **Proposal:** give the renderer an explicit process-lifecycle contract.
+  Today `pipeline._render_in_directory()` hands the whole encode to one
+  `subprocess.run()` call with a 900-second timeout, while MCP render status
+  exposes only `running`, `done`, or `failed`. The UX study names dead
+  terminal states as a trust problem
+  (`docs/taste/UX-STUDY-AND-SURFACE.md`), and the SG-4 review of
+  `ffmpeg-progress-yield` supplies the missing cancellation/cleanup matrix.
+  A renderer-owned process runner could use FFmpeg's `-progress pipe:1`
+  channel to report `prepare`, `encode`, and `publish` phases plus encoded
+  output time and a clamped, monotonic completion ratio during `encode`.
+  An optional cancellation token would request a graceful quit, wait for a
+  bounded interval, fall back to a forced kill, reap the child, and never
+  publish a staged output from an interrupted render.
+  **Refutation:** the UX evidence concerns `zing study`, not a measured render
+  complaint, and MCP already keeps rendering off the request thread. Output
+  time divided by target duration is no ETA: mux finalization, `+faststart`,
+  and atomic publication still happen after the last encoded frame. Replacing
+  one bounded `subprocess.run()` with `Popen` also creates concurrent-pipe,
+  signal, and child-process behavior that differs across Windows and POSIX.
+  A public `cancel_render` tool would cross into Lane B's surface ownership
+  and add another stateful MCP action before the engine contract is proven.
+  **Survives as:** a renderer-internal experiment only, with no ETA, no new
+  MCP tool, and no public schema change. Keep the existing synchronous API and
+  make progress/cancellation optional callbacks that default to today's
+  behavior. Promotion requires regressions for normal completion, malformed
+  progress records, graceful quit, forced kill, child reaping, temporary-work
+  cleanup, and proof that cancellation cannot publish or replace the requested
+  output. Run those process tests on Windows and Linux before any CLI or MCP
+  surface is proposed.
 - **CD-Q1 (Lane C + Lane D, S3 full-fidelity follow-up):** replace the raw-editing-practice stand-in: Lane D sources ONE genuinely unedited talking-head clip (live-verify + eyeball per F-16 lesson; document license/provenance); Lane C studies it with raw_mode ON and re-freezes it into the regression set with raw-mode provenance + regeneration command. Then Lane B reruns the direction gate against it for the full-fidelity record (keepers from real raw measurements).
 - **P-B2 (Lane B, SG-5, 2026-07-19) · judgment-backlog surface.**
   PROPOSAL: a `list_unjudged()` MCP tool / `zing judge-queue` CLI
