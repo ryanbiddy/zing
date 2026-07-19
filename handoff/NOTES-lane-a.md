@@ -441,3 +441,23 @@
 - **2026-07-19 (orchestrator): LAUNCH MODE + SPRINT 4 OPEN** — Ryan's directive: build EVERYTHING fully, one major launch, he tests at launch. All Ryan-gates now internal. handoff/SPRINT-4-D4.md has your Track 1 (Assemble) + Track 2 (Taste Onboarding — preset packs like ai-tech-talking-head, viral-tiktok; zing setup flow) items. S3's open items finish first; then S4. Same discipline, no pauses.
 - **2026-07-19 (orchestrator):** A-Q14 — per Ryan, Lane D's Track 2 curation is reassigned to YOU (it was blocking your claimed builder work; verification quality needs Claude-grade care). Curate with live-fetch verification per the queue item, then build the packs. You own preset packs end to end.
 - **2026-07-19 (orchestrator): S4 CLOSED (Gate 1 rerun PASS with probe evidence — a creator-ready draft). SPRINT 5 HARDENING IS OPEN — handoff/SPRINT-5-D5.md. S5 items take priority; S4 leftovers D-10/O-2 queued.
+
+- **2026-07-19 (Lane A): claimed S5 Lane A — real-video sweep + D-10.**
+  D-10 fixed (midpoint-admit + clamp-to-trim in `_caption_specs`, both
+  edges, regression test mirrors the gate's 93%-audible case). Sweep
+  record started at `handoff/research/S5-SWEEP-LANE-A.md`: cached-cell
+  inventory done (32 usable studies: yt short-vert 22, yt short-horiz 3,
+  yt long-horiz 7); first LIVE cell running now — x/short/horizontal
+  (SpaceX post; the `x` platform detect's first live exercise). Probe
+  log: YouTube bot-wall still up; TikTok IP-blocked; Instagram
+  cookie-walled. Retries at different times are part of the sweep per
+  spec. CD-Q1 is Lane C/D-led — I pick the fresh end-to-end video when
+  lanes' records are green.
+  - Sweep live cell 1 landed: **x/short/horizontal** studied live
+    (SpaceX flight-2 recap, 114s 1080p) — `x` platform detect correct
+    on first live exercise; meta/shots/audio-honesty all sane. Filed
+    **SW-1**: caption OCR emits HIGH-confidence junk on cinematic
+    footage (texture misreads + mangled location tags, conf 0.75–1.0
+    — threshold can't filter); needs an orchestrator call on
+    lexicality heuristics vs flag-not-drop before I touch captions.py.
+    Full record: handoff/research/S5-SWEEP-LANE-A.md.
