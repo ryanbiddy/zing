@@ -239,7 +239,13 @@ def _study_api():
         return None
 
 
-def _run_study(study_fn: Any, source: str, slug: str, root: Path) -> None:
+def _run_study(
+    study_fn: Any,
+    source: str,
+    slug: str,
+    root: Path,
+    kept_media: str | None = None,
+) -> None:
     """Worker-thread body: run the engine, persist, record honest state.
 
     ``root`` is the workspace captured when the job was dispatched (F-15):
@@ -259,6 +265,11 @@ def _run_study(study_fn: Any, source: str, slug: str, root: Path) -> None:
         )
 
     kwargs: dict[str, Any] = {}
+    if kept_media is not None:
+        # B-S6: the bridge hands the engine a kept-media path (A-S6 seam);
+        # support was verified at dispatch, and the engine's own fallback
+        # honesty (named warnings, refetch) covers everything past here.
+        kwargs["kept_media"] = kept_media
     try:
         params = inspect.signature(study_fn).parameters
         for name in ("phase_callback", "progress_callback", "on_phase"):
@@ -306,10 +317,24 @@ def _run_study(study_fn: Any, source: str, slug: str, root: Path) -> None:
             _job_cleanup(_JOBS, slug)
 
 
-def h_study_video(url_or_path: str) -> dict[str, Any]:
+def h_study_video(
+    url_or_path: str, kept_media: str | None = None
+) -> dict[str, Any]:
     if not isinstance(url_or_path, str) or not url_or_path.strip():
         return _err("url_or_path required: a video URL or a local file path")
     source = url_or_path.strip()
+    # B-S6 seam: a locally kept copy of the URL source (uoink keep_media
+    # sidecar hands us a path; corpus-id resolution arrives with contract
+    # ratification). Existence is NOT pre-checked — the engine's contract
+    # is honest fallback to fetch with the reason named in warnings.
+    kept: str | None = None
+    if kept_media is not None:
+        if not isinstance(kept_media, str) or not kept_media.strip():
+            return _err(
+                "kept_media, when given, must be a file path (the locally "
+                "kept copy of this URL's media)"
+            )
+        kept = str(Path(kept_media.strip()).expanduser())
 
     # Cheap validation first — failures must return in under a second.
     if not shutil.which("ffmpeg"):
@@ -337,6 +362,17 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
             "progress) — study_video will work here unchanged once it "
             "lands; zing_status().engine_available will flip to true"
         )
+    if kept is not None:
+        try:
+            supported = "kept_media" in inspect.signature(api.study).parameters
+        except (TypeError, ValueError):
+            supported = True  # can't introspect — dispatch; the worker
+            #                   records any TypeError as honest failed state
+        if not supported:
+            return _err(
+                "this build's study engine has no kept-media support — "
+                "update myzing, or call study_video without kept_media"
+            )
 
     slug = storage.slug_for(source)
     # F-15: capture the workspace NOW and pin the whole job to it — the
@@ -356,6 +392,7 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
             state="running",
             phase=STUDY_PHASES[0],
             source=source,
+            kept_media=kept or "",
             pid=os.getpid(),  # F-03: liveness marker readers verify
             heartbeat_at=_now(),
             started_at=_now(),
@@ -363,17 +400,28 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
             error="",
         )
         thread = threading.Thread(
-            target=_run_study, args=(api.study, source, slug, root), daemon=True
+            target=_run_study,
+            args=(api.study, source, slug, root, kept),
+            daemon=True,
         )
         _JOBS[slug] = thread
         thread.start()
+    extra: dict[str, Any] = {"kept_media": kept} if kept else {}
     return _ok(
         slug=slug,
         status="started",
         hint=(
             "studying in the background (typically 1–5 minutes). Poll "
             "zing_status() for phase, then get_breakdown(slug) for the result."
+            + (
+                " Using the kept local copy — zero network fetch when it "
+                "checks out; any fallback to fetching is named in the "
+                "breakdown's warnings."
+                if kept
+                else ""
+            )
         ),
+        **extra,
     )
 
 
@@ -1145,7 +1193,10 @@ def build_server():
             "immediately and measures in the background (typically 1–5 "
             "minutes): shot boundaries, word-timed transcript, caption OCR, "
             "audio layout. Poll zing_status() for phase, then "
-            "get_breakdown(slug)."
+            "get_breakdown(slug). Optional kept_media: path to a locally "
+            "kept copy of the URL's media (e.g. a uoink keep_media file) — "
+            "studies from it with zero network fetch when it checks out; "
+            "falls back to fetching with the reason named in warnings."
         ),
     )(h_study_video)
     mcp.tool(
