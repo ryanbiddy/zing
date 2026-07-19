@@ -386,8 +386,28 @@ def summarize(checks: list[Check]) -> dict:
 _MARKS = {True: "ok", False: "MISSING"}
 
 
+def _verdict_line(checks: list[Check]) -> str:
+    """One-line first-run verdict (S5 install-gate observation #2): a new
+    user should learn readiness from the first line, not from scanning
+    seven items."""
+    required_missing = [c.name for c in checks if c.tier == REQUIRED and not c.ok]
+    if required_missing:
+        return (
+            "Verdict: NOT ready — required missing: "
+            f"{', '.join(required_missing)} (fix below, then re-run)"
+        )
+    degraded = [c.name for c in checks if c.tier == RECOMMENDED and not c.ok]
+    if degraded:
+        return (
+            f"Verdict: ready for local-file study; {len(degraded)} feature(s) "
+            f"degraded ({', '.join(degraded)}) — details below"
+        )
+    return "Verdict: fully ready"
+
+
 def _print_human(checks: list[Check]) -> None:
     print("zing doctor\n")
+    print(_verdict_line(checks) + "\n")
     for c in checks:
         status = _MARKS[c.ok]
         if c.tier == OPTIONAL and not c.ok:

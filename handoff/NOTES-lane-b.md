@@ -601,3 +601,16 @@
   (ci.yml edit — assigned to Lane B by the sprint item, flagged per
   shared-file discipline). Records + two non-blocking first-run
   rough-edge observations in handoff/S5-INSTALL-GATE-lane-b.md.
+- **2026-07-19 (Lane B): S5 first-run rough edges FIXED (this PR)** —
+  the two defect candidates my own install-gate run observed, closed
+  under the sprint's every-rough-edge-is-a-defect rule: (1) `zing
+  setup --list` now ends with the next command (onboard-one usage
+  line); (2) `zing doctor` opens with a one-line verdict (NOT ready /
+  ready-with-N-degraded / fully ready) so a new user learns readiness
+  from line one instead of scanning seven items. Both verified live
+  and pinned by tests; the clean-host harness re-run passes 7/7
+  against the new output. PROCESS OBSERVATION: the install gate's
+  "record rough edges as defects" framing turned a green run into two
+  concrete improvements — verification that reports only pass/fail
+  would have shipped the friction; keep the observations section
+  mandatory in gate records.

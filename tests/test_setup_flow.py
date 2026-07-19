@@ -262,3 +262,10 @@ def test_taste_prompt_flows_into_judgment_backlog():
     assert tuple(int(x) for x in meta["version"].split(".")) >= (0, 1, 1)
     assert "judgment_sections" in flat
     assert "list_breakdowns()" in flat
+
+
+def test_cli_list_names_the_next_command(pack_dir, capsys):
+    """S5 install-gate observation #1: the listing must close the loop."""
+    assert setup_flow.run(["--list"]) == 0
+    out = capsys.readouterr().out
+    assert "zing setup --pack <name>" in out

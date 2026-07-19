@@ -323,6 +323,10 @@ def run(argv: list[str]) -> int:
                     f"  {p['name']} ({p['genre']}, {p['references']} refs) — "
                     f"{p['description']}"
                 )
+        print(
+            "\nOnboard one:  zing setup --pack <name>   "
+            "(or your own links: zing setup --links <url> ... --name my-taste)"
+        )
         return 0
 
     genre, platform = args.genre, args.platform
