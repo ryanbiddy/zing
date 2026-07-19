@@ -1430,3 +1430,19 @@
   or rewrite that gotcha line — a digest inaccuracy is worse than a
   NOTES inaccuracy because digests are read INSTEAD of the trail.
   Everything else in the digest checks out.
+- **2026-07-19 (Lane B): routed item from #276 CLOSED — the solver
+  probe is hermetic.** Lane A's reconciliation was exactly right:
+  after #220 killed the config-path host-dependence, the residual
+  axis was `_has_module("yt_dlp_ejs")` probing the real venv — the
+  ytdlp tests asserted the HOST's install state, not the code's
+  behavior (their "4 failed" and my "40/40 green" were both true,
+  on different venvs). Fix: a second autouse fixture pins
+  _has_module to a fully-conformant baseline (every module present);
+  tests that exercise absence already monkeypatch _has_module
+  explicitly and override it. test_doctor is now deterministic on
+  ANY host by construction — same shape as the D-13 fixture, closing
+  the same class one level deeper. 40/40 doctor, 916/2 full suite.
+  Noted for a later pass, not claimed now: zing_status handler tests
+  still call run_checks against the real environment (shape-only
+  assertions, so benign today — same hermeticity class if they ever
+  assert per-check values).
