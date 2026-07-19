@@ -610,3 +610,74 @@ Method: Topic searches on video understanding, forced alignment, and agentic edi
 - **What:** Automated vertical video shorts generator. Automates script generation, image/video asset generation, text-to-speech rendering, and FFmpeg layout assembly.
 - **License:** MIT (verified). **Health:** Active, recently pushed in 2026.
 - **Verdict: BORROW (pipeline layout & FFmpeg wrappers).** Excellent practical reference for building Python wrappers around complex FFmpeg filters (e.g. centering visual focus, styling vertical subtitles). Not a direct dependency as its pipeline is monolithic and coupled to specific cloud LLM/TTS services.
+
+---
+
+## Measurement-tooling scan (Lane A, SG-4, 2026-07-19)
+
+Scoped to the study engine's ground: word timing, audio tagging, caption
+OCR, and one 2026 arrival. Facts verified against LICENSE files and repo
+APIs on 2026-07-19; all claims sourced in-line.
+
+### CrisperWhisper — https://github.com/nyrahealth/CrisperWhisper
+- **What:** Verbatim Whisper-variant with the best published word-level
+  timestamps + filler/disfluency detection (INTERSPEECH 2024; cited in
+  R1-lane-a-measurement.md).
+- **License: CC-BY-NC-4.0** — GitHub shows "Other"; the LICENSE file is
+  NonCommercial. The HF `faster_CrisperWhisper` CT2 conversion is also
+  CC-BY-NC, and its card disclaims the timestamp accuracy of the
+  original. **Health:** 971 stars, main dormant since 2025-06.
+- **Verdict: SKIP as dependency (license trap — flagged so the R1 "S2
+  word-timing upgrade path" never reaches for it).** whisperX (BSD-2)
+  remains the licensed upgrade path. At most a user-installed optional
+  backend, never bundled.
+
+### panns_inference — https://github.com/qiuqiangkong/panns_inference
+- **What:** pip wrapper for PANNs CNN14 AudioSet tagging (the R1 pick 5
+  S2 anchor candidate for calibrated has_music confidence).
+- **License:** MIT. **Health:** dormant (last push 2024-03) but frozen-
+  good; underlying audioset_tagging_cnn also MIT.
+- **Verdict: REUSE (S2 music-tagger anchor).** Dormancy acceptable for
+  frozen weights + thin wrapper. YAMNet is now effectively SKIP: the
+  official repo is Keras-2-locked (incompatible with TF>=2.16 defaults);
+  torch ports are tiny/low-bus-factor.
+
+### CED via sherpa-onnx — https://github.com/k2-fsa/sherpa-onnx
+- **What:** Apache-2.0 inference runtime (13.6k stars, very active)
+  shipping prebuilt **CED audio-tagging ONNX models**; the HF
+  `mispeech/ced-*` weights are tagged Apache-2.0 (Xiaomi team) even
+  though the CED training repo is GPL-3.0.
+- **Verdict: BORROW/watch.** The modern small-tagger slot R1 wanted —
+  but the code-GPL vs weights-Apache conflict is unresolved upstream;
+  if adopted, depend only on sherpa-onnx + HF weights, never the
+  training repo. PANNs stays the safe first choice.
+
+### OnnxTR — https://github.com/felixdittrich92/OnnxTR
+- **What:** docTR OCR on onnxruntime — no torch/TF, 8-bit CPU models.
+- **License:** Apache-2.0. **Health:** active (v0.8.1 2026-02, pushed
+  2026-07); single maintainer.
+- **Verdict: BORROW (document-OCR fallback).** Same inference-engine
+  profile as our rapidocr pick; document-trained so not a caption
+  replacement, but the right shape if Zing ever reads slides/screenshots.
+
+### VideOCR — https://github.com/timminator/VideOCR
+- **What:** Burned-in subtitle extraction (PaddleOCR), GUI + standalone
+  CLI binaries; the actively maintained successor of videocr-PaddleOCR
+  (which is now ~11 months dormant).
+- **License:** MIT. **Health:** 704 stars, v1.5.1 2026-04, active.
+- **Verdict: BORROW (already informed the S1 caption pipeline; upgrade
+  reference for S2 OCR hardening).** Pin to the local Paddle engine —
+  v1.5 added a cloud Google Lens hybrid path we must not inherit.
+
+### claude-video — https://github.com/bradautomates/claude-video
+- **What:** 2026 arrival (created 2026-04, already 9.1k stars): gives
+  coding agents video comprehension — yt-dlp fetch, ffmpeg keyframe/
+  scene-change extraction with dedup, caption extraction, cloud Whisper
+  fallback; packaged as agent skills.
+- **License:** MIT. **Health:** very active.
+- **Verdict: BORROW (recipes, not dependency), plus market signal.** Its
+  frame-dedup trick for slow fades is worth reading against our
+  dissolve gate; transcription falls back to cloud APIs (against our
+  local-first stance) and it's an agent skill, not a library. Signal:
+  agent-consumable video analysis is now a recognized category — Zing's
+  MCP surface is well positioned.
