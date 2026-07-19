@@ -898,3 +898,11 @@
   Suite green. Coverage as a generator target is exhausted for this
   lane — future SG-2 rounds should go to other lanes' surfaces or
   await new code.
+
+- **2026-07-19 (Lane A, SG-1 round 6): review #264/#270 — both pass.**
+  #270's uoink_bridge tests strengthen the CONSUMER side of the
+  kept-media contract my seam serves (unparseable bodies, wrong-key
+  drift, error-envelope extras — all resolved as nonconformant, never
+  guessed); my adjacent surfaces re-verified green (93 tests). #264
+  is a model scan correction: stale capability claim found, doc
+  fixed, correction on the record.
