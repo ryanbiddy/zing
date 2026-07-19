@@ -70,7 +70,9 @@ taste rubric.
 | LosslessCut | GPL-2.0 | UX ideas only (keyframe-accurate cuts, smart cut). |
 | AI-Youtube-Shorts-Generator | **NO LICENSE** | All rights reserved by default despite "open-source" marketing. Do not copy anything. |
 | supoclip | AGPL-3.0 | Ideas only. |
+| aeneas | AGPL-3.0 | High-quality forced alignment, but AGPL-3.0 is a license landmine for commercial/permissive reuse. Ideas only. |
 | ffmpeg (binary) | LGPL/GPL by build | Calling the user's binary via subprocess (Zing's pattern) is fine and standard. Never *bundle* a GPL ffmpeg build in a distributed MIT package without doing the homework. |
+
 
 ---
 
@@ -578,7 +580,7 @@ original R-B survey.
   validate the aggregated-style-profile design. FastAPI + cloud-LLM
   shape rules out dependency; study the planner/tool-schema layering.
 
-**Scan summary:** the 2025–2026 trend is agentic wrappers converging on
+**Scan summary (2026-07-18):** the 2025–2026 trend is agentic wrappers converging on
 Zing's territory from both sides — thin ffmpeg-MCP servers below, full
 editing agents (OpenStoryline, OpenCut-style) above — while the middle
 layer Zing occupies (local measurement, style aggregation, deterministic
@@ -587,3 +589,24 @@ new models are Apache/MIT, so the local-first permissive stack no longer
 forces quality compromises. Differentiation should lean on
 measurement-derived style profiles: nobody in the trending set grounds
 edit decisions in quantitative analysis of reference footage.
+
+---
+
+## SG-4 trending scan · 2026-07-19 · Lane D (standing generator)
+
+Method: Topic searches on video understanding, forced alignment, and agentic editing libraries on GitHub; licenses verified. Three new repositories analyzed.
+
+### aeneas — https://github.com/readbeyond/aeneas
+- **What:** Command-line tool and Python library to automatically synchronize audio and text (forced alignment) at sentence/word level using DTW (Dynamic Time Warping) and MFCC features.
+- **License:** AGPL-3.0 (verified). **Health:** 1.5k stars, archived/mature.
+- **Verdict: SKIP/IDEAS ONLY (licensing risk).** The AGPL-3.0 license is too restrictive for direct dependency in an MIT-licensed tool. Furthermore, the repository is archived. However, its DTW-based forced alignment algorithm and text-audio synchronization mapping structure are valuable reference designs. S2/S3 should stick with permissive options like `faster-whisper` and `whisperX`.
+
+### Videopython — https://github.com/BartWojtowicz/videopython
+- **What:** Programmatic, agent-driven video editing library. Allows defining video editing plans (cuts, transitions, subtitles) via JSON files and utilizes local/cloud LLMs to compile editing plans.
+- **License:** MIT (verified). **Health:** Young, actively updated.
+- **Verdict: BORROW (agent plan compilation).** The concept of decoupling the editing intent (expressed as a JSON edit plan) from the actual FFmpeg rendering engine aligns perfectly with Zing's S3/S4 architecture (Breakdown -> edit plan -> rendering). We should borrow its design for representing edit plans as structured objects.
+
+### ClipForge — https://github.com/DarkPancakes/clipforge
+- **What:** Automated vertical video shorts generator. Automates script generation, image/video asset generation, text-to-speech rendering, and FFmpeg layout assembly.
+- **License:** MIT (verified). **Health:** Active, recently pushed in 2026.
+- **Verdict: BORROW (pipeline layout & FFmpeg wrappers).** Excellent practical reference for building Python wrappers around complex FFmpeg filters (e.g. centering visual focus, styling vertical subtitles). Not a direct dependency as its pipeline is monolithic and coupled to specific cloud LLM/TTS services.
