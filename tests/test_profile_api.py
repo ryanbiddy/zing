@@ -60,7 +60,8 @@ def make_source(
 
 
 def test_stats_match_hand_computed(zing_workspace):
-    # duration values 10, 20, 30, 40 -> exclusive quartiles 12.5/25/37.5
+    # duration values 10, 20, 30, 40 -> inclusive quartiles 17.5/25/32.5
+    # (inclusive method: percentiles never leave the observed range)
     for i, d in enumerate((10.0, 20.0, 30.0, 40.0), start=1):
         make_source(f"src-{i}", d, cut_times=[d / 2], avg_shot=d / 2)
 
@@ -68,11 +69,48 @@ def test_stats_match_hand_computed(zing_workspace):
 
     assert p.duration.n == 4
     assert p.duration.median == 25.0
-    assert (p.duration.p25, p.duration.p75) == (12.5, 37.5)
+    assert (p.duration.p25, p.duration.p75) == (17.5, 32.5)
     assert p.shot_duration.median == 12.5      # avg shots 5,10,15,20
     assert p.time_to_first_cut.median == 12.5  # cuts at 5,10,15,20
     assert p.time_to_first_word.median == 0.2
     assert p.speech_ratio.median == 0.8
+
+
+def test_n2_percentiles_stay_inside_observed_range(zing_workspace):
+    # The S2 gate run hit p25 = -1.085s on two non-negative first-word
+    # times — exclusive-method extrapolation. Never again.
+    make_source("a", 20.0, [4.0], 10.0, first_word=0.0)
+    make_source("b", 20.0, [4.0], 10.0, first_word=11.065)
+
+    p = build_profile("pair", ["a", "b"])
+
+    assert p.time_to_first_word.p25 >= 0.0
+    assert p.time_to_first_word.p25 >= 0.0
+    assert 0.0 <= p.time_to_first_word.p25 <= p.time_to_first_word.p75 <= 11.065
+
+
+def test_incoherent_band_gets_named_warning(zing_workspace):
+    # 18s and 635s "shorts" in one profile: the duration stat can't
+    # falsify anything — the profile must say so (gate-pack finding 2).
+    make_source("tiny", 18.0, [4.0], 9.0)
+    make_source("huge", 635.0, [100.0], 300.0)
+
+    p = build_profile("mixed-format", ["tiny", "huge"])
+
+    assert any(
+        "profile coherence" in w and "18" in w and "635" in w
+        and "may not share a format" in w
+        for w in p.warnings
+    )
+
+
+def test_coherent_band_gets_no_warning(zing_workspace):
+    make_source("s1", 30.0, [5.0], 10.0)
+    make_source("s2", 45.0, [8.0], 15.0)
+
+    p = build_profile("coherent", ["s1", "s2"])
+
+    assert not any("profile coherence" in w for w in p.warnings)
 
 
 def test_normalized_curve_aligns_relative_position(zing_workspace):
