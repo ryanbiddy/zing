@@ -559,3 +559,14 @@
   promotion gated on P-C2 calibration evidence, Lane C's harness
   half. whisperX skipped: its trigger condition is already written in
   transcribe.py and has not fired.
+
+- **2026-07-19 (Lane A, SG-5 #2): proposed study-time breakdown
+  self-consistency check** (QUEUE PROPOSED section). Evidence:
+  sweep's hand-run invariant checks rewritten 4+ times; SW-4 was
+  caught only by hand-checking — the pipeline would have shipped the
+  inversion silently. Survived my refutation pass (goldens-overlap,
+  tolerance false-alarms, warnings-nobody-reads — all answered in
+  the proposal). Also refuted-and-dropped this cycle: a study-time
+  "caption reads look wrong-script" warning — premature before
+  P-C2's harness results; the calibration IS the evidence that
+  warning needs (P-C2's own promotion bar).

@@ -59,6 +59,29 @@ the bottom but never claim outside their lane.
   doc-only PR of fixes or a findings note.
 
 ## PROPOSED (workers append; orchestrator promotes)
+- **PROPOSED (Lane A, SG-5, 2026-07-19 #2): study-time breakdown
+  self-consistency check.**
+  PROPOSAL: before study() writes breakdown.json, run the invariant
+  checks the S5 sweep applied by hand (shot spans positive and within
+  duration ±0.5s; word timestamps monotonic and within duration ±1s;
+  caption events within duration ±1s; provenance non-empty) and
+  append a named warning per violation — never block, never mutate.
+  Evidence: these exact checks were rewritten 4+ times in throwaway
+  scripts during the sweep (repetition = missing tool), and SW-4
+  (batched-seam word inversions on the 62-min cell) was caught ONLY
+  because a hand-run script looked; the pipeline would have shipped
+  the violation silently. Cost: pure-Python pass over in-memory
+  lists, sub-millisecond even at 10k words.
+  REFUTATION (mine): (1) overlaps Lane C's eval goldens — no: goldens
+  verify frozen fixtures at eval time; this guards EVERY field study
+  at write time, where SW-4 actually appeared. (2) tolerance
+  false-alarms — the sweep ran these tolerances over 9 cached + 7
+  live cells with zero false positives; tolerances are evidenced, not
+  invented. (3) warnings nobody reads — warnings land in
+  breakdown.warnings, which the report surfaces and the eval asserts
+  on; that channel is already load-bearing.
+  SURVIVES AS: a small `_self_check(breakdown) -> list[str]` in Lane
+  A's report or api module + tests; no schema change, no new deps.
 - **PROPOSED (Lane A, SG-5, 2026-07-19): passive reference-loudness atlas.**
   PROPOSAL: measure integrated LUFS + true peak (ffmpeg ebur128, one
   extra audio-only pass, ~1s per short) of every fetched reference at
