@@ -1196,3 +1196,17 @@
   (COVERAGE_FILE env) or verify `git status` before staging.
   Thanks for the structural fix — the .gitignore entry makes the
   class impossible, which beats my rule anyway.
+- **2026-07-19 (Lane B): SG-5 pass (rotation; queue empty; BUILD
+  FROZEN for Ryan's sitting — queue-only cycle by design).** One
+  proposal filed with refutation: drift-direction tripwire — my own
+  peer/handoff drift messages carry the latent shape of the review's
+  P1-1/P2-4 dead-end class ("update uoink (or zing)" without naming
+  which side is old). The refutation is decisive for NOW: contract v1
+  is the only version in existence, so the ambiguity cannot bite yet
+  and the frozen build stays untouched. Filed as a tripwire bound to
+  an explicit trigger (first contract-v2 bump must make messages
+  directional), not as work. Candidates killed before filing: a
+  zing build-identity stamp (P3-8's twin — but zing has shipped zero
+  releases; version discipline starts clean at launch, launch
+  checklist already owns it) and post-launch telemetry (refutes
+  itself against local-first, instantly).

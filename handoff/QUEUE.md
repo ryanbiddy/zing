@@ -215,6 +215,31 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 
 ## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
 
+- **PROPOSED (Lane B, SG-5, 2026-07-19 #2): drift messages must name
+  the update DIRECTION when contract v2 exists.**
+  PROPOSAL: zing's peer/handoff drift errors currently end in "update
+  uoink (or zing) so both speak INTEGRATION-CONTRACT v1"
+  (doctor.py:570, uoink_bridge.py:60) — the exact dead-end shape the
+  final review indicted in P1-1 ("update uoink" when uoink was
+  already newest) and P2-4 (writer's unfollowable fix loop). The
+  probe already holds what's needed to do better: the peer's manifest
+  declares its capability VERSIONS and zing knows its own — on
+  mismatch, say which side is older ("uoink speaks
+  uoink.media.handoff/2; this zing speaks /1 — update ZING"). Evidence:
+  P1-1/P2-4 are the review's most user-hostile finding class, and my
+  own messages carry the same latent shape.
+  REFUTATION (mine): (1) IT CANNOT BITE YET — v1 is the only contract
+  version in existence; every mismatch today is nonconformance, not
+  version skew, and "update so both speak v1" is accurate for all of
+  them. (2) The build is FROZEN for Ryan's sitting — no product churn
+  for a hypothetical. (3) Directionality needs the version-negotiation
+  half of a future contract v2 anyway; designing it now speculates on
+  v2's shape against the house rule.
+  SURVIVES AS: a tripwire, not a build — the FIRST PR that bumps any
+  suite contract to version 2 must also make zing's drift messages
+  directional (this entry is the reminder the review said we'd
+  otherwise rediscover the hard way). Zero code until that trigger.
+
 - **PROPOSED (Lane B, SG-5, 2026-07-19): corpus-seeded onboarding —
   `zing setup` from your own uoink library.**
   PROPOSAL: a third setup source alongside packs and personal links:
