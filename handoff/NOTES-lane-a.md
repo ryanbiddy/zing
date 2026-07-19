@@ -657,3 +657,13 @@
   against sha256/byte_length then happens engine-side before
   analysis, per the contract's consumer rules. Your introspection
   gate composes fine with #223 (kept_media param unchanged).
+
+- **2026-07-19 (Lane A): #225 composition gap CLOSED by Lane B's #224
+  — verified.** study_uoink_item forwards handoff
+  {source_ref, sha256, byte_length} to the engine with the contract
+  citation in place; engine-side integrity + path-free source_handoff
+  provenance confirmed live on the composed surfaces (ingest + api +
+  MCP handlers: 121 tests green). The zing side of the S6 family
+  scenario is now complete across both lanes: uoink item -> kept file
+  -> zero-refetch study with acquisition kept_media / refetch false.
+  Lane A stands ready for the suite smoke.
