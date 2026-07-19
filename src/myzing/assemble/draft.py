@@ -21,10 +21,12 @@ from pathlib import Path
 from typing import Any
 
 from myzing import storage
-from myzing.schemas import Breakdown, Clip, EDL
+from myzing.schemas import Breakdown, CaptionSpec, Clip, EDL, Word
 
 MIN_CLIP_S = 0.2
 KEEPER_MATCH_TOLERANCE_S = 0.35
+CAPTION_GAP_S = 0.6           # word gap that closes a caption window
+CAPTION_MAX_WORDS = 5
 
 
 class AssembleError(RuntimeError):
@@ -112,13 +114,99 @@ def draft_edl(
             f"@{breakdown.meta.fps:g}) — re-run 'zing study' rather than "
             "inventing an output orientation"
         )
+    captions = _caption_specs(breakdown, clips)
+    if not captions and breakdown.words:
+        warnings.append(
+            "draft EDL: no transcript words fall inside the chosen spans — "
+            "captions omitted"
+        )
+    elif not breakdown.words:
+        warnings.append(
+            "draft EDL: captions omitted — the breakdown has no transcript"
+        )
+
     edl = EDL(
         clips=clips,
+        captions=captions,
         width=breakdown.meta.width,
         height=breakdown.meta.height,
         fps=breakdown.meta.fps,
     )
     return DraftResult(edl=edl, warnings=warnings)
+
+
+def _caption_style(breakdown: Breakdown) -> tuple[str, bool, bool]:
+    """(position, all_caps, word_timed) — measured from the source's own
+    captions when it has any, sensible short-form defaults otherwise
+    (raw recordings have no captions to measure)."""
+    measured = breakdown.captions
+    if not measured:
+        return "lower", True, True
+    positions = [c.position for c in measured]
+    position = max(set(positions), key=positions.count)
+    all_caps = sum(c.all_caps for c in measured) / len(measured) > 0.5
+    visible = [c.words_visible for c in measured]
+    word_timed = max(set(visible), key=visible.count) <= 2
+    return position, all_caps, word_timed
+
+
+def _caption_specs(
+    breakdown: Breakdown, clips: list[Clip]
+) -> list[CaptionSpec]:
+    """D-8: word-timed caption specs derived from the breakdown's measured
+    words inside each trim, remapped onto the output timeline. Grouping:
+    a window closes at a speech gap or at CAPTION_MAX_WORDS."""
+    if not breakdown.words:
+        return []
+    position, all_caps, word_timed = _caption_style(breakdown)
+    specs: list[CaptionSpec] = []
+    for clip in clips:
+        offset = clip.timeline_start - clip.src_in
+        inside = [
+            w for w in breakdown.words
+            if w.start >= clip.src_in and w.end <= clip.src_out
+        ]
+        window: list[Word] = []
+        for word in inside:
+            if window and (
+                word.start - window[-1].end > CAPTION_GAP_S
+                or len(window) >= CAPTION_MAX_WORDS
+            ):
+                specs.append(_spec(window, offset, position, all_caps, word_timed))
+                window = []
+            window.append(word)
+        if window:
+            specs.append(_spec(window, offset, position, all_caps, word_timed))
+    return specs
+
+
+def _spec(
+    window: list[Word],
+    offset: float,
+    position: str,
+    all_caps: bool,
+    word_timed: bool,
+) -> CaptionSpec:
+    text = " ".join(w.text.strip() for w in window)
+    if all_caps:
+        text = text.upper()
+    return CaptionSpec(
+        text=text,
+        start=round(window[0].start + offset, 3),
+        end=round(window[-1].end + offset, 3),
+        position=position,
+        all_caps=all_caps,
+        word_timed=word_timed,
+        words=[
+            Word(
+                text=w.text.strip().upper() if all_caps else w.text.strip(),
+                start=round(w.start + offset, 3),
+                end=round(w.end + offset, 3),
+                confidence=w.confidence,
+            )
+            for w in window
+        ],
+    )
 
 
 def _span_of(keeper: dict[str, Any], index: int) -> tuple[float, float]:
