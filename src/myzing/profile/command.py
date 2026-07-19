@@ -29,12 +29,43 @@ def run(argv: list[str]) -> int:
     show.add_argument("--workspace", type=Path, default=None)
     show.add_argument("--json", action="store_true")
 
+    pack = sub.add_parser(
+        "pack",
+        help="build/regenerate a preset pack from its curated manifest",
+    )
+    pack.add_argument("manifest", type=Path)
+    pack.add_argument("--workspace", type=Path, default=None)
+    pack.add_argument(
+        "--no-study", action="store_true",
+        help="fail on unstudied references instead of studying them",
+    )
+    pack.add_argument("--json", action="store_true")
+
     args = parser.parse_args(argv)
 
     from myzing import storage
     from myzing.profile.api import ProfileError, build_profile
+    from myzing.profile.packs import PackError, build_pack
 
     try:
+        if args.action == "pack":
+            result = build_pack(
+                args.manifest,
+                workspace=args.workspace,
+                study_missing=not args.no_study,
+            )
+            if args.json:
+                print(result.profile.to_json(indent=2))
+                return 0
+            print(
+                f"pack {result.profile.name}: "
+                f"{len(result.studied)} studied, {len(result.reused)} reused, "
+                f"{len(result.failed)} failed"
+            )
+            for ref_id, reason in result.failed:
+                print(f"  FAILED {ref_id}: {reason}")
+            print(render_text(result.profile))
+            return 0
         if args.action == "build":
             profile = build_profile(
                 args.name,
@@ -51,7 +82,7 @@ def run(argv: list[str]) -> int:
             )
             with context:
                 profile = storage.load_profile(args.name)
-    except (ProfileError, storage.SlugError) as exc:
+    except (ProfileError, PackError, storage.SlugError) as exc:
         print(f"zing profile: {exc}")
         return 1
     except FileNotFoundError as exc:

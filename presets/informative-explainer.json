@@ -1,0 +1,54 @@
+{
+ "pack_id": "informative-explainer",
+ "curated_at": "2026-07-19",
+ "genre": "talking-head",
+ "platform": "youtube",
+ "orientation": "vertical+horizontal",
+ "references": [
+  {
+   "id": "EXPL-01",
+   "url": "https://www.youtube.com/shorts/nlGYV0bmddI",
+   "title": "Why You Can't Pee On Antarctica",
+   "channel": "Cleo Abram",
+   "orientation": "vertical",
+   "why": "The namesake exemplar: curiosity-gap cold open, graphic punch-ins, rule-explains-the-world payoff (G-TH anchor).",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "EXPL-02",
+   "url": "https://www.youtube.com/shorts/M8eeuqdjZoA",
+   "title": "NASA Is Sending Humans Back to the Moon (THIS MONTH)",
+   "channel": "Cleo Abram",
+   "orientation": "vertical",
+   "why": "Urgency-hook variant; optimism-framed stakes up top, archival punch-ins between talking-head beats.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "EXPL-03",
+   "url": "https://www.youtube.com/shorts/ecIwfilIkTY",
+   "title": "Let's Climb a Ladder to Space - Will We Float or Fall?",
+   "channel": "Kurzgesagt - In a Nutshell",
+   "orientation": "vertical",
+   "why": "Binary-question thought-experiment hook answered with escalating animated visuals.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "EXPL-04",
+   "url": "https://www.youtube.com/shorts/8Ey3_9N089k",
+   "title": "The Next Atomic Bomb Is Made of DNA",
+   "channel": "Kurzgesagt - In a Nutshell",
+   "orientation": "vertical",
+   "why": "Shock-juxtaposition headline; dread-to-explanation arc compressed into a Short.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "EXPL-05",
+   "url": "https://www.youtube.com/watch?v=kIID5FDi2JQ",
+   "title": "Why all world maps are wrong",
+   "channel": "Vox",
+   "orientation": "horizontal",
+   "why": "Canonical Vox horizontal explainer: wrong-premise hook, physical prop demo, motion-graphic argument.",
+   "verified_at": "2026-07-19"
+  }
+ ]
+}

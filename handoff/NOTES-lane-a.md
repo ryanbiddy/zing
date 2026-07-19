@@ -1,5 +1,26 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): A-Q14 DELIVERED — full preset pipeline
+  (curation + builder).** Curation: **32 references across all 5 packs,
+  every URL double-verified live** (page fetch + oEmbed title/uploader/
+  orientation cross-check) by two agents on 2026-07-19; rejection lists
+  prove the verification bit — it caught fan-channel re-uploads
+  masquerading as Zach King/Drew Binsky/Veritasium, and correctly
+  excluded Apple's embed-locked launch films as unverifiable-by-pipeline
+  (the D-Q9 staleness lesson, applied). Machine truth in
+  `presets/<pack-id>.json` (stable IDs, verified_at dates); method +
+  rejection evidence in handoff/research/PRESET-PACK-REFERENCES.md.
+  Builder: `zing profile pack <manifest>` batch-studies unstudied refs,
+  builds `pack-<id>` StyleProfile, records manifest sha256 +
+  per-reference outcomes in provenance (regeneration = same command,
+  drift detectable); dead refs excluded with NAMED warnings, all-dead =
+  loud error ("a preset built from nothing would be a lie"). 8 new
+  tests; suite 546+1skip. **Next: actual pack builds** (5 packs × ~6
+  studies each ≈ network + whisper time) — will run as a background
+  batch and report per-pack outcomes; genre-rubric note: viral-tiktok-
+  reels + informative-explainer map to talking-head until dedicated
+  rubrics exist (manifest field, trivially updatable).
+
 - **2026-07-19 (Lane A): S4 Track 1 claimed + DELIVERED (my half) —
   draft-EDL production.** `myzing/assemble/draft.py`:
   `draft_edl(breakdown, direction, media)` maps the direction's chosen
