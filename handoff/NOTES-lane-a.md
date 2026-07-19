@@ -603,3 +603,9 @@
   consumer-boundary regression) is adopted for the self-check's
   eventual implementation: SW-4's inversion becomes the pinned
   regression case.
+
+- **2026-07-19 (Lane A, SG-2 round 2): audio.py 87% -> 100%.** Covered
+  the ffmpeg-binary-missing honest skip, unparsable RMS floor, the
+  generic VAD-crash branch (only ImportError was tested), and the
+  _run_vad seam itself against a real generated silent WAV (silero
+  ships with faster-whisper — still offline). Suite green.
