@@ -343,12 +343,13 @@ def test_finish_pack_error_paths(pack_dir, monkeypatch):
 
 # -- main-red regression 2026-07-19: torn status reads --------------------------
 
-def test_give_up_report_survives_flaky_status_reads(
+def test_give_up_report_is_deterministic_under_dead_status_reads(
     zing_workspace, monkeypatch, capsys
 ):
-    """The merge-skew regression: a status read returning None at report
-    time must not blank the per-slug error detail — last-known errors
-    carried across rounds fill the gap."""
+    """P1 (#181 follow-up), deterministic fault injection: after the
+    retry rounds complete, EVERY status read returns None — the summary
+    must still carry each slug's failure detail from the CLI's own
+    ledger, and must never print transient state categories."""
     import sys as _sys
     import types
 
@@ -362,20 +363,36 @@ def test_give_up_report_survives_flaky_status_reads(
     monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
 
     real_read = storage.read_status
-    flake = {"n": 0}
+    kill_reads = {"on": False}
 
-    def flaky_read(slug):
-        flake["n"] += 1
-        if flake["n"] % 2 == 0:  # every second read sees the torn window
-            return None
+    def controllable_read(slug):
+        if kill_reads["on"]:
+            return None  # deterministic: ALL reads dead in this phase
         return real_read(slug)
 
-    monkeypatch.setattr(setup_flow.storage, "read_status", flaky_read)
-    code = setup_flow.run(["--links", LINKS[0], "--name", "flaky-taste"])
+    monkeypatch.setattr(setup_flow.storage, "read_status", controllable_read)
+
+    # Flip the kill switch the moment the give-up summary begins: the
+    # print of the header is the deterministic boundary.
+    real_print = print
+    import builtins
+
+    def boundary_print(*args, **kw):
+        if args and "could not be completed" in str(args[0]):
+            kill_reads["on"] = True
+        return real_print(*args, **kw)
+
+    monkeypatch.setattr(builtins, "print", boundary_print)
+
+    code = setup_flow.run(["--links", LINKS[0], "--name", "det-taste"])
     out = capsys.readouterr().out
     assert code == 1
     assert "could not be completed" in out
-    assert "LOGIN_REQUIRED" in out  # detail survives the flaky reads
+    assert "LOGIN_REQUIRED" in out          # ledger detail survives dead reads
+    summary = out[out.index("could not be completed"):]
+    assert "[     failed]" in summary       # deterministic category
+    for transient in ("running", "unstudied", "unknown"):
+        assert transient not in summary, f"transient '{transient}' in summary"
 
 
 def test_status_writes_are_atomic_under_concurrent_reads(zing_workspace):

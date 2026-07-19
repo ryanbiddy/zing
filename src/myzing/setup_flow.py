@@ -261,22 +261,38 @@ def wait_for_studies(
 ) -> None:
     """Block until no reference study is running (gate defect D-3: the CLI
     spawns daemon workers that die with the process, so a one-shot CLI
-    MUST outlive its own jobs). Uses the reconciling status read so a
-    dead worker's 'running' is honestly rewritten instead of spinning
-    this loop forever."""
+    MUST outlive its own jobs).
+
+    DETERMINISTIC first (P1 #181 follow-up): the workers were started in
+    THIS process, so join their actual threads — no disk-read race can
+    exist for a joined worker. The reconciling disk poll remains only as
+    the fallback for jobs owned by another process (e.g. a serve-mcp
+    started the study earlier)."""
     import time as _time
 
     from myzing import mcp_server
 
+    # Phase 1: join in-process workers directly (worker completion, not
+    # disk state, is the ground truth we own).
+    for url in links:
+        slug = storage.slug_for(url)
+        with mcp_server._JOBS_LOCK:
+            thread = mcp_server._JOBS.get(slug)
+        if thread is not None:
+            if progress:
+                progress([(slug, "joining")])
+            thread.join()
+
+    # Phase 2: disk fallback for cross-process jobs only.
     while True:
-        plan = plan_setup(name, links, genre, platform)
         running = []
-        for s in plan["references"]:
-            status = storage.read_status(s["slug"])
+        for url in links:
+            slug = storage.slug_for(url)
+            status = storage.read_status(slug)
             if status and status.get("state") == "running":
-                status = mcp_server._reconcile_running(s["slug"], status)
+                status = mcp_server._reconcile_running(slug, status)
                 if status.get("state") == "running":
-                    running.append((s["slug"], status.get("phase", "")))
+                    running.append((slug, status.get("phase", "")))
         if not running:
             return
         if progress:
@@ -373,17 +389,23 @@ def run(argv: list[str]) -> int:
     # D-3 (links path): the CLI must outlive its own background studies —
     # advance, wait for the jobs it started, advance again; a bounded
     # number of restart rounds so repeated failures end honestly.
-    # Last-known error per slug, carried ACROSS retry rounds: the give-up
-    # report must never lose detail to a transient status read (main-red
-    # regression, 2026-07-19 — a mid-rewrite read once blanked the report).
-    last_errors: dict[str, str] = {}
+    # The CLI's own LEDGER of per-slug outcomes, accumulated across retry
+    # rounds. The terminal summary prints ONLY from this ledger — never a
+    # fresh status read — so no torn/transient disk state can blank or
+    # distort it (P1, #181 follow-up: deterministic by construction).
+    ledger: dict[str, tuple[str, str]] = {}  # slug -> (category, detail)
 
-    def _harvest_errors() -> None:
+    def _harvest() -> None:
         for url in links:
             slug = storage.slug_for(url)
+            if (storage.breakdown_dir(slug) / "breakdown.json").is_file():
+                ledger[slug] = ("studied", "")
+                continue
             status = storage.read_status(slug) or {}
             if status.get("error"):
-                last_errors[slug] = status["error"]
+                ledger[slug] = ("failed", status["error"])
+            elif slug not in ledger:
+                ledger[slug] = ("not-started", "")
 
     for attempt in range(4):
         try:
@@ -393,7 +415,7 @@ def run(argv: list[str]) -> int:
             return 1
         for line in outcome["start_errors"]:
             print(f"  could not start study: {line}")
-        _harvest_errors()
+        _harvest()
         plan = outcome["plan"]
 
         if outcome["built"]:
@@ -426,12 +448,12 @@ def run(argv: list[str]) -> int:
         wait_for_studies(name, links, genre, platform, progress=_progress)
 
     plan = plan_setup(name, links, genre, platform)
-    _harvest_errors()
+    _harvest()
     print(f"Taste '{name}' could not be completed:")
-    for s in plan["references"]:
-        status = storage.read_status(s["slug"]) or {}
-        error = status.get("error") or last_errors.get(s["slug"], "")
-        detail = f" — {error}" if error else ""
-        print(f"  [{s['state']:>9}] {s['slug']}{detail}")
+    for url in links:
+        slug = storage.slug_for(url)
+        category, detail_text = ledger.get(slug, ("unknown", ""))
+        detail = f" — {detail_text}" if detail_text else ""
+        print(f"  [{category:>11}] {slug}{detail}")
     print("Fix the causes above (zing doctor helps) and re-run.")
     return 1
