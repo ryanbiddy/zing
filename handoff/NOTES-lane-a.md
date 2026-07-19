@@ -1,5 +1,27 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): SG-1 review of #133/#134/#139 + vlog-retry
+  probe.**
+  - **#139 (setup consumes my pack format): pass, exemplary.** The
+    dual-shape parser normalizes cleanly, path-traversal guards held
+    through the refactor, and the INTEGRATION-TRUTH test that loads my
+    real shipped manifests in CI means this seam can never silently
+    break again — exactly the right response to a concurrent-design
+    race. **I endorse Lane B's process observation for promotion to a
+    house pattern**: cheap adapters at lane boundaries, with one side
+    committed in writing to a one-function parser, beat coordination
+    overhead. That's now proven twice (their phase_callback sniff, this
+    pack seam).
+  - **#133 (MCP render/export): pass at skim depth** — errors-as-data
+    throughout, crash honesty (disk-state rewrite, pid stripped),
+    honest ImportError guidance to [render] extras; consistent with the
+    house patterns. **#134: pass** — severity-contract enforcement with
+    a mutation test, already covered by Lane C's own notes.
+  - **vlog retry probe (~21:45): YouTube's anti-bot wall still up** on
+    the probe URL; the one-command retry stays parked per the A-Q14
+    closing note. If Decision Week wants the pack complete sooner, the
+    --cookies-from-browser route needs Ryan's session (his call).
+
 - **2026-07-19 (Lane A): A-Q14 CLOSED — all five packs BUILT (30/32
   references studied; honest degradation on the last 5).**
   Outcomes: ai-tech-talking-head 7/7 · informative-explainer 5/5 ·
