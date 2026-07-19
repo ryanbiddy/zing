@@ -28,6 +28,15 @@ RUNTIME_REPOSITORIES = (
     "https://github.com/imageio/imageio-ffmpeg",
     "https://github.com/abus-aikorea/voice-pro",
 )
+EDIT_STATE_SCAN_HEADING = (
+    "## SG-4 edit-state and reframing scan \u00b7 2026-07-19 \u00b7 Lane C"
+)
+EDIT_STATE_REPOSITORIES = (
+    "https://github.com/khubaib-ctrl/TurnAround",
+    "https://github.com/panoramix360/edity",
+    "https://github.com/SamurAIGPT/AI-Youtube-Shorts-Generator",
+    "https://github.com/Robelob/Ambar-AI-Video-Editor-Plugin-For-Premiere-Pro",
+)
 
 
 def test_lane_c_sg4_scan_records_license_health_and_verdict_per_repository():
@@ -68,6 +77,24 @@ def test_lane_c_sg4_render_runtime_scan_has_current_unique_records():
         assert prior_art.count(repository) == 1
 
     expected = len(RUNTIME_REPOSITORIES)
+    assert scan.count("- **License:**") == expected
+    assert scan.count("**Health:**") == expected
+    assert scan.count("- **Verdict:") == expected
+    assert scan.lower().count("pushed") >= expected
+    assert scan.lower().count("release") >= expected
+    assert scan.lower().count("contributor") >= expected
+
+
+def test_lane_c_sg4_edit_state_scan_has_current_unique_records():
+    prior_art = PRIOR_ART.read_text(encoding="utf-8")
+
+    assert EDIT_STATE_SCAN_HEADING in prior_art
+    scan = prior_art.split(EDIT_STATE_SCAN_HEADING, 1)[1].split("\n---", 1)[0]
+
+    for repository in EDIT_STATE_REPOSITORIES:
+        assert prior_art.count(repository) == 1
+
+    expected = len(EDIT_STATE_REPOSITORIES)
     assert scan.count("- **License:**") == expected
     assert scan.count("**Health:**") == expected
     assert scan.count("- **Verdict:") == expected
