@@ -43,13 +43,27 @@ def presets_dir() -> Path:
     return Path(__file__).resolve().parents[2] / "presets"
 
 
+def _pack_path(name: str) -> Path | None:
+    """Both shipped shapes: flat ``presets/<name>.json`` (Lane A's A-Q14
+    format, canonical) and ``presets/<name>/pack.json`` (the originally
+    proposed dir form)."""
+    root = presets_dir()
+    flat = root / f"{name}.json"
+    if flat.is_file():
+        return flat
+    nested = root / name / "pack.json"
+    if nested.is_file():
+        return nested
+    return None
+
+
 def load_pack(name: str) -> dict[str, Any] | None:
     """A pack manifest by name, or None. Raises ValueError on a manifest
     that exists but lies (missing fields) — a bad pack must be loud."""
-    if not name or any(c in name for c in "/\\."):
+    if not name or any(c in name for c in "/\\") or name.startswith("."):
         return None
-    path = presets_dir() / name / "pack.json"
-    if not path.is_file():
+    path = _pack_path(name)
+    if path is None:
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
     refs = data.get("references")
@@ -60,6 +74,7 @@ def load_pack(name: str) -> dict[str, Any] | None:
             f"preset pack '{name}' is malformed: references must be a "
             "non-empty list of {url, ...}"
         )
+    data.setdefault("name", data.get("pack_id", name))
     return data
 
 
@@ -68,20 +83,29 @@ def list_packs() -> list[dict[str, Any]]:
     root = presets_dir()
     if not root.is_dir():
         return []
+    names: list[str] = []
+    for entry in sorted(root.iterdir()):
+        if entry.is_file() and entry.suffix == ".json":
+            names.append(entry.stem)
+        elif entry.is_dir() and (entry / "pack.json").is_file():
+            names.append(entry.name)
     packs: list[dict[str, Any]] = []
-    for d in sorted(root.iterdir()):
-        if not (d / "pack.json").is_file():
-            continue
+    for name in names:
         try:
-            pack = load_pack(d.name)
+            pack = load_pack(name)
         except (ValueError, OSError, json.JSONDecodeError) as e:
-            packs.append({"name": d.name, "error": str(e)})
+            packs.append({"name": name, "error": str(e)})
+            continue
+        if pack is None:
             continue
         packs.append({
-            "name": pack.get("name", d.name),
+            "name": pack["name"],
             "genre": pack.get("genre", ""),
             "platform": pack.get("platform", ""),
-            "description": pack.get("description", ""),
+            "orientation": pack.get("orientation", ""),
+            "description": pack.get("description", "")
+            or f"{pack.get('genre', '?')} references, curated "
+            f"{pack.get('curated_at', '?')}",
             "references": len(pack["references"]),
         })
     return packs
