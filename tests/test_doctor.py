@@ -315,3 +315,32 @@ def test_node_only_warns_about_default_runtimes(monkeypatch):
     assert check.data["js_runtime"] == "node"
     assert "403" in check.detail
     assert "--js-runtimes node" in check.fix
+
+
+def test_js_runtime_fixes_point_at_troubleshooting_doc(monkeypatch):
+    """D-9 docs half: both JS-runtime failure modes route the user to the
+    fetch-troubleshooting page, and the page exists with the fix order."""
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: f"/bin/{name}" if name == "yt-dlp" else None,
+    )
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    none_case = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert "FETCH-TROUBLESHOOTING" in none_case.fix
+
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: f"/bin/{name}" if name in ("yt-dlp", "node") else None,
+    )
+    node_case = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert "FETCH-TROUBLESHOOTING" in node_case.fix
+
+    doc = Path(doctor.__file__).resolve().parents[2] / "docs" / "FETCH-TROUBLESHOOTING.md"
+    text = doc.read_text(encoding="utf-8")
+    for marker in ("pip install -U yt-dlp", "deno", "bgutil", "cookies", "GPL-3.0"):
+        assert marker in text
+    # the fix ORDER the SG-4 scan established: update -> deno -> bgutil -> cookies
+    assert (
+        text.index("Update yt-dlp") < text.index("Install deno")
+        < text.index("bgutil") < text.index("Cookies")
+    )
