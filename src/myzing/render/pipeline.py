@@ -245,7 +245,12 @@ def render_edl(
             ffmpeg,
         )
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise RenderError(
+            f"could not create output directory {output_path.parent}: {exc}"
+        ) from exc
     with tempfile.TemporaryDirectory(
         prefix=f".{output_path.stem}-render-",
         dir=output_path.parent,
