@@ -681,3 +681,91 @@ APIs on 2026-07-19; all claims sourced in-line.
   local-first stance) and it's an agent skill, not a library. Signal:
   agent-consumable video analysis is now a recognized category — Zing's
   MCP surface is well positioned.
+
+---
+
+## SG-4 video-creation scan · 2026-07-19 · Lane C (standing generator)
+
+Method: searched GitHub's video-editing, video-processing, creator-tools,
+subtitle, and media topics, then checked each repository's README, license,
+release history, and GitHub API metadata on 2026-07-19. These five repositories
+were not present in this file before the scan. Star counts are discovery signals,
+not quality scores.
+
+### OpenCut-app/OpenCut — https://github.com/OpenCut-app/OpenCut
+
+- **What:** A local-first, web-based video editor. Its in-progress rewrite
+  separates a Rust editor core from an Editor API, plugins, scripting, a
+  headless automation surface, and MCP.
+- **License:** MIT. **Health:** 75,463 stars and 7,593 forks; pushed
+  2026-07-17. The latest release is v0.3.0 (2026-04-15), but the maintainers say
+  the rewrite is still being designed and is not ready for outside
+  contributions.
+- **Verdict: BORROW/WATCH, not a dependency.** The useful reference is the
+  product boundary: one editing model exposed through interactive, headless,
+  script, plugin, and MCP surfaces. Zing should compare that separation with its
+  CLI/MCP parity as long-form and landscape output expands. The rewrite is too
+  unsettled, and its Rust/web stack is too distant from Zing's Python/FFmpeg
+  renderer, to justify reuse now.
+
+### tmoroney/auto-subs — https://github.com/tmoroney/auto-subs
+
+- **What:** A local-first subtitle application for DaVinci Resolve, Premiere
+  Pro, and After Effects. It combines local transcription, diarization,
+  translation, styled caption presets, per-word highlighting, and native
+  caption-track import.
+- **License:** MIT. **Health:** 3,846 stars and 250 forks; pushed
+  2026-07-19. It has 39 releases, with v3.6.2 published 2026-06-09.
+- **Verdict: BORROW.** Study its NLE-facing caption export, preset model,
+  word-timing markers, and overlap/conflict handling for Zing's landscape and
+  long-form caption output. Do not reuse the application wholesale: its
+  Rust/TypeScript/C++/Lua integration stack overlaps functionality Zing already
+  gets from faster-whisper, pysubs2, and FFmpeg.
+
+### Kemerd/premiere-agent — https://github.com/Kemerd/premiere-agent
+
+- **What:** A local conversational editing prototype for Premiere. It merges
+  speech, one-frame-per-second visual captions, and audio tags into a
+  chronological evidence stream, pins edit boundaries to words, runs a boundary
+  preflight, and exports FCPXML, XMEML, and SRT.
+- **License:** none detected; the repository has no LICENSE file and GitHub
+  reports no license. **Health:** 13 stars and 3 forks; created 2026-04-26 and
+  pushed 2026-07-08.
+- **Verdict: SKIP as code; BORROW concepts only.** With no license, its source
+  is not reusable. Independently implement only the high-level ideas that fit
+  Zing: cache expensive perception once, merge evidence on one timeline, and
+  validate word-pinned boundaries before rendering. Do not copy code or data
+  structures.
+
+### PyAV-Org/PyAV — https://github.com/PyAV-Org/PyAV
+
+- **What:** Python bindings over FFmpeg's container, stream, packet, codec, and
+  frame libraries. It offers frame-accurate in-process access where an FFmpeg
+  subprocess or raw pipe becomes awkward.
+- **License:** BSD-3-Clause. **Health:** 3,244 stars and 439 forks; pushed
+  2026-07-16. v18.0.0 was released 2026-07-02.
+- **Verdict: SKIP for the renderer.** Zing intentionally relies on the user's
+  FFmpeg executable, which keeps the dependency and codec boundary simple.
+  PyAV's own guidance favors the CLI when it already solves the job. Revisit it
+  only if a measured detector bottleneck requires packet timestamps or random
+  frame access that the current subprocess boundary cannot provide cleanly.
+
+### Vanilagy/mediabunny — https://github.com/Vanilagy/mediabunny
+
+- **What:** A zero-dependency TypeScript media toolkit for browser-side
+  reading, writing, conversion, and streaming of formats including MP4, WebM,
+  MP3, and HLS. Its pipeline is lazy and built around WebCodecs, muxers, and
+  demuxers.
+- **License:** MPL-2.0. **Health:** 6,731 stars and 274 forks; pushed
+  2026-07-18. It has 161 releases, with v1.50.9 published 2026-07-18.
+- **Verdict: BORROW design only; SKIP the dependency.** Its incremental,
+  browser-native preview/export architecture is a useful reference for a future
+  web surface. MPL-2.0 falls outside Zing's current MIT/BSD/Apache dependency
+  policy, and its TypeScript/WebCodecs runtime does not serve the Python/FFmpeg
+  renderer.
+
+**Scan conclusion:** no direct dependency cleared both the architectural and
+licensing bars. The most actionable borrow is a combined pattern: AutoSubs'
+native caption-track ergonomics plus premiere-agent's cached chronological
+evidence and boundary preflight. OpenCut is the product-surface watch item for
+keeping interactive, headless, scripted, and MCP editing behavior aligned.
