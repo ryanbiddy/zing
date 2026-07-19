@@ -101,7 +101,7 @@ def _fmt(stat: StatSummary, unit: str = "s") -> str:
         return "(no sources measured)"
     return (
         f"{stat.median:g}{unit} median "
-        f"({stat.p25:g}–{stat.p75:g}{unit} IQR, n={stat.n})"
+        f"({stat.p25:g}-{stat.p75:g}{unit} IQR, n={stat.n})"
     )
 
 
@@ -109,7 +109,7 @@ def render_text(p: StyleProfile) -> str:
     lines = [f"profile: {p.name}"]
     if p.genre or p.platform:
         lines.append(
-            "  " + " · ".join(x for x in (p.genre, p.platform) if x)
+            "  " + " | ".join(x for x in (p.genre, p.platform) if x)
         )
     lines.append(f"  sources: {len(p.source_slugs)} "
                  f"({', '.join(p.source_slugs)})")
@@ -129,7 +129,7 @@ def render_text(p: StyleProfile) -> str:
         lines.append(f"  cut curve (10 relative buckets, median): {medians}")
     if p.transition_kind_counts:
         kinds = ", ".join(
-            f"{kind.replace('_', ' ')}×{count}"
+            f"{kind.replace('_', ' ')}x{count}"
             for kind, count in p.transition_kind_counts.items()
         )
         lines.append(f"  transitions: {kinds}")
