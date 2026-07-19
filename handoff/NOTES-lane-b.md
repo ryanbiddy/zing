@@ -724,3 +724,17 @@
   Remaining D-9 tail: doctor PO-provider registration detection (needs
   yt-dlp --verbose parsing — proposed, awaiting queue) and Lane A's
   fetch-side bot-gate error surfacing.
+- **2026-07-19 (Lane B): SG-5 third pass (rotation; queue empty) — a
+  candidate MEASURED AND KILLED before filing.** Hypothesis: zing_status
+  is dishonestly labeled "cheap — call freely" (full doctor checks +
+  subprocess version calls + a 1.5s-timeout uoink probe per call, while
+  the AI is told to poll it). Measurement on this machine: 0.03–0.07s
+  per call — localhost with no listener refuses instantly, the 1.5s
+  timeout never engages, and OS caching makes the subprocess calls
+  cheap. The label is accurate as measured; no proposal filed, no
+  caching machinery built. Numbers recorded here so the idea doesn't
+  resurface without new evidence (the one condition that WOULD change
+  this: a firewalled localhost that drops instead of refusing —
+  worth re-measuring only if a user reports slow status). SG-5 tally:
+  three rounds, zero unnecessary builds, one killed pre-filing —
+  cheapest possible outcome.
