@@ -18,8 +18,8 @@ eyeballed for plausibility; warnings honest about anything skipped).
 | youtube | long | horizontal | **cached** (7 studies) | packs-ws: 315s–1530s, incl. 25-min podcast-style |
 | youtube | long | vertical | **LIVE** ✓ | -UC6b5owmCA (reddit-story format), 430s 864x1920 — studied 2026-07-19, sanity below |
 | tiktok | short | vertical | **LIVE** ✓ | zachking 6768504823336815877, 18.3s 1080x2044 — studied 2026-07-19 retry #2, sanity below |
-| tiktok | short | horizontal | **blocked** | same wall; exists but rare on-platform |
-| tiktok | long | vertical | **sourcing walled** | fetches work (short cell ran live) but every long-form candidate hit a wall: @reesateesa private-account, GRWM candidate post permission-locked, tag-page extractor marked broken in yt-dlp; discover pages are JS-walled. Next: source via a known public long-form creator handle |
+| tiktok | short | horizontal | **exists-rare, unsourced** | fetches work now; sourcing round: even TV/sports accounts crop vertical (@espn probe: 1080x1920). Genuine horizontal TikToks are edge-case uploads; cell stays open with low priority |
+| tiktok | long | vertical | **sourcing walled (round 2 logged)** | fetches work but candidates keep walling: @reesateesa private, GRWM post permission-locked, tag pages broken in yt-dlp. Round 2: listed big public long-form accounts — @mrballen tops out at exactly 178s (creators optimize just under the 3-min mark), @60minutes at 138s. >180s uploads live on small accounts behind per-post walls. Cell stays open; note for formats.py thinking — TikTok's own behavior clusters right at our 180s boundary, so "long tiktok" is a thin real-world class |
 | instagram | short | vertical | **blocked** | attempt 1 (2026-07-19): "empty media response … use --cookies" — login-walled; cookies are Ryan's call |
 | instagram | long | * | **blocked** | same; long-form exists (extended reels) |
 | x | short | horizontal | **LIVE** ✓ | SpaceX post 1732824684683784516, 114s 1920x1080 — studied 2026-07-19, sanity below |
