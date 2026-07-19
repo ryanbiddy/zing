@@ -1000,7 +1000,10 @@ def _extract_frame_jpeg(media: Path, t: float) -> bytes:
         "ffmpeg", "-loglevel", "error",
         "-ss", f"{t:.3f}", "-i", str(media),
         "-frames:v", "1",
-        "-vf", f"scale='min({FRAME_MAX_EDGE},iw)':-2",
+        "-vf",
+        f"scale='min({FRAME_MAX_EDGE},iw)':-2:"
+        "in_range=auto:out_range=full",
+        "-color_range", "pc",
         "-c:v", "mjpeg", "-q:v", "5",
         "-f", "image2pipe", "-",
     ]

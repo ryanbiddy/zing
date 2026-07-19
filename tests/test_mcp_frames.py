@@ -102,6 +102,14 @@ def test_get_frames_orders_and_labels(studied, fake_ffmpeg):
     labels = [f["label"] for f in result["frames"]]
     assert labels == ["Frame 1 @ t=0.50s", "Frame 2 @ t=5.00s"]  # sorted
     assert all(f["jpeg"] == FAKE_JPEG for f in result["frames"])
+    assert all(
+        "out_range=full" in call[call.index("-vf") + 1]
+        for call in fake_ffmpeg
+    )
+    assert all(
+        call[call.index("-color_range") + 1] == "pc"
+        for call in fake_ffmpeg
+    )
 
 
 def test_get_frames_past_end_is_per_frame_honest(studied, fake_ffmpeg):
@@ -162,6 +170,68 @@ def test_get_frames_real_two_color_probe(zing_workspace, tmp_path):
     assert red[:2] == b"\xff\xd8" and blue[:2] == b"\xff\xd8"  # JPEG SOI
     assert len(red) > 500 and len(blue) > 500
     assert red != blue  # different colors -> different frames
+
+
+@pytest.mark.ffmpeg
+def test_get_frames_converts_limited_range_before_jpeg(
+    tmp_path,
+) -> None:
+    video = tmp_path / "limited-range.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "lavfi", "-i", "color=c=red:s=320x180:r=30:d=1",
+            "-vf", "scale=in_range=full:out_range=limited",
+            "-color_range", "tv",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-bsf:v", "h264_metadata=video_full_range_flag=0",
+            "-an",
+            str(video),
+        ],
+        check=True,
+        timeout=120,
+    )
+    probe = subprocess.run(
+        [
+            "ffprobe", "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=color_range",
+            "-of", "default=nw=1:nk=1",
+            str(video),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert probe.stdout.strip() == "tv"
+
+    jpeg = mcp_server._extract_frame_jpeg(video, 0.0)
+
+    assert jpeg.startswith(b"\xff\xd8")
+    assert len(jpeg) > 500
+
+
+@pytest.mark.ffmpeg
+def test_get_frames_extracts_from_subsecond_clip(tmp_path) -> None:
+    video = tmp_path / "short.mp4"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-f", "lavfi", "-i", "color=c=blue:s=320x180:r=30:d=0.1",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            "-an",
+            str(video),
+        ],
+        check=True,
+        timeout=120,
+    )
+
+    jpeg = mcp_server._extract_frame_jpeg(video, 0.0)
+
+    assert jpeg.startswith(b"\xff\xd8")
+    assert len(jpeg) > 500
 
 
 def test_wrapper_interleaves_text_and_images(studied, fake_ffmpeg):
