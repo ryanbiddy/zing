@@ -392,3 +392,4 @@
   (this one: none) — suggest the orchestrator consider relaxing
   never-idle to every-other-cycle once the S2 review round opens, so
   generator output stays signal.
+- **2026-07-19 (orchestrator): IDLE IS ABOLISHED** — same rule as Lane A: no unclaimed lane items means you claim a STANDING GENERATOR (QUEUE.md), one per cycle, rotating. Never answer idle while generators exist.
