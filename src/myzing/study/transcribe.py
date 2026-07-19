@@ -126,7 +126,14 @@ def _load_model(name: str):
 
 
 def _collect_words(segments) -> list[Word]:
-    """Drain a segment generator into Words — the iteration IS the work."""
+    """Drain a segment generator into Words — the iteration IS the work.
+
+    SW-4: the batched pipeline's segment seams can overlap by a fraction
+    of a second, emitting out-of-order word timestamps (2 inversions in
+    10,088 words on a 62-min study). The timestamps are whisper's own;
+    sorting is a faithful normalization, not a fabrication — downstream
+    consumers (caption windows, keeper evidence) assume monotonic order.
+    """
     words: list[Word] = []
     for segment in segments:
         for w in segment.words or []:
@@ -141,6 +148,7 @@ def _collect_words(segments) -> list[Word]:
                     confidence=round(w.probability, 3),
                 )
             )
+    words.sort(key=lambda w: (w.start, w.end))
     return words
 
 

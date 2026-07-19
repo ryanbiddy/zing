@@ -24,7 +24,7 @@ eyeballed for plausibility; warnings honest about anything skipped).
 | instagram | long | * | **blocked** | same; long-form exists (extended reels) |
 | x | short | horizontal | **LIVE** ✓ | SpaceX post 1732824684683784516, 114s 1920x1080 — studied 2026-07-19, sanity below |
 | x | short | vertical | **LIVE** ✓ | BrianMcDonaldIE 2075286280561107161, 14.9s 720x1280 — studied 2026-07-19, sanity below |
-| x | long | horizontal | **sourced, study queued** | verified native candidates: ShawnRyanShow 1875286149788573873 (3703s 1280x720, study-sized) and joerogan 1851117181964046431 (10730s — fallback); heavy study queued behind current jobs |
+| x | long | horizontal | **LIVE** ✓ | ShawnRyanShow 1875286149788573873, 3702.8s 1280x720 — studied 2026-07-19, sanity below |
 
 Non-cells (combination effectively absent, so out of scope): tiktok
 long horizontal, x long vertical — will add if a real counterexample
@@ -177,3 +177,19 @@ plausibility bound 0.3–5.5 w/s): `youtube-oyaneh0joqi`,
 `youtube-yvow0tao9ok` (short/horiz); `youtube-01zctt-cjw`,
 `youtube-c25g53pc5qq` (long/horiz) — all six PASS. 9 of 32 cached
 studies now spot-checked, ≥3 per cell.
+
+## Live cell: x / long / horizontal — sanity record (2026-07-19)
+
+- URL: https://x.com/ShawnRyanShow/status/1875286149788573873 (62-min
+  native X podcast upload). Slug `x-1875286149788573873`. The sweep's
+  longest study: 3702.8s 1280x720@23.976, batched large-v2.
+- 393 shots (~9.4s median spacing — plausible two-camera interview
+  cutting); 10,088 words at 2.72 w/s; speech_ratio 0.837 with a music
+  bed honestly detected (intro/outro). All spans in range.
+- **Finding SW-4 (fixed same cycle):** the sweep's first word-order
+  violation — 2 sub-second inversions in 10,088 words (t=499s,
+  t=2774s), where batched-pipeline segment seams overlap slightly.
+  Fix: _collect_words now sorts by whisper's own timestamps
+  (normalization, not fabrication) + regression test with synthetic
+  seam overlap. At 62-min scale a 0.02% defect rate is what honest
+  hardening looks like: found by sweeping, named, fixed, pinned.
