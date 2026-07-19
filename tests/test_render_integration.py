@@ -282,6 +282,41 @@ def test_clip_audio_is_retained_at_unity(tmp_path: Path) -> None:
     assert abs(mean_volume(source) - mean_volume(output)) <= 1.0
 
 
+def test_clip_audio_follows_each_timeline_slot(tmp_path: Path) -> None:
+    first = tmp_path / "first tone.mp4"
+    second = tmp_path / "second tone.mp4"
+    output = tmp_path / "placed clip audio.mp4"
+    make_color_video(first, "red", tone_hz=330)
+    make_color_video(second, "blue", duration=2.0, tone_hz=880)
+    edl = EDL(
+        clips=[
+            Clip(str(first), 0.0, 1.0, 0.0),
+            Clip(str(second), 1.0, 2.0, 1.0),
+        ],
+        width=180,
+        height=320,
+    )
+
+    render_edl(edl, output, base_dir=tmp_path)
+
+    placement_matrix = (
+        ("first", 0.1, 330, 880),
+        ("second", 1.1, 880, 330),
+    )
+    for slot, start, expected_hz, displaced_hz in placement_matrix:
+        expected = mean_volume(
+            output, start=start, duration=0.7, band_hz=expected_hz
+        )
+        displaced = mean_volume(
+            output, start=start, duration=0.7, band_hz=displaced_hz
+        )
+        assert expected - displaced >= 20.0, (
+            f"{slot} timeline slot has {displaced_hz} Hz clip audio "
+            f"instead of isolated {expected_hz} Hz audio: "
+            f"{expected=}, {displaced=}"
+        )
+
+
 def test_landscape_preset_renders_centered_captions(
     tmp_path: Path,
 ) -> None:

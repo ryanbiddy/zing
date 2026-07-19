@@ -51,7 +51,12 @@ def _audio_leg(
     if gain_db:
         filters.append(f"volume={_number(gain_db)}dB")
     if start:
-        filters.append(f"adelay={round(start * 1000)}:all=1")
+        filters.extend(
+            [
+                f"adelay={round(start * 1000)}:all=1",
+                "asetpts=PTS-STARTPTS",
+            ]
+        )
     filters.extend(
         [
             f"apad=whole_dur={_number(duration)}",
