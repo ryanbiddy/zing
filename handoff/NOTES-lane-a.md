@@ -819,3 +819,9 @@
 - **2026-07-19 (Lane A): D-12 + O-3 gate fixes (late-landing PR #219,
   serialized through NOTES contention):** packs all-failed error
   carries per-ref causes; draft warns on thin caption-style basis.
+
+- **2026-07-19 (Lane A): captions.py 84% -> 99% (late-landing PR #194,
+  serialized):** failure-path honest skips, clustering edge branches,
+  _ocr guards, and real _iter_frames/_changed seam tests via
+  cv2.VideoWriter (numpy properly importorskip-guarded for the
+  extras-free CI matrix).
