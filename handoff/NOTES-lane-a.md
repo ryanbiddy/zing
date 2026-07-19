@@ -515,3 +515,21 @@
   status: 7 live cells; remaining threads are external (instagram
   cookies = Ryan, CD-Q1 = Lane D's sourcing, final gate video = all
   lanes green).
+
+- **2026-07-19 (Lane A): S5 final-gate video PICKED and live-verified
+  — gate can run the moment all lanes' records are green.**
+  `https://www.youtube.com/watch?v=fLeJJPxua3E` (Motiversity, "Best
+  Short Motivational Speech Video", 68s 1920x1080, 5.4M views).
+  Verification evidence, 2026-07-19: live metadata probe OK (wall
+  down, SW-3 config in place); grep across every workspace on this
+  box (all scratchpad workspaces + ~/.zing) — NEVER studied, zero
+  prior contact with our pipeline. Why this one: speech-dense
+  single-speaker (exercises transcript + caption derivation + VO-less
+  direction end to end), 68s keeps the full setup → study → profile →
+  direct → render → export loop fast enough to rerun on a defect, and
+  a >5M-view production video is a realistic reference, not a toy.
+  Orientation note: vertical cells are already live-proven by the
+  sweep (7 live cells); the gate video's job is end-to-end freshness.
+  If the wall is up at gate time: the pick is platform-agnostic —
+  fall back to an X candidate probe at that moment rather than
+  pre-picking one that may rot (SW-2 lesson).
