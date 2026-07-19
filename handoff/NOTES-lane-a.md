@@ -815,3 +815,7 @@
   version — invisible to mocked tests by construction. Fixed
   version-tolerantly (property with fallback). Every Lane A module
   is now >=95%, most at 96-100. Suite 823, deprecation-clean.
+
+- **2026-07-19 (Lane A): D-12 + O-3 gate fixes (late-landing PR #219,
+  serialized through NOTES contention):** packs all-failed error
+  carries per-ref causes; draft warns on thin caption-style basis.

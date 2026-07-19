@@ -145,8 +145,12 @@ def test_all_dead_references_is_an_error(zing_workspace, tmp_path, monkeypatch):
     manifest = write_manifest(tmp_path / "pack.json", references=[
         ref(1, "https://youtube.com/shorts/gone-1"),
     ])
-    with pytest.raises(PackError, match="built from nothing would be a lie"):
+    # D-12 (S5 gate): the per-reference causes must survive into the
+    # error — when everything fails they are the only actionable detail.
+    with pytest.raises(PackError, match="built from nothing") as exc_info:
         build_pack(manifest)
+    assert "gone" in str(exc_info.value)
+    assert "AITTH-01" in str(exc_info.value)
 
 
 def test_no_study_mode_fails_unstudied_honestly(
