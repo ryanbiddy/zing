@@ -456,3 +456,85 @@ def test_no_audio_stream_warns_but_succeeds(zing_workspace, tmp_path, monkeypatc
     result = ingest.ingest(str(src))
 
     assert any("no audio stream" in w for w in result.warnings)
+
+
+# -- A-S6: study-from-kept-media --------------------------------------------
+
+def test_kept_media_studied_with_zero_fetch(zing_workspace, tmp_path, monkeypatch):
+    """The S6 family scenario's zing hop: kept file present -> no yt-dlp,
+    provenance cites the kept file with a sha256 anchor."""
+    import hashlib
+
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    kept = tmp_path / "uoink-kept.mp4"
+    kept.write_bytes(b"kept-by-uoink")
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(url, kept_media=kept)
+
+    assert fake.commands("yt-dlp") == []
+    assert result.provenance["media_source"] == "kept-media"
+    assert result.provenance["kept_media_path"] == str(kept.resolve())
+    assert result.provenance["kept_media_sha256"] == hashlib.sha256(
+        b"kept-by-uoink"
+    ).hexdigest()
+    assert result.meta.platform == "tiktok"      # slug/platform stay URL-derived
+    assert result.slug == "tiktok-7239871234"
+    assert result.media_path.is_file()
+    assert not any("falling back" in w for w in result.warnings)
+
+
+def test_kept_media_missing_falls_back_to_fetch(zing_workspace, tmp_path, monkeypatch):
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(url, kept_media=tmp_path / "gone.mp4")
+
+    assert len(fake.commands("yt-dlp")) == 1
+    assert any(
+        "kept media unavailable" in w and "falling back to fetch" in w
+        for w in result.warnings
+    )
+    assert "media_source" not in result.provenance
+
+
+def test_kept_media_failing_probe_falls_back(zing_workspace, tmp_path, monkeypatch):
+    """A corrupt kept file must not kill the study when the URL fetches."""
+    fake = FakeTools()
+    probe_calls = {"n": 0}
+    real = fake.__call__
+
+    def flaky(cmd, timeout=None):
+        if cmd[0] == "ffprobe" and not any("packet=pts_time" in p for p in cmd):
+            probe_calls["n"] += 1
+            if probe_calls["n"] == 1:      # first probe = the kept file
+                return subprocess.CompletedProcess(cmd, 1, "", "moov atom not found")
+        return real(cmd, timeout)
+    use(monkeypatch, flaky)
+    kept = tmp_path / "corrupt.mp4"
+    kept.write_bytes(b"not-really-video")
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(url, kept_media=kept)
+
+    assert len(fake.commands("yt-dlp")) == 1
+    assert any("kept media failed probe" in w for w in result.warnings)
+    assert "media_source" not in result.provenance
+
+
+def test_kept_media_with_local_source_is_ignored_with_warning(
+    zing_workspace, tmp_path, monkeypatch
+):
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    local = tmp_path / "take.mp4"
+    local.write_bytes(b"local-take")
+    kept = tmp_path / "kept.mp4"
+    kept.write_bytes(b"kept")
+
+    result = ingest.ingest(str(local), kept_media=kept)
+
+    assert any("kept_media ignored" in w for w in result.warnings)
+    assert "media_source" not in result.provenance

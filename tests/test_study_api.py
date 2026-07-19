@@ -33,7 +33,7 @@ SOURCE = "https://www.tiktok.com/@cleo/video/777"
 
 
 def wire_stages(monkeypatch, slug="tiktok-777"):
-    def fake_ingest(source, root=None):
+    def fake_ingest(source, root=None, kept_media=None):
         d = storage.breakdown_dir(slug)
         d.mkdir(parents=True, exist_ok=True)
         return IngestResult(
@@ -249,7 +249,7 @@ def test_workspace_override_never_touches_env_with_use_workspace(
 
 
 def test_study_media_error_propagates(zing_workspace, monkeypatch):
-    def failing(source, root=None):
+    def failing(source, root=None, kept_media=None):
         raise MediaError("yt-dlp could not fetch")
     monkeypatch.setattr(api.ingest_mod, "ingest", failing)
     with pytest.raises(MediaError):
@@ -329,3 +329,35 @@ def test_cli_dispatch_reaches_study_command(zing_workspace, monkeypatch, capsys)
 
     assert rc == 0
     assert json.loads(capsys.readouterr().out)["meta"]["platform"] == "tiktok"
+
+
+def test_kept_media_provenance_reaches_breakdown(zing_workspace, monkeypatch):
+    """A-S6: ingest's kept-media evidence must survive into
+    Breakdown.provenance (the family scenario's 'provenance cites the
+    sidecar' requirement)."""
+    wire_stages(monkeypatch)
+
+    def fake_ingest(source, root=None, kept_media=None):
+        d = storage.breakdown_dir("tiktok-777")
+        d.mkdir(parents=True, exist_ok=True)
+        return IngestResult(
+            slug="tiktok-777",
+            meta=VideoMeta(
+                source_url=source, platform="tiktok", author="cleo",
+                title="t", duration=20.0, width=1080, height=1920,
+                fps=30.0, media_path="media.mp4",
+            ),
+            media_path=d / "media.mp4",
+            breakdown_dir=d,
+            warnings=[],
+            provenance={
+                "media_source": "kept-media",
+                "kept_media_sha256": "ab" * 32,
+            },
+        )
+    monkeypatch.setattr(api.ingest_mod, "ingest", fake_ingest)
+
+    b = api.study(SOURCE, kept_media="C:/kept/clip.mp4")
+
+    assert b.provenance["media_source"] == "kept-media"
+    assert b.provenance["kept_media_sha256"] == "ab" * 32

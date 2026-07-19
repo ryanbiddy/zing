@@ -32,6 +32,12 @@ def run(argv: list[str]) -> int:
         help="raw-footage mode: measure dead air, filler words, and "
              "repeated takes (S3 retake-spotting facts)",
     )
+    parser.add_argument(
+        "--kept-media", type=Path, default=None, metavar="FILE",
+        help="A-S6: locally kept copy of the URL source (uoink keep_media) "
+             "— studied with zero refetch; unusable kept media falls back "
+             "to a normal fetch with a warning",
+    )
     args = parser.parse_args(argv)
 
     from myzing import storage
@@ -44,6 +50,8 @@ def run(argv: list[str]) -> int:
             study_kwargs["detect_transitions"] = True
         if args.raw:
             study_kwargs["raw_mode"] = True
+        if args.kept_media is not None:
+            study_kwargs["kept_media"] = args.kept_media
         breakdown = study(args.source, **study_kwargs)
     except MediaError as e:
         print(f"zing study: {e}")

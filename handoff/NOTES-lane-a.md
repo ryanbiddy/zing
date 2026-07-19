@@ -610,3 +610,19 @@
   _run_vad seam itself against a real generated silent WAV (silero
   ships with faster-whisper — still offline). Suite green.
 - **2026-07-19 (orchestrator): S5 CLOSED (final gate PASS, all criteria, 26min e2e, VO phase-cancellation-proven). SPRINT 6 INTEGRATION OPEN — spec at E:\AI\projects\uoink\handoff\suite-split\S6-INTEGRATION.md; your items in QUEUE §S6. This is the last build sprint before the final review.
+
+- **2026-07-19 (Lane A): claimed A-S6 — study-from-kept-media seam
+  SHIPPED.** `study(source, kept_media=path)` + `zing study
+  --kept-media FILE`: a usable kept file is staged with a sha256
+  anchor and ZERO network fetch; provenance records media_source:
+  kept-media + path + hash (the family scenario's "provenance cites
+  the sidecar" hop — hash-anchored so the link is verifiable without
+  trusting paths). Honest fallbacks, each named in warnings: kept
+  file missing -> fetch; unreadable -> fetch; fails ffprobe -> staged
+  bad copy REMOVED then fetch (the test caught the corrupt copy being
+  "reused" as existing media — real bug, fixed); kept_media on a
+  local-file source -> ignored with warning. Slug/platform stay
+  URL-derived per the contract's stable-IDs rule. Wire-format
+  specifics (sidecar schema) intentionally NOT parsed — Lane B's
+  bridge hands us a path; when INTEGRATION-CONTRACT.md ratifies, any
+  sidecar-field passthrough lands as a follow-up. Suite 654.
