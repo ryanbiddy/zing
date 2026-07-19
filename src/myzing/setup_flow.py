@@ -210,12 +210,14 @@ def advance_setup(
     started: list[str] = []
     restarted: list[str] = []
     start_errors: list[str] = []
+    start_error_map: dict[str, str] = {}  # slug -> cause (audit #187, P2)
     for url in plan["unstudied"]:
         result = mcp_server.h_study_video(url)
         if result.get("ok"):
             started.append(result.get("slug", url))
         else:
             start_errors.append(f"{url}: {result.get('error')}")
+            start_error_map[storage.slug_for(url)] = str(result.get("error", ""))
     # D-4: a failed study is restartable, not a dead end — the reconcile
     # message says "call study_video again"; setup is the caller that must
     # actually do it.
@@ -228,12 +230,14 @@ def advance_setup(
             restarted.append(result.get("slug", url))
         else:
             start_errors.append(f"{url}: {result.get('error')}")
+            start_error_map[storage.slug_for(url)] = str(result.get("error", ""))
     plan = plan_setup(name, links, genre, platform)
     outcome: dict[str, Any] = {
         "plan": plan,
         "started": started,
         "restarted": restarted,
         "start_errors": start_errors,
+        "start_error_map": start_error_map,
         "built": False,
     }
     if plan["ready_to_build"]:
@@ -415,6 +419,9 @@ def run(argv: list[str]) -> int:
             return 1
         for line in outcome["start_errors"]:
             print(f"  could not start study: {line}")
+        for slug, cause in outcome["start_error_map"].items():
+            ledger[slug] = ("not-started", cause)  # audit #187 P2: the
+            # summary must preserve the actionable cause it promises
         _harvest()
         plan = outcome["plan"]
 
