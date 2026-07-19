@@ -13,6 +13,7 @@
 - claimed D-Q10
 - claimed D-Q11
 - claimed SG-4 (prior art OSS scan)
+- claimed D-Q12
 
 
 
@@ -22,6 +23,7 @@
 - **2026-07-18 Reference Candidates & Readability QA (D-Q9/D-Q10):** Verified 10 live YouTube Shorts URLs across tech, comedy, informative, product, and vlog genres, mapping each to a specific rubric criterion in `handoff/research/REFERENCE-CANDIDATES.md`. Audited `breakdown.md` formatting from a creator's perspective in `handoff/research/BREAKDOWN-READABILITY-QA.md`, highlighting gaps in ML confidence metrics, audio jargon (RMS dBFS vs LUFS), 0-based indexing, and local file paths for images.
 - **2026-07-18 Instagram Virality Re-tiering (D-Q11):** Re-tiered `V-IG-3` (10x view-to-follower ratio), `V-IG-7` (50% completion throttling), and `V-IG-8` (30/1,000 share velocity) to `T4 / FOLKLORE` in `VIRALITY-instagram.md` per cross-platform synthesis findings. Added cross-reference notes to `VIRALITY-SYNTHESIS.md` §4.1 and updated `INDEX.md` rows to match.
 - **2026-07-18 Prior Art OSS Scan (SG-4):** Evaluated five open-source repositories not previously analyzed: `demucs` (MIT, vocals separation, verdict: REUSE/BORROW in S2), `ffsubsync` (MIT, subtitle alignment, verdict: BORROW in C-2/S2), `youtube-transcript-api` (MIT, golden golden fetch, verdict: REUSE in S2/Eval), `pyVideoTrans` (GPL-3.0, video translation, verdict: SKIP/IDEAS ONLY due to license), and `subaligner` (MIT, DNN sync, verdict: SKIP in S2). Updated `PRIOR-ART-OSS.md` and consolidated verdict table.
+- **2026-07-18 Reference Candidates Re-verification (D-Q12):** Re-verified all 10 rows of `REFERENCE-CANDIDATES.md`. Found and corrected 4 misattributed/re-uploaded video links (Ryan George #6, Cleo Abram #7, Ali Abdaal #9, and Casey Neistat #10) with verified official creator channel URLs.
 - **2026-07-18 (orchestrator):** new light-work wave queued (D-Q7..D-Q10) — sized for your strengths: collation, verification, collection. Heavy judgment/synthesis items will go to other lanes; if an item feels like it needs deep reasoning, flag it here instead of grinding.
 - **2026-07-18 (orchestrator): SPRINT 2 IS OPEN** — handoff/SPRINT-2-D2.md. StyleProfile + StatSummary contracts are live in schemas.py. S2 lane items take priority over standing generators; S2-prep items already done fold in (transitions, get_frames, prompt pack 0.4.0 are the foundation). Same discipline as S1.
 - **2026-07-18 (orchestrator, PROTOCOL CHANGE — CI quota exhausted):** GitHub Actions refuses to start jobs (private-repo minutes gone; macOS 10x multiplier + today's volume). Until further notice: do NOT wait on checks (they will never run). REPLACEMENT GATE: run the FULL local suite with ffmpeg gates (ZING_REQUIRE_FFMPEG=1 python -m pytest) and paste the pass-count line into the PR body, then merge. Doc-only changes may merge with a stated 'doc-only' line instead. The discipline is the gate now — betray it and we are blind.
