@@ -14,3 +14,4 @@ goldens/*/media*
 *.wav
 *.mp3
 !tests/fixtures/**
+.coverage
