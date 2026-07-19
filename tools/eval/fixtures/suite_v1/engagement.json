@@ -1,0 +1,133 @@
+{
+  "contract": "uoink.engagement.ingest/1",
+  "cases": [
+    {
+      "id": "accepted",
+      "expected_valid": true,
+      "payload": {
+        "ok": true,
+        "contract": "uoink.engagement.ingest",
+        "version": 1,
+        "data": {
+          "submitted": 1,
+          "accepted": 1,
+          "duplicates": 0,
+          "rejected": []
+        }
+      }
+    },
+    {
+      "id": "duplicate_id",
+      "base": "accepted",
+      "expected_valid": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "accepted"],
+          "value": 0
+        },
+        {
+          "op": "set",
+          "path": ["data", "duplicates"],
+          "value": 1
+        }
+      ]
+    },
+    {
+      "id": "partial_rejection_accounting",
+      "base": "accepted",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "submitted"],
+          "value": 2
+        }
+      ]
+    },
+    {
+      "id": "permanent_rejection",
+      "base": "accepted",
+      "expected_valid": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "accepted"],
+          "value": 0
+        },
+        {
+          "op": "set",
+          "path": ["data", "rejected"],
+          "value": [
+            {
+              "event_id": "writer-permanent",
+              "code": "invalid_reference",
+              "message": "item reference is invalid",
+              "retryable": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "retryable_rejection",
+      "base": "accepted",
+      "expected_valid": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "accepted"],
+          "value": 0
+        },
+        {
+          "op": "set",
+          "path": ["data", "rejected"],
+          "value": [
+            {
+              "event_id": "writer-retryable",
+              "code": "unavailable",
+              "message": "event storage is temporarily unavailable",
+              "retryable": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "transaction_rollback",
+      "expected_valid": true,
+      "payload": {
+        "contract": "uoink.engagement.ingest",
+        "version": 1,
+        "events": [
+          {
+            "event_id": "writer-rollback-1",
+            "item_ref": "uoink://item/short-123",
+            "event_type": "cite",
+            "source_product": "writer",
+            "occurred_at": "2026-07-19T12:00:00Z"
+          },
+          {
+            "event_id": "zing-rollback-2",
+            "item_ref": "uoink://item/short-123",
+            "event_type": "opened",
+            "source_product": "zing",
+            "occurred_at": "2026-07-19T12:00:01Z"
+          }
+        ]
+      },
+      "behavior": {
+        "submitted_event_ids": [
+          "writer-rollback-1",
+          "zing-rollback-2"
+        ],
+        "transaction_committed": false,
+        "persisted_event_ids": [],
+        "spooled_event_ids": [
+          "writer-rollback-1",
+          "zing-rollback-2"
+        ]
+      }
+    }
+  ]
+}
