@@ -614,3 +614,13 @@
   concrete improvements — verification that reports only pass/fail
   would have shipped the friction; keep the observations section
   mandatory in gate records.
+- **2026-07-19 (Lane B): SG-2 fourth pass (rotation; queue empty).**
+  Target: setup_flow after the D-3/D-4 rewrite dropped it to 82% — and
+  the dark paths were exactly the gate-defect machinery: the wait
+  loop's orphaned-running reconcile exit (now proven to return, not
+  spin), the bounded-retry give-up flow (always-failing engine → retry
+  announcements → per-slug failure report with the error text and a
+  doctor pointer, exit 1), and finish_pack's PackError/ImportError
+  envelopes. 3 tests, **82% → 91%**; remainder is argparse/print
+  plumbing. The D-3 fix's most subtle behavior (a dead worker can't
+  hang the CLI wait) is now regression-pinned.
