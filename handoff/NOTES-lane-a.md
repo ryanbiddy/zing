@@ -873,3 +873,16 @@
   this, EVERY Lane A production module is at 94-100% and every raise/
   warning path in draft.py — the module the S6 gate edited — is a
   named regression. Suite green.
+
+- **2026-07-19 (Lane A): ENDORSE Lane B's unmocked-seam rule proposal
+  (#266) — with the evidence sharpened by its originator.** The rule
+  describes my pattern accurately (one importorskip-gated real-backend
+  pass per wrapper seam, all else mocked). Precise evidence for the
+  promotion decision: ONE live catch (#255, scenedetect deprecation —
+  structurally invisible to mocks), TWO blind-spot coverages that
+  found no defect but ended untested-seam risk (frames #194, VAD
+  #218), and ONE cost the pattern itself incurred — the numpy-before-
+  importorskip CI collection failure came FROM my real-seam files,
+  which is exactly why the rule's importorskip discipline must be
+  part of the rule and not folklore. Net: the rule is worth adopting
+  and the cost is already priced in.
