@@ -165,23 +165,88 @@ def _ytdlp_version_age_days(version: str, today: date) -> int | None:
     return (today - released).days
 
 
-def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str, str]:
+def resolve_ytdlp_argv() -> list[str] | None:
+    """The exact argv prefix used to invoke yt-dlp — ONE resolver for
+    doctor's probe and study's fetch (S5 gate defect D-11: doctor
+    accepted binary-OR-module while ingest ran the literal binary, so a
+    module-only env got "fully ready" and then every study failed).
+    Binary on PATH wins; else the importable module runs through this
+    interpreter; None means yt-dlp is absent entirely."""
+    path = _which("yt-dlp")
+    if path:
+        return [path]
+    if _has_module("yt_dlp"):
+        return [sys.executable, "-m", "yt_dlp"]
+    return None
+
+
+def _ytdlp_config_paths() -> list[Path]:
+    """Standard user-scope yt-dlp config locations (documented load
+    order). Portable configs next to the binary and custom
+    --config-locations are out of doctor's reach — wording that cites
+    this list must say "standard locations", not "your config"."""
+    candidates: list[Path] = []
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        candidates += [
+            Path(appdata) / "yt-dlp" / "config",
+            Path(appdata) / "yt-dlp" / "config.txt",
+        ]
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    if xdg:
+        candidates += [
+            Path(xdg) / "yt-dlp" / "config",
+            Path(xdg) / "yt-dlp" / "config.txt",
+        ]
+    home = Path.home()
+    candidates += [
+        home / ".config" / "yt-dlp" / "config",
+        home / ".config" / "yt-dlp" / "config.txt",
+        home / "yt-dlp.conf",
+        home / "yt-dlp.conf.txt",
+    ]
+    return candidates
+
+
+def _ytdlp_config_node_enabled() -> Path | None:
+    """S5 gate defect D-13: doctor kept prescribing '--js-runtimes node'
+    on a box whose config already contained it — a re-prescribed fix
+    erodes trust in every other fix doctor prints. Returns the first
+    standard config file with a non-comment '--js-runtimes ... node'
+    line, else None."""
+    for p in _ytdlp_config_paths():
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            if "--js-runtimes" in line and "node" in line:
+                return p
+    return None
+
+
+def _youtube_js_advice(
+    module: bool,
+) -> tuple[str | None, bool, str, str, str, Path | None]:
     """YouTube-challenge readiness, separate from staleness parsing.
 
     B-Q12: yt-dlp's YouTube extractor executes real JavaScript for
     signature solving, which needs BOTH an external JS runtime and the
     EJS solver scripts (yt_dlp_ejs, shipped by yt-dlp[default]).
-    Returns (js_runtime, has_solver, note, fix, degraded_mode); the
-    strings are "" when the host is fully configured, and a non-empty
-    degraded_mode means a promised fetch capability currently FAILS —
-    the check must not report ok (audit #201 P1, re-found by Lane C
-    SG-1 2026-07-19: leaf detail said "WILL fail" while the verdict
-    line still aggregated to "fully ready").
+    Returns (js_runtime, has_solver, note, fix, degraded_mode,
+    node_config); the strings are "" when the host is fully configured,
+    and a non-empty degraded_mode means a promised fetch capability
+    currently FAILS — the check must not report ok (audit #201 P1,
+    re-found by Lane C SG-1 2026-07-19: leaf detail said "WILL fail"
+    while the verdict line still aggregated to "fully ready").
     """
     js_runtime = next((rt for rt in ("deno", "node") if _which(rt)), None)
     note = ""
     fix = ""
     degraded = ""
+    node_config: Path | None = None
     if js_runtime is None:
         # D-9: what S2 warned about is now reality — YouTube fetches FAIL
         # without an external JS runtime, they don't just warn.
@@ -199,20 +264,28 @@ def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str, str]:
         # enables deno by default; node needs explicit opt-in, and without
         # it signature-challenge videos 403 while others pass, looking
         # like an intermittent wall.
-        note = (
-            "; node found but yt-dlp only uses deno by default — "
-            "signature-challenge YouTube videos will 403 until configured"
-        )
-        fix = (
-            "add '--js-runtimes node' to your yt-dlp config, or install "
-            "deno (guide: " + _troubleshooting_ref() + ")"
-        )
-        degraded = (
-            "signature-challenge YouTube videos 403 unless "
-            "'--js-runtimes node' is already in your yt-dlp config "
-            "(doctor cannot read that config to verify); other "
-            "platforms and local files unaffected"
-        )
+        node_config = _ytdlp_config_node_enabled()
+        if node_config is not None:
+            # D-13: the opt-in is already applied — say so, prescribe
+            # nothing.
+            note = f"; node JS runtime enabled via yt-dlp config ({node_config})"
+        else:
+            note = (
+                "; node found but yt-dlp only uses deno by default — "
+                "signature-challenge YouTube videos will 403 until configured"
+            )
+            fix = (
+                "add '--js-runtimes node' to your yt-dlp config, or install "
+                "deno (guide: " + _troubleshooting_ref() + ")"
+            )
+            degraded = (
+                "signature-challenge YouTube videos 403 until node is "
+                "enabled: no '--js-runtimes node' line in the standard "
+                "yt-dlp config locations doctor checks (a custom "
+                "--config-locations file is invisible to doctor — ignore "
+                "this if yours has the line); other platforms and local "
+                "files unaffected"
+            )
     # Audit #201 P1: runtime-without-solver reproduces as "n challenge
     # solving failed" on every YouTube fetch.
     has_solver = _has_module("yt_dlp_ejs")
@@ -230,14 +303,17 @@ def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str, str]:
             "scripts are installed; other platforms and local files "
             "still work"
         )
-    return js_runtime, has_solver, note, fix, degraded
+    return js_runtime, has_solver, note, fix, degraded, node_config
 
 
 def check_ytdlp(today: date | None = None) -> Check:
     today = today or date.today()
-    path = _which("yt-dlp")
+    # D-11: probe the SAME invocation study will run, not a looser
+    # notion of "installed" — the gate saw "fully ready" from a module
+    # probe while every fetch ran (and failed to find) the binary.
+    argv = resolve_ytdlp_argv()
     module = _has_module("yt_dlp")
-    if not path and not module:
+    if argv is None:
         return Check(
             name="yt-dlp",
             tier=RECOMMENDED,
@@ -246,11 +322,11 @@ def check_ytdlp(today: date | None = None) -> Check:
             fix='python -m pip install "myzing[study]"   (or: pip install yt-dlp)',
             degraded_mode="zing study works on local files only — no URL fetch",
         )
-    version = _run_version_cached(
-        [path, "--version"] if path else [sys.executable, "-m", "yt_dlp", "--version"]
-    )
+    version = _run_version_cached(argv + ["--version"])
     age = _ytdlp_version_age_days(version, today) if version else None
-    js_runtime, has_solver, js_note, js_fix, js_degraded = _youtube_js_advice(module)
+    js_runtime, has_solver, js_note, js_fix, js_degraded, node_config = (
+        _youtube_js_advice(module)
+    )
     stale = age is not None and age > YTDLP_STALE_DAYS
     if stale:
         detail = (
@@ -261,7 +337,7 @@ def check_ytdlp(today: date | None = None) -> Check:
             f"   then: {js_fix}" if js_fix else ""
         )
     else:
-        detail = f"version {version}" if version else f"found at {path}"
+        detail = f"version {version}" if version else f"found ({argv[0]})"
         fix = js_fix
     # Staleness stays warning-grade (ok=True); a broken YouTube fetch
     # path does not — ok feeds the verdict line, and "fully ready" over
@@ -280,6 +356,8 @@ def check_ytdlp(today: date | None = None) -> Check:
             "stale": stale,
             "js_runtime": js_runtime,
             "ejs_solver": has_solver,
+            "invocation": argv,
+            "node_config": str(node_config) if node_config else None,
         },
     )
 

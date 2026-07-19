@@ -90,6 +90,10 @@ class FakeTools:
 
 def use(monkeypatch, fake) -> None:
     monkeypatch.setattr("myzing.study.ingest.proc.run", fake)
+    # D-11: ingest invokes whatever doctor's resolver returns; pin it to
+    # the plain binary so FakeTools' cmd[0] dispatch stays deterministic
+    # regardless of what this host has installed.
+    monkeypatch.setattr("myzing.doctor.resolve_ytdlp_argv", lambda: ["yt-dlp"])
 
 
 # -- platform / parsing -----------------------------------------------------
@@ -171,6 +175,41 @@ def test_url_ingest_reuses_existing_media(zing_workspace, monkeypatch):
 
     assert fake.commands("yt-dlp") == []
     assert any("reusing" in w for w in result.warnings)
+
+
+def test_d11_module_only_env_fetches_via_interpreter(zing_workspace, monkeypatch):
+    """S5 gate defect D-11: doctor said "fully ready" from the importable
+    module while _fetch ran the literal binary and died. Ingest must run
+    exactly what the shared resolver returns — here, the module form."""
+    import sys as _sys
+
+    fake = FakeTools()
+
+    def module_aware(cmd, timeout=None):
+        if "yt_dlp" in cmd:
+            return fake([("yt-dlp"), *cmd[3:]], timeout)  # reuse media writer
+        return fake(cmd, timeout)
+
+    monkeypatch.setattr("myzing.study.ingest.proc.run", module_aware)
+    monkeypatch.setattr(
+        "myzing.doctor.resolve_ytdlp_argv",
+        lambda: [_sys.executable, "-m", "yt_dlp"],
+    )
+
+    result = ingest.ingest("https://www.tiktok.com/@cleo/video/7239871234")
+
+    assert result.media_path.is_file()
+
+
+def test_d11_no_ytdlp_at_all_is_actionable_before_running_anything(
+    zing_workspace, monkeypatch
+):
+    calls = []
+    monkeypatch.setattr("myzing.study.ingest.proc.run", lambda *a, **k: calls.append(a))
+    monkeypatch.setattr("myzing.doctor.resolve_ytdlp_argv", lambda: None)
+    with pytest.raises(MediaError, match="myzing\\[study\\]"):
+        ingest.ingest("https://www.tiktok.com/@x/video/9")
+    assert calls == []  # no subprocess ran just to fail with ENOENT
 
 
 def test_url_fetch_failure_surfaces_stderr(zing_workspace, monkeypatch):

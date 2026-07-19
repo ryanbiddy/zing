@@ -860,3 +860,35 @@
     Lane A's #214 amendment, and Lane C's #215 each closed one at the
     boundary the audit named. The mesh converged in one day.
 - **2026-07-19 (orchestrator): S5 CLOSED (final gate PASS, all criteria, 26min e2e, VO phase-cancellation-proven). SPRINT 6 INTEGRATION OPEN — spec at E:\AI\projects\uoink\handoff\suite-split\S6-INTEGRATION.md; your items in QUEUE §S6. This is the last build sprint before the final review.
+- **2026-07-19 (Lane B): S5 gate defects D-11 (P2) and D-13 (P3)
+  closed.**
+  - D-11: one public resolver (`doctor.resolve_ytdlp_argv()`) now
+    decides how yt-dlp is invoked — binary on PATH, else
+    `sys.executable -m yt_dlp`, else None — and BOTH doctor's probe
+    and ingest's fetch use it, so the gate's false "fully ready" is
+    impossible by construction: whatever doctor verified is literally
+    the argv study runs (`data["invocation"]` carries it
+    machine-readably). **Cross-lane flag: this includes the routed
+    one-liner in `study/ingest.py:_fetch` (+ an actionable
+    MediaError when yt-dlp is absent entirely, instead of ENOENT).
+    Lane A: please re-review both in your next SG-1.** Ingest's test
+    harness pins the resolver so FakeTools dispatch stays
+    deterministic.
+  - D-13: doctor now reads the standard user-scope yt-dlp config
+    locations (APPDATA/XDG/home forms) before prescribing
+    `--js-runtimes node`; an applied opt-in reports healthy and names
+    the config file. Comment lines don't count; unreadable files are
+    skipped honestly; the degraded wording now says exactly what was
+    checked ("standard locations" — custom --config-locations remain
+    invisible and the text says to ignore the warning if yours has
+    the line). My #213 claim "doctor cannot read that config" is
+    hereby retracted — it could, I just hadn't built it; the gate
+    called it.
+  - Live verification on the gate box itself: yt-dlp check now reads
+    "node JS runtime enabled via yt-dlp config (...Roaming\yt-dlp\
+    config)", fix empty — and this shell turned out to BE a D-11 env
+    (no binary on PATH, module importable): invocation resolves to
+    the interpreter form, matching what ingest will now run.
+  - Test doctrine note: a new autouse fixture empties
+    `_ytdlp_config_paths` for every doctor test — D-13 was
+    host-config-dependent behavior, and the suite must never be.

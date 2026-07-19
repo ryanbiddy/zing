@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import urllib.error
 from datetime import date
 from pathlib import Path
@@ -17,6 +18,15 @@ def _fresh_version_cache():
     doctor._version_cache.clear()
     yield
     doctor._version_cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_ytdlp_config(monkeypatch):
+    """D-13 made doctor read REAL yt-dlp config files — tests must never
+    depend on what this host's config contains (the defect itself was
+    host-config-dependent behavior). Tests that want a config monkeypatch
+    _ytdlp_config_paths explicitly."""
+    monkeypatch.setattr(doctor, "_ytdlp_config_paths", lambda: [])
 
 
 @pytest.fixture
@@ -329,10 +339,12 @@ def test_node_only_warns_about_default_runtimes(monkeypatch):
     assert check.data["js_runtime"] == "node"
     assert "403" in check.detail
     assert "--js-runtimes node" in check.fix
-    # Not satisfied-by-default → degraded, and honest that doctor cannot
-    # verify a user's yt-dlp config for the node opt-in.
+    # Not satisfied-by-default → degraded, and honest about scope: the
+    # STANDARD config locations were checked (D-13), custom
+    # --config-locations remain invisible.
     assert check.ok is False and check.mark == "degraded"
-    assert "cannot read that config" in check.degraded_mode
+    assert "standard" in check.degraded_mode
+    assert "--config-locations" in check.degraded_mode
 
 
 def test_js_runtime_fixes_point_at_troubleshooting_doc(monkeypatch):
@@ -416,6 +428,74 @@ def test_audit_201_solver_missing_is_never_fully_ready(full_machine, monkeypatch
     verdict = capsys.readouterr().out.splitlines()[2]
     assert "fully ready" not in verdict
     assert "yt-dlp" in verdict
+
+
+# -- S5 gate defects D-11 / D-13 ---------------------------------------------
+
+def test_d11_resolver_prefers_binary_then_module_then_none(monkeypatch):
+    """One resolver for doctor's probe AND study's fetch — the gate saw
+    'fully ready' from a module probe while ingest ran the binary."""
+    monkeypatch.setattr(doctor, "_which", lambda name: "/bin/yt-dlp")
+    assert doctor.resolve_ytdlp_argv() == ["/bin/yt-dlp"]
+
+    monkeypatch.setattr(doctor, "_which", lambda name: None)
+    monkeypatch.setattr(doctor, "_has_module", lambda name: name == "yt_dlp")
+    assert doctor.resolve_ytdlp_argv() == [sys.executable, "-m", "yt_dlp"]
+
+    monkeypatch.setattr(doctor, "_has_module", lambda name: False)
+    assert doctor.resolve_ytdlp_argv() is None
+
+
+def test_d11_check_reports_the_invocation_it_probed(monkeypatch):
+    """data['invocation'] is the machine-readable half: whatever doctor
+    verified is exactly what study will run."""
+    monkeypatch.setattr(doctor, "_which", lambda name: None)
+    monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert check.data["invocation"] == [sys.executable, "-m", "yt_dlp"]
+
+
+def test_d13_applied_node_config_is_not_represcribed(monkeypatch, tmp_path):
+    """The gate box had '--js-runtimes node' in %APPDATA%/yt-dlp/config
+    and doctor prescribed it anyway. With the opt-in found in a standard
+    location: healthy, quiet fix, and the config path is named."""
+    cfg = tmp_path / "config"
+    cfg.write_text("--no-mtime\n--js-runtimes node\n", encoding="utf-8")
+    monkeypatch.setattr(doctor, "_ytdlp_config_paths", lambda: [cfg])
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: f"/bin/{name}" if name in ("yt-dlp", "node") else None,
+    )
+    monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert check.ok is True
+    assert check.fix == ""
+    assert "enabled via yt-dlp config" in check.detail
+    assert check.data["node_config"] == str(cfg)
+
+
+def test_d13_commented_out_line_does_not_count(monkeypatch, tmp_path):
+    cfg = tmp_path / "config"
+    cfg.write_text("# --js-runtimes node\n", encoding="utf-8")
+    monkeypatch.setattr(doctor, "_ytdlp_config_paths", lambda: [cfg])
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: f"/bin/{name}" if name in ("yt-dlp", "node") else None,
+    )
+    monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert check.ok is False and check.mark == "degraded"
+    assert "--js-runtimes node" in check.fix
+
+
+def test_d13_missing_config_file_reads_as_absent(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        doctor, "_ytdlp_config_paths", lambda: [tmp_path / "nope" / "config"]
+    )
+    assert doctor._ytdlp_config_node_enabled() is None
 
 
 def test_version_probe_is_cached(monkeypatch):
