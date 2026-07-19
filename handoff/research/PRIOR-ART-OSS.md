@@ -918,3 +918,109 @@ FreeCut supplies the clearest renderer contract to borrow; VSE supplies the
 best missing caption-OCR fixtures. FFMPerative and AutoClip reinforce one
 boundary Zing should keep: model output must remain inspectable and constrained
 before it can mutate media.
+
+---
+
+## SG-4 editorial-workflow scan · 2026-07-19 · Lane C
+
+Method: checked GitHub's [daily trending page](https://github.com/trending?since=daily)
+and the video-editing, subtitles, video-processing, creator-tools, and
+automatic-video-editing topic searches on 2026-07-19. The daily list had no
+relevant video or creator repository, so the five unlisted candidates below
+came from the topic results. License files, default-branch source, releases,
+and contributor records were checked directly. Health uses `pushed_at`, latest
+release, and contribution concentration; GitHub's broader `updated_at` did not
+drive any verdict.
+
+### GuanYixuan/pyJianYingDraft — https://github.com/GuanYixuan/pyJianYingDraft
+
+- **What:** A Python library that generates Jianying draft projects with
+  multi-track video, audio, text, transitions, keyframes, effects, SRT import,
+  and template-based material replacement. Its README maintains a versioned
+  capability matrix and names cases where newer Jianying releases store draft
+  JSON in a form the library cannot read directly, reorder imported tracks, or
+  prevent automated export.
+- **License:** Apache-2.0. **Health:** 3,961 stars and 627 forks; pushed
+  2026-07-08. Release 0.3.0 shipped the same day. GitHub's contributor endpoint
+  attributes all 214 listed contributions to one maintainer.
+- **Verdict: BORROW the compatibility matrix; SKIP the dependency.** Zing
+  should use the same explicit supported/degraded/unsupported table if it adds
+  more NLE exports. The library's core job is writing a proprietary,
+  version-sensitive editor format, and its automated export path depends on
+  older Windows UI controls. That does not simplify Zing's FFmpeg, EDL, and
+  OpenTimelineIO boundary.
+
+### ThioJoe/Auto-Synced-Translated-Dubs — https://github.com/ThioJoe/Auto-Synced-Translated-Dubs
+
+- **What:** A subtitle-timed translation and dubbing pipeline. It synthesizes
+  each cue, calculates the required speaking rate, optionally performs a
+  second synthesis pass at that rate, and assembles the clips at their original
+  positions. Its workflow treats gaps between subtitle cues as pauses worth
+  preserving.
+- **License:** AGPL-3.0. **Health:** 1,738 stars and 162 forks; pushed
+  2026-05-11. The latest release is v0.21.0 from 2025-01-28. GitHub lists 207
+  contributions from the lead maintainer, then 8 and 1 from the next two.
+- **Verdict: BORROW timing tests only; SKIP the code.** AGPL-3.0 is outside
+  Zing's dependency policy. The useful independent test design is a per-cue
+  fit report: requested duration, synthesized duration, applied speed, and
+  preserved inter-cue gap. That would expose rushed or pause-erasing
+  voiceovers better than a single whole-track duration check.
+
+### abhiTronix/vidgear — https://github.com/abhiTronix/vidgear
+
+- **What:** A Python framework of threaded and asynchronous capture, encode,
+  streaming, screen, camera, WebRTC, and network-video APIs over FFmpeg,
+  OpenCV, ZeroMQ, yt-dlp, and other backends.
+- **License:** Apache-2.0. **Health:** 3,718 stars and 285 forks; pushed
+  2026-05-18. v0.3.5 was released 2026-05-17. GitHub credits the lead
+  maintainer with 1,326 contributions; the next four contributors have 6, 5,
+  5, and 4.
+- **Verdict: SKIP for Zing's batch renderer.** VidGear solves live capture,
+  transport, and streaming breadth that Zing does not need, while adding
+  several backend abstractions around an FFmpeg subprocess boundary Zing
+  already controls directly. Revisit only its bounded frame-queue and shutdown
+  behavior if a measured long-form memory defect requires streaming frames
+  through Python.
+
+### EmiGross/ClaudeCut — https://github.com/EmiGross/ClaudeCut
+
+- **What:** A transcript-led rough-cut template for Premiere. It caches
+  per-clip Whisper output and probed media facts, asks Claude Code to fill a
+  plain edit list, stops for human review, then emits FCP7 XML and a readable
+  cut plan. Its README documents three import failures in the stock
+  OpenTimelineIO adapter: missing audio channel/sample-rate metadata, empty
+  audio clip stubs, and missing sequence format.
+- **License:** MIT. **Health:** 1 star and no forks; created 2026-06-18 and
+  pushed 2026-06-21. It has no release, and its sole contributor has 7 listed
+  contributions.
+- **Verdict: BORROW the import regressions; SKIP the template dependency.**
+  Zing's OTIO tests should cover real audio clip items, channel and sample-rate
+  metadata, explicit sequence dimensions/rate, and mixed-rate footage before
+  any Premiere compatibility claim. ClaudeCut is too new and concentrated to
+  treat as an implementation base, and its transcript-only judgment is weaker
+  than Zing's measured visual and audio evidence.
+
+### qwertyboy0325/vox-proof — https://github.com/qwertyboy0325/vox-proof
+
+- **What:** A Rust transcript-QA prototype that preserves source anchors,
+  raises bounded correction candidates with evidence, records human decisions
+  in an append-only ledger, and materializes a reviewed SRT. Experimental
+  contextual ranking is kept outside its canonical evidence and edit path.
+- **License:** none detected; the repository has no license file and GitHub
+  reports no license. **Health:** 5 stars and no forks; created 2026-06-22 and
+  pushed 2026-07-19. It has no release, and its sole contributor has 107 listed
+  contributions. Its own status says external-user and product validation are
+  still deferred.
+- **Verdict: SKIP as code; BORROW the authority boundary.** With no license,
+  no source may be reused. The independent design lesson fits Zing's OCR
+  calibration work: preserve raw observations, keep proposed corrections and
+  ranking outside canonical evidence, and require an explicit decision record
+  before materializing changed captions.
+
+**Scan conclusion:** ClaudeCut supplies the strongest immediate renderer test
+cases: its four OTIO/Premiere regression cases map directly to Zing's existing
+export surface. Auto-Synced-Translated-Dubs supplies a sharper voiceover
+timing eval. pyJianYingDraft is a compatibility-reporting reference; VidGear
+and VoxProof do not justify dependencies.
+
+---
