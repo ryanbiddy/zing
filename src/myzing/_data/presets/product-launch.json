@@ -1,0 +1,63 @@
+{
+ "pack_id": "product-launch",
+ "curated_at": "2026-07-19",
+ "genre": "tech-launch",
+ "platform": "youtube",
+ "orientation": "horizontal+vertical",
+ "references": [
+  {
+   "id": "PLNCH-01",
+   "url": "https://www.youtube.com/watch?v=22wlLy7hKP4",
+   "title": "Introducing r1",
+   "channel": "rabbit",
+   "orientation": "horizontal",
+   "why": "AI-hardware reveal: minimalist single-device staging, spec beats as short declarative cuts.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "PLNCH-02",
+   "url": "https://www.youtube.com/watch?v=_Bpwo7JlmII",
+   "title": "Introducing DJI Osmo Pocket 3",
+   "channel": "DJI",
+   "orientation": "horizontal",
+   "why": "Textbook hardware launch: beat-synced hero-shot punch-ins, feature callouts as on-screen type.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "PLNCH-03",
+   "url": "https://www.youtube.com/watch?v=C25g53PC5QQ",
+   "title": "An early peek at Dia, our second product | A recruiting video",
+   "channel": "The Browser Company",
+   "orientation": "horizontal",
+   "why": "Indie counter-style: founder-voiced tease with hard concept cuts and a here's-the-future hook.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "PLNCH-04",
+   "url": "https://www.youtube.com/watch?v=YVOw0TAO9ok",
+   "title": "Dia Browser | Never Explain Yourself Again",
+   "channel": "The Browser Company",
+   "orientation": "horizontal",
+   "why": "Benefit-line-as-title; tight UI-demo punch-ins paying off the promise fast.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "PLNCH-05",
+   "url": "https://www.youtube.com/watch?v=YKB7pRmdFU0",
+   "title": "Galaxy S24 Ultra: Official Introduction Film | Samsung",
+   "channel": "Samsung South Africa",
+   "orientation": "horizontal",
+   "why": "Big-brand introduction-film pattern: feature chapters, macro glamour shots, cut acceleration into reveals.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "PLNCH-06",
+   "url": "https://www.youtube.com/shorts/6Bu9lgD2Rmc",
+   "title": "Introducing Insta360 GO Ultra Tadej Pogacar Edition",
+   "channel": "Insta360",
+   "orientation": "vertical",
+   "why": "Official brand launching natively as a Short: 'Introducing...' cold open, fast product-in-action cuts.",
+   "verified_at": "2026-07-19"
+  }
+ ]
+}

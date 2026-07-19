@@ -1,0 +1,72 @@
+{
+ "pack_id": "ai-tech-talking-head",
+ "curated_at": "2026-07-19",
+ "genre": "talking-head",
+ "platform": "youtube",
+ "orientation": "vertical+horizontal",
+ "references": [
+  {
+   "id": "AITTH-01",
+   "url": "https://www.youtube.com/shorts/2z0GeYSUxak",
+   "title": "The problem with the Humane AI pin.. #waveformpodcast #mkbhd #humane",
+   "channel": "WVFRM Podcast",
+   "orientation": "vertical",
+   "why": "Opinion-first cold open with punch-in cuts on the thesis line and burned-in captions (G-TH hook + caption craft).",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "AITTH-02",
+   "url": "https://www.youtube.com/shorts/8rJJUfkeZvI",
+   "title": "This Tech Lasted MKBHD 10+ Years",
+   "channel": "The Studio",
+   "orientation": "vertical",
+   "why": "Curiosity-hook title, direct-to-camera + product b-roll punch-ins, caption emphasis on the claim words.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "AITTH-03",
+   "url": "https://www.youtube.com/shorts/FUxM3vz-keo",
+   "title": "Samsung and Apple are not opposites.. #carterpcs #tech #apple #samsung #android",
+   "channel": "CarterPCs",
+   "orientation": "vertical",
+   "why": "Contrarian-thesis cold open; high-frequency jump cuts + word-pop caps + prop-in-hand demos.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "AITTH-04",
+   "url": "https://www.youtube.com/shorts/j-pCGdPlubQ",
+   "title": "YouTube's New Likeness Detector Tool 🤯 ft.@mkbhd",
+   "channel": "Singular Podcast",
+   "orientation": "vertical",
+   "why": "AI-tool explainer as two-shot talking-head; news-hook title, captions carrying the demo beats.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "AITTH-05",
+   "url": "https://www.youtube.com/shorts/rNT_19XM6tQ",
+   "title": "The Browser Company's New AI-Browser Dia, Explained",
+   "channel": "Fabian Frank Werner",
+   "orientation": "vertical",
+   "why": "'X, Explained' frame; direct-to-camera walkthrough with screen-capture punch-ins.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "AITTH-06",
+   "url": "https://www.youtube.com/watch?v=-01ZCTt-CJw",
+   "title": "Google just casually disrupted the open-source AI narrative…",
+   "channel": "Fireship",
+   "orientation": "horizontal",
+   "why": "Deadpan news cold open, meme-insert cuts every 2-4s, keyword pops - the horizontal AI-news pacing benchmark.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "AITTH-07",
+   "url": "https://www.youtube.com/watch?v=Xn-gtHDsaPY",
+   "title": "7 new open source AI tools you need right now…",
+   "channel": "Fireship",
+   "orientation": "horizontal",
+   "why": "Numbered-promise listicle hook; rapid per-tool segments with hard cuts and screen demos.",
+   "verified_at": "2026-07-19"
+  }
+ ]
+}

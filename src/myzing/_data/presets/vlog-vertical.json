@@ -1,0 +1,46 @@
+{
+ "pack_id": "vlog-vertical",
+ "curated_at": "2026-07-19",
+ "genre": "vlog",
+ "platform": "youtube",
+ "orientation": "vertical",
+ "variant_of": "vlog",
+ "references": [
+  {
+   "id": "VLOG-01",
+   "url": "https://www.youtube.com/shorts/3STADyXOtRA",
+   "title": "100 PB&J's For People in Need",
+   "channel": "Milad Mirg",
+   "orientation": "vertical",
+   "why": "Mission-arc micro-vlog (goal, montage, payoff); disciplined b-roll, cuts hidden on task actions.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VLOG-02",
+   "url": "https://www.youtube.com/watch?v=Rybj0X8eLH0",
+   "title": "DELICIOUS GAMJA JORIM (KOREAN BRAISED POTATOES)",
+   "channel": "The Korean Vegan",
+   "orientation": "vertical",
+   "why": "Memoir voiceover over pure cooking b-roll; cuts land on stir/pour actions and feel unedited.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VLOG-03",
+   "url": "https://www.youtube.com/shorts/PPPMJ7xq9vM",
+   "title": "I'm Stuck in Pakistan (Update)",
+   "channel": "Drew Binsky",
+   "orientation": "vertical",
+   "why": "In-media-res crisis hook to camera; travel b-roll interleaved as evidence per spoken beat; serialized cliffhanger.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VLOG-04",
+   "url": "https://www.youtube.com/shorts/DTeceUUeAd8",
+   "title": "IVYFEB COBA MAKAN SOBA YANG DI TANGKAP DARI SUNGAI JEPANG 😱 UNIK BANGET",
+   "channel": "IvyFeb",
+   "orientation": "vertical",
+   "why": "YouTube-blog-cited 20M-view exemplar: complete visit-order-eat-react arc with info-dense 2s hook.",
+   "verified_at": "2026-07-19"
+  }
+ ]
+}

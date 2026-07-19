@@ -28,7 +28,12 @@ def prompts_dir() -> Path:
     override = os.environ.get(PROMPTS_DIR_ENV, "").strip()
     if override:
         return Path(override).expanduser()
-    return Path(__file__).resolve().parents[2] / "prompts"
+    repo = Path(__file__).resolve().parents[2] / "prompts"
+    if repo.is_dir():
+        return repo
+    # Installed wheel (S5 fresh-host): the pack ships as package data,
+    # kept byte-identical to the repo copy by a CI drift test.
+    return Path(__file__).resolve().parent / "_data" / "prompts"
 
 
 def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
