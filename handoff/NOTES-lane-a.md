@@ -806,3 +806,10 @@
   Lane B's non-tty UTF-8 reconfigure (my ASCII pass covered summary
   lines; their layer covers warning strings). study/profile/assemble
   all verified for the sitting.
+
+- **2026-07-19 (Lane A, SG-1, LANDING LATE — PR #191 sat behind stale
+  base): cross-review of #176/#185/#188 — all pass, one observation
+  routed B/C: setup_flow's Phase-1 `thread.join()` is unbounded; an
+  alive-but-wedged worker (hung ffmpeg — Lane C's kill-switch class)
+  hangs setup and defeats the dead-worker reconciler. Suggest
+  join(timeout) loop with honest "worker unresponsive" naming.**
