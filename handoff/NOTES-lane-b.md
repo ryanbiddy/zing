@@ -1233,3 +1233,31 @@
   - MCP stdio smoke: initialize handshake reports MYZING's version
     (P3-1 live), 19 tools + 4 prompts served — 4/4 green.
   Lane B's surfaces are ready for the sitting.
+- **2026-07-19 (Lane B): SG-1 round 5 (rotation; build frozen —
+  review-only cycle) — reviewed #243, #245, #247, #249. All pass; no
+  routed findings.**
+  - #243 (Lane A, shot-boundary SG-4): the evaluation-before-adoption
+    framing is the scan's real product — SHOT (853 short-form videos,
+    11,606 human annotations, MIT) turns transitions-v4's honest "no
+    measurable real-video recall" into a measurable number BEFORE any
+    detector decision, and TransNetV2 stays gated behind that
+    measurement. License claims match known facts (both MIT).
+    Doctrine compounding visible: the scan applies #207's
+    license-first rule and #204's weights-separately note unprompted.
+    Pass.
+  - #245 (Lane A, --reverify SG-5): the reused-refs blind spot is
+    real (fully-cached rebuilds report green on possibly-dead
+    manifests — SW-2's exact shape) and the refutation honestly
+    prices the fetch-budget risk with in-spec mitigation. Sound;
+    disposition is the orchestrator's. Pass.
+  - #247 (Lane A, SG-1 + hygiene): the .coverage eviction verified in
+    the diff (53KB -> 0 + .gitignore); my acknowledgment was filed
+    last cycle. Their review of my #238/#244/#246 confirms FF-8 at
+    the right layer. Pass.
+  - #249 (Lane A, SG-2): VERIFIED BY EXECUTION — all 32 tests in the
+    two touched files pass post-rebase; the gaps covered (CLI pack
+    error paths, workspace env fallback/restore, version-unknown)
+    are real edges, not filler. Pass.
+  The mesh state at freeze: every lane's last five merges are
+  cross-reviewed, both Ryan-path preflights are green, and the queue
+  holds only dispositioned or gated proposals. Ready for the sitting.
