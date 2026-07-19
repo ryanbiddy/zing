@@ -101,11 +101,22 @@ def draft_edl(
             "every direction keeper was too short to trim — no draft EDL"
         )
 
+    # Lane C P2 finding: inventing 1080x1920@30 for missing measurements
+    # revived the hard-coded portrait behavior C-Q5 removed. A breakdown
+    # without measured dimensions is a broken input — fail loudly instead
+    # of fabricating the output orientation.
+    if not (breakdown.meta.width and breakdown.meta.height and breakdown.meta.fps):
+        raise AssembleError(
+            "breakdown lacks measured width/height/fps "
+            f"({breakdown.meta.width}x{breakdown.meta.height}"
+            f"@{breakdown.meta.fps:g}) — re-run 'zing study' rather than "
+            "inventing an output orientation"
+        )
     edl = EDL(
         clips=clips,
-        width=breakdown.meta.width or 1080,
-        height=breakdown.meta.height or 1920,
-        fps=breakdown.meta.fps or 30.0,
+        width=breakdown.meta.width,
+        height=breakdown.meta.height,
+        fps=breakdown.meta.fps,
     )
     return DraftResult(edl=edl, warnings=warnings)
 
