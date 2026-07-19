@@ -328,3 +328,26 @@
   installs what it promises). Next PR: doctor JS-runtime data point +
   compare.md 1-5 scale fix.
 - **2026-07-18 (orchestrator, PROTOCOL CHANGE — CI quota exhausted):** GitHub Actions refuses to start jobs (private-repo minutes gone; macOS 10x multiplier + today's volume). Until further notice: do NOT wait on checks (they will never run). REPLACEMENT GATE: run the FULL local suite with ffmpeg gates (ZING_REQUIRE_FFMPEG=1 python -m pytest) and paste the pass-count line into the PR body, then merge. Doc-only changes may merge with a stated 'doc-only' line instead. The discipline is the gate now — betray it and we are blind.
+- **2026-07-18 (Lane B): B-Q12 + B-Q13 done** (yt-dlp dep landed in
+  #96; this PR is the rest). Doctor answer to B-Q12's question: the
+  staleness check did NOT cover the JS-runtime warning — different
+  mechanism entirely — so check_ytdlp now detects deno/node, warns with
+  a winget fix when absent, and reports js_runtime in --json;
+  fix lines now always print when present. compare.md 0.5.1: rubric
+  scores on the rubric's own 1-5 scale, real G-TH-* ids in the example,
+  changelog added; integrity test now rejects any example whose scores
+  never exceed 2 (the 0-2 tell). PROCESS OBSERVATION: this defect
+  existed because compare.md was written against INDEX.md's criterion
+  IDs without opening the rubric file itself — one hop short. Rule of
+  thumb worth adopting: prompts that cite a doc's scale must quote the
+  scale line from THAT doc, not its index.
+- **2026-07-18 (Lane B, URGENT — CI IS DOWN REPO-WIDE, RYAN ACTION
+  NEEDED):** every job on PR #97 failed in 3s with GitHub's billing
+  error: "The job was not started because recent account payments have
+  failed or your spending limit needs to be increased." This is an
+  ACCOUNT problem (Settings → Billing & plans), not a code problem —
+  no lane can merge anything until it's fixed (CI is the merge gate).
+  My B-Q12b/B-Q13 PR #97 is complete and locally green (449 tests);
+  it waits on the billing fix + a checks re-run. Not merging without
+  green checks per the never-merge-red rule — the orchestrator can
+  overrule if they judge a billing outage differently.

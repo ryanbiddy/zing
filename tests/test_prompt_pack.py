@@ -51,6 +51,17 @@ def test_compare_frontmatter_and_example_contract(real_pack, zing_workspace):
     assert result["prompt_version"] == meta["version"]
     # the example must practice band honesty: both numbers cited
     assert "vs profile" in json.dumps(example) or "vs band" in json.dumps(example)
+    # B-Q13: rubric scores use the genre rubric's 1-5 scale with real
+    # INDEX criterion ids — never study.md's 0-2 hook anchors
+    numeric = [
+        s["score"] for s in example["rubric_scores"]
+        if isinstance(s["score"], int)
+    ]
+    assert numeric and all(1 <= s <= 5 for s in numeric)
+    assert any(s > 2 for s in numeric), "scores that never exceed 2 suggest the 0-2 scale"
+    assert all(
+        s["criterion_id"].startswith("G-") for s in example["rubric_scores"]
+    )
 
 
 def test_study_frontmatter_contract(real_pack):

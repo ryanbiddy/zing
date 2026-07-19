@@ -1,7 +1,7 @@
 ---
 name: compare
 description: How to judge a NEW breakdown AGAINST a StyleProfile + its genre rubric — band-by-band, criterion by criterion — and write the comparison back.
-version: 0.5.0
+version: 0.5.1
 required_keys: [fit, rubric_scores, deviations, overall]
 ---
 
@@ -45,10 +45,12 @@ if p25–p75 is wide, say the profile itself is loose on that dimension.
 
 If your client can read repo files, open `docs/taste/INDEX.md`, find the
 profile's `genre` rubric, and score the criteria that apply — citing
-**criterion IDs** verbatim, with breakdown evidence per score (0–1–2
-anchored, as each criterion defines). If you cannot access the rubric
-docs, set `rubric_scores` to `"cannot_judge"` and say why — never score
-criteria from memory of what a rubric probably says.
+**criterion IDs** verbatim, with breakdown evidence per score, **on the
+scale that rubric defines** (the genre rubrics score **1–5** per
+criterion — not the 0–2 scale the `study` prompt uses for hook
+strength; never mix the two). If you cannot access the rubric docs, set
+`rubric_scores` to `"cannot_judge"` and say why — never score criteria
+from memory of what a rubric probably says.
 
 ## 4. Output shape (the contract)
 
@@ -80,15 +82,15 @@ verdicts, everywhere.
     }
   },
   "rubric_scores": [
-    {"criterion_id": "TH-H2", "evidence": "spoken claim + caption inside 1.1s", "reasoning": "multi-channel open per the anchor", "score": 2},
-    {"criterion_id": "TH-P1", "evidence": "cuts_per_10s falls to 2 in the final bucket", "reasoning": "ending drags vs the anchor's 'no dead tail'", "score": 1}
+    {"criterion_id": "G-TH-1", "evidence": "spoken claim + caption inside 1.1s, no intro graphics", "reasoning": "front-loaded multi-channel open, comfortably inside the 6s anchor", "score": 5},
+    {"criterion_id": "G-TH-3", "evidence": "cuts_per_10s falls to 2 in the final bucket while the transcript is still mid-argument", "reasoning": "ending cuts stop tracking the narrative — partial alignment", "score": 3}
   ],
   "deviations": [
     {"dimension": "ending pacing", "profile_stat": "curve bucket 9 band 6-9 cuts", "observed": "2 cuts", "direction": "slower", "meaningful": true, "note": "references end hot; this trails off — the single biggest taste gap"},
     {"dimension": "speech_ratio", "profile_stat": "band 0.78-0.94", "observed": "0.71", "direction": "more silence", "meaningful": false, "note": "close to band edge; thin difference"}
   ],
   "overall": {
-    "evidence_summary": "2 of 4 fit dimensions inside band, 2 near; one meaningful deviation (ending pacing) backed by both the curve stat and criterion TH-P1",
+    "evidence_summary": "2 of 4 fit dimensions inside band, 2 near; one meaningful deviation (ending pacing) backed by both the curve stat and criterion G-TH-3",
     "reasoning": "The video is recognizably in the profile's style; the ending is where it leaves the taste target.",
     "verdict": "partial_fit"
   }
@@ -109,5 +111,12 @@ wholesale.
 
 Restating the contract: read both `warnings` and every stat's `n`
 first; cite both numbers in every band verdict; criterion IDs verbatim
-or `rubric_scores: "cannot_judge"`; all four keys present; low-n claims
-stay humble.
+on the rubric's own 1–5 scale or `rubric_scores: "cannot_judge"`; all
+four keys present; low-n claims stay humble.
+
+## Changelog
+
+- **0.5.1** (2026-07-18, B-Q13): rubric scores use the genre rubric's
+  own 1–5 scale (the example wrongly used study.md's 0–2 hook anchors);
+  example criterion IDs corrected to real INDEX ids (G-TH-*).
+- **0.5.0** (2026-07-18): initial profile-comparison contract.

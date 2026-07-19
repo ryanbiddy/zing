@@ -132,6 +132,42 @@ def test_ytdlp_unparsable_version_does_not_crash(monkeypatch):
     assert check.data["age_days"] is None
 
 
+# -- B-Q12: JS-runtime coverage (yt-dlp needs deno/node for YouTube) ----------
+
+def test_ytdlp_without_js_runtime_warns_with_fix(monkeypatch):
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: f"/bin/{name}" if name == "yt-dlp" else None,
+    )
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 18))
+    assert check.ok is True  # warning-grade, like staleness
+    assert check.data["js_runtime"] is None
+    assert "JS runtime" in check.detail and "YouTube" in check.detail
+    assert "deno" in check.fix.lower()
+
+
+def test_ytdlp_with_deno_is_quiet(monkeypatch):
+    monkeypatch.setattr(doctor, "_which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 18))
+    assert check.data["js_runtime"] == "deno"
+    assert "JS runtime" not in check.detail
+    assert check.fix == ""
+
+
+def test_stale_and_no_js_runtime_both_reported(monkeypatch):
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: f"/bin/{name}" if name == "yt-dlp" else None,
+    )
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2025.01.15")
+    check = doctor.check_ytdlp(today=date(2026, 7, 18))
+    assert check.data["stale"] is True and check.data["js_runtime"] is None
+    assert "days old" in check.detail and "JS runtime" in check.detail
+    assert "pip install -U yt-dlp" in check.fix and "deno" in check.fix.lower()
+
+
 # -- F-05: ocr check must match what the pipeline imports ---------------------
 #
 # study/captions.py imports `from rapidocr import RapidOCR` and nothing else.
