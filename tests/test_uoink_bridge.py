@@ -27,14 +27,7 @@ def studied(zing_workspace):
     return b
 
 
-class FakeResponse(io.BytesIO):
-    status = 200
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
+from conftest import FakeHTTPResponse as FakeResponse
 
 
 def test_push_without_markdown_is_actionable(zing_workspace):

@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import FakeHTTPResponse
 from myzing import doctor, suite_peer
 from tools.eval.suite_contracts import validate_contract_payload
 
@@ -109,16 +110,7 @@ class FakeUoink:
         else:
             raise AssertionError(f"unexpected probe URL: {url}")
 
-        class R(io.BytesIO):
-            status = 200
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                return False
-
-        return R(json.dumps(body).encode("utf-8"))
+        return FakeHTTPResponse(json.dumps(body).encode("utf-8"))
 
 
 @pytest.fixture(autouse=True)
@@ -456,16 +448,7 @@ class ConformanceFails(FakeUoink):
         if self.mode == "dies":
             raise urllib.error.URLError("reset")
         if self.mode == "not-handoff":
-            class R(io.BytesIO):
-                status = 200
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, *a):
-                    return False
-
-            return R(json.dumps({"hello": "world"}).encode())
+            return FakeHTTPResponse(json.dumps({"hello": "world"}).encode())
         raise AssertionError(self.mode)
 
 

@@ -18,12 +18,7 @@ from myzing.render.tts import (
 )
 
 
-class FakeResponse(io.BytesIO):
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
+from conftest import FakeHTTPResponse as FakeResponse
 
 
 # -- registry ----------------------------------------------------------------
