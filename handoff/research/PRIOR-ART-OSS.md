@@ -769,3 +769,73 @@ licensing bars. The most actionable borrow is a combined pattern: AutoSubs'
 native caption-track ergonomics plus premiere-agent's cached chronological
 evidence and boundary preflight. OpenCut is the product-surface watch item for
 keeping interactive, headless, scripted, and MCP editing behavior aligned.
+
+---
+
+## SG-4 targeted scan · 2026-07-19 · Lane B (bot-gating priority + assemble)
+
+Trigger: gate-pack defect D-9 — YouTube bot-gating blocks all fresh
+fetches. Licenses verified per repo.
+
+### Ground truth (verified-data)
+Since yt-dlp 2025.11.12 an external JS runtime is REQUIRED for full
+YouTube support (deno default-enabled; yt-dlp/yt-dlp#15012); GVS PO
+tokens are required for the mainstream clients (PO Token Guide), manual
+token extraction is officially "no longer recommended" (tokens bind
+per-video-ID), and flagged IPs get LOGIN_REQUIRED across all clients
+(yt-dlp#15865) — matching our gate failures exactly.
+
+### bgutil-ytdlp-pot-provider — https://github.com/Brainicism/bgutil-ytdlp-pot-provider
+- **What:** the community-standard PO-token provider plugin (BotGuard
+  via BgUtils); HTTP sidecar on :4416 (Docker/Node≥20/Deno≥2) or slow
+  per-invocation script; pip-installable; listed first in the official
+  PO Token Guide; TubeArchivist integrates it by name.
+- **License: GPL-3.0** (verified). Health: 618 stars, v1.3.1 (2026-03),
+  author is a yt-dlp maintainer.
+- **Verdict: REUSE as optional USER-INSTALLED plugin — never vendored
+  or bundled.** GPL-3.0 cannot enter Zing's dependency graph; a
+  user-installed yt-dlp plugin running inside yt-dlp's own plugin
+  system keeps Zing MIT-clean (TubeArchivist takes the same posture).
+  Caveat per its own README: a PO token improves legitimacy, it does
+  not defeat hard IP flags.
+
+### yt-dlp-getpot-wpc — https://github.com/coletdjnz/yt-dlp-getpot-wpc
+- MIT (verified), core-maintainer-authored, but requires a live Chrome
+  window during fetches. **Verdict: SKIP as primary / document as
+  fallback** — wrong shape for a headless CLI/MCP pipeline.
+
+### Peer practice (verified-data)
+cookies.txt / --cookies-from-browser is yt-dlp's first-line suggestion
+but ties fetches to a Google account (flag risk, more ToS exposure than
+anonymous use); TubeArchivist ships an opt-in bgutil sidecar URL
+setting; Pinchflat/MeTube issue trackers show cookies alone are flaky.
+
+### Recommendation for Zing (filed to NOTES for queueing)
+1. Doctor: detect yt-dlp ≥2025.11.12 + deno (shipped in D-9 fix) PLUS
+   PO-token-provider registration; map "Sign in to confirm"/
+   LOGIN_REQUIRED fetch failures to a distinct actionable diagnostic.
+2. Optional plugin support: document `pip install
+   bgutil-ytdlp-pot-provider` + deno as the recommended setup; config
+   knob for provider base_url + cookies file as LAST resort (account-
+   flag warning). Do not vendor (GPL).
+3. Docs troubleshooting order: update yt-dlp → deno → bgutil → cookies,
+   under the inherited personal-use disclaimer (R5). ToS exposure ≈
+   standard yt-dlp personal use.
+
+### Secondary: VMAF — https://github.com/Netflix/vmaf
+- Netflix perceptual video-quality metric; ffmpeg `libvmaf` filter;
+  BSD-3-Clause-Patent (verified); 5.4k stars, v3.2.0 + new model gen
+  2026-06 — very alive.
+- **Verdict: REUSE (render-QA sprint).** Zing already shells to ffmpeg;
+  ssim/psnr filters are zero-dep today and libvmaf where available —
+  perceptual scoring of rendered output vs reference frames nearly
+  free. Natural extension of Lane C's content-probe oracle.
+
+### Secondary: captacity — IDEAS ONLY (re-confirmed)
+MoviePy-based word-highlight captions; nothing found displaces
+pysubs2 + \k/\t karaoke tags for word-timed animation.
+
+**Scan summary:** bot-gating is solved-but-operational — ecosystem
+consensus is deno + bgutil sidecar + cookies fallback; Zing should
+DETECT and DOCUMENT, never bundle (GPL). VMAF's 2026-06 refresh makes
+ffmpeg-native perceptual render QA the clear secondary win.

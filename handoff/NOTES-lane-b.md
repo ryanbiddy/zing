@@ -551,3 +551,17 @@
   fetch-side bot-gate surfacing is Lane A's half. CORRECTION to the
   gate doc: B-Q12's yt-dlp extra is NOT still open — it landed in #96
   (pyproject line 17); the gate likely ran against an older checkout.
+- **2026-07-19 (Lane B): SG-4 targeted scan (rotation; queue empty) —
+  D-9's open half now has a concrete, license-clean plan** (full
+  findings + sources appended to PRIOR-ART-OSS.md). Headline: the
+  community-standard bot-gating fix (bgutil PO-token provider) is
+  GPL-3.0 — REUSE only as a user-installed yt-dlp plugin, NEVER
+  vendored; deno is now hard-required by yt-dlp itself (my D-9 doctor
+  wording was right). PROPOSED QUEUE ITEMS for the orchestrator:
+  (B) doctor detects PO-token-provider registration + maps
+  LOGIN_REQUIRED/'Sign in to confirm' fetch errors to a distinct
+  diagnostic; docs troubleshooting page (update→deno→bgutil→cookies
+  order, account-flag warning on cookies); (A) ingest surfaces
+  bot-gate errors distinctly (their D-9 half); (C) VMAF/ssim
+  perceptual render-QA probe (BSD, ffmpeg-native — natural content-
+  probe extension). SG rotation: 4 done again; next idle cycle SG-1.
