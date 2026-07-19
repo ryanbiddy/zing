@@ -574,8 +574,16 @@ def detect_transitions(
                 audio_onset_delta=audio_delta,
             )
         )
+    warnings = [EXPERIMENTAL_RECALL_WARNING]
+    if not measurement["audio_probe_ok"]:
+        warnings.append(
+            "transition audio alignment skipped: ffmpeg could not decode "
+            "the audio stream"
+        )
+    provenance = detector_provenance(measurement["feature_summary"])
+    provenance["transition_audio_probe_ok"] = measurement["audio_probe_ok"]
     return TransitionsResult(
         transitions=observations,
-        warnings=[EXPERIMENTAL_RECALL_WARNING],
-        provenance=detector_provenance(measurement["feature_summary"]),
+        warnings=warnings,
+        provenance=provenance,
     )

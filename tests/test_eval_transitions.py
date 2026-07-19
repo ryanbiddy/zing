@@ -200,6 +200,7 @@ def test_production_detector_returns_typed_audio_aligned_observation(
                     "frame_pair_count": 12,
                 },
             ],
+            "audio_probe_ok": True,
             "audio_aligned_pairs": [
                 {
                     "cut_seconds": 1.0,
@@ -225,6 +226,7 @@ def test_production_detector_returns_typed_audio_aligned_observation(
     assert result.transitions[1].audio_aligned is False
     assert result.provenance["transition_detector_version"] == 4
     assert result.provenance["transition_feature_summary"]["frame_count"] == 90
+    assert result.provenance["transition_audio_probe_ok"] is True
     assert result.provenance["transition_validation"] == {
         "status": "experimental",
         "synthetic_recall_available": True,
@@ -358,3 +360,31 @@ def test_failed_audio_probe_is_distinguishable_from_no_onsets(
 
     assert measurement["audio_probe_ok"] is False
     assert measurement["audio_onsets_seconds"] == []
+
+
+def test_failed_audio_probe_is_named_on_production_result(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        study_transitions,
+        "detect_transition_signatures",
+        lambda media_path, ffmpeg, ffprobe: {
+            "events": [],
+            "audio_probe_ok": False,
+            "audio_aligned_pairs": [],
+            "feature_summary": {
+                "frame_count": 90,
+                "active_run_count": 0,
+            },
+        },
+    )
+
+    result = study_transitions.detect_transitions(
+        tmp_path / "audio-probe-failure.mp4"
+    )
+
+    assert result.provenance["transition_audio_probe_ok"] is False
+    assert any(
+        "audio alignment skipped" in warning for warning in result.warnings
+    )
