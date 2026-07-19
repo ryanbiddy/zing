@@ -952,3 +952,32 @@
     for the rest.
   - Remaining B-S6: `import_shot_list` (§6.2) and the contract-aware
     uoink peer probe (§8) — next cycles.
+- **2026-07-19 (Lane B): routed item #225 (handoff forwarding) —
+  CLOSED BY #224, confirmed.** The composition gap Lane A routed
+  (forward handoff fields to study()) was exactly what
+  study_uoink_item shipped: handoff={source_ref, sha256, byte_length,
+  state} passes straight from the resolver response to the engine.
+  h_study_video's bare kept_media stays relaxed-provenance by design
+  (documented product affordance; the family gate runs through
+  study_uoink_item).
+- **2026-07-19 (Lane B): B-S6 wire work part 2 — `import_shot_list`
+  (§6.2).**
+  - New `myzing/shot_list.py`: exact writer.shot-list v1 wire
+    validation (front-matter keys in order, RFC3339, positive script
+    id, heading sequence, 2 MiB, UTF-8), content-addressed persisted
+    copy (idempotent re-import by construction: same receipt, one
+    copy), path-free zing.shot-list.import v1 receipt with the
+    contract's stable error codes. unsupported_version is DISTINCT
+    from invalid_file: a well-formed future document says "update
+    zing", not "your file is broken". Direction stays the keeper
+    authority — import never touches judgment.
+  - MCP tool #19 `import_shot_list(path, slug)` — the envelope IS the
+    receipt.
+  - Integration truth over parallel truth: the parser is proven
+    against Lane C's checked-in conformance fixtures
+    (writer-shot-list.json, parametrized), and every receipt my tests
+    produce runs through Lane C's own `validate_contract_payload` —
+    the import surface and the suite gate cannot drift apart
+    silently.
+  - Remaining B-S6: contract-aware uoink peer probe (§8) — next
+    cycle.
