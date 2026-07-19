@@ -738,3 +738,16 @@
   suspenders — my surfaces survive even without the reconfigure, and
   their fix covers every remaining zing surface). Composed tests
   green. P2-8 is closed from Lane A's perspective.
+
+- **2026-07-19 (Lane A, SG-4 round 2): shot-boundary scan —
+  handoff/research/SG4-SHOT-BOUNDARY-2026-07-19.md.** Headline:
+  AutoShot's SHOT dataset (MIT) is 853 real short-form videos with
+  11,606 human shot annotations — our exact domain. Proposed use is
+  EVALUATION BEFORE ADOPTION: measure our AdaptiveDetector +
+  transitions v4 against SHOT to turn "no measurable real-video
+  recall" into a number without touching any detector (A-Q2-aligned;
+  eval half is Lane C's surface). TransNetV2 (MIT, PyTorch) filed as
+  the gated adopt-candidate if the numbers demand it; AutoShot model
+  watch-only (research code, maintenance risk). The invisible-cuts
+  class remains hard for every scanned tool — the genre-warning
+  disposition stands.
