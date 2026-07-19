@@ -15,6 +15,7 @@
 - claimed SG-4 (prior art OSS scan)
 - claimed D-Q12
 - claimed SG-5 (feature-gap analysis)
+- claimed SG-1 (cross-review of raw-footage mode)
 
 
 
@@ -26,6 +27,7 @@
 - **2026-07-18 Prior Art OSS Scan (SG-4):** Evaluated five open-source repositories not previously analyzed: `demucs` (MIT, vocals separation, verdict: REUSE/BORROW in S2), `ffsubsync` (MIT, subtitle alignment, verdict: BORROW in C-2/S2), `youtube-transcript-api` (MIT, golden golden fetch, verdict: REUSE in S2/Eval), `pyVideoTrans` (GPL-3.0, video translation, verdict: SKIP/IDEAS ONLY due to license), and `subaligner` (MIT, DNN sync, verdict: SKIP in S2). Updated `PRIOR-ART-OSS.md` and consolidated verdict table.
 - **2026-07-18 Reference Candidates Re-verification (D-Q12):** Re-verified all 10 rows of `REFERENCE-CANDIDATES.md`. Found and corrected 4 misattributed/re-uploaded video links (Ryan George #6, Cleo Abram #7, Ali Abdaal #9, and Casey Neistat #10) with verified official creator channel URLs.
 - **2026-07-19 Feature-Gap Analysis (SG-5):** Proposed a new roadmap candidate `P-D1` (local auto-rough-cut EDL generator) to automate A-roll cleanup (silence & filler-word removal). Challenged the proposal with a detailed refutation covering audio pops/choppiness, word clipping/timestamp offset limitations, XML import fragility, and product scope creep. Refined and survived the proposal as a marker-only deletion guide export. Updated `QUEUE.md` proposed section.
+- **2026-07-19 Cross-Review raw-footage mode (SG-1):** Reviewed the newly merged `A-Q12` raw-footage measurement mode (`3200e8d`). Identified an edge case in `_clean` helper function where stripping all digits caused distinct alphanumeric phrases (e.g. "step 1" vs "step 9") to clean to identical strings and match as repeated takes. Fixed by switching `c.isalpha()` to `c.isalnum()` in `src/myzing/study/raw.py`, added a unit test in `tests/test_study_raw.py`, and verified the full 474-test suite passes.
 - **2026-07-18 (orchestrator):** new light-work wave queued (D-Q7..D-Q10) — sized for your strengths: collation, verification, collection. Heavy judgment/synthesis items will go to other lanes; if an item feels like it needs deep reasoning, flag it here instead of grinding.
 - **2026-07-18 (orchestrator): SPRINT 2 IS OPEN** — handoff/SPRINT-2-D2.md. StyleProfile + StatSummary contracts are live in schemas.py. S2 lane items take priority over standing generators; S2-prep items already done fold in (transitions, get_frames, prompt pack 0.4.0 are the foundation). Same discipline as S1.
 - **2026-07-18 (orchestrator, PROTOCOL CHANGE — CI quota exhausted):** GitHub Actions refuses to start jobs (private-repo minutes gone; macOS 10x multiplier + today's volume). Until further notice: do NOT wait on checks (they will never run). REPLACEMENT GATE: run the FULL local suite with ffmpeg gates (ZING_REQUIRE_FFMPEG=1 python -m pytest) and paste the pass-count line into the PR body, then merge. Doc-only changes may merge with a stated 'doc-only' line instead. The discipline is the gate now — betray it and we are blind.

@@ -134,7 +134,7 @@ def dead_air_spans(
 
 
 def _clean(text: str) -> str:
-    return "".join(c for c in text.casefold() if c.isalpha())
+    return "".join(c for c in text.casefold() if c.isalnum())
 
 
 def find_fillers(

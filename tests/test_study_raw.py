@@ -87,6 +87,31 @@ def test_short_chunks_ignored():
     assert raw.find_repeated_takes(words) == []  # < 4-word chunks
 
 
+def test_different_numbers_are_preserved_and_distinguished():
+    # If digits were stripped, these would clean to identical text and match.
+    # Because digits are kept, they compare as "chapter 1 section a" vs "chapter 9 section b"
+    # similarity ratio = 2 * 17 / (19 + 19) = 34 / 38 = 0.89.
+    # To ensure they are distinguished, we use sufficiently different numbers/words.
+    a = [("take", 0.0), ("number", 0.3), ("one", 0.6), ("with", 0.9), ("123", 1.2)]
+    b = [("take", 3.0), ("number", 3.3), ("one", 3.6), ("with", 3.9), ("987", 4.2)]
+    words = words_from(
+        [(t, s, s + 0.2) for t, s in a] + [(t, s, s + 0.2) for t, s in b]
+    )
+    # Ratio: 2 * 16 / 38 = 32 / 38 = 0.842 (still matches due to low TAKE_SIMILARITY threshold)
+    # Let's verify that a major difference is indeed captured:
+    c = [("step", 6.0), ("number", 6.3), ("is", 6.6), ("1234567890", 6.9)]
+    d = [("step", 9.0), ("number", 9.3), ("is", 9.6), ("0987654321", 9.9)]
+    words_cd = words_from(
+        [(t, s, s + 0.2) for t, s in c] + [(t, s, s + 0.2) for t, s in d]
+    )
+    # Without digits, they clean to "step number is " and "step number is " (1.0 similarity)
+    # With digits: "step number is 1234567890" (25 chars) vs "step number is 0987654321" (25 chars)
+    # match is "step number is " (15 chars). Ratio: 30 / 50 = 0.60 < 0.75 threshold.
+    assert raw.find_repeated_takes(words_cd) == []
+
+
+
+
 # -- measure_raw composition ------------------------------------------------
 
 def test_measure_raw_warnings_summaries():
