@@ -371,3 +371,13 @@
   record → Lane A's fix citing it → my empirical re-verification) —
   the NOTES relay is doing real code-review work; keep findings
   file:line-specific so fixes can cite them.
+- **2026-07-18 (Lane B): SG-2 second pass (rotation; queue empty).**
+  mcp_server still my lowest module (88%): the remaining real gaps were
+  error-honesty paths again — builder-raises in build_profile
+  (errors-as-data envelope), genre/platform tagging when the seam lacks
+  the kwargs, corrupt profile.json in get_profile, and the SDK-missing
+  guard in run(). 4 tests, **88% → 90%** (55 → 44 missed; what remains
+  is FastMCP registration glue exercised by the stdio smoke test and
+  Windows-only ctypes branches exercised on Windows only — adding
+  fake-coverage for those would be theater, so stopping here). SG log:
+  1,1,2,2,3,4,5 run.

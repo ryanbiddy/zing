@@ -124,3 +124,59 @@ def test_list_profiles_tool(studied_set, fake_builder):
     result = mcp_server.h_list_profiles()
     assert result["count"] == 1
     assert result["profiles"][0]["name"] == "my-taste"
+
+
+# -- SG-2 second pass: uncovered error paths ---------------------------------
+
+def test_build_profile_builder_exception_is_errors_as_data(studied_set, monkeypatch):
+    api = types.ModuleType("myzing.profile.api")
+
+    def explode(name, slugs):
+        raise ValueError("source tiktok-2 has no measured duration")
+
+    api.build_profile = explode
+    monkeypatch.setitem(sys.modules, "myzing.profile.api", api)
+    result = mcp_server.h_build_profile("my-taste", SLUGS)
+    assert result["ok"] is False
+    assert "profile build failed" in result["error"]
+    assert "tiktok-2" in result["error"]
+
+
+def test_build_profile_sets_genre_when_seam_lacks_kwargs(studied_set, monkeypatch):
+    """A builder without genre/platform params still yields a tagged profile."""
+    api = types.ModuleType("myzing.profile.api")
+
+    def bare_builder(name, slugs):  # no genre/platform kwargs at all
+        return StyleProfile(name=name, source_slugs=list(slugs))
+
+    api.build_profile = bare_builder
+    monkeypatch.setitem(sys.modules, "myzing.profile.api", api)
+    result = mcp_server.h_build_profile(
+        "my-taste", SLUGS, genre="vlog", platform="youtube"
+    )
+    assert result["ok"] is True
+    loaded = storage.load_profile("my-taste")
+    assert loaded.genre == "vlog" and loaded.platform == "youtube"
+
+
+def test_get_profile_corrupt_json_is_errors_as_data(zing_workspace):
+    d = storage.profiles_root() / "broken"
+    d.mkdir(parents=True)
+    (d / "profile.json").write_text("{not json", encoding="utf-8")
+    result = mcp_server.h_get_profile("broken")
+    assert result["ok"] is False  # ValueError path, not an exception
+
+
+def test_serve_mcp_without_sdk_is_actionable(monkeypatch, capsys):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_mcp(name, *args, **kwargs):
+        if name == "mcp":
+            raise ImportError("No module named 'mcp'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_mcp)
+    assert mcp_server.run([]) == 2
+    assert 'myzing[mcp]' in capsys.readouterr().err
