@@ -258,6 +258,41 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   result showing that a named warning separates at least one failure class
   without reducing recall on real captions; otherwise archive the pack as
   negative evidence.
+- **P-C3 (Lane C, SG-5, 2026-07-19) · opt-in rendered-output proof sheet.**
+  **Proposal:** add `zing render --proof-sheet <dir>` as a local review aid
+  for the finished render. It writes JPEGs, a static HTML index, and a JSON
+  manifest for a deterministic, bounded sample: the first and last decodable
+  frames plus stratified clip-midpoint, caption-active, and uniform-timeline
+  frames. Each row carries the exact output timestamp and selection reason;
+  the manifest carries the output SHA-256, probed dimensions and duration,
+  sampling version, selected count, and omitted-candidate counts. This fills
+  a gap between source-oriented `get_frames`/`zing thumbs` and Lane C's
+  test-only content oracle. C-Q5 shipped after regressions exposed portrait
+  geometry on landscape output and word-caption strobe. Creator reports in
+  `handoff/research/R3-ai-editor-sentiment.md` independently describe sliding
+  captions and flashing CapCut captions as trust-breaking failures. A quick
+  scan of frames extracted from the actual output would make aspect,
+  padding, wrong-shot, black-frame, and some caption-placement failures
+  easier to spot before upload.
+  **Refutation:** a still sheet cannot verify audio, A/V sync, transition
+  smoothness, caption speech sync, or any defect between sampled frames; it
+  cannot prove motion or prove that the render is clean. A sample cap can
+  hide the one broken frame that matters and create false reassurance.
+  Decoding and hashing a finished long-form render adds I/O, while a player
+  or NLE already provides complete playback. The surface partly overlaps
+  `get_frames`, and the extracted images can expose private footage if a user
+  shares the directory.
+  **Survives as:** an opt-in, local-only artifact with no upload, no score,
+  and no pass/fail verdict. The HTML must say that sampled stills cannot
+  verify audio or prove motion, timing, sync, or defect absence; it points
+  the creator back to full playback. Sampling stays bounded and deterministic
+  with visible omission counts, never silently dropping candidate classes.
+  Reuse C-Q17's explicit full-range JPEG conversion, but extract from the
+  finished output rather than the source Breakdown. No schema change.
+  Promotion requires a constructed two-clip render with captions and isolated
+  regressions for output-hash identity, timestamp/reason pairing, class
+  omission counts, missing-frame failure, and portrait/landscape/square
+  contact-sheet layout.
 - **CD-Q1 (Lane C + Lane D, S3 full-fidelity follow-up):** replace the raw-editing-practice stand-in: Lane D sources ONE genuinely unedited talking-head clip (live-verify + eyeball per F-16 lesson; document license/provenance); Lane C studies it with raw_mode ON and re-freezes it into the regression set with raw-mode provenance + regeneration command. Then Lane B reruns the direction gate against it for the full-fidelity record (keepers from real raw measurements).
 - **P-B2 (Lane B, SG-5, 2026-07-19) · judgment-backlog surface.**
   PROPOSAL: a `list_unjudged()` MCP tool / `zing judge-queue` CLI
