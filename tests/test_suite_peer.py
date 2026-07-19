@@ -1,0 +1,339 @@
+"""Contract-aware uoink peer probe (B-S6, INTEGRATION-CONTRACT v1 §8).
+
+Same integration-truth pattern as the shot-list import: my exact-key
+manifest/health validation is proven against Lane C's checked-in
+service/health fixtures, and every peer envelope the probe emits runs
+through Lane C's own contract validator.
+"""
+
+from __future__ import annotations
+
+import json
+import urllib.error
+from pathlib import Path
+
+import pytest
+
+from myzing import doctor, suite_peer
+from tools.eval.suite_contracts import validate_contract_payload
+
+FIXDIR = Path(__file__).resolve().parents[1] / "tools" / "eval" / "fixtures" / "suite_v1"
+
+
+def fixture_cases(name):
+    data = json.loads((FIXDIR / name).read_text(encoding="utf-8"))
+    out = []
+    for case in data["cases"]:
+        if "payload" not in case:
+            continue
+        out.append(case)
+    return out
+
+
+def make_manifest(**service_overrides):
+    service = {
+        "id": "uoink",
+        "name": "Uoink",
+        "service_version": "3.6.0",
+        "api_version": 1,
+        "resident": True,
+        "default_port": 5179,
+        "health": {
+            "contract": "ryan.suite.health",
+            "version": 1,
+            "href": "/api/suite/v1/health",
+        },
+        "capabilities": [
+            "uoink.corpus.read/1",
+            "uoink.engagement.ingest/1",
+            "uoink.media.handoff/1",
+        ],
+        "ui": {"home": "/dashboard", "routes": {}},
+        "mcp": {"name": "uoink", "transport": "stdio"},
+    }
+    service.update(service_overrides)
+    return {
+        "ok": True,
+        "contract": "ryan.suite.service",
+        "version": 1,
+        "service": service,
+    }
+
+
+def make_health(**overrides):
+    body = {
+        "ok": True,
+        "contract": "ryan.suite.health",
+        "version": 1,
+        "service_id": "uoink",
+        "service_version": "3.6.0",
+        "state": "ready",
+        "checks": [
+            {"id": "core", "required": True, "status": "ready"},
+            {"id": "index", "required": True, "status": "ready"},
+            {"id": "corpus_paths", "required": True, "status": "ready"},
+        ],
+    }
+    body.update(overrides)
+    return body
+
+
+class FakeUoink:
+    """Serves manifest/health/kept-media per configured behavior."""
+
+    def __init__(self, manifest=None, health=None, handoff_status=None):
+        self.manifest = manifest if manifest is not None else make_manifest()
+        self.health = health if health is not None else make_health()
+        self.handoff_status = handoff_status  # None => contract not_found body
+        self.tokens_seen = []
+
+    def __call__(self, request, timeout=0):
+        import io
+
+        url = request if isinstance(request, str) else request.full_url
+        if "/.well-known/suite-service.json" in url:
+            body = self.manifest
+        elif "/api/suite/v1/health" in url:
+            body = self.health
+        elif "/kept-media" in url:
+            self.tokens_seen.append(request.get_header("X-uoink-token"))
+            if self.handoff_status in (401, 403):
+                raise urllib.error.HTTPError(url, self.handoff_status, "no", {}, io.BytesIO())
+            body = {
+                "ok": False,
+                "contract": "uoink.media.handoff",
+                "version": 1,
+                "operation": "resolve",
+                "error": {"code": "not_found", "message": "nope", "retryable": False},
+            }
+        else:
+            raise AssertionError(f"unexpected probe URL: {url}")
+
+        class R(io.BytesIO):
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        return R(json.dumps(body).encode("utf-8"))
+
+
+@pytest.fixture(autouse=True)
+def _isolated(monkeypatch):
+    monkeypatch.delenv(suite_peer.UOINK_URL_ENV, raising=False)
+    monkeypatch.delenv(suite_peer.UOINK_TOKEN_ENV, raising=False)
+    doctor._peer_cache.clear()
+    yield
+    doctor._peer_cache.clear()
+
+
+def peer_is_valid(envelope):
+    return validate_contract_payload(
+        "ryan.suite.peer/1", envelope, expected_peer="uoink"
+    )["issues"] == []
+
+
+# -- classification matrix ----------------------------------------------------
+
+def test_refusal_at_default_is_calm_absent(monkeypatch):
+    def refuse(request, timeout=0):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    peer = suite_peer.probe_uoink()
+    assert peer["state"] == "absent" and peer["ok"] is True
+    assert peer_is_valid(peer)
+
+
+def test_refusal_at_explicit_url_is_unhealthy_not_absent(monkeypatch):
+    monkeypatch.setenv(suite_peer.UOINK_URL_ENV, "http://127.0.0.1:6001")
+
+    def refuse(request, timeout=0):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    peer = suite_peer.probe_uoink()
+    assert peer["state"] == "unhealthy"
+    assert peer["error"]["code"] == "unavailable"
+    assert peer["error"]["retryable"] is True
+    assert peer_is_valid(peer)
+
+
+@pytest.mark.parametrize("url,why", [
+    ("http://example.com:5179", "loopback"),
+    ("http://127.0.0.1", "port"),
+    ("http://user:pw@127.0.0.1:5179", "userinfo"),
+    ("http://127.0.0.1:5179/x?q=1", "query"),
+    ("ftp://127.0.0.1:5179", "scheme"),
+])
+def test_invalid_explicit_url_never_falls_through(monkeypatch, url, why):
+    monkeypatch.setenv(suite_peer.UOINK_URL_ENV, url)
+    calls = {"n": 0}
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen",
+        lambda *a, **k: calls.__setitem__("n", calls["n"] + 1),
+    )
+    peer = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "invalid_configuration"
+    assert calls["n"] == 0  # §3.3: no silent fall-through to a default
+    assert peer_is_valid(peer)
+
+
+def test_answering_service_without_manifest_is_drift_not_absence(monkeypatch):
+    def not_found(request, timeout=0):
+        import io
+
+        raise urllib.error.HTTPError(
+            request.full_url, 404, "nf", {}, io.BytesIO(b"not json")
+        )
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", not_found)
+    peer = suite_peer.probe_uoink()
+    assert peer["state"] == "unhealthy"
+    assert peer["error"]["code"] == "contract_mismatch"
+    assert "update" in peer["error"]["message"]
+    assert peer_is_valid(peer)
+
+
+def test_wrong_identity_is_named(monkeypatch):
+    fake = FakeUoink(manifest=make_manifest(id="writer", name="Writer"))
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    peer = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "wrong_service"
+    assert peer_is_valid(peer)
+
+
+def test_missing_required_capability_is_drift(monkeypatch):
+    fake = FakeUoink(
+        manifest=make_manifest(capabilities=["uoink.corpus.read/1"])
+    )
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    peer = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "contract_mismatch"
+    assert "uoink.media.handoff/1" in peer["error"]["message"]
+
+
+def test_failed_required_health_check_is_peer_unhealthy(monkeypatch):
+    health = make_health(
+        ok=False,
+        state="needs_attention",
+        checks=[
+            {"id": "core", "required": True, "status": "ready"},
+            {"id": "index", "required": True, "status": "failed"},
+            {"id": "corpus_paths", "required": True, "status": "ready"},
+        ],
+    )
+    fake = FakeUoink(health=health)
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    peer = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "peer_unhealthy"
+    assert "index" in peer["error"]["message"]
+    assert peer["error"]["retryable"] is True
+
+
+def test_verified_manifest_without_token_is_unconfigured(monkeypatch):
+    fake = FakeUoink()
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    peer = suite_peer.probe_uoink()
+    assert peer["state"] == "unconfigured" and peer["ok"] is True
+    assert fake.tokens_seen == []  # never an auth attempt with no token
+    assert peer_is_valid(peer)
+
+
+def test_available_after_credentialed_conformance_read(monkeypatch):
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
+    fake = FakeUoink()
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    peer = suite_peer.probe_uoink()
+    assert peer["state"] == "available"
+    assert "uoink.media.handoff/1" in peer["capabilities"]
+    assert fake.tokens_seen == ["tok"]
+    assert peer_is_valid(peer)
+
+
+def test_rejected_credential_is_authentication_failed(monkeypatch):
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "bad")
+    fake = FakeUoink(handoff_status=401)
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    peer = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "authentication_failed"
+    assert peer["error"]["retryable"] is False
+    assert peer_is_valid(peer)
+
+
+# -- fixture parity with Lane C's validators ----------------------------------
+
+@pytest.mark.parametrize(
+    "case", fixture_cases("service.json"), ids=lambda c: c["id"]
+)
+def test_manifest_validation_agrees_with_lane_c(case):
+    defect = suite_peer._manifest_defect(case["payload"])
+    if case["expected_valid"] and case["payload"]["service"]["id"] == "uoink":
+        assert defect is None, defect
+    elif not case["expected_valid"]:
+        assert defect is not None
+    # valid_writer: a conformant manifest for another service — my
+    # exact-key pass accepts it; identity is checked separately.
+
+
+@pytest.mark.parametrize(
+    "case", fixture_cases("health.json"), ids=lambda c: c["id"]
+)
+def test_health_validation_agrees_with_lane_c(case):
+    defect = suite_peer._health_defect(case["payload"])
+    if case["expected_valid"] and case["payload"].get("service_id") == "uoink":
+        assert defect is None, defect
+    elif not case["expected_valid"]:
+        assert defect is not None
+
+
+# -- doctor integration -------------------------------------------------------
+
+def test_doctor_maps_states_and_never_flattens(monkeypatch):
+    for state, ok, mark in (
+        ("absent", False, ""),
+        ("unconfigured", False, "unconfig"),
+        ("available", True, ""),
+    ):
+        doctor._peer_cache.clear()
+        peer = {
+            "ok": True, "contract": "ryan.suite.peer", "version": 1,
+            "peer": "uoink", "state": state,
+            "capabilities": ["uoink.media.handoff/1"] if state == "available" else [],
+        }
+        monkeypatch.setattr(suite_peer, "probe_uoink", lambda p=peer: p)
+        check = doctor.check_uoink()
+        assert (check.ok, check.mark) == (ok, mark), state
+        assert check.data["peer"]["state"] == state
+
+    doctor._peer_cache.clear()
+    unhealthy = {
+        "ok": False, "contract": "ryan.suite.peer", "version": 1,
+        "peer": "uoink", "state": "unhealthy",
+        "error": {"code": "contract_mismatch", "message": "drift", "retryable": False},
+    }
+    monkeypatch.setattr(suite_peer, "probe_uoink", lambda: unhealthy)
+    check = doctor.check_uoink()
+    assert check.ok is False and check.mark == "unhealthy"
+    assert "contract_mismatch" in check.detail
+    assert "standalone" not in check.detail  # drift never reads as absence
+
+
+def test_doctor_probe_is_cached_60s(monkeypatch):
+    calls = {"n": 0}
+
+    def counting():
+        calls["n"] += 1
+        return {
+            "ok": True, "contract": "ryan.suite.peer", "version": 1,
+            "peer": "uoink", "state": "absent", "capabilities": [],
+        }
+
+    monkeypatch.setattr(suite_peer, "probe_uoink", counting)
+    doctor.check_uoink()
+    doctor.check_uoink()
+    doctor.check_uoink()
+    assert calls["n"] == 1  # §4 cadence: at most one probe per 60s

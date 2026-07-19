@@ -496,28 +496,86 @@ def check_tts() -> Check:
     )
 
 
+# §4 background-status cadence: retryable states may be re-probed at
+# most once per 60s — the cache IS the rate limit, since zing_status
+# polls doctor during studies.
+_PEER_CACHE_TTL_S = 60.0
+_peer_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _probe_uoink_cached() -> dict:
+    import time as _time
+
+    from myzing import suite_peer
+
+    now = _time.monotonic()
+    hit = _peer_cache.get("uoink")
+    if hit and now - hit[0] < _PEER_CACHE_TTL_S:
+        return hit[1]
+    result = suite_peer.probe_uoink()
+    _peer_cache["uoink"] = (now, result)
+    return result
+
+
 def check_uoink() -> Check:
+    """INTEGRATION-CONTRACT v1 §8 probe, replacing the pre-contract
+    ambiguity the contract itself cites (any-status-below-500 counted as
+    "reachable"). The peer envelope rides in data; human and JSON say
+    the same state."""
     url = os.environ.get(UOINK_URL_ENV, "").strip() or UOINK_DEFAULT_URL
-    try:
-        with urllib.request.urlopen(url, timeout=1.5) as resp:
-            reachable = 200 <= resp.status < 500
-    except (urllib.error.URLError, OSError, ValueError):
-        reachable = False
-    if reachable:
+    peer = _probe_uoink_cached()
+    state = peer["state"]
+    if state == "available":
         return Check(
             name="uoink",
             tier=OPTIONAL,
             ok=True,
-            detail=f"uoink helper answering at {url} — breakdowns can be "
-            "pushed back to your corpus",
-            data={"url": url},
+            detail=(
+                f"uoink available at {url} — manifest, health, and "
+                "credential verified; kept-media study and corpus push ready"
+            ),
+            data={"url": url, "peer": peer},
+        )
+    if state == "unconfigured":
+        return Check(
+            name="uoink",
+            tier=OPTIONAL,
+            ok=False,
+            mark="unconfig",  # detected-but-uncredentialed is NOT absence
+            detail=(
+                f"uoink detected at {url} (manifest verified) but no "
+                "credential is configured"
+            ),
+            fix=(
+                "set UOINK_TOKEN to uoink's per-install token (token.txt "
+                "next to uoink's server.py)"
+            ),
+            data={"url": url, "peer": peer},
+        )
+    if state == "unhealthy":
+        err = peer["error"]
+        return Check(
+            name="uoink",
+            tier=OPTIONAL,
+            ok=False,
+            mark="unhealthy",  # drift/auth/identity is never shown as absent
+            detail=(
+                f"uoink peer unhealthy ({err['code']}): {err['message']}"
+            ),
+            fix=(
+                "check UOINK_TOKEN" if err["code"] == "authentication_failed"
+                else "check UOINK_URL" if err["code"] == "invalid_configuration"
+                else "update uoink (or zing) so both speak "
+                "INTEGRATION-CONTRACT v1"
+            ),
+            data={"url": url, "peer": peer},
         )
     return Check(
         name="uoink",
         tier=OPTIONAL,
         ok=False,
-        detail=f"no uoink helper at {url} (fine — Zing is fully standalone)",
-        data={"url": url},
+        detail=f"no uoink at {url} (fine — Zing is fully standalone)",
+        data={"url": url, "peer": peer},
     )
 
 

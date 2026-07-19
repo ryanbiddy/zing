@@ -981,3 +981,34 @@
     silently.
   - Remaining B-S6: contract-aware uoink peer probe (§8) — next
     cycle.
+- **2026-07-19 (Lane B): B-S6 wire work part 3 (final named item) —
+  contract-aware uoink peer probe (§8).**
+  - New `myzing/suite_peer.py` (stdlib-only, doctor doctrine): walks
+    the §8 order — explicit-config validation (loopback/port/no-
+    userinfo rules, invalid_configuration with ZERO network on a bad
+    explicit URL), exact-key ryan.suite.service v1 manifest, identity
+    + uoink.media.handoff/1 capability check, exact-key
+    ryan.suite.health v1 (required core/index/corpus_paths, ok-vs-
+    checks consistency), then one cheapest credentialed conformance
+    read (kept-media on a nonexistent id: any well-formed handoff
+    answer proves auth AND contract; 401/403 →
+    authentication_failed). Every outcome normalizes to the
+    ryan.suite.peer v1 envelope with the contract's stable codes.
+  - This deletes the ambiguity the ratified contract cites AGAINST
+    THIS REPO (doctor.py "any status below 500 is reachable"):
+    answered-but-no-manifest is now contract_mismatch ("update
+    uoink"), never absence; wrong identity is wrong_service; refusal
+    at an EXPLICIT UOINK_URL is unhealthy/unavailable, only the
+    unconfigured default gets calm absent.
+  - Doctor: check_uoink maps peer states with distinct display marks
+    (unconfig / unhealthy — §8's "unhealthy is not flattened into
+    absent" made visible), carries the full peer envelope in data for
+    zing_status, and rate-limits probing through a 60s cache (§4's
+    background cadence; the cache IS the rate limit).
+  - Integration truth again: my manifest/health validation is
+    parametrized over Lane C's service.json/health.json fixtures, and
+    every peer envelope the probe emits passes Lane C's
+    validate_contract_payload(expected_peer="uoink").
+  - B-S6's three named items (kept-media consumption, shot-list
+    import, peer probes) are now ALL shipped. Lane B stands ready for
+    the suite smoke / family-scenario gate.
