@@ -1,5 +1,20 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): S3 LANE GATE PASSED — keepers delivered.**
+  Keeper = maximal clean stretch inside a take: split at filler words
+  and interior dead air, ≥4 words, ≥2s, loudness within 12 dB of speech
+  level throughout; each keeper carries a citable evidence list and a
+  repeated-take cross-reference ("compare before choosing") when its
+  span has a near-duplicate. Surfaced in warnings (summary) +
+  provenance.raw_mode.keepers (structured, per the sprint's
+  no-schema-change constraint). **Design lesson from the gate video,
+  encoded in a test:** the speaker never pauses >0.8s, so the whole 48s
+  was one take and a single "literally" rejected everything — the fix
+  (split-at-flaws) yields exactly the human answer: three keepers
+  0.0-3.5s / 3.8-20.8s / 21.1-48.4s around the two fillers, dead-air
+  outro excluded. Manual spot-check against the transcript confirms all
+  three are genuinely usable stretches. Suite 480.
+
 - **2026-07-19 (Lane A): claimed A-Q12 + A-Q13. A-Q12 DELIVERED** —
   raw-footage measurement mode: `study(raw_mode=True)` / `zing study
   --raw` measures dead-air spans (VAD gaps ≥1.5s incl. leading/trailing

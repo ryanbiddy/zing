@@ -110,6 +110,78 @@ def test_different_numbers_are_preserved_and_distinguished():
     assert raw.find_repeated_takes(words_cd) == []
 
 
+# -- keepers (S3 support evidence) ------------------------------------------
+
+def clean_take(t0: float, n: int = 6) -> list[tuple[str, float, float]]:
+    return [(f"word{i}", t0 + i * 0.4, t0 + i * 0.4 + 0.3) for i in range(n)]
+
+
+def test_keeper_found_with_full_evidence():
+    words = words_from(clean_take(0.0))
+    keepers = raw.find_keepers(words, [], [], [], loudness_curve=[-20.0] * 4)
+    assert len(keepers) == 1
+    k = keepers[0]
+    assert (k.start, k.word_count) == (0.0, 6)
+    assert any("uninterrupted take" in e for e in k.evidence)
+    assert any("no filler words" in e for e in k.evidence)
+    assert any("no interior dead air" in e for e in k.evidence)
+    assert any("loudness within" in e for e in k.evidence)
+
+
+def test_short_stretches_around_filler_rejected():
+    # Filler at word 0.8 splits a 6-word take into 2+3 word stretches —
+    # both under the 4-word floor, so nothing qualifies.
+    words = words_from(clean_take(0.0))
+    keepers = raw.find_keepers(
+        words, [("um", 0.8)], [], [], loudness_curve=[-20.0] * 4
+    )
+    assert keepers == []
+
+
+def test_filler_mid_monologue_splits_into_two_keepers():
+    # The real-gate lesson: one "literally" inside a 10s monologue must
+    # yield the clean stretches around it, not zero keepers.
+    words = words_from(clean_take(0.0, n=12) + clean_take(5.0, n=12))
+    # continuous speech 0.0-9.7s (0.3s gap keeps it ONE chunk); filler at 5.0
+    keepers = raw.find_keepers(
+        words, [("literally", 5.0)], [], [], loudness_curve=[-20.0] * 10
+    )
+    assert len(keepers) == 2
+    assert keepers[0].end <= 5.0 and keepers[1].start >= 5.0
+    assert all(
+        any("clean stretch within a take" in e for e in k.evidence)
+        for k in keepers
+    )
+
+
+def test_keeper_rejected_by_interior_dead_air():
+    words = words_from(clean_take(0.0))
+    keepers = raw.find_keepers(
+        words, [], [raw.DeadAir(1.0, 2.6)], [], loudness_curve=[-20.0] * 4
+    )
+    assert keepers == []
+
+
+def test_keeper_rejected_by_level_drop():
+    words = words_from(clean_take(0.0))
+    # bucket 2 collapses 20 dB below the speech median: mumble/turn-away
+    curve = [-20.0, -20.0, -40.0, -20.0]
+    assert raw.find_keepers(words, [], [], [], loudness_curve=curve) == []
+
+
+def test_keeper_cross_references_repeated_take():
+    words = words_from(clean_take(0.0) + clean_take(10.0))
+    takes = [raw.RepeatedTake(0.0, 2.3, 10.0, 12.3, 0.9, "word0 word1")]
+    keepers = raw.find_keepers(words, [], [], takes, loudness_curve=[-20.0] * 13)
+    assert len(keepers) == 2
+    assert keepers[0].repeated_with == (10.0, 12.3)
+    assert keepers[1].repeated_with == (0.0, 2.3)
+    assert any("compare before choosing" in e for e in keepers[0].evidence)
+
+
+def test_keeper_too_short_rejected():
+    words = words_from(clean_take(0.0, n=4)[:4])  # ~1.5s span < 2.0s floor
+    assert raw.find_keepers(words, [], [], [], loudness_curve=[-20.0] * 3) == []
 
 
 # -- measure_raw composition ------------------------------------------------

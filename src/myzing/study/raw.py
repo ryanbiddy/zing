@@ -53,18 +53,143 @@ class RepeatedTake:
 
 
 @dataclass
+class Keeper:
+    """A measured segment most likely usable as-is (S3 support evidence).
+
+    Measurement claims only what it can: the span is one uninterrupted
+    take, contains no lexicon fillers, has no interior dead air, and its
+    loudness stays near the recording's speech level. Whether the CONTENT
+    is any good stays with the AI — `evidence` lists exactly why this
+    span qualified so the citation writes itself.
+    """
+    start: float
+    end: float
+    word_count: int
+    text_preview: str
+    evidence: list[str] = field(default_factory=list)
+    repeated_with: tuple[float, float] | None = None
+
+
+@dataclass
 class RawResult:
     dead_air: list[DeadAir] = field(default_factory=list)
     filler_counts: dict[str, int] = field(default_factory=dict)
     filler_locations: list[tuple[str, float]] = field(default_factory=list)
     repeated_takes: list[RepeatedTake] = field(default_factory=list)
+    keepers: list[Keeper] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+
+
+KEEPER_MIN_S = 2.0
+KEEPER_LEVEL_TOLERANCE_DB = 12.0
+
+
+def _clean_stretches(
+    chunk: list[Word],
+    filler_times: list[float],
+    dead_air: list[DeadAir],
+) -> list[tuple[list[Word], bool]]:
+    """Split one take chunk at filler words and interior dead air into
+    maximal clean stretches. Returns (words, was_split) pairs — a 48s
+    monologue with one 'literally' in the middle yields two keepers, not
+    zero (learned on the real gate video)."""
+    cut = [
+        i for i, w in enumerate(chunk)
+        if any(abs(w.start - t) < 0.05 for t in filler_times)
+        or any(d.start < w.end and d.end > w.start for d in dead_air)
+    ]
+    if not cut:
+        return [(chunk, False)]
+    stretches: list[tuple[list[Word], bool]] = []
+    previous = 0
+    for index in cut:
+        if index > previous:
+            stretches.append((chunk[previous:index], True))
+        previous = index + 1
+    if previous < len(chunk):
+        stretches.append((chunk[previous:], True))
+    return stretches
+
+
+def find_keepers(
+    words: list[Word],
+    filler_locations: list[tuple[str, float]],
+    dead_air: list[DeadAir],
+    repeated_takes: list[RepeatedTake],
+    loudness_curve: list[float],
+) -> list[Keeper]:
+    """Maximal clean stretches inside takes that pass every measurable
+    usability check, each with the evidence the judging AI can cite."""
+    filler_times = [t for _, t in filler_locations]
+    speech_levels = [level for level in loudness_curve if level > -50.0]
+    speech_median = (
+        sorted(speech_levels)[len(speech_levels) // 2] if speech_levels else None
+    )
+    keepers: list[Keeper] = []
+    for chunk in _chunks(words):
+        for stretch, was_split in _clean_stretches(chunk, filler_times, dead_air):
+            if len(stretch) < TAKE_MIN_WORDS:
+                continue
+            start, end = stretch[0].start, stretch[-1].end
+            if end - start < KEEPER_MIN_S:
+                continue
+            evidence = [
+                f"clean stretch within a take ({end - start:.1f}s)"
+                if was_split
+                else f"one uninterrupted take ({end - start:.1f}s)",
+                "no filler words",
+                "no interior dead air",
+            ]
+
+            if speech_median is not None:
+                buckets = [
+                    loudness_curve[i]
+                    for i in range(
+                        int(start), min(int(end) + 1, len(loudness_curve))
+                    )
+                ]
+                if buckets and any(
+                    level < speech_median - KEEPER_LEVEL_TOLERANCE_DB
+                    for level in buckets
+                ):
+                    continue
+                evidence.append(
+                    f"loudness within {KEEPER_LEVEL_TOLERANCE_DB:.0f} dB of "
+                    "speech level throughout"
+                )
+
+            repeated_with = None
+            for take in repeated_takes:
+                if abs(take.first_start - start) < 0.2:
+                    repeated_with = (take.second_start, take.second_end)
+                    break
+                if abs(take.second_start - start) < 0.2:
+                    repeated_with = (take.first_start, take.first_end)
+                    break
+            if repeated_with is not None:
+                evidence.append(
+                    f"NOTE: repeated take exists at "
+                    f"{repeated_with[0]:.1f}-{repeated_with[1]:.1f}s — "
+                    "compare before choosing"
+                )
+
+            preview = " ".join(w.text.strip() for w in stretch)
+            keepers.append(Keeper(
+                start=round(start, 3),
+                end=round(end, 3),
+                word_count=len(stretch),
+                text_preview=preview[:100],
+                evidence=evidence,
+                repeated_with=repeated_with,
+            ))
+    return keepers
 
 
 def measure_raw(
     words: list[Word],
     speech_segments: list[tuple[float, float]] | None,
     duration: float,
+    loudness_curve: list[float] | None = None,
 ) -> RawResult:
     result = RawResult()
 
@@ -113,6 +238,30 @@ def measure_raw(
             f"{take.first_start:.1f}-{take.first_end:.1f}s vs "
             f"{take.second_start:.1f}-{take.second_end:.1f}s: "
             f'"{take.text[:80]}"'
+        )
+
+    result.keepers = find_keepers(
+        words,
+        result.filler_locations,
+        result.dead_air,
+        result.repeated_takes,
+        loudness_curve or [],
+    )
+    if result.keepers:
+        spans = ", ".join(
+            f"{k.start:.1f}-{k.end:.1f}s" for k in result.keepers[:6]
+        )
+        more = (
+            f" (+{len(result.keepers) - 6} more)"
+            if len(result.keepers) > 6 else ""
+        )
+        result.warnings.append(
+            f"raw: {len(result.keepers)} keeper segment(s) — {spans}{more}"
+        )
+    elif words:
+        result.warnings.append(
+            "raw: no keeper segments passed every check — every span has "
+            "fillers, dead air, level drops, or is too short"
         )
     return result
 
