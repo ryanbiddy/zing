@@ -387,3 +387,42 @@ def test_rich_caption_style_basis_does_not_warn(media):
     ]), media)
 
     assert not any("style measured from only" in w for w in result.warnings)
+
+
+def test_every_keeper_too_short_is_an_error(media):
+    with pytest.raises(AssembleError, match="too short to trim"):
+        draft_edl(make_breakdown(), direction_with([
+            {"start": 1.0, "end": 1.1, "why": "blink"},
+        ]), media)
+
+
+def test_no_words_inside_spans_names_caption_omission(media):
+    from myzing.schemas import Word
+
+    b = make_breakdown()
+    b.words = [Word("outside", 50.0, 50.4, 0.9)]
+    result = draft_edl(b, direction_with([
+        {"start": 5.0, "end": 10.0, "why": "x"},
+    ]), media)
+
+    assert result.edl.captions == []
+    assert any("no transcript words fall inside" in w for w in result.warnings)
+
+
+def test_source_too_small_for_even_preset_is_an_error(media):
+    """_output_dimensions: a 9:16 source too small for any even-scaled
+    preset frame refuses rather than emitting a degenerate render."""
+    b = make_breakdown()
+    b.meta.width = 9
+    b.meta.height = 16
+    with pytest.raises(AssembleError, match="too small for an even preset"):
+        draft_edl(b, direction_with([
+            {"start": 5.0, "end": 10.0, "why": "x"},
+        ]), media)
+
+
+def test_keeper_missing_start_key_is_an_error(media):
+    with pytest.raises(AssembleError, match="lacks numeric start/end"):
+        draft_edl(make_breakdown(), direction_with([
+            {"end": 9.0, "why": "no start"},
+        ]), media)
