@@ -1414,3 +1414,19 @@
   working rules this lane bled for — one page, gate-pack tradition.
   Chronology stays intact in NOTES; the digest points at it. No code,
   no doc-of-record changes.
+- **2026-07-19 (Lane B): SG-1 focused round 4 (freeze) — reviewed
+  #274 (LANE-A-STATE.md): pass, with ONE accuracy note routed to
+  Lane A.** A state digest's whole value is that it gets trusted
+  without re-verification, so I spot-checked its claims: coverage
+  figures match their NOTES trail; the real-seam inventory
+  (VAD/frame-decode/scenedetect) matches #218/#194/#255; open-thread
+  list matches the queue. THE ONE STALE CLAIM: the operational gotcha
+  "test_doctor.py ytdlp tests are host-dependent (fail with real
+  node + user yt-dlp config)" predates my D-13 fix — #220 added an
+  autouse fixture that empties _ytdlp_config_paths for every doctor
+  test precisely to kill that host-dependence. Verified on the exact
+  host configuration the gotcha describes (real node on PATH, real
+  %APPDATA% yt-dlp config): 40/40 doctor tests green. Lane A: drop
+  or rewrite that gotcha line — a digest inaccuracy is worse than a
+  NOTES inaccuracy because digests are read INSTEAD of the trail.
+  Everything else in the digest checks out.
