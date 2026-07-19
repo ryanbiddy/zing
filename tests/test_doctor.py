@@ -271,3 +271,30 @@ def test_summarize_shape(full_machine):
     assert set(summary) == {"ok", "required_missing", "checks"}
     for c in summary["checks"]:
         assert {"name", "tier", "ok", "detail", "fix", "degraded_mode", "data"} <= set(c)
+
+
+# -- S5 install-gate observation #2: one-line verdict ------------------------
+
+def test_verdict_line_bare_machine(bare_machine, capsys):
+    doctor.run([])
+    out = capsys.readouterr().out
+    assert "Verdict: NOT ready" in out.splitlines()[2]
+    assert "ffmpeg" in out.splitlines()[2]
+
+
+def test_verdict_line_degraded(bare_machine, monkeypatch, capsys):
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: "C:/tools/bin" if name in ("ffmpeg", "ffprobe") else None,
+    )
+    doctor.run([])
+    verdict = capsys.readouterr().out.splitlines()[2]
+    assert "ready for local-file study" in verdict
+    assert "degraded" in verdict
+
+
+def test_verdict_line_fully_ready(full_machine, monkeypatch, capsys):
+    # full_machine leaves tts/uoink optional-absent; verdict ignores optional
+    doctor.run([])
+    verdict = capsys.readouterr().out.splitlines()[2]
+    assert verdict == "Verdict: fully ready"
