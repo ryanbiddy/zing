@@ -713,6 +713,86 @@ def h_list_profiles() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Taste onboarding tools (S4 Track 2)
+# ---------------------------------------------------------------------------
+
+def h_list_presets() -> dict[str, Any]:
+    from myzing import setup_flow
+
+    packs = setup_flow.list_packs()
+    if not packs:
+        return _ok(
+            count=0,
+            presets=[],
+            hint=(
+                "no preset packs installed yet — onboard a personal taste "
+                "with setup_taste(name, links=[...]) today"
+            ),
+        )
+    return _ok(count=len(packs), presets=packs)
+
+
+def h_setup_taste(
+    name: str,
+    links: list[str] | None = None,
+    pack: str = "",
+    genre: str = "",
+    platform: str = "",
+) -> dict[str, Any]:
+    from myzing import setup_flow
+
+    if pack:
+        try:
+            manifest = setup_flow.load_pack(pack)
+        except ValueError as e:
+            return _err(str(e))
+        if manifest is None:
+            names = ", ".join(
+                p["name"] for p in setup_flow.list_packs()
+            ) or "(none installed)"
+            return _err(f"no preset pack named '{pack}' — available: {names}")
+        links = [r["url"] for r in manifest["references"]]
+        genre = genre or manifest.get("genre", "")
+        platform = platform or manifest.get("platform", "")
+    if not links:
+        return _err(
+            "provide links=[...] (your reference URLs) or pack=<preset name> "
+            "— see list_presets()"
+        )
+    try:
+        outcome = setup_flow.advance_setup(name, links, genre, platform)
+    except (ValueError, storage.SlugError) as e:
+        return _err(str(e))
+    plan = outcome["plan"]
+    if outcome["built"]:
+        return _ok(
+            taste=name,
+            state="built",
+            build=outcome["build"],
+            hint=(
+                "judge the references with the study prompt, then call "
+                "setup_taste again — rebuilds fold judgments in"
+            ),
+        )
+    if plan["ready_to_build"]:
+        return _err(
+            f"profile build failed: {outcome['build'].get('error', '?')}"
+        )
+    return _ok(
+        taste=name,
+        state="studying",
+        references=plan["references"],
+        started=outcome["started"],
+        start_errors=outcome["start_errors"],
+        failed=plan["failed"],
+        hint=(
+            "studies run in the background — call setup_taste again with the "
+            "same arguments once zing_status() shows them done (idempotent)"
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Render / export tools (S4 Track 1, Lane B surface over Lane C's engine)
 # ---------------------------------------------------------------------------
 
@@ -1120,6 +1200,24 @@ def build_server():
         ),
     )(h_push_to_uoink)
 
+    mcp.tool(
+        name="list_presets",
+        description=(
+            "List installed taste preset packs (curated reference sets with "
+            "genre and why-picked notes). Empty is honest: personal tastes "
+            "via setup_taste(links=...) work without any packs."
+        ),
+    )(h_list_presets)
+    mcp.tool(
+        name="setup_taste",
+        description=(
+            "Onboard a named taste: from a preset pack OR your own "
+            "reference links. Idempotent — starts missing studies in the "
+            "background, builds the StyleProfile when all references are "
+            "studied; call again with the same arguments to advance. "
+            "Multiple named tastes are first-class."
+        ),
+    )(h_setup_taste)
     mcp.tool(
         name="render_edl",
         description=(

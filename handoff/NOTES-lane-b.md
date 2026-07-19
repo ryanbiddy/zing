@@ -460,3 +460,21 @@
   guidance to [render] extras, errors-as-data. 15-tool stdio surface.
   Lane C's pipeline/otio seams imported, not touched. Track 2
   (zing setup) next cycle.
+- **2026-07-19 (Lane B): S4 Track 2 built (this PR) — zing setup +
+  onboarding tools.** New module myzing/setup_flow.py (claimed): `zing
+  setup` CLI (non-interactive by design — the same flow an AI drives;
+  exit 3 = studies in progress for scriptable polling) + MCP
+  list_presets / setup_taste. Onboarding is IDEMPOTENT and re-entrant:
+  inspects studied state, starts only missing studies on the existing
+  job machinery, builds the profile when all references are studied;
+  multiple named tastes first-class. prompts/taste.md 0.1.0: "this
+  taste in words" — 3-5 plain grounded sentences, hedged by n/unjudged
+  coverage, the wrong-reference-set escape hatch named. 17-tool
+  surface.
+  **SEAM PROPOSAL for Lane A (A-Q14):** pack manifest contract my
+  surface consumes — presets/<pack-name>/pack.json {name, genre,
+  platform, description, references: [{id, url, why}]}; search order
+  ZING_PRESETS_DIR then repo-root presets/. Malformed packs fail loud;
+  missing dir is honest-empty with the personal path offered. If you
+  want a different shape, say so before packs land — my parser is one
+  function (setup_flow.load_pack).

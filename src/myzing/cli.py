@@ -24,6 +24,7 @@ _COMMANDS = {
     "profile": "myzing.profile.command",
     "serve-mcp": "myzing.mcp_server",
     "prompt": "myzing.prompt_pack",
+    "setup": "myzing.setup_flow",
     "render": "myzing.render.command",
     "thumbs": "myzing.thumbs",
 }

@@ -27,7 +27,7 @@ def real_pack(monkeypatch):
 # -- shipped pack integrity --------------------------------------------------
 
 def test_pack_ships_expected_prompts(real_pack):
-    assert prompt_pack.available_prompts() == ["compare", "direct", "study"]
+    assert prompt_pack.available_prompts() == ["compare", "direct", "study", "taste"]
 
 
 def test_compare_frontmatter_and_example_contract(real_pack, zing_workspace):
@@ -180,7 +180,7 @@ def test_mcp_prompts_capability_serves_the_real_pack(real_pack):
     import anyio
 
     prompts = anyio.run(server.list_prompts)
-    assert {p.name for p in prompts} == {"compare", "direct", "study"}
+    assert {p.name for p in prompts} == {"compare", "direct", "study", "taste"}
 
 
 # -- CLI ---------------------------------------------------------------------
