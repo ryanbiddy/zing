@@ -97,15 +97,26 @@ def detect_platform(source: str) -> str:
 
 
 def ingest(
-    source: str, kept_media: str | Path | None = None
+    source: str,
+    kept_media: str | Path | None = None,
+    handoff: dict[str, Any] | None = None,
 ) -> IngestResult:
     """Workspace routing is storage's job (ContextVar pin via
     use_workspace); ingest never carries roots around.
 
     ``kept_media`` (A-S6): a locally kept copy of a URL source (uoink
     keep_media). When usable it is staged with a sha256 anchor and ZERO
-    network fetch; when missing, unreadable, or failing the probe, the
-    fallback to a normal fetch is named in warnings — never silent.
+    network fetch; when missing, unreadable, integrity-mismatched, or
+    failing the probe, the fallback to a normal fetch is named in
+    warnings AND in contract provenance — never silent.
+
+    ``handoff`` (INTEGRATION-CONTRACT v1, uoink.media.handoff): optional
+    dict with ``source_ref``, ``sha256``, ``byte_length``, and/or
+    ``state``. When given, the kept file is integrity-verified against
+    the expected hash/size BEFORE analysis, and the breakdown gets the
+    contract's path-free ``source_handoff`` provenance. Absolute kept
+    paths never enter provenance (stable-reference rule) — the sha256
+    is the anchor.
     """
     warnings: list[str] = []
     provenance: dict[str, Any] = {}
@@ -114,11 +125,18 @@ def ingest(
     dest.mkdir(parents=True, exist_ok=True)
 
     probed = None
+    fallback_reason: str | None = None
     if is_url(source):
         media = None
         info = {}
         if kept_media is not None:
-            media = _stage_kept(kept_media, slug, warnings, provenance)
+            media, fallback_reason = _stage_kept(
+                kept_media, slug, warnings, provenance, handoff
+            )
+        elif handoff is not None and handoff.get("state") in (
+            "not_kept", "missing"
+        ):
+            fallback_reason = str(handoff["state"])
         if media is not None:
             try:
                 probed = probe(media)
@@ -127,6 +145,7 @@ def ingest(
                     f"kept media failed probe ({exc}) — falling back to fetch"
                 )
                 provenance.clear()
+                fallback_reason = "integrity_mismatch"
                 # The staged copy is the same bad bytes — remove it so the
                 # fetch fallback cannot "reuse" it as existing media.
                 try:
@@ -137,6 +156,15 @@ def ingest(
         if media is None:
             media = _fetch(source, slug, dest, warnings)
             info = _read_info_json(dest)
+            if handoff is not None and fallback_reason is not None:
+                provenance["source_handoff"] = {
+                    "contract": "uoink.media.handoff",
+                    "version": 1,
+                    "source_ref": str(handoff.get("source_ref", "")),
+                    "acquisition": "source_refetch",
+                    "refetch": True,
+                    "reason": fallback_reason,
+                }
     else:
         if kept_media is not None:
             warnings.append(
@@ -193,37 +221,61 @@ def _stage_kept(
     slug: str,
     warnings: list[str],
     provenance: dict[str, Any],
-) -> Path | None:
+    handoff: dict[str, Any] | None = None,
+) -> tuple[Path | None, str | None]:
     """A-S6: stage an already-kept media file instead of refetching.
 
-    Returns the staged path, or None (with a named warning) when the
-    kept file cannot be used — the caller then fetches normally.
+    Returns (staged path, None) on success, or (None, contract reason)
+    with a named warning when the kept file cannot be used — the caller
+    then fetches normally. Provenance stays path-free (the contract's
+    stable-reference rule): the sha256 is the anchor; warnings name only
+    the basename.
     """
     src = Path(kept)
+    name = src.name
     if not src.is_file():
         warnings.append(
-            f"kept media unavailable ({src}) — falling back to fetch"
+            f"kept media unavailable ({name}) — falling back to fetch"
         )
-        return None
+        return None, "missing"
     try:
+        size = src.stat().st_size
         digest = hashlib.sha256()
         with src.open("rb") as fh:
             for chunk in iter(lambda: fh.read(1 << 20), b""):
                 digest.update(chunk)
-        target = storage.media_target(slug, src.suffix or ".mp4")
-        if not (
-            target.exists() and target.stat().st_size == src.stat().st_size
+        sha = digest.hexdigest()
+        expected_sha = (handoff or {}).get("sha256")
+        expected_len = (handoff or {}).get("byte_length")
+        if (expected_sha and sha != expected_sha) or (
+            expected_len is not None and size != int(expected_len)
         ):
+            warnings.append(
+                f"kept media integrity mismatch ({name}: "
+                f"sha/size differ from handoff) — falling back to fetch"
+            )
+            return None, "integrity_mismatch"
+        target = storage.media_target(slug, src.suffix or ".mp4")
+        if not (target.exists() and target.stat().st_size == size):
             shutil.copy2(src, target)
     except OSError as exc:
         warnings.append(
             f"kept media unreadable ({exc}) — falling back to fetch"
         )
-        return None
-    provenance["media_source"] = "kept-media"
-    provenance["kept_media_path"] = str(src.resolve())
-    provenance["kept_media_sha256"] = digest.hexdigest()
-    return target
+        return None, "missing"
+    if handoff is not None:
+        provenance["source_handoff"] = {
+            "contract": "uoink.media.handoff",
+            "version": 1,
+            "source_ref": str(handoff.get("source_ref", "")),
+            "acquisition": "kept_media",
+            "refetch": False,
+            "sha256": sha,
+        }
+    else:
+        provenance["media_source"] = "kept-media"
+        provenance["kept_media_sha256"] = sha
+    return target, None
 
 def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     existing = storage.find_media(slug)

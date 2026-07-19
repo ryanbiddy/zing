@@ -475,7 +475,7 @@ def test_kept_media_studied_with_zero_fetch(zing_workspace, tmp_path, monkeypatc
 
     assert fake.commands("yt-dlp") == []
     assert result.provenance["media_source"] == "kept-media"
-    assert result.provenance["kept_media_path"] == str(kept.resolve())
+    assert "kept_media_path" not in result.provenance   # path-free rule
     assert result.provenance["kept_media_sha256"] == hashlib.sha256(
         b"kept-by-uoink"
     ).hexdigest()
@@ -538,3 +538,92 @@ def test_kept_media_with_local_source_is_ignored_with_warning(
 
     assert any("kept_media ignored" in w for w in result.warnings)
     assert "media_source" not in result.provenance
+
+
+# -- INTEGRATION-CONTRACT v1: uoink.media.handoff -----------------------------
+
+def handoff_for(data: bytes, ref="uoink://item/short-123"):
+    import hashlib
+    return {
+        "source_ref": ref,
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "byte_length": len(data),
+    }
+
+
+def test_handoff_kept_media_emits_contract_provenance(
+    zing_workspace, tmp_path, monkeypatch
+):
+    """The S6 family gate requires acquisition kept_media + refetch false,
+    path-free."""
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    kept = tmp_path / "video.mp4"
+    kept.write_bytes(b"kept-by-uoink")
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(url, kept_media=kept, handoff=handoff_for(b"kept-by-uoink"))
+
+    assert fake.commands("yt-dlp") == []
+    sh = result.provenance["source_handoff"]
+    assert sh["contract"] == "uoink.media.handoff" and sh["version"] == 1
+    assert sh["source_ref"] == "uoink://item/short-123"
+    assert sh["acquisition"] == "kept_media" and sh["refetch"] is False
+    assert sh["sha256"] == handoff_for(b"kept-by-uoink")["sha256"]
+    assert not any("path" in k for k in sh)          # path-free
+
+
+def test_handoff_integrity_mismatch_refetches_with_reason(
+    zing_workspace, tmp_path, monkeypatch
+):
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    kept = tmp_path / "video.mp4"
+    kept.write_bytes(b"tampered-bytes")
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(
+        url, kept_media=kept, handoff=handoff_for(b"original-bytes")
+    )
+
+    assert len(fake.commands("yt-dlp")) == 1
+    assert any("integrity mismatch" in w for w in result.warnings)
+    sh = result.provenance["source_handoff"]
+    assert sh["acquisition"] == "source_refetch" and sh["refetch"] is True
+    assert sh["reason"] == "integrity_mismatch"
+
+
+def test_handoff_not_kept_state_records_refetch_reason(
+    zing_workspace, monkeypatch
+):
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(
+        url,
+        handoff={"source_ref": "uoink://item/short-123", "state": "not_kept"},
+    )
+
+    assert len(fake.commands("yt-dlp")) == 1
+    sh = result.provenance["source_handoff"]
+    assert sh["acquisition"] == "source_refetch" and sh["refetch"] is True
+    assert sh["reason"] == "not_kept"
+
+
+def test_handoff_missing_kept_file_records_missing_reason(
+    zing_workspace, tmp_path, monkeypatch
+):
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(
+        url,
+        kept_media=tmp_path / "gone.mp4",
+        handoff={"source_ref": "uoink://item/short-123"},
+    )
+
+    assert len(fake.commands("yt-dlp")) == 1
+    sh = result.provenance["source_handoff"]
+    assert sh["reason"] == "missing" and sh["refetch"] is True
