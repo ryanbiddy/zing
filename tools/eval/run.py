@@ -107,7 +107,7 @@ def _ffmpeg_version(ffmpeg: str) -> str | None:
 
 def _report_environment(ffmpeg: str) -> dict[str, Any]:
     return {
-        "report_schema_version": 5,
+        "report_schema_version": 6,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -197,6 +197,7 @@ def evaluate(
         builder=profile_builder,
     )
     direction_eval = evaluate_direction_paths(direction_paths)
+    performance_eval = summarize_performance(cases)
     report = {
         **_report_environment(ffmpeg),
         "wall_clock_seconds": round(time.perf_counter() - started, 6),
@@ -204,9 +205,10 @@ def evaluate(
             all(case["score"]["passed"] for case in cases)
             and profile_eval["passed"] is not False
             and direction_eval["passed"] is not False
+            and performance_eval["passed"] is not False
         ),
         "audio_delivery": summarize_audio_delivery(cases),
-        "performance": summarize_performance(cases),
+        "performance": performance_eval,
         "profile_eval": profile_eval,
         "direction_eval": direction_eval,
         "cases": cases,

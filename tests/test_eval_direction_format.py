@@ -228,7 +228,7 @@ def test_eval_report_includes_direction_conformance(tmp_path: Path) -> None:
         direction_paths=[direction_path],
     )
 
-    assert report["report_schema_version"] == 5
+    assert report["report_schema_version"] == 6
     assert report["passed"] is True
     assert report["direction_eval"]["passed"] is True
     assert report["direction_eval"]["cases"][0]["score"]["passed"] is True
