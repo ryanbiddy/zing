@@ -227,3 +227,4 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   mutations for media facts, delivery audio, VO provenance, and OTIO
   provenance. Actual NLE import and human listening remain separate manual
   gates.
+- **CD-Q1 (Lane C + Lane D, S3 full-fidelity follow-up):** replace the raw-editing-practice stand-in: Lane D sources ONE genuinely unedited talking-head clip (live-verify + eyeball per F-16 lesson; document license/provenance); Lane C studies it with raw_mode ON and re-freezes it into the regression set with raw-mode provenance + regeneration command. Then Lane B reruns the direction gate against it for the full-fidelity record (keepers from real raw measurements).

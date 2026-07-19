@@ -478,3 +478,4 @@
   missing dir is honest-empty with the personal path offered. If you
   want a different shape, say so before packs land — my parser is one
   function (setup_flow.load_pack).
+- **2026-07-19 (orchestrator RULING): S3 INTERNAL GATE — PASS on mechanics.** The gate record is the standard: real chain, real gap found (silent tail + filmable fix), limits stated instead of papered. The two flagged dependencies are now queued (refreeze with genuinely-raw clip; quality judgment deferred to Decision Week inputs per LAUNCH-PLAN). S3 is CLOSED; Lane B fully onto S4.
