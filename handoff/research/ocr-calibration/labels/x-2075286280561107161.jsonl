@@ -1,0 +1,56 @@
+{"labeling": {"slug": "x-2075286280561107161", "labeled_at": "2026-07-19", "method": "frame-verified band rules", "verified_frames_t": [1.0, 7.0, 14.6], "rules": ["0.50<=y<0.70 -> unsupported_script: burned-in Russian caption (verified t=1: real caption text; OCR emits punctuation-only skeleton)", "0.70<=y<0.95 -> incidental_text: inset-clip scene text (verified t=7 jersey 'ETIHAD'->'AAHIT'; t=14.6 medal engraving -> CJK, ribbon -> 'E')", "y>=0.95 -> unsupported_script: mirrored Cyrillic watermark (verified t=7)"], "honesty": "38+9 lines are REAL text in an unsupported/mirrored script \u2014 the correct system behavior is 'unreadable script, flagged', never the fabricated Latin/punctuation actually emitted; 9 lines are real incidental scene text, not captions."}}
+{"t": 0.0, "line": 0, "text": ": ,   - ,  ?", "score": 0.9287, "y_center": 0.6098, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 0.125, "line": 0, "text": ": ,   - ,  ?", "score": 0.8844, "y_center": 0.6098, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 0.25, "line": 0, "text": ": ,   - ,  ?", "score": 0.8931, "y_center": 0.6098, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 0.375, "line": 0, "text": ": ,   - ,  ?", "score": 0.9308, "y_center": 0.6098, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 0.5, "line": 0, "text": ": ,   - ,  ?", "score": 0.9287, "y_center": 0.6098, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 0.625, "line": 0, "text": ": ,   - ,  ?", "score": 0.8866, "y_center": 0.6098, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 0.75, "line": 0, "text": ": ,   - ,  ?", "score": 0.8985, "y_center": 0.6094, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 0.875, "line": 0, "text": ": ,   - ,  ?", "score": 0.9131, "y_center": 0.6094, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 1.0, "line": 0, "text": ": ,   - ,  ?", "score": 0.912, "y_center": 0.6098, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 1.125, "line": 0, "text": ": ,    ,  ?", "score": 0.8988, "y_center": 0.6094, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 1.25, "line": 0, "text": ": ,    ,  ?", "score": 0.939, "y_center": 0.6094, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 1.375, "line": 0, "text": ": ,    ,  ?", "score": 0.9278, "y_center": 0.6098, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 1.5, "line": 0, "text": ": ,   - ,  ?", "score": 0.9149, "y_center": 0.6098, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 1.625, "line": 0, "text": ": ,   - ,  ?", "score": 0.8859, "y_center": 0.6094, "label": "unsupported_script", "basis": "frame-verified", "why": "russian burned-in caption band"}
+{"t": 1.75, "line": 0, "text": ": ,   - ,  ?", "score": 0.882, "y_center": 0.6102, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 1.875, "line": 0, "text": ": ,   - ,  ?", "score": 0.8963, "y_center": 0.6098, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.0, "line": 0, "text": ": ,   - ,  ?", "score": 0.9183, "y_center": 0.6098, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.125, "line": 0, "text": ": ,   - ,  ?", "score": 0.893, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.25, "line": 0, "text": ": ,    ,  ?", "score": 0.934, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.375, "line": 0, "text": ",    ,  ?", "score": 0.9663, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.5, "line": 0, "text": ": ,    ,  ?", "score": 0.9332, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.625, "line": 0, "text": ": ,   - ,  ?", "score": 0.9122, "y_center": 0.6098, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.75, "line": 0, "text": ": ,    ,  ?", "score": 0.9386, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 2.875, "line": 0, "text": ": ,    ,  ?", "score": 0.8883, "y_center": 0.6098, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 3.0, "line": 0, "text": ": ,   - ,  ?", "score": 0.943, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 3.25, "line": 0, "text": ": ,   - ,  ?", "score": 0.9084, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 3.5, "line": 0, "text": ": ,   - ,  ?", "score": 0.9532, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 3.75, "line": 0, "text": ": ,   - ,  ?", "score": 0.9019, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 4.0, "line": 0, "text": ": ,   - ,  ?", "score": 0.9598, "y_center": 0.6094, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 4.25, "line": 0, "text": ": ,   - ,  ?", "score": 0.9231, "y_center": 0.6102, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 4.5, "line": 0, "text": ":   «»", "score": 0.7731, "y_center": 0.5539, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 4.75, "line": 0, "text": ":   «»", "score": 0.761, "y_center": 0.5539, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 5.0, "line": 0, "text": ":   «»", "score": 0.8048, "y_center": 0.5539, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 5.25, "line": 0, "text": ":   «»", "score": 0.828, "y_center": 0.5539, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 5.5, "line": 0, "text": ":   «»", "score": 0.8313, "y_center": 0.5539, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 5.75, "line": 0, "text": ":   «»", "score": 0.8323, "y_center": 0.5539, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 6.0, "line": 0, "text": ":   «»", "score": 0.7876, "y_center": 0.5539, "label": "unsupported_script", "basis": "band-rule", "why": "russian burned-in caption band"}
+{"t": 6.25, "line": 0, "text": "anlqoen", "score": 0.8367, "y_center": 0.966, "label": "unsupported_script", "basis": "band-rule", "why": "mirrored cyrillic watermark"}
+{"t": 6.5, "line": 0, "text": "4AHIT", "score": 0.7534, "y_center": 0.8961, "label": "incidental_text", "basis": "frame-verified", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 6.5, "line": 1, "text": "anlqoen", "score": 0.8438, "y_center": 0.966, "label": "unsupported_script", "basis": "frame-verified", "why": "mirrored cyrillic watermark"}
+{"t": 6.75, "line": 0, "text": "AAHIT", "score": 0.803, "y_center": 0.8965, "label": "incidental_text", "basis": "frame-verified", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 6.75, "line": 1, "text": "2nlqoen", "score": 0.8049, "y_center": 0.966, "label": "unsupported_script", "basis": "frame-verified", "why": "mirrored cyrillic watermark"}
+{"t": 7.0, "line": 0, "text": "AAHIT", "score": 0.8332, "y_center": 0.8965, "label": "incidental_text", "basis": "frame-verified", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 7.25, "line": 0, "text": "AAHIT>", "score": 0.7608, "y_center": 0.8953, "label": "incidental_text", "basis": "frame-verified", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 7.5, "line": 0, "text": "AAHIT>", "score": 0.7615, "y_center": 0.8953, "label": "incidental_text", "basis": "frame-verified", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 7.5, "line": 1, "text": "eniqoen", "score": 0.7725, "y_center": 0.9656, "label": "unsupported_script", "basis": "frame-verified", "why": "mirrored cyrillic watermark"}
+{"t": 8.25, "line": 0, "text": "eniqoen", "score": 0.7957, "y_center": 0.9656, "label": "unsupported_script", "basis": "band-rule", "why": "mirrored cyrillic watermark"}
+{"t": 8.5, "line": 0, "text": "AAHITO", "score": 0.8553, "y_center": 0.8973, "label": "incidental_text", "basis": "band-rule", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 8.5, "line": 1, "text": "enlquen", "score": 0.764, "y_center": 0.966, "label": "unsupported_script", "basis": "band-rule", "why": "mirrored cyrillic watermark"}
+{"t": 8.75, "line": 0, "text": "AAHITO", "score": 0.8502, "y_center": 0.8977, "label": "incidental_text", "basis": "band-rule", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 8.75, "line": 1, "text": "endqoen", "score": 0.7613, "y_center": 0.9656, "label": "unsupported_script", "basis": "band-rule", "why": "mirrored cyrillic watermark"}
+{"t": 9.0, "line": 0, "text": "andqoen", "score": 0.7993, "y_center": 0.966, "label": "unsupported_script", "basis": "band-rule", "why": "mirrored cyrillic watermark"}
+{"t": 9.25, "line": 0, "text": "anlqoen", "score": 0.8123, "y_center": 0.9656, "label": "unsupported_script", "basis": "band-rule", "why": "mirrored cyrillic watermark"}
+{"t": 14.5, "line": 0, "text": "充", "score": 0.7759, "y_center": 0.8406, "label": "incidental_text", "basis": "frame-verified", "why": "inset scene text (jersey/medal/ribbon)"}
+{"t": 14.75, "line": 0, "text": "E", "score": 0.817, "y_center": 0.9383, "label": "incidental_text", "basis": "frame-verified", "why": "inset scene text (jersey/medal/ribbon)"}
