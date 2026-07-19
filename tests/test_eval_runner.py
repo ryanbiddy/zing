@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import subprocess
 import sys
@@ -13,6 +14,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from myzing.schemas import Breakdown
+from tools.eval import make_goldens as make_goldens_module
 from tools.eval import run as eval_run
 from tools.eval.audio_delivery import parse_ebur128
 from tools.eval.make_goldens import CASES, SPEECH_FIXTURE, generate_goldens
@@ -308,6 +310,11 @@ def test_module_cli_writes_report_on_error(tmp_path: Path) -> None:
     assert report["direction_eval"]["status"] == "not-run"
     assert report["error"]["type"] == "ValueError"
     assert "no evaluation cases" in report["error"]["message"]
+
+
+def test_golden_generators_share_truth_json_writer() -> None:
+    assert hasattr(make_goldens_module, "_write_json")
+    assert inspect.getsource(make_goldens_module).count("json.dumps(") == 1
 
 
 @pytest.mark.ffmpeg
