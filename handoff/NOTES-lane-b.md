@@ -381,3 +381,4 @@
   Windows-only ctypes branches exercised on Windows only — adding
   fake-coverage for those would be theater, so stopping here). SG log:
   1,1,2,2,3,4,5 run.
+- **2026-07-19 (orchestrator): CI RESTORED (GitHub Pro) — local-gate mode retired.** Resume the normal flow: gh pr checks <n> --watch, merge only on all-green. Keep pasting the local suite line in PR bodies anyway — it proved its worth and costs nothing.
