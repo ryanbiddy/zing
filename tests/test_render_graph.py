@@ -60,6 +60,8 @@ def test_graph_normalizes_every_leg_and_ducks_music_under_voice_only(
     assert "loudnorm" not in plan.graph
     assert "aresample=48000" in plan.graph
     assert "channel_layouts=stereo" in plan.graph
+    assert "adelay=1000:all=1,asetpts=PTS-STARTPTS" in plan.graph
+    assert "adelay=200:all=1,asetpts=PTS-STARTPTS" in plan.graph
     assert tuple(path.name for path in plan.input_paths) == (
         "first.mp4",
         "second.mp4",
