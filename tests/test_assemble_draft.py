@@ -118,6 +118,19 @@ def test_too_short_spans_dropped_with_warning(media):
     assert any("shorter than" in w and "dropped" in w for w in result.warnings)
 
 
+def test_missing_dimensions_fail_instead_of_inventing_portrait(media):
+    """Lane C P2: absent measured w/h/fps must not silently become
+    1080x1920@30 — that fabricates the output orientation."""
+    b = make_breakdown()
+    b.meta.width = 0
+    b.meta.height = 0
+    b.meta.fps = 0.0
+    with pytest.raises(AssembleError, match="lacks measured width/height/fps"):
+        draft_edl(b, direction_with([
+            {"start": 5.0, "end": 10.0, "why": "x"},
+        ]), media)
+
+
 def test_missing_media_is_an_error(tmp_path):
     with pytest.raises(AssembleError, match="source media missing"):
         draft_edl(make_breakdown(), direction_with([
