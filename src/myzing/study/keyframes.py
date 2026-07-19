@@ -71,6 +71,8 @@ def _grab(media_path: Path, at: float, target: Path) -> bool:
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-ss", f"{max(0.0, at):.3f}", "-i", str(media_path),
+        "-vf", "scale=in_range=auto:out_range=full",
+        "-color_range", "pc",
         "-frames:v", "1", "-q:v", JPEG_QUALITY,
         "-y", str(target),
     ]

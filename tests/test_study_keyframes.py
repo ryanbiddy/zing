@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from myzing.schemas import Shot
 from myzing.study import keyframes
 from myzing.study.proc import ToolMissing
@@ -38,6 +40,8 @@ def test_extracts_shot_and_hook_frames(tmp_path, monkeypatch):
     # seek time appears before -i (fast input seeking)
     first = calls[0]
     assert first.index("-ss") < first.index("-i")
+    assert "out_range=full" in first[first.index("-vf") + 1]
+    assert first[first.index("-color_range") + 1] == "pc"
 
 
 def test_short_video_gets_fewer_hook_frames(tmp_path, monkeypatch):
@@ -102,3 +106,98 @@ def test_ffmpeg_missing_degrades_with_warning(tmp_path, monkeypatch):
 
     assert shots[0].keyframe == ""
     assert any("could not be extracted" in w for w in warnings)
+
+
+def _make_real_video(
+    path: Path,
+    *,
+    duration: float,
+    limited_range: bool,
+) -> None:
+    command = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=red:s=160x90:r=30:d={duration}",
+    ]
+    if limited_range:
+        command.extend(
+            [
+                "-vf",
+                "scale=in_range=full:out_range=limited",
+            ]
+        )
+    command.extend(
+        [
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+        ]
+    )
+    if limited_range:
+        command.extend(
+            ["-bsf:v", "h264_metadata=video_full_range_flag=0"]
+        )
+    command.extend(["-an", str(path)])
+    subprocess.run(command, check=True, capture_output=True, text=True)
+
+
+@pytest.mark.ffmpeg
+def test_limited_range_video_extracts_real_jpegs(tmp_path: Path) -> None:
+    media = tmp_path / "limited-range.mp4"
+    _make_real_video(media, duration=1.0, limited_range=True)
+    probe = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=color_range",
+            "-of",
+            "default=nw=1:nk=1",
+            str(media),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert probe.stdout.strip() == "tv"
+    shots = [Shot(0, 0.0, 1.0)]
+    warnings: list[str] = []
+
+    keyframes.extract_keyframes(
+        media, tmp_path / "breakdown", shots, 1.0, warnings
+    )
+
+    shot = tmp_path / "breakdown" / shots[0].keyframe
+    hook = tmp_path / "breakdown" / "frames" / "hook_0s.jpg"
+    assert warnings == []
+    assert shot.read_bytes().startswith(b"\xff\xd8")
+    assert hook.read_bytes().startswith(b"\xff\xd8")
+
+
+@pytest.mark.ffmpeg
+def test_subsecond_video_never_silently_yields_zero_frames(
+    tmp_path: Path,
+) -> None:
+    media = tmp_path / "short.mp4"
+    _make_real_video(media, duration=0.1, limited_range=False)
+    shots = [Shot(0, 0.0, 0.1)]
+    warnings: list[str] = []
+
+    keyframes.extract_keyframes(
+        media, tmp_path / "breakdown", shots, 0.1, warnings
+    )
+
+    frames = list((tmp_path / "breakdown" / "frames").glob("*.jpg"))
+    assert frames
+    assert shots[0].keyframe
+    assert warnings == []
