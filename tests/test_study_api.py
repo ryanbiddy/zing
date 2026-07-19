@@ -361,3 +361,36 @@ def test_kept_media_provenance_reaches_breakdown(zing_workspace, monkeypatch):
 
     assert b.provenance["media_source"] == "kept-media"
     assert b.provenance["kept_media_sha256"] == "ab" * 32
+
+
+def test_workspace_env_fallback_without_use_workspace(tmp_path, monkeypatch):
+    """The env-var fallback path: a storage build without use_workspace
+    still gets workspace routing, and the env var is restored after."""
+    wire_stages(monkeypatch)
+    monkeypatch.delenv(storage.ENV_VAR, raising=False)
+    monkeypatch.delattr(storage, "use_workspace")
+    ws = tmp_path / "legacy-ws"
+
+    api.study(SOURCE, workspace=ws)
+
+    assert storage.ENV_VAR not in os.environ  # restored to absent
+
+
+def test_workspace_env_fallback_restores_prior_value(tmp_path, monkeypatch):
+    wire_stages(monkeypatch)
+    monkeypatch.delattr(storage, "use_workspace")
+    monkeypatch.setenv(storage.ENV_VAR, "prior-home")
+
+    api.study(SOURCE, workspace=tmp_path / "other-ws")
+
+    assert os.environ[storage.ENV_VAR] == "prior-home"
+
+
+def test_zing_version_unknown_on_metadata_failure(monkeypatch):
+    import importlib.metadata
+
+    def boom(name):
+        raise importlib.metadata.PackageNotFoundError(name)
+    monkeypatch.setattr(importlib.metadata, "version", boom)
+
+    assert api._zing_version() == "unknown"

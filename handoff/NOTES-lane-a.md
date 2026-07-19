@@ -777,3 +777,11 @@
     slip nearly happened from my own runs; now structurally blocked).
   - #240 (P3 batch): doc/version honesty items, no measurement
     surface contact. Pass.
+
+- **2026-07-19 (Lane A, SG-2 round 4): profile/command 90% -> 99%,
+  study/api 86% -> 96%.** Covered: pack --json + FAILED-line CLI
+  output, pack-error honesty exit, render_text's transition/judged
+  sections, the legacy env-var workspace fallback (BOTH restore
+  shapes: absent-restored and prior-value-restored — the F-15
+  fallback path had zero coverage), and _zing_version's unknown
+  fallback. Lane A modules now all >=94%. Suite 822.
