@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "purpose": "Conservative terms that make a creator-facing shot instruction harder to follow without production knowledge.",
+  "maintenance": "Lane D plain-language review may add, remove, or replace terms after checking real direction outputs.",
+  "terms": [
+    {
+      "term": "dolly zoom",
+      "plain_language": "move the camera while changing zoom to keep the subject the same size"
+    },
+    {
+      "term": "Dutch angle",
+      "plain_language": "tilt the camera so the horizon is diagonal"
+    },
+    {
+      "term": "f-stop",
+      "plain_language": "camera aperture setting"
+    },
+    {
+      "term": "J-cut",
+      "plain_language": "start the next shot's sound before its picture"
+    },
+    {
+      "term": "L-cut",
+      "plain_language": "keep the current shot's sound playing over the next picture"
+    },
+    {
+      "term": "negative fill",
+      "plain_language": "place a dark surface beside the subject to deepen shadows"
+    },
+    {
+      "term": "rack focus",
+      "plain_language": "shift sharp focus from one subject to another"
+    },
+    {
+      "term": "whip pan",
+      "plain_language": "turn the camera sideways very quickly"
+    }
+  ]
+}

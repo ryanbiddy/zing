@@ -44,7 +44,7 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
     report = evaluate([SAMPLE_DIRECTORY], report_path, ffmpeg="not-installed-ffmpeg")
 
     assert report["passed"] is True
-    assert report["report_schema_version"] == 4
+    assert report["report_schema_version"] == 5
     assert report["scorer_version"] == "1.3.0"
     assert len(report["manifest_sha256"]) == 64
     assert report["ffmpeg"] is None
@@ -57,6 +57,8 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
     assert report["audio_delivery"]["available_case_count"] == 0
     assert report["profile_eval"]["status"] == "not-run"
     assert report["profile_eval"]["passed"] is None
+    assert report["direction_eval"]["status"] == "not-run"
+    assert report["direction_eval"]["passed"] is None
     saved = json.loads(report_path.read_text(encoding="utf-8"))
     assert saved["cases"][0]["audio_delivery"]["available"] is False
     assert saved["cases"][0]["audio_delivery"]["integrated_lufs"] is None
@@ -171,8 +173,9 @@ def test_module_cli_writes_report_on_error(tmp_path: Path) -> None:
     assert result.returncode == 2
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["passed"] is False
-    assert report["report_schema_version"] == 4
+    assert report["report_schema_version"] == 5
     assert report["profile_eval"]["status"] == "not-run"
+    assert report["direction_eval"]["status"] == "not-run"
     assert report["error"]["type"] == "ValueError"
     assert "no evaluation cases" in report["error"]["message"]
 
