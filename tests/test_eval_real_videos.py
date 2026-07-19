@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import sys
 from pathlib import Path
@@ -384,6 +385,19 @@ def test_backfill_supports_measurement_only_fixture(
         "frames/hook_0s.jpg",
         "frames/shot_000.jpg",
     }
+
+
+def test_backfill_json_writer_preserves_portable_format(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "artifact.json"
+
+    backfill_frames._write_json(target, {"title": "Ripe Figs — café"})
+
+    assert target.read_text(encoding="utf-8") == (
+        '{\n  "title": "Ripe Figs — café"\n}\n'
+    )
+    assert inspect.getsource(backfill_frames).count("json.dumps(") == 1
 
 
 def _backfill_cli_fixture(

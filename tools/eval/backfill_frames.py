@@ -62,6 +62,13 @@ def sha256_text(path: Path) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
 
+def _write_json(path: Path, payload: object) -> None:
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def hook_seconds(duration: float) -> list[float]:
     window = 3.0 if duration <= LONG_FORM_MAX_SHORT_S else 30.0
     seconds, t = [], 0.0
@@ -144,10 +151,7 @@ def backfill_case(
 
     for shot in breakdown.get("shots", []):
         shot["keyframe"] = f"{FRAMES_DIR}/shot_{shot['index']:03d}.jpg"
-    breakdown_path.write_text(
-        json.dumps(breakdown, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    _write_json(breakdown_path, breakdown)
 
     frame_artifacts = {
         f"{FRAMES_DIR}/{name}": sha256_file(frames_dir / name)
@@ -194,10 +198,7 @@ def backfill_case(
     artifacts.update(frame_artifacts)
     artifacts["breakdown.json"] = sha256_text(breakdown_path)
     provenance["artifacts"] = artifacts
-    provenance_path.write_text(
-        json.dumps(provenance, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    _write_json(provenance_path, provenance)
     return {"fixture": case_dir.name, "frames": len(plan)}
 
 
@@ -256,10 +257,7 @@ def main(argv: list[str] | None = None) -> int:
             "media itself stays uncommitted."
         ),
     )
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    _write_json(manifest_path, manifest)
     manifest_sha = sha256_text(manifest_path)
 
     results = []
