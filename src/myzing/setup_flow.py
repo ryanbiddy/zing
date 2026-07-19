@@ -1,0 +1,256 @@
+"""``zing setup``: taste onboarding (S4 Track 2, Lane B).
+
+Two paths to a named taste (a StyleProfile):
+
+- **Preset pack:** pick a curated pack (Lane A curates the reference
+  sets per A-Q14); Zing studies its references and builds the profile.
+- **Your own links:** paste reference URLs; same machinery, your taste.
+
+Both are IDEMPOTENT and re-entrant: setup inspects what is already
+studied, starts studies only for what's missing (the same background
+job machinery study_video uses), and builds the profile once every
+reference has a breakdown. Run it again after studies finish — it picks
+up where it left off. Multiple named tastes are first-class: each setup
+names a profile; nothing is singleton.
+
+Pack manifest contract (proposed to Lane A in NOTES, honest-empty until
+their packs land): ``presets/<pack-name>/pack.json``::
+
+    {"name": "...", "genre": "<rubric key>", "platform": "...",
+     "description": "...",
+     "references": [{"id": "...", "url": "...", "why": "..."}]}
+
+Search order: ``ZING_PRESETS_DIR`` env override, then the repo-root
+``presets/`` directory (same pattern as the prompt pack).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from myzing import storage
+
+PRESETS_DIR_ENV = "ZING_PRESETS_DIR"
+
+
+def presets_dir() -> Path:
+    override = os.environ.get(PRESETS_DIR_ENV, "").strip()
+    if override:
+        return Path(override).expanduser()
+    return Path(__file__).resolve().parents[2] / "presets"
+
+
+def load_pack(name: str) -> dict[str, Any] | None:
+    """A pack manifest by name, or None. Raises ValueError on a manifest
+    that exists but lies (missing fields) — a bad pack must be loud."""
+    if not name or any(c in name for c in "/\\."):
+        return None
+    path = presets_dir() / name / "pack.json"
+    if not path.is_file():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    refs = data.get("references")
+    if not isinstance(refs, list) or not refs or not all(
+        isinstance(r, dict) and r.get("url") for r in refs
+    ):
+        raise ValueError(
+            f"preset pack '{name}' is malformed: references must be a "
+            "non-empty list of {url, ...}"
+        )
+    return data
+
+
+def list_packs() -> list[dict[str, Any]]:
+    """Summaries of installed packs; honest empties for broken ones."""
+    root = presets_dir()
+    if not root.is_dir():
+        return []
+    packs: list[dict[str, Any]] = []
+    for d in sorted(root.iterdir()):
+        if not (d / "pack.json").is_file():
+            continue
+        try:
+            pack = load_pack(d.name)
+        except (ValueError, OSError, json.JSONDecodeError) as e:
+            packs.append({"name": d.name, "error": str(e)})
+            continue
+        packs.append({
+            "name": pack.get("name", d.name),
+            "genre": pack.get("genre", ""),
+            "platform": pack.get("platform", ""),
+            "description": pack.get("description", ""),
+            "references": len(pack["references"]),
+        })
+    return packs
+
+
+def plan_setup(
+    name: str,
+    links: list[str],
+    genre: str = "",
+    platform: str = "",
+) -> dict[str, Any]:
+    """The idempotent core: what state is each reference in, and is the
+    profile buildable right now? Pure inspection — starts nothing."""
+    storage.validate_profile_name(name)
+    if not links:
+        raise ValueError("at least one reference link is required")
+    statuses: list[dict[str, Any]] = []
+    for url in links:
+        slug = storage.slug_for(url)
+        has_breakdown = (storage.breakdown_dir(slug) / "breakdown.json").is_file()
+        job = storage.read_status(slug) or {}
+        state = (
+            "studied" if has_breakdown
+            else job.get("state", "unstudied")
+        )
+        statuses.append({"url": url, "slug": slug, "state": state})
+    ready = all(s["state"] == "studied" for s in statuses)
+    return {
+        "profile": name,
+        "genre": genre,
+        "platform": platform,
+        "references": statuses,
+        "ready_to_build": ready,
+        "unstudied": [s["url"] for s in statuses if s["state"] == "unstudied"],
+        "in_progress": [s["slug"] for s in statuses if s["state"] == "running"],
+        "failed": [s["slug"] for s in statuses if s["state"] == "failed"],
+    }
+
+
+def advance_setup(
+    name: str,
+    links: list[str],
+    genre: str = "",
+    platform: str = "",
+) -> dict[str, Any]:
+    """One idempotent step of onboarding: start missing studies, build the
+    profile if everything is studied. The CLI and the MCP tool both drive
+    this — call it again after studies finish."""
+    from myzing import mcp_server
+
+    plan = plan_setup(name, links, genre, platform)
+    started: list[str] = []
+    start_errors: list[str] = []
+    for url in plan["unstudied"]:
+        result = mcp_server.h_study_video(url)
+        if result.get("ok"):
+            started.append(result.get("slug", url))
+        else:
+            start_errors.append(f"{url}: {result.get('error')}")
+    plan = plan_setup(name, links, genre, platform)
+    outcome: dict[str, Any] = {
+        "plan": plan,
+        "started": started,
+        "start_errors": start_errors,
+        "built": False,
+    }
+    if plan["ready_to_build"]:
+        build = mcp_server.h_build_profile(
+            name,
+            [s["slug"] for s in plan["references"]],
+            genre=genre,
+            platform=platform,
+        )
+        outcome["build"] = build
+        outcome["built"] = bool(build.get("ok"))
+    return outcome
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def run(argv: list[str]) -> int:
+    """``zing setup --pack <name> | --links <url...>`` — non-interactive by
+    design (the same flow an AI drives over MCP; no prompts to hang CI)."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="zing setup", description="Onboard a named taste (StyleProfile)."
+    )
+    parser.add_argument("--pack", help="preset pack name (see --list)")
+    parser.add_argument("--links", nargs="+", help="your own reference URLs")
+    parser.add_argument("--name", help="profile name (default: the pack name)")
+    parser.add_argument("--genre", default="", help="rubric genre key")
+    parser.add_argument("--platform", default="", help="tiktok|youtube|instagram|x")
+    parser.add_argument("--list", action="store_true", help="list preset packs")
+    args = parser.parse_args(argv)
+
+    if args.list or (not args.pack and not args.links):
+        packs = list_packs()
+        if not packs:
+            print(
+                "No preset packs installed yet (they ship with the curated "
+                f"reference sets; looked in {presets_dir()}).\n"
+                "You can onboard your own taste today:\n"
+                "  zing setup --links <url> <url> ... --name my-taste"
+            )
+            return 0 if args.list else 2
+        print("Preset packs:")
+        for p in packs:
+            if "error" in p:
+                print(f"  {p['name']}: BROKEN — {p['error']}")
+            else:
+                print(
+                    f"  {p['name']} ({p['genre']}, {p['references']} refs) — "
+                    f"{p['description']}"
+                )
+        return 0
+
+    genre, platform = args.genre, args.platform
+    if args.pack:
+        try:
+            pack = load_pack(args.pack)
+        except ValueError as e:
+            print(f"zing setup: {e}")
+            return 1
+        if pack is None:
+            names = ", ".join(p["name"] for p in list_packs()) or "(none installed)"
+            print(f"zing setup: no pack named '{args.pack}' — available: {names}")
+            return 1
+        links = [r["url"] for r in pack["references"]]
+        name = args.name or pack.get("name", args.pack)
+        genre = genre or pack.get("genre", "")
+        platform = platform or pack.get("platform", "")
+    else:
+        links = args.links
+        if not args.name:
+            print("zing setup: --name is required with --links")
+            return 2
+        name = args.name
+
+    try:
+        outcome = advance_setup(name, links, genre, platform)
+    except (ValueError, storage.SlugError) as e:
+        print(f"zing setup: {e}")
+        return 1
+
+    for line in outcome["start_errors"]:
+        print(f"  could not start study: {line}")
+    plan = outcome["plan"]
+
+    if outcome["built"]:
+        build = outcome["build"]
+        print(
+            f"Taste '{name}' built from {build['sources']} references "
+            f"({build['unjudged_sources']} awaiting judgment). "
+            "Next: judge them with the study prompt, then re-run setup to "
+            "fold judgments in on rebuild."
+        )
+        return 0
+    if plan["ready_to_build"]:  # build attempted and failed
+        print(f"zing setup: profile build failed: {outcome['build'].get('error')}")
+        return 1
+
+    print(f"Taste '{name}': studies in progress — run `zing setup` again when done.")
+    for s in plan["references"]:
+        print(f"  [{s['state']:>9}] {s['slug']}")
+    if outcome["started"]:
+        print(f"Started {len(outcome['started'])} new studies in the background.")
+    if plan["failed"]:
+        print("Failed studies (fix and re-run): " + ", ".join(plan["failed"]))
+    return 3  # in-progress: distinct exit code so scripts can poll

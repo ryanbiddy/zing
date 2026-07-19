@@ -147,6 +147,8 @@ EXPECTED_TOOLS = {
     "render_edl",
     "get_render",
     "export_otio",
+    "list_presets",
+    "setup_taste",
 }
 
 
