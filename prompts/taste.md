@@ -1,7 +1,7 @@
 ---
 name: taste
 description: Turn a built StyleProfile into "this taste in words" — a few plain sentences a creator recognizes as theirs.
-version: 0.1.0
+version: 0.1.1
 ---
 
 # Saying a taste out loud
@@ -30,7 +30,10 @@ set is wrong, and finding that out NOW is the point.
    sharpens as you judge more").
 4. Present the words to the user and ask one question: "does this
    sound like the taste you meant?" If no — the fix is the reference
-   list, and `setup_taste` with adjusted links is the next step.
+   list, and `setup_taste` with adjusted links is the next step. If
+   yes — check `list_breakdowns()` for references whose
+   `judgment_sections` is empty and offer to judge them now (the
+   `study` prompt): every judgment sharpens the next rebuild.
 
 No JSON contract here — this prompt produces prose for a human moment.
 Keep it under 90 words, warm, and free of hedging filler; the honesty
@@ -38,4 +41,6 @@ lives in what you say, not in qualifiers.
 
 ## Changelog
 
+- **0.1.1** (2026-07-19, P-B2): flow into the judgment backlog after a
+  confirmed taste — guidance, not a new tool.
 - **0.1.0** (2026-07-19, S4 Track 2): initial.

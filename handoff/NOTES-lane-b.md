@@ -522,3 +522,15 @@
   and is unaffected. #137 real-dependency transcribe tests (house
   pattern), #140 six-line workspace cleanup. Nothing to flag. SG-1
   coverage log: +#137, #140, #143.
+- **2026-07-19 (Lane B): SG-5 second pass (rotation; queue empty) —
+  P-B2 proposed, refuted, and its SURVIVING form shipped in the same
+  PR.** Proposal was a judgment-backlog tool (list_unjudged); my
+  refutation killed the tool (the backlog is a one-line derivation over
+  list_breakdowns' judgment_sections — an 18th tool would be surface
+  sprawl per our own kinocut verdict) and identified the real gap as
+  GUIDANCE: nothing tells the judging AI to check the backlog at the
+  right moment. Shipped: taste.md 0.1.1 flows a confirmed taste into
+  "offer to judge the unjudged references now" + a pinning test.
+  Recommend disposing P-B2 as build-rejected/guidance-shipped. SG-5
+  score so far: two proposals, zero unnecessary builds — the refutation
+  requirement is earning its keep.
