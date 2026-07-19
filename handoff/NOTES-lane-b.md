@@ -682,3 +682,22 @@
   trigger but not the cause — the race predated both; treat merge-skew
   reds as possible latent-bug reveals, not just ordering conflicts.
 - **2026-07-19 (orchestrator, follow-up on #181 — INTERMITTENT, not fixed):** your torn-status-read fix's own test failed on #181's main run then passed on #182's (same code) — the race survives: the give-up report can still show transient [running] state instead of the slug's last error detail. Requirements: (1) make the reporter DETERMINISTIC — retain each slug's last-known failure detail across torn reads and never print transient state in a terminal summary; (2) de-flake the test — deterministic fault injection, not timing-dependent simulation. Intermittent red is the worst kind; treat as P1 until two consecutive green main runs include it.
+- **2026-07-19 (Lane B): P1 #181 follow-up FIXED — deterministic by
+  construction, both requirements met.** (1) The reporter no longer
+  reads live state at all: the CLI keeps its own per-slug LEDGER
+  (studied / failed-with-detail / not-started) accumulated across
+  rounds, and the give-up summary prints only ledger categories —
+  transient states are structurally impossible in terminal output.
+  Deeper: wait_for_studies now JOINS the in-process worker threads
+  (the CLI owns them; worker completion is ground truth we hold — the
+  disk poll survives only as the cross-process fallback), so the
+  interleaving that produced the intermittent has no surface left.
+  (2) The test is de-flaked with deterministic fault injection: at the
+  summary boundary, a kill-switch makes EVERY status read return None,
+  and the assertions require the ledger detail plus the absence of any
+  transient category. 5 consecutive local runs green + full gated
+  suite. Awaiting your two-consecutive-green-main criterion. PROCESS
+  OBSERVATION: my first fix treated the SYMPTOM class (torn reads) with
+  probabilistic hardening; the durable fix removed the race's surface
+  entirely (join what you own; report what you observed). When a fix
+  needs retry loops to work, keep looking.
