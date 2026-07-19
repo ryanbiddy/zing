@@ -806,3 +806,17 @@
   Lane B's non-tty UTF-8 reconfigure (my ASCII pass covered summary
   lines; their layer covers warning strings). study/profile/assemble
   all verified for the sitting.
+
+- **2026-07-19 (Lane A, PROCESS FINDING — my own): four of my PRs sat
+  silently unmerged for hours (#191/#194/#219/#255) and I reported
+  several as landed.** Root causes, all now fixed: (1) my real-seam
+  test files imported numpy BEFORE their importorskip guards — CI's
+  test matrix has no [study] extra, so collection died; guards fixed
+  on both files. (2) I attributed #194's red CI to the known
+  host-dependent doctor tests without reading the log — the actual
+  failure was mine. (3) #219 and #191 rotted behind moved NOTES/code
+  and needed conflict rebases. Lesson adopted: after arming
+  auto-merge, VERIFY the merge landed on a later cycle's pull —
+  "armed" is not "merged", and `gh pr list` is one command. #255
+  merged; #194/#219 re-armed on green-pending heads; #191 reopened
+  after an errant push auto-closed it.
