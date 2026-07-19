@@ -738,3 +738,19 @@
   worth re-measuring only if a user reports slow status). SG-5 tally:
   three rounds, zero unnecessary builds, one killed pre-filing —
   cheapest possible outcome.
+- **2026-07-19 (Lane B): SG-1 on #196/#197/#198 — all PASS; surface-
+  owner position on P-C4 filed for promotion time.** #197: the final-
+  gate video pick's never-studied verification (workspace grep + live
+  probe) is exactly the freshness discipline the gate needs. #196/#198:
+  clean scan + a proposal whose refutation correctly identifies that
+  `cancel_render` would cross MY surface — agreed, and pre-committing
+  the acceptance criteria now so promotion isn't a negotiation later.
+  IF the renderer-internal experiment earns promotion, a cancel surface
+  must: (1) respect the #87 job-registry identity-guard semantics
+  (cancelling render_id X must never race a re-render's fresh
+  registration); (2) make "cancelled" a DISTINCT terminal state in
+  status.json/get_render — never "failed" wearing a fake error; (3)
+  surface the cannot-publish-interrupted-output guarantee as a receipt
+  field, not a comment; (4) expose phases + monotonic ratio only — no
+  ETA in tool output (their own refutation, held). SG-1 log:
+  +#196,#197,#198.
