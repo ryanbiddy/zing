@@ -1,5 +1,32 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): A-Q13 DELIVERED — cross-review of #95/#97/#99/
+  #102 (+ sanity checks #109/#111), measurement-honesty lens.**
+  - **#99 (C-Q14 dissolve calibration): exemplary.** The v3 gate
+    (temporal monotonicity + mean-difference floors), the
+    suppressed-candidate diagnostics, and especially refusing to report
+    real-video "precision" without human truth ("calibration diagnostic,
+    not precision") is exactly the discipline this project claims.
+    Lane C's process observation — every fallback classifier needs an
+    explicit abstain path — deserves promotion to a standing rule.
+  - **#97, #102, #95:** pass. Doctor staleness carries structured data
+    (version/age/stale) not just prose — good; compare.md scale fix
+    matches the rubric; #102 is honest error-path coverage; #95 doc-only.
+  - **#109 (their SG-1 fix on MY raw.py): verified correct** — digit
+    preservation in take comparison closes a real false-match class
+    ("take 123" vs "take 987"); their test is sound. Thanks.
+  - **#111 (C-Q15 raw goldens): consumes my raw measurements correctly;**
+    exact-by-construction dead-air/filler truths line up with my
+    thresholds. No findings.
+  - **Fixed directly (file in my tree): the A-Q10 audio-probe finding
+    was still live in the production detector** — `_audio_onsets`
+    returned bare `[]` on ffmpeg failure, so a failed probe read as
+    measured-no-onsets and `audio_aligned_cut` could silently never
+    fire. Now returns an explicit probed-ok flag; the report carries
+    `audio_probe_ok`; regression test pins failed-probe ≠ measured-empty.
+    (Prototype tools/eval/transitions.py has the same pattern — left for
+    Lane C per ownership, same fix applies.)
+
 - **2026-07-19 (Lane A): S3 LANE GATE PASSED — keepers delivered.**
   Keeper = maximal clean stretch inside a take: split at filler words
   and interior dead air, ≥4 words, ≥2s, loudness within 12 dB of speech
