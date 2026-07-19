@@ -438,3 +438,14 @@
   Next: S4 Track 1 (TTS provider plugin surface) and Track 2
   (zing setup onboarding), in that order unless the orchestrator
   reorders.
+- **2026-07-19 (Lane B): S4 Track 1 part 1 (this PR) — TTS provider
+  plugin surface.** New module myzing/tts_providers.py (claimed):
+  registry resolution (explicit > ZING_TTS_PROVIDER > kokoro default),
+  ElevenLabsProvider as the optional key-gated plugin (stdlib urllib,
+  no SDK dep; PCM->wav locally so the renderer never cares which
+  provider made a track; every failure names its fix and the offline
+  alternative), tts_status() as the honest per-provider state, doctor
+  gains an optional-tier tts check ("renders proceed without voiceover
+  tracks" as the stated degraded mode). Remaining Track 1: MCP
+  render/export tools (job-pattern for renders) — next cycle. Then
+  Track 2 zing setup.
