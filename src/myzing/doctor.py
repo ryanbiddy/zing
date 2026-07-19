@@ -503,7 +503,7 @@ _PEER_CACHE_TTL_S = 60.0
 _peer_cache: dict[str, tuple[float, dict]] = {}
 
 
-def _probe_uoink_cached() -> dict:
+def _probe_uoink_cached() -> tuple[dict, str]:
     import time as _time
 
     from myzing import suite_peer
@@ -523,7 +523,7 @@ def check_uoink() -> Check:
     "reachable"). The peer envelope rides in data; human and JSON say
     the same state."""
     url = os.environ.get(UOINK_URL_ENV, "").strip() or UOINK_DEFAULT_URL
-    peer = _probe_uoink_cached()
+    peer, evidence = _probe_uoink_cached()
     state = peer["state"]
     if state == "available":
         return Check(
@@ -531,10 +531,10 @@ def check_uoink() -> Check:
             tier=OPTIONAL,
             ok=True,
             detail=(
-                f"uoink available at {url} — manifest, health, and "
-                "credential verified; kept-media study and corpus push ready"
+                f"uoink available at {url} ({evidence}) — kept-media "
+                "study and corpus push ready"
             ),
-            data={"url": url, "peer": peer},
+            data={"url": url, "peer": peer, "evidence": evidence},
         )
     if state == "unconfigured":
         return Check(
@@ -543,14 +543,15 @@ def check_uoink() -> Check:
             ok=False,
             mark="unconfig",  # detected-but-uncredentialed is NOT absence
             detail=(
-                f"uoink detected at {url} (manifest verified) but no "
-                "credential is configured"
+                f"uoink detected at {url} ({evidence}) but no credential "
+                "is configured"
             ),
             fix=(
-                "set UOINK_TOKEN to uoink's per-install token (token.txt "
-                "next to uoink's server.py)"
+                "set UOINK_TOKEN to uoink's per-install token — installed "
+                "app: %LOCALAPPDATA%/Uoink/token.txt; source checkout: "
+                "token.txt next to server.py"
             ),
-            data={"url": url, "peer": peer},
+            data={"url": url, "peer": peer, "evidence": evidence},
         )
     if state == "unhealthy":
         err = peer["error"]
@@ -560,7 +561,8 @@ def check_uoink() -> Check:
             ok=False,
             mark="unhealthy",  # drift/auth/identity is never shown as absent
             detail=(
-                f"uoink peer unhealthy ({err['code']}): {err['message']}"
+                f"uoink peer unhealthy ({err['code']}): {err['message']} "
+                f"[probe evidence: {evidence}]"
             ),
             fix=(
                 "check UOINK_TOKEN" if err["code"] == "authentication_failed"
@@ -575,7 +577,7 @@ def check_uoink() -> Check:
         tier=OPTIONAL,
         ok=False,
         detail=f"no uoink at {url} (fine — Zing is fully standalone)",
-        data={"url": url, "peer": peer},
+        data={"url": url, "peer": peer, "evidence": evidence},
     )
 
 

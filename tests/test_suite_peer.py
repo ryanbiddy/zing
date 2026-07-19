@@ -143,7 +143,7 @@ def test_refusal_at_default_is_calm_absent(monkeypatch):
         raise urllib.error.URLError("refused")
 
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "absent" and peer["ok"] is True
     assert peer_is_valid(peer)
 
@@ -155,7 +155,7 @@ def test_refusal_at_explicit_url_is_unhealthy_not_absent(monkeypatch):
         raise urllib.error.URLError("refused")
 
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unhealthy"
     assert peer["error"]["code"] == "unavailable"
     assert peer["error"]["retryable"] is True
@@ -176,7 +176,7 @@ def test_invalid_explicit_url_never_falls_through(monkeypatch, url, why):
         suite_peer.urllib.request, "urlopen",
         lambda *a, **k: calls.__setitem__("n", calls["n"] + 1),
     )
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "invalid_configuration"
     assert calls["n"] == 0  # §3.3: no silent fall-through to a default
     assert peer_is_valid(peer)
@@ -191,7 +191,7 @@ def test_answering_service_without_manifest_is_drift_not_absence(monkeypatch):
         )
 
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", not_found)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unhealthy"
     assert peer["error"]["code"] == "contract_mismatch"
     assert "update" in peer["error"]["message"]
@@ -201,7 +201,7 @@ def test_answering_service_without_manifest_is_drift_not_absence(monkeypatch):
 def test_wrong_identity_is_named(monkeypatch):
     fake = FakeUoink(manifest=make_manifest(id="writer", name="Writer"))
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "wrong_service"
     assert peer_is_valid(peer)
 
@@ -211,7 +211,7 @@ def test_missing_required_capability_is_drift(monkeypatch):
         manifest=make_manifest(capabilities=["uoink.corpus.read/1"])
     )
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "contract_mismatch"
     assert "uoink.media.handoff/1" in peer["error"]["message"]
 
@@ -228,7 +228,7 @@ def test_failed_required_health_check_is_peer_unhealthy(monkeypatch):
     )
     fake = FakeUoink(health=health)
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "peer_unhealthy"
     assert "index" in peer["error"]["message"]
     assert peer["error"]["retryable"] is True
@@ -237,7 +237,7 @@ def test_failed_required_health_check_is_peer_unhealthy(monkeypatch):
 def test_verified_manifest_without_token_is_unconfigured(monkeypatch):
     fake = FakeUoink()
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unconfigured" and peer["ok"] is True
     assert fake.tokens_seen == []  # never an auth attempt with no token
     assert peer_is_valid(peer)
@@ -247,7 +247,7 @@ def test_available_after_credentialed_conformance_read(monkeypatch):
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
     fake = FakeUoink()
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "available"
     assert "uoink.media.handoff/1" in peer["capabilities"]
     assert fake.tokens_seen == ["tok"]
@@ -258,7 +258,7 @@ def test_rejected_credential_is_authentication_failed(monkeypatch):
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "bad")
     fake = FakeUoink(handoff_status=401)
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
-    peer = suite_peer.probe_uoink()
+    peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "authentication_failed"
     assert peer["error"]["retryable"] is False
     assert peer_is_valid(peer)
@@ -304,7 +304,7 @@ def test_doctor_maps_states_and_never_flattens(monkeypatch):
             "peer": "uoink", "state": state,
             "capabilities": ["uoink.media.handoff/1"] if state == "available" else [],
         }
-        monkeypatch.setattr(suite_peer, "probe_uoink", lambda p=peer: p)
+        monkeypatch.setattr(suite_peer, "probe_uoink", lambda p=peer: (p, "faked"))
         check = doctor.check_uoink()
         assert (check.ok, check.mark) == (ok, mark), state
         assert check.data["peer"]["state"] == state
@@ -315,7 +315,7 @@ def test_doctor_maps_states_and_never_flattens(monkeypatch):
         "peer": "uoink", "state": "unhealthy",
         "error": {"code": "contract_mismatch", "message": "drift", "retryable": False},
     }
-    monkeypatch.setattr(suite_peer, "probe_uoink", lambda: unhealthy)
+    monkeypatch.setattr(suite_peer, "probe_uoink", lambda: (unhealthy, "faked"))
     check = doctor.check_uoink()
     assert check.ok is False and check.mark == "unhealthy"
     assert "contract_mismatch" in check.detail
@@ -327,13 +327,44 @@ def test_doctor_probe_is_cached_60s(monkeypatch):
 
     def counting():
         calls["n"] += 1
-        return {
+        return ({
             "ok": True, "contract": "ryan.suite.peer", "version": 1,
             "peer": "uoink", "state": "absent", "capabilities": [],
-        }
+        }, "faked")
 
     monkeypatch.setattr(suite_peer, "probe_uoink", counting)
     doctor.check_uoink()
     doctor.check_uoink()
     doctor.check_uoink()
     assert calls["n"] == 1  # §4 cadence: at most one probe per 60s
+
+
+# -- FF-9 / P2-5: verdicts carry their evidence -------------------------------
+
+def test_unconfigured_verdict_names_what_the_manifest_said(monkeypatch):
+    """Final review P2-5: doctor printed "manifest verified" for a
+    manifest the reviewer could not fetch. Every peer verdict now names
+    its evidence — a false "verified" claim requires a false receipt."""
+    fake = FakeUoink()
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    check = doctor.check_uoink()
+    assert check.mark == "unconfig"
+    assert "manifest read: uoink 3.6.0" in check.detail
+    assert check.data["evidence"].startswith("manifest read: uoink 3.6.0")
+    # P3-3: the fix names the installed-app token location, not server.py
+    # internals only.
+    assert "%LOCALAPPDATA%/Uoink/token.txt" in check.fix
+
+
+def test_unhealthy_verdict_names_probe_evidence(monkeypatch):
+    def forbidden(request, timeout=0):
+        import io
+
+        raise urllib.error.HTTPError(
+            request.full_url, 403, "no", {}, io.BytesIO(b"{}")
+        )
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", forbidden)
+    check = doctor.check_uoink()
+    assert check.mark == "unhealthy"
+    assert "probe evidence: manifest fetch: HTTP 403" in check.detail

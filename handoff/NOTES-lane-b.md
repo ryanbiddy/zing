@@ -1067,3 +1067,38 @@
   the observed cases) and a shot-list reconciliation prompt (the gate
   proved plumbing, not workflow demand; three sentences in direct.md
   when demand shows up beats a fifth prompt now).
+- **2026-07-19 (Lane B): FIX SPRINT — FF-2 (P1), FF-8, and all
+  FF-9 zing-surface P2s closed in one pass.**
+  - FF-2: CONNECT.md now leads with install-from-source (clone +
+    `pip install -e ".[mcp]"`) and names PyPI publication as a launch
+    action; the server's own SDK-missing messages carry the
+    source-checkout alternative too. No claims for artifacts that
+    don't exist yet.
+  - FF-8 (§5): the kept-media bridge rejects any non-null,
+    non-HTTP(S) source_url as contract drift — a file:// there would
+    have turned "refetch from the source" into a local file read.
+  - P2-5: every peer-probe verdict now carries a one-line EVIDENCE
+    receipt ("manifest read: uoink 3.6.0; health ok"), printed in
+    doctor's detail and in data.evidence — a false "manifest
+    verified" now requires a false receipt, and two contradictory
+    runs are distinguishable by what each actually read. (The
+    reviewer's 403-vs-verified flip was uoink-side behavior; my job
+    was to make the verdicts self-evidencing.)
+  - P2-6: `zing --help` prints a user synopsis; the lane-routing
+    notes are a code comment now. The ImportError fallback lost its
+    sprint-file reference too.
+  - P2-7 residue: "both prompt-pack prompts" → "all four", and the
+    CONNECT drift gate now pins the PROMPT count alongside the tool
+    count.
+  - P2-8: non-tty stdout/stderr reconfigure to UTF-8 (tty keeps
+    errors=replace) — piped/redirected output including --print-config
+    is clean UTF-8; regression asserts the em dash survives a real
+    subprocess pipe byte-for-byte.
+  - P2-9: DEVELOPER-GUIDE.md + docs/taste/INDEX.md file:///E:/...
+    worktree links (126 of them) rewritten to relative paths.
+  - P3-3 (free, same line as P2-5's fix text): the token hint names
+    %LOCALAPPDATA%/Uoink/token.txt for installed apps first.
+  - Process note: the backslash-in-heredoc trap bit AGAIN mid-sprint
+    (doctor.py briefly unparseable — caught by ast.parse in-cycle,
+    fixed via Edit). The rule graduates: patch scripts go to a
+    scratchpad FILE and must ast.parse BEFORE writing the target.

@@ -181,16 +181,25 @@ def _health_defect(body: Any) -> str | None:
     return None
 
 
-def probe_uoink() -> dict[str, Any]:
-    """Run the §8 probe and return the ryan.suite.peer v1 envelope."""
+def probe_uoink() -> tuple[dict[str, Any], str]:
+    """Run the §8 probe. Returns (ryan.suite.peer v1 envelope, evidence).
+
+    ``evidence`` is a one-line receipt of what the probe actually read
+    (final review P2-5: doctor once printed "manifest verified" for a
+    manifest the reviewer could not fetch — every verdict now names
+    its evidence so two contradictory runs are distinguishable).
+    """
     explicit = os.environ.get(UOINK_URL_ENV, "").strip()
     base = explicit or UOINK_DEFAULT_URL
     defect = _validate_url(base)
     if defect is not None:
-        return _unhealthy(
-            "invalid_configuration",
-            f"{UOINK_URL_ENV} is invalid: {defect}",
-            retryable=False,
+        return (
+                    _unhealthy(
+                "invalid_configuration",
+                f"{UOINK_URL_ENV} is invalid: {defect}",
+                retryable=False,
+            ),
+            "no probe attempted (invalid explicit URL)",
         )
     base = base.rstrip("/")
 
@@ -201,88 +210,122 @@ def probe_uoink() -> dict[str, Any]:
         if explicit:
             # A configured peer that fails transport is never calm.
             if is_timeout:
-                return _unhealthy(
-                    "timeout", f"uoink at {base} timed out", retryable=True
+                return (
+                                    _unhealthy(
+                        "timeout", f"uoink at {base} timed out", retryable=True
+                    ),
+                    "manifest fetch timed out",
                 )
-            return _unhealthy(
-                "unavailable",
-                f"uoink at {base} refused the connection",
-                retryable=True,
+            return (
+                            _unhealthy(
+                    "unavailable",
+                    f"uoink at {base} refused the connection",
+                    retryable=True,
+                ),
+                "manifest fetch refused",
             )
         # §4: refusal or timeout at the DEFAULT address with no other
         # evidence is calm absence.
-        return _peer("absent")
+        return _peer("absent"), f"nothing answered at the default {base}"
     if status != 200 or manifest is None:
-        return _unhealthy(
-            "contract_mismatch",
-            f"no suite manifest at {base} (HTTP {status}) — a service "
-            "answered but does not speak INTEGRATION-CONTRACT v1; if this "
-            "is uoink, update it",
-            retryable=False,
+        return (
+                    _unhealthy(
+                "contract_mismatch",
+                f"no suite manifest at {base} (HTTP {status}) — a service "
+                "answered but does not speak INTEGRATION-CONTRACT v1; if this "
+                "is uoink, update it",
+                retryable=False,
+            ),
+            f"manifest fetch: HTTP {status}",
         )
     defect = _manifest_defect(manifest)
     if defect is not None:
-        return _unhealthy(
-            "contract_mismatch", f"manifest drift: {defect}", retryable=False
+        return (
+                    _unhealthy(
+                "contract_mismatch", f"manifest drift: {defect}", retryable=False
+            ),
+            "manifest fetched but non-conformant",
         )
     service = manifest["service"]
+    evidence = f"manifest read: {service['id']} {service['service_version']}"
     if service["id"] != "uoink":
-        return _unhealthy(
-            "wrong_service",
-            f"the endpoint at {base} identifies as "
-            f"{service['id']!r}, not uoink",
-            retryable=False,
+        return (
+                    _unhealthy(
+                "wrong_service",
+                f"the endpoint at {base} identifies as "
+                f"{service['id']!r}, not uoink",
+                retryable=False,
+            ),
+            evidence,
         )
     capabilities = service["capabilities"]
     if _REQUIRED_CAPABILITY not in capabilities:
-        return _unhealthy(
-            "contract_mismatch",
-            f"uoink does not offer {_REQUIRED_CAPABILITY} — update uoink",
-            retryable=False,
+        return (
+                    _unhealthy(
+                "contract_mismatch",
+                f"uoink does not offer {_REQUIRED_CAPABILITY} — update uoink",
+                retryable=False,
+            ),
+            evidence,
         )
 
     try:
         status, health = _get_json(base + service["health"]["href"])
     except (TimeoutError, urllib.error.URLError, OSError):
-        return _unhealthy(
-            "unavailable",
-            "uoink served its manifest but its health endpoint did not answer",
-            retryable=True,
+        return (
+                    _unhealthy(
+                "unavailable",
+                "uoink served its manifest but its health endpoint did not answer",
+                retryable=True,
+            ),
+            evidence + "; health: no answer",
         )
     if status != 200 or health is None:
-        return _unhealthy(
-            "contract_mismatch",
-            f"health endpoint answered HTTP {status} without a valid body",
-            retryable=False,
+        return (
+                    _unhealthy(
+                "contract_mismatch",
+                f"health endpoint answered HTTP {status} without a valid body",
+                retryable=False,
+            ),
+            evidence + f"; health: HTTP {status}",
         )
     defect = _health_defect(health)
     if defect is not None:
-        return _unhealthy(
-            "contract_mismatch", f"health drift: {defect}", retryable=False
+        return (
+                    _unhealthy(
+                "contract_mismatch", f"health drift: {defect}", retryable=False
+            ),
+            evidence + "; health non-conformant",
         )
     if health["service_id"] != "uoink":
-        return _unhealthy(
-            "wrong_service",
-            f"health identifies as {health['service_id']!r}, not uoink",
-            retryable=False,
+        return (
+                    _unhealthy(
+                "wrong_service",
+                f"health identifies as {health['service_id']!r}, not uoink",
+                retryable=False,
+            ),
+            evidence,
         )
     if health["ok"] is not True:
         failed = [
             c["id"] for c in health["checks"]
             if c["required"] and c["status"] == "failed"
         ]
-        return _unhealthy(
-            "peer_unhealthy",
-            "uoink reports required checks failed: "
-            + ", ".join(failed) + " — open uoink's own doctor for the fix",
-            retryable=True,
+        return (
+                    _unhealthy(
+                "peer_unhealthy",
+                "uoink reports required checks failed: "
+                + ", ".join(failed) + " — open uoink's own doctor for the fix",
+                retryable=True,
+            ),
+            evidence + "; health read, ok=false",
         )
 
     token = os.environ.get(UOINK_TOKEN_ENV, "").strip()
     if not token:
         # §3.3: a verified manifest without a credential is unconfigured
         # — never an auth attempt with an empty token.
-        return _peer("unconfigured")
+        return _peer("unconfigured"), evidence + "; health ok"
 
     # §8 step 5: cheapest read-only conformance call with the credential.
     # A nonexistent item id exercises auth + the media.handoff contract:
@@ -297,36 +340,51 @@ def probe_uoink() -> dict[str, Any]:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            return _unhealthy(
-                "authentication_failed",
-                f"uoink rejected the configured {UOINK_TOKEN_ENV} "
-                f"(HTTP {e.code})",
-                retryable=False,
+            return (
+                            _unhealthy(
+                    "authentication_failed",
+                    f"uoink rejected the configured {UOINK_TOKEN_ENV} "
+                    f"(HTTP {e.code})",
+                    retryable=False,
+                ),
+                evidence + f"; conformance read: HTTP {e.code}",
             )
         try:
             body = json.loads(e.read().decode("utf-8"))
         except (ValueError, OSError):
-            return _unhealthy(
-                "contract_mismatch",
-                f"conformance read answered HTTP {e.code} without a "
-                "handoff envelope",
-                retryable=False,
+            return (
+                            _unhealthy(
+                    "contract_mismatch",
+                    f"conformance read answered HTTP {e.code} without a "
+                    "handoff envelope",
+                    retryable=False,
+                ),
+                evidence + f"; conformance read: HTTP {e.code}",
             )
     except (TimeoutError, urllib.error.URLError, OSError):
-        return _unhealthy(
-            "unavailable",
-            "uoink stopped answering during the conformance read",
-            retryable=True,
+        return (
+                    _unhealthy(
+                "unavailable",
+                "uoink stopped answering during the conformance read",
+                retryable=True,
+            ),
+            evidence + "; conformance read: no answer",
         )
     if (
         not isinstance(body, dict)
         or body.get("contract") != "uoink.media.handoff"
         or body.get("version") != 1
     ):
-        return _unhealthy(
-            "contract_mismatch",
-            "the kept-media conformance read did not return a "
-            "uoink.media.handoff v1 envelope",
-            retryable=False,
+        return (
+                    _unhealthy(
+                "contract_mismatch",
+                "the kept-media conformance read did not return a "
+                "uoink.media.handoff v1 envelope",
+                retryable=False,
+            ),
+            evidence + "; conformance read non-conformant",
         )
-    return _peer("available", capabilities)
+    return (
+        _peer("available", capabilities),
+        evidence + "; health ok; credentialed read ok",
+    )

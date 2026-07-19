@@ -174,6 +174,15 @@ def test_connect_doc_names_every_tool():
         f"CONNECT.md's tool count is stale — the server serves "
         f"{len(EXPECTED_TOOLS)} tools"
     )
+    # Final review P2-7's second half: the doc also claimed "both
+    # prompt-pack prompts" against a four-prompt pack. Pin that count too.
+    from myzing.prompt_pack import available_prompts
+
+    n_prompts = len(available_prompts())
+    word = {2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}[n_prompts]
+    assert f"all {word} prompt-pack prompts" in doc, (
+        f"CONNECT.md's prompt count is stale — the pack has {n_prompts}"
+    )
 
 
 def test_tools_list_and_zing_status_roundtrip(client):

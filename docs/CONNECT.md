@@ -21,9 +21,17 @@ if it drifts, CI fails.)
 zing serve-mcp --print-config
 ```
 
-Prerequisites: `python -m pip install "myzing[mcp]"` (the server tells
-you this and exits if the SDK is missing), and run `zing doctor` once —
-`study_video` refuses to start without ffmpeg and says why.
+Prerequisites — install Zing from source (PyPI publication happens at
+launch; until then `pip install myzing` finds nothing):
+
+```
+git clone https://github.com/ryanbiddy/zing && cd zing
+python -m pip install -e ".[mcp]"
+```
+
+(At launch this becomes `python -m pip install "myzing[mcp]"`.) Then run
+`zing doctor` once — `study_video` refuses to start without ffmpeg and
+says why.
 
 ## Claude Desktop
 
@@ -130,7 +138,8 @@ surface): the staged bundle tree is complete and CI-tested; `mcpb pack`
 produces the bundle; the manifest's exact launch command (`uv run
 --directory <bundle> --extra mcp python -m myzing.cli serve-mcp`) boots
 the server cold from the staged tree — initialize handshake, every tool
-listed, both prompt-pack prompts served via the `${__dirname}/prompts`
+listed, all four prompt-pack prompts (study, compare, direct, taste)
+served via the `${__dirname}/prompts`
 pin. The served tool list follows the package (CI pins it), so bundles
 built today serve all nineteen. **What still needs a
 human:** the Claude Desktop double-click dialog itself (GUI). If it
