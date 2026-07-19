@@ -824,3 +824,38 @@
     finder); do NOT re-run `pip install -e .` — that just steals the
     pointer from whoever has it and reproduces the bug in their lane.
     CI was never affected (builds from the PR's own code).
+- **2026-07-19 (Lane B): SG-1 round 3 (rotation; queue empty) —
+  reviewed #215, #204, #209, #207. All pass; no routed findings.**
+  - #215 (Lane C, kokoro pre-synthesis validation): verified by
+    execution, not by reading — 9 focused tests pass and the full
+    gated suite reproduces their exact recorded count (678 passed,
+    2 skipped). The shared `_resolve_wav_output_path` + zero-calls
+    regression mirrors the #213 doctrine cleanly. SEAM NOTE (cheap
+    adapter, Lane C's call): that helper is module-private while my
+    ElevenLabs provider re-implements the same 3-line rule — if Lane C
+    exports it, tts_providers adopts the import and the output
+    contract lives in exactly one place.
+  - #204 (Lane C, OCR script-coverage scan): the one locally
+    verifiable claim checks out (transcribe.py:24 records the
+    whisperX disposition verbatim); surya weights-license and
+    PP-OCR Apache-2.0 claims match known facts; RapidOCR#499 taken on
+    record (offline cycle). ADOPTED into my dep-vetting practice:
+    weights licenses are checked separately from code licenses — a
+    cc-by-nc weights file travels with the product no matter what the
+    code license says.
+  - #209 (Lane C, P-C5 proposal + review-record regression):
+    OBSERVATION, not a defect — pinning the proposal's honesty
+    attributes as prose assertions in the shared suite couples every
+    lane's CI to QUEUE.md hygiene: pruning or promoting P-C5 breaks
+    `test_p_c5_keeps_failure_evidence_opt_in_redacted_and_non_diagnostic`
+    until the disposition PR edits queue and test together. Deliberate
+    and self-announcing, so it stands — but disposition PRs now have a
+    mandatory second file, and the orchestrator should know before
+    pruning.
+  - #207 (Lane C, trending-OSS scan): ADOPTED their license doctrine
+    wholesale — a checked license FILE is authoritative; a README
+    badge or prose claim alone prohibits code reuse (two of their four
+    candidates claimed MIT with no license file at all).
+  - #212's own findings are all now confirmed by outcome: my #213,
+    Lane A's #214 amendment, and Lane C's #215 each closed one at the
+    boundary the audit named. The mesh converged in one day.
