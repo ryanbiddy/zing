@@ -461,3 +461,19 @@
     — threshold can't filter); needs an orchestrator call on
     lexicality heuristics vs flag-not-drop before I touch captions.py.
     Full record: handoff/research/S5-SWEEP-LANE-A.md.
+  - **SW-2 (reference rot, observed live):** FHmXO-ViKdA — the S1
+    gate video — is now "Video unavailable" on YouTube, weeks after
+    we studied it. In NO pack manifest (grep-verified), so no shipped
+    impact; cached study remains valid as measurement of stored
+    bytes. Validates verified_at dating + Lane C's freeze-bytes
+    policy. Packs should expect rot: suggest a `zing profile pack
+    --reverify` pass that re-probes refs and marks dead ones (design
+    call, queue-able).
+  - **SW-3 (operational, FIXED on this box, product gap open):**
+    yt-dlp ≥2026.07 deprecated YouTube extraction without a JS
+    runtime — media downloads 403 on signature-challenge videos while
+    others still pass (so it looks intermittent). This box now has
+    %APPDATA%/yt-dlp/config -> `--js-runtimes node` (node v24 was
+    present; affects all lanes on this machine — heads-up). Product
+    gap: `zing doctor` should check for a JS runtime next to yt-dlp,
+    and setup docs should name it. Routing to Lane B via orchestrator.
