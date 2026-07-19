@@ -19,6 +19,10 @@ from .audio_delivery import (
     measure_audio_delivery,
     summarize_audio_delivery,
 )
+from .direction_format import (
+    DEFAULT_DIRECTION_CASES,
+    evaluate_direction_paths,
+)
 from .make_goldens import DEFAULT_OUTPUT as DEFAULT_GOLDENS
 from .performance import (
     StudyBenchmarkAdapter,
@@ -143,6 +147,7 @@ def evaluate(
     ffmpeg: str = "ffmpeg",
     profile_case_directories: Sequence[Path] = (),
     profile_builder: ProfileBuilder | None = None,
+    direction_paths: Sequence[Path] = (),
 ) -> dict[str, Any]:
     """Evaluate a non-empty case set and write a machine-readable report."""
     if not case_directories:
@@ -179,8 +184,9 @@ def evaluate(
         profile_case_directories,
         builder=profile_builder,
     )
+    direction_eval = evaluate_direction_paths(direction_paths)
     report = {
-        "report_schema_version": 4,
+        "report_schema_version": 5,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -191,10 +197,12 @@ def evaluate(
         "passed": (
             all(case["score"]["passed"] for case in cases)
             and profile_eval["passed"] is not False
+            and direction_eval["passed"] is not False
         ),
         "audio_delivery": summarize_audio_delivery(cases),
         "performance": summarize_performance(cases),
         "profile_eval": profile_eval,
+        "direction_eval": direction_eval,
         "cases": cases,
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -209,7 +217,7 @@ def evaluate(
 
 def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
     report = {
-        "report_schema_version": 4,
+        "report_schema_version": 5,
         "scorer_version": MANIFEST["scorer_version"],
         "manifest_sha256": _sha256(MANIFEST_PATH),
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -222,6 +230,7 @@ def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
         "audio_delivery": summarize_audio_delivery([]),
         "performance": summarize_performance([]),
         "profile_eval": evaluate_profile_cases([], builder=None),
+        "direction_eval": evaluate_direction_paths([]),
         "cases": [],
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -258,6 +267,11 @@ def run(argv: Sequence[str] | None = None) -> int:
         "--profiles",
         action="store_true",
         help="also build and score the checked-in Sprint 2 profile cases",
+    )
+    parser.add_argument(
+        "--directions",
+        action="store_true",
+        help="also validate the checked-in Sprint 3 direction outputs",
     )
     args = parser.parse_args(argv)
 
@@ -298,6 +312,19 @@ def run(argv: Sequence[str] | None = None) -> int:
         profile_case_directories = []
         profile_builder = None
 
+    if args.directions:
+        if not DEFAULT_DIRECTION_CASES.is_dir():
+            parser.error(
+                f"direction cases directory not found: {DEFAULT_DIRECTION_CASES}"
+            )
+        direction_paths = sorted(DEFAULT_DIRECTION_CASES.glob("*.json"))
+        if not direction_paths:
+            parser.error(
+                f"no direction outputs found in: {DEFAULT_DIRECTION_CASES}"
+            )
+    else:
+        direction_paths = []
+
     try:
         report = evaluate(
             case_directories,
@@ -306,6 +333,7 @@ def run(argv: Sequence[str] | None = None) -> int:
             ffmpeg=args.ffmpeg,
             profile_case_directories=profile_case_directories,
             profile_builder=profile_builder,
+            direction_paths=direction_paths,
         )
     except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
         _write_error_report(args.report, args.ffmpeg, exc)

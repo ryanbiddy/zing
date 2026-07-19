@@ -326,7 +326,7 @@ def test_eval_report_includes_profile_results(tmp_path: Path) -> None:
         profile_builder=builder,
     )
 
-    assert report["report_schema_version"] == 4
+    assert report["report_schema_version"] == 5
     assert report["passed"] is True
     assert report["profile_eval"]["available"] is True
     assert report["profile_eval"]["passed"] is True
