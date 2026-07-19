@@ -1,5 +1,33 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): A-Q14 CLOSED — all five packs BUILT (30/32
+  references studied; honest degradation on the last 5).**
+  Outcomes: ai-tech-talking-head 7/7 · informative-explainer 5/5 ·
+  product-launch 6/6 · viral-tiktok-reels 7/7 · **vlog 2/7** — the five
+  vlog failures are NOT dead URLs but YouTube's anti-bot wall ("Sign in
+  to confirm you're not a bot") kicking in after ~28 consecutive
+  fetches; the pack built honestly from the 2 survivors with all five
+  exclusions named in its warnings. **Retry is one command** (reuses the
+  30 stored studies, refetches only the 5): `zing profile pack
+  presets/vlog.json --workspace <ws>` after the rate limit clears, or
+  with `--cookies-from-browser` if Ryan wants it now (his call — needs
+  his browser session).
+  - **The profiles differentiate taste measurably**: viral-tiktok-reels
+    = 34s median, 1.27s shots (fastest of any pack), speech 0.52 with
+    n=4 first-word coverage (three sources are near-wordless visual
+    craft — honestly excluded); product-launch = 177s median, 5s first
+    cut, music-forward; ai-tech-talking-head = speech 0.994, instant
+    first word. The numbers read like the genres they are.
+  - **Design question for the orchestrator**: my duration-coherence
+    warning correctly fires on packs mixing vertical shorts with
+    horizontal long-forms (ai-tech: 38-374s span). Worth deciding for
+    S4: split orientation sub-profiles per pack (vertical/horizontal),
+    or keep one profile and let the setup flow filter by orientation?
+  - Provenance note: v0 packs measured with ZING_WHISPER_MODEL=small
+    (recorded per-breakdown) for batch time; regeneration upgrades the
+    model trivially. Built in a scratch workspace — packs regenerate
+    anywhere from the manifests, which is the point.
+
 - **2026-07-19 (Lane A): A-Q14 DELIVERED — full preset pipeline
   (curation + builder).** Curation: **32 references across all 5 packs,
   every URL double-verified live** (page fetch + oEmbed title/uploader/
