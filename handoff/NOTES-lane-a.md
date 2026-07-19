@@ -1,5 +1,24 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): S4 Track 1 claimed + DELIVERED (my half) —
+  draft-EDL production.** `myzing/assemble/draft.py`:
+  `draft_edl(breakdown, direction, media)` maps the direction's chosen
+  keeper spans onto a contiguous EDL timeline in the AI's order (EDL S1
+  semantics honored: no gaps, no overlaps); every span validated against
+  measured media duration (exceeding = loud AssembleError, "refusing to
+  trim footage that does not exist"); chosen spans cross-checked against
+  measured raw-mode keepers with named divergence warnings (AI's call —
+  flagged, not blocked; 0.35s edge tolerance); `draft_for_slug` writes
+  draft-edl.json into the breakdown folder. **End-to-end proof on the
+  raw-practice clip:** direction citing my two measured keepers →
+  draft EDL (zero warnings, spans matched measurement) → Lane C's real
+  renderer → 25.9s mp4, exactly the sum of the trims — the S4 Track 1
+  internal gate's shape, my half, working against real footage and the
+  real renderer. 10 new tests; suite 523. **Track 2 (preset-pack
+  builder) claimed next — starts when Lane D's reference sets land**
+  (batch-study + preset profiles is buildable the moment a pack list
+  with live URLs exists).
+
 - **2026-07-19 (Lane A): Lane C's P1 against my raw.py FIXED (they were
   right) + SG-1 review of #114/#118/#122.**
   - **P1 acknowledged and closed:** keepers were derived even when VAD
