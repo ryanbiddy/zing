@@ -843,3 +843,17 @@
     adopted: VERIFY merges landed on a later pull ("armed" is not
     "merged"), read the actual failing log before attributing, and
     serialize NOTES-bearing PRs.
+
+- **2026-07-19 (Lane A): MCP-surface preflight GREEN — the Claude
+  Desktop path verified end to end.** h_study_video on a local file in
+  a fresh workspace: honest started envelope, worker ran to
+  done/markdown, breakdown reproduces the clip's known measurements
+  exactly (18.3s, 1 shot — the invisible-cuts hard case identical
+  through the MCP path, 39 words, warnings intact). With CLI
+  study/profile/assemble already preflighted, every Lane A surface
+  Ryan can reach is verified. (Harness note for honesty: an earlier
+  two-process probe left a stale "running" status.json in the
+  mcp-preflight workspace — my artifact from killing the worker's
+  process, not a product defect; the in-process rerun above is the
+  valid record, and the MCP status tools reconcile dead workers by
+  design.)
