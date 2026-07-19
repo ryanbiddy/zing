@@ -6,39 +6,46 @@ from __future__ import annotations
 import importlib
 import sys
 
-# User-facing top-level help (final review P2-6: the module docstring —
-# internal routing notes — used to print here).
-_USAGE = """\
-zing — study short videos, build a taste profile, direct and render your own
-
-usage: zing <command> [args]
-
-commands:
-  doctor      check your environment and print the exact fix for each gap
-  setup       guided first run: study a preset pack or your own links
-  study       measure a video (URL or local file) into a breakdown
-  prompt      print a judgment prompt (study, compare, direct, taste)
-  profile     build and inspect style profiles from studied videos
-  assemble    turn a direction into a draft edit
-  render      render an EDL to video
-  thumbs      generate thumbnail candidates for a video
-  serve-mcp   run the MCP server (connects Claude and other AI clients)
-
-Most commands accept --help. To connect an AI client, start with:
-  zing serve-mcp --print-config
-"""
-
-_COMMANDS = {
-    "doctor": "myzing.doctor",
-    "study": "myzing.study.command",
-    "profile": "myzing.profile.command",
-    "assemble": "myzing.assemble.command",
-    "serve-mcp": "myzing.mcp_server",
-    "prompt": "myzing.prompt_pack",
-    "setup": "myzing.setup_flow",
-    "render": "myzing.render.command",
-    "thumbs": "myzing.thumbs",
+# One registry drives routing AND the help text (final review P2-6
+# replaced docstring-help with a hand-written synopsis; this removes
+# the remaining drift class — a command added here appears in help by
+# construction, ordered as listed).
+_COMMANDS: dict[str, tuple[str, str]] = {
+    "doctor": ("myzing.doctor",
+               "check your environment and print the exact fix for each gap"),
+    "setup": ("myzing.setup_flow",
+              "guided first run: study a preset pack or your own links"),
+    "study": ("myzing.study.command",
+              "measure a video (URL or local file) into a breakdown"),
+    "prompt": ("myzing.prompt_pack",
+               "print a judgment prompt (study, compare, direct, taste)"),
+    "profile": ("myzing.profile.command",
+                "build and inspect style profiles from studied videos"),
+    "assemble": ("myzing.assemble.command",
+                 "turn a direction into a draft edit"),
+    "render": ("myzing.render.command",
+               "render an EDL to video"),
+    "thumbs": ("myzing.thumbs",
+               "generate thumbnail candidates for a video"),
+    "serve-mcp": ("myzing.mcp_server",
+                  "run the MCP server (connects Claude and other AI clients)"),
 }
+
+
+def _usage() -> str:
+    width = max(map(len, _COMMANDS)) + 3
+    rows = "\n".join(
+        f"  {name:<{width}}{help_line}"
+        for name, (_, help_line) in _COMMANDS.items()
+    )
+    return (
+        "zing — study short videos, build a taste profile, direct and "
+        "render your own\n\n"
+        "usage: zing <command> [args]\n\n"
+        f"commands:\n{rows}\n\n"
+        "Most commands accept --help. To connect an AI client, start with:\n"
+        "  zing serve-mcp --print-config\n"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -60,10 +67,10 @@ def main(argv: list[str] | None = None) -> int:
                 pass
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ("-h", "--help"):
-        print(_USAGE)
+        print(_usage())
         return 0
     command, rest = argv[0], argv[1:]
-    module_name = _COMMANDS.get(command)
+    module_name = _COMMANDS.get(command, (None, ""))[0]
     if module_name is None:
         print(f"zing: unknown command '{command}' (try: {', '.join(_COMMANDS)})")
         return 2
