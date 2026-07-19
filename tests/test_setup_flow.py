@@ -339,3 +339,70 @@ def test_finish_pack_error_paths(pack_dir, monkeypatch):
     monkeypatch.setitem(_sys.modules, "myzing.profile.packs", None)
     result = setup_flow.finish_pack("ai-tech-talking-head")
     assert result["ok"] is False and "update Zing" in result["error"]
+
+
+# -- main-red regression 2026-07-19: torn status reads --------------------------
+
+def test_give_up_report_survives_flaky_status_reads(
+    zing_workspace, monkeypatch, capsys
+):
+    """The merge-skew regression: a status read returning None at report
+    time must not blank the per-slug error detail — last-known errors
+    carried across rounds fill the gap."""
+    import sys as _sys
+    import types
+
+    api = types.ModuleType("myzing.study.api")
+
+    def study(source, **kw):
+        raise RuntimeError("fetch blocked: LOGIN_REQUIRED")
+
+    api.study = study
+    monkeypatch.setitem(_sys.modules, "myzing.study.api", api)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+
+    real_read = storage.read_status
+    flake = {"n": 0}
+
+    def flaky_read(slug):
+        flake["n"] += 1
+        if flake["n"] % 2 == 0:  # every second read sees the torn window
+            return None
+        return real_read(slug)
+
+    monkeypatch.setattr(setup_flow.storage, "read_status", flaky_read)
+    code = setup_flow.run(["--links", LINKS[0], "--name", "flaky-taste"])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "could not be completed" in out
+    assert "LOGIN_REQUIRED" in out  # detail survives the flaky reads
+
+
+def test_status_writes_are_atomic_under_concurrent_reads(zing_workspace):
+    """write_status_at must never expose a torn file: a reader hammering
+    read_status_at during 300 merge-writes may see old or new state but
+    never None-while-the-file-exists."""
+    import threading
+
+    d = storage.breakdown_dir("tiktok-atomic")
+    storage.write_status_at(d, state="running", n=0)
+    stop = threading.Event()
+    torn = []
+
+    def reader():
+        while not stop.is_set():
+            status = storage.read_status_at(d)
+            if status is None:
+                torn.append(1)
+                return
+
+    t = threading.Thread(target=reader)
+    t.start()
+    try:
+        for i in range(300):
+            storage.write_status_at(d, n=i, error=f"detail {i}")
+    finally:
+        stop.set()
+        t.join(timeout=10)
+    assert not torn, "a reader observed a torn/absent status.json"
+    assert (storage.read_status_at(d) or {}).get("n") == 299

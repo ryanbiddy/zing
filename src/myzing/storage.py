@@ -295,27 +295,69 @@ def resolve_relpath(slug: str, rel: str) -> Path:
 
 def write_status_at(d: Path, **fields: Any) -> Path:
     """Merge fields into ``d/status.json`` (created if absent) — the
-    generic on-disk job state used by study AND render jobs (S4)."""
+    generic on-disk job state used by study AND render jobs (S4).
+
+    ATOMIC (main-red regression, 2026-07-19): ``write_text`` truncates
+    before writing, so a concurrent reader could observe a torn file and
+    treat the job as having no status at all (the D-4 retry loop made
+    that window hittable in CI). Temp-file + ``os.replace`` means readers
+    see either the old state or the new — never a partial one.
+    """
     d.mkdir(parents=True, exist_ok=True)
     path = d / "status.json"
     current = read_status_at(d) or {}
     current.update(fields)
-    path.write_text(
-        json.dumps(current, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    payload = json.dumps(current, ensure_ascii=False, indent=2) + "\n"
+    import tempfile
+
+    handle, tmp_name = tempfile.mkstemp(
+        prefix=".status-", suffix=".json", dir=d
     )
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8") as f:
+            f.write(payload)
+        # Windows: os.replace is denied while a reader momentarily holds
+        # the destination open (no FILE_SHARE_DELETE in CPython's open).
+        # Readers hold it for microseconds — retry briefly, then raise.
+        import time as _time
+
+        for attempt in range(50):
+            try:
+                os.replace(tmp_name, path)
+                break
+            except PermissionError:
+                if attempt == 49:
+                    raise
+                _time.sleep(0.002)
+    except OSError:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
     return path
 
 
 def read_status_at(d: Path) -> dict[str, Any] | None:
-    """``d/status.json`` as a dict, or None when absent/unreadable."""
+    """``d/status.json`` as a dict, or None when genuinely absent.
+
+    Transient failures retry briefly (main-red regression, 2026-07-19):
+    on Windows, opening the file during a concurrent ``os.replace`` can
+    raise a sharing violation — that means "being updated", not "gone",
+    and answering None there is how per-slug error detail once vanished
+    from a failure report. FileNotFoundError stays an immediate None.
+    """
+    import time as _time
+
     path = d / "status.json"
-    if not path.is_file():
-        return None
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else None
-    except (OSError, ValueError):
-        return None
+    for attempt in range(20):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else None
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError):
+            if attempt == 19:
+                return None  # honestly unreadable after ~40ms of trying
+            _time.sleep(0.002)
+    return None
 
 
 def write_status(slug: str, **fields: Any) -> Path:

@@ -663,3 +663,21 @@
   loop Lane B in at promotion so the prompt and the warning land
   together. SG-1 log: +#174,#175,#176.
 - **2026-07-19 (orchestrator, URGENT — main red):** merge-skew regression on main (run 29679758094): per-slug error detail is dropped through D-4 retry rounds — test asserts LOGIN_REQUIRED appears in output but final failure summary shows only [unstudied] tiktok-111. Two independently-green PRs interacted (suspect #173 load_pack funneling x retry-path output). Fix so the final could-not-complete summary carries each slug's last error detail; regression test for the interaction. Merge ASAP — main stays red until this lands.
+- **2026-07-19 (Lane B): MAIN-RED regression FIXED (this PR, merge
+  ASAP per your flag).** Root cause was deeper than merge-skew: status
+  reads could observe a TORN status.json (write_text truncates before
+  writing) and treat a failing job as unstudied — the D-4 retry loop
+  made the microscopic window hittable in CI, blanking the give-up
+  report's error detail. Three-layer fix: (1) write_status_at is now
+  atomic (temp + os.replace, with the Windows access-denied retry —
+  readers without FILE_SHARE_DELETE); (2) read_status_at distinguishes
+  genuinely-absent from transiently-locked (brief retry on share
+  violations); (3) the CLI give-up report carries last-known per-slug
+  errors ACROSS rounds so even an unreadable final state can't blank
+  the detail. Regression tests: a 300-write concurrent hammer proving
+  no reader ever sees a torn state, and a flaky-read give-up run
+  proving LOGIN_REQUIRED survives. The fix hardens study, render, and
+  setup state alike — the truncate-then-write pattern was under all of
+  them. PROCESS OBSERVATION: "two green PRs interacted" was the
+  trigger but not the cause — the race predated both; treat merge-skew
+  reds as possible latent-bug reveals, not just ordering conflicts.
