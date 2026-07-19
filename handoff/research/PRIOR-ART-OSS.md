@@ -1024,3 +1024,94 @@ timing eval. pyJianYingDraft is a compatibility-reporting reference; VidGear
 and VoxProof do not justify dependencies.
 
 ---
+
+## SG-4 render-runtime scan · 2026-07-19 · Lane C
+
+Method: checked GitHub's [daily trending page](https://github.com/trending?since=daily)
+and the video-editing, subtitles, video-processing, creator-tools, and FFmpeg
+topic searches on 2026-07-19. The four repositories below were absent from
+this survey. Licenses, default-branch source, releases, `pushed_at`, and
+contributor concentration were checked directly. Repository stars helped with
+discovery; they did not decide the verdicts.
+
+### Hao0321/video-autopilot-kit — https://github.com/Hao0321/video-autopilot-kit
+
+- **What:** A fill-in-your-own-data creator pipeline with two explicit paths:
+  cross-platform FFmpeg/Python rendering and version-sensitive CapCut draft or
+  GUI automation. It includes synthetic, no-private-media demonstrations and
+  post-render checks for black frames, dead air, caption sync, audio delivery,
+  and full-frame review sheets.
+- **License:** MIT. **Health:** 1,316 stars and 224 forks; created 2026-06-01
+  and pushed 2026-07-12. Release v0.8.0 shipped 2026-07-10. GitHub's
+  contributor endpoint lists only the maintainer, so the rapid release line is
+  also highly concentrated.
+- **Verdict: BORROW the self-contained demonstration and compatibility split;
+  SKIP the dependency and numeric gates.** A synthetic first-run that proves
+  the whole path without creator media is a sound onboarding pattern. The
+  source also hard-codes 1920×1080/30 fps in several helpers and treats
+  −14 LUFS as a pass/fail delivery target. Zing supports portrait, landscape,
+  and square output, and its evidence currently justifies loudness advisories,
+  not that universal gate.
+
+### slhck/ffmpeg-progress-yield — https://github.com/slhck/ffmpeg-progress-yield
+
+- **What:** A small sync/async FFmpeg subprocess wrapper that yields percentage
+  progress, retains process output, supports hard and graceful cancellation,
+  and uses context-manager plus finalizer cleanup for abandoned processes.
+- **License:** MIT; GitHub labels the nonstandard `LICENSE.md` as “Other,” but
+  the checked file contains the MIT text. **Health:** 85 stars and 8 forks;
+  pushed 2026-07-10. Release v1.1.3 shipped 2026-03-30. GitHub attributes 139
+  contributions to the lead contributor; the next three have 4, 3, and 3.
+- **Verdict: BORROW the cancellation/cleanup matrix; SKIP the dependency.**
+  Zing should test normal completion, generator abandonment, graceful quit,
+  forced kill, and child reaping as separate renderer states. This wrapper
+  parses FFmpeg's human log text for duration and time, and its own README says
+  stdout and stderr are merged. Zing's argv-owned renderer can keep its direct
+  subprocess boundary and expose progress through a structured FFmpeg progress
+  channel when the product needs it.
+
+### imageio/imageio-ffmpeg — https://github.com/imageio/imageio-ffmpeg
+
+- **What:** A dependency-free Python wrapper that streams raw frames through
+  FFmpeg subprocess pipes and publishes platform wheels containing FFmpeg
+  executables. Its executable resolver prefers an environment override, then
+  the bundled binary, Conda, and the system path.
+- **License:** BSD-2-Clause. **Health:** 296 stars and 61 forks; pushed
+  2025-01-16, when release v0.6.0 shipped. GitHub attributes 81 contributions
+  to the lead contributor and 5 to the next; the remaining listed contributors
+  have one each. There has been no default-branch push in eighteen months.
+- **Verdict: SKIP the dependency; BORROW only the executable-resolution test
+  cases if packaging changes.** Zing renders whole timelines rather than
+  shuttling raw frames through Python, so the pipe abstraction adds a slower
+  data path it does not need. The project itself now recommends PyAV for speed
+  and features, while Zing's prior scan already rejected PyAV because direct
+  batch FFmpeg is the simpler boundary. Bundled executables would also move
+  binary provenance and codec-license work into Zing's packaging surface.
+
+### abus-aikorea/voice-pro — https://github.com/abus-aikorea/voice-pro
+
+- **What:** A Gradio creator suite joining download, source separation,
+  transcription, translation, subtitles, TTS, voice conversion, and zero-shot
+  cloning. The first run can install its own Python and FFmpeg, then downloads
+  roughly 10 GB of models; the README requires internet and 20 GB of free
+  storage.
+- **License:** GPL-3.0, outside Zing's dependency policy. **Health:** 11,173
+  stars and 1,637 forks; pushed 2026-07-13. Release v4.0.0 shipped the same
+  day. GitHub's contributor endpoint lists one contributor with 120
+  contributions, so maintenance is active and fully concentrated.
+- **Verdict: SKIP the code and model catalog; BORROW the negative provenance
+  case.** The README advertises named celebrity reference voices. The source
+  record for each voice carries language, audio file, image file, display
+  name, and transcript, but no license, consent, source URL, or artifact hash.
+  Zing's local TTS boundary should keep user-supplied assets opt-in and refuse
+  any bundled voice catalog whose rights and hashes are not recorded beside
+  each asset.
+
+**Scan conclusion:** `video-autopilot-kit` contributes the best onboarding
+test pattern: a runnable synthetic path that touches no creator media.
+`ffmpeg-progress-yield` contributes a concrete process-cancellation matrix.
+`imageio-ffmpeg` does not beat Zing's batch subprocess design, and Voice-Pro's
+license, install footprint, and voice-rights gap keep both its code and model
+catalog out of scope.
+
+---
