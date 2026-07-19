@@ -448,6 +448,19 @@ def _dispatch_study(
     )
 
 
+def h_import_shot_list(path: str, slug: str) -> dict[str, Any]:
+    """INTEGRATION-CONTRACT v1 §6.2: explicit user-chosen file import.
+    The returned envelope IS the contract receipt — path-free, stable
+    error codes, idempotent per (document hash, target)."""
+    if not isinstance(path, str) or not path.strip():
+        return _err("path required: the writer shot-list file you exported")
+    if not isinstance(slug, str) or not slug.strip():
+        return _err("slug required: the studied breakdown to attach it to")
+    from myzing import shot_list
+
+    return shot_list.import_shot_list(path.strip(), slug.strip())
+
+
 def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
     """INTEGRATION-CONTRACT v1 §9: study a uoink corpus item through the
     kept-media resolver. Accepts ONE uoink reference — never a peer
@@ -1307,6 +1320,19 @@ def build_server():
             "never accepts a file path."
         ),
     )(h_study_uoink_item)
+    mcp.tool(
+        name="import_shot_list",
+        description=(
+            "Import a Writer shot-list export (the user-chosen .md file) "
+            "against a studied breakdown. Validates the writer.shot-list v1 "
+            "format exactly, stores a content-addressed copy, and returns "
+            "the path-free zing.shot-list.import receipt (document sha256 + "
+            "writer://script ref + zing://breakdown target). Re-importing "
+            "the same file for the same slug is idempotent. The imported "
+            "plan is editorial context — zing's measured direction stays "
+            "the authority for keeper spans."
+        ),
+    )(h_import_shot_list)
     mcp.tool(
         name="get_breakdown",
         description=(
