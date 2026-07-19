@@ -10,6 +10,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from myzing.study import transitions as study_transitions
+from tools.eval import transitions as eval_transitions
 from tools.eval.make_goldens import generate_transition_goldens
 from tools.eval.transitions import (
     DEFAULT_REAL_RECALL_AUDIT,
@@ -290,6 +291,90 @@ def test_real_dissolve_calibration_keeps_precision_unavailable() -> None:
             "and must not be reported as real-video precision."
         ),
     }
+
+
+def test_transition_cli_prints_signature_and_real_precision_results(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    goldens = tmp_path / "transition goldens"
+    case = goldens / "01 hard cut"
+    case.mkdir(parents=True)
+    (case / "transition-truth.json").write_text("{}", encoding="utf-8")
+    report_path = tmp_path / "transition report.json"
+    expected_report = {
+        "signatures": {
+            signature: {"precision": 1.0, "recall": 1.0}
+            for signature in SIGNATURES
+        },
+        "real_video_calibration": {
+            "precision": {"available": True, "value": 0.75}
+        },
+    }
+
+    def fake_evaluate(
+        directories: list[Path],
+        output_path: Path,
+        **kwargs: str | Path,
+    ) -> dict[str, object]:
+        assert directories == [case]
+        assert output_path == report_path
+        assert kwargs == {
+            "ffmpeg": "custom-ffmpeg",
+            "ffprobe": "custom-ffprobe",
+            "real_calibration_path": tmp_path / "real-calibration.json",
+        }
+        return expected_report
+
+    monkeypatch.setattr(
+        eval_transitions,
+        "evaluate_transition_goldens",
+        fake_evaluate,
+    )
+
+    result = eval_transitions.run(
+        [
+            str(goldens),
+            "--report",
+            str(report_path),
+            "--ffmpeg",
+            "custom-ffmpeg",
+            "--ffprobe",
+            "custom-ffprobe",
+            "--real-calibration",
+            str(tmp_path / "real-calibration.json"),
+        ]
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert "hard_cut: precision=1.000 recall=1.000" in output
+    assert "real-video dissolve precision: 0.750" in output
+    assert "real-video transition recall: unavailable" in output
+    assert f"report: {report_path}" in output
+
+
+def test_transition_cli_names_missing_goldens_directory(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    missing = tmp_path / "missing goldens"
+
+    with pytest.raises(SystemExit) as exc_info:
+        eval_transitions.run(
+            [
+                str(missing),
+                "--report",
+                str(tmp_path / "transition report.json"),
+            ]
+        )
+
+    assert exc_info.value.code == 2
+    assert capsys.readouterr().err == (
+        "error: transition goldens path is missing or not a directory: "
+        f"{missing}\n"
+    )
 
 
 @pytest.mark.ffmpeg

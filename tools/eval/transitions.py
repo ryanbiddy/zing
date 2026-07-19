@@ -406,12 +406,17 @@ def run(argv: Sequence[str] | None = None) -> int:
         default=DEFAULT_REAL_CALIBRATION,
     )
     args = parser.parse_args(argv)
-    directories = sorted(
-        path
-        for path in args.goldens.iterdir()
-        if (path / "transition-truth.json").is_file()
-    )
     try:
+        if not args.goldens.is_dir():
+            raise ValueError(
+                "transition goldens path is missing or not a directory: "
+                f"{args.goldens}"
+            )
+        directories = sorted(
+            path
+            for path in args.goldens.iterdir()
+            if (path / "transition-truth.json").is_file()
+        )
         report = evaluate_transition_goldens(
             directories,
             args.report,
