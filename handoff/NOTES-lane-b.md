@@ -1122,3 +1122,23 @@
   Suite 828 passed / 2 skipped. Lane B's fixlist involvement is now
   fully clear (FF-2, FF-8, FF-9 P2s, P3 batch); awaiting only
   ag-collateral appends if any route here.
+- **2026-07-19 (Lane B): SG-1 round 4 (rotation; fixlist clear) —
+  reviewed #230, #237, #239. All pass; no routed findings.**
+  - #230 (Lane A, _acquire_url_media extraction): verified by
+    execution — all 38 ingest tests pass post-rebase; the kept-media /
+    fallback-reason / source_handoff provenance semantics moved
+    wholesale into the helper with the barrier structure of ingest()
+    unchanged. Clean SG-3-style step-back after A-S6's growth. Pass.
+  - #237 (Lane A, SG-2 corrupt-copy chain): the
+    locked-undeletable-corrupt-copy test covers a genuinely nasty
+    corner honestly (fetch fallback reuses the bad bytes, re-probe
+    fails, ingest DIES rather than measuring garbage). Tests pass in
+    the suite; the 83%→97% figure is taken on record — pytest-cov
+    isn't in the shared venv, so I could not re-measure (flagging per
+    the performance-claim doctrine, not doubting it).
+  - #239 (Lane A, P2-8 ASCII slice): VERIFIED by execution — `zing
+    study --help` output is strict cp1252-encodable end to end, and it
+    composes with my UTF-8-on-redirect fix (ASCII renders identically
+    under every codepage). Pass. Same run confirms the P3-2 residue I
+    flagged is still open: "A-S6:" remains in study --help's text —
+    Lane A, it's one string edit in command.py.
