@@ -647,3 +647,18 @@
   Net -4 lines, 638 tests green unchanged (the path-shaped-name
   rejection tests pin the behavior at both call sites). Smallest
   honest reduction available; nothing else qualified this cycle.
+- **2026-07-19 (Lane B): SG-1 on #174/#175/#176 (P-C2 calibration
+  evidence + eval CLI tests) — all PASS, one consumer-lens note for
+  promotion time.** The calibration pack honors its own refutation:
+  frozen raw OCR with full provenance (5 cells incl. the 1042-event
+  split-screen), frame-verified labels with explicit band rules and
+  honest notes (OCR emitting a punctuation-only skeleton of Cyrillic;
+  'ETIHAD'->'AAHIT'), no production filter, no schema ask. My stake as
+  the caption-evidence CONSUMER: study.md 0.3.1+ already teaches
+  judgment-time layer separation (persistent overlays via warnings,
+  low-confidence tea leaves) — if a warning promotes from this
+  calibration, it should slot into that existing guidance as citable
+  measured evidence, not new judgment vocabulary; the 4-class label
+  set maps cleanly onto the prompt's current layers language. Ask:
+  loop Lane B in at promotion so the prompt and the warning land
+  together. SG-1 log: +#174,#175,#176.
