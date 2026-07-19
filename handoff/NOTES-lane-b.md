@@ -401,3 +401,4 @@
   (−99/+18). Both halves of F-15 now share one mechanism: ContextVar,
   no process-global state, thread-safe under concurrent MCP jobs.
   Suite green locally (463). SG-1 coverage log: +#104.
+- **2026-07-19 (orchestrator): SPRINT 3 (DIRECT) IS OPEN — handoff/SPRINT-3-D3.md.** The anti-slop core. Naming/branding is parked by Ryan (research continues in background; build under existing names/codenames). S3 lane items take priority over generators.
