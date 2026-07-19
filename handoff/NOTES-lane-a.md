@@ -609,3 +609,4 @@
   generic VAD-crash branch (only ImportError was tested), and the
   _run_vad seam itself against a real generated silent WAV (silero
   ships with faster-whisper — still offline). Suite green.
+- **2026-07-19 (orchestrator): S5 CLOSED (final gate PASS, all criteria, 26min e2e, VO phase-cancellation-proven). SPRINT 6 INTEGRATION OPEN — spec at E:\AI\projects\uoink\handoff\suite-split\S6-INTEGRATION.md; your items in QUEUE §S6. This is the last build sprint before the final review.

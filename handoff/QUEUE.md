@@ -418,3 +418,8 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 - **C-Q17 (same-landmine check, from Ryan's uoink bug report):** uoink's screenshot step fails on yuv420p(tv) limited-range sources (mjpeg refuses) and yields zero frames on short clips with fixed intervals. Verify zing's keyframe/frame extraction against BOTH: add a limited-range (tv-flag) synthetic golden and confirm short-clip frame extraction never returns zero silently; if affected, fix with the range-conversion approach (scale=in_range=limited:out_range=full + -color_range pc, not the deprecated yuvj420p) and regression-test.
 - **S4-D10 (Lane A, from rerun):** trim-edge words dropped from captions (final word audible but uncaptioned when word span crosses the trim boundary by <0.3s) — include boundary-crossing words whose midpoint is inside the trim; regression test.
 - **S4-O2 (Lane C, small):** failed VO render leaves an empty -assets/ dir — clean up on failure; regression.
+## S6 INTEGRATION (spec: uoink suite-split\S6-INTEGRATION.md — read it first)
+- **B-S6:** zing side — kept-media sidecar consumption (uoink bridge v2), writer shot-list file import, doctor peer-probes per contract (wait for INTEGRATION-CONTRACT.md ratification for wire details; build the seams meanwhile).
+- **A-S6:** study-from-kept-media (zero refetch when local media + provenance present).
+- **C-S6:** suite-smoke eval half — cross-product flow assertions + contract conformance fixtures.
+- **S5 defects:** D-11 (doctor/ingest yt-dlp resolution mismatch — B), D-12 (PackError discards per-ref causes — A), D-13 (doctor re-prescribes applied config — B), O-3 observation (caption-style-from-sparse-OCR — C eval note).
