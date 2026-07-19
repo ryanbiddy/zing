@@ -513,3 +513,12 @@
   and load_pack's path-shaped-name rejections. 8 tests, **74% → 93%**
   (direction.py 96%, tts_providers 91% — healthy). Remaining misses are
   argparse plumbing and print formatting. SG rotation log updated.
+- **2026-07-19 (Lane B): SG-1 (rotation; queue empty) — #137, #140,
+  #143 reviewed, all PASS.** #143 is the standout: refusing to
+  fabricate output orientation from unmeasured dimensions (the invented
+  1080x1920@30 default had quietly revived the hard-coded portrait
+  behavior C-Q5 removed) with a re-study-pointing error — exactly the
+  house honesty discipline; my render surface consumes EDLs directly
+  and is unaffected. #137 real-dependency transcribe tests (house
+  pattern), #140 six-line workspace cleanup. Nothing to flag. SG-1
+  coverage log: +#137, #140, #143.
