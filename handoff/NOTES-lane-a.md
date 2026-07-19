@@ -533,3 +533,18 @@
   If the wall is up at gate time: the pick is platform-agnostic —
   fall back to an X candidate probe at that moment rather than
   pre-picking one that may rot (SW-2 lesson).
+
+- **2026-07-19 (Lane A, SG-3): three simplification candidates
+  examined, all REFUTED — no churn shipped.** (1) captions.cluster()
+  as legacy dead code: false — it is the per-track engine inside
+  cluster_regions (line 234); the layering is load-bearing. (2)
+  caption-style logic shared between profile/api.py and
+  assemble/draft.py: the shapes rhyme (mode-of/rate-of) but scopes
+  differ (cross-source aggregate vs single-source majority) — a
+  shared helper couples two modules over ~6 lines of arithmetic;
+  coupling cost > duplication cost. (3) command.py boilerplate
+  extraction across study/profile/assemble: their independence is a
+  DOCUMENTED design choice (cli.py: "conflict-free by design" for
+  multi-lane work); a shared framework would reintroduce the conflict
+  surface the design removed. Recorded so future SG-3 cycles skip
+  these. Churn avoided is the deliverable (per #195 precedent).
