@@ -31,6 +31,17 @@ def _no_ytdlp_config(monkeypatch):
     monkeypatch.setattr(doctor, "_ytdlp_config_paths", lambda: [])
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_modules(monkeypatch):
+    """#276 (Lane A reconciliation): the ytdlp tests probed the REAL venv
+    for the yt_dlp_ejs solver — green only where yt-dlp[default] was
+    installed, i.e. they asserted the host's install state, not the
+    code's behavior. Baseline: a fully-conformant host (every module
+    present). Tests that care about absence monkeypatch _has_module
+    themselves and override this."""
+    monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+
+
 @pytest.fixture
 def bare_machine(monkeypatch):
     """A machine with nothing installed and no network."""
