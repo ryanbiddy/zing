@@ -194,7 +194,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     defect = _validate_url(base)
     if defect is not None:
         return (
-                    _unhealthy(
+        _unhealthy(
                 "invalid_configuration",
                 f"{UOINK_URL_ENV} is invalid: {defect}",
                 retryable=False,
@@ -217,7 +217,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
                     "manifest fetch timed out",
                 )
             return (
-                            _unhealthy(
+                _unhealthy(
                     "unavailable",
                     f"uoink at {base} refused the connection",
                     retryable=True,
@@ -229,7 +229,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         return _peer("absent"), f"nothing answered at the default {base}"
     if status != 200 or manifest is None:
         return (
-                    _unhealthy(
+        _unhealthy(
                 "contract_mismatch",
                 f"no suite manifest at {base} (HTTP {status}) — a service "
                 "answered but does not speak INTEGRATION-CONTRACT v1; if this "
@@ -241,7 +241,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     defect = _manifest_defect(manifest)
     if defect is not None:
         return (
-                    _unhealthy(
+        _unhealthy(
                 "contract_mismatch", f"manifest drift: {defect}", retryable=False
             ),
             "manifest fetched but non-conformant",
@@ -250,7 +250,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     evidence = f"manifest read: {service['id']} {service['service_version']}"
     if service["id"] != "uoink":
         return (
-                    _unhealthy(
+        _unhealthy(
                 "wrong_service",
                 f"the endpoint at {base} identifies as "
                 f"{service['id']!r}, not uoink",
@@ -261,7 +261,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     capabilities = service["capabilities"]
     if _REQUIRED_CAPABILITY not in capabilities:
         return (
-                    _unhealthy(
+        _unhealthy(
                 "contract_mismatch",
                 f"uoink does not offer {_REQUIRED_CAPABILITY} — update uoink",
                 retryable=False,
@@ -273,7 +273,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         status, health = _get_json(base + service["health"]["href"])
     except (TimeoutError, urllib.error.URLError, OSError):
         return (
-                    _unhealthy(
+        _unhealthy(
                 "unavailable",
                 "uoink served its manifest but its health endpoint did not answer",
                 retryable=True,
@@ -282,7 +282,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         )
     if status != 200 or health is None:
         return (
-                    _unhealthy(
+        _unhealthy(
                 "contract_mismatch",
                 f"health endpoint answered HTTP {status} without a valid body",
                 retryable=False,
@@ -292,14 +292,14 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     defect = _health_defect(health)
     if defect is not None:
         return (
-                    _unhealthy(
+        _unhealthy(
                 "contract_mismatch", f"health drift: {defect}", retryable=False
             ),
             evidence + "; health non-conformant",
         )
     if health["service_id"] != "uoink":
         return (
-                    _unhealthy(
+        _unhealthy(
                 "wrong_service",
                 f"health identifies as {health['service_id']!r}, not uoink",
                 retryable=False,
@@ -312,7 +312,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
             if c["required"] and c["status"] == "failed"
         ]
         return (
-                    _unhealthy(
+        _unhealthy(
                 "peer_unhealthy",
                 "uoink reports required checks failed: "
                 + ", ".join(failed) + " — open uoink's own doctor for the fix",
@@ -341,7 +341,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             return (
-                            _unhealthy(
+                _unhealthy(
                     "authentication_failed",
                     f"uoink rejected the configured {UOINK_TOKEN_ENV} "
                     f"(HTTP {e.code})",
@@ -353,7 +353,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
             body = json.loads(e.read().decode("utf-8"))
         except (ValueError, OSError):
             return (
-                            _unhealthy(
+                _unhealthy(
                     "contract_mismatch",
                     f"conformance read answered HTTP {e.code} without a "
                     "handoff envelope",
@@ -363,7 +363,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
             )
     except (TimeoutError, urllib.error.URLError, OSError):
         return (
-                    _unhealthy(
+        _unhealthy(
                 "unavailable",
                 "uoink stopped answering during the conformance read",
                 retryable=True,
@@ -376,7 +376,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         or body.get("version") != 1
     ):
         return (
-                    _unhealthy(
+        _unhealthy(
                 "contract_mismatch",
                 "the kept-media conformance read did not return a "
                 "uoink.media.handoff v1 envelope",

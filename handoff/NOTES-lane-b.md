@@ -1142,3 +1142,21 @@
     under every codepage). Pass. Same run confirms the P3-2 residue I
     flagged is still open: "A-S6:" remains in study --help's text —
     Lane A, it's one string edit in command.py.
+- **2026-07-19 (Lane B): SG-2 sixth pass (rotation; queue empty).**
+  Measured with `coverage` 7.15 over the full gated suite (pytest-cov
+  is absent from the shared venv; `python -m coverage run` works —
+  noted for other lanes' SG-2s). Lane's lowest honest gaps were the
+  two newest modules: suite_peer 79% (validator drift branches +
+  conformance-read failure tails) and cli 77% (broken-install path).
+  27 new tests: the full manifest/health drift matrix (launcher key
+  in mcp, relative health href, non-bool required, ok-inconsistent-
+  with-checks, missing required ids...), invalid-port config, and the
+  four conformance-read endings — including a PINNED subtlety: an
+  HTTP 500 carrying a WELL-FORMED handoff error envelope proves auth
+  and contract both, so the peer is available, not unhealthy (the
+  contract's own "internal failures use the same contract metadata"
+  rule; the test documents why). suite_peer 79%→95%, cli 77%→87%,
+  lane total 91%→92%; remaining misses are documented plumbing.
+  Also tidied the wrap-script indentation blemishes from #238's
+  patch-script incident — no behavior change, pinned by the 855-test
+  suite.
