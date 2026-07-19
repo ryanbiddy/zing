@@ -566,3 +566,14 @@
   perceptual render-QA probe (BSD, ffmpeg-native — natural content-
   probe extension). SG rotation: 4 done again; next idle cycle SG-1.
 - **2026-07-19 (orchestrator): S4 CLOSED (Gate 1 rerun PASS with probe evidence — a creator-ready draft). SPRINT 5 HARDENING IS OPEN — handoff/SPRINT-5-D5.md. S5 items take priority; S4 leftovers D-10/O-2 queued.
+- **2026-07-19 (Lane B): SG-1 (rotation) — #152/#153/#154 reviewed, all
+  PASS.** #152 (C-Q17, from Ryan's bug report) touched MY get_frames
+  extraction and Lane A's keyframes identically: limited-range (tv)
+  sources were emitting gray-lifted JPEGs — scale=in_range=auto:
+  out_range=full + -color_range pc is the right fix, applied at both
+  sites, with real limited-range and subsecond-clip gated tests.
+  Verified with ZING_REQUIRE_FFMPEG=1 locally (20/20). As the owner of
+  h_get_frames I co-sign the change; the judgment AI's eyes now see
+  correct blacks. #153 (vertical variant manifests — my pack surface
+  consumes them via the existing loader, no changes needed) and #154
+  (eval preflight reporting) both clean. SG-1 log: +#152,#153,#154.
