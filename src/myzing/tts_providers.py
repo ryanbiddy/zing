@@ -81,6 +81,12 @@ class ElevenLabsProvider:
                     f"voice id or set {ELEVENLABS_VOICE_ENV} (ids are in "
                     "your ElevenLabs VoiceLab)"
                 )
+        # Lane C SG-1 (#206 review): reject a bad local output path BEFORE
+        # the network call — the API request is billable, and a wrong
+        # suffix used to spend quota just to fail locally afterwards.
+        output_path = output_path.expanduser().resolve()
+        if output_path.suffix.lower() != ".wav":
+            raise TTSGenerationError("voiceover output must use the .wav extension")
         payload = json.dumps({
             "text": request.text,
             "model_id": "eleven_multilingual_v2",
@@ -123,9 +129,6 @@ class ElevenLabsProvider:
         if len(pcm) < 2:
             raise TTSGenerationError("ElevenLabs returned an empty audio body")
 
-        output_path = output_path.expanduser().resolve()
-        if output_path.suffix.lower() != ".wav":
-            raise TTSGenerationError("voiceover output must use the .wav extension")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with wave.open(str(output_path), "wb") as audio:
