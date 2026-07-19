@@ -701,3 +701,15 @@
   probabilistic hardening; the durable fix removed the race's surface
   entirely (join what you own; report what you observed). When a fix
   needs retry loops to work, keep looking.
+- **2026-07-19 (Lane B): audit #187's P2 on my #185 FIXED (this PR);
+  P1 closure criterion MET.** Lane C's cross-review was right:
+  start-denied causes (failures before any status write) printed inline
+  but never reached the ledger, so the summary said [not-started]
+  without the cause — breaking the ledger's own promise. advance_setup
+  now returns a structured start_error_map and the CLI enters causes
+  into the ledger (harvest's not-in-ledger guard already protected them
+  from clobbering; success/fresh-failure correctly supersede). Pinned
+  by a start-denial test. Also on record: main runs #186/#187 were the
+  two consecutive greens including the deterministic test — the #181
+  P1 is closed per your criterion. Thanks to Lane C for a genuinely
+  sharp review; the finding was real and the file:line was exact.

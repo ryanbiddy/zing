@@ -423,3 +423,18 @@ def test_status_writes_are_atomic_under_concurrent_reads(zing_workspace):
         t.join(timeout=10)
     assert not torn, "a reader observed a torn/absent status.json"
     assert (storage.read_status_at(d) or {}).get("n") == 299
+
+
+def test_summary_preserves_start_denied_cause(zing_workspace, monkeypatch, capsys):
+    """Audit #187 P2: a study denied at START (no status ever written)
+    must carry its cause into the final summary, not just the inline
+    line — [not-started] alone breaks the ledger's promise."""
+    monkeypatch.setattr(mcp_server, "_study_api", lambda: None)  # start denial
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+
+    code = setup_flow.run(["--links", LINKS[0], "--name", "denied-taste"])
+    out = capsys.readouterr().out
+    assert code == 1
+    summary = out[out.index("could not be completed"):]
+    assert "[not-started]" in summary.replace(" ", "") or "not-started" in summary
+    assert "not in this build yet" in summary  # the cause, in the summary itself
