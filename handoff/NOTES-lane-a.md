@@ -731,3 +731,10 @@
   part of the stdout finding) and cli.py's stream reconfigure (the
   zing-wide UTF-8 fix is Lane B's FF-9 assignment; ASCII on my
   surfaces is correct either way). Suite 778.
+
+- **2026-07-19 (Lane A): FF-9/P2-8 both halves verified composed.**
+  Lane B's #238 reconfigures non-tty streams to UTF-8 (their half);
+  my #239 made Lane A stdout surfaces ASCII regardless (belt and
+  suspenders — my surfaces survive even without the reconfigure, and
+  their fix covers every remaining zing surface). Composed tests
+  green. P2-8 is closed from Lane A's perspective.
