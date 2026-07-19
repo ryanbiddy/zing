@@ -35,7 +35,7 @@ def run(argv: list[str]) -> int:
     parser.add_argument(
         "--kept-media", type=Path, default=None, metavar="FILE",
         help="A-S6: locally kept copy of the URL source (uoink keep_media) "
-             "— studied with zero refetch; unusable kept media falls back "
+             "-- studied with zero refetch; unusable kept media falls back "
              "to a normal fetch with a warning",
     )
     args = parser.parse_args(argv)
@@ -72,11 +72,11 @@ def run(argv: list[str]) -> int:
     m = breakdown.meta
     print(f"studied: {m.title or m.source_url}")
     print(
-        f"  {m.duration:.1f}s · {len(breakdown.shots)} shots · "
-        f"{len(breakdown.words)} words · {len(breakdown.captions)} captions"
+        f"  {m.duration:.1f}s | {len(breakdown.shots)} shots | "
+        f"{len(breakdown.words)} words | {len(breakdown.captions)} captions"
     )
     if breakdown.warnings:
-        print(f"  {len(breakdown.warnings)} measurement note(s) — see breakdown.md")
+        print(f"  {len(breakdown.warnings)} measurement note(s) -- see breakdown.md")
     print(f"  -> {folder / 'breakdown.md'}")
     print(f"  -> {folder / 'breakdown.json'}")
     return 0

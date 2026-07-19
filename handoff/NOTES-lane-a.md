@@ -718,3 +718,16 @@
   bad bytes. That degradation chain existed untested; it is now a
   named regression. Also covered: kept-copy OSError fallback, CLI
   --json output, CLI missing-media honesty. Suite 778.
+
+- **2026-07-19 (Lane A): claimed the Lane A slice of FF-9/P2-8
+  (mojibake on redirected output) — my stdout surfaces are now
+  ASCII.** The new-user lens reproduced `�` corruption on redirect in
+  four zing surfaces; two were mine: the `zing study` summary line
+  (middots) and `zing study --help` (em dash), plus profile show's
+  en-dash IQR, middot, and multiplication sign. All swapped to ASCII
+  (| -- - x); verified strict-cp1252-encodable via a real redirected
+  --help run. Deliberately NOT touched: report.py's breakdown.md em
+  dashes (UTF-8 FILES by contract, pinned by frozen goldens — not
+  part of the stdout finding) and cli.py's stream reconfigure (the
+  zing-wide UTF-8 fix is Lane B's FF-9 assignment; ASCII on my
+  surfaces is correct either way). Suite 778.
