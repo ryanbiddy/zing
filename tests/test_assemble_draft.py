@@ -165,6 +165,32 @@ def test_captions_derived_from_measured_words(media):
     assert all("outside" not in c.text.lower() for c in caps)
 
 
+def test_trim_edge_words_captioned_with_clamped_times(media):
+    """D-10: a word straddling a trim edge is admitted when its midpoint
+    lies inside the span, with start/end clamped to the trim (both edges);
+    a word whose midpoint falls outside stays dropped."""
+    from myzing.schemas import Word
+
+    b = make_breakdown()
+    b.words = [
+        Word("intro", 4.85, 5.05, 0.9),     # straddles src_in, midpoint 4.95 outside
+        Word("start", 4.9, 5.2, 0.9),       # straddles src_in, midpoint 5.05 inside
+        Word("this", 9.72, 10.02, 0.9),     # gate's case: 93% audible, tail past src_out
+    ]
+    result = draft_edl(b, direction_with([
+        {"start": 5.0, "end": 10.0, "why": "the take"},
+    ]), media)
+
+    caps = result.edl.captions
+    texts = " ".join(c.text for c in caps)
+    assert "INTRO" not in texts
+    assert "START" in texts and "THIS" in texts
+    words = [w for c in caps for w in c.words]
+    assert words[0].start == 0.0            # 4.9 clamped to src_in -> timeline 0.0
+    assert words[-1].end == 5.0             # 10.28 clamped to src_out -> timeline 5.0
+    assert all(0.0 <= w.start <= w.end <= 5.0 for w in words)
+
+
 def test_caption_style_measured_from_source(media):
     from myzing.schemas import CaptionEvent, Word
 

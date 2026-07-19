@@ -162,9 +162,13 @@ def _caption_specs(
     specs: list[CaptionSpec] = []
     for clip in clips:
         offset = clip.timeline_start - clip.src_in
+        # D-10: a word straddling a trim edge is mostly audible in the
+        # render when its midpoint lies inside the span — caption it with
+        # start/end clamped to the trim instead of dropping it.
         inside = [
-            w for w in breakdown.words
-            if w.start >= clip.src_in and w.end <= clip.src_out
+            _clamped(w, clip.src_in, clip.src_out)
+            for w in breakdown.words
+            if clip.src_in <= (w.start + w.end) / 2 < clip.src_out
         ]
         window: list[Word] = []
         for word in inside:
@@ -206,6 +210,17 @@ def _spec(
             )
             for w in window
         ],
+    )
+
+
+def _clamped(word: Word, src_in: float, src_out: float) -> Word:
+    if word.start >= src_in and word.end <= src_out:
+        return word
+    return Word(
+        text=word.text,
+        start=max(word.start, src_in),
+        end=min(word.end, src_out),
+        confidence=word.confidence,
     )
 
 
