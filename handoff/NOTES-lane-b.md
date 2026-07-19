@@ -449,3 +449,14 @@
   tracks" as the stated degraded mode). Remaining Track 1: MCP
   render/export tools (job-pattern for renders) — next cycle. Then
   Track 2 zing setup.
+- **2026-07-19 (Lane B): S4 Track 1 COMPLETE (2/2, this PR) — MCP
+  render/export tools.** render_edl: cheap validation (missing/malformed
+  EDL, no ffmpeg → sync errors-as-data), then the proven job pattern
+  (render id from EDL path, status.json under renders/<id>/ via new
+  generic storage.write_status_at/read_status_at — study status
+  refactored onto the same helpers; crash honesty: get_render rewrites
+  an orphaned 'running' exactly like studies). get_render: state with
+  the internal pid stripped. export_otio: sync, honest ImportError
+  guidance to [render] extras, errors-as-data. 15-tool stdio surface.
+  Lane C's pipeline/otio seams imported, not touched. Track 2
+  (zing setup) next cycle.
