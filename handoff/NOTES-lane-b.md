@@ -351,3 +351,23 @@
   it waits on the billing fix + a checks re-run. Not merging without
   green checks per the never-merge-red rule — the orchestrator can
   overrule if they judge a billing outage differently.
+- **2026-07-18 (Lane B): SG-1 review (rotation restart; queue empty) —
+  PRs #98 (Lane A) + #99 (Lane C), consumer/surface lens.** #98 VERIFIED
+  EMPIRICALLY, not just read: re-ran the exact S2 gate build that
+  exposed both findings — time_to_first_word p25 is now 2.965s (was the
+  impossible −1.085s; inclusive quantiles interpolate within the
+  observed range, correct method choice) and the coherence warning
+  fires on the 18–635s gate mix with actionable wording. Both of my
+  gate-record findings are closed. One observation, not a defect:
+  coherence is checked on duration only; if a mixed-format set ever
+  shares duration, pacing incoherence would slip through — fine for S2,
+  noted for the review round. #99: dissolve gets a temporal-monotonicity
+  gate (net-vs-path change — camera motion oscillates, dissolves
+  progress), thresholds are named constants recorded in provenance,
+  DETECTOR_VERSION bumped honestly to 3; no TransitionObservation shape
+  change, my surface unaffected. Both PASS. SG-1 coverage log: #70,
+  keyframes.py, #98, #99. PROCESS OBSERVATION: the finding→fix→verify
+  loop closed inside one working day across three parties (my gate
+  record → Lane A's fix citing it → my empirical re-verification) —
+  the NOTES relay is doing real code-review work; keep findings
+  file:line-specific so fixes can cite them.
