@@ -53,6 +53,30 @@ STUDY_PHASES = ("ingest", "shots", "transcribe", "ocr", "audio", "markdown")
 _JOBS: dict[str, threading.Thread] = {}
 _JOBS_LOCK = threading.Lock()
 
+
+def _job_is_live(
+    registry: dict[str, threading.Thread], key: str, status: dict[str, Any] | None
+) -> bool:
+    """Caller holds _JOBS_LOCK. True only when a live worker AND on-disk
+    'running' agree — the dispatch-race rule from the #87 fix (a finished
+    worker is briefly alive between its final write and cleanup pop),
+    shared by study and render jobs."""
+    job = registry.get(key)
+    return (
+        job is not None
+        and job.is_alive()
+        and (status or {}).get("state") == "running"
+    )
+
+
+def _job_cleanup(registry: dict[str, threading.Thread], key: str) -> None:
+    """Worker-side identity-guarded pop: a finishing old worker must never
+    evict a newer registration under the same key (that would make the
+    liveness reconciler falsely fail the live job as 'worker gone')."""
+    with _JOBS_LOCK:
+        if registry.get(key) is threading.current_thread():
+            registry.pop(key, None)
+
 # F-03: liveness. The job runner refreshes ``heartbeat_at`` this often;
 # readers stop believing a `running` status once the last beat is older
 # than the stale budget (12 missed beats — clearly not a slow phase).
@@ -279,13 +303,7 @@ def _run_study(study_fn: Any, source: str, slug: str, root: Path) -> None:
                 updated_at=_now(),
             )
         finally:
-            with _JOBS_LOCK:
-                # Identity-guarded: if a re-study has already replaced this
-                # slug's registration, a finishing old worker must not evict
-                # the new thread (a missing entry would make _reconcile_running
-                # falsely fail the live job as "worker thread gone").
-                if _JOBS.get(slug) is threading.current_thread():
-                    _JOBS.pop(slug, None)
+            _job_cleanup(_JOBS, slug)
 
 
 def h_study_video(url_or_path: str) -> dict[str, Any]:
@@ -325,22 +343,14 @@ def h_study_video(url_or_path: str) -> dict[str, Any]:
     # worker thread must not re-resolve env that may change under it.
     root = storage.workspace_root()
     with _JOBS_LOCK:
-        job = _JOBS.get(slug)
-        if job is not None and job.is_alive():
-            # A live thread alone is not proof of a live STUDY: a finished
-            # worker is briefly still alive (and registered) between its
-            # final status write and its cleanup pop. Only refuse when the
-            # on-disk state agrees the study is running — otherwise fall
-            # through and start the requested re-study (the old thread's
-            # identity-guarded pop can't evict the new registration).
-            status = storage.read_status(slug) or {}
-            if status.get("state") == "running":
-                return _ok(
-                    slug=slug,
-                    status="already_studying",
-                    phase=status.get("phase", ""),
-                    hint="poll zing_status() or get_breakdown(slug)",
-                )
+        status = storage.read_status(slug)
+        if _job_is_live(_JOBS, slug, status):
+            return _ok(
+                slug=slug,
+                status="already_studying",
+                phase=(status or {}).get("phase", ""),
+                hint="poll zing_status() or get_breakdown(slug)",
+            )
         _write_status(
             slug,
             state="running",
@@ -851,9 +861,7 @@ def _run_render(edl, base_dir: Path, out_path: Path, render_id: str, root: Path)
                 updated_at=_now(),
             )
         finally:
-            with _JOBS_LOCK:
-                if _RENDER_JOBS.get(render_id) is threading.current_thread():
-                    _RENDER_JOBS.pop(render_id, None)
+            _job_cleanup(_RENDER_JOBS, render_id)
 
 
 def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
@@ -874,15 +882,12 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
         else d / "output.mp4"
     )
     with _JOBS_LOCK:
-        job = _RENDER_JOBS.get(render_id)
-        if job is not None and job.is_alive():
-            status = storage.read_status_at(d) or {}
-            if status.get("state") == "running":
-                return _ok(
-                    render_id=render_id,
-                    status="already_rendering",
-                    hint="poll get_render(render_id)",
-                )
+        if _job_is_live(_RENDER_JOBS, render_id, storage.read_status_at(d)):
+            return _ok(
+                render_id=render_id,
+                status="already_rendering",
+                hint="poll get_render(render_id)",
+            )
         storage.write_status_at(
             d,
             state="running",
