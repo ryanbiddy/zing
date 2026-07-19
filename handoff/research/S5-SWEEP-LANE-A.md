@@ -127,23 +127,28 @@ turns up during sourcing.
 
 ## Live cell: youtube / long / vertical — sanity record (2026-07-19)
 
-- URL: https://www.youtube.com/watch?v=-UC6b5owmCA (reddit-story +
-  subway-surfers split-screen — the definitive long-vertical genre).
+- URL: https://www.youtube.com/watch?v=-UC6b5owmCA (reddit-story TTS
+  over full-screen subway-surfers gameplay — the definitive
+  long-vertical genre). CORRECTION (P-C2 frame verification): the
+  initial record said "split-screen with story overlay" — wrong; the
+  story exists ONLY as narration, with no on-screen story text.
   430.4s, 864x1920@30 (normalized from the 1728x3840 source). First
   live exercise of the **batched whisper path in the sweep**
   (pipeline: batched(batch_size=8), large-v2) — 1215 words at a
   plausible 2.82 words/s of real TTS narration; speech_ratio 0.829
   over gameplay music honestly split.
 - **Truthful hard case #2**: 3 shots in 430s — one 426.6s shot plus an
-  end-card. Correct: the split-screen format genuinely has no cuts.
-  Like the Zach King case, profile-building on this genre will see
-  cut-rate ≈ 0 because that IS the measurement.
-- 1882 caption events are REAL on-screen text — but it's the gameplay
-  HUD (score counters, 'TOP RUN') plus story overlays, not semantic
-  captions. Ties into the SW-1 design call: the measurement layer
-  records on-screen text honestly; whether HUD/incidental text should
-  be distinguishable from creator captions is a schema/judgment-layer
-  question for the orchestrator, filed with SW-1.
+  end-card. Correct: continuous gameplay footage genuinely has no
+  cuts. Like the Zach King case, profile-building on this genre will
+  see cut-rate ≈ 0 because that IS the measurement.
+- 1882 caption events are REAL on-screen text — but ALL of it is
+  gameplay HUD/watermark/CTA graphics (P-C2 labels: 13,266 of 13,313
+  raw lines incidental_text, 47 unreadable, ZERO captions — the
+  creator did not caption this video). Ties into the SW-1 design
+  call: the measurement layer records on-screen text honestly;
+  whether HUD/incidental text should be distinguishable from creator
+  captions is a schema/judgment-layer question for the orchestrator,
+  filed with SW-1.
 - OCR sampling warning honest (2 fps after 30s on long videos).
 
 ## Cached-cell spot-checks
