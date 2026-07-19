@@ -1,7 +1,8 @@
 {
   "schema_version": 1,
-  "scorer_version": "1.2.0",
+  "scorer_version": "1.3.0",
   "scorer_changelog": {
+    "1.3.0": "C-Q15: adds independent raw-footage dimensions for dead-air timing, filler-word identity and timing, and repeated-take locations and similarity. Existing S1 score semantics are unchanged.",
     "1.2.0": "C-Q6: speech-ratio scoring is enabled against the public-domain spoken fixture, with the existing ±0.1 tolerance. Pass/fail semantics now include speech ratio.",
     "1.1.0": "F-09/F-12: leftover cuts are never positionally zipped into fabricated out-of-tolerance matches — a pair requires a delta within out_of_tolerance_pairing_window_seconds, everything else is reported missing/extra; matcher rewritten iteratively for real-video event counts. Pass/fail semantics unchanged; per-event match lists differ from 1.0.0.",
     "1.0.0": "Initial S1 scorer."
@@ -27,5 +28,13 @@
       "tolerance": 0.1,
       "reason": "Unavailable only when a truth fixture omits speech_ratio."
     }
+  },
+  "raw_footage": {
+    "time_tolerance_seconds": 0.15,
+    "pairing_window_seconds": 0.5,
+    "dead_air_minimum_duration_seconds": 1.5,
+    "filler_word_normalization": "Unicode NFKC, casefold, punctuation removal, whitespace collapse",
+    "repeated_take_minimum_similarity": 0.9,
+    "matching": "maximum-cardinality one-to-one chronological; candidate pairs must keep every endpoint within pairing_window_seconds"
   }
 }
