@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Sequence
 
 from myzing.study.transitions import (
+    DETECTOR_VERSION,
     DISSOLVE_MEAN_FRAME_DIFFERENCE,
     DISSOLVE_TEMPORAL_MONOTONICITY,
     SIGNATURES,
@@ -18,6 +20,9 @@ from myzing.study.transitions import (
 HERE = Path(__file__).resolve().parent
 DEFAULT_REAL_CALIBRATION = (
     HERE / "fixtures" / "transitions" / "real-gate-candidates.json"
+)
+DEFAULT_REAL_RECALL_AUDIT = (
+    HERE / "fixtures" / "transitions" / "real-recall-audit.json"
 )
 
 
@@ -43,6 +48,193 @@ def summarize_signature_precision(
             "precision": round(precision, 6),
         }
     return summary
+
+
+def summarize_signature_recall(
+    cases: Sequence[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Count case-level false negatives without inventing empty-set recall."""
+    summary = {}
+    for signature in SIGNATURES:
+        true_positives = sum(
+            signature in case["truth"] and signature in case["predicted"]
+            for case in cases
+        )
+        false_negatives = sum(
+            signature in case["truth"] and signature not in case["predicted"]
+            for case in cases
+        )
+        truth_count = true_positives + false_negatives
+        available = truth_count > 0
+        summary[signature] = {
+            "available": available,
+            "true_positives": true_positives,
+            "false_negatives": false_negatives,
+            "truth_count": truth_count,
+            "recall": (
+                round(true_positives / truth_count, 6)
+                if available
+                else None
+            ),
+        }
+    return summary
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _display_path(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(HERE.parents[1]).as_posix()
+    except ValueError:
+        return path.name
+
+
+def summarize_real_transition_recall(
+    audit_path: Path = DEFAULT_REAL_RECALL_AUDIT,
+) -> dict[str, Any]:
+    """Audit whether the requested real corpora can support recall."""
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    corpora = audit.get("corpora")
+    if not isinstance(corpora, list) or not corpora:
+        raise ValueError("real transition recall audit has no corpora")
+
+    corpus_counts = {}
+    sources = []
+    exhaustive_count = 0
+    measured_sources = 0
+    measured_detector_versions = set()
+    measured_accuracy_statuses = set()
+    predicted_event_counts = {signature: 0 for signature in SIGNATURES}
+    for corpus in corpora:
+        corpus_id = corpus.get("id")
+        corpus_sources = corpus.get("sources")
+        if not isinstance(corpus_id, str) or not isinstance(
+            corpus_sources,
+            list,
+        ):
+            raise ValueError("real transition recall audit has malformed corpus")
+        corpus_counts[corpus_id] = len(corpus_sources)
+        for source in corpus_sources:
+            annotation = source.get("annotation")
+            if not isinstance(annotation, dict):
+                raise ValueError(
+                    f"recall audit source has no annotation: {source}"
+                )
+            exhaustive = annotation.get("exhaustive_transition_events")
+            if not isinstance(exhaustive, bool):
+                raise ValueError(
+                    "recall audit annotation must state whether it is exhaustive"
+                )
+            if exhaustive:
+                exhaustive_count += 1
+                if not isinstance(source.get("truth_events"), list):
+                    raise ValueError(
+                        "exhaustively labeled source has no truth_events: "
+                        f"{source.get('fixture_id')}"
+                    )
+            measurement = source.get("detector_measurement")
+            if measurement is not None:
+                if not isinstance(measurement, dict):
+                    raise ValueError(
+                        "recall audit detector measurement must be an object"
+                    )
+                counts = measurement.get("predicted_event_counts")
+                if not isinstance(counts, dict) or set(counts) != set(SIGNATURES):
+                    raise ValueError(
+                        "recall audit detector measurement must count every "
+                        "signature"
+                    )
+                if any(
+                    not isinstance(count, int) or isinstance(count, bool)
+                    or count < 0
+                    for count in counts.values()
+                ):
+                    raise ValueError(
+                        "recall audit detector event counts must be "
+                        "non-negative integers"
+                    )
+                measured_sources += 1
+                measured_detector_versions.add(
+                    measurement["detector_version"]
+                )
+                measured_accuracy_statuses.add(
+                    measurement["accuracy_status"]
+                )
+                for signature, count in counts.items():
+                    predicted_event_counts[signature] += count
+            sources.append(
+                {
+                    "fixture_id": source["fixture_id"],
+                    "corpus": corpus_id,
+                    "annotation_status": annotation["status"],
+                    "exhaustive_transition_events": exhaustive,
+                    "reason": annotation["reason"],
+                }
+            )
+
+    if exhaustive_count:
+        raise ValueError(
+            "real recall calculation is not implemented for labeled sources"
+        )
+    if measured_sources and measured_detector_versions != {DETECTOR_VERSION}:
+        raise ValueError(
+            "real recall audit detector measurements are stale: "
+            f"expected version {DETECTOR_VERSION}, found "
+            f"{sorted(measured_detector_versions)}"
+        )
+    reason = (
+        "None of the audited real sources has exhaustive exact transition "
+        "events and types, so false negatives and real-video recall cannot "
+        "be calculated."
+    )
+    by_signature = {
+        signature: {
+            "available": False,
+            "value": None,
+            "truth_event_count": 0,
+            "reason": reason,
+        }
+        for signature in SIGNATURES
+    }
+    detector_execution = {
+        "available": measured_sources > 0,
+        "accuracy_status": (
+            next(iter(measured_accuracy_statuses))
+            if len(measured_accuracy_statuses) == 1
+            else "mixed"
+        ),
+        "detector_version": (
+            next(iter(measured_detector_versions))
+            if len(measured_detector_versions) == 1
+            else None
+        ),
+        "source_count": measured_sources,
+        "predicted_event_counts": predicted_event_counts,
+    }
+    return {
+        "audit_schema_version": audit["schema_version"],
+        "audit_path": _display_path(audit_path),
+        "audit_sha256": _sha256(audit_path),
+        "source_count": len(sources),
+        "corpora": corpus_counts,
+        "exhaustively_labeled_source_count": exhaustive_count,
+        "recall": {
+            "available": False,
+            "value": None,
+            "reason": reason,
+            "by_signature": by_signature,
+        },
+        "detector_execution": detector_execution,
+        "production_disposition": audit["disposition"]["status"],
+        "production_disposition_reason": audit["disposition"]["reason"],
+        "sources": sources,
+    }
 
 
 def summarize_real_dissolve_calibration(
@@ -139,18 +331,37 @@ def evaluate_transition_goldens(
             }
         )
     signatures = summarize_signature_precision(cases)
+    recall = summarize_signature_recall(cases)
+    signatures = {
+        signature: {
+            **signatures[signature],
+            **recall[signature],
+        }
+        for signature in SIGNATURES
+    }
     real_calibration = summarize_real_dissolve_calibration(
         real_calibration_path
     )
+    real_recall = summarize_real_transition_recall()
+    recall_values = [
+        value["recall"]
+        for value in signatures.values()
+        if value["recall"] is not None
+    ]
     report = {
-        "prototype_schema_version": 2,
+        "prototype_schema_version": 3,
         "signatures": signatures,
         "macro_precision": round(
             sum(value["precision"] for value in signatures.values())
             / len(signatures),
             6,
         ),
+        "macro_recall": round(
+            sum(recall_values) / len(recall_values),
+            6,
+        ),
         "real_video_calibration": real_calibration,
+        "real_video_recall": real_recall,
         "cases": cases,
         "limitations": {
             "prototype_only": True,
@@ -166,8 +377,10 @@ def evaluate_transition_goldens(
             ],
             "notes": [
                 "Reported signature precision is case-level synthetic precision.",
-                "The real-video corpus has no exhaustive transition labels, so its precision is unavailable.",
+                "Reported signature recall is case-level synthetic recall.",
+                "All eight requested real sources were audited; none has exhaustive exact transition labels, so real-video recall is unavailable.",
                 "Rejecting prior real-video candidates is not evidence of real-video recall.",
+                "Production transition types remain experimental until a labeled real corpus makes false negatives measurable.",
                 "Audio alignment detects energy onset, not speaker or scene identity.",
                 "Zoom flow uses small pure-Python block matching, not learned flow.",
             ],
@@ -209,12 +422,16 @@ def run(argv: Sequence[str] | None = None) -> int:
     except (OSError, ValueError, TransitionProbeError, json.JSONDecodeError) as exc:
         parser.exit(2, f"error: {exc}\n")
     for signature, result in report["signatures"].items():
-        print(f"{signature}: precision={result['precision']:.3f}")
+        print(
+            f"{signature}: precision={result['precision']:.3f} "
+            f"recall={result['recall']:.3f}"
+        )
     real_precision = report["real_video_calibration"]["precision"]
     if real_precision["available"]:
         print(f"real-video dissolve precision: {real_precision['value']:.3f}")
     else:
         print("real-video dissolve precision: unavailable (unjudged corpus)")
+    print("real-video transition recall: unavailable (no exhaustive labels)")
     print(f"report: {args.report}")
     return 0
 
