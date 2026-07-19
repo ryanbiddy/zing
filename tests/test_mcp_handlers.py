@@ -56,11 +56,14 @@ def fake_engine(monkeypatch):
     api = types.ModuleType("myzing.study.api")
     api.calls = []
     api.kept = []  # B-S6: kept_media values the engine actually received
+    api.handoffs = []  # contract v1: handoff dicts the engine received
 
-    def study(source: str, phase_callback=None, kept_media=None):
+    def study(source: str, phase_callback=None, kept_media=None, handoff=None):
         api.calls.append(source)
         if kept_media is not None:
             api.kept.append(kept_media)
+        if handoff is not None:
+            api.handoffs.append(handoff)
         if phase_callback:
             phase_callback("shots")
         if source.endswith("boom"):
@@ -290,6 +293,123 @@ def test_study_video_without_kept_media_omits_the_field(
     assert result["ok"] is True
     assert "kept_media" not in result  # absent, not null — nothing to echo
     assert fake_engine.kept == []
+
+
+# -- study_uoink_item (INTEGRATION-CONTRACT v1 §9) ---------------------------
+
+UOINK_REF = "uoink://item/short-123"
+
+
+def resolved_available(tmp_path):
+    return {
+        "ok": True,
+        "data": {
+            "item_ref": UOINK_REF,
+            "state": "available",
+            "source_url": SRC_URL,
+            "media": {
+                "path": str(tmp_path / "video.mp4"),
+                "media_type": "video/mp4",
+                "byte_length": 4,
+                "sha256": "ab" * 32,
+            },
+            "provenance": {"kind": "uoink_sidecar"},
+        },
+    }
+
+
+def test_study_uoink_item_available_dispatches_kept_and_handoff(
+    zing_workspace, fake_engine, monkeypatch, tmp_path
+):
+    monkeypatch.setattr(
+        "myzing.uoink_bridge.resolve_kept_media",
+        lambda ref: resolved_available(tmp_path),
+    )
+    result = mcp_server.h_study_uoink_item(UOINK_REF)
+    assert result["ok"] is True and result["status"] == "started"
+    assert result["slug"] == SLUG  # identity from source_url (stable-IDs rule)
+    assert result["item_ref"] == UOINK_REF
+    assert result["kept_state"] == "available"
+    assert "zero network fetch" in result["hint"]
+    status = wait_done(SLUG)
+    assert status["state"] == "done"
+    assert fake_engine.kept == [str(tmp_path / "video.mp4")]
+    assert fake_engine.handoffs == [{
+        "source_ref": UOINK_REF,
+        "state": "available",
+        "sha256": "ab" * 32,
+        "byte_length": 4,
+    }]
+
+
+def test_study_uoink_item_not_kept_refetches_with_reasoned_handoff(
+    zing_workspace, fake_engine, monkeypatch
+):
+    resolved = {
+        "ok": True,
+        "data": {
+            "item_ref": UOINK_REF,
+            "state": "not_kept",
+            "source_url": SRC_URL,
+            "media": None,
+            "provenance": {"kind": "uoink_sidecar"},
+        },
+    }
+    monkeypatch.setattr(
+        "myzing.uoink_bridge.resolve_kept_media", lambda ref: resolved
+    )
+    result = mcp_server.h_study_uoink_item(UOINK_REF)
+    assert result["ok"] is True
+    assert result["kept_state"] == "not_kept"
+    assert "fetching from the source URL" in result["hint"]
+    wait_done(SLUG)
+    assert fake_engine.kept == []  # nothing kept to stage
+    assert fake_engine.handoffs[0]["state"] == "not_kept"
+
+
+def test_study_uoink_item_without_source_url_fails_honestly(
+    zing_workspace, fake_engine, monkeypatch
+):
+    resolved = {
+        "ok": True,
+        "data": {
+            "item_ref": UOINK_REF,
+            "state": "not_kept",
+            "source_url": None,
+            "media": None,
+            "provenance": {},
+        },
+    }
+    monkeypatch.setattr(
+        "myzing.uoink_bridge.resolve_kept_media", lambda ref: resolved
+    )
+    result = mcp_server.h_study_uoink_item(UOINK_REF)
+    assert result["ok"] is False
+    assert "no source_url" in result["error"]
+    assert fake_engine.calls == []  # nothing honest to study — no dispatch
+
+
+def test_study_uoink_item_resolver_failure_passes_through(
+    zing_workspace, fake_engine, monkeypatch
+):
+    monkeypatch.setattr(
+        "myzing.uoink_bridge.resolve_kept_media",
+        lambda ref: {"ok": False, "error": "no uoink helper at X"},
+    )
+    result = mcp_server.h_study_uoink_item(UOINK_REF)
+    assert result["ok"] is False and "no uoink helper" in result["error"]
+
+
+def test_study_uoink_item_engine_predating_contract_is_refused(
+    zing_workspace, monkeypatch
+):
+    api = types.ModuleType("myzing.study.api")
+    api.study = lambda source, phase_callback=None, kept_media=None: None
+    monkeypatch.setattr(mcp_server, "_study_api", lambda: api)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+    result = mcp_server.h_study_uoink_item(UOINK_REF)
+    assert result["ok"] is False
+    assert "predates the kept-media handoff contract" in result["error"]
 
 
 def test_study_video_tilde_path_dispatches_expanded(

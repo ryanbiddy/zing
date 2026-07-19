@@ -922,3 +922,33 @@
     provenance shape, shot-list parser, peer probes) stays parked
     until ratification per the draft's own "no implementation
     authorized".
+- **2026-07-19 (Lane B): B-S6 wire work part 1 — `study_uoink_item`
+  over the ratified kept-media contract.**
+  - `uoink_bridge.resolve_kept_media(item_ref)`: token-gated GET per
+    §6.1 with EXACT-KEY validation of the uoink.media.handoff v1
+    envelope (top/data/media/error key sets, state whitelist,
+    null-media-on-fallback-states). Drift is a named, distinct state
+    ("version drift, not absence" — §8 doctrine), never flattened
+    into a generic failure. §3.3 honored: no credential → 
+    unconfigured with zero network calls (test-pinned), and zing
+    never reads uoink's token file.
+  - MCP tool #18 `study_uoink_item(item_ref)`: stable references
+    only — a path-shaped ref is rejected before any network. state
+    available → dispatches study with kept path + handoff
+    {source_ref, sha256, byte_length, state} exactly as Lane A's
+    conformance PR (#223) asked; not_kept/missing → dispatches with
+    the reasoned handoff so provenance records the refetch; no
+    source_url → honest refusal (identity is URL-derived and refetch
+    is only allowed from the handoff's source_url). Engines predating
+    the contract are refused at dispatch.
+  - Job machinery consolidated: `_dispatch_study` now serves both
+    study tools (one jobs-lock/status/thread path, F-15 workspace pin
+    intact).
+  - Confession, same class as the NUL-bytes incident: a heredoc once
+    again mangled backslash escapes in test data (truncated \U
+    unicode escape). My ban was heredoc-into-python-INTO-BASH; the
+    real rule is narrower and harder: no Windows-path literals
+    through ANY heredoc — forward slashes in test fixtures, Edit tool
+    for the rest.
+  - Remaining B-S6: `import_shot_list` (§6.2) and the contract-aware
+    uoink peer probe (§8) — next cycles.
