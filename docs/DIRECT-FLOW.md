@@ -8,7 +8,7 @@ tools, for any AI client connected per docs/CONNECT.md:
    (`provenance.raw_mode`: keepers, dead air, fillers, repeated takes).
 2. **Have (or build) the taste target:** `get_profile(name)`, or
    `build_profile(name, slugs, genre=...)` from studied references
-   (`zing setup` will streamline this — S4). No profile? The direct
+   (or run `zing setup` for a guided build). No profile? The direct
    prompt runs in rubric-only mode and says so in its output.
 3. **Judge:** load the `direct` prompt (`/mcp__zing__direct` in Claude
    clients, `get_prompt("direct")` elsewhere) and follow it against

@@ -126,6 +126,11 @@ def client(tmp_path):
             },
         )
         assert result["serverInfo"]["name"] == "zing"
+        # Final review P3-1: serverInfo.version used to be the SDK's own
+        # version — meaningless in client logs. It must be OUR version.
+        from myzing.mcp_server import _version
+
+        assert result["serverInfo"]["version"] == _version()
         c.send("notifications/initialized", {}, notify=True)
         yield c
     finally:

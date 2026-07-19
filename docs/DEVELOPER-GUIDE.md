@@ -35,12 +35,15 @@ Run `zing doctor` to ensure all external dependencies are correctly configured:
 uv run zing doctor
 ```
 
-This command checks for:
-1. **FFmpeg & FFprobe (Required):** Used for video and audio analysis. If missing on Windows, install via: `winget install Gyan.FFmpeg`.
-2. **yt-dlp (Recommended):** Used for downloading remote reference videos.
-3. **faster-whisper (Recommended):** Used for audio transcription and word-level timestamps.
-4. **OCR Backend (Recommended):** RapidOCR (Python module) or Tesseract (binary) to extract text from video frames.
-5. **Uoink (Optional):** Local helper service running on port 5179.
+This command checks for (pinned by a test against doctor's real check
+list — update both together):
+1. **ffmpeg & ffprobe (required):** video and audio analysis. If missing on Windows: `winget install Gyan.FFmpeg`.
+2. **yt-dlp (recommended):** fetching remote reference videos, including its JS-runtime and EJS-solver readiness for YouTube.
+3. **scenedetect (recommended):** shot-boundary detection.
+4. **faster-whisper (recommended):** transcription with word-level timestamps.
+5. **ocr — rapidocr (recommended):** burned-caption text extraction from frames.
+6. **tts (optional):** voiceover synthesis (kokoro local, or ElevenLabs with an API key).
+7. **uoink (optional):** the suite peer on port 5179, probed per INTEGRATION-CONTRACT v1 (absent is calm; unhealthy names its code).
 
 ---
 

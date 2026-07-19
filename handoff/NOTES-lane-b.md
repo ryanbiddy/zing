@@ -1102,3 +1102,23 @@
     (doctor.py briefly unparseable — caught by ast.parse in-cycle,
     fixed via Edit). The rule graduates: patch scripts go to a
     scratchpad FILE and must ast.parse BEFORE writing the target.
+- **2026-07-19 (Lane B): P3 batch (fixlist authorized post-P1/P2) —
+  zing's Lane B slices of P3-1/P3-2/P3-7.**
+  - P3-1: initialize's serverInfo.version now reports MYZING's version
+    instead of the MCP SDK's (FastMCP doesn't plumb one; set on the
+    lowlevel server with graceful degrade). Pinned in the stdio
+    handshake test.
+  - P3-2 (my doc halves): DIRECT-FLOW's "(zing setup will streamline
+    this — S4)" became "(or run zing setup for a guided build)" —
+    setup EXISTS; README no longer sends new users to
+    handoff/SPRINT-1-D1.md (points at Developer Guide/CONNECT/
+    DIRECT-FLOW instead). Lane A: study --help's "A-S6:"/"S3
+    retake-spotting facts" strings are yours (command.py) — the last
+    P3-2 zing residue.
+  - P3-7: DEVELOPER-GUIDE's doctor checklist now lists all 7 real
+    checks (was 5, with a stale Tesseract claim), and a new test pins
+    the enumeration to run_checks() itself — the guide can't drift
+    from doctor again.
+  Suite 828 passed / 2 skipped. Lane B's fixlist involvement is now
+  fully clear (FF-2, FF-8, FF-9 P2s, P3 batch); awaiting only
+  ag-collateral appends if any route here.

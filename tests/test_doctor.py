@@ -523,3 +523,15 @@ def test_version_probe_is_cached(monkeypatch):
 def test_troubleshooting_ref_resolves_to_an_existing_file():
     ref = doctor._troubleshooting_ref()
     assert Path(ref).is_file()  # never a dead pointer, checkout or wheel
+
+
+def test_developer_guide_checklist_matches_doctor(full_machine):
+    """Final review P3-7: the guide claimed to enumerate doctor's checks
+    but listed 5 of 7. Pin the enumeration to run_checks() itself."""
+    guide = (
+        Path(doctor.__file__).resolve().parents[2] / "docs" / "DEVELOPER-GUIDE.md"
+    ).read_text(encoding="utf-8")
+    for check in doctor.run_checks(today=date(2026, 7, 19)):
+        assert check.name in guide, (
+            f"DEVELOPER-GUIDE.md's doctor checklist is missing {check.name!r}"
+        )

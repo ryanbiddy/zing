@@ -1330,6 +1330,15 @@ def build_server():
             "save_judgment(slug, judgment)."
         ),
     )
+    # Final review P3-1: without this, initialize's serverInfo.version is
+    # the SDK's own version (e.g. 1.28.1) — meaningless in client logs
+    # and bug reports. FastMCP doesn't plumb a version through, so set it
+    # on the underlying lowlevel server; if the SDK reshapes internals,
+    # we degrade back to the SDK version rather than fail to serve.
+    try:
+        mcp._mcp_server.version = _version()
+    except AttributeError:
+        pass
 
     mcp.tool(
         name="study_video",
