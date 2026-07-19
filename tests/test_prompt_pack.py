@@ -96,10 +96,48 @@ def test_study_v02_wizard_of_oz_fixes_present(real_pack):
     assert "## Changelog" in text
 
 
-def test_direct_is_an_honest_stub(real_pack):
+def test_direct_v1_contract(real_pack, zing_workspace):
+    """S3: direct.md is the real contract now — its example must pass
+    save_judgment(section='direct') and honor the plain-language rule."""
     meta, text = prompt_pack.load_prompt("direct")
-    assert "STUB" in meta["description"]
-    assert "NOT IMPLEMENTED" in text
+    assert "STUB" not in meta["description"]
+    assert tuple(int(p) for p in meta["version"].split(".")) >= (1, 0, 0)
+    assert set(meta["required_keys"]) == {
+        "verdict", "gaps", "shot_prompts", "keepers", "assembly_notes",
+    }
+    example = json.loads(
+        re.search(
+            r"<example_judgment>\s*(\{.*?\})\s*</example_judgment>", text, re.DOTALL
+        ).group(1)
+    )
+    b = Breakdown(meta=VideoMeta(source_url="raw.mp4", platform="file"))
+    storage.save_breakdown(b, slug="raw-take")
+    result = mcp_server.h_save_judgment(
+        "raw-take", example, section="direct", model="test"
+    )
+    assert result["ok"] is True, result.get("error")
+    assert result["prompt_version"] == meta["version"]
+    # gaps cite both sides and use the severity vocabulary, blocking first
+    severities = [g["severity"] for g in example["gaps"]]
+    assert set(severities) <= {"blocking", "important", "polish"}
+    assert severities == sorted(
+        severities, key=["blocking", "important", "polish"].index
+    )
+    for gap in example["gaps"]:
+        assert gap["profile_evidence"] and gap["footage_evidence"]
+    # shot prompts: plain language a human can film — no internal jargon,
+    # <=2 sentences (the Lane C conformance heuristics' contract)
+    for sp in example["shot_prompts"]:
+        instruction = sp["instruction"]
+        assert sp["closes_gap"] in {g["criterion_id"] for g in example["gaps"]}
+        assert instruction.count(".") + instruction.count("!") <= 3
+        for banned in ("criterion", "band", "p25", "breakdown", "profile"):
+            assert banned not in instruction.lower(), (
+                f"jargon '{banned}' in shot prompt"
+            )
+    # keepers cite measured evidence
+    for keeper in example["keepers"]:
+        assert "why" in keeper and keeper["end"] > keeper["start"]
 
 
 def test_study_example_judgment_satisfies_its_own_contract(real_pack):

@@ -403,3 +403,16 @@
   Suite green locally (463). SG-1 coverage log: +#104.
 - **2026-07-19 (orchestrator): SPRINT 3 (DIRECT) IS OPEN — handoff/SPRINT-3-D3.md.** The anti-slop core. Naming/branding is parked by Ryan (research continues in background; build under existing names/codenames). S3 lane items take priority over generators.
 - **2026-07-19 (orchestrator): LAUNCH MODE + SPRINT 4 OPEN** — Ryan's directive: build EVERYTHING fully, one major launch, he tests at launch. All Ryan-gates now internal. handoff/SPRINT-4-D4.md has your Track 1 (Assemble) + Track 2 (Taste Onboarding — preset packs like ai-tech-talking-head, viral-tiktok; zing setup flow) items. S3's open items finish first; then S4. Same discipline, no pauses.
+- **2026-07-19 (Lane B): S3+S4 assignments acknowledged; S3 remainder
+  in progress.** This PR: prompts/direct.md v1.0.0 — the real direction
+  contract (was the S1 stub): gap/keeper/shot-prompt shape per
+  SPRINT-3-D3 with required_keys wired into save_judgment validation;
+  every gap cites both sides; keepers grounded in
+  provenance.raw_mode.keepers; shot prompts under a plain-language hard
+  rule (<=2 sentences, internal vocabulary banned from instructions —
+  aligned with Lane C's conformance heuristics); rubric-only mode with
+  stated caveat when no profile exists; visual gaps require eyes or
+  become human-check instructions. The stub-police test flipped into a
+  v1-contract test: example passes save_judgment(section='direct')
+  end-to-end, severity ordering enforced, jargon ban asserted. Next
+  PRs: direction.md renderer, MCP flow doc + gate run.
