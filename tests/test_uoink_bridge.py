@@ -300,3 +300,89 @@ def test_resolve_null_source_url_is_contract_legal(monkeypatch):
     result = uoink_bridge.resolve_kept_media(REF)
     assert result["ok"] is True
     assert result["data"]["source_url"] is None
+
+
+# -- SG-2: envelope-validation and fallback edges -----------------------------
+
+def test_resolve_http_error_with_unparseable_body(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+
+    def boom(request, timeout=0):
+        raise urllib.error.HTTPError(
+            request.full_url, 500, "boom", {}, io.BytesIO(b"<html>")
+        )
+
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", boom)
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert result["ok"] is False
+    assert "HTTP 500" in result["error"]
+
+
+def test_resolve_non_object_body_is_nonconformant(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    serve(monkeypatch, ["an", "array"])
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert "not contract-conformant" in result["error"]
+
+
+def test_resolve_error_envelope_with_extra_keys_is_drift(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    serve(monkeypatch, {
+        "ok": False, "contract": "uoink.media.handoff", "version": 1,
+        "operation": "resolve", "extra": True,
+        "error": {"code": "not_found", "message": "x", "retryable": False},
+    })
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert "not contract-conformant" in result["error"]
+
+
+def test_resolve_data_with_wrong_keys_is_drift(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    body = handoff_body()
+    del body["data"]["provenance"]
+    serve(monkeypatch, body)
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert "data keys" in result["error"]
+
+
+def test_resolve_unknown_state_is_drift(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    serve(monkeypatch, handoff_body(state="sideways", media=None))
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert "unknown state" in result["error"]
+
+
+def test_resolve_available_with_wrong_media_keys_is_drift(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    body = handoff_body()
+    del body["data"]["media"]["sha256"]
+    serve(monkeypatch, body)
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert "media keys" in result["error"]
+
+
+def test_push_title_fallback_when_breakdown_unloadable(studied, monkeypatch):
+    def broken_load(slug):
+        raise ValueError("corrupt json")
+
+    monkeypatch.setattr(uoink_bridge.storage, "load_breakdown", broken_load)
+    captured = {}
+
+    def fake_urlopen(request, timeout=0):
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        return FakeResponse(json.dumps({"ok": True}).encode())
+
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", fake_urlopen)
+    result = uoink_bridge.push_breakdown(SLUG)
+    assert result["ok"] is True
+    assert captured["body"]["title"] == f"Zing breakdown: {SLUG}"
+
+
+def test_push_http_error_names_the_status(studied, monkeypatch):
+    def teapot(request, timeout=0):
+        raise urllib.error.HTTPError(request.full_url, 500, "boom", {}, None)
+
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", teapot)
+    result = uoink_bridge.push_breakdown(SLUG)
+    assert result["ok"] is False
+    assert "HTTP 500" in result["error"]
