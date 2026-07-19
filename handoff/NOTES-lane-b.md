@@ -1390,3 +1390,17 @@
   (shot_list/uoink_bridge/suite_peer) with mcp_server at 93; every
   remaining lane miss is documented plumbing. Suite 914 passed / 2
   skipped.
+- **2026-07-19 (Lane B): SG-2 tail (rotation-with-judgment; freeze) —
+  the F-03 liveness primitive gets direct platform pins.** Honest
+  rotation note first: SG-3 was next in order, but the lane has no
+  simplification debt left worth a diff — forcing one under freeze
+  would be churn, so the cycle went to the one genuinely unpinned
+  branch instead. `_pid_alive`'s Windows access-denied path (a
+  process that EXISTS but isn't ours — e.g. an elevated or
+  other-session server owning a study) counted as alive by design
+  but was tested nowhere; a wrong answer there falsely reconciles a
+  genuinely-running study to "failed". Now pinned directly on
+  Windows (System pid 4) plus own-pid/dead-pid/invalid-pid pins on
+  both platforms — windows-latest CI executes the branch every run
+  from here on. Probed live before writing: all four branches answer
+  as designed. Suite 916 passed / 2 skipped.

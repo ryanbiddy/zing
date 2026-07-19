@@ -953,3 +953,21 @@ def test_export_otio_without_render_extras_is_actionable(
         # EDL validation may reject first on this build — either way the
         # handler answered with the envelope, never a traceback.
         assert "ok" in result
+
+
+# -- F-03 liveness primitive: direct platform pins ----------------------------
+
+def test_pid_alive_own_and_dead_and_invalid():
+    assert mcp_server._pid_alive(os.getpid()) is True
+    assert mcp_server._pid_alive(dead_pid()) is False
+    assert mcp_server._pid_alive(0) is False
+    assert mcp_server._pid_alive(-5) is False
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows kernel32 branch")
+def test_pid_alive_access_denied_counts_as_alive_windows():
+    """The System process (pid 4) denies OpenProcess to user code — a
+    process that EXISTS but isn't ours must count as alive (F-03:
+    otherwise a study owned by an elevated/other-session server would
+    be falsely reconciled to 'failed' while genuinely running)."""
+    assert mcp_server._pid_alive(4) is True
