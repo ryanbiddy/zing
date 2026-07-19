@@ -218,7 +218,7 @@ def _timeline_from_validated(otio: Any, validated: ValidatedEDL, name: str) -> A
 def _load_otio() -> Any:
     try:
         return importlib.import_module("opentimelineio")
-    except (ImportError, ModuleNotFoundError) as exc:
+    except ImportError as exc:
         raise OTIOExportError(
             "OpenTimelineIO is required for .otio export; install the "
             "Apache-2.0 `OpenTimelineIO` package in the render environment."

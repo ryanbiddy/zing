@@ -170,7 +170,7 @@ class KokoroOnnxProvider:
             return self._engine
         try:
             module = importlib.import_module("kokoro_onnx")
-        except (ImportError, ModuleNotFoundError) as exc:
+        except ImportError as exc:
             raise TTSUnavailableError(
                 "kokoro-onnx is not installed. It is intentionally excluded "
                 "from the default install because its runtime pulls "

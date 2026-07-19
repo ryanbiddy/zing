@@ -93,7 +93,7 @@ def probe_media(path: Path, ffprobe: str = "ffprobe") -> MediaInfo:
         stream_types = {
             stream.get("codec_type") for stream in payload.get("streams", [])
         }
-    except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (KeyError, TypeError, ValueError) as exc:
         raise RenderError(f"ffprobe returned malformed metadata for {path}") from exc
     if not math.isfinite(duration) or duration <= 0:
         raise RenderError(f"ffprobe returned invalid duration for {path}: {duration}")

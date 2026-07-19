@@ -90,7 +90,7 @@ def run(argv: list[str]) -> int:
     try:
         payload = json.loads(edl_path.read_text(encoding="utf-8"))
         edl = EDL.from_dict(payload)
-    except (OSError, TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (OSError, TypeError, ValueError, KeyError) as exc:
         print(f"zing render: invalid EDL JSON: {exc}", file=sys.stderr)
         return 2
 
@@ -120,7 +120,7 @@ def run(argv: list[str]) -> int:
                     language=args.voice_language,
                 )
             )
-        except (OSError, UnicodeError, ValueError) as exc:
+        except (OSError, ValueError) as exc:
             print(f"zing render: invalid voiceover script: {exc}", file=sys.stderr)
             return 2
         provider = default_tts_provider(args.kokoro_model_dir)
