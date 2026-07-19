@@ -3,6 +3,8 @@ timeline, loud failures, measured-keeper divergence warnings."""
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from myzing.schemas import Breakdown, VideoMeta
@@ -56,7 +58,7 @@ def test_contiguous_timeline_in_direction_order(media):
     assert clips[0].timeline_start == 0.0
     assert clips[1].timeline_start == 10.0     # contiguous, no gaps
     assert result.edl.width == 1080 and result.edl.fps == 30.0
-    assert result.warnings == []
+    assert not [w for w in result.warnings if "measured keeper" in w]
 
 
 def test_unmeasured_span_is_flagged_not_blocked(media):
@@ -77,7 +79,7 @@ def test_edge_tolerance_on_measured_match(media):
     result = draft_edl(b, direction_with([
         {"start": 8.2, "end": 15.4, "why": "trimmed a hair looser"},
     ]), media)
-    assert result.warnings == []               # within 0.35s tolerance
+    assert not [w for w in result.warnings if "measured keeper" in w]  # within 0.35s tolerance
 
 
 def test_no_raw_mode_yields_crosscheck_warning(media):
@@ -136,6 +138,91 @@ def test_missing_media_is_an_error(tmp_path):
         draft_edl(make_breakdown(), direction_with([
             {"start": 1.0, "end": 5.0, "why": "x"},
         ]), tmp_path / "gone.mp4")
+
+
+def test_captions_derived_from_measured_words(media):
+    """D-8: word-timed CaptionSpecs from the breakdown's words inside each
+    trim, remapped to the output timeline."""
+    from myzing.schemas import Word
+
+    b = make_breakdown()
+    b.words = [
+        Word("hello", 5.2, 5.5, 0.9), Word("world", 5.6, 5.9, 0.9),
+        Word("outside", 20.0, 20.4, 0.9),   # not inside any clip
+        Word("after", 7.0, 7.4, 0.9),       # gap > 0.6s -> second window
+    ]
+    result = draft_edl(b, direction_with([
+        {"start": 5.0, "end": 10.0, "why": "the take"},
+    ]), media)
+
+    caps = result.edl.captions
+    assert len(caps) == 2
+    # timeline remap: clip src_in 5.0 -> timeline 0.0, so 5.2 -> 0.2
+    assert caps[0].start == 0.2 and caps[0].words[0].start == 0.2
+    assert caps[0].text == "HELLO WORLD"      # default style: caps
+    assert caps[0].word_timed is True
+    assert caps[1].text == "AFTER" and caps[1].start == 2.0
+    assert all("outside" not in c.text.lower() for c in caps)
+
+
+def test_caption_style_measured_from_source(media):
+    from myzing.schemas import CaptionEvent, Word
+
+    b = make_breakdown()
+    b.words = [Word("hi", 5.0, 5.3, 0.9)]
+    b.captions = [
+        CaptionEvent("lower case block", 1.0, 3.0, "top", False, 6, 0.9),
+        CaptionEvent("another block", 4.0, 6.0, "top", False, 6, 0.9),
+    ]
+    result = draft_edl(b, direction_with([
+        {"start": 4.5, "end": 8.0, "why": "x"},
+    ]), media)
+
+    (cap,) = result.edl.captions
+    assert cap.position == "top"
+    assert cap.all_caps is False and cap.text == "hi"
+    assert cap.word_timed is False            # source shows 6 words at once
+
+
+def test_no_transcript_names_caption_omission(media):
+    b = make_breakdown()
+    result = draft_edl(b, direction_with([
+        {"start": 5.0, "end": 10.0, "why": "x"},
+    ]), media)
+    assert result.edl.captions == []
+    assert any("no transcript" in w for w in result.warnings)
+
+
+def test_assemble_cli(zing_workspace, tmp_path, capsys):
+    """D-7: the direction->draft step is reachable from the CLI."""
+    from myzing import cli, storage
+    from myzing.schemas import Word
+
+    b = make_breakdown(measured_keepers=[(2.0, 9.0)])
+    b.words = [Word("take", 2.5, 2.9, 0.9)]
+    storage.save_breakdown(b, slug="cli-asm")
+    storage.media_target("cli-asm", "mp4").write_bytes(b"fake" * 4)
+    direction_file = tmp_path / "direction.json"
+    direction_file.write_text(json.dumps(direction_with([
+        {"start": 2.0, "end": 9.0, "why": "the take"},
+    ])), encoding="utf-8")
+
+    rc = cli.main(["assemble", "cli-asm", "--direction", str(direction_file)])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "draft EDL: 1 clip(s), 7.0s, 1 caption(s)" in out
+    assert (storage.breakdown_dir("cli-asm") / "draft-edl.json").is_file()
+
+
+def test_assemble_cli_bad_direction_file(zing_workspace, tmp_path, capsys):
+    from myzing import cli
+
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not json", encoding="utf-8")
+    rc = cli.main(["assemble", "any", "--direction", str(bad)])
+    assert rc == 1
+    assert "unreadable direction file" in capsys.readouterr().out
 
 
 def test_draft_for_slug_writes_edl(zing_workspace, monkeypatch):

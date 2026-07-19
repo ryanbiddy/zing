@@ -22,6 +22,7 @@ _COMMANDS = {
     "doctor": "myzing.doctor",
     "study": "myzing.study.command",
     "profile": "myzing.profile.command",
+    "assemble": "myzing.assemble.command",
     "serve-mcp": "myzing.mcp_server",
     "prompt": "myzing.prompt_pack",
     "setup": "myzing.setup_flow",
