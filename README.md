@@ -14,7 +14,7 @@ Works standalone (`zing study <url>`), and works hand-in-hand with
 [Uoink](https://github.com/ryanbiddy/uoink) — the local context layer where
 your saved references live.
 
-Status: pre-alpha, under active build. See `handoff/SPRINT-1-D1.md` and the [Developer Guide](docs/DEVELOPER-GUIDE.md).
+Status: pre-alpha, under active build. See the [Developer Guide](docs/DEVELOPER-GUIDE.md), [CONNECT](docs/CONNECT.md) for AI clients, and [DIRECT-FLOW](docs/DIRECT-FLOW.md) for the direction workflow.
 
 ## Quick Start
 ```bash
