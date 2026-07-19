@@ -23,7 +23,7 @@ SIGNATURES = (
     "audio_aligned_cut",
 )
 DETECTOR_NAME = "zing-transition-signatures"
-DETECTOR_VERSION = 2
+DETECTOR_VERSION = 3
 FRAME_WIDTH = 96
 FRAME_HEIGHT = 96
 ACTIVE_DIFFERENCE = 0.8
@@ -31,6 +31,8 @@ HARD_CUT_MAX_PAIRS = 2
 HARD_CUT_DIFFERENCE = 15.0
 HARD_CUT_HISTOGRAM_DISTANCE = 0.1
 GRADUAL_MIN_PAIRS = 4
+DISSOLVE_TEMPORAL_MONOTONICITY = 0.75
+DISSOLVE_MEAN_FRAME_DIFFERENCE = 1.0
 ZOOM_RADIAL_COHERENCE = 0.48
 ZOOM_FLOW_MAGNITUDE = 0.7
 WIPE_CENTROID_WIDTH_FRACTION = 0.3
@@ -56,6 +58,10 @@ DETECTOR_THRESHOLDS = {
     },
     "gradual": {
         "min_frame_pairs": GRADUAL_MIN_PAIRS,
+    },
+    "dissolve": {
+        "temporal_monotonicity": DISSOLVE_TEMPORAL_MONOTONICITY,
+        "mean_frame_difference": DISSOLVE_MEAN_FRAME_DIFFERENCE,
     },
     "zoom_punch": {
         "radial_flow_coherence": ZOOM_RADIAL_COHERENCE,
@@ -316,6 +322,23 @@ def _active_runs(features: list[PairFeatures]) -> list[list[PairFeatures]]:
     return runs
 
 
+def _temporal_monotonicity(
+    left: bytes,
+    right: bytes,
+    run: list[PairFeatures],
+) -> float:
+    """Measure net frame change as a fraction of the run's change path."""
+    path_distance = sum(
+        feature.mean_absolute_difference for feature in run
+    )
+    if path_distance <= 0:
+        return 0.0
+    endpoint_distance = sum(
+        abs(a - b) for a, b in zip(left, right)
+    ) / len(left)
+    return min(1.0, endpoint_distance / path_distance)
+
+
 def _audio_onsets(
     media_path: Path,
     ffmpeg: str,
@@ -373,9 +396,14 @@ def detect_transition_signatures(
         for index, (left, right) in enumerate(zip(frames, frames[1:]))
     ]
     runs = _active_runs(features)
+    feature_indices = {
+        id(feature): index for index, feature in enumerate(features)
+    }
     predictions: set[str] = set()
     events = []
     hard_cut_times = []
+    dissolve_candidate_count = 0
+    suppressed_dissolve_candidates = 0
     for run in runs:
         max_difference = max(
             feature.mean_absolute_difference for feature in run
@@ -420,7 +448,24 @@ def detect_transition_signatures(
             ):
                 signature = "wipe"
             else:
-                signature = "dissolve"
+                dissolve_candidate_count += 1
+                start_frame = feature_indices[id(run[0])]
+                end_frame = feature_indices[id(run[-1])] + 1
+                monotonicity = _temporal_monotonicity(
+                    frames[start_frame],
+                    frames[end_frame],
+                    run,
+                )
+                mean_difference = sum(
+                    feature.mean_absolute_difference for feature in run
+                ) / len(run)
+                if (
+                    monotonicity >= DISSOLVE_TEMPORAL_MONOTONICITY
+                    and mean_difference >= DISSOLVE_MEAN_FRAME_DIFFERENCE
+                ):
+                    signature = "dissolve"
+                else:
+                    suppressed_dissolve_candidates += 1
         if signature is not None:
             predictions.add(signature)
             events.append(
@@ -453,6 +498,8 @@ def detect_transition_signatures(
         "feature_summary": {
             "frame_count": len(frames),
             "active_run_count": len(runs),
+            "dissolve_candidate_count": dissolve_candidate_count,
+            "suppressed_dissolve_candidates": suppressed_dissolve_candidates,
             "max_frame_difference": max(
                 feature.mean_absolute_difference for feature in features
             ),

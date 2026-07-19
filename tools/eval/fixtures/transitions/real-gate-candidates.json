@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "corpus": "Sprint 2 gate-pack talking-head sources",
+  "source_document": "handoff/S2-GATE-PACK-2026-07-18.md",
+  "prior_detector_version": 2,
+  "annotation": {
+    "status": "unjudged",
+    "human_transition_labels_available": false,
+    "precision_available": false,
+    "reason": "The gate pack froze detector measurements, not frame-level human transition truth. Candidate rejection is a calibration diagnostic and must not be reported as real-video precision."
+  },
+  "spot_checks": [
+    {
+      "fixture_id": "youtube-n13pfpa5ddi",
+      "start_seconds": 57.708333,
+      "end_seconds": 58.0,
+      "label": "camera_motion_no_transition",
+      "note": "A nine-frame visual check showed one continuous shot with weak camera drift and no blend between scenes. This was the only prior candidate above the monotonicity threshold."
+    },
+    {
+      "fixture_id": "youtube-jzrqqbancx8",
+      "start_seconds": 0.04,
+      "end_seconds": 100.44,
+      "label": "not_one_dissolve",
+      "note": "The candidate spans nearly the full 100.519-second source and crosses 13 measured shots, so it cannot represent one dissolve event."
+    }
+  ],
+  "sources": [
+    {
+      "fixture_id": "youtube-n13pfpa5ddi",
+      "source_url": "https://www.youtube.com/shorts/N13PfPA5dDI",
+      "media_sha256": "b60804ab07761311adcdd6f7d042d88eb313d56418a15144aa0947a2a01254b1",
+      "measured_at": "2026-07-18T23:25:07+00:00",
+      "prior_dissolve_candidates": [
+        {"start_seconds": 0.083333, "end_seconds": 0.541667, "frame_pair_count": 12, "temporal_monotonicity": 0.382517, "mean_frame_difference": 12.149342},
+        {"start_seconds": 1.541667, "end_seconds": 3.083333, "frame_pair_count": 38, "temporal_monotonicity": 0.084565, "mean_frame_difference": 8.254572},
+        {"start_seconds": 4.083333, "end_seconds": 4.541667, "frame_pair_count": 12, "temporal_monotonicity": 0.140453, "mean_frame_difference": 2.437265},
+        {"start_seconds": 7.125, "end_seconds": 9.125, "frame_pair_count": 49, "temporal_monotonicity": 0.238062, "mean_frame_difference": 4.781897},
+        {"start_seconds": 9.958333, "end_seconds": 20.75, "frame_pair_count": 260, "temporal_monotonicity": 0.019077, "mean_frame_difference": 7.112037},
+        {"start_seconds": 23.166667, "end_seconds": 24.083333, "frame_pair_count": 23, "temporal_monotonicity": 0.146592, "mean_frame_difference": 8.182797},
+        {"start_seconds": 32.833333, "end_seconds": 35.333333, "frame_pair_count": 61, "temporal_monotonicity": 0.019767, "mean_frame_difference": 6.042921},
+        {"start_seconds": 36.25, "end_seconds": 36.5, "frame_pair_count": 7, "temporal_monotonicity": 0.46006, "mean_frame_difference": 1.092138},
+        {"start_seconds": 37.416667, "end_seconds": 37.875, "frame_pair_count": 12, "temporal_monotonicity": 0.324579, "mean_frame_difference": 1.436325},
+        {"start_seconds": 39.208333, "end_seconds": 42.208333, "frame_pair_count": 73, "temporal_monotonicity": 0.090344, "mean_frame_difference": 5.654404},
+        {"start_seconds": 44.041667, "end_seconds": 46.291667, "frame_pair_count": 55, "temporal_monotonicity": 0.14461, "mean_frame_difference": 1.896463},
+        {"start_seconds": 46.416667, "end_seconds": 46.708333, "frame_pair_count": 8, "temporal_monotonicity": 0.264274, "mean_frame_difference": 1.684475},
+        {"start_seconds": 46.916667, "end_seconds": 48.166667, "frame_pair_count": 31, "temporal_monotonicity": 0.282523, "mean_frame_difference": 5.042006},
+        {"start_seconds": 48.25, "end_seconds": 48.625, "frame_pair_count": 10, "temporal_monotonicity": 0.510999, "mean_frame_difference": 1.31952},
+        {"start_seconds": 50.208333, "end_seconds": 51.083333, "frame_pair_count": 22, "temporal_monotonicity": 0.339874, "mean_frame_difference": 5.902768},
+        {"start_seconds": 54.166667, "end_seconds": 54.708333, "frame_pair_count": 14, "temporal_monotonicity": 0.541039, "mean_frame_difference": 1.491397},
+        {"start_seconds": 55.875, "end_seconds": 57.625, "frame_pair_count": 43, "temporal_monotonicity": 0.20242, "mean_frame_difference": 8.248655},
+        {"start_seconds": 57.708333, "end_seconds": 58.0, "frame_pair_count": 8, "temporal_monotonicity": 0.880029, "mean_frame_difference": 0.812188},
+        {"start_seconds": 58.083333, "end_seconds": 62.041667, "frame_pair_count": 96, "temporal_monotonicity": 0.19471, "mean_frame_difference": 4.743812},
+        {"start_seconds": 65.541667, "end_seconds": 68.833333, "frame_pair_count": 80, "temporal_monotonicity": 0.492633, "mean_frame_difference": 1.727515},
+        {"start_seconds": 68.916667, "end_seconds": 72.5, "frame_pair_count": 87, "temporal_monotonicity": 0.131252, "mean_frame_difference": 4.721125}
+      ]
+    },
+    {
+      "fixture_id": "youtube-jzrqqbancx8",
+      "source_url": "https://www.youtube.com/shorts/jZRQQbanCx8",
+      "media_sha256": "893c630c73aa2da63324bf81045c5c3e06ac195884dccd09fed9fcf367471fd5",
+      "measured_at": "2026-07-18T23:28:22+00:00",
+      "prior_dissolve_candidates": [
+        {"start_seconds": 0.04, "end_seconds": 100.44, "frame_pair_count": 2511, "temporal_monotonicity": 0.002719, "mean_frame_difference": 12.265167}
+      ]
+    },
+    {
+      "fixture_id": "youtube-frj95og0xce",
+      "source_url": "https://www.youtube.com/shorts/Frj95og0xcE",
+      "media_sha256": "17b79c5b73e5217d8ce02a4217466b98fa8b722d15a3fa1dee7f4e297a1f9943",
+      "measured_at": "2026-07-18T23:29:49+00:00",
+      "prior_dissolve_candidates": [
+        {"start_seconds": 0.1, "end_seconds": 7.133333, "frame_pair_count": 212, "temporal_monotonicity": 0.039883, "mean_frame_difference": 5.468727},
+        {"start_seconds": 10.2, "end_seconds": 20.466667, "frame_pair_count": 309, "temporal_monotonicity": 0.024776, "mean_frame_difference": 5.995199},
+        {"start_seconds": 20.566667, "end_seconds": 21.3, "frame_pair_count": 23, "temporal_monotonicity": 0.303216, "mean_frame_difference": 2.673696},
+        {"start_seconds": 21.6, "end_seconds": 22.7, "frame_pair_count": 34, "temporal_monotonicity": 0.35654, "mean_frame_difference": 2.683795},
+        {"start_seconds": 22.933333, "end_seconds": 26.233333, "frame_pair_count": 100, "temporal_monotonicity": 0.05805, "mean_frame_difference": 3.753487},
+        {"start_seconds": 26.333333, "end_seconds": 31.566667, "frame_pair_count": 158, "temporal_monotonicity": 0.035943, "mean_frame_difference": 4.413354},
+        {"start_seconds": 31.7, "end_seconds": 32.133333, "frame_pair_count": 14, "temporal_monotonicity": 0.523014, "mean_frame_difference": 4.81591}
+      ]
+    }
+  ]
+}
