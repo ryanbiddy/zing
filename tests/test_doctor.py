@@ -16,8 +16,10 @@ from myzing import doctor
 @pytest.fixture(autouse=True)
 def _fresh_version_cache():
     doctor._version_cache.clear()
+    doctor._peer_cache.clear()
     yield
     doctor._version_cache.clear()
+    doctor._peer_cache.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +42,8 @@ def bare_machine(monkeypatch):
         raise urllib.error.URLError("no route")
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", refuse)
+    from myzing import suite_peer
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
 
 
 @pytest.fixture
@@ -56,6 +60,8 @@ def full_machine(monkeypatch):
         raise urllib.error.URLError("no route")
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", refuse)
+    from myzing import suite_peer
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
 
 
 # -- bare machine ------------------------------------------------------------
