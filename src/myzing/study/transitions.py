@@ -343,7 +343,11 @@ def _audio_onsets(
     media_path: Path,
     ffmpeg: str,
     sample_rate: int = AUDIO_SAMPLE_RATE,
-) -> list[float]:
+) -> tuple[list[float], bool]:
+    """Onset times plus a probed-ok flag: a FAILED audio decode must stay
+    distinguishable from measured-no-onsets, or audio_aligned_cut silently
+    can never fire and the report reads as measured-empty (A-Q10 finding,
+    same contract rule as Breakdown warnings)."""
     result = _run(
         [
             ffmpeg,
@@ -363,7 +367,7 @@ def _audio_onsets(
         ]
     )
     if result.returncode:
-        return []
+        return [], False
     samples = array("h")
     samples.frombytes(result.stdout)
     window = sample_rate // AUDIO_WINDOWS_PER_SECOND
@@ -376,7 +380,7 @@ def _audio_onsets(
         previous = levels[index - 1] if index else 0.0
         if level >= AUDIO_ONSET_LEVEL and previous < AUDIO_PREVIOUS_MAX:
             onsets.append(index * window / sample_rate)
-    return onsets
+    return onsets, True
 
 
 def detect_transition_signatures(
@@ -477,7 +481,7 @@ def detect_transition_signatures(
                 }
             )
 
-    audio_onsets = _audio_onsets(media_path, ffmpeg)
+    audio_onsets, audio_probe_ok = _audio_onsets(media_path, ffmpeg)
     aligned = [
         {
             "cut_seconds": cut,
@@ -494,6 +498,7 @@ def detect_transition_signatures(
         "predicted": sorted(predictions),
         "events": events,
         "audio_onsets_seconds": [round(value, 6) for value in audio_onsets],
+        "audio_probe_ok": audio_probe_ok,
         "audio_aligned_pairs": aligned,
         "feature_summary": {
             "frame_count": len(frames),

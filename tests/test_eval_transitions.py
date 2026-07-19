@@ -115,7 +115,7 @@ def test_non_monotonic_gradual_motion_is_not_a_dissolve(
     monkeypatch.setattr(
         study_transitions,
         "_audio_onsets",
-        lambda media_path, ffmpeg: [],
+        lambda media_path, ffmpeg: ([], True),
     )
 
     measurement = study_transitions.detect_transition_signatures(
@@ -174,3 +174,37 @@ def test_transition_goldens_report_per_signature_precision(
     assert report["limitations"]["prototype_only"] is True
     assert "match_cut" in report["limitations"]["not_detected"]
     assert json.loads(report_path.read_text(encoding="utf-8")) == report
+
+
+def test_failed_audio_probe_is_distinguishable_from_no_onsets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A-Q10 finding closed: audio decode failure must not read as
+    measured-empty (the skipped-vs-empty conflation the contract bans)."""
+    frame_size = (
+        study_transitions.FRAME_WIDTH * study_transitions.FRAME_HEIGHT
+    )
+    frames = [bytes([0]) * frame_size, bytes([255]) * frame_size]
+    monkeypatch.setattr(
+        study_transitions,
+        "_probe_video",
+        lambda media_path, ffprobe: (30.0, 96, 96),
+    )
+    monkeypatch.setattr(
+        study_transitions,
+        "_read_gray_frames",
+        lambda media_path, ffmpeg, width, height: frames,
+    )
+    monkeypatch.setattr(
+        study_transitions,
+        "_audio_onsets",
+        lambda media_path, ffmpeg: ([], False),
+    )
+
+    measurement = study_transitions.detect_transition_signatures(
+        tmp_path / "silent-failure.mp4"
+    )
+
+    assert measurement["audio_probe_ok"] is False
+    assert measurement["audio_onsets_seconds"] == []
