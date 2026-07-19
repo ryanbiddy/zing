@@ -670,3 +670,127 @@ def test_kept_media_undeletable_corrupt_copy_dies_honestly(
 
     with pytest.raises(ingest.MediaError):
         ingest.ingest(url, kept_media=kept)
+
+
+# -- defensive-branch pinning (SG-2 finisher) --------------------------------
+
+def test_tco_host_is_platform_x():
+    assert ingest.detect_platform("https://t.co/abc123") == "x"
+
+
+def test_ytdlp_success_but_no_file_is_an_error(zing_workspace, monkeypatch):
+    fake = FakeTools()
+    real = fake.__call__
+
+    def no_file(cmd, timeout=None):
+        if cmd[0] == "yt-dlp":
+            fake.calls.append(cmd)
+            return ok(cmd)          # exit 0, writes nothing
+        return real(cmd, timeout)
+    use(monkeypatch, no_file)
+
+    with pytest.raises(ingest.MediaError, match="no media file landed"):
+        ingest.ingest("https://www.tiktok.com/@cleo/video/999")
+
+
+def test_corrupt_info_json_is_ignored(zing_workspace, monkeypatch):
+    fake = FakeTools()
+    real = fake.__call__
+
+    def bad_info(cmd, timeout=None):
+        if cmd[0] == "yt-dlp":
+            dest = Path(cmd[cmd.index("-P") + 1])
+            (dest / "media.mp4").write_bytes(b"fake-video")
+            (dest / "media.info.json").write_text("{not json", encoding="utf-8")
+            fake.calls.append(cmd)
+            return ok(cmd)
+        return real(cmd, timeout)
+    use(monkeypatch, bad_info)
+
+    result = ingest.ingest("https://www.tiktok.com/@cleo/video/998")
+
+    assert result.meta.author == ""      # info honestly empty, not a crash
+
+
+def test_unparseable_ffprobe_output_is_an_error(zing_workspace, tmp_path, monkeypatch):
+    def garbage(cmd, timeout=None):
+        return ok(cmd, "this is not json")
+    monkeypatch.setattr("myzing.study.ingest.proc.run", garbage)
+    local = tmp_path / "take.mp4"
+    local.write_bytes(b"bytes")
+
+    with pytest.raises(ingest.MediaError, match="unparseable output"):
+        ingest.ingest(str(local))
+
+
+def test_pts_scan_skips_garbage_lines(zing_workspace, tmp_path, monkeypatch):
+    fake = FakeTools()
+    fake.pts_csv = "0.000000\nN/A\n0.033333\ngarbage\n" + pts_csv([1 / 30] * 100, start=0.066666)
+    use(monkeypatch, fake)
+    local = tmp_path / "take.mp4"
+    local.write_bytes(b"bytes")
+
+    result = ingest.ingest(str(local))   # must not crash on the bad rows
+
+    assert result.meta.duration > 0
+
+
+def test_all_duplicate_pts_normalizes_as_broken(zing_workspace, tmp_path, monkeypatch):
+    """Every packet at the same PTS = broken timing; the scan must demand
+    normalization rather than divide by a zero mean."""
+    fake = FakeTools()
+    fake.pts_csv = "\n".join(["1.000000"] * 40) + "\n"
+    use(monkeypatch, fake)
+    local = tmp_path / "take.mp4"
+    local.write_bytes(b"bytes")
+
+    result = ingest.ingest(str(local))
+
+    assert any("normaliz" in w.lower() for w in result.warnings)
+
+
+def test_duration_fallback_when_probe_has_no_duration(
+    zing_workspace, tmp_path, monkeypatch
+):
+    fake = FakeTools(probe_stdout=probe_json(duration=""))
+    use(monkeypatch, fake)
+    local = tmp_path / "take.mp4"
+    local.write_bytes(b"bytes")
+
+    result = ingest.ingest(str(local))
+
+    assert result.meta.duration == 0.0   # honest zero, never invented
+
+
+def test_normalize_failure_cleans_up_and_raises(zing_workspace, tmp_path, monkeypatch):
+    fake = FakeTools(probe_stdout=probe_json(codec="vp9"))   # forces normalize
+    real = fake.__call__
+
+    def ffmpeg_fails(cmd, timeout=None):
+        if cmd[0] == "ffmpeg":
+            fake.calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 1, "", "encoder exploded")
+        return real(cmd, timeout)
+    use(monkeypatch, ffmpeg_fails)
+    local = tmp_path / "take.webm"
+    local.write_bytes(b"bytes")
+
+    with pytest.raises(ingest.MediaError):
+        ingest.ingest(str(local))
+
+
+def test_normalize_exit_zero_no_file_is_an_error(zing_workspace, tmp_path, monkeypatch):
+    fake = FakeTools(probe_stdout=probe_json(codec="vp9"))
+    real = fake.__call__
+
+    def ffmpeg_silent(cmd, timeout=None):
+        if cmd[0] == "ffmpeg":
+            fake.calls.append(cmd)
+            return ok(cmd)           # exit 0, writes nothing
+        return real(cmd, timeout)
+    use(monkeypatch, ffmpeg_silent)
+    local = tmp_path / "take.webm"
+    local.write_bytes(b"bytes")
+
+    with pytest.raises(ingest.MediaError, match="produced no normalized file"):
+        ingest.ingest(str(local))
