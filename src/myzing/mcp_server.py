@@ -549,13 +549,29 @@ def h_save_judgment(
         updated = storage.save_judgment(slug, {section: body})
     except FileNotFoundError as e:
         return _err(f"{e} — study the video first (study_video)")
-    return _ok(
-        slug=slug,
-        section_written=section,
-        sections_now=sorted(updated.judgment),
-        prompt_version=prompt_version,
-        path=str(storage.breakdown_dir(slug) / "breakdown.json"),
-    )
+    receipt: dict[str, Any] = {
+        "slug": slug,
+        "section_written": section,
+        "sections_now": sorted(updated.judgment),
+        "prompt_version": prompt_version,
+        "path": str(storage.breakdown_dir(slug) / "breakdown.json"),
+    }
+    if section == "direct":
+        # S3: a direction judgment renders to the file a creator reads.
+        # The judgment is already saved — a render failure must not
+        # pretend otherwise, so it degrades to an honest note.
+        from myzing import direction
+
+        try:
+            md = direction.render_direction(updated.judgment["direct"], slug)
+            md_path = storage.breakdown_dir(slug) / "direction.md"
+            md_path.write_text(md, encoding="utf-8")
+            receipt["direction_md"] = str(md_path)
+        except Exception as e:  # noqa: BLE001 — boundary
+            receipt["direction_md_error"] = (
+                f"judgment saved, but direction.md failed to render: {e}"
+            )
+    return _ok(**receipt)
 
 
 def h_zing_status() -> dict[str, Any]:
