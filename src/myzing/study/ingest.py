@@ -94,21 +94,19 @@ def detect_platform(source: str) -> str:
     return "url"
 
 
-def ingest(source: str, root: Path | None = None) -> IngestResult:
-    """``root`` (A-Q7/F-15): explicit workspace root, forwarded to storage
-    when given — the caller (api.study) only passes it once storage
-    supports it, so no signature checks are needed here."""
+def ingest(source: str) -> IngestResult:
+    """Workspace routing is storage's job (ContextVar pin via
+    use_workspace); ingest never carries roots around."""
     warnings: list[str] = []
     slug = storage.slug_for(source)
-    root_kwargs: dict[str, Any] = {} if root is None else {"root": root}
-    dest = storage.breakdown_dir(slug, **root_kwargs)
+    dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
 
     if is_url(source):
-        media = _fetch(source, slug, dest, warnings, root_kwargs)
+        media = _fetch(source, slug, dest, warnings)
         info = _read_info_json(dest)
     else:
-        media = _stage_local(source, slug, root_kwargs)
+        media = _stage_local(source, slug)
         info = {}
 
     probed = probe(media)
@@ -152,14 +150,8 @@ def ingest(source: str, root: Path | None = None) -> IngestResult:
 
 # -- fetch / stage ----------------------------------------------------------
 
-def _fetch(
-    url: str,
-    slug: str,
-    dest: Path,
-    warnings: list[str],
-    root_kwargs: dict[str, Any],
-) -> Path:
-    existing = storage.find_media(slug, **root_kwargs)
+def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
+    existing = storage.find_media(slug)
     if existing is not None:
         warnings.append(f"reusing already-downloaded media: {existing.name}")
         return existing
@@ -179,7 +171,7 @@ def _fetch(
             f"yt-dlp could not fetch {url} (exit {res.returncode}):\n"
             f"{proc.tail(res.stderr)}"
         )
-    media = storage.find_media(slug, **root_kwargs)
+    media = storage.find_media(slug)
     if media is None:
         raise MediaError(
             f"yt-dlp exited 0 but no media file landed in {dest} — "
@@ -188,11 +180,11 @@ def _fetch(
     return media
 
 
-def _stage_local(path_str: str, slug: str, root_kwargs: dict[str, Any]) -> Path:
+def _stage_local(path_str: str, slug: str) -> Path:
     src = Path(path_str)
     if not src.is_file():
         raise MediaError(f"no such file: {src}")
-    target = storage.media_target(slug, src.suffix, **root_kwargs)
+    target = storage.media_target(slug, src.suffix)
     if not (target.exists() and target.stat().st_size == src.stat().st_size):
         shutil.copy2(src, target)
     return target

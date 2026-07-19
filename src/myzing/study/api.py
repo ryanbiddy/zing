@@ -16,9 +16,8 @@ storage. Every skipped or degraded measurement arrives in
 
 from __future__ import annotations
 
-import inspect
 import os
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -59,21 +58,14 @@ def study(
     failure produces no observations, a named warning, and detector
     provenance instead of aborting the rest of the study.
 
-    Workspace threading (A-Q7 / F-15): when storage exposes explicit
-    ``root=`` parameters, ``workspace`` is passed straight through and NO
-    process-global state is touched — safe under concurrent MCP jobs.
-    Until then the env-var override below is the documented, thread-unsafe
-    fallback for the CLI's single-threaded use.
+    Workspace threading (F-15, closed): ``workspace`` is pinned via
+    storage's ContextVar ``use_workspace`` — thread-safe under concurrent
+    MCP jobs, no process-global state. The env-var mutation survives only
+    as a fallback for a storage build without it.
     """
-    root = workspace if (workspace is not None and _storage_accepts_root()) else None
-    override = (
-        _workspace_override(workspace)
-        if workspace is not None and root is None
-        else nullcontext()
-    )
-    with override:
+    with _workspace_override(workspace):
         _phase(phase_callback, "ingest")
-        ing = ingest_mod.ingest(source, root=root)
+        ing = ingest_mod.ingest(source)
         warnings: list[str] = list(ing.warnings)
         provenance: dict[str, Any] = {}
 
@@ -142,30 +134,12 @@ def study(
             warnings=warnings,
             provenance=provenance,
         )
-        save_kwargs: dict[str, Any] = {}
-        if root is not None and _accepts_root(storage.save_breakdown):
-            save_kwargs["root"] = root
         storage.save_breakdown(
             breakdown,
             slug=ing.slug,
             markdown=report.render_markdown(breakdown),
-            **save_kwargs,
         )
         return breakdown
-
-
-def _accepts_root(fn: Any) -> bool:
-    try:
-        return "root" in inspect.signature(fn).parameters
-    except (TypeError, ValueError):
-        return False
-
-
-def _storage_accepts_root() -> bool:
-    """Canary for Lane B's F-15 half: once storage's path functions accept
-    an explicit ``root=``, study() threads the workspace through instead of
-    mutating the process environment."""
-    return _accepts_root(storage.breakdown_dir)
 
 
 def _phase(callback: Callable[[str], None] | None, name: str) -> None:
