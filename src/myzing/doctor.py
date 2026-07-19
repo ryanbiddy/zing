@@ -163,6 +163,54 @@ def _ytdlp_version_age_days(version: str, today: date) -> int | None:
     return (today - released).days
 
 
+def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str]:
+    """YouTube-challenge readiness, separate from staleness parsing.
+
+    B-Q12: yt-dlp's YouTube extractor executes real JavaScript for
+    signature solving, which needs BOTH an external JS runtime and the
+    EJS solver scripts (yt_dlp_ejs, shipped by yt-dlp[default]).
+    Returns (js_runtime, has_solver, note, fix); note/fix are "" when
+    the host is fully configured.
+    """
+    js_runtime = next((rt for rt in ("deno", "node") if _which(rt)), None)
+    note = ""
+    fix = ""
+    if js_runtime is None:
+        # D-9: what S2 warned about is now reality — YouTube fetches FAIL
+        # without an external JS runtime, they don't just warn.
+        note = (
+            "; no JS runtime (deno/node) found — YouTube fetches WILL fail "
+            "(yt-dlp requires one for YouTube's signature solving)"
+        )
+        fix = "winget install DenoLand.Deno   (guide: " + _troubleshooting_ref() + ")"
+    elif js_runtime == "node":
+        # SW-3 (Lane A sweep): node on PATH is NOT enough — yt-dlp only
+        # enables deno by default; node needs explicit opt-in, and without
+        # it signature-challenge videos 403 while others pass, looking
+        # like an intermittent wall.
+        note = (
+            "; node found but yt-dlp only uses deno by default — "
+            "signature-challenge YouTube videos will 403 until configured"
+        )
+        fix = (
+            "add '--js-runtimes node' to your yt-dlp config, or install "
+            "deno (guide: " + _troubleshooting_ref() + ")"
+        )
+    # Audit #201 P1: runtime-without-solver reproduces as "n challenge
+    # solving failed" on every YouTube fetch.
+    has_solver = _has_module("yt_dlp_ejs")
+    if module and not has_solver:
+        note += (
+            "; EJS solver scripts missing — YouTube challenge solving "
+            "fails even with a JS runtime"
+        )
+        solver_fix = 'python -m pip install "yt-dlp[default]"'
+        fix = f"{solver_fix}; {fix}" if fix else (
+            solver_fix + "   (guide: " + _troubleshooting_ref() + ")"
+        )
+    return js_runtime, has_solver, note, fix
+
+
 def check_ytdlp(today: date | None = None) -> Check:
     today = today or date.today()
     path = _which("yt-dlp")
@@ -180,82 +228,32 @@ def check_ytdlp(today: date | None = None) -> Check:
         [path, "--version"] if path else [sys.executable, "-m", "yt_dlp", "--version"]
     )
     age = _ytdlp_version_age_days(version, today) if version else None
-    # B-Q12: yt-dlp's YouTube extractor needs an external JS runtime (deno
-    # preferred, node accepted) for signature solving; without one it prints
-    # a deprecation warning on every fetch and YouTube downloads can fail.
-    # Staleness parsing never covered this — it is a separate, named fact.
-    js_runtime = next(
-        (rt for rt in ("deno", "node") if _which(rt)), None
-    )
-    js_note = ""
-    js_fix = ""
-    if js_runtime is None:
-        # D-9: what S2 warned about is now reality — YouTube fetches FAIL
-        # without an external JS runtime, they don't just warn.
-        js_note = (
-            "; no JS runtime (deno/node) found — YouTube fetches WILL fail "
-            "(yt-dlp requires one for YouTube's signature solving)"
+    js_runtime, has_solver, js_note, js_fix = _youtube_js_advice(module)
+    stale = age is not None and age > YTDLP_STALE_DAYS
+    if stale:
+        detail = (
+            f"version {version} is ~{age} days old — platform extractors "
+            f"rot fast; TikTok/Instagram fetches may fail until updated"
         )
-        js_fix = (
-            "winget install DenoLand.Deno   (guide: "
-            + _troubleshooting_ref() + ")"
+        fix = "python -m pip install -U yt-dlp" + (
+            f"   then: {js_fix}" if js_fix else ""
         )
-    elif js_runtime == "node":
-        # SW-3 (Lane A sweep): node on PATH is NOT enough — yt-dlp only
-        # enables deno by default; node needs explicit opt-in, and without
-        # it signature-challenge videos 403 while others pass, looking
-        # like an intermittent wall.
-        js_note = (
-            "; node found but yt-dlp only uses deno by default — "
-            "signature-challenge YouTube videos will 403 until configured"
-        )
-        js_fix = (
-            "add '--js-runtimes node' to your yt-dlp config, or install "
-            "deno (guide: " + _troubleshooting_ref() + ")"
-        )
-    # Audit #201 P1: a runtime is NOT the whole story — yt-dlp's YouTube
-    # challenge solving also needs the EJS solver scripts (shipped by
-    # yt-dlp[default] as the yt_dlp_ejs package). Runtime-without-solver
-    # reproduces as "n challenge solving failed" on every YouTube fetch.
-    has_solver = _has_module("yt_dlp_ejs")
-    if module and not has_solver:
-        js_note += (
-            "; EJS solver scripts missing — YouTube challenge solving "
-            "fails even with a JS runtime"
-        )
-        solver_fix = 'python -m pip install "yt-dlp[default]"'
-        js_fix = f"{solver_fix}; {js_fix}" if js_fix else (
-            solver_fix + "   (guide: " + _troubleshooting_ref() + ")"
-        )
-    data = {
-        "version": version,
-        "age_days": age,
-        "stale": False,
-        "js_runtime": js_runtime,
-        "ejs_solver": has_solver,
-    }
-    if age is not None and age > YTDLP_STALE_DAYS:
-        data["stale"] = True
-        return Check(
-            name="yt-dlp",
-            tier=RECOMMENDED,
-            ok=True,
-            detail=(
-                f"version {version} is ~{age} days old — platform extractors "
-                f"rot fast; TikTok/Instagram fetches may fail until updated"
-                f"{js_note}"
-            ),
-            fix="python -m pip install -U yt-dlp"
-            + (f"   then: {js_fix}" if js_fix else ""),
-            data=data,
-        )
+    else:
+        detail = f"version {version}" if version else f"found at {path}"
+        fix = js_fix
     return Check(
         name="yt-dlp",
         tier=RECOMMENDED,
         ok=True,
-        detail=(f"version {version}" if version else f"found at {path}") + js_note,
-        fix=js_fix,
-        data=data,
+        detail=detail + js_note,
+        fix=fix,
+        data={
+            "version": version,
+            "age_days": age,
+            "stale": stale,
+            "js_runtime": js_runtime,
+            "ejs_solver": has_solver,
+        },
     )
 
 
