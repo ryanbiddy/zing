@@ -191,13 +191,21 @@ def test_empty_audio_body_is_loud(monkeypatch, tmp_path):
         )
 
 
-def test_non_wav_output_rejected(monkeypatch, tmp_path):
+def test_non_wav_output_rejected_before_any_network_call(monkeypatch, tmp_path):
+    """Lane C SG-1 (#206 review): the first version of this test returned
+    fake audio before asserting rejection — proving only that failure
+    EVENTUALLY happened, after a billable API call. The suffix check must
+    fire before urlopen so a bad local path can never spend quota."""
     monkeypatch.setenv(tts_providers.ELEVENLABS_KEY_ENV, "k")
-    monkeypatch.setattr(
-        tts_providers.urllib.request, "urlopen",
-        lambda request, timeout=0: FakeResponse(b"ok" * 50),
-    )
+    calls = {"n": 0}
+
+    def counting(request, timeout=0):
+        calls["n"] += 1
+        return FakeResponse(b"ok" * 50)
+
+    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", counting)
     with pytest.raises(TTSGenerationError, match=".wav extension"):
         tts_providers.ElevenLabsProvider().synthesize(
             SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.mp3"
         )
+    assert calls["n"] == 0  # rejection is free — ElevenLabs never contacted

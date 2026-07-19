@@ -795,3 +795,32 @@
   a distinct smell — three separate correct patches each minimally
   extended the same function, and none was the moment anyone stepped
   back; SG-3's job is exactly that step-back.
+- **2026-07-19 (Lane B): fix sprint — both Lane C SG-1 findings
+  (#210 P1, #206 P2) closed at the consumer boundary.**
+  - P1 (#201's aggregation boundary, third attempt): `check_ytdlp` now
+    reports ok=False for the three YouTube-blocking states (no JS
+    runtime, node-without-config, EJS solver missing) with a new
+    `mark="degraded"` display state so an INSTALLED yt-dlp never
+    prints [MISSING]. Staleness stays warning-grade. node-only is
+    honest about the limit: doctor cannot read yt-dlp's config to
+    verify `--js-runtimes node`, and the degraded_mode says so.
+    **ADOPTED Lane C's process rule**: a finding closes only when its
+    original consumer-boundary reproduction is a passing regression —
+    the new tests carry the audit id in their names
+    (`test_audit_201_no_js_runtime_is_never_fully_ready` + solver
+    variant) and pin the PRINTED verdict, not the leaf field. My old
+    leaf test asserting `ok is True  # warning-grade` was the exact
+    hole; its replacement documents that.
+  - P2: ElevenLabs output-suffix validation moved BEFORE urlopen; the
+    regression now counts network calls and asserts zero (the old
+    test proved rejection eventually happened — after spending quota).
+  - Process observation (cross-lane hazard, worth every lane's
+    attention): the shared venv's editable install currently points at
+    lane-c's worktree, so any lane's bare `python -m pytest` silently
+    tests ANOTHER lane's checkout — my two new regressions "failed"
+    against code that didn't contain the fix. Symptom to recognize:
+    fresh edits appear to have no effect. Adopted: prefix local runs
+    with `PYTHONPATH=<own-worktree>\src` (it beats the editable
+    finder); do NOT re-run `pip install -e .` — that just steals the
+    pointer from whoever has it and reproduces the bug in their lane.
+    CI was never affected (builds from the PR's own code).

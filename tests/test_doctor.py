@@ -151,7 +151,14 @@ def test_ytdlp_without_js_runtime_warns_with_fix(monkeypatch):
     )
     monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
     check = doctor.check_ytdlp(today=date(2026, 7, 18))
-    assert check.ok is True  # warning-grade, like staleness
+    # Audit #201 P1 (re-found by Lane C SG-1 2026-07-19): this used to
+    # assert ok=True "warning-grade, like staleness" — the exact leaf
+    # test that let the fully-ready contradiction survive. A capability
+    # the check itself says WILL fail is not a warning.
+    assert check.ok is False
+    assert check.mark == "degraded"
+    assert "YouTube URL study fails" in check.degraded_mode
+    assert "local files still work" in check.degraded_mode
     assert check.data["js_runtime"] is None
     assert "JS runtime" in check.detail and "YouTube" in check.detail
     assert "deno" in check.fix.lower()
@@ -322,6 +329,10 @@ def test_node_only_warns_about_default_runtimes(monkeypatch):
     assert check.data["js_runtime"] == "node"
     assert "403" in check.detail
     assert "--js-runtimes node" in check.fix
+    # Not satisfied-by-default → degraded, and honest that doctor cannot
+    # verify a user's yt-dlp config for the node opt-in.
+    assert check.ok is False and check.mark == "degraded"
+    assert "cannot read that config" in check.degraded_mode
 
 
 def test_js_runtime_fixes_point_at_troubleshooting_doc(monkeypatch):
@@ -376,6 +387,35 @@ def test_solver_present_is_quiet(monkeypatch):
     check = doctor.check_ytdlp(today=date(2026, 7, 19))
     assert check.data["ejs_solver"] is True
     assert "solver" not in check.detail.lower()
+
+
+def test_audit_201_no_js_runtime_is_never_fully_ready(full_machine, monkeypatch, capsys):
+    """Audit #201 P1's ORIGINAL consumer-boundary reproduction, pinned
+    where it failed: everything installed except a JS runtime, and the
+    printed verdict must not say 'fully ready' while the yt-dlp detail
+    says YouTube WILL fail. Leaf-field tests alone let #203 close this
+    finding while the contradiction lived on (Lane C SG-1 2026-07-19)."""
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: None if name in ("deno", "node") else f"C:/tools/{name}.exe",
+    )
+    assert doctor.run([]) == 0  # recommended-tier: degraded, not fatal
+    out = capsys.readouterr().out
+    verdict = out.splitlines()[2]
+    assert "fully ready" not in verdict
+    assert "yt-dlp" in verdict and "degraded" in verdict
+    assert "[degraded]" in out  # installed-but-failing, never [MISSING]
+    assert "MISSING" not in out
+
+
+def test_audit_201_solver_missing_is_never_fully_ready(full_machine, monkeypatch, capsys):
+    """Same boundary, other half of #201: runtime present, EJS solver
+    scripts absent — challenge solving fails, verdict must say so."""
+    monkeypatch.setattr(doctor, "_has_module", lambda name: name != "yt_dlp_ejs")
+    doctor.run([])
+    verdict = capsys.readouterr().out.splitlines()[2]
+    assert "fully ready" not in verdict
+    assert "yt-dlp" in verdict
 
 
 def test_version_probe_is_cached(monkeypatch):

@@ -88,6 +88,8 @@ class Check:
     detail: str            # what we found, honestly
     fix: str = ""          # exact command / next step when not ok (or degraded)
     degraded_mode: str = ""  # what Zing does without it (recommended tier)
+    mark: str = ""         # display-state override: "degraded" = installed
+    #                        but a promised capability currently fails
     data: dict = field(default_factory=dict)  # extra machine-readable facts
 
 
@@ -163,18 +165,23 @@ def _ytdlp_version_age_days(version: str, today: date) -> int | None:
     return (today - released).days
 
 
-def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str]:
+def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str, str]:
     """YouTube-challenge readiness, separate from staleness parsing.
 
     B-Q12: yt-dlp's YouTube extractor executes real JavaScript for
     signature solving, which needs BOTH an external JS runtime and the
     EJS solver scripts (yt_dlp_ejs, shipped by yt-dlp[default]).
-    Returns (js_runtime, has_solver, note, fix); note/fix are "" when
-    the host is fully configured.
+    Returns (js_runtime, has_solver, note, fix, degraded_mode); the
+    strings are "" when the host is fully configured, and a non-empty
+    degraded_mode means a promised fetch capability currently FAILS —
+    the check must not report ok (audit #201 P1, re-found by Lane C
+    SG-1 2026-07-19: leaf detail said "WILL fail" while the verdict
+    line still aggregated to "fully ready").
     """
     js_runtime = next((rt for rt in ("deno", "node") if _which(rt)), None)
     note = ""
     fix = ""
+    degraded = ""
     if js_runtime is None:
         # D-9: what S2 warned about is now reality — YouTube fetches FAIL
         # without an external JS runtime, they don't just warn.
@@ -183,6 +190,10 @@ def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str]:
             "(yt-dlp requires one for YouTube's signature solving)"
         )
         fix = "winget install DenoLand.Deno   (guide: " + _troubleshooting_ref() + ")"
+        degraded = (
+            "YouTube URL study fails until a JS runtime is installed; "
+            "TikTok/Instagram URLs and local files still work"
+        )
     elif js_runtime == "node":
         # SW-3 (Lane A sweep): node on PATH is NOT enough — yt-dlp only
         # enables deno by default; node needs explicit opt-in, and without
@@ -196,6 +207,12 @@ def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str]:
             "add '--js-runtimes node' to your yt-dlp config, or install "
             "deno (guide: " + _troubleshooting_ref() + ")"
         )
+        degraded = (
+            "signature-challenge YouTube videos 403 unless "
+            "'--js-runtimes node' is already in your yt-dlp config "
+            "(doctor cannot read that config to verify); other "
+            "platforms and local files unaffected"
+        )
     # Audit #201 P1: runtime-without-solver reproduces as "n challenge
     # solving failed" on every YouTube fetch.
     has_solver = _has_module("yt_dlp_ejs")
@@ -208,7 +225,12 @@ def _youtube_js_advice(module: bool) -> tuple[str | None, bool, str, str]:
         fix = f"{solver_fix}; {fix}" if fix else (
             solver_fix + "   (guide: " + _troubleshooting_ref() + ")"
         )
-    return js_runtime, has_solver, note, fix
+        degraded = degraded or (
+            "YouTube challenge solving fails until the EJS solver "
+            "scripts are installed; other platforms and local files "
+            "still work"
+        )
+    return js_runtime, has_solver, note, fix, degraded
 
 
 def check_ytdlp(today: date | None = None) -> Check:
@@ -228,7 +250,7 @@ def check_ytdlp(today: date | None = None) -> Check:
         [path, "--version"] if path else [sys.executable, "-m", "yt_dlp", "--version"]
     )
     age = _ytdlp_version_age_days(version, today) if version else None
-    js_runtime, has_solver, js_note, js_fix = _youtube_js_advice(module)
+    js_runtime, has_solver, js_note, js_fix, js_degraded = _youtube_js_advice(module)
     stale = age is not None and age > YTDLP_STALE_DAYS
     if stale:
         detail = (
@@ -241,12 +263,17 @@ def check_ytdlp(today: date | None = None) -> Check:
     else:
         detail = f"version {version}" if version else f"found at {path}"
         fix = js_fix
+    # Staleness stays warning-grade (ok=True); a broken YouTube fetch
+    # path does not — ok feeds the verdict line, and "fully ready" over
+    # a failing capability was audit #201's exact false comfort.
     return Check(
         name="yt-dlp",
         tier=RECOMMENDED,
-        ok=True,
+        ok=not js_degraded,
         detail=detail + js_note,
         fix=fix,
+        degraded_mode=js_degraded,
+        mark="degraded" if js_degraded else "",
         data={
             "version": version,
             "age_days": age,
@@ -471,6 +498,8 @@ def _print_human(checks: list[Check]) -> None:
         status = _MARKS[c.ok]
         if c.tier == OPTIONAL and not c.ok:
             status = "absent"
+        if c.mark:  # installed-but-failing must not print as MISSING
+            status = c.mark
         print(f"  [{status:>7}] {c.name} ({c.tier})")
         print(f"           {c.detail}")
         if c.degraded_mode and not c.ok:
