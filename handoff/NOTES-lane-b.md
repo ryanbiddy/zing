@@ -1341,3 +1341,16 @@
   instructions string measured at 322 self-contained chars, within
   budget. Doc-truth correction is the P2-7 change class; product
   untouched.
+- **2026-07-19 (Lane B): SG-5 pass (rotation; freeze — handoff-only).**
+  With the proposal shelf well-stocked, the bar was "unfiled +
+  evidence-rich + survives refutation." One PROCESS proposal filed:
+  the unmocked-seam rule for SG-2 (one real-backend pass through each
+  wrapper module's seam, importorskip-gated) — evidenced by TWO live
+  catches in one day (#255 scenedetect deprecation, #194 frame
+  decode) that green mocked suites were structurally blind to, plus
+  my own #248 correction as the failure mode's demonstration. Also
+  amended my registry-publication launch entry with `uv tool install
+  myzing` as the modern one-liner (uv is already our .mcpb runtime).
+  Checked and cleared en route: the suite's standing "2 skipped" are
+  both legitimate documented gates (isolated kokoro Python gate;
+  optional OTIO runtime) — not silent debt.

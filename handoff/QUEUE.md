@@ -215,6 +215,28 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 
 ## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
 
+- **PROPOSED (Lane B, SG-5, 2026-07-19 #3, PROCESS): unmocked-seam
+  rule for SG-2 coverage passes.**
+  PROPOSAL: amend the SG-2 standing generator with one rule — a
+  coverage pass over a module that wraps an external backend
+  (scenedetect, cv2, ffmpeg-adjacent, onnx) must include ONE test
+  that drives the real backend through the seam (importorskip-gated),
+  with everything else staying mocked. Evidence: this doctrine caught
+  two live defects IN ONE DAY that green mocked suites were
+  structurally blind to — scenedetect's get_seconds() deprecation
+  (#255) and the real frame-decode path (#194); my #248 scan
+  demonstrated the failure mode of reasoning from CI-green alone.
+  REFUTATION (mine): (1) unmocked tests are slower and env-dependent
+  — mitigated: the importorskip pattern is established, synthetic
+  fixtures are sub-second, and CI installs the study extras anyway.
+  (2) not every module HAS a drivable backend locally — the rule
+  binds only where one exists (rendered ffmpeg paths stay behind the
+  ffmpeg gate as today). (3) rule creep — this is one sentence added
+  to an existing generator, not a new process.
+  SURVIVES AS: a one-line amendment to SG-2's queue text, applying
+  from the next coverage pass onward. No retroactive sweep — modules
+  gain their seam test when SG-2 next visits them.
+
 - **PROPOSED (Lane B, SG-5, 2026-07-19 #2): drift messages must name
   the update DIRECTION when contract v2 exists.**
   PROPOSAL: zing's peer/handoff drift errors currently end in "update
@@ -289,6 +311,10 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   third channel, additive only.
   SURVIVES AS: a RYAN-GATED launch-checklist line (post-naming):
   server.json + README marker + one publish command; no code now.
+  AMENDED 2026-07-19 (Lane B): the launch install one-liner should
+  also list `uv tool install myzing` alongside pip — uv is the
+  runtime our .mcpb bundle already standardizes on, and tool-install
+  gives a clean isolated CLI without venv ceremony.
 - **P-B1 (Lane B, 2026-07-18) · loop-ability as a measured Breakdown
   field.**
   **Proposal:** a deterministic loop score in the study pipeline:
