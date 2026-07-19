@@ -1,0 +1,124 @@
+{
+  "contract": "ryan.suite.health/1",
+  "cases": [
+    {
+      "id": "valid_uoink",
+      "expected_valid": true,
+      "context": {
+        "expected_service": "uoink"
+      },
+      "payload": {
+        "ok": true,
+        "contract": "ryan.suite.health",
+        "version": 1,
+        "service_id": "uoink",
+        "service_version": "3.6.0",
+        "state": "ready",
+        "checks": [
+          {
+            "id": "core",
+            "required": true,
+            "status": "ready"
+          },
+          {
+            "id": "index",
+            "required": true,
+            "status": "ready"
+          },
+          {
+            "id": "corpus_paths",
+            "required": true,
+            "status": "ready"
+          }
+        ]
+      }
+    },
+    {
+      "id": "valid_writer",
+      "expected_valid": true,
+      "context": {
+        "expected_service": "writer"
+      },
+      "payload": {
+        "ok": true,
+        "contract": "ryan.suite.health",
+        "version": 1,
+        "service_id": "writer",
+        "service_version": "0.1.0",
+        "state": "ready",
+        "checks": [
+          {
+            "id": "core",
+            "required": true,
+            "status": "ready"
+          },
+          {
+            "id": "database",
+            "required": true,
+            "status": "ready"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wrong_identity",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["service_id"],
+          "value": "writer"
+        }
+      ]
+    },
+    {
+      "id": "inconsistent_ok_checks",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["checks", 0, "status"],
+          "value": "failed"
+        }
+      ]
+    },
+    {
+      "id": "path_field",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["corpus_path"],
+          "value": "C:\\SuiteFixture\\corpus"
+        }
+      ]
+    },
+    {
+      "id": "content_field",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["source_title"],
+          "value": "Synthetic private title"
+        }
+      ]
+    },
+    {
+      "id": "unknown_state",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["state"],
+          "value": "starting"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "contract": "zing.shot-list.import/1",
+  "cases": [
+    {
+      "id": "imported",
+      "expected_valid": true,
+      "payload": {
+        "ok": true,
+        "contract": "zing.shot-list.import",
+        "version": 1,
+        "data": {
+          "state": "imported",
+          "document": {
+            "type": "writer.shot-list",
+            "version": 1,
+            "sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "source_ref": "writer://script/17"
+          },
+          "target_ref": "zing://breakdown/tiktok-123",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "duplicate_import",
+      "base": "imported",
+      "expected_valid": true,
+      "behavior": {
+        "receipts_equal": true,
+        "persisted_copy_count": 1
+      }
+    },
+    {
+      "id": "absent_target",
+      "expected_valid": true,
+      "payload": {
+        "ok": false,
+        "contract": "zing.shot-list.import",
+        "version": 1,
+        "error": {
+          "code": "target_not_found",
+          "message": "target breakdown not found",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "unsupported_version",
+      "expected_valid": true,
+      "payload": {
+        "ok": false,
+        "contract": "zing.shot-list.import",
+        "version": 1,
+        "error": {
+          "code": "unsupported_version",
+          "message": "writer.shot-list version 2 is not supported",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "path_free_receipt",
+      "base": "imported",
+      "expected_valid": true,
+      "behavior": {
+        "selected_input_path_persisted": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "contract": "ryan.suite.peer/1",
+  "cases": [
+    {
+      "id": "available",
+      "expected_valid": true,
+      "context": {
+        "expected_peer": "uoink"
+      },
+      "payload": {
+        "ok": true,
+        "contract": "ryan.suite.peer",
+        "version": 1,
+        "peer": "uoink",
+        "state": "available",
+        "capabilities": [
+          "uoink.corpus.read/1",
+          "uoink.media.handoff/1"
+        ]
+      }
+    },
+    {
+      "id": "absent",
+      "expected_valid": true,
+      "context": {
+        "expected_peer": "uoink"
+      },
+      "payload": {
+        "ok": true,
+        "contract": "ryan.suite.peer",
+        "version": 1,
+        "peer": "uoink",
+        "state": "absent",
+        "capabilities": []
+      }
+    },
+    {
+      "id": "unconfigured",
+      "expected_valid": true,
+      "context": {
+        "expected_peer": "uoink"
+      },
+      "payload": {
+        "ok": true,
+        "contract": "ryan.suite.peer",
+        "version": 1,
+        "peer": "uoink",
+        "state": "unconfigured",
+        "capabilities": []
+      }
+    },
+    {
+      "id": "authentication_failed",
+      "expected_valid": true,
+      "context": {
+        "expected_peer": "uoink"
+      },
+      "payload": {
+        "ok": false,
+        "contract": "ryan.suite.peer",
+        "version": 1,
+        "peer": "uoink",
+        "state": "unhealthy",
+        "error": {
+          "code": "authentication_failed",
+          "message": "Uoink rejected the configured credential",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "wrong_service",
+      "expected_valid": true,
+      "context": {
+        "expected_peer": "uoink"
+      },
+      "payload": {
+        "ok": false,
+        "contract": "ryan.suite.peer",
+        "version": 1,
+        "peer": "uoink",
+        "state": "unhealthy",
+        "error": {
+          "code": "wrong_service",
+          "message": "The endpoint identified itself as Writer",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "contract_drift",
+      "expected_valid": true,
+      "context": {
+        "expected_peer": "uoink"
+      },
+      "payload": {
+        "ok": false,
+        "contract": "ryan.suite.peer",
+        "version": 1,
+        "peer": "uoink",
+        "state": "unhealthy",
+        "error": {
+          "code": "contract_mismatch",
+          "message": "Uoink did not serve uoink.corpus.read version 1",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "id": "timeout",
+      "expected_valid": true,
+      "context": {
+        "expected_peer": "uoink"
+      },
+      "payload": {
+        "ok": false,
+        "contract": "ryan.suite.peer",
+        "version": 1,
+        "peer": "uoink",
+        "state": "unhealthy",
+        "error": {
+          "code": "timeout",
+          "message": "Uoink did not answer before the bounded timeout",
+          "retryable": true
+        }
+      }
+    }
+  ]
+}

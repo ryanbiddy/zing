@@ -1,0 +1,49 @@
+{
+  "contract": "writer.shot-list/1",
+  "cases": [
+    {
+      "id": "valid",
+      "expected_valid": true,
+      "payload_text": "---\ndocument_type: writer.shot-list\nschema_version: 1\ngenerated_at: 2026-07-19T12:00:00Z\nsource_script_id: 17\n---\n# Fixture script\n## Hook\nOpen on the result.\n## Beats\nExplain the change.\n## Script\nThis is fixture prose.\n## CTA\nSave the draft.\n## Shots\n1. Use the measured keeper.\n## Credits\nSource: uoink://item/short-123\n"
+    },
+    {
+      "id": "wrong_front_matter",
+      "expected_valid": false,
+      "payload_text": "---\ndocument_type: writer.script\nschema_version: 1\ngenerated_at: 2026-07-19T12:00:00Z\nsource_script_id: 17\n---\n# Fixture script\n## Hook\nOpen on the result.\n## Beats\nExplain the change.\n## Script\nThis is fixture prose.\n## CTA\nSave the draft.\n## Shots\n1. Use the measured keeper.\n## Credits\nSource: uoink://item/short-123\n"
+    },
+    {
+      "id": "duplicate_front_matter",
+      "expected_valid": false,
+      "payload_text": "---\ndocument_type: writer.shot-list\nschema_version: 1\ngenerated_at: 2026-07-19T12:00:00Z\ngenerated_at: 2026-07-19T12:00:01Z\n---\n# Fixture script\n## Hook\nOpen on the result.\n## Beats\nExplain the change.\n## Script\nThis is fixture prose.\n## CTA\nSave the draft.\n## Shots\n1. Use the measured keeper.\n## Credits\nSource: uoink://item/short-123\n"
+    },
+    {
+      "id": "wrong_heading_order",
+      "expected_valid": false,
+      "payload_text": "---\ndocument_type: writer.shot-list\nschema_version: 1\ngenerated_at: 2026-07-19T12:00:00Z\nsource_script_id: 17\n---\n# Fixture script\n## Beats\nExplain the change.\n## Hook\nOpen on the result.\n## Script\nThis is fixture prose.\n## CTA\nSave the draft.\n## Shots\n1. Use the measured keeper.\n## Credits\nSource: uoink://item/short-123\n"
+    },
+    {
+      "id": "invalid_id",
+      "expected_valid": false,
+      "payload_text": "---\ndocument_type: writer.shot-list\nschema_version: 1\ngenerated_at: 2026-07-19T12:00:00Z\nsource_script_id: 0\n---\n# Fixture script\n## Hook\nOpen on the result.\n## Beats\nExplain the change.\n## Script\nThis is fixture prose.\n## CTA\nSave the draft.\n## Shots\n1. Use the measured keeper.\n## Credits\nSource: uoink://item/short-123\n"
+    },
+    {
+      "id": "invalid_time",
+      "expected_valid": false,
+      "payload_text": "---\ndocument_type: writer.shot-list\nschema_version: 1\ngenerated_at: yesterday\nsource_script_id: 17\n---\n# Fixture script\n## Hook\nOpen on the result.\n## Beats\nExplain the change.\n## Script\nThis is fixture prose.\n## CTA\nSave the draft.\n## Shots\n1. Use the measured keeper.\n## Credits\nSource: uoink://item/short-123\n"
+    },
+    {
+      "id": "oversized",
+      "expected_valid": false,
+      "payload_repeat": {
+        "prefix": "---\ndocument_type: writer.shot-list\nschema_version: 1\ngenerated_at: 2026-07-19T12:00:00Z\nsource_script_id: 17\n---\n# Fixture script\n## Hook\n",
+        "unit": "x",
+        "count": 2097153
+      }
+    },
+    {
+      "id": "non_utf8",
+      "expected_valid": false,
+      "payload_base64": "/w=="
+    }
+  ]
+}

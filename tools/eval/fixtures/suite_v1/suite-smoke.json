@@ -1,0 +1,312 @@
+{
+  "contract": "zing.suite-smoke/1",
+  "cases": [
+    {
+      "id": "pass",
+      "expected_valid": true,
+      "payload": {
+        "record_contract": "zing.suite-smoke",
+        "version": 1,
+        "mode": "deterministic_ci",
+        "sources": {
+          "uoink": {
+            "revision": "91b72c6",
+            "installed_version": "3.6.0"
+          },
+          "writer": {
+            "revision": "7ac0f81",
+            "installed_version": "0.1.0"
+          },
+          "zing": {
+            "revision": "dc3a62d",
+            "installed_version": "0.1.0"
+          }
+        },
+        "environment": {
+          "platform": "Windows-11",
+          "python_version": "3.12.10"
+        },
+        "steps": [
+          {
+            "id": "launch_products",
+            "started_at": "2026-07-19T12:00:00Z",
+            "ended_at": "2026-07-19T12:00:01Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "validate_discovery",
+            "started_at": "2026-07-19T12:00:01Z",
+            "ended_at": "2026-07-19T12:00:02Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "capture_kept_media",
+            "started_at": "2026-07-19T12:00:02Z",
+            "ended_at": "2026-07-19T12:00:03Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "study_kept_media",
+            "started_at": "2026-07-19T12:00:03Z",
+            "ended_at": "2026-07-19T12:00:04Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "create_zing_direction",
+            "started_at": "2026-07-19T12:00:04Z",
+            "ended_at": "2026-07-19T12:00:05Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "writer_create",
+            "started_at": "2026-07-19T12:00:05Z",
+            "ended_at": "2026-07-19T12:00:06Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "export_shot_list",
+            "started_at": "2026-07-19T12:00:06Z",
+            "ended_at": "2026-07-19T12:00:07Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "import_shot_list",
+            "started_at": "2026-07-19T12:00:07Z",
+            "ended_at": "2026-07-19T12:00:08Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "assemble_render",
+            "started_at": "2026-07-19T12:00:08Z",
+            "ended_at": "2026-07-19T12:00:09Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "account_engagement",
+            "started_at": "2026-07-19T12:00:09Z",
+            "ended_at": "2026-07-19T12:00:10Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          },
+          {
+            "id": "stop_optional_peer",
+            "started_at": "2026-07-19T12:00:10Z",
+            "ended_at": "2026-07-19T12:00:11Z",
+            "duration_seconds": 1.0,
+            "passed": true
+          }
+        ],
+        "contracts": {
+          "runtime_lease": "ryan.suite.runtime-lease/1",
+          "service_manifest": "ryan.suite.service/1",
+          "health": "ryan.suite.health/1",
+          "peer": "ryan.suite.peer/1",
+          "media_handoff": "uoink.media.handoff/1",
+          "corpus_read": "uoink.corpus.read/1",
+          "shot_list": "writer.shot-list/1",
+          "shot_list_import": "zing.shot-list.import/1",
+          "engagement": "uoink.engagement.ingest/1"
+        },
+        "peer_states": {
+          "uoink": "available",
+          "writer": "available"
+        },
+        "mcp_identities": [
+          "uoink",
+          "writer",
+          "zing"
+        ],
+        "references": {
+          "uoink_item": "uoink://item/short-123",
+          "writer_script": "writer://script/17",
+          "zing_breakdown": "zing://breakdown/tiktok-123"
+        },
+        "artifacts": [
+          {
+            "id": "kept_media",
+            "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          },
+          {
+            "id": "shot_list",
+            "sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+          },
+          {
+            "id": "render",
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "handoff": {
+          "contract": "uoink.media.handoff",
+          "version": 1,
+          "source_ref": "uoink://item/short-123",
+          "acquisition": "kept_media",
+          "refetch": false,
+          "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        },
+        "writer_flow": {
+          "corpus_item_ref": "uoink://item/short-123",
+          "corpus_contract": "uoink.corpus.read/1",
+          "source_snapshot_path_free": true,
+          "script_id": 17,
+          "script_saved": true,
+          "critique_saved": true,
+          "voice_dna_scanned": true,
+          "shot_list": {
+            "sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "source_ref": "writer://script/17",
+            "source_credit_ref": "uoink://item/short-123",
+            "zing_call_count": 0,
+            "absolute_paths": []
+          }
+        },
+        "zing_flow": {
+          "breakdown_ref": "zing://breakdown/tiktok-123",
+          "breakdown_created": true,
+          "profile_created": true,
+          "direction_created": true,
+          "keeper_spans": [
+            {
+              "start": 1.0,
+              "end": 2.5
+            },
+            {
+              "start": 4.0,
+              "end": 5.0
+            }
+          ],
+          "import_receipt": {
+            "ok": true,
+            "contract": "zing.shot-list.import",
+            "version": 1,
+            "data": {
+              "state": "imported",
+              "document": {
+                "type": "writer.shot-list",
+                "version": 1,
+                "sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+                "source_ref": "writer://script/17"
+              },
+              "target_ref": "zing://breakdown/tiktok-123",
+              "warnings": []
+            }
+          },
+          "draft_provenance": {
+            "breakdown_ref": "zing://breakdown/tiktok-123",
+            "writer_source_ref": "writer://script/17",
+            "shot_list_sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+            "keeper_span_source": "zing_direction",
+            "keeper_spans": [
+              {
+                "start": 1.0,
+                "end": 2.5
+              },
+              {
+                "start": 4.0,
+                "end": 5.0
+              }
+            ]
+          },
+          "rendered": true,
+          "render_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "engagement": {
+          "submitted_event_ids": [
+            "zing-opened-short-123",
+            "writer-cite-script-17"
+          ],
+          "receipts": [
+            {
+              "event_id": "zing-opened-short-123",
+              "state": "accepted"
+            },
+            {
+              "event_id": "writer-cite-script-17",
+              "state": "duplicate"
+            }
+          ],
+          "visible_spool": [],
+          "durable_rejections": []
+        },
+        "optional_peer_stop": {
+          "stopped_peer": "uoink",
+          "remaining_products": [
+            {
+              "product": "writer",
+              "peer_state": "absent",
+              "standalone_ok": true
+            },
+            {
+              "product": "zing",
+              "peer_state": "absent",
+              "standalone_ok": true
+            }
+          ]
+        },
+        "assertions": [
+          {
+            "id": "leases_exact",
+            "passed": true
+          },
+          {
+            "id": "manifests_exact",
+            "passed": true
+          },
+          {
+            "id": "health_exact",
+            "passed": true
+          },
+          {
+            "id": "mcp_direct",
+            "passed": true
+          },
+          {
+            "id": "kept_media_verified",
+            "passed": true
+          },
+          {
+            "id": "zero_refetch",
+            "passed": true
+          },
+          {
+            "id": "same_uoink_source",
+            "passed": true
+          },
+          {
+            "id": "writer_file_only",
+            "passed": true
+          },
+          {
+            "id": "import_path_free",
+            "passed": true
+          },
+          {
+            "id": "measured_spans_only",
+            "passed": true
+          },
+          {
+            "id": "engagement_visible",
+            "passed": true
+          },
+          {
+            "id": "peer_stop_fail_calm",
+            "passed": true
+          }
+        ],
+        "failure_code": null,
+        "cleanup": {
+          "passed": true,
+          "residual_processes": 0
+        }
+      }
+    }
+  ]
+}

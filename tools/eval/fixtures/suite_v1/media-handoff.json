@@ -1,0 +1,125 @@
+{
+  "contract": "uoink.media.handoff/1",
+  "cases": [
+    {
+      "id": "available",
+      "expected_valid": true,
+      "payload": {
+        "ok": true,
+        "contract": "uoink.media.handoff",
+        "version": 1,
+        "operation": "resolve",
+        "data": {
+          "item_ref": "uoink://item/short-123",
+          "state": "available",
+          "source_url": "https://example.test/short/123",
+          "media": {
+            "path": "C:\\SuiteFixture\\short-123\\video.mp4",
+            "media_type": "video/mp4",
+            "byte_length": 1234567,
+            "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          },
+          "provenance": {
+            "kind": "uoink_sidecar",
+            "sidecar_schema_version": 2,
+            "field": "media_file"
+          }
+        }
+      }
+    },
+    {
+      "id": "not_kept",
+      "base": "available",
+      "expected_valid": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "state"],
+          "value": "not_kept"
+        },
+        {
+          "op": "set",
+          "path": ["data", "media"],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "missing",
+      "base": "available",
+      "expected_valid": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "state"],
+          "value": "missing"
+        },
+        {
+          "op": "set",
+          "path": ["data", "media"],
+          "value": null
+        }
+      ]
+    },
+    {
+      "id": "traversal",
+      "base": "missing",
+      "expected_valid": true,
+      "behavior": {
+        "sidecar_media_file": "../escape.mp4",
+        "sidecar_accepted": false
+      }
+    },
+    {
+      "id": "outside_folder_symlink",
+      "base": "missing",
+      "expected_valid": true,
+      "behavior": {
+        "sidecar_media_file": "outside-link.mp4",
+        "sidecar_is_outside_folder_symlink": true,
+        "sidecar_accepted": false
+      }
+    },
+    {
+      "id": "hash_mismatch",
+      "base": "available",
+      "expected_valid": true,
+      "behavior": {
+        "actual_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "consumer_outcome": {
+          "acquisition": "source_refetch",
+          "refetch": true,
+          "reason": "integrity_mismatch"
+        }
+      }
+    },
+    {
+      "id": "size_mismatch",
+      "base": "available",
+      "expected_valid": true,
+      "behavior": {
+        "actual_byte_length": 1234568,
+        "consumer_outcome": {
+          "acquisition": "source_refetch",
+          "refetch": true,
+          "reason": "integrity_mismatch"
+        }
+      }
+    },
+    {
+      "id": "unknown_item",
+      "expected_valid": true,
+      "payload": {
+        "ok": false,
+        "contract": "uoink.media.handoff",
+        "version": 1,
+        "operation": "resolve",
+        "error": {
+          "code": "not_found",
+          "message": "corpus item not found",
+          "retryable": false
+        }
+      }
+    }
+  ]
+}

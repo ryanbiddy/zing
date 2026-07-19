@@ -1,0 +1,46 @@
+{
+  "fixture_version": 1,
+  "contract_source": {
+    "contract": "ryan.suite.integration",
+    "version": 1,
+    "sha256": "bbb1dc212088dac69f08ba83a33e2ce97ce03223dfe01d07aa601b89f14cf182"
+  },
+  "case_files": [
+    {
+      "alias": "runtime_lease",
+      "path": "runtime-lease.json"
+    },
+    {
+      "alias": "service",
+      "path": "service.json"
+    },
+    {
+      "alias": "health",
+      "path": "health.json"
+    },
+    {
+      "alias": "peer",
+      "path": "peer.json"
+    },
+    {
+      "alias": "media",
+      "path": "media-handoff.json"
+    },
+    {
+      "alias": "writer_shot_list",
+      "path": "writer-shot-list.json"
+    },
+    {
+      "alias": "import",
+      "path": "zing-import.json"
+    },
+    {
+      "alias": "engagement",
+      "path": "engagement.json"
+    },
+    {
+      "alias": "suite_smoke",
+      "path": "suite-smoke.json"
+    }
+  ]
+}
