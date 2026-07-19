@@ -13,7 +13,9 @@ from typing import Any, Sequence
 HERE = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = HERE / "goldens"
 SPEECH_FIXTURE = HERE / "fixtures" / "speech" / "ripe-figs-spoken.wav"
+FILLER_FIXTURE = HERE / "fixtures" / "speech" / "ripe-figs-like.wav"
 TRANSITION_OUTPUT = HERE / "transition_goldens"
+RAW_FOOTAGE_OUTPUT = HERE / "raw_footage_goldens"
 
 PATTERN_A = (
     "color=c=0x2040c0:s={size}:r={fps}:d={duration},"
@@ -92,6 +94,65 @@ TRANSITION_CASES: tuple[dict[str, Any], ...] = (
         "start": 1.2,
         "end": 1.2,
         "signatures": ["hard_cut", "audio_aligned_cut"],
+    },
+)
+
+RAW_FOOTAGE_CASES: tuple[dict[str, Any], ...] = (
+    {
+        "fixture_id": "dead-air",
+        "directory": "01 dead air",
+        "segments": [
+            {"kind": "speech", "duration": 1.0},
+            {"kind": "silence", "duration": 2.0},
+            {"kind": "speech", "duration": 1.0},
+        ],
+        "raw_footage": {
+            "dead_air_spans": [
+                {"start": 1.0, "end": 3.0}
+            ],
+            "filler_words": [],
+            "repeated_takes": [],
+        },
+    },
+    {
+        "fixture_id": "filler-word",
+        "directory": "02 filler word",
+        "segments": [
+            {"kind": "speech", "duration": 1.0},
+            {"kind": "silence", "duration": 0.4},
+            {"kind": "filler", "duration": 0.25},
+            {"kind": "silence", "duration": 0.4},
+            {"kind": "speech", "duration": 1.0},
+        ],
+        "raw_footage": {
+            "dead_air_spans": [],
+            "filler_words": [
+                {"word": "like", "start": 1.4}
+            ],
+            "repeated_takes": [],
+        },
+    },
+    {
+        "fixture_id": "repeated-take",
+        "directory": "03 repeated take",
+        "segments": [
+            {"kind": "speech", "duration": 1.0},
+            {"kind": "silence", "duration": 0.5},
+            {"kind": "speech", "duration": 1.0},
+        ],
+        "raw_footage": {
+            "dead_air_spans": [],
+            "filler_words": [],
+            "repeated_takes": [
+                {
+                    "first_start": 0.0,
+                    "first_end": 1.0,
+                    "second_start": 1.5,
+                    "second_end": 2.5,
+                    "similarity": 1.0,
+                }
+            ],
+        },
     },
 )
 
@@ -307,6 +368,113 @@ def _transition_command(
     return command
 
 
+def _raw_footage_command(
+    ffmpeg: str,
+    case: dict[str, Any],
+    output_path: Path,
+) -> list[str]:
+    duration = sum(segment["duration"] for segment in case["segments"])
+    command = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        f"color=c=0x203040:s=320x568:r=30:d={duration}",
+    ]
+    for segment in case["segments"]:
+        if segment["kind"] == "speech":
+            command.extend(["-i", str(SPEECH_FIXTURE)])
+        elif segment["kind"] == "filler":
+            command.extend(["-i", str(FILLER_FIXTURE)])
+        elif segment["kind"] == "silence":
+            command.extend(
+                [
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    (
+                        "anullsrc=r=16000:cl=mono:"
+                        f"d={segment['duration']}"
+                    ),
+                ]
+            )
+        else:
+            raise GoldenGenerationError(
+                f"unknown raw-footage segment kind: {segment['kind']}"
+            )
+    audio_legs = [
+        (
+            f"[{index}:a]atrim=duration={segment['duration']},"
+            "asetpts=PTS-STARTPTS,"
+            "aformat=sample_fmts=fltp:sample_rates=48000:"
+            f"channel_layouts=mono[a{index}]"
+        )
+        for index, segment in enumerate(case["segments"], start=1)
+    ]
+    audio_inputs = "".join(
+        f"[a{index}]" for index in range(1, len(case["segments"]) + 1)
+    )
+    audio_legs.append(
+        f"{audio_inputs}concat=n={len(case['segments'])}:v=0:a=1[a]"
+    )
+    command.extend(
+        [
+            "-filter_complex",
+            ";".join(audio_legs),
+            "-map",
+            "0:v:0",
+            "-map",
+            "[a]",
+            "-t",
+            str(duration),
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-crf",
+            "18",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-ar",
+            "48000",
+            "-ac",
+            "1",
+            "-movflags",
+            "+faststart",
+            str(output_path),
+        ]
+    )
+    return command
+
+
+def _raw_footage_timeline(case: dict[str, Any]) -> list[dict[str, Any]]:
+    timeline = []
+    cursor = 0.0
+    for segment in case["segments"]:
+        end = cursor + segment["duration"]
+        source = {
+            "speech": SPEECH_FIXTURE.name,
+            "filler": FILLER_FIXTURE.name,
+            "silence": "ffmpeg-anullsrc",
+        }[segment["kind"]]
+        timeline.append(
+            {
+                "kind": segment["kind"],
+                "source": source,
+                "start": round(cursor, 6),
+                "end": round(end, 6),
+            }
+        )
+        cursor = end
+    return timeline
+
+
 def generate_transition_goldens(
     output: Path = TRANSITION_OUTPUT,
     ffmpeg: str = "ffmpeg",
@@ -342,6 +510,62 @@ def generate_transition_goldens(
             },
         }
         (directory / "transition-truth.json").write_text(
+            json.dumps(truth, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        directories.append(directory)
+    return directories
+
+
+def generate_raw_footage_goldens(
+    output: Path = RAW_FOOTAGE_OUTPUT,
+    ffmpeg: str = "ffmpeg",
+) -> list[Path]:
+    """Generate raw-recording fixtures and exact measurement truth."""
+    if shutil.which(ffmpeg) is None:
+        raise GoldenGenerationError(f"ffmpeg executable not found: {ffmpeg}")
+    missing = [
+        fixture
+        for fixture in (SPEECH_FIXTURE, FILLER_FIXTURE)
+        if not fixture.is_file()
+    ]
+    if missing:
+        raise GoldenGenerationError(
+            f"spoken fixture not found: {missing[0]}"
+        )
+
+    directories = []
+    for case in RAW_FOOTAGE_CASES:
+        directory = output / case["directory"]
+        directory.mkdir(parents=True, exist_ok=True)
+        media_path = directory / "raw-footage.mp4"
+        result = subprocess.run(
+            _raw_footage_command(ffmpeg, case, media_path),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode:
+            raise GoldenGenerationError(
+                f"ffmpeg failed for {case['fixture_id']}: "
+                f"{result.stderr.strip()}"
+            )
+        duration = round(
+            sum(segment["duration"] for segment in case["segments"]),
+            6,
+        )
+        truth = {
+            "schema_version": 1,
+            "fixture_id": case["fixture_id"],
+            "media": media_path.name,
+            "duration": duration,
+            "video": {"width": 320, "height": 568, "fps": 30.0},
+            "construction": {
+                "audio_timeline": _raw_footage_timeline(case),
+            },
+            "raw_footage": case["raw_footage"],
+        }
+        (directory / "raw-footage-truth.json").write_text(
             json.dumps(truth, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
@@ -404,15 +628,26 @@ def run(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--ffmpeg", default="ffmpeg")
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--transitions",
         action="store_true",
         help="generate the transition-prototype goldens instead",
+    )
+    mode.add_argument(
+        "--raw-footage",
+        action="store_true",
+        help="generate raw-footage measurement goldens instead",
     )
     args = parser.parse_args(argv)
     try:
         if args.transitions:
             directories = generate_transition_goldens(args.output, args.ffmpeg)
+        elif args.raw_footage:
+            directories = generate_raw_footage_goldens(
+                args.output,
+                args.ffmpeg,
+            )
         else:
             directories = generate_goldens(args.output, args.ffmpeg)
     except GoldenGenerationError as exc:

@@ -29,5 +29,19 @@
     "format": "PCM signed 16-bit little-endian, mono, 16000 Hz",
     "sample_count": 16000,
     "command": "ffmpeg -i SOURCE.mp3 -map_metadata -1 -af atrim=start=38:end=39,asetpts=PTS-STARTPTS,aresample=16000 -ac 1 -c:a pcm_s16le -fflags +bitexact -flags:a +bitexact ripe-figs-spoken.wav"
+  },
+  "filler_artifact": {
+    "path": "ripe-figs-like.wav",
+    "sha256": "adfdea5d80fbc475aed19f639aabe31ec318d90bcf38acf6889378d07e1d9c9f",
+    "source_interval_seconds": [
+      52.74,
+      52.99
+    ],
+    "transcript": "like",
+    "source_text_context": "and the figs were like little hard green marbles",
+    "format": "PCM signed 16-bit little-endian, mono, 16000 Hz",
+    "sample_count": 4000,
+    "verification": "faster-whisper small and large-v2 both transcribed the isolated artifact as 'like'",
+    "command": "ffmpeg -i SOURCE.mp3 -map_metadata -1 -af aresample=16000,atrim=start_sample=843840:end_sample=847840,asetpts=PTS-STARTPTS -ac 1 -c:a pcm_s16le -fflags +bitexact -flags:a +bitexact ripe-figs-like.wav"
   }
 }

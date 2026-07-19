@@ -249,7 +249,7 @@ def test_out_of_tolerance_pairing_never_crosses_in_tolerance_matches() -> None:
 def test_scorer_version_bumped_for_pairing_semantics_change() -> None:
     result = score(_truth_for_cuts([1.0]), _breakdown_for_cuts([1.0]))
 
-    assert result["scorer_version"] == "1.2.0"
+    assert result["scorer_version"] == "1.3.0"
 
 
 # --- F-12: matcher must survive real-video event counts (iterative) -------

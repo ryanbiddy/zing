@@ -45,7 +45,7 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
 
     assert report["passed"] is True
     assert report["report_schema_version"] == 4
-    assert report["scorer_version"] == "1.2.0"
+    assert report["scorer_version"] == "1.3.0"
     assert len(report["manifest_sha256"]) == 64
     assert report["ffmpeg"] is None
     assert report["wall_clock_seconds"] >= 0
