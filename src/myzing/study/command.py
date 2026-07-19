@@ -54,7 +54,12 @@ def run(argv: list[str]) -> int:
         return 0
 
     slug = storage.slug_for(args.source)
-    with _workspace_env(args.workspace):
+    context = (
+        storage.use_workspace(args.workspace)
+        if args.workspace is not None
+        else storage.use_workspace(storage.workspace_root())
+    )
+    with context:
         folder = storage.breakdown_dir(slug)
     m = breakdown.meta
     print(f"studied: {m.title or m.source_url}")
@@ -68,8 +73,3 @@ def run(argv: list[str]) -> int:
     print(f"  -> {folder / 'breakdown.json'}")
     return 0
 
-
-def _workspace_env(workspace: Path | None):
-    from myzing.study.api import _workspace_override
-
-    return _workspace_override(workspace)
