@@ -1,0 +1,72 @@
+{
+ "pack_id": "viral-tiktok-reels",
+ "curated_at": "2026-07-19",
+ "genre": "talking-head",
+ "platform": "youtube",
+ "orientation": "vertical",
+ "references": [
+  {
+   "id": "VTR-01",
+   "url": "https://www.youtube.com/shorts/9btQkaci6kA",
+   "title": "How Zach King Gets Away With Doing Graffiti",
+   "channel": "Zach King",
+   "orientation": "vertical",
+   "why": "Most-viewed Short ever; sub-1.5s visual pattern-interrupt with one invisible-cut reveal - the video IS the hook.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VTR-02",
+   "url": "https://www.youtube.com/shorts/q-MbpGTDLsI",
+   "title": "Dubai Chocolate at Home 🍫",
+   "channel": "Jenny Hoyos",
+   "orientation": "vertical",
+   "why": "Trend named in the first spoken second, word-pop captions on number words, cost-reveal loop ending.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VTR-03",
+   "url": "https://www.youtube.com/shorts/8LDAF6C_aMo",
+   "title": "I Disguised Fast Food as Homemade 🤫",
+   "channel": "Jenny Hoyos",
+   "orientation": "vertical",
+   "why": "First-frame stakes, beat-per-sentence jump cuts with pop-in captions, payoff-question ending for rewatch.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VTR-04",
+   "url": "https://www.youtube.com/shorts/JfbnpYLe3Ms",
+   "title": "If Cleaning Was a Timed Sport. Part 2",
+   "channel": "Daniel LaBelle",
+   "orientation": "vertical",
+   "why": "Premise legible in one frame, relentless action-cut rhythm, timer-buzzer ending loops into the opening.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VTR-05",
+   "url": "https://www.youtube.com/shorts/Gvp-v75k4Yg",
+   "title": "Magic BATTLE!",
+   "channel": "Dan Rhodes",
+   "orientation": "vertical",
+   "why": "Trick-per-2s pacing with reaction cutaways; escalation structure - TikTok-native one-upping at its cleanest.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VTR-06",
+   "url": "https://www.youtube.com/shorts/PhD9d6CwXYA",
+   "title": "Sperm loses his way #shorts #YoutubePartner",
+   "channel": "Adrian Bliss",
+   "orientation": "vertical",
+   "why": "Absurd costume pattern-interrupt inside 1s; single-scene sketch whose punchline re-arms the loop.",
+   "verified_at": "2026-07-19"
+  },
+  {
+   "id": "VTR-07",
+   "url": "https://www.youtube.com/shorts/se50viFJ0AQ",
+   "title": "Would You Fly To Paris For A Baguette?",
+   "channel": "MrBeast",
+   "orientation": "vertical",
+   "why": "Title-question spoken as the literal first line; location-jump compression; ending answers the opening - closed loop.",
+   "verified_at": "2026-07-19"
+  }
+ ]
+}

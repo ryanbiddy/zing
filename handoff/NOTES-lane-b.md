@@ -577,3 +577,15 @@
   correct blacks. #153 (vertical variant manifests — my pack surface
   consumes them via the existing loader, no changes needed) and #154
   (eval preflight reporting) both clean. SG-1 log: +#152,#153,#154.
+- **2026-07-19 (Lane B): S5 fresh-host installs — part 1 (this PR):
+  wheel data packaging.** The predictable first defects, fixed before
+  the harness finds them: prompts/ and presets/ live at repo root (spec
+  paths) and were absent from any wheel — an installed Zing had no
+  prompt pack and no preset packs (S1 honest-missing (c), now due).
+  Fix: byte-identical mirrors under src/myzing/_data/ shipped as
+  package-data; loaders fall back repo-root → packaged; a DRIFT GATE
+  test fails CI the moment either side changes without the other (the
+  pack-seam lesson, applied preemptively). Part 2 next cycle:
+  packaging/clean_host_check.py (wheel build → temp venv → doctor/
+  setup/prompt/cached-study), local Windows gate run, CI clean-install
+  jobs, S5-INSTALL-GATE record.
