@@ -783,3 +783,15 @@
   shell-escaping mishap put literal NUL bytes into a test file and
   cost three debugging round-trips — heredoc-into-python-into-bash is
   now on my personal banned list; stdin scripts or the Edit tool only.
+- **2026-07-19 (Lane B): SG-3 pass (rotation; queue empty — Lane A's
+  self-check proposal is Lane A's own build).** Target: `check_ytdlp`
+  had grown to ~95 lines across three audits (B-Q12 runtime, SW-3
+  node-default, #201-P1 EJS solver) with the note/fix advice threaded
+  through TWO diverging Check returns duplicating the data dict.
+  Extracted `_youtube_js_advice(module)` (all three named facts in one
+  place, each keeping its provenance comment) and collapsed the
+  stale/fresh forks to one Check construction. Behavior pinned by all
+  32 doctor tests, zero test edits. Observation: accretion-by-audit is
+  a distinct smell — three separate correct patches each minimally
+  extended the same function, and none was the moment anyone stepped
+  back; SG-3's job is exactly that step-back.
