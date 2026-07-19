@@ -1,7 +1,8 @@
 # Connecting your AI to Zing
 
-Zing's MCP server gives any MCP client seven tools (`study_video`,
-`get_breakdown`, `list_breakdowns`, `save_judgment`, `zing_status`,
+Zing's MCP server gives any MCP client twelve tools (`study_video`,
+`get_breakdown`, `list_breakdowns`, `generate_thumbnails`, `save_judgment`,
+`zing_status`, `build_profile`, `get_profile`, `list_profiles`, `get_frames`,
 `get_prompt`, `push_to_uoink`) plus the prompt pack as slash commands.
 
 **One command prints your exact config with real paths — start there:**
@@ -95,7 +96,7 @@ optional setting — the Zing workspace directory (default `~/.zing`).
 is complete and CI-tested; `mcpb pack` produces the bundle; the
 manifest's exact launch command (`uv run --directory <bundle> --extra
 mcp python -m myzing.cli serve-mcp`) boots the server cold from the
-staged tree — initialize handshake, all 9 tools listed, both prompt-pack
+staged tree — initialize handshake, all 12 tools listed, both prompt-pack
 prompts served via the `${__dirname}/prompts` pin. **What still needs a
 human:** the Claude Desktop double-click dialog itself (GUI). If it
 fails, the fallback is the manual config above — same server, same
