@@ -19,6 +19,15 @@ WORKFLOW_REPOSITORIES = (
     "https://github.com/EmiGross/ClaudeCut",
     "https://github.com/qwertyboy0325/vox-proof",
 )
+RUNTIME_SCAN_HEADING = (
+    "## SG-4 render-runtime scan \u00b7 2026-07-19 \u00b7 Lane C"
+)
+RUNTIME_REPOSITORIES = (
+    "https://github.com/Hao0321/video-autopilot-kit",
+    "https://github.com/slhck/ffmpeg-progress-yield",
+    "https://github.com/imageio/imageio-ffmpeg",
+    "https://github.com/abus-aikorea/voice-pro",
+)
 
 
 def test_lane_c_sg4_scan_records_license_health_and_verdict_per_repository():
@@ -47,3 +56,21 @@ def test_lane_c_sg4_editorial_workflow_scan_has_complete_repo_records():
     assert scan.count("- **License:**") == len(WORKFLOW_REPOSITORIES)
     assert scan.count("**Health:**") == len(WORKFLOW_REPOSITORIES)
     assert scan.count("- **Verdict:") == len(WORKFLOW_REPOSITORIES)
+
+
+def test_lane_c_sg4_render_runtime_scan_has_current_unique_records():
+    prior_art = PRIOR_ART.read_text(encoding="utf-8")
+
+    assert RUNTIME_SCAN_HEADING in prior_art
+    scan = prior_art.split(RUNTIME_SCAN_HEADING, 1)[1].split("\n---", 1)[0]
+
+    for repository in RUNTIME_REPOSITORIES:
+        assert prior_art.count(repository) == 1
+
+    expected = len(RUNTIME_REPOSITORIES)
+    assert scan.count("- **License:**") == expected
+    assert scan.count("**Health:**") == expected
+    assert scan.count("- **Verdict:") == expected
+    assert scan.lower().count("pushed") >= expected
+    assert scan.lower().count("release") >= expected
+    assert scan.lower().count("contributor") >= expected
