@@ -1298,3 +1298,24 @@
     currency scan's reasoning could not; adopting it as a scan rule:
     a dependency-currency claim about API compatibility requires ONE
     unmocked pass through the seam, not just a green suite.
+- **2026-07-19 (Lane B): SG-1 focused round 2 (freeze) — reviewed
+  #219, #194, #259. All pass; no routed findings.**
+  - #219 (Lane A, gate defects D-12 + O-3): verified by execution —
+    70 tests green across the four touched suites. D-12 keeps the
+    first three per-reference causes (+count) in the all-refs-failed
+    PackError: bounded, actionable, exactly the gate's ask. O-3 adds
+    a warning-only thin-style-basis line with honestly humble wording
+    ("treat style as a guess, not a measurement"); the 15-event
+    threshold is a named constant, and measurement itself is
+    untouched. Both are gate-defect closes — the change class the
+    freeze permits.
+  - #194 (Lane A, captions 84%→99%): the real frame-decode seam test
+    follows the same unmocked-seam doctrine that caught the
+    scenedetect deprecation in #255 — the doctrine is proving itself
+    twice in one day. Pass.
+  - #259: NOTES consolidation from closed branches — record hygiene
+    before the decision, no code. Pass.
+  Freeze ledger note: every product change merged since the packet
+  froze (#255 shim, #219 gate closes) has been reviewed cross-lane
+  within one cycle of landing. The build Ryan is evaluating and the
+  build on main differ only by reviewed defect-class fixes.
