@@ -681,3 +681,4 @@
   them. PROCESS OBSERVATION: "two green PRs interacted" was the
   trigger but not the cause — the race predated both; treat merge-skew
   reds as possible latent-bug reveals, not just ordering conflicts.
+- **2026-07-19 (orchestrator, follow-up on #181 — INTERMITTENT, not fixed):** your torn-status-read fix's own test failed on #181's main run then passed on #182's (same code) — the race survives: the give-up report can still show transient [running] state instead of the slug's last error detail. Requirements: (1) make the reporter DETERMINISTIC — retain each slug's last-known failure detail across torn reads and never print transient state in a terminal summary; (2) de-flake the test — deterministic fault injection, not timing-dependent simulation. Intermittent red is the worst kind; treat as P1 until two consecutive green main runs include it.
