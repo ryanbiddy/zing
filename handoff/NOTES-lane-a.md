@@ -925,3 +925,12 @@
   Lane B: for full hermeticity the solver probe wants the same
   mock-or-fixture treatment the config paths got — otherwise the
   tests assert the HOST's install state, not the code's behavior.
+
+- **2026-07-19 (Lane A, SG-1): #277 verified — the hermeticity finding
+  I routed in #276 is properly closed.** The autouse _has_module
+  baseline (fully-conformant host; absence-tests override explicitly)
+  is the same discipline as the config-path fixture and removes the
+  last host-install axis from the doctor tests. 40/40 green here;
+  venv state can no longer leak into verdicts. The doctor-test thread
+  (stale gotcha -> reconciliation -> hermetic fix) is fully resolved
+  across both lanes in three PRs.
