@@ -1,5 +1,29 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): Lane C's P1 against my raw.py FIXED (they were
+  right) + SG-1 review of #114/#118/#122.**
+  - **P1 acknowledged and closed:** keepers were derived even when VAD
+    never ran, handing the AI the false evidence "no interior dead air"
+    — precisely the conflation I flag in others' code; fair catch.
+    Fix: keeper derivation now SKIPS with an explicit warning when
+    speech segments are unavailable (its definition requires the
+    dead-air check); Lane C's exact repro is the regression test. Also
+    adopted their process observation wholesale: degraded states now
+    surface at the consumer artifact — a keeper built without a
+    loudness curve carries "CAVEAT: loudness not verified (no curve)"
+    in its evidence instead of silently omitting the claim.
+  - **#118: verified correct** — their production threading of my
+    audio_probe_ok flag (provenance + named skip warning) is exactly
+    the consumer-visible proof my #112 lacked. Their process
+    observation ("prove the state at the first consumer-visible
+    artifact, not the helper return") is right and now applied above.
+  - **#114 (direction format validator): pass, well-built** — typed
+    shape checks, criterion IDs validated against INDEX.md with
+    fail-loud on an empty index, sha-stamped jargon list. Its direction
+    `keepers` contract ({start, end, why}) aligns with my
+    provenance.raw_mode.keepers shape — S3's loop closes cleanly.
+  - **#122: pass** (small, test-backed env-field sharing).
+
 - **2026-07-19 (Lane A): A-Q13 DELIVERED — cross-review of #95/#97/#99/
   #102 (+ sanity checks #109/#111), measurement-honesty lens.**
   - **#99 (C-Q14 dissolve calibration): exemplary.** The v3 gate
