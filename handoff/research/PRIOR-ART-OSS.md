@@ -839,3 +839,82 @@ pysubs2 + \k/\t karaoke tags for word-timed animation.
 consensus is deno + bgutil sidecar + cookies fallback; Zing should
 DETECT and DOCUMENT, never bundle (GPL). VMAF's 2026-06 refresh makes
 ffmpeg-native perceptual render QA the clear secondary win.
+
+---
+
+## SG-4 creator-pipeline scan · 2026-07-19 · Lane C
+
+Method: checked GitHub's [daily trending page](https://github.com/trending?since=daily)
+and the video-editor, automatic-video-editing, subtitles, video-processing, and
+creator-tools topic results on 2026-07-19. The four candidates below were absent
+from this survey. Repository metadata, default-branch source, release history,
+and license files were checked directly; stars helped discovery but did not
+decide the verdicts.
+
+### remyxai/FFMPerative — https://github.com/remyxai/FFMPerative
+
+- **What:** A Python experiment that turns text instructions into calls from a
+  fixed catalog of FFmpeg tools. Generated code goes through an AST interpreter
+  that accepts only registered functions and a small set of expression types.
+- **License:** MIT. **Health:** 204 stars and 14 forks; pushed 2026-06-07.
+  There is no GitHub release, and GitHub's contributor list attributes 156 of
+  159 contributions to one maintainer.
+- **Verdict: BORROW the bounded-tool pattern; SKIP the dependency.** The
+  allowlisted interpreter is a useful reference if Zing ever lets a model
+  propose renderer operations. Zing would still need a dry-run plan, path
+  confinement, media preflight, and explicit overwrite approval before
+  execution. The package has no release line, pins none of its seven Python
+  dependencies, and wraps `ffmpeg-python`, which this survey already rejected
+  as an unnecessary renderer abstraction.
+
+### YaoFANGUK/video-subtitle-extractor — https://github.com/YaoFANGUK/video-subtitle-extractor
+
+- **What:** A local hard-subtitle extractor that finds text regions, runs
+  PaddleOCR, removes duplicate lines, and emits SRT or text. It offers fast,
+  automatic, and frame-by-frame modes across CPU, CUDA, DirectML, and ONNX
+  runtimes.
+- **License:** Apache-2.0. **Health:** 9,186 stars and 927 forks; pushed
+  2026-04-09. Release 2.2.0 shipped 2026-04-04, and five contributors are
+  visible in GitHub's first contributor page.
+- **Verdict: BORROW its fixture taxonomy; SKIP the application dependency.**
+  Zing's existing caption-region and OCR work should be tested against VSE's
+  useful failure classes: persistent logos, bilingual lines, duplicate text,
+  sparse subtitles, and fast-mode misses. The PySide/Paddle application stack
+  is much larger than Zing's evaluator needs, and the bundled OCR model files
+  require a separate provenance audit before any weights are reused.
+
+### zhouxiaoka/autoclip — https://github.com/zhouxiaoka/autoclip
+
+- **What:** A self-hosted highlight generator. It chunks transcript-derived
+  topics, asks an LLM for time ranges and scores, persists intermediate JSON and
+  failed responses, then cuts the selected clips through a FastAPI/Celery/Redis
+  pipeline.
+- **License:** MIT. **Health:** 6,133 stars and 1,207 forks; pushed
+  2026-06-03, with release v1.2.0 published the same day. GitHub lists one code
+  contributor, so maintenance is active but concentrated.
+- **Verdict: BORROW the inspectable intermediate artifacts; SKIP the scoring
+  code and service stack.** Saving each chunk's raw response and parsed timeline
+  makes an LLM failure debuggable. Its uncalibrated single-model “exciting”
+  score, silent chunk skipping, remote Qwen default, and Redis/Celery/web
+  footprint do not fit Zing's measured-facts-first evaluator.
+
+### walterlow/freecut — https://github.com/walterlow/freecut
+
+- **What:** A local browser editor with multi-track timelines, caption tracks,
+  scene search, proxy and waveform caches, and worker-backed WebCodecs export.
+  Subtitles can be burned in, written as a sidecar, or embedded as a soft track.
+- **License:** MIT. **Health:** 1,800 stars and 273 forks; pushed 2026-07-18.
+  The repository has no tagged release; GitHub's contributor list shows one
+  maintainer accounting for 2,188 contributions and three small contributors.
+- **Verdict: BORROW the export contract; SKIP the dependency.** Its explicit
+  container/codec capability checks, subtitle delivery modes, render queue,
+  and project-schema validation are strong references for Zing's landscape and
+  long-form renderer. The TypeScript/WebGPU/WebCodecs runtime cannot simplify
+  Zing's Python/FFmpeg implementation, and the lack of a release line makes it
+  a moving design reference rather than a component to pin.
+
+**Scan conclusion:** none of the four should enter Zing's dependency graph.
+FreeCut supplies the clearest renderer contract to borrow; VSE supplies the
+best missing caption-OCR fixtures. FFMPerative and AutoClip reinforce one
+boundary Zing should keep: model output must remain inspectable and constrained
+before it can mutate media.
