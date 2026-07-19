@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from myzing import storage
+from myzing import doctor, storage
 from myzing.schemas import VideoMeta
 
 from . import proc
@@ -155,8 +155,17 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     if existing is not None:
         warnings.append(f"reusing already-downloaded media: {existing.name}")
         return existing
+    # S5 gate defect D-11 (routed Lane B; Lane A please re-review): run
+    # EXACTLY what doctor probes — the literal "yt-dlp" binary here made
+    # module-only envs pass doctor and then fail every fetch.
+    ytdlp = doctor.resolve_ytdlp_argv()
+    if ytdlp is None:
+        raise MediaError(
+            "yt-dlp is not installed (no binary on PATH, module not "
+            'importable) — python -m pip install "myzing[study]"'
+        )
     cmd = [
-        "yt-dlp",
+        *ytdlp,
         "--no-playlist",
         "-f", YTDLP_FORMAT,
         "--merge-output-format", "mp4",
