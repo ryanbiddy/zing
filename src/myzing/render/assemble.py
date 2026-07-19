@@ -83,6 +83,7 @@ def render_assembled_edl(
         if voiceover_dir is not None
         else output_path.parent / f"{output_path.stem}-assets"
     )
+    asset_dir_existed = asset_dir.exists()
     if scripts:
         try:
             asset_dir.mkdir(parents=True, exist_ok=True)
@@ -93,33 +94,41 @@ def render_assembled_edl(
 
     synthesized: list[SynthesisResult] = []
     augmented_audio = list(edl.audio)
-    for index, script in enumerate(scripts, start=1):
-        if provider is None:
-            raise TTSGenerationError("no TTS provider is available")
-        request = SynthesisRequest(
-            text=script.text,
-            voice=script.voice,
-            speed=script.speed,
-            language=script.language,
-        )
-        result = provider.synthesize(
-            request,
-            asset_dir / f"voiceover-{index:02d}.wav",
-        )
-        if not result.path.is_file():
-            raise TTSGenerationError(
-                f"TTS provider {result.provider!r} reported success without "
-                f"creating {result.path}"
+    try:
+        for index, script in enumerate(scripts, start=1):
+            if provider is None:
+                raise TTSGenerationError("no TTS provider is available")
+            request = SynthesisRequest(
+                text=script.text,
+                voice=script.voice,
+                speed=script.speed,
+                language=script.language,
             )
-        synthesized.append(result)
-        augmented_audio.append(
-            AudioTrack(
-                src=str(result.path),
-                kind="voiceover",
-                timeline_start=script.timeline_start,
-                gain_db=script.gain_db,
+            result = provider.synthesize(
+                request,
+                asset_dir / f"voiceover-{index:02d}.wav",
             )
-        )
+            if not result.path.is_file():
+                raise TTSGenerationError(
+                    f"TTS provider {result.provider!r} reported success without "
+                    f"creating {result.path}"
+                )
+            synthesized.append(result)
+            augmented_audio.append(
+                AudioTrack(
+                    src=str(result.path),
+                    kind="voiceover",
+                    timeline_start=script.timeline_start,
+                    gain_db=script.gain_db,
+                )
+            )
+    except Exception:
+        if scripts and not asset_dir_existed:
+            try:
+                asset_dir.rmdir()
+            except OSError:
+                pass
+        raise
 
     augmented = replace(edl, audio=augmented_audio)
     render_result = render_edl(

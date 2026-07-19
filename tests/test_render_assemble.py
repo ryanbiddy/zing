@@ -8,7 +8,7 @@ from myzing.render import assemble
 from myzing.render.assemble import VoiceoverScript, render_assembled_edl
 from myzing.render.otio_export import OTIOExportResult
 from myzing.render.pipeline import RenderResult
-from myzing.render.tts import SynthesisResult
+from myzing.render.tts import SynthesisResult, TTSGenerationError
 from myzing.schemas import AudioTrack, Clip, EDL
 
 
@@ -96,3 +96,25 @@ def test_assembly_synthesizes_scripts_without_mutating_input_edl(
 def test_voiceover_script_rejects_blank_text() -> None:
     with pytest.raises(ValueError, match="must not be empty"):
         VoiceoverScript("   ")
+
+
+def test_failed_tts_setup_removes_new_empty_asset_directory(tmp_path: Path) -> None:
+    class FailingProvider:
+        name = "missing-model-provider"
+
+        def synthesize(self, request, output_path: Path) -> SynthesisResult:
+            raise TTSGenerationError("model assets are missing")
+
+    output = tmp_path / "draft-vo.mp4"
+    asset_dir = tmp_path / "draft-vo-assets"
+    edl = EDL(clips=[Clip(str(tmp_path / "source.mp4"), 0.0, 2.0, 0.0)])
+
+    with pytest.raises(TTSGenerationError, match="model assets are missing"):
+        render_assembled_edl(
+            edl,
+            output,
+            scripts=[VoiceoverScript("Open with the result.")],
+            provider=FailingProvider(),
+        )
+
+    assert not asset_dir.exists()
