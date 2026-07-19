@@ -426,3 +426,15 @@
   honest receipt note, never loses the saved judgment. The shipped
   prompt's worked example IS the render fixture, so prompt, tool, and
   renderer cannot drift apart. Part 3 (flow doc + gate run) next.
+- **2026-07-19 (Lane B): S3-B COMPLETE (3/3, this PR)** — flow doc
+  (docs/DIRECT-FLOW.md) + gate run record (handoff/S3-GATE-lane-b.md).
+  The real chain ran end to end: frozen raw clip directed against the
+  gate profile per direct.md v1.0.0 → save_judgment validated →
+  direction.md rendered in creator order; the two shot prompts read as
+  filmable by a person holding a phone. Honest limits recorded: the
+  clip is F-16-edited standing in for raw, keeper machinery predates
+  this freeze (direction SAYS so), full-fidelity gate needs the
+  re-frozen genuinely-raw clip with raw_mode provenance (Lane C/D).
+  Next: S4 Track 1 (TTS provider plugin surface) and Track 2
+  (zing setup onboarding), in that order unless the orchestrator
+  reorders.
