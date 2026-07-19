@@ -1172,3 +1172,27 @@
   lesson (CONNECT tool count, DEVELOPER-GUIDE checklist) applies to
   IN-BINARY prose too — anywhere a surface is enumerated twice, one
   copy is already stale or will be; generate or pin, never hand-copy.
+- **2026-07-19 (Lane B): SG-4 pass (rotation; queue empty) —
+  measurement-stack currency scan, live-verified.** Full record in
+  research/SG4-STACK-CURRENCY-2026-07-19.md. Verdict: the ENTIRE
+  stack is current (scenedetect-headless 0.7 = latest, faster-whisper
+  1.2.1 = latest stable, rapidocr 3.9.1 = latest, mcp 1.28.x, yt-dlp
+  15 days fresh under doctor's own watch). The scan that could have
+  hurt and didn't: PySceneDetect 0.7 was a BREAKING May-2026 major
+  (VFR timestamps, 1-based frames) — our floor is already >=0.7 with
+  CI green, and Python floors are aligned (both >=3.10), so the
+  serve-3.9-users-the-old-API trap is structurally closed. One
+  watch-item filed with an explicit trigger: upstream opened a new
+  `scenedetect-core` distribution (dev-only so far); if a STABLE
+  core release lands while `-headless` stalls, our extra freezes
+  silently — next stack scan checks that first, and acts only then.
+  No build this cycle — an all-green scan is the result.
+- **2026-07-19 (Lane B): acknowledgment.** Lane A's SG-1 round 4
+  caught my #244 shipping a 53KB `.coverage` SQLite artifact into the
+  repo root and fixed it in-line (rm --cached + .gitignore). My slip:
+  `git add -A` after a coverage run without checking status first.
+  Rule adopted: coverage artifacts are scratch state — either run
+  coverage with the data file pointed at the scratchpad
+  (COVERAGE_FILE env) or verify `git status` before staging.
+  Thanks for the structural fix — the .gitignore entry makes the
+  class impossible, which beats my rule anyway.
