@@ -90,6 +90,13 @@ def _pcm16(value: object) -> int:
     return round(sample * 32767)
 
 
+def _resolve_wav_output_path(output_path: Path) -> Path:
+    resolved = output_path.expanduser().resolve()
+    if resolved.suffix.lower() != ".wav":
+        raise TTSGenerationError("voiceover output must use the .wav extension")
+    return resolved
+
+
 def _write_pcm16_wav(
     samples: object,
     sample_rate: object,
@@ -112,9 +119,7 @@ def _write_pcm16_wav(
     if sys.byteorder != "little":
         pcm.byteswap()
 
-    output_path = output_path.expanduser().resolve()
-    if output_path.suffix.lower() != ".wav":
-        raise TTSGenerationError("voiceover output must use the .wav extension")
+    output_path = _resolve_wav_output_path(output_path)
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         handle, temporary_name = tempfile.mkstemp(
@@ -193,6 +198,7 @@ class KokoroOnnxProvider:
         request: SynthesisRequest,
         output_path: Path,
     ) -> SynthesisResult:
+        output_path = _resolve_wav_output_path(output_path)
         engine = self._load_engine()
         try:
             samples, sample_rate = engine.create(  # type: ignore[attr-defined]
@@ -205,7 +211,7 @@ class KokoroOnnxProvider:
             raise TTSGenerationError(f"kokoro-onnx synthesis failed: {exc}") from exc
         rate, duration = _write_pcm16_wav(samples, sample_rate, output_path)
         return SynthesisResult(
-            path=output_path.expanduser().resolve(),
+            path=output_path,
             provider=self.name,
             voice=request.voice,
             sample_rate=rate,
