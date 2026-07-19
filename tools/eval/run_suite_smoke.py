@@ -56,6 +56,7 @@ MCP_TIMEOUT = 90.0
 STUDY_TIMEOUT = 20 * 60.0
 RENDER_TIMEOUT = 10 * 60.0
 POLL_INTERVAL = 1.0
+PEER_STOP_TIMEOUT = 75.0
 FORBIDDEN_PROVIDER_ENV = (
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
@@ -153,6 +154,59 @@ def _git_revision(repo: Path) -> str:
         raise SmokeError(
             "source_revision_unavailable",
             f"could not read a Git revision for {repo.name}",
+        )
+    for command in (
+        ["git", "diff", "--quiet", "HEAD", "--"],
+        ["git", "diff", "--cached", "--quiet", "HEAD", "--"],
+    ):
+        clean = subprocess.run(
+            command,
+            cwd=repo,
+            capture_output=True,
+            check=False,
+        )
+        if clean.returncode == 1:
+            raise SmokeError(
+                "source_worktree_dirty",
+                f"{repo.name} has tracked changes outside revision "
+                f"{revision[:12]}",
+            )
+        if clean.returncode != 0:
+            raise SmokeError(
+                "source_revision_unavailable",
+                f"could not verify the Git tree for {repo.name}",
+            )
+    untracked = subprocess.run(
+        [
+            "git",
+            "ls-files",
+            "--others",
+            "--exclude-standard",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if untracked.returncode:
+        raise SmokeError(
+            "source_revision_unavailable",
+            f"could not inspect untracked files for {repo.name}",
+        )
+    runtime_untracked = [
+        path
+        for path in untracked.stdout.splitlines()
+        if (
+            path.endswith(".py")
+            or path.startswith(("src/", "tools/", "migrations/"))
+            or path in {"pyproject.toml", "VERSION"}
+        )
+    ]
+    if runtime_untracked:
+        raise SmokeError(
+            "source_worktree_dirty",
+            f"{repo.name} has untracked runtime source outside revision "
+            f"{revision[:12]}",
         )
     return revision
 
@@ -643,7 +697,7 @@ def _generate_fixture_video(path: Path) -> None:
         "-f",
         "lavfi",
         "-i",
-        "testsrc2=size=320x568:rate=30:duration=4",
+        "testsrc2=size=360x640:rate=30:duration=4",
         "-f",
         "lavfi",
         "-i",
@@ -1051,6 +1105,37 @@ def _validate_peer_after_stop(
             f"{product} did not report Uoink absent or unhealthy after stop",
         )
     return state
+
+
+def _wait_zing_peer_after_stop(
+    client: StdioMCPClient,
+) -> str:
+    """Wait through Zing's contract-mandated 60-second peer-probe cache."""
+    deadline = time.monotonic() + PEER_STOP_TIMEOUT
+    while time.monotonic() < deadline:
+        status = _mcp_ok(
+            "zing",
+            "zing_status",
+            client.call("zing_status"),
+        )
+        peer = _find_peer_contract(status)
+        if peer is None:
+            raise SmokeError(
+                "zing_peer_probe_missing",
+                "Zing status returned no versioned peer result after stop",
+            )
+        _validate_contract(
+            "ryan.suite.peer/1",
+            peer,
+            expected_peer="uoink",
+        )
+        if peer.get("state") in {"absent", "unhealthy"}:
+            return str(peer["state"])
+        time.sleep(POLL_INTERVAL)
+    raise SmokeError(
+        "peer_stop_not_observed",
+        "Zing's cached Uoink peer state did not expire after stop",
+    )
 
 
 def _read_json_file(path: Path, *, code: str) -> dict[str, Any]:
@@ -1883,19 +1968,8 @@ def run_suite_smoke(
                 _writer_peer_from_doctor(post_writer_doctor),
                 "writer",
             )
-            post_zing_status = _mcp_ok(
-                "zing",
-                "zing_status",
-                clients["zing"].call("zing_status"),
-            )
-            zing_peer = _find_peer_contract(post_zing_status)
-            if zing_peer is None:
-                raise SmokeError(
-                    "zing_peer_probe_missing",
-                    "Zing status returned no versioned peer result after stop",
-                )
-            zing_peer_after = _validate_peer_after_stop(
-                zing_peer, "zing")
+            zing_peer_after = _wait_zing_peer_after_stop(
+                clients["zing"])
             _mcp_ok(
                 "writer",
                 "scan_voice",
