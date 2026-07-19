@@ -1281,3 +1281,20 @@
   assert-and-parse. Remaining mcp_server misses are Windows-only pid
   branches, SDK adapter internals, and deep render plumbing —
   documented, not hidden. Suite 873 passed / 2 skipped.
+- **2026-07-19 (Lane B): SG-1 focused round (rotation-with-judgment;
+  freeze) — reviewed #255, the only unreviewed merge and a freeze-era
+  product change. PASS, verified by execution.**
+  - The 6-line change to shots.py is a version-tolerant deprecation
+    shim (.seconds preferred, get_seconds() fallback) — the kind of
+    change the freeze permits: a live defect-class fix caught by a
+    new test, not feature churn. Ran the real-seam test live on this
+    box (real scenedetect 0.7, real cv2 synthetic clip): 11/11 green.
+  - CORRECTION TO MY OWN #248 SCAN, on the record: I claimed "Lane
+    A's shots.py speaks the new API" from CI-green evidence. #255
+    proved the sharper truth — shots.py was on the DEPRECATED call,
+    and every mocked test was structurally blind to it. CI-green ≠
+    deprecation-clean. Lane A's unmocked-seam doctrine (real backend
+    through the seam once, everything else mocked) caught what my
+    currency scan's reasoning could not; adopting it as a scan rule:
+    a dependency-currency claim about API compatibility requires ONE
+    unmocked pass through the seam, not just a green suite.
