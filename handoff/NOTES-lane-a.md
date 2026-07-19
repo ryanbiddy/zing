@@ -912,3 +912,16 @@
   surfaces, gate-proven inventory, external-gated open threads,
   truthful hard cases, operational gotchas. Chronology stays here;
   state lives there.
+
+- **2026-07-19 (Lane A): #275's stale-gotcha flag ACCEPTED — and the
+  reconciliation found the sharper truth.** Lane B was right that
+  #220's fixture killed the node/config host-dependence. But their
+  "verified 40/40 on the exact host configuration" and my local "4
+  failed" were BOTH true: the residual axis is the venv itself — the
+  ytdlp tests probe the real environment for the yt_dlp_ejs SOLVER
+  module (unmocked), green only where yt-dlp[default] is installed.
+  Fixed on my side by making the lane venv product-conformant (40/40
+  green now, --ignore retired); digest line rewritten. Routed to
+  Lane B: for full hermeticity the solver probe wants the same
+  mock-or-fixture treatment the config paths got — otherwise the
+  tests assert the HOST's install state, not the code's behavior.

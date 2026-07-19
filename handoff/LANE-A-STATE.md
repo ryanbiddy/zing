@@ -58,6 +58,9 @@ needed.
 
 Per-lane venv only (`./.venv/Scripts/python`); CI test matrix has no
 [study] extra — importorskip-guard every heavy import including numpy;
-test_doctor.py ytdlp tests are host-dependent (fail with real node +
-user yt-dlp config; clean on CI); yt-dlp needs a JS runtime for YouTube
-(SW-3); verify auto-merges actually landed; serialize NOTES-bearing PRs.
+test_doctor.py's ytdlp tests probe the real venv for the yt_dlp_ejs
+solver — keep the lane venv product-conformant (`pip install
+"yt-dlp[default]"`) and they run 40/40 green (the older node/config
+host-dependence was fixed by #220's autouse fixture); yt-dlp needs a JS
+runtime for YouTube (SW-3); verify auto-merges actually landed;
+serialize NOTES-bearing PRs.
