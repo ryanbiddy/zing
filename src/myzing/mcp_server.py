@@ -245,6 +245,7 @@ def _run_study(
     slug: str,
     root: Path,
     kept_media: str | None = None,
+    handoff: dict[str, Any] | None = None,
 ) -> None:
     """Worker-thread body: run the engine, persist, record honest state.
 
@@ -270,6 +271,11 @@ def _run_study(
         # support was verified at dispatch, and the engine's own fallback
         # honesty (named warnings, refetch) covers everything past here.
         kwargs["kept_media"] = kept_media
+    if handoff is not None:
+        # Contract v1 §6.1: expected sha256/byte_length/source_ref travel
+        # to the engine, which verifies integrity BEFORE analysis and
+        # persists path-free source_handoff provenance (A-S6 conformance).
+        kwargs["handoff"] = handoff
     try:
         params = inspect.signature(study_fn).parameters
         for name in ("phase_callback", "progress_callback", "on_phase"):
@@ -362,18 +368,33 @@ def h_study_video(
             "progress) — study_video will work here unchanged once it "
             "lands; zing_status().engine_available will flip to true"
         )
-    if kept is not None:
-        try:
-            supported = "kept_media" in inspect.signature(api.study).parameters
-        except (TypeError, ValueError):
-            supported = True  # can't introspect — dispatch; the worker
-            #                   records any TypeError as honest failed state
-        if not supported:
-            return _err(
-                "this build's study engine has no kept-media support — "
-                "update myzing, or call study_video without kept_media"
-            )
+    if kept is not None and not _engine_supports(api, "kept_media"):
+        return _err(
+            "this build's study engine has no kept-media support — "
+            "update myzing, or call study_video without kept_media"
+        )
+    return _dispatch_study(api, source, kept)
 
+
+def _engine_supports(api: Any, param: str) -> bool:
+    try:
+        return param in inspect.signature(api.study).parameters
+    except (TypeError, ValueError):
+        return True  # can't introspect — dispatch; the worker records
+        #              any TypeError as honest failed state
+
+
+def _dispatch_study(
+    api: Any,
+    source: str,
+    kept: str | None,
+    handoff: dict[str, Any] | None = None,
+    hint_extra: str = "",
+    **echo: Any,
+) -> dict[str, Any]:
+    """Shared job dispatch for study_video and study_uoink_item: status
+    stamped under the jobs lock, worker pinned to the captured workspace,
+    honest already_studying answer for live jobs."""
     slug = storage.slug_for(source)
     # F-15: capture the workspace NOW and pin the whole job to it — the
     # worker thread must not re-resolve env that may change under it.
@@ -401,27 +422,101 @@ def h_study_video(
         )
         thread = threading.Thread(
             target=_run_study,
-            args=(api.study, source, slug, root, kept),
+            args=(api.study, source, slug, root, kept, handoff),
             daemon=True,
         )
         _JOBS[slug] = thread
         thread.start()
-    extra: dict[str, Any] = {"kept_media": kept} if kept else {}
+    extra: dict[str, Any] = dict(echo)
+    if kept:
+        extra["kept_media"] = kept
+        if not hint_extra:
+            hint_extra = (
+                " Using the kept local copy — zero network fetch when it "
+                "checks out; any fallback to fetching is named in the "
+                "breakdown's warnings."
+            )
     return _ok(
         slug=slug,
         status="started",
         hint=(
             "studying in the background (typically 1–5 minutes). Poll "
             "zing_status() for phase, then get_breakdown(slug) for the result."
-            + (
-                " Using the kept local copy — zero network fetch when it "
-                "checks out; any fallback to fetching is named in the "
-                "breakdown's warnings."
-                if kept
-                else ""
-            )
+            + hint_extra
         ),
         **extra,
+    )
+
+
+def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
+    """INTEGRATION-CONTRACT v1 §9: study a uoink corpus item through the
+    kept-media resolver. Accepts ONE uoink reference — never a peer
+    path; paths only travel inside the token-gated handoff."""
+    if not isinstance(item_ref, str) or not item_ref.strip():
+        return _err(
+            "item_ref required: a uoink item reference like "
+            "'uoink://item/short-123'"
+        )
+    if not shutil.which("ffmpeg"):
+        return _err(
+            "ffmpeg not found on PATH — Zing cannot measure anything without "
+            "it. Run `zing doctor` for the install command."
+        )
+    api = _study_api()
+    if api is None:
+        return _err(
+            "the study engine is not in this build yet — "
+            "zing_status().engine_available will flip to true when it lands"
+        )
+    if not (_engine_supports(api, "kept_media") and _engine_supports(api, "handoff")):
+        return _err(
+            "this build's study engine predates the kept-media handoff "
+            "contract — update myzing"
+        )
+
+    from myzing import uoink_bridge
+
+    resolved = uoink_bridge.resolve_kept_media(item_ref.strip())
+    if not resolved.get("ok"):
+        return _err(str(resolved.get("error", "kept-media resolution failed")))
+    data = resolved["data"]
+    state = data["state"]
+    source_url = data.get("source_url")
+    media = data.get("media")
+    if not source_url:
+        # Identity stays URL-derived (stable-IDs rule) and refetch is only
+        # allowed from the handoff's source_url — without one there is
+        # nothing honest to study when the kept file is absent, and no
+        # slug for it when present.
+        return _err(
+            f"uoink has no source_url for {item_ref} (state={state}) — "
+            "zing derives a study's identity from the source URL. If you "
+            "have the file, study it directly as a local path instead."
+        )
+    handoff = {
+        "source_ref": data["item_ref"],
+        "state": state,
+        "sha256": (media or {}).get("sha256"),
+        "byte_length": (media or {}).get("byte_length"),
+    }
+    kept = str(media["path"]) if state == "available" else None
+    hint_extra = (
+        " Studying from uoink's kept file — zero network fetch when "
+        "integrity checks out."
+        if kept
+        else (
+            f" uoink kept no usable file (state={state}) — fetching from the "
+            "source URL; provenance will record the refetch and its reason."
+        )
+    )
+    return _dispatch_study(
+        api,
+        str(source_url),
+        kept,
+        handoff=handoff,
+        hint_extra=hint_extra,
+        item_ref=data["item_ref"],
+        kept_state=state,
     )
 
 
@@ -1199,6 +1294,19 @@ def build_server():
             "falls back to fetching with the reason named in warnings."
         ),
     )(h_study_video)
+    mcp.tool(
+        name="study_uoink_item",
+        description=(
+            "Study a uoink corpus item by its stable reference "
+            "(uoink://item/<id>). Resolves the item's kept media through "
+            "uoink's token-gated handoff endpoint (INTEGRATION-CONTRACT v1): "
+            "a usable kept file is studied with zero network fetch and "
+            "integrity-verified provenance; otherwise zing refetches from "
+            "the item's source URL and the provenance names why. Needs "
+            "UOINK_URL/UOINK_TOKEN configured; references only — this tool "
+            "never accepts a file path."
+        ),
+    )(h_study_uoink_item)
     mcp.tool(
         name="get_breakdown",
         description=(

@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import os
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -32,6 +33,15 @@ from myzing.doctor import UOINK_DEFAULT_URL, UOINK_URL_ENV
 UOINK_TOKEN_ENV = "UOINK_TOKEN"
 _TIMEOUT = 5.0
 
+# INTEGRATION-CONTRACT v1 §6.1 (ratified it#52): the kept-media handoff
+# envelope is exact-key — drift is a DISTINCT, named state, never
+# flattened into "absent" or a generic failure (§8 doctrine).
+_ITEM_REF_PREFIX = "uoink://item/"
+_HANDOFF_TOP_KEYS = {"ok", "contract", "version", "operation", "data"}
+_HANDOFF_DATA_KEYS = {"item_ref", "state", "source_url", "media", "provenance"}
+_HANDOFF_MEDIA_KEYS = {"path", "media_type", "byte_length", "sha256"}
+_HANDOFF_ERROR_KEYS = {"ok", "contract", "version", "operation", "error"}
+
 
 def helper_url() -> str:
     return os.environ.get(UOINK_URL_ENV, "").strip() or UOINK_DEFAULT_URL
@@ -39,6 +49,124 @@ def helper_url() -> str:
 
 def _token() -> str:
     return os.environ.get(UOINK_TOKEN_ENV, "").strip()
+
+
+def _nonconformant(what: str) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": (
+            f"uoink's kept-media response is not contract-conformant: {what} "
+            "(expected uoink.media.handoff v1, exact keys). This is version "
+            "drift, not absence — update uoink or zing so both speak "
+            "INTEGRATION-CONTRACT v1."
+        ),
+    }
+
+
+def resolve_kept_media(item_ref: str) -> dict[str, Any]:
+    """Resolve a uoink item reference to its kept-media handoff.
+
+    INTEGRATION-CONTRACT v1 §6.1: token-gated
+    GET /api/corpus/v1/items/<id>/kept-media, exact-key
+    ``uoink.media.handoff`` v1 envelope. Returns the house envelope:
+    ok:True with the validated contract ``data``, or ok:False with an
+    actionable error. Never touches the network without a credential
+    (§3.3: no credential means unconfigured, not an auth attempt).
+    """
+    if not isinstance(item_ref, str) or not item_ref.startswith(_ITEM_REF_PREFIX):
+        return {
+            "ok": False,
+            "error": (
+                "item_ref must be a uoink item reference like "
+                "'uoink://item/short-123' — never a file path (stable "
+                "references only; paths travel inside the handoff)"
+            ),
+        }
+    item_id = item_ref[len(_ITEM_REF_PREFIX):]
+    if not item_id:
+        return {"ok": False, "error": "item_ref has an empty item id"}
+    token = _token()
+    if not token:
+        return {
+            "ok": False,
+            "error": (
+                f"no uoink credential configured: set {UOINK_TOKEN_ENV} to "
+                "uoink's per-install token (token.txt next to uoink's "
+                "server.py). Zing never reads uoink's token file itself."
+            ),
+        }
+    url = (
+        helper_url().rstrip("/")
+        + "/api/corpus/v1/items/"
+        + urllib.parse.quote(item_id, safe="")
+        + "/kept-media"
+    )
+    request = urllib.request.Request(
+        url, headers={"X-Uoink-Token": token}, method="GET"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            return {
+                "ok": False,
+                "error": (
+                    f"uoink rejected the credential (HTTP {e.code}) — check "
+                    f"{UOINK_TOKEN_ENV} against uoink's token.txt"
+                ),
+            }
+        try:
+            body = json.loads(e.read().decode("utf-8"))
+        except (ValueError, OSError):
+            return {
+                "ok": False,
+                "error": f"uoink answered HTTP {e.code} — is your uoink up to date?",
+            }
+    except (urllib.error.URLError, OSError, ValueError):
+        return {
+            "ok": False,
+            "error": (
+                f"no uoink helper at {helper_url()} — is Uoink running? "
+                "Zing works fine without it; kept-media study needs it once."
+            ),
+        }
+
+    if not isinstance(body, dict):
+        return _nonconformant("response is not a JSON object")
+    if body.get("contract") != "uoink.media.handoff" or body.get("version") != 1:
+        return _nonconformant(
+            f"contract={body.get('contract')!r} version={body.get('version')!r}"
+        )
+    if body.get("ok") is False:
+        if set(body) != _HANDOFF_ERROR_KEYS or not isinstance(body.get("error"), dict):
+            return _nonconformant(f"error envelope keys {sorted(body)}")
+        err = body["error"]
+        code = str(err.get("code", ""))
+        message = str(err.get("message", ""))
+        return {
+            "ok": False,
+            "error": f"uoink could not resolve {item_ref}: {code} — {message}",
+            "code": code,
+        }
+    if set(body) != _HANDOFF_TOP_KEYS or body.get("operation") != "resolve":
+        return _nonconformant(f"envelope keys {sorted(body)}")
+    data = body["data"]
+    if not isinstance(data, dict) or set(data) != _HANDOFF_DATA_KEYS:
+        return _nonconformant(
+            "data keys "
+            + str(sorted(data) if isinstance(data, dict) else type(data).__name__)
+        )
+    state = data.get("state")
+    if state not in ("available", "not_kept", "missing"):
+        return _nonconformant(f"unknown state {state!r}")
+    media = data.get("media")
+    if state == "available":
+        if not isinstance(media, dict) or set(media) != _HANDOFF_MEDIA_KEYS:
+            return _nonconformant("media keys for state=available")
+    elif media is not None:
+        return _nonconformant(f"state={state} with non-null media")
+    return {"ok": True, "data": data}
 
 
 def push_breakdown(slug: str) -> dict[str, Any]:

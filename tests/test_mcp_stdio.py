@@ -133,6 +133,7 @@ def client(tmp_path):
 
 EXPECTED_TOOLS = {
     "study_video",
+    "study_uoink_item",
     "get_breakdown",
     "list_breakdowns",
     "save_judgment",
