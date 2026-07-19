@@ -246,3 +246,8 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   to work through unjudged references now." Implemented in the same
   PR (two lines, Lane B files). NO new tool; recommend disposing P-B2
   as build-rejected/guidance-shipped.
+## S4 gate defects (from S4-GATE-PACK-2026-07-19.md — work its defect list verbatim; P1s first)
+- **S4-D1 (Lane C, P1):** render audio-timeline bug — clip 2 audio at t=0 + silenced tail (adelay garbage-PTS silence dropped by trailing atrim on ffmpeg 8.1.1). The gate record contains the verified one-filter fix — implement it + a regression test that reproduces the ORIGINAL failure (the six green integration tests missed this; add the audio-placement probe class to the mutation matrix so it can never pass silently again).
+- **S4-D3 (Lane B, P1):** setup CLI wedges on cold-start one-shot path — fix + regression; also restore pack-manifest provenance through the setup path (defect D-per record).
+- **S4-D-rest (lanes per record):** remaining 7 queue-ready defects in the gate record — claim by ID in NOTES as usual.
+- **Gate rerun (orchestrator, after S4-D1+S4-D3 merge):** Gate 1 rerun required before S5 opens. YouTube bot-gating on this machine left VO-with-fresh-fetch honestly unexercised — rerun uses cached/local media; the fetch-dependent half stays flagged until the S5 clean-host sweep.
