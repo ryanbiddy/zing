@@ -176,6 +176,53 @@ def test_bare_module_cli_names_the_default_sample_mode(tmp_path: Path) -> None:
     assert "mode: checked-in sample" in result.stdout
 
 
+def test_run_dispatches_sample_in_process(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report_path = tmp_path / "in-process.json"
+
+    code = eval_run.run(
+        [
+            "--sample",
+            "--report",
+            str(report_path),
+            "--ffmpeg",
+            "not-installed-ffmpeg",
+        ]
+    )
+
+    assert code == 0
+    assert "checked-in-scorer-sample" in capsys.readouterr().out
+    assert json.loads(report_path.read_text(encoding="utf-8"))["passed"] is True
+
+
+def test_missing_goldens_writes_machine_readable_error_report(
+    tmp_path: Path,
+) -> None:
+    report_path = tmp_path / "missing-goldens.json"
+    missing = tmp_path / "does-not-exist"
+
+    with pytest.raises(SystemExit) as raised:
+        eval_run.run(
+            [
+                "--study",
+                "--goldens",
+                str(missing),
+                "--report",
+                str(report_path),
+                "--ffmpeg",
+                "not-installed-ffmpeg",
+            ]
+        )
+
+    assert raised.value.code == 2
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["passed"] is False
+    assert report["error"]["type"] == "ValueError"
+    assert "goldens directory not found" in report["error"]["message"]
+
+
 def test_module_cli_writes_report_on_error(tmp_path: Path) -> None:
     report_path = tmp_path / "error report.json"
     empty_goldens = tmp_path / "empty goldens"

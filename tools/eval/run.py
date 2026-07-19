@@ -240,6 +240,16 @@ def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
     )
 
 
+def _parser_error_with_report(
+    parser: argparse.ArgumentParser,
+    report_path: Path,
+    ffmpeg: str,
+    message: str,
+) -> None:
+    _write_error_report(report_path, ffmpeg, ValueError(message))
+    parser.error(message)
+
+
 def run(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -277,8 +287,12 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     if args.study:
         if not args.goldens.is_dir():
-            parser.error(
-                f"goldens directory not found: {args.goldens}; run make_goldens first"
+            _parser_error_with_report(
+                parser,
+                args.report,
+                args.ffmpeg,
+                f"goldens directory not found: {args.goldens}; "
+                "run make_goldens first",
             )
         case_directories = sorted(
             path for path in args.goldens.iterdir() if (path / "truth.json").is_file()
@@ -295,8 +309,11 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     if args.profiles:
         if not DEFAULT_PROFILE_CASES.is_dir():
-            parser.error(
-                f"profile cases directory not found: {DEFAULT_PROFILE_CASES}"
+            _parser_error_with_report(
+                parser,
+                args.report,
+                args.ffmpeg,
+                f"profile cases directory not found: {DEFAULT_PROFILE_CASES}",
             )
         profile_case_directories = sorted(
             path
@@ -304,8 +321,11 @@ def run(argv: Sequence[str] | None = None) -> int:
             if (path / "expected-profile.json").is_file()
         )
         if not profile_case_directories:
-            parser.error(
-                f"no profile cases found in: {DEFAULT_PROFILE_CASES}"
+            _parser_error_with_report(
+                parser,
+                args.report,
+                args.ffmpeg,
+                f"no profile cases found in: {DEFAULT_PROFILE_CASES}",
             )
         profile_builder = profile_builder_adapter
     else:
@@ -314,13 +334,19 @@ def run(argv: Sequence[str] | None = None) -> int:
 
     if args.directions:
         if not DEFAULT_DIRECTION_CASES.is_dir():
-            parser.error(
-                f"direction cases directory not found: {DEFAULT_DIRECTION_CASES}"
+            _parser_error_with_report(
+                parser,
+                args.report,
+                args.ffmpeg,
+                f"direction cases directory not found: {DEFAULT_DIRECTION_CASES}",
             )
         direction_paths = sorted(DEFAULT_DIRECTION_CASES.glob("*.json"))
         if not direction_paths:
-            parser.error(
-                f"no direction outputs found in: {DEFAULT_DIRECTION_CASES}"
+            _parser_error_with_report(
+                parser,
+                args.report,
+                args.ffmpeg,
+                f"no direction outputs found in: {DEFAULT_DIRECTION_CASES}",
             )
     else:
         direction_paths = []
