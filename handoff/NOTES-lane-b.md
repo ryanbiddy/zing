@@ -1050,3 +1050,20 @@
   tools" line survived seven tool additions because nothing owned it;
   the same mirror-test doctrine that guards the wheel's data dirs now
   guards the doc's promises.
+- **2026-07-19 (Lane B): SG-5 pass (rotation; queue empty — final
+  review in flight, fixlist not yet landed).** One proposal, own
+  refutation attached, filed in QUEUE §PROPOSED: corpus-seeded
+  onboarding (`zing setup` from the user's uoink library via
+  corpus.read + study_uoink_item — zero-fetch onboarding that
+  sidesteps the entire D-9/D-11/D-13 fetch-friction class). The
+  refutation is real: premature until the fixlist clears and Decision
+  Week rules on onboarding; corpus.read's filter shape is an
+  unverified capability question (named as the mandatory first step);
+  and the audience is uoink-with-keep_media users only. Filed as
+  post-Decision-Week shelf inventory, not a launch item. Candidates
+  KILLED by refutation before filing (recorded so they aren't
+  re-derived): cancel_study (no measured demand; cooperative-cancel
+  design cost is real; already_studying + crash-honest restart covers
+  the observed cases) and a shot-list reconciliation prompt (the gate
+  proved plumbing, not workflow demand; three sentences in direct.md
+  when demand shows up beats a fifth prompt now).

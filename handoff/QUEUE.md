@@ -191,6 +191,37 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 
 ## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
 
+- **PROPOSED (Lane B, SG-5, 2026-07-19): corpus-seeded onboarding —
+  `zing setup` from your own uoink library.**
+  PROPOSAL: a third setup source alongside packs and personal links:
+  list the user's uoink corpus short-video items (uoink.corpus.read/1
+  — the same contract-legal read Writer already does), let them pick
+  N, and study each via study_uoink_item — ZERO network fetch, zero
+  yt-dlp/JS-runtime/bot-wall friction, because the kept files are
+  local. Evidence: (1) the #1 first-run failure class is fetch
+  friction — D-9/D-11/D-13 and all of FETCH-TROUBLESHOOTING exist
+  because of it; kept-media onboarding sidesteps the entire class.
+  (2) R3 sentiment names cold-start as a churn driver; the corpus IS
+  the user's taste, already curated. (3) S6 made per-item kept study
+  real and cheap (#221-#224, family gate 11/11 zero-refetch). Cheap
+  adapter: reuses the personal-links setup path + study_uoink_item;
+  possibly ZERO uoink-side work (client-side filter over corpus.read
+  results + per-item kept-media resolve).
+  REFUTATION (mine): (1) PREMATURE — the final review is running and
+  its fixlist outranks roadmap; Decision Week may reshape onboarding
+  wholesale. (2) Capability unknown: corpus.read's result shape may
+  not expose a kept-media/short-video filter — client-side filtering
+  could mean N kept-media probes just to build the picker (bounded:
+  probes are local HTTP, ~ms each, and §4 caps retry cadence — but it
+  must be measured, not assumed). (3) Audience: only helps users who
+  ALREADY run uoink with keep_media on — a subset of a subset at
+  launch; packs remain the universal cold-start. Mitigation: this is
+  additive shelf-inventory for the suite story, not a launch blocker.
+  SURVIVES AS: post-fixlist, post-Decision-Week roadmap candidate;
+  first step is a one-question capability check with uoink's owner
+  (does corpus.read expose keep_media presence per item?) before any
+  build.
+
 - **PROPOSED (Lane B, SG-4, 2026-07-19): publish zing to the official
   MCP registry at launch.**
   PROPOSAL: at launch, add `server.json` (registry_type pypi,
