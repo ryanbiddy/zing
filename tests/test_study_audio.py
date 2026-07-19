@@ -178,3 +178,50 @@ def test_speech_ratio_clamped_and_rounded(monkeypatch):
     result = audio.measure_audio(Path("m.mp4"), duration=3.0)
 
     assert result.audio.speech_ratio == 1.0
+
+
+def test_parse_astats_unparsable_value_floors():
+    out = "lavfi.astats.Overall.RMS_level=garbage\n"
+    assert audio.parse_astats(out) == [audio.SILENCE_FLOOR_DB]
+
+
+def test_measure_audio_ffmpeg_binary_missing_is_honest(monkeypatch):
+    def missing(cmd, timeout=None):
+        raise audio.proc.ToolMissing("ffmpeg")
+    monkeypatch.setattr("myzing.study.audio.proc.run", missing)
+    monkeypatch.setattr(audio, "_run_vad", lambda p: [])
+
+    result = audio.measure_audio(Path("m.mp4"), duration=3.0)
+
+    assert result.audio.loudness_curve == []
+    assert any("loudness curve skipped" in w for w in result.warnings)
+
+
+def test_measure_audio_vad_crash_is_honest(monkeypatch):
+    monkeypatch.setattr("myzing.study.audio.proc.run", ffmpeg_ok())
+
+    def crashes(p):
+        raise RuntimeError("onnx session died")
+    monkeypatch.setattr(audio, "_run_vad", crashes)
+
+    result = audio.measure_audio(Path("m.mp4"), duration=3.0)
+
+    assert result.audio.speech_ratio == 0.0
+    assert any("VAD failed" in w for w in result.warnings)
+
+
+def test_run_vad_real_seam_on_silent_wav(tmp_path):
+    """The one unmocked exercise of the VAD seam: a generated silent WAV
+    must yield zero speech spans (silero weights ship with
+    faster-whisper — offline)."""
+    import wave
+
+    pytest.importorskip("faster_whisper")
+    path = tmp_path / "silence.wav"
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(b"\x00\x00" * 8000)   # 0.5s of silence
+
+    assert audio._run_vad(path) == []
