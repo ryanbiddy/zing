@@ -42,6 +42,27 @@ def test_probe_wraps_subprocess_timeout(tmp_path: Path, monkeypatch) -> None:
         probe_media(source)
 
 
+def test_directory_creation_translates_os_error_once(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    directory = tmp_path / "render-output"
+
+    def full_disk(path: Path, *args, **kwargs) -> None:
+        raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(Path, "mkdir", full_disk)
+
+    with pytest.raises(
+        RenderError,
+        match="could not create scratch directory:.*No space left on device",
+    ):
+        pipeline._create_directory(
+            directory,
+            "could not create scratch directory",
+        )
+
+
 def test_publish_falls_back_for_cross_device_work_directory(
     tmp_path: Path,
     monkeypatch,

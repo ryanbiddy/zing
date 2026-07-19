@@ -33,11 +33,15 @@ class RenderResult:
     work_dir: Path | None
 
 
-def _publish_output(staged_output: Path, output_path: Path) -> None:
+def _create_directory(directory: Path, error: str) -> None:
     try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        raise RenderError(f"could not create output directory: {exc}") from exc
+        raise RenderError(f"{error}: {exc}") from exc
+
+
+def _publish_output(staged_output: Path, output_path: Path) -> None:
+    _create_directory(output_path.parent, "could not create output directory")
     try:
         os.replace(staged_output, output_path)
         return
@@ -245,12 +249,10 @@ def render_edl(
             ffmpeg,
         )
 
-    try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise RenderError(
-            f"could not create output directory {output_path.parent}: {exc}"
-        ) from exc
+    _create_directory(
+        output_path.parent,
+        f"could not create output directory {output_path.parent}",
+    )
     with tempfile.TemporaryDirectory(
         prefix=f".{output_path.stem}-render-",
         dir=output_path.parent,
