@@ -760,3 +760,20 @@
   Survived refutation on the Lane-D-ownership, fetch-budget, and
   drift-false-positive angles (answers in the proposal). Read-only
   tool, Lane D consumes the report.
+
+- **2026-07-19 (Lane A, SG-1 round 4): review #238-FF-8 / #240 / #244
+  / #246 — pass, one hygiene fix shipped in this PR.**
+  - #238 FF-8 half: the bridge rejects non-null non-HTTP(S)
+    source_url as contract drift BEFORE it reaches ingest() — closing
+    exactly the file:// -> _stage_local local-read shape I analyzed
+    when triaging FF-8. Right check, right layer (the boundary is
+    where user-path vs peer-URL context still exists). Pass; this
+    guards my seam.
+  - #246 (CLI help registry): my routed surfaces re-verified green
+    (19 tests). Pass.
+  - #244 (suite_peer coverage): coverage work itself pass — but the
+    commit shipped a 53KB `.coverage` SQLite artifact into the repo
+    root. Fixed HERE: git rm --cached + .gitignore entry (the same
+    slip nearly happened from my own runs; now structurally blocked).
+  - #240 (P3 batch): doc/version honesty items, no measurement
+    surface contact. Pass.
