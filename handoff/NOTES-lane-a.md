@@ -494,3 +494,10 @@
     warning (34–434s span among vertical vlogs) — orientation was the
     fixable half; duration variety is the genre, and the warning
     stands truthfully.
+  - **SW-4 (found by the sweep's 62-min cell, fixed same cycle):**
+    batched whisper seams emit rare sub-second word-order inversions
+    (2 in 10,088 words). _collect_words now normalizes to monotonic
+    order (whisper's own timestamps, sorted — no fabrication) with a
+    seam-overlap regression test. Matrix is now 7 live cells; only
+    instagram (policy wall, Ryan's cookies call) and the two thin
+    tiktok cells remain non-live.

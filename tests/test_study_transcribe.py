@@ -157,3 +157,24 @@ def test_run_model_extracts_and_strips_words(monkeypatch):
     assert [w.text for w in words] == ["stop", "scrolling!"]  # blank dropped
     assert words[0].confidence == 0.995  # rounded to 3
     assert (language, prob) == ("en", 0.98)
+
+
+def test_batched_seam_overlap_is_normalized_to_monotonic_order():
+    """SW-4: batched-pipeline segment seams can overlap by a fraction of
+    a second, emitting out-of-order word starts (seen live: 2 inversions
+    in 10,088 words on a 62-min study). Collection sorts by whisper's
+    own timestamps — normalization, not fabrication."""
+    seam_a = SimpleNamespace(words=[
+        SimpleNamespace(word=" the", start=498.9, end=499.3, probability=0.9),
+        SimpleNamespace(word=" military.", start=499.77, end=499.79, probability=0.9),
+    ])
+    seam_b = SimpleNamespace(words=[
+        SimpleNamespace(word=" the", start=499.35, end=499.6, probability=0.9),
+        SimpleNamespace(word=" army", start=499.6, end=500.0, probability=0.9),
+    ])
+
+    words = transcribe._collect_words([seam_a, seam_b])
+
+    starts = [w.start for w in words]
+    assert starts == sorted(starts)
+    assert [w.text for w in words] == ["the", "the", "army", "military."]
