@@ -548,3 +548,14 @@
   multi-lane work); a shared framework would reintroduce the conflict
   surface the design removed. Recorded so future SG-3 cycles skip
   these. Churn avoided is the deliverable (per #195 precedent).
+
+- **2026-07-19 (Lane A, SG-4): OCR script-coverage scan** —
+  handoff/research/SG4-OCR-SCRIPT-COVERAGE-2026-07-19.md. surya
+  REJECTED on weights license (cc-by-nc-sa despite Apache code — dep
+  vetting must check weights licenses separately). PP-OCRv5/v6
+  multilingual rec models (Apache end to end, loadable via our
+  existing rapidocr backend, upstream tracking RapidAI/RapidOCR#499)
+  filed as the ADOPT-CANDIDATE for SW-1's unsupported_script class —
+  promotion gated on P-C2 calibration evidence, Lane C's harness
+  half. whisperX skipped: its trigger condition is already written in
+  transcribe.py and has not fired.
