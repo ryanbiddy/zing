@@ -193,3 +193,59 @@ def test_cli_links_flow(zing_workspace, engines, capsys):
 def test_cli_links_without_name(capsys):
     assert setup_flow.run(["--links", LINKS[0]]) == 2
     assert "--name" in capsys.readouterr().out
+
+
+# -- SG-2: CLI pack path + failure branches ----------------------------------
+
+def test_cli_pack_flow_defaults_name_and_genre(
+    zing_workspace, engines, pack_dir, capsys
+):
+    code = setup_flow.run(["--pack", "ai-tech-talking-head"])
+    assert code in (0, 3)
+    wait_studies(SLUGS)
+    code = setup_flow.run(["--pack", "ai-tech-talking-head"])
+    assert code == 0
+    assert "built from 2 references" in capsys.readouterr().out
+    profile = storage.load_profile("ai-tech-talking-head")  # name from pack
+    assert profile.genre == "talking-head"                  # genre from pack
+
+
+def test_cli_unknown_pack_lists_available(pack_dir, capsys):
+    assert setup_flow.run(["--pack", "nope"]) == 1
+    out = capsys.readouterr().out
+    assert "ai-tech-talking-head" in out
+
+
+def test_cli_malformed_pack_is_loud(pack_dir, capsys):
+    (pack_dir / "pack.json").write_text(
+        '{"name": "x", "references": []}', encoding="utf-8"
+    )
+    assert setup_flow.run(["--pack", "ai-tech-talking-head"]) == 1
+    assert "malformed" in capsys.readouterr().out
+
+
+def test_cli_build_failure_reported(zing_workspace, engines, monkeypatch, capsys):
+    def broken_build(name, slugs, **kw):
+        return {"ok": False, "error": "aggregation exploded"}
+
+    monkeypatch.setattr(mcp_server, "h_build_profile", broken_build)
+    setup_flow.run(["--links", *LINKS, "--name", "doomed"])
+    wait_studies(SLUGS)
+    assert setup_flow.run(["--links", *LINKS, "--name", "doomed"]) == 1
+    assert "aggregation exploded" in capsys.readouterr().out
+
+
+def test_cli_bad_profile_name(zing_workspace, capsys):
+    assert setup_flow.run(["--links", LINKS[0], "--name", "../escape"]) == 1
+    assert "profile name" in capsys.readouterr().out
+
+
+def test_plan_setup_requires_links(zing_workspace):
+    with pytest.raises(ValueError, match="at least one reference"):
+        setup_flow.plan_setup("x", [])
+
+
+def test_load_pack_rejects_path_shaped_names(pack_dir):
+    assert setup_flow.load_pack("../escape") is None
+    assert setup_flow.load_pack(".hidden") is None
+    assert setup_flow.load_pack("") is None

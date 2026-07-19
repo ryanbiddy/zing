@@ -505,3 +505,11 @@
   for exactly two cycles before this sweep found it — generator
   rotation is working as the intended self-cleaning mechanism; no
   change recommended.
+- **2026-07-19 (Lane B): SG-2 third pass (standing generator; queue
+  empty).** Newest-module sweep: setup_flow.py was my lowest at 74% —
+  the untested paths were the CLI's whole --pack branch (happy path
+  with name/genre defaulting from the pack, unknown-pack listing,
+  malformed-pack loudness), the build-failure exit, bad profile names,
+  and load_pack's path-shaped-name rejections. 8 tests, **74% → 93%**
+  (direction.py 96%, tts_providers 91% — healthy). Remaining misses are
+  argparse plumbing and print formatting. SG rotation log updated.
