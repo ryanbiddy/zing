@@ -271,6 +271,7 @@ def test_study_video_kept_media_engine_without_support_is_honest(
     api = types.ModuleType("myzing.study.api")
     api.study = lambda source, phase_callback=None: None
     monkeypatch.setattr(mcp_server, "_study_api", lambda: api)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
     result = mcp_server.h_study_video(SRC_URL, kept_media=str(tmp_path / "k.mp4"))
     assert result["ok"] is False
     assert "kept-media support" in result["error"]
