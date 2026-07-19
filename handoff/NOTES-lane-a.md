@@ -709,3 +709,12 @@
   validation too) OR degrade to measured-dims-with-warning for
   non-preset aspects ("flagged, not blocked"). Instagram being
   cookie-walled for us doesn't make 4:5 rare in the wild.
+
+- **2026-07-19 (Lane A, SG-2 round 3): assemble/command 83% -> 97%,
+  ingest 92% -> 94% — including one behavior now PINNED:** if a
+  corrupt kept-media staged copy cannot be unlinked (locked file),
+  the fetch fallback finds and reuses it, the re-probe fails, and
+  ingest dies with MediaError — honest failure, never measurement of
+  bad bytes. That degradation chain existed untested; it is now a
+  named regression. Also covered: kept-copy OSError fallback, CLI
+  --json output, CLI missing-media honesty. Suite 778.
