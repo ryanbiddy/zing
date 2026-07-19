@@ -795,3 +795,14 @@
   with their reference counts (wheel-data path). No defects found —
   this is a verification record, not a change. The build is done and
   Lane A's surfaces are ready for the sitting.
+
+- **2026-07-19 (Lane A): preflight completed across ALL Lane A CLI
+  surfaces — `zing assemble` green too.** Direction -> draft on the
+  preflight workspace: 1 clip, exact 720x1280 preset output (the S6
+  gate's _output_dimensions live), honest warnings (flagged-not-
+  blocked keeper divergence; no-transcript caption omission), and
+  P2-8's LAYERED fix confirmed on warning text: the em dash in
+  draft warnings renders correctly through a redirected pipe via
+  Lane B's non-tty UTF-8 reconfigure (my ASCII pass covered summary
+  lines; their layer covers warning strings). study/profile/assemble
+  all verified for the sitting.
