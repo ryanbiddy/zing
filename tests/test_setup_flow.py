@@ -269,3 +269,73 @@ def test_cli_list_names_the_next_command(pack_dir, capsys):
     assert setup_flow.run(["--list"]) == 0
     out = capsys.readouterr().out
     assert "zing setup --pack <name>" in out
+
+
+# -- SG-2: the D-3/D-4 machinery itself --------------------------------------
+
+def test_wait_for_studies_returns_on_orphaned_running(zing_workspace):
+    """D-3's subtle case: a 'running' status whose worker died must not
+    spin the wait loop forever — the reconciling read flips it."""
+    import os
+
+    slug = storage.slug_for(LINKS[0])
+    storage.write_status(
+        slug, state="running", phase="shots", pid=os.getpid(),
+        heartbeat_at="2020-01-01T00:00:00+00:00", started_at="t",
+    )
+    seen = []
+    setup_flow.wait_for_studies(
+        "orphan-taste", [LINKS[0]], poll_s=0.01,
+        progress=lambda running: seen.append(running),
+    )  # must return promptly instead of hanging
+    assert (storage.read_status(slug) or {}).get("state") == "failed"
+
+
+def test_cli_gives_up_honestly_after_bounded_retries(
+    zing_workspace, monkeypatch, capsys
+):
+    """D-4 + give-up: an engine that always fails must end in the
+    per-slug failure report with exit 1, not an infinite retry loop."""
+    import sys as _sys
+    import types
+
+    api = types.ModuleType("myzing.study.api")
+
+    def study(source, **kw):
+        raise RuntimeError("fetch blocked: LOGIN_REQUIRED")
+
+    api.study = study
+    monkeypatch.setitem(_sys.modules, "myzing.study.api", api)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+
+    code = setup_flow.run(["--links", LINKS[0], "--name", "doomed-taste"])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "Retrying" in out                      # D-4 retry rounds announced
+    assert "could not be completed" in out
+    assert "LOGIN_REQUIRED" in out                # per-slug error detail shown
+    assert "zing doctor" in out                   # actionable next step
+
+
+def test_finish_pack_error_paths(pack_dir, monkeypatch):
+    import sys as _sys
+    import types
+
+    packs_mod = types.ModuleType("myzing.profile.packs")
+
+    class PackError(RuntimeError):
+        pass
+
+    def broken_build(path, study_missing=False):
+        raise PackError("manifest reference r1 vanished")
+
+    packs_mod.PackError = PackError
+    packs_mod.build_pack = broken_build
+    monkeypatch.setitem(_sys.modules, "myzing.profile.packs", packs_mod)
+    result = setup_flow.finish_pack("ai-tech-talking-head")
+    assert result["ok"] is False
+    assert "manifest reference r1 vanished" in result["error"]
+
+    monkeypatch.setitem(_sys.modules, "myzing.profile.packs", None)
+    result = setup_flow.finish_pack("ai-tech-talking-head")
+    assert result["ok"] is False and "update Zing" in result["error"]
