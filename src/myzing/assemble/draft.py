@@ -27,6 +27,12 @@ MIN_CLIP_S = 0.2
 KEEPER_MATCH_TOLERANCE_S = 0.35
 CAPTION_GAP_S = 0.6           # word gap that closes a caption window
 CAPTION_MAX_WORDS = 5
+OUTPUT_ASPECT_TOLERANCE = 0.02
+OUTPUT_RATIOS = {
+    "vertical": (9, 16),
+    "landscape": (16, 9),
+    "square": (1, 1),
+}
 
 
 class AssembleError(RuntimeError):
@@ -114,6 +120,12 @@ def draft_edl(
             f"@{breakdown.meta.fps:g}) — re-run 'zing study' rather than "
             "inventing an output orientation"
         )
+    output_width, output_height, output_warning = _output_dimensions(
+        breakdown.meta.width,
+        breakdown.meta.height,
+    )
+    if output_warning:
+        warnings.append(output_warning)
     captions = _caption_specs(breakdown, clips)
     if not captions and breakdown.words:
         warnings.append(
@@ -128,11 +140,70 @@ def draft_edl(
     edl = EDL(
         clips=clips,
         captions=captions,
-        width=breakdown.meta.width,
-        height=breakdown.meta.height,
+        width=output_width,
+        height=output_height,
         fps=breakdown.meta.fps,
     )
     return DraftResult(edl=edl, warnings=warnings)
+
+
+def _output_dimensions(
+    measured_width: int,
+    measured_height: int,
+) -> tuple[int, int, str]:
+    """Map a measured near-preset stream to an exact, even render frame.
+
+    Short-video encoders commonly round one side to the nearest even pixel
+    (for example 240x426 for a 9:16 source). The breakdown retains those
+    measured dimensions. The EDL uses the largest non-upscaled, even exact
+    preset frame that fits inside them so the renderer need not pretend the
+    source itself had a different shape.
+    """
+    measured_ratio = measured_width / measured_height
+    ranked = sorted(
+        (
+            (
+                abs(
+                    measured_ratio - ratio_width / ratio_height
+                ) / (ratio_width / ratio_height),
+                name,
+                ratio_width,
+                ratio_height,
+            )
+            for name, (ratio_width, ratio_height)
+            in OUTPUT_RATIOS.items()
+        ),
+        key=lambda candidate: candidate[0],
+    )
+    distance, preset, ratio_width, ratio_height = ranked[0]
+    if distance > OUTPUT_ASPECT_TOLERANCE:
+        raise AssembleError(
+            "measured source aspect "
+            f"{measured_width}x{measured_height} is not within "
+            "2% of a 9:16, 16:9, or 1:1 render preset"
+        )
+    scale = min(
+        measured_width // ratio_width,
+        measured_height // ratio_height,
+    )
+    # Both dimensions must be even for yuv420p. Each supported ratio has
+    # at least one odd side, so an even scale guarantees both are even.
+    scale -= scale % 2
+    if scale <= 0:
+        raise AssembleError(
+            "measured source is too small for an even preset render frame"
+        )
+    width = ratio_width * scale
+    height = ratio_height * scale
+    if (width, height) == (measured_width, measured_height):
+        return width, height, ""
+    warning = (
+        "draft EDL: measured "
+        f"{measured_width}x{measured_height} mapped to exact {preset} "
+        f"output {width}x{height}; source measurements remain unchanged "
+        "in the breakdown"
+    )
+    return width, height, warning
 
 
 def _caption_style(breakdown: Breakdown) -> tuple[str, bool, bool]:
