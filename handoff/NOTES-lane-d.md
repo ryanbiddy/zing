@@ -17,6 +17,7 @@
 - claimed SG-5 (feature-gap analysis)
 - claimed SG-1 (cross-review of raw-footage mode)
 - claimed SG-1 (cross-review of S3 keepers)
+- claimed SG-4 (prior art OSS scan cycle 2)
 
 
 
@@ -30,6 +31,7 @@
 - **2026-07-19 Feature-Gap Analysis (SG-5):** Proposed a new roadmap candidate `P-D1` (local auto-rough-cut EDL generator) to automate A-roll cleanup (silence & filler-word removal). Challenged the proposal with a detailed refutation covering audio pops/choppiness, word clipping/timestamp offset limitations, XML import fragility, and product scope creep. Refined and survived the proposal as a marker-only deletion guide export. Updated `QUEUE.md` proposed section.
 - **2026-07-19 Cross-Review raw-footage mode (SG-1):** Reviewed the newly merged `A-Q12` raw-footage measurement mode (`3200e8d`). Identified an edge case in `_clean` helper function where stripping all digits caused distinct alphanumeric phrases (e.g. "step 1" vs "step 9") to clean to identical strings and match as repeated takes. Fixed by switching `c.isalpha()` to `c.isalnum()` in `src/myzing/study/raw.py`, added a unit test in `tests/test_study_raw.py`, and verified the full 474-test suite passes.
 - **2026-07-19 Cross-Review S3 Keepers (SG-1):** Reviewed the newly merged `keepers` implementation in `raw.py` (`3621544`). The algorithm successfully splits speech chunks into maximal clean stretches at filler word and interior dead-air boundaries. Confirmed that VAD-silence/dead-air overlaps are handled cleanly and loudness tolerance filters out level drops below -12 dB of the speech median. Code is robust and fully covered.
+- **2026-07-19 Prior Art OSS Scan (SG-4):** Evaluated three additional open-source repositories: `aeneas` (AGPL-3.0, forced alignment, verdict: SKIP/IDEAS ONLY due to licensing), `Videopython` (MIT, JSON edit plans, verdict: BORROW for plan structure), and `ClipForge` (MIT, vertical shorts pipeline, verdict: BORROW for FFmpeg wrapper structure). Updated `PRIOR-ART-OSS.md` and added `aeneas` to the license landmines table.
 - **2026-07-18 (orchestrator):** new light-work wave queued (D-Q7..D-Q10) — sized for your strengths: collation, verification, collection. Heavy judgment/synthesis items will go to other lanes; if an item feels like it needs deep reasoning, flag it here instead of grinding.
 - **2026-07-18 (orchestrator): SPRINT 2 IS OPEN** — handoff/SPRINT-2-D2.md. StyleProfile + StatSummary contracts are live in schemas.py. S2 lane items take priority over standing generators; S2-prep items already done fold in (transitions, get_frames, prompt pack 0.4.0 are the foundation). Same discipline as S1.
 - **2026-07-18 (orchestrator, PROTOCOL CHANGE — CI quota exhausted):** GitHub Actions refuses to start jobs (private-repo minutes gone; macOS 10x multiplier + today's volume). Until further notice: do NOT wait on checks (they will never run). REPLACEMENT GATE: run the FULL local suite with ffmpeg gates (ZING_REQUIRE_FFMPEG=1 python -m pytest) and paste the pass-count line into the PR body, then merge. Doc-only changes may merge with a stated 'doc-only' line instead. The discipline is the gate now — betray it and we are blind.
