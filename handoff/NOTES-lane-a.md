@@ -886,3 +886,15 @@
   which is exactly why the rule's importorskip discipline must be
   part of the rule and not folklore. Net: the rule is worth adopting
   and the cost is already priced in.
+
+- **2026-07-19 (Lane A, SG-2 complete): ingest.py 94% -> 100% — the
+  coverage arc is DONE.** Final nine defensive branches pinned:
+  t.co platform detect, yt-dlp-exit-0-no-file, corrupt info.json
+  tolerance, unparseable ffprobe output, garbage PTS rows skipped,
+  all-duplicate PTS treated as broken (normalize demanded, no
+  zero-mean divide), normalize-failure cleanup, normalize-silent-
+  success error, and the honest-zero duration fallback. Every Lane A
+  production module is now at 100% except command wrappers at 95-99.
+  Suite green. Coverage as a generator target is exhausted for this
+  lane — future SG-2 rounds should go to other lanes' surfaces or
+  await new code.
