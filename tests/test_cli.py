@@ -48,3 +48,10 @@ def test_redirected_output_is_utf8_not_mojibake():
     text = result.stdout.decode("utf-8")  # raises on non-UTF-8 bytes
     assert "\N{EM DASH}" in text  # the character survived the pipe
     assert "\N{REPLACEMENT CHARACTER}" not in text
+
+
+def test_broken_install_names_the_missing_module(capsys, monkeypatch):
+    monkeypatch.setitem(cli._COMMANDS, "ghostcmd", "myzing.does_not_exist")
+    assert cli.main(["ghostcmd"]) == 2
+    out = capsys.readouterr().out
+    assert "myzing.does_not_exist" in out and "reinstall" in out

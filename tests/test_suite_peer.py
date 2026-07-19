@@ -368,3 +368,144 @@ def test_unhealthy_verdict_names_probe_evidence(monkeypatch):
     check = doctor.check_uoink()
     assert check.mark == "unhealthy"
     assert "probe evidence: manifest fetch: HTTP 403" in check.detail
+
+
+# -- SG-2: validator drift matrix + conformance-read tails --------------------
+
+def _mut_manifest(**kw):
+    m = make_manifest()
+    m.update(kw)
+    return m
+
+
+@pytest.mark.parametrize("body,why", [
+    ("not a dict", "not a JSON object"),
+    ({**make_manifest(), "extra": 1}, "keys"),
+    (_mut_manifest(contract="wrong.name"), "contract"),
+    (_mut_manifest(version=2), "version"),
+    (_mut_manifest(ok=False), "ok"),
+], ids=["nondict", "extrakey", "contract", "version", "ok"])
+def test_manifest_defects_top_level(body, why):
+    assert suite_peer._manifest_defect(body) is not None
+
+
+@pytest.mark.parametrize("service_patch", [
+    {"health": {"contract": "wrong", "version": 1, "href": "/h"}},
+    {"health": {"contract": "ryan.suite.health", "version": 1, "href": "relative"}},
+    {"health": {"contract": "ryan.suite.health", "version": 1}},
+    {"mcp": {"name": "uoink", "transport": "stdio", "command": "evil.exe"}},
+    {"ui": {"home": "/"}},
+    {"capabilities": "not-a-list"},
+    {"capabilities": [1, 2]},
+], ids=["href-contract", "href-relative", "href-missing", "mcp-launcher",
+        "ui-keys", "caps-str", "caps-ints"])
+def test_manifest_defects_service_level(service_patch):
+    assert suite_peer._manifest_defect(make_manifest(**service_patch)) is not None
+
+
+@pytest.mark.parametrize("patch", [
+    {"contract": "wrong"},
+    {"state": "sideways"},
+    {"checks": []},
+    {"checks": [{"id": "core", "required": True}]},
+    {"checks": [{"id": "core", "required": True, "status": "meh"}]},
+    {"checks": [{"id": "core", "required": "yes", "status": "ready"}]},
+    {"checks": [{"id": "core", "required": True, "status": "ready"},
+                {"id": "index", "required": True, "status": "ready"}]},
+    {"ok": False},
+], ids=["contract", "state", "empty", "item-keys", "status", "required-type",
+        "missing-required-id", "ok-inconsistent"])
+def test_health_defects(patch):
+    assert suite_peer._health_defect(make_health(**patch)) is not None
+
+
+def test_health_not_a_dict():
+    assert suite_peer._health_defect([1, 2]) is not None
+
+
+def test_invalid_port_in_explicit_url(monkeypatch):
+    monkeypatch.setenv(suite_peer.UOINK_URL_ENV, "http://127.0.0.1:notaport")
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "invalid_configuration"
+    assert "port" in peer["error"]["message"]
+
+
+class ConformanceFails(FakeUoink):
+    """Manifest + health fine; the credentialed read fails per mode."""
+
+    def __init__(self, mode):
+        super().__init__()
+        self.mode = mode
+
+    def __call__(self, request, timeout=0):
+        import io
+
+        url = request if isinstance(request, str) else request.full_url
+        if "/kept-media" not in url:
+            return super().__call__(request, timeout)
+        if self.mode == "http500-nonjson":
+            raise urllib.error.HTTPError(url, 500, "boom", {}, io.BytesIO(b"<html>"))
+        if self.mode == "http500-envelope":
+            body = json.dumps({
+                "ok": False, "contract": "uoink.media.handoff", "version": 1,
+                "operation": "resolve",
+                "error": {"code": "unavailable", "message": "internal",
+                          "retryable": True},
+            }).encode()
+            raise urllib.error.HTTPError(url, 500, "boom", {}, io.BytesIO(body))
+        if self.mode == "dies":
+            raise urllib.error.URLError("reset")
+        if self.mode == "not-handoff":
+            class R(io.BytesIO):
+                status = 200
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *a):
+                    return False
+
+            return R(json.dumps({"hello": "world"}).encode())
+        raise AssertionError(self.mode)
+
+
+def test_conformance_read_nonjson_500_is_drift(monkeypatch):
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen", ConformanceFails("http500-nonjson")
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "contract_mismatch"
+    assert "conformance read: HTTP 500" in evidence
+
+
+def test_conformance_read_500_with_valid_envelope_is_available(monkeypatch):
+    """A well-formed handoff ERROR envelope on HTTP 500 proves both auth
+    and contract — the contract's own rule ('internal failures use the
+    same contract metadata'). The peer is available, not unhealthy."""
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen", ConformanceFails("http500-envelope")
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["state"] == "available"
+
+
+def test_conformance_read_network_death_is_unavailable(monkeypatch):
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen", ConformanceFails("dies")
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "unavailable"
+    assert "stopped answering" in peer["error"]["message"]
+
+
+def test_conformance_read_wrong_shape_is_drift(monkeypatch):
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen", ConformanceFails("not-handoff")
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "contract_mismatch"
+    assert "handoff" in peer["error"]["message"]
