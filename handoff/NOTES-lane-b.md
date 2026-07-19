@@ -1160,3 +1160,15 @@
   Also tidied the wrap-script indentation blemishes from #238's
   patch-script incident — no behavior change, pinned by the 855-test
   suite.
+- **2026-07-19 (Lane B): SG-3 pass (rotation; queue empty).** Target:
+  cli.py's freshly-written P2-6 fix had introduced the exact drift
+  class the final review taught us to kill — a hand-written _USAGE
+  block listing the same commands as the _COMMANDS routing dict. Now
+  ONE registry ({name: (module, help-line)}) drives routing AND
+  renders the help, so a command added tomorrow appears in `zing
+  --help` by construction; the pin test documents the invariant
+  rather than enforcing it. Help output byte-identical in content
+  (alignment computed). Observation: the fix sprint's doc-drift
+  lesson (CONNECT tool count, DEVELOPER-GUIDE checklist) applies to
+  IN-BINARY prose too — anywhere a surface is enumerated twice, one
+  copy is already stale or will be; generate or pin, never hand-copy.

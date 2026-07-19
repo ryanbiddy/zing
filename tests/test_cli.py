@@ -51,7 +51,19 @@ def test_redirected_output_is_utf8_not_mojibake():
 
 
 def test_broken_install_names_the_missing_module(capsys, monkeypatch):
-    monkeypatch.setitem(cli._COMMANDS, "ghostcmd", "myzing.does_not_exist")
+    monkeypatch.setitem(
+        cli._COMMANDS, "ghostcmd", ("myzing.does_not_exist", "ghost")
+    )
     assert cli.main(["ghostcmd"]) == 2
     out = capsys.readouterr().out
     assert "myzing.does_not_exist" in out and "reinstall" in out
+
+
+def test_every_registered_command_appears_in_help(capsys):
+    """SG-3: help renders FROM the command registry, so this holds by
+    construction — the assertion documents the invariant that killed
+    the hand-written-usage drift class (final review P2-6's sequel)."""
+    cli.main(["--help"])
+    out = capsys.readouterr().out
+    for name, (_, help_line) in cli._COMMANDS.items():
+        assert name in out and help_line in out
