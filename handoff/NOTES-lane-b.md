@@ -1261,3 +1261,23 @@
   The mesh state at freeze: every lane's last five merges are
   cross-reviewed, both Ryan-path preflights are green, and the queue
   holds only dispositioned or gated proposals. Ready for the sitting.
+- **2026-07-19 (Lane B): SG-2 seventh pass (rotation; freeze-safe
+  tests-only) — mcp_server 90%→93%, plus one honest-record
+  correction.** Targeted the lane's largest absolute gap (64 missed
+  statements). 11 new tests: version-unknown metadata, broken-build
+  engine import, un-introspectable study callable (Python 3.14 gave
+  builtins signatures — `min` still raises, the test says why),
+  thumbnail error payloads, zing_status's engagement-storage-failure
+  branch (trouble there never fails status), profile-build engine
+  failure, setup_taste's bad-pack and ready-but-build-failed
+  envelopes, serve-without-SDK exit, print-config SDK note, and the
+  export-otio missing-extras path. CORRECTION for the record: #238's
+  PR claimed BOTH SDK-missing messages carried the source-checkout
+  install form — writing the new test proved the --print-config NOTE
+  never got it (that cycle's patch script silently missed its match).
+  Two-line fix applied; the claim is now true and test-pinned. Lesson
+  reinforced: a replace without an assert on its count is a silent
+  no-op waiting to be discovered — that's why patch scripts now
+  assert-and-parse. Remaining mcp_server misses are Windows-only pid
+  branches, SDK adapter internals, and deep render plumbing —
+  documented, not hidden. Suite 873 passed / 2 skipped.

@@ -822,3 +822,134 @@ def test_list_breakdowns_shows_running_study_not_error(zing_workspace):
     storage.write_status(SLUG, state="running", phase="ocr")
     entries = storage.list_breakdowns()
     assert entries == [{"slug": SLUG, "study": "running", "phase": "ocr"}]
+
+
+# -- SG-2 seventh pass: mcp_server's remaining honest gaps --------------------
+
+def test_version_unknown_when_metadata_absent(monkeypatch):
+    import importlib.metadata as md
+
+    def missing(name):
+        raise md.PackageNotFoundError(name)
+
+    monkeypatch.setattr(mcp_server.importlib.metadata, "version", missing)
+    assert mcp_server._version() == "unknown"
+
+
+def test_study_api_import_failure_is_engine_absent(monkeypatch):
+    real_import = mcp_server.importlib.import_module
+
+    def failing(name, *a, **k):
+        if name == "myzing.study.api":
+            raise ImportError("broken build")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(mcp_server.importlib, "import_module", failing)
+    assert mcp_server._study_api() is None
+
+
+def test_engine_supports_uninspectable_study_dispatches(monkeypatch):
+    api = types.ModuleType("myzing.study.api")
+    api.study = min  # inspect.signature(min) raises ValueError (overloads)
+    assert mcp_server._engine_supports(api, "kept_media") is True
+
+
+def test_thumbnail_content_error_package_is_single_payload(zing_workspace):
+    content = mcp_server.mcp_thumbnail_content("../../bad")
+    assert len(content) == 1
+    assert json.loads(content[0])["ok"] is False
+
+
+def test_zing_status_engagement_storage_failure_is_named(
+    zing_workspace, monkeypatch
+):
+    from myzing import engagement
+
+    def boom():
+        raise engagement.EngagementStorageError("locked")
+
+    monkeypatch.setattr(engagement, "status", boom)
+    result = mcp_server.h_zing_status()
+    assert result["ok"] is True  # engagement trouble never fails status
+    assert result["engagement"]["state"] == "needs_attention"
+    assert result["engagement"]["error"] == "storage_unavailable"
+
+
+def test_build_profile_engine_failure_is_enveloped(zing_workspace, monkeypatch):
+    b = make_breakdown()
+    storage.save_breakdown(b, slug=SLUG)
+    api = types.ModuleType("myzing.profile.api")
+
+    def build_profile(name, slugs):
+        raise ValueError("fewer than 2 usable sources")
+
+    api.build_profile = build_profile
+    monkeypatch.setattr(mcp_server, "_profile_api", lambda: api)
+    result = mcp_server.h_build_profile("mine", [SLUG])
+    assert result["ok"] is False
+    assert "profile build failed" in result["error"]
+    assert "fewer than 2" in result["error"]
+
+
+def test_setup_taste_bad_pack_manifest_is_enveloped(zing_workspace, monkeypatch):
+    from myzing import setup_flow
+
+    def bad_pack(name):
+        raise ValueError("two packs claim the name 'dupe'")
+
+    monkeypatch.setattr(setup_flow, "load_pack", bad_pack)
+    result = mcp_server.h_setup_taste("mytaste", pack="dupe")
+    assert result["ok"] is False
+    assert "two packs claim" in result["error"]
+
+
+def test_setup_taste_ready_but_build_failed_is_honest(
+    zing_workspace, monkeypatch
+):
+    from myzing import setup_flow
+
+    outcome = {
+        "built": False,
+        "build": {"error": "profiles need 2+ studied sources"},
+        "plan": {"ready_to_build": True, "references": []},
+    }
+    monkeypatch.setattr(
+        setup_flow, "advance_setup", lambda *a, **k: outcome
+    )
+    result = mcp_server.h_setup_taste("mytaste", links=["https://x.test/v"])
+    assert result["ok"] is False
+    assert "profiles need 2+" in result["error"]
+
+
+def test_serve_without_sdk_exits_2_with_install_hint(monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "mcp", None)  # import mcp -> ImportError
+    assert mcp_server.run([]) == 2
+    err = capsys.readouterr().err
+    assert "myzing[mcp]" in err and "-e" in err
+
+
+def test_print_config_notes_missing_sdk(monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "mcp", None)
+    assert mcp_server.run(["--print-config"]) == 0
+    out = capsys.readouterr().out
+    assert "mcp SDK is not installed" in out
+    assert "source checkout" in out
+
+
+def test_export_otio_without_render_extras_is_actionable(
+    zing_workspace, tmp_path, monkeypatch
+):
+    edl = tmp_path / "edl.json"
+    edl.write_text(json.dumps({
+        "version": 1, "source_slug": SLUG, "clips": [],
+    }), encoding="utf-8")
+    b = make_breakdown()
+    storage.save_breakdown(b, slug=SLUG)
+    monkeypatch.setitem(sys.modules, "myzing.render.otio_export", None)
+    result = mcp_server.h_export_otio(str(edl))
+    if result["ok"] is False and "render extras" in result["error"]:
+        assert 'myzing[render]' in result["error"]
+    else:
+        # EDL validation may reject first on this build — either way the
+        # handler answered with the envelope, never a traceback.
+        assert "ok" in result

@@ -1597,6 +1597,7 @@ def _print_connect_config(target: str) -> int:
         print(
             '\n# NOTE: the mcp SDK is not installed in this Python yet — run'
             '\n#   python -m pip install "myzing[mcp]"'
+            '\n# (from a source checkout: pip install -e ".[mcp]")'
             "\n# before connecting a client, or the server will exit at launch.",
         )
     return 0
