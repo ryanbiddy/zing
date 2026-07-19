@@ -336,3 +336,62 @@ def test_valid_scores_still_flow_through_real_ocr_adapter(monkeypatch):
     assert [c.text for c in result.captions] == ["hello world"]
     assert result.captions[0].position == "bottom"
     assert not any(NO_SCORES_WARNING in w for w in result.warnings)
+
+
+def test_engine_start_failure_is_honest_skip(monkeypatch):
+    def boom():
+        raise RuntimeError("onnxruntime DLL load failed")
+    monkeypatch.setattr(captions, "_engine", boom)
+
+    result = captions.read_captions(Path("m.mp4"), duration=1.0)
+
+    assert result.captions == []
+    assert any("backend failed to start" in w for w in result.warnings)
+
+
+def test_frame_read_crash_midway_is_honest_skip(monkeypatch):
+    monkeypatch.setattr(captions, "_engine", lambda: ("E", "3.9.1"))
+
+    def frames(path, duration):
+        yield 0.0, 0.125, "f0"
+        raise RuntimeError("decoder desync at frame 1")
+    monkeypatch.setattr(captions, "_iter_frames", frames)
+    monkeypatch.setattr(captions, "_ocr", lambda e, f: [])
+    monkeypatch.setattr(captions, "_changed", lambda a, b: True)
+
+    result = captions.read_captions(Path("m.mp4"), duration=1.0)
+
+    assert result.captions == []
+    assert any("failed while reading frames" in w for w in result.warnings)
+
+
+def test_same_event_rejects_empty_normalizations():
+    assert captions._same_event("   ", "STOP") is False  # nothing left of a
+    assert captions._same_event("STOP", "") is False
+
+
+def test_flicker_gap_between_same_text_closes_event():
+    gap = captions.MAX_FLICKER_GAP_S
+    events = captions.cluster([
+        obs(0.0, "STOP"),
+        obs(0.25, "STOP"),
+        obs(0.25 + gap + 0.6, "STOP"),   # same text, but too late
+    ])
+    assert len(events) == 2
+
+
+def test_ocr_missing_boxes_or_txts_is_empty():
+    assert captions._ocr(
+        lambda frame: FakeOcrOut(boxes=None, txts=None, scores=None),
+        FakeFrame(),
+    ) == []
+
+
+def test_ocr_drops_blank_and_low_confidence_lines():
+    out = FakeOcrOut(
+        boxes=[BOX, BOX, BOX],
+        txts=["  ", "faint", "KEEP"],
+        scores=[0.99, captions.CONF_THRESHOLD - 0.01, 0.9],
+    )
+    lines = captions._ocr(lambda frame: out, FakeFrame())
+    assert [ln.text for ln in lines] == ["KEEP"]
