@@ -493,3 +493,15 @@
   ONLY because one side had committed in writing to a one-function
   parser; cheap adapters at lane boundaries beat coordination overhead
   — recommend it as an explicit house pattern.
+- **2026-07-19 (Lane B): SG-3 second pass (standing generator; queue
+  empty).** Target: my own newest code — the render tools had copied
+  the study job machinery's two subtle race guards (the #87
+  alive-AND-disk-running dispatch rule, and the identity-guarded
+  worker-side pop). Four duplicated blocks → two documented helpers
+  (_job_is_live/_job_cleanup) shared by both registries; the race rule
+  that CI once caught the hard way now has exactly ONE implementation
+  to keep correct. 580 tests green unchanged (the #87 regression tests
+  cover both semantics). PROCESS OBSERVATION: the duplication existed
+  for exactly two cycles before this sweep found it — generator
+  rotation is working as the intended self-cleaning mechanism; no
+  change recommended.
