@@ -1,4 +1,4 @@
-﻿# Work queue â€” pull the top unclaimed item in YOUR lane when your current gate passes
+# Work queue â€” pull the top unclaimed item in YOUR lane when your current gate passes
 
 Claim an item by appending a line to your NOTES file ("claimed D-Q1"),
 then work it like any lane item (own paths, PR flow, doc-only where
@@ -159,6 +159,10 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   (they were designed to loop), promote to a schema request for S3;
   if none do, drop it with the evidence recorded. No build before the
   base-rate check.
+- **P-D1 (Lane D, 2026-07-18) · local auto-rough-cut EDL generator (silence & filler-word removal).**
+  **Proposal:** Introduce a local auto-rough-cut EDL generator in the study engine/CLI (`zing cut <video>`). By analyzing VAD silence intervals (>1.5s) and Whisper word-level timestamps for filler words ("um", "uh", "like") and duplicate takes, Zing can output an EDL JSON or Premiere/Resolve XML that cuts these segments automatically. This automates the tedious A-roll cleanup phase for creators.
+  **Refutation:** (1) Blindly cutting transcripts causes choppiness, audio pops, and disjointed J-cuts; solving this requires complex zero-crossing alignment or cross-fades. (2) Whisper timestamps are often slightly offset (100ms–200ms), which results in clipped words. (3) XML timeline export is fragile and prone to NLE import bugs. (4) Video editing is scope creep from Zing's core "taste and recommendation" value.
+  **Survives as:** A **marker-only rough-cut guide** export. Instead of generating cut media timelines, Zing generates a Premiere/Resolve marker list overlay indicating "delete suggestions" for silences and fillers. This saves the creator time without any risk of audio clipping, timeline corruption, or complex XML bugs.
 - **B-Q12 (small):** yt-dlp is not in the [study] extras and the gate-pack run failed honestly on it — add it (one-dep PR) and confirm doctor's staleness check covers the JS-runtime deprecation warning surfaced on every fetch.
 - **B-Q13 (tiny):** prompts/compare.md's worked example uses a 0-2 scale while the genre rubric scores 1-5 — fix the example, bump prompt pack patch version.
 - **C-Q14 (calibration):** gate-pack run measured 29 dissolves on a talking-head video — likely detector over-calling on real footage. Calibrate the dissolve signature against the frozen real-video set; report precision honestly; tighten or downgrade to warning.
