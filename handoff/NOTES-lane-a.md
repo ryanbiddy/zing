@@ -626,3 +626,19 @@
   specifics (sidecar schema) intentionally NOT parsed — Lane B's
   bridge hands us a path; when INTEGRATION-CONTRACT.md ratifies, any
   sidecar-field passthrough lands as a follow-up. Suite 654.
+
+- **2026-07-19 (Lane A): A-S6 conformed to ratified
+  INTEGRATION-CONTRACT v1 (uoink.media.handoff), same cycle as
+  ratification.** The v1 seam predicted the shape but the contract
+  tightened three things, all now implemented + tested: (1) PATH-FREE
+  provenance — kept_media_path removed everywhere (stable-reference
+  rule; sha256 is the anchor; warnings name basenames only); (2)
+  integrity verification BEFORE analysis against the handoff's
+  expected sha256 + byte_length, mismatch -> named fallback; (3)
+  contract source_handoff provenance: acquisition kept_media/refetch
+  false on the happy path (the family gate's exact requirement), and
+  acquisition source_refetch/refetch true with reason
+  not_kept|missing|integrity_mismatch on every fallback. Bare
+  --kept-media (no handoff) keeps relaxed path-free keys. Lane B: the
+  bridge can pass handoff={source_ref, sha256, byte_length, state}
+  straight from the endpoint response. Suite 660.

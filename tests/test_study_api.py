@@ -33,7 +33,7 @@ SOURCE = "https://www.tiktok.com/@cleo/video/777"
 
 
 def wire_stages(monkeypatch, slug="tiktok-777"):
-    def fake_ingest(source, root=None, kept_media=None):
+    def fake_ingest(source, root=None, **stage_kwargs):
         d = storage.breakdown_dir(slug)
         d.mkdir(parents=True, exist_ok=True)
         return IngestResult(
@@ -249,7 +249,7 @@ def test_workspace_override_never_touches_env_with_use_workspace(
 
 
 def test_study_media_error_propagates(zing_workspace, monkeypatch):
-    def failing(source, root=None, kept_media=None):
+    def failing(source, root=None, **stage_kwargs):
         raise MediaError("yt-dlp could not fetch")
     monkeypatch.setattr(api.ingest_mod, "ingest", failing)
     with pytest.raises(MediaError):
@@ -337,7 +337,7 @@ def test_kept_media_provenance_reaches_breakdown(zing_workspace, monkeypatch):
     sidecar' requirement)."""
     wire_stages(monkeypatch)
 
-    def fake_ingest(source, root=None, kept_media=None):
+    def fake_ingest(source, root=None, **stage_kwargs):
         d = storage.breakdown_dir("tiktok-777")
         d.mkdir(parents=True, exist_ok=True)
         return IngestResult(
