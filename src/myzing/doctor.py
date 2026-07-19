@@ -33,6 +33,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import date
+from pathlib import Path
 
 REQUIRED = "required"
 RECOMMENDED = "recommended"
@@ -43,6 +44,35 @@ UOINK_DEFAULT_URL = "http://127.0.0.1:5179"
 
 # yt-dlp versions are calendar-based (e.g. 2026.06.09); extractors rot fast.
 YTDLP_STALE_DAYS = 90
+
+# Audit #201 P2: launching `python -m yt_dlp --version` costs ~0.25s and
+# zing_status is polled during studies — cache the probe briefly. The
+# version only changes on install; 60s staleness is honest.
+_VERSION_CACHE_TTL_S = 60.0
+_version_cache: dict[str, tuple[float, str]] = {}
+
+
+def _run_version_cached(cmd: list[str]) -> str:
+    import time as _time
+
+    key = " ".join(cmd)
+    now = _time.monotonic()
+    hit = _version_cache.get(key)
+    if hit and now - hit[0] < _VERSION_CACHE_TTL_S:
+        return hit[1]
+    version = _run_version(cmd)
+    _version_cache[key] = (now, version)
+    return version
+
+
+def _troubleshooting_ref() -> str:
+    """A path to FETCH-TROUBLESHOOTING.md that EXISTS for this install:
+    repo checkout when present, else the copy shipped in the wheel
+    (audit #201 P1: a repo-relative pointer is dead for installed users)."""
+    repo = Path(__file__).resolve().parents[2] / "docs" / "FETCH-TROUBLESHOOTING.md"
+    if repo.is_file():
+        return str(repo)
+    return str(Path(__file__).resolve().parent / "_data" / "docs" / "FETCH-TROUBLESHOOTING.md")
 
 # What the study pipeline actually imports — the single source of truth for
 # the ocr and shot-detection verdicts (tests assert the sources agree):
@@ -146,8 +176,8 @@ def check_ytdlp(today: date | None = None) -> Check:
             fix='python -m pip install "myzing[study]"   (or: pip install yt-dlp)',
             degraded_mode="zing study works on local files only — no URL fetch",
         )
-    version = _run_version([path, "--version"]) if path else _run_version(
-        [sys.executable, "-m", "yt_dlp", "--version"]
+    version = _run_version_cached(
+        [path, "--version"] if path else [sys.executable, "-m", "yt_dlp", "--version"]
     )
     age = _ytdlp_version_age_days(version, today) if version else None
     # B-Q12: yt-dlp's YouTube extractor needs an external JS runtime (deno
@@ -167,7 +197,8 @@ def check_ytdlp(today: date | None = None) -> Check:
             "(yt-dlp requires one for YouTube's signature solving)"
         )
         js_fix = (
-            "winget install DenoLand.Deno   (see docs/FETCH-TROUBLESHOOTING.md)"
+            "winget install DenoLand.Deno   (guide: "
+            + _troubleshooting_ref() + ")"
         )
     elif js_runtime == "node":
         # SW-3 (Lane A sweep): node on PATH is NOT enough — yt-dlp only
@@ -180,13 +211,28 @@ def check_ytdlp(today: date | None = None) -> Check:
         )
         js_fix = (
             "add '--js-runtimes node' to your yt-dlp config, or install "
-            "deno (see docs/FETCH-TROUBLESHOOTING.md)"
+            "deno (guide: " + _troubleshooting_ref() + ")"
+        )
+    # Audit #201 P1: a runtime is NOT the whole story — yt-dlp's YouTube
+    # challenge solving also needs the EJS solver scripts (shipped by
+    # yt-dlp[default] as the yt_dlp_ejs package). Runtime-without-solver
+    # reproduces as "n challenge solving failed" on every YouTube fetch.
+    has_solver = _has_module("yt_dlp_ejs")
+    if module and not has_solver:
+        js_note += (
+            "; EJS solver scripts missing — YouTube challenge solving "
+            "fails even with a JS runtime"
+        )
+        solver_fix = 'python -m pip install "yt-dlp[default]"'
+        js_fix = f"{solver_fix}; {js_fix}" if js_fix else (
+            solver_fix + "   (guide: " + _troubleshooting_ref() + ")"
         )
     data = {
         "version": version,
         "age_days": age,
         "stale": False,
         "js_runtime": js_runtime,
+        "ejs_solver": has_solver,
     }
     if age is not None and age > YTDLP_STALE_DAYS:
         data["stale"] = True

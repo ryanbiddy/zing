@@ -12,6 +12,13 @@ import pytest
 from myzing import doctor
 
 
+@pytest.fixture(autouse=True)
+def _fresh_version_cache():
+    doctor._version_cache.clear()
+    yield
+    doctor._version_cache.clear()
+
+
 @pytest.fixture
 def bare_machine(monkeypatch):
     """A machine with nothing installed and no network."""
@@ -344,3 +351,49 @@ def test_js_runtime_fixes_point_at_troubleshooting_doc(monkeypatch):
         text.index("Update yt-dlp") < text.index("Install deno")
         < text.index("bgutil") < text.index("Cookies")
     )
+
+
+# -- Audit #201: EJS solver + probe cache + durable ref -----------------------
+
+def test_solver_missing_is_named_with_install_fix(monkeypatch):
+    """Runtime without solver scripts reproduces as 'n challenge solving
+    failed' — doctor must name the missing half distinctly."""
+    monkeypatch.setattr(doctor, "_which", lambda name: None)
+    monkeypatch.setattr(
+        doctor, "_has_module", lambda name: name == "yt_dlp"
+    )
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert check.data["ejs_solver"] is False
+    assert "solver" in check.detail.lower()
+    assert 'yt-dlp[default]' in check.fix
+
+
+def test_solver_present_is_quiet(monkeypatch):
+    monkeypatch.setattr(doctor, "_which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert check.data["ejs_solver"] is True
+    assert "solver" not in check.detail.lower()
+
+
+def test_version_probe_is_cached(monkeypatch):
+    calls = {"n": 0}
+
+    def counting_version(cmd):
+        calls["n"] += 1
+        return "2026.07.01"
+
+    monkeypatch.setattr(doctor, "_which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+    monkeypatch.setattr(doctor, "_run_version", counting_version)
+    doctor.check_ytdlp(today=date(2026, 7, 19))
+    doctor.check_ytdlp(today=date(2026, 7, 19))
+    doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert calls["n"] == 1  # one probe, two cache hits inside the TTL
+
+
+def test_troubleshooting_ref_resolves_to_an_existing_file():
+    ref = doctor._troubleshooting_ref()
+    assert Path(ref).is_file()  # never a dead pointer, checkout or wheel

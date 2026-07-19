@@ -18,6 +18,7 @@ DATA = REPO / "src" / "myzing" / "_data"
 MIRRORS = [
     (REPO / "prompts", DATA / "prompts", "*.md"),
     (REPO / "presets", DATA / "presets", "*.json"),
+    (REPO / "docs", DATA / "docs", "FETCH-TROUBLESHOOTING.md"),
 ]
 
 

@@ -14,7 +14,7 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8", "mcp>=1.2", "myzing[render]"]
 study = [
-    "yt-dlp>=2026.6",
+    "yt-dlp[default]>=2026.6",
     "scenedetect-headless>=0.7",
     "faster-whisper>=1.1",
     "onnxruntime>=1.16",
@@ -31,7 +31,7 @@ zing = "myzing.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-myzing = ["_data/prompts/*.md", "_data/presets/*.json"]
+myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
