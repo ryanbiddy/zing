@@ -589,3 +589,15 @@
   packaging/clean_host_check.py (wheel build → temp venv → doctor/
   setup/prompt/cached-study), local Windows gate run, CI clean-install
   jobs, S5-INSTALL-GATE record.
+- **2026-07-19 (Lane B): S5-B part 2 (this PR) — clean-host harness +
+  Windows gate run + CI matrix job.** packaging/clean_host_check.py:
+  wheel → pristine venv (+[mcp]) → first-run surface from a neutral cwd
+  with NO repo on the tested path; per-step gate record (JSON +
+  console). **Windows local run: 7/7 PASS** — including a full
+  cached-media study from the bare install with honest skip warnings;
+  the prompt-pack and preset-pack steps pass only BECAUSE of #156's
+  mirror (they'd have failed before it). CI: clean-install matrix job
+  on all three OS runners uploading per-OS gate records as artifacts
+  (ci.yml edit — assigned to Lane B by the sprint item, flagged per
+  shared-file discipline). Records + two non-blocking first-run
+  rough-edge observations in handoff/S5-INSTALL-GATE-lane-b.md.

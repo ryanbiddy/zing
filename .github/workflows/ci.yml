@@ -122,3 +122,37 @@ jobs:
       - run: pip install -e .[dev]
       - name: Real frame extraction smoke (skips are failures)
         run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe
+
+  # S5 Lane B: fresh-host install gate — wheel -> bare venv -> first-run
+  # surface, NO repo checkout on the tested path (packaged data must
+  # carry everything). The gate record uploads as an artifact per OS.
+  clean-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ffmpeg (apt)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Install ffmpeg (chocolatey)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+      - name: Install ffmpeg (brew)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Clean-host gate
+        run: python packaging/clean_host_check.py --report clean-host-${{ matrix.os }}.json
+      - name: Upload gate record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clean-host-${{ matrix.os }}
+          path: clean-host-*.json
