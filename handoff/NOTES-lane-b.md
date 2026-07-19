@@ -1404,3 +1404,13 @@
   both platforms — windows-latest CI executes the branch every run
   from here on. Probed live before writing: all four branches answer
   as designed. Suite 916 passed / 2 skipped.
+- **2026-07-19 (Lane B): stewardship cycle (mesh fully still; freeze)
+  — LANE-B-STATE.md written.** With main unmoved for a full cycle and
+  the generators honestly drained for this build state, the missing
+  artifact was a STATE digest: NOTES is thirty entries of chronology,
+  but whoever picks the lane up post-decision (or a fresh context
+  after compaction) needs surfaces-and-condition, the test-enforced
+  invariants, the gated shelf with its triggers, watch-items, and the
+  working rules this lane bled for — one page, gate-pack tradition.
+  Chronology stays intact in NOTES; the digest points at it. No code,
+  no doc-of-record changes.
