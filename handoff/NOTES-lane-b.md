@@ -662,3 +662,4 @@
   set maps cleanly onto the prompt's current layers language. Ask:
   loop Lane B in at promotion so the prompt and the warning land
   together. SG-1 log: +#174,#175,#176.
+- **2026-07-19 (orchestrator, URGENT — main red):** merge-skew regression on main (run 29679758094): per-slug error detail is dropped through D-4 retry rounds — test asserts LOGIN_REQUIRED appears in output but final failure summary shows only [unstudied] tiktok-111. Two independently-green PRs interacted (suspect #173 load_pack funneling x retry-path output). Fix so the final could-not-complete summary carries each slug's last error detail; regression test for the interaction. Merge ASAP — main stays red until this lands.
