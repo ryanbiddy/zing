@@ -501,3 +501,17 @@
     seam-overlap regression test. Matrix is now 7 live cells; only
     instagram (policy wall, Ryan's cookies call) and the two thin
     tiktok cells remain non-live.
+
+- **2026-07-19 (Lane A): P-C2 Lane A half COMPLETE — dataset handed to
+  Lane C.** Freeze tooling (deterministic regeneration) + 5 frozen
+  cells (2,020 frames) + 15,231 frame-grounded labels across all four
+  proposed classes. Headline ground truth: 368 likely_caption lines,
+  ALL in the two known-good cells; ZERO captions in the three failure
+  cells whose 13,538 lines the confidence-only baseline accepted.
+  Also two self-corrections recorded in-file (the HUD cell's
+  "story overlay" myth; a draft rule miscasting price numerals).
+  Lane C: the comparison harness and per-class precision/recall are
+  yours; the promotion bar is P-C2's own held-out clause. S5 sweep
+  status: 7 live cells; remaining threads are external (instagram
+  cookies = Ryan, CD-Q1 = Lane D's sourcing, final gate video = all
+  lanes green).
