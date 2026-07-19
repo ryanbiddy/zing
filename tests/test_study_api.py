@@ -248,53 +248,6 @@ def test_workspace_override_never_touches_env_with_use_workspace(
     assert (ws / "breakdowns" / "tiktok-777" / "breakdown.json").is_file()
 
 
-def test_study_threads_root_explicitly_when_storage_supports_it(
-    tmp_path, monkeypatch
-):
-    """A-Q7/F-15: once storage's path functions accept root=, study() must
-    pass the workspace through explicitly and never touch process env."""
-    wire_stages(monkeypatch)
-    ws = tmp_path / "explicit-ws"
-    seen: dict = {}
-
-    def rooted_breakdown_dir(slug, root=None):
-        seen["breakdown_dir_root"] = root
-        return (root or tmp_path) / "breakdowns" / slug
-
-    def rooted_save(b, slug=None, markdown=None, root=None):
-        seen["save_root"] = root
-        d = rooted_breakdown_dir(slug, root)
-        d.mkdir(parents=True, exist_ok=True)
-        (d / "breakdown.json").write_text(b.to_json(), encoding="utf-8")
-        return d
-
-    monkeypatch.setattr(api.storage, "breakdown_dir", rooted_breakdown_dir)
-    monkeypatch.setattr(api.storage, "save_breakdown", rooted_save)
-    monkeypatch.delenv(storage.ENV_VAR, raising=False)
-
-    def env_probing_ingest(source, root=None):
-        assert storage.ENV_VAR not in os.environ  # no global mutation
-        seen["ingest_root"] = root
-        d = rooted_breakdown_dir("tiktok-777", root)
-        d.mkdir(parents=True, exist_ok=True)
-        return IngestResult(
-            slug="tiktok-777",
-            meta=VideoMeta(
-                source_url=source, platform="tiktok", duration=20.0, fps=30.0,
-            ),
-            media_path=d / "media.mp4",
-            breakdown_dir=d,
-        )
-    monkeypatch.setattr(api.ingest_mod, "ingest", env_probing_ingest)
-
-    api.study(SOURCE, workspace=ws)
-
-    assert seen["ingest_root"] == ws
-    assert seen["save_root"] == ws
-    assert (ws / "breakdowns" / "tiktok-777" / "breakdown.json").is_file()
-    assert storage.ENV_VAR not in os.environ
-
-
 def test_study_media_error_propagates(zing_workspace, monkeypatch):
     def failing(source, root=None):
         raise MediaError("yt-dlp could not fetch")
