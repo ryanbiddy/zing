@@ -119,7 +119,10 @@ def study(
         if raw_mode:
             _phase(phase_callback, "raw")
             raw_r = raw_mod.measure_raw(
-                words_r.words, audio_r.speech_segments, ing.meta.duration
+                words_r.words,
+                audio_r.speech_segments,
+                ing.meta.duration,
+                loudness_curve=audio_r.audio.loudness_curve,
             )
             warnings += raw_r.warnings
             provenance["raw_mode"] = {
@@ -128,6 +131,16 @@ def study(
                 "dead_air_count": len(raw_r.dead_air),
                 "filler_total": sum(raw_r.filler_counts.values()),
                 "repeated_take_count": len(raw_r.repeated_takes),
+                "keeper_count": len(raw_r.keepers),
+                "keepers": [
+                    {
+                        "start": k.start,
+                        "end": k.end,
+                        "words": k.word_count,
+                        "evidence": k.evidence,
+                    }
+                    for k in raw_r.keepers
+                ],
             }
 
         provenance["zing_version"] = _zing_version()
