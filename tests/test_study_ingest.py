@@ -627,3 +627,46 @@ def test_handoff_missing_kept_file_records_missing_reason(
     assert len(fake.commands("yt-dlp")) == 1
     sh = result.provenance["source_handoff"]
     assert sh["reason"] == "missing" and sh["refetch"] is True
+
+
+def test_kept_media_copy_failure_falls_back(zing_workspace, tmp_path, monkeypatch):
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    monkeypatch.setattr(
+        ingest.shutil, "copy2",
+        lambda a, b: (_ for _ in ()).throw(OSError("disk full")),
+    )
+    kept = tmp_path / "video.mp4"
+    kept.write_bytes(b"kept-bytes")
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    result = ingest.ingest(url, kept_media=kept)
+
+    assert len(fake.commands("yt-dlp")) == 1
+    assert any("kept media unreadable" in w for w in result.warnings)
+
+
+def test_kept_media_undeletable_corrupt_copy_dies_honestly(
+    zing_workspace, tmp_path, monkeypatch
+):
+    """If the corrupt staged copy cannot be removed (e.g. locked), the
+    fetch fallback finds and reuses it, the re-probe fails, and ingest
+    dies with MediaError — honest failure, never measurement of bad
+    bytes."""
+    fake = FakeTools()
+
+    def always_bad_probe(cmd, timeout=None):
+        if cmd[0] == "ffprobe" and not any("packet=pts_time" in p for p in cmd):
+            return subprocess.CompletedProcess(cmd, 1, "", "moov atom not found")
+        return fake(cmd, timeout)
+    use(monkeypatch, always_bad_probe)
+    monkeypatch.setattr(
+        ingest.Path, "unlink",
+        lambda self, *a, **k: (_ for _ in ()).throw(OSError("locked")),
+    )
+    kept = tmp_path / "corrupt.mp4"
+    kept.write_bytes(b"bad-bytes")
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+
+    with pytest.raises(ingest.MediaError):
+        ingest.ingest(url, kept_media=kept)

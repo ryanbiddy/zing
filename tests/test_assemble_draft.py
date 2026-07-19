@@ -313,3 +313,41 @@ def test_draft_for_slug_writes_edl(zing_workspace, monkeypatch):
     loaded = EDL.from_json(saved.read_text(encoding="utf-8"))
     assert loaded.to_dict() == result.edl.to_dict()
     assert loaded.clips[0].src_in == 2.0
+
+
+def test_assemble_cli_json_output(zing_workspace, tmp_path, capsys):
+    from myzing import cli, storage
+    from myzing.schemas import Word
+
+    b = make_breakdown(measured_keepers=[(2.0, 9.0)])
+    b.words = [Word("take", 2.5, 2.9, 0.9)]
+    storage.save_breakdown(b, slug="cli-json")
+    storage.media_target("cli-json", "mp4").write_bytes(b"fake" * 4)
+    direction_file = tmp_path / "direction.json"
+    direction_file.write_text(json.dumps(direction_with([
+        {"start": 2.0, "end": 9.0, "why": "the take"},
+    ])), encoding="utf-8")
+
+    rc = cli.main(["assemble", "cli-json", "--direction", str(direction_file), "--json"])
+
+    out = capsys.readouterr().out
+    assert rc == 0
+    payload = json.loads(out)
+    assert payload["clips"][0]["src_in"] == 2.0
+
+
+def test_assemble_cli_missing_media_is_honest(zing_workspace, tmp_path, capsys):
+    from myzing import cli, storage
+
+    b = make_breakdown()
+    storage.save_breakdown(b, slug="cli-nomedia")
+    direction_file = tmp_path / "direction.json"
+    direction_file.write_text(json.dumps(direction_with([
+        {"start": 2.0, "end": 9.0, "why": "x"},
+    ])), encoding="utf-8")
+
+    rc = cli.main(["assemble", "cli-nomedia", "--direction", str(direction_file)])
+
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "no stored media" in out
