@@ -105,6 +105,18 @@ def _ffmpeg_version(ffmpeg: str) -> str | None:
     return result.stdout.splitlines()[0] if result.returncode == 0 else None
 
 
+def _report_environment(ffmpeg: str) -> dict[str, Any]:
+    return {
+        "report_schema_version": 5,
+        "scorer_version": MANIFEST["scorer_version"],
+        "manifest_sha256": _sha256(MANIFEST_PATH),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "platform": platform.platform(),
+        "python": platform.python_version(),
+        "ffmpeg": _ffmpeg_version(ffmpeg),
+    }
+
+
 def _load_breakdown(path: Path) -> Breakdown:
     return Breakdown.from_json(path.read_text(encoding="utf-8"))
 
@@ -186,13 +198,7 @@ def evaluate(
     )
     direction_eval = evaluate_direction_paths(direction_paths)
     report = {
-        "report_schema_version": 5,
-        "scorer_version": MANIFEST["scorer_version"],
-        "manifest_sha256": _sha256(MANIFEST_PATH),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "platform": platform.platform(),
-        "python": platform.python_version(),
-        "ffmpeg": _ffmpeg_version(ffmpeg),
+        **_report_environment(ffmpeg),
         "wall_clock_seconds": round(time.perf_counter() - started, 6),
         "passed": (
             all(case["score"]["passed"] for case in cases)
@@ -217,13 +223,7 @@ def evaluate(
 
 def _write_error_report(report_path: Path, ffmpeg: str, exc: Exception) -> None:
     report = {
-        "report_schema_version": 5,
-        "scorer_version": MANIFEST["scorer_version"],
-        "manifest_sha256": _sha256(MANIFEST_PATH),
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "platform": platform.platform(),
-        "python": platform.python_version(),
-        "ffmpeg": _ffmpeg_version(ffmpeg),
+        **_report_environment(ffmpeg),
         "wall_clock_seconds": None,
         "passed": False,
         "error": {"type": type(exc).__name__, "message": str(exc)},

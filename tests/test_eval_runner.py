@@ -13,6 +13,7 @@ ROOT = Path(__file__).parents[1]
 sys.path.insert(0, str(ROOT))
 
 from myzing.schemas import Breakdown
+from tools.eval import run as eval_run
 from tools.eval.audio_delivery import parse_ebur128
 from tools.eval.make_goldens import CASES, SPEECH_FIXTURE, generate_goldens
 from tools.eval.run import SAMPLE_DIRECTORY, evaluate
@@ -81,6 +82,33 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
     ]
     assert saved["cases"][0]["performance"]["available"] is False
     assert "no live study" in saved["cases"][0]["performance"]["reason"]
+
+
+def test_success_and_error_reports_share_environment_builder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        eval_run,
+        "_report_environment",
+        lambda ffmpeg: {"environment_marker": ffmpeg},
+    )
+
+    success = evaluate(
+        [SAMPLE_DIRECTORY],
+        tmp_path / "success.json",
+        ffmpeg="success-ffmpeg",
+    )
+    error_path = tmp_path / "error.json"
+    eval_run._write_error_report(
+        error_path,
+        "error-ffmpeg",
+        ValueError("fixture error"),
+    )
+
+    assert success["environment_marker"] == "success-ffmpeg"
+    error = json.loads(error_path.read_text(encoding="utf-8"))
+    assert error["environment_marker"] == "error-ffmpeg"
 
 
 def test_runner_rejects_empty_case_set(tmp_path: Path) -> None:
