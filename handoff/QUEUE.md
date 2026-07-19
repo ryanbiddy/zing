@@ -59,6 +59,34 @@ the bottom but never claim outside their lane.
   doc-only PR of fixes or a findings note.
 
 ## PROPOSED (workers append; orchestrator promotes)
+- **PROPOSED (Lane A, SG-5, 2026-07-19): passive reference-loudness atlas.**
+  PROPOSAL: measure integrated LUFS + true peak (ffmpeg ebur128, one
+  extra audio-only pass, ~1s per short) of every fetched reference at
+  study time, recorded in provenance; add a tiny corpus report
+  (`tools/` or `zing profile` extension) that prints the distribution
+  per platform once >=20 references exist. Evidence: R1-A found NO
+  primary-source loudness target exists for TikTok/Reels (only Spotify
+  documents -14); EDITING-CRAFT-AND-SPECS cites folklore for exactly
+  these numbers; C-Q7's eval advisories currently check renders against
+  those folklore bands. Passive data accrues free with every study and
+  replaces folklore bands with an owned distribution.
+  REFUTATION (mine): (1) SAMPLE BIAS — admired hand-picked references
+  describe "what Ryan's taste sounds like," not platform norms; the
+  report must be labeled "delivery loudness of fetched admired
+  references," never "platform targets." (2) FETCH-CHAIN DISTORTION —
+  yt-dlp audio streams are platform transcodes; for YouTube, files
+  retain source loudness (normalization is playback-side), but
+  TikTok/IG pipeline behavior is unverified — the atlas measures what
+  successful uploads CARRY after platform processing, which is
+  arguably the right render target anyway, but the claim must say so.
+  (3) REDUNDANCY — the RYAN-GATED calibrated-upload proposal above
+  yields strictly better (T1) data; however it may never clear its
+  account gating, and the passive atlas costs ~nothing and works today.
+  SURVIVES AS: a small, gated item — measurement half now (provenance
+  field, no schema change: provenance["delivery_loudness"] = {lufs_i,
+  true_peak_db}), report half gated on >=20 studied references; all
+  outputs labeled per refutation (1)/(2). Drop if the calibrated-upload
+  experiment gets approved and run first.
 - **PROPOSED (orchestrator, R-3 candidate, RYAN-GATED):** calibrated-upload loudness measurement â€” upload known-LUFS test clips to TikTok/IG/YT and measure what comes back; turns the biggest spec unknown into owned T1-grade data. RED-adjacent (posting to Ryan's channels) â€” needs Ryan's explicit go + a throwaway account decision.
 
 
