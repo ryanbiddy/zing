@@ -28,6 +28,7 @@ from myzing.schemas import Breakdown
 from . import audio as audio_mod
 from . import captions as captions_mod
 from . import ingest as ingest_mod
+from . import raw as raw_mod
 from . import keyframes as keyframes_mod
 from . import report
 from . import shots as shots_mod
@@ -40,6 +41,7 @@ def study(
     workspace: Path | None = None,
     phase_callback: Callable[[str], None] | None = None,
     detect_transitions: bool = False,
+    raw_mode: bool = False,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -113,6 +115,20 @@ def study(
                 transitions = transitions_r.transitions
                 warnings += transitions_r.warnings
                 provenance.update(transitions_r.provenance)
+
+        if raw_mode:
+            _phase(phase_callback, "raw")
+            raw_r = raw_mod.measure_raw(
+                words_r.words, audio_r.speech_segments, ing.meta.duration
+            )
+            warnings += raw_r.warnings
+            provenance["raw_mode"] = {
+                "dead_air_min_s": raw_mod.DEAD_AIR_MIN_S,
+                "take_similarity": raw_mod.TAKE_SIMILARITY,
+                "dead_air_count": len(raw_r.dead_air),
+                "filler_total": sum(raw_r.filler_counts.values()),
+                "repeated_take_count": len(raw_r.repeated_takes),
+            }
 
         provenance["zing_version"] = _zing_version()
         provenance["measured_at"] = datetime.now(timezone.utc).isoformat(

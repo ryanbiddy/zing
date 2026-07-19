@@ -1,5 +1,29 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): claimed A-Q12 + A-Q13. A-Q12 DELIVERED** —
+  raw-footage measurement mode: `study(raw_mode=True)` / `zing study
+  --raw` measures dead-air spans (VAD gaps ≥1.5s incl. leading/trailing
+  silence), filler words (fixed lexicon + bigrams: um/uh/erm/hmm/like/
+  literally, "you know"/"i mean"/"sort of"/"kind of", counts + locations),
+  and repeated takes (pause-split transcript chunks ≥4 words, pairwise
+  similarity ≥0.75 with time ranges). Surfaced per the item's
+  instruction: compact warning lines + provenance counts; structured
+  results on the internal RawResult for S3 callers. **Real-video check
+  on the raw-practice video: found the 6.6s trailing dead-air span
+  (48.5–55.1s) that wizard-of-oz §2 independently flagged ("6.7s
+  speech-free outro"), and literally×2 matching EXAMPLE-DATASET's
+  documented filler.** Honest limits in the module docstring (ASR-dropped
+  disfluencies invisible; re-phrasings below 0.75 don't match).
+  **SCHEMA PROPOSAL (per item, orchestrator's call):** to get these into
+  breakdown.json for S3's gap reports, add
+  `Breakdown.raw_observations: dict[str, Any] | None = None` (or typed:
+  `DeadAirSpan{start,end}`, `FillerWord{text,start}`,
+  `RepeatedTake{first_start,first_end,second_start,second_end,
+  similarity}` under a `RawObservations` dataclass) — opt-in-populated
+  only in raw_mode, None otherwise so published-video breakdowns are
+  unchanged. Until then the warnings carry the summary. A-Q13 (SG-1
+  review of #95–#102) next cycle.
+
 - **2026-07-18 (Lane A): both S2 gate-pack findings for Lane A FIXED**
   (thanks Lane B — both were real).
   1. Impossible percentiles: switched `_stat` to inclusive quartiles —
