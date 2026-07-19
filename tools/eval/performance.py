@@ -1,7 +1,8 @@
-"""Non-gating study/render performance measurements for eval reports."""
+"""Gated study/render performance measurements for eval reports."""
 
 from __future__ import annotations
 
+import math
 import tempfile
 import time
 from collections.abc import Callable
@@ -16,12 +17,17 @@ from myzing.schemas import Breakdown, Clip, EDL
 ROADMAP_BUDGET = {
     "scope": "zing study on a 30-60 second short",
     "target": "low single-digit minutes on Ryan's PC with GPU whisper",
+    "target_seconds": 300.0,
+    "defect_multiplier": 2.0,
+    "defect_threshold_seconds": 600.0,
+    "long_form_scaling": (
+        "target and defect threshold scale linearly above 60 input seconds"
+    ),
     "cpu_fallback": "must remain honest",
     "failure_example": "20 minutes is a failed gate",
-    "status": "tracked-not-gated",
+    "status": "gated",
     "source": "handoff/ROADMAP.md#done-criteria",
 }
-REFERENCE_DURATION_MIN = 30.0
 REFERENCE_DURATION_MAX = 60.0
 
 
@@ -201,7 +207,8 @@ class StudyBenchmarkAdapter:
         }
         measurement["study_warnings"] = list(breakdown.warnings)
         measurement["budget_assessment"] = budget_assessment(
-            breakdown.meta.duration
+            breakdown.meta.duration,
+            measurement["total_seconds"],
         )
         measurement["available"] = True
         self._records[str(media_path)] = measurement
@@ -220,25 +227,55 @@ class StudyBenchmarkAdapter:
         return self._artifact_directories.get(str(media_path.resolve()))
 
 
-def budget_assessment(input_duration_seconds: float) -> dict[str, Any]:
-    comparable = (
-        REFERENCE_DURATION_MIN
-        <= input_duration_seconds
-        <= REFERENCE_DURATION_MAX
-    )
+def budget_assessment(
+    input_duration_seconds: float,
+    total_seconds: float,
+) -> dict[str, Any]:
+    if (
+        not math.isfinite(input_duration_seconds)
+        or input_duration_seconds <= 0
+        or not math.isfinite(total_seconds)
+        or total_seconds < 0
+    ):
+        return {
+            "status": "unavailable",
+            "passed": None,
+            "reason": "performance durations must be finite and non-negative",
+        }
+    scale = max(1.0, input_duration_seconds / REFERENCE_DURATION_MAX)
+    target_seconds = ROADMAP_BUDGET["target_seconds"] * scale
+    defect_threshold = target_seconds * ROADMAP_BUDGET["defect_multiplier"]
+    if total_seconds > defect_threshold:
+        status = "defect"
+        reason = "cell exceeds twice the scaled ROADMAP performance budget"
+    elif total_seconds > target_seconds:
+        status = "warning"
+        reason = "cell exceeds the scaled ROADMAP target but not its 2x defect gate"
+    else:
+        status = "pass"
+        reason = "cell is within the scaled ROADMAP performance target"
     return {
-        "status": "tracked-not-gated" if comparable else "not-comparable",
-        "comparable_duration": comparable,
-        "reason": (
-            "input is in the ROADMAP's 30-60 second reference range"
-            if comparable
-            else "input is outside the ROADMAP's 30-60 second reference range"
-        ),
+        "status": status,
+        "passed": status != "defect",
+        "reason": reason,
+        "input_duration_seconds": _rounded(input_duration_seconds),
+        "total_seconds": _rounded(total_seconds),
+        "target_seconds": _rounded(target_seconds),
+        "defect_threshold_seconds": _rounded(defect_threshold),
+        "budget_ratio": _rounded(total_seconds / target_seconds),
     }
 
 
 def unavailable_performance(reason: str) -> dict[str, Any]:
     return {"available": False, "reason": reason}
+
+
+def _case_name(case: dict[str, Any]) -> str:
+    return case.get("matrix_cell") or case.get("directory") or "unnamed-case"
+
+
+def _case_assessment(case: dict[str, Any]) -> dict[str, Any]:
+    return case.get("performance", {}).get("budget_assessment", {})
 
 
 def summarize_performance(cases: list[dict[str, Any]]) -> dict[str, Any]:
@@ -249,7 +286,7 @@ def summarize_performance(cases: list[dict[str, Any]]) -> dict[str, Any]:
     ]
     stage_values: dict[str, list[float]] = {}
     for measurement in available:
-        for stage, seconds in measurement["stages"].items():
+        for stage, seconds in measurement.get("stages", {}).items():
             stage_values.setdefault(stage, []).append(float(seconds))
     stages = {
         stage: {
@@ -259,10 +296,53 @@ def summarize_performance(cases: list[dict[str, Any]]) -> dict[str, Any]:
         }
         for stage, values in stage_values.items()
     }
+    assessed = [
+        (_case_name(case), _case_assessment(case))
+        for case in cases
+        if _case_assessment(case).get("status")
+        in {"pass", "warning", "defect"}
+    ]
+    defects = [
+        {
+            "case": case,
+            **assessment,
+        }
+        for case, assessment in assessed
+        if assessment["status"] == "defect"
+    ]
+    warnings = [
+        {
+            "case": case,
+            **assessment,
+        }
+        for case, assessment in assessed
+        if assessment["status"] == "warning"
+    ]
+    unavailable = [
+        {
+            "case": _case_name(case),
+            "reason": case.get("performance", {}).get(
+                "reason",
+                "performance measurement or budget assessment unavailable",
+            ),
+        }
+        for case in cases
+        if not case.get("performance", {}).get("available")
+        or _case_assessment(case).get("status")
+        not in {"pass", "warning", "defect"}
+    ]
     return {
-        "status": "tracked-not-gated",
+        "status": "gated",
+        "passed": None if not assessed else not defects,
         "roadmap_budget": dict(ROADMAP_BUDGET),
         "available_case_count": len(available),
         "total_case_count": len(cases),
+        "assessed_case_count": len(assessed),
+        "defect_count": len(defects),
+        "defects": defects,
+        "warning_count": len(warnings),
+        "warnings": warnings,
+        "unavailable_count": len(unavailable),
+        "unavailable": unavailable,
         "stages": stages,
     }

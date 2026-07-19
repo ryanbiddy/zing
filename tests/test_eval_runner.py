@@ -16,6 +16,7 @@ from myzing.schemas import Breakdown
 from tools.eval import run as eval_run
 from tools.eval.audio_delivery import parse_ebur128
 from tools.eval.make_goldens import CASES, SPEECH_FIXTURE, generate_goldens
+from tools.eval.performance import budget_assessment
 from tools.eval.run import SAMPLE_DIRECTORY, evaluate
 
 
@@ -28,6 +29,9 @@ class TimedAdapter:
     def performance_for(self, media_path: Path) -> dict:
         return {
             "available": True,
+            "input_duration_seconds": 45.0,
+            "total_seconds": 21.0,
+            "budget_assessment": budget_assessment(45.0, 21.0),
             "stages": {
                 "ingest": 1.0,
                 "shots": 2.0,
@@ -45,12 +49,13 @@ def test_runner_writes_machine_readable_report(tmp_path: Path) -> None:
     report = evaluate([SAMPLE_DIRECTORY], report_path, ffmpeg="not-installed-ffmpeg")
 
     assert report["passed"] is True
-    assert report["report_schema_version"] == 5
+    assert report["report_schema_version"] == 6
     assert report["scorer_version"] == "1.3.0"
     assert len(report["manifest_sha256"]) == 64
     assert report["ffmpeg"] is None
     assert report["wall_clock_seconds"] >= 0
-    assert report["performance"]["status"] == "tracked-not-gated"
+    assert report["performance"]["status"] == "gated"
+    assert report["performance"]["passed"] is None
     assert report["performance"]["available_case_count"] == 0
     assert report["audio_delivery"]["advisory_only"] is True
     assert report["audio_delivery"]["integrated_range_lufs"] == [-18.0, -10.0]
@@ -128,7 +133,32 @@ def test_runner_captures_adapter_performance_in_case_and_summary(
 
     assert report["cases"][0]["performance"]["stages"]["render"] == 6.0
     assert report["performance"]["available_case_count"] == 1
+    assert report["performance"]["passed"] is True
     assert report["performance"]["stages"]["transcribe"]["mean_seconds"] == 3.0
+
+
+def test_runner_fails_when_performance_cell_exceeds_twice_budget(
+    tmp_path: Path,
+) -> None:
+    class SlowAdapter(TimedAdapter):
+        def performance_for(self, media_path: Path) -> dict:
+            performance = super().performance_for(media_path)
+            performance.update(
+                total_seconds=601.0,
+                budget_assessment=budget_assessment(45.0, 601.0),
+            )
+            return performance
+
+    report = evaluate(
+        [SAMPLE_DIRECTORY],
+        tmp_path / "report.json",
+        adapter=SlowAdapter(),
+        ffmpeg="not-installed-ffmpeg",
+    )
+
+    assert report["passed"] is False
+    assert report["performance"]["passed"] is False
+    assert report["performance"]["defects"][0]["case"] == "sample"
 
 
 def test_module_cli_passes_on_checked_in_sample(tmp_path: Path) -> None:
@@ -248,7 +278,7 @@ def test_module_cli_writes_report_on_error(tmp_path: Path) -> None:
     assert result.returncode == 2
     report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["passed"] is False
-    assert report["report_schema_version"] == 5
+    assert report["report_schema_version"] == 6
     assert report["profile_eval"]["status"] == "not-run"
     assert report["direction_eval"]["status"] == "not-run"
     assert report["error"]["type"] == "ValueError"

@@ -110,45 +110,77 @@ def test_benchmark_adapter_records_study_phases_and_render(tmp_path: Path) -> No
     assert measurement["study_warnings"] == [
         "transcription skipped in fixture"
     ]
-    assert measurement["budget_assessment"]["status"] == "not-comparable"
+    assert measurement["budget_assessment"]["status"] == "pass"
     assert rendered["source"] == media
     assert rendered["duration"] == 3.0
     assert rendered["ffmpeg"] == "custom-ffmpeg"
     assert rendered["ffprobe"] == "custom-ffprobe"
 
 
-def test_performance_summary_tracks_budget_without_gating() -> None:
+def test_performance_summary_flags_cells_over_twice_the_roadmap_budget() -> None:
+    fast = budget_assessment(45.0, 250.0)
+    warning = budget_assessment(45.0, 450.0)
+    defect = budget_assessment(45.0, 601.0)
     cases = [
         {
+            "directory": "youtube-short-vertical",
             "performance": {
                 "available": True,
+                "input_duration_seconds": 45.0,
+                "total_seconds": 250.0,
+                "budget_assessment": fast,
                 "stages": {"ingest": 1.0, "render": 4.0},
             }
         },
         {
+            "directory": "x-short-horizontal",
             "performance": {
                 "available": True,
+                "input_duration_seconds": 45.0,
+                "total_seconds": 450.0,
+                "budget_assessment": warning,
                 "stages": {"ingest": 3.0, "render": 6.0},
             }
         },
-        {"performance": {"available": False, "reason": "sample"}},
+        {
+            "directory": "instagram-short-vertical",
+            "performance": {
+                "available": True,
+                "input_duration_seconds": 45.0,
+                "total_seconds": 601.0,
+                "budget_assessment": defect,
+                "stages": {"ingest": 2.0, "render": 5.0},
+            },
+        },
+        {
+            "directory": "tiktok-short-vertical",
+            "performance": {"available": False, "reason": "fetch blocked"},
+        },
     ]
 
     summary = summarize_performance(cases)
 
-    assert summary["status"] == "tracked-not-gated"
-    assert summary["available_case_count"] == 2
-    assert summary["total_case_count"] == 3
+    assert fast["status"] == "pass"
+    assert warning["status"] == "warning"
+    assert defect["status"] == "defect"
+    assert defect["defect_threshold_seconds"] == 600.0
+    assert summary["status"] == "gated"
+    assert summary["passed"] is False
+    assert summary["available_case_count"] == 3
+    assert summary["total_case_count"] == 4
+    assert summary["defect_count"] == 1
+    assert summary["defects"][0]["case"] == "instagram-short-vertical"
+    assert summary["warning_count"] == 1
+    assert summary["unavailable_count"] == 1
     assert summary["stages"]["ingest"] == {
-        "total_seconds": 4.0,
+        "total_seconds": 6.0,
         "mean_seconds": 2.0,
         "max_seconds": 3.0,
     }
     assert summary["roadmap_budget"]["scope"] == (
         "zing study on a 30-60 second short"
     )
-    assert budget_assessment(45.0)["status"] == "tracked-not-gated"
-    assert budget_assessment(3.0)["status"] == "not-comparable"
+    assert budget_assessment(120.0, 1_201.0)["status"] == "defect"
 
 
 def test_benchmark_adapter_can_preserve_study_artifacts(tmp_path: Path) -> None:
