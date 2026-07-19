@@ -200,3 +200,30 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 - **C-Q15 (pairs with A-Q12):** raw-footage measurement goldens — synthetic fixtures with constructed dead-air spans, filler-word insertions (spoken fixture remixes), and repeated-take segments with exact truth; scorer dimensions for each, per-dimension mutations. The eval half of S3 groundwork.
 - **C-Q16:** transition detector recall validation — your own C-Q9 report said synthetic precision says nothing about recall; validate against the frozen real-video set + the gate-pack videos, report recall honestly, tune or downgrade signatures that fail.
 - **A-Q14 (REASSIGNED from Lane D — S4 Track 2 unblock, HIGH):** the vetted per-pack reference sets are now YOURS, Lane A: for each preset pack (ai-tech-talking-head, viral-tiktok-reels, informative-explainer, vlog, product-launch; vertical+horizontal variants where the genre supports it) curate 5-8 references with EVERY URL live-verified at curation time (fetch the page, confirm title/channel match — the D-Q9/D-Q12 staleness lesson is the reason this moved), one-line rubric-cited "why" each, stable IDs + retrieval dates per the LAUNCH-PLAN reproducibility rules. Then flow straight into your claimed Track 2 builder work (batch-study + pack builds) — you own the whole preset pipeline end to end now. Lane D keeps link-rot upkeep AFTER packs exist.
+- **P-C1 (Lane C, SG-5, 2026-07-19) · opt-in post-render verification manifest.**
+  **Proposal:** add `zing render --report <json>` after Assemble. The
+  versioned report records the output SHA-256 plus measured duration,
+  dimensions, frame rate, pixel format, streams, audio sample rate/channels,
+  C-Q7's integrated LUFS and true peak, and advisory-only delivery warnings.
+  Scripted VO adds provider/package version, voice/language/speed, script hash
+  (never text), model/voices hashes, WAV hash, duration, and placement. OTIO
+  export adds its hash and track count. Evidence: `RenderResult` currently
+  proves only that FFmpeg returned a file, while the C-Q7 delivery probe lives
+  inside the eval harness and the new S4 `SynthesisResult` does not identify
+  the model or script that produced a voice. A portable report would make a
+  real draft as inspectable and reproducible as the frozen eval artifacts.
+  **Refutation:** (1) ebur128 adds another audio-length pass to every reported
+  render and duplicates eval code; (2) repeatedly hashing a roughly 80–300 MB
+  model wastes time; (3) technical facts cannot establish pronunciation,
+  intelligibility, taste, or NLE-import success, so a "quality score" would
+  launder uncertainty; (4) script text or absolute model paths in a report
+  would create a privacy leak; (5) another default sidecar would clutter the
+  simple `zing render` path.
+  **Survives as:** opt-in only, with no score, gate, automatic normalization,
+  script text, or absolute model path. Promote C-Q7's probe into one shared
+  render-owned measurement module instead of duplicating it; cache large-file
+  hashes by resolved path + size + mtime; make every unavailable field carry a
+  reason. The regression bar is one exact constructed render plus isolated
+  mutations for media facts, delivery audio, VO provenance, and OTIO
+  provenance. Actual NLE import and human listening remain separate manual
+  gates.
