@@ -227,6 +227,37 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   mutations for media facts, delivery audio, VO provenance, and OTIO
   provenance. Actual NLE import and human listening remain separate manual
   gates.
+- **P-C2 (Lane C, SG-5, 2026-07-19) · warning-only caption-evidence calibration.**
+  **Proposal:** add a caption-evidence quality label beside each OCR event:
+  `likely_caption`, `incidental_text`, `unsupported_script`, or `unreadable`.
+  Candidate signals are temporal persistence, region stability, recognized
+  script, and lexicality; raw OCR text and confidence remain untouched.
+  The live Sprint 5 record (`handoff/research/S5-SWEEP-LANE-A.md`) shows why
+  confidence alone cannot carry this job. The SpaceX cell produced 60 events
+  that were largely texture junk at median confidence 0.88; Cyrillic overlays
+  became fabricated Latin at 0.77–0.93; and the 430-second split-screen cell
+  produced 1,882 events mixing story text with gameplay HUD. The SG-4 review
+  of video-subtitle-extractor independently identified persistent logos,
+  bilingual text, sparse captions, and duplicate lines as the right fixture
+  classes.
+  **Refutation:** this label would pretend an uncalibrated heuristic is a
+  measurement. Lexicality penalizes names, slang, code, and deliberately
+  fragmented captions. Script detection can fail on stylized glyphs before OCR
+  does. Persistence and region rules can misclassify scoreboards, watermarks,
+  karaoke, and one-frame title cards. The current sweep has observations, not
+  event-level truth, so no precision or recall claim is available. Adding four
+  serialized states now would also cross Lane A's measurement ownership and
+  force a schema decision before the candidate signals have earned one.
+  **Survives as:** an offline, warning-only calibration pack owned jointly by
+  Lanes A and C. Freeze event coordinates, raw OCR, frame hashes, and manual
+  labels from the three cited cells plus known-good creator captions; keep
+  source frames local when redistribution is unavailable. Compare candidate
+  signals against the current confidence-only baseline with per-class
+  precision, recall, and abstention. There is no production filter, no schema
+  request, and no text rewrite in this phase. Promotion requires a held-out
+  result showing that a named warning separates at least one failure class
+  without reducing recall on real captions; otherwise archive the pack as
+  negative evidence.
 - **CD-Q1 (Lane C + Lane D, S3 full-fidelity follow-up):** replace the raw-editing-practice stand-in: Lane D sources ONE genuinely unedited talking-head clip (live-verify + eyeball per F-16 lesson; document license/provenance); Lane C studies it with raw_mode ON and re-freezes it into the regression set with raw-mode provenance + regeneration command. Then Lane B reruns the direction gate against it for the full-fidelity record (keepers from real raw measurements).
 - **P-B2 (Lane B, SG-5, 2026-07-19) · judgment-backlog surface.**
   PROPOSAL: a `list_unjudged()` MCP tool / `zing judge-queue` CLI
