@@ -53,19 +53,19 @@ Zing has a comprehensive test suite managed by `pytest`. Run tests to verify the
 uv run pytest
 ```
 
-All tests are located in the [tests](file:///E:/AI/projects/zing-lanes/lane-d/tests) directory.
+All tests are located in the [tests](../tests) directory.
 
 ---
 
 ## 4. Codebase Architecture
 
-The codebase is organized in the [src/myzing](file:///E:/AI/projects/zing-lanes/lane-d/src/myzing) directory:
+The codebase is organized in the [src/myzing](../src/myzing) directory:
 
-* [cli.py](file:///E:/AI/projects/zing-lanes/lane-d/src/myzing/cli.py): CLI routing entrypoint.
-* [doctor.py](file:///E:/AI/projects/zing-lanes/lane-d/src/myzing/doctor.py): Environment checking script.
-* [schemas.py](file:///E:/AI/projects/zing-lanes/lane-d/src/myzing/schemas.py): Pydantic data schemas defining video breakdowns, style profiles, and EDLs.
-* [storage.py](file:///E:/AI/projects/zing-lanes/lane-d/src/myzing/storage.py): Local JSON-based storage manager.
-* [study/](file:///E:/AI/projects/zing-lanes/lane-d/src/myzing/study): Submodule containing video ingest and metadata extraction logic.
+* [cli.py](../src/myzing/cli.py): CLI routing entrypoint.
+* [doctor.py](../src/myzing/doctor.py): Environment checking script.
+* [schemas.py](../src/myzing/schemas.py): Pydantic data schemas defining video breakdowns, style profiles, and EDLs.
+* [storage.py](../src/myzing/storage.py): Local JSON-based storage manager.
+* [study/](../src/myzing/study): Submodule containing video ingest and metadata extraction logic.
 
 ---
 

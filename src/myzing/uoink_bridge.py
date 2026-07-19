@@ -160,6 +160,17 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     state = data.get("state")
     if state not in ("available", "not_kept", "missing"):
         return _nonconformant(f"unknown state {state!r}")
+    source_url = data.get("source_url")
+    # FF-8 (final review, contract §5): a cross-product source_url is
+    # null or HTTP(S) — a file:// or filesystem-shaped value here would
+    # turn "refetch from the source" into a local file read.
+    if source_url is not None and (
+        not isinstance(source_url, str)
+        or not source_url.lower().startswith(("http://", "https://"))
+    ):
+        return _nonconformant(
+            f"source_url must be null or an HTTP(S) URL, got {source_url!r}"
+        )
     media = data.get("media")
     if state == "available":
         if not isinstance(media, dict) or set(media) != _HANDOFF_MEDIA_KEYS:

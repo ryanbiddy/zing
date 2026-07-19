@@ -1612,7 +1612,8 @@ def run(argv: list[str]) -> int:
     except ImportError:
         print(
             "zing serve-mcp needs the MCP SDK: "
-            'python -m pip install "myzing[mcp]"',
+            'python -m pip install "myzing[mcp]" '
+            '(from a source checkout: pip install -e ".[mcp]")',
             file=sys.stderr,
         )
         return 2

@@ -285,3 +285,25 @@ def test_resolve_helper_down_is_calm(monkeypatch):
     result = uoink_bridge.resolve_kept_media(REF)
     assert result["ok"] is False
     assert "is Uoink running" in result["error"]
+
+
+@pytest.mark.parametrize("bad", [
+    "file:///C:/x.mp4", "C:/kept/video.mp4", "/tmp/x.mp4", "ftp://h/x",
+])
+def test_resolve_rejects_non_http_source_url(monkeypatch, bad):
+    """FF-8 (final review, contract §5): source_url is null-or-HTTP(S) —
+    a file:// or filesystem-shaped value would turn 'refetch from the
+    source' into a local file read."""
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    serve(monkeypatch, handoff_body(source_url=bad))
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert result["ok"] is False
+    assert "source_url" in result["error"]
+
+
+def test_resolve_null_source_url_is_contract_legal(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    serve(monkeypatch, handoff_body(state="not_kept", media=None, source_url=None))
+    result = uoink_bridge.resolve_kept_media(REF)
+    assert result["ok"] is True
+    assert result["data"]["source_url"] is None
