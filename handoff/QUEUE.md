@@ -190,6 +190,25 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 - **A-Q11 (gated on C-Q12 merge):** breakdown.md renders transition observations (plain-language line per transition, honest about opt-in/absence).
 
 ## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
+
+- **PROPOSED (Lane B, SG-4, 2026-07-19): publish zing to the official
+  MCP registry at launch.**
+  PROPOSAL: at launch, add `server.json` (registry_type pypi,
+  identifier myzing) + the `mcp-name:` marker line to the PyPI README
+  and publish via `mcp-publisher login github` — zing becomes
+  discoverable to every registry-reading client for ~30 minutes of
+  work and zero infrastructure. Evidence: registry is live and backed
+  by Anthropic/GitHub/Microsoft; PyPI servers are first-class with
+  ownership verification (see research/SG4-MCP-DISTRIBUTION-2026-07-19.md).
+  REFUTATION (mine): (1) premature before naming lands — the
+  namespace bakes the product name in, and Decision Week owns naming;
+  publishing early risks a rename migration. (2) registry churn —
+  requirements tightened as recently as 2026-01; a launch-week
+  re-check of the publishing guide is mandatory, my scan record rots.
+  (3) not a substitute for the .mcpb bundle or CONNECT.md — it is a
+  third channel, additive only.
+  SURVIVES AS: a RYAN-GATED launch-checklist line (post-naming):
+  server.json + README marker + one publish command; no code now.
 - **P-B1 (Lane B, 2026-07-18) · loop-ability as a measured Breakdown
   field.**
   **Proposal:** a deterministic loop score in the study pipeline:

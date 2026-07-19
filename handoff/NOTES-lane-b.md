@@ -1012,3 +1012,22 @@
   - B-S6's three named items (kept-media consumption, shot-list
     import, peer probes) are now ALL shipped. Lane B stands ready for
     the suite smoke / family-scenario gate.
+- **2026-07-19 (Lane B): SG-4 pass (rotation; queue empty — S6 build
+  done, suite smoke is Codex's stage): MCP distribution landscape,
+  live-verified.** Full record in
+  research/SG4-MCP-DISTRIBUTION-2026-07-19.md. Headlines: (1) REAL
+  DRIFT FOUND AND FIXED — our .mcpb manifest said manifest_version
+  "0.4" (a toolchain-version mixup; spec requires "0.3"); a plausible
+  one-click-install failure, corrected and pinned with citation in
+  the staging test. (2) .mcpb now lives under the MCP org and
+  installs across Claude Desktop/Code/Windows — our uv-type bundle
+  conforms and serves more clients than when built. (3) Official MCP
+  registry: PyPI servers are first-class (README `mcp-name:` marker +
+  server.json + mcp-publisher OAuth) — filed as a RYAN-GATED
+  launch-checklist proposal in QUEUE §PROPOSED because the namespace
+  bakes in the product name and Decision Week owns naming.
+  Considered-and-rejected: enumerating our 19 tools in the manifest
+  (optional, display-only, second drift surface). Process note:
+  first SG-4 of the loop era with live network — claim-by-claim
+  sourcing per the adopted doctrine, license check included
+  (mcpb toolchain Apache-2.0/MIT; we vendor nothing).

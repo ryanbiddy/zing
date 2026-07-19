@@ -31,7 +31,10 @@ def test_manifest_agrees_with_staged_layout(tmp_path):
     staged = build_mcpb.stage(tmp_path / "stage")
     manifest = json.loads((staged / "manifest.json").read_text(encoding="utf-8"))
 
-    assert manifest["manifest_version"] == "0.4"
+    # SG-4 2026-07-19: the mcpb spec (modelcontextprotocol/mcpb
+    # MANIFEST.md) requires manifest_version "0.3"; our "0.4" was a
+    # toolchain-version mixup and could fail one-click install.
+    assert manifest["manifest_version"] == "0.3"
     assert manifest["name"] == "myzing"
     assert manifest["license"] == "MIT"
     server = manifest["server"]
