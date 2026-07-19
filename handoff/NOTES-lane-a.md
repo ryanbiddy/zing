@@ -677,3 +677,18 @@
   normalize -> meta again, and the no-double-probe invariant is now
   named in the helper's contract. Behavior-preserving: full suite
   740 green with zero test edits.
+
+- **2026-07-19 (Lane A, SG-1 round 3): cross-review #226/#227/#229 —
+  all pass.**
+  - #226 (Lane C, suite conformance gate): the kept-media fixtures
+    encode EXACTLY my seam's implemented outcomes — hash mismatch AND
+    size mismatch both -> acquisition source_refetch / refetch true /
+    reason integrity_mismatch, matching _stage_kept's behavior
+    key-for-key. The family gate will assert the truth, not an
+    approximation. Pass, cross-verified against my implementation.
+  - #227 (Lane B, shot-list import): unsupported_version kept DISTINCT
+    from invalid_file with the contract's stable error-code set, and
+    idempotency keyed on (document hash, target). Pass.
+  - #229 (Lane B, peer probe): drift is never flattened into
+    peer-absent (the contract's false-negative lesson), unhealthy
+    names its code, probes are timeout-bounded. Pass.
