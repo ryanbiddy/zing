@@ -166,7 +166,9 @@ def check_ytdlp(today: date | None = None) -> Check:
             "; no JS runtime (deno/node) found — YouTube fetches WILL fail "
             "(yt-dlp requires one for YouTube's signature solving)"
         )
-        js_fix = "winget install DenoLand.Deno   (yt-dlp's preferred JS runtime)"
+        js_fix = (
+            "winget install DenoLand.Deno   (see docs/FETCH-TROUBLESHOOTING.md)"
+        )
     elif js_runtime == "node":
         # SW-3 (Lane A sweep): node on PATH is NOT enough — yt-dlp only
         # enables deno by default; node needs explicit opt-in, and without
@@ -177,8 +179,8 @@ def check_ytdlp(today: date | None = None) -> Check:
             "signature-challenge YouTube videos will 403 until configured"
         )
         js_fix = (
-            "add '--js-runtimes node' to your yt-dlp config, or "
-            "winget install DenoLand.Deno"
+            "add '--js-runtimes node' to your yt-dlp config, or install "
+            "deno (see docs/FETCH-TROUBLESHOOTING.md)"
         )
     data = {
         "version": version,

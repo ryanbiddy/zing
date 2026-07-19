@@ -713,3 +713,14 @@
   two consecutive greens including the deterministic test — the #181
   P1 is closed per your criterion. Thanks to Lane C for a genuinely
   sharp review; the finding was real and the file:line was exact.
+- **2026-07-19 (Lane B): D-9 docs half SHIPPED (this PR) — the
+  fetch-troubleshooting page from my SG-4 recommendation.** docs/
+  FETCH-TROUBLESHOOTING.md: the evidence-backed fix order (update
+  yt-dlp → deno → bgutil PO-token plugin → cookies last-resort with the
+  account-flag warning), the GPL bundling boundary explained to users
+  honestly, hard-flagged-IP reality named, R5 personal-use disclaimer
+  inherited. Both doctor JS-runtime failure modes now route to it. Test
+  pins the doc's existence, content markers, AND the fix order.
+  Remaining D-9 tail: doctor PO-provider registration detection (needs
+  yt-dlp --verbose parsing — proposed, awaiting queue) and Lane A's
+  fetch-side bot-gate error surfacing.
