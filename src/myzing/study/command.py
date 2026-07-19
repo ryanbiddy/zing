@@ -26,6 +26,12 @@ def run(argv: list[str]) -> int:
         action="store_true",
         help="run the opt-in synthetic-calibrated transition detector",
     )
+    parser.add_argument(
+        "--raw",
+        action="store_true",
+        help="raw-footage mode: measure dead air, filler words, and "
+             "repeated takes (S3 retake-spotting facts)",
+    )
     args = parser.parse_args(argv)
 
     from myzing import storage
@@ -36,6 +42,8 @@ def run(argv: list[str]) -> int:
         study_kwargs = {"workspace": args.workspace}
         if args.transitions:
             study_kwargs["detect_transitions"] = True
+        if args.raw:
+            study_kwargs["raw_mode"] = True
         breakdown = study(args.source, **study_kwargs)
     except MediaError as e:
         print(f"zing study: {e}")

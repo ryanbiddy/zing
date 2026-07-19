@@ -51,6 +51,10 @@ class AudioResult:
     audio: AudioLayout = field(default_factory=AudioLayout)
     provenance: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
+    # VAD speech spans in seconds (internal, not schema): None = VAD was
+    # skipped, [] = measured, no speech. Raw-footage measurement (A-Q12)
+    # consumes these for dead-air detection.
+    speech_segments: list[tuple[float, float]] | None = None
 
 
 def measure_audio(media_path: Path, duration: float) -> AudioResult:
@@ -76,6 +80,7 @@ def measure_audio(media_path: Path, duration: float) -> AudioResult:
         speech_ratio=speech_ratio,
         loudness_curve=curve,
     )
+    result.speech_segments = segments
     result.provenance = {
         "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
         "vad": "silero (faster-whisper bundled), upstream-style params",
