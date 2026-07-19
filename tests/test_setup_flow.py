@@ -24,13 +24,16 @@ def pack_dir(tmp_path, monkeypatch):
     d = tmp_path / "presets" / "ai-tech-talking-head"
     d.mkdir(parents=True)
     (d / "pack.json").write_text(json.dumps({
-        "name": "ai-tech-talking-head",
+        "pack_id": "ai-tech-talking-head",
+        "curated_at": "2026-07-19",
         "genre": "talking-head",
         "platform": "tiktok",
-        "description": "fast technical explainers",
+        "orientation": "vertical",
         "references": [
-            {"id": "r1", "url": LINKS[0], "why": "hook craft (G-TH-1)"},
-            {"id": "r2", "url": LINKS[1], "why": "caption style (G-TH-5)"},
+            {"id": "r1", "url": LINKS[0], "why": "hook craft (G-TH-1)",
+             "verified_at": "2026-07-19"},
+            {"id": "r2", "url": LINKS[1], "why": "caption style (G-TH-5)",
+             "verified_at": "2026-07-19"},
         ],
     }), encoding="utf-8")
     monkeypatch.setenv(setup_flow.PRESETS_DIR_ENV, str(tmp_path / "presets"))
@@ -52,7 +55,7 @@ def engines(monkeypatch):
 
     profile_api = types.ModuleType("myzing.profile.api")
 
-    def build_profile(name, slugs, genre="", platform=""):
+    def build_profile(name, slugs, workspace=None, genre="", platform=""):
         return StyleProfile(
             name=name, source_slugs=list(slugs), genre=genre, platform=platform,
             duration=StatSummary(median=30.0, n=len(slugs)),
@@ -153,7 +156,9 @@ def test_setup_taste_from_pack(zing_workspace, engines, pack_dir):
     wait_studies(SLUGS)
     final = mcp_server.h_setup_taste("techie", pack="ai-tech-talking-head")
     assert final["state"] == "built"
-    assert storage.load_profile("techie").genre == "talking-head"  # from pack
+    # D-5: pack profiles carry Lane A's pack-<id> naming convention
+    assert final["build"]["profile_name"] == "pack-ai-tech-talking-head"
+    assert storage.load_profile("pack-ai-tech-talking-head").genre == "talking-head"
 
 
 def test_setup_taste_unknown_pack_lists(zing_workspace, pack_dir):
@@ -201,13 +206,10 @@ def test_cli_pack_flow_defaults_name_and_genre(
     zing_workspace, engines, pack_dir, capsys
 ):
     code = setup_flow.run(["--pack", "ai-tech-talking-head"])
-    assert code in (0, 3)
-    wait_studies(SLUGS)
-    code = setup_flow.run(["--pack", "ai-tech-talking-head"])
-    assert code == 0
+    assert code == 0  # D-3: one-shot — build_pack studies synchronously
     assert "built from 2 references" in capsys.readouterr().out
-    profile = storage.load_profile("ai-tech-talking-head")  # name from pack
-    assert profile.genre == "talking-head"                  # genre from pack
+    profile = storage.load_profile("pack-ai-tech-talking-head")  # D-5 naming
+    assert profile.genre == "talking-head"                       # from pack
 
 
 def test_cli_unknown_pack_lists_available(pack_dir, capsys):

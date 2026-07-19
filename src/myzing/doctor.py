@@ -160,9 +160,11 @@ def check_ytdlp(today: date | None = None) -> Check:
     js_note = ""
     js_fix = ""
     if js_runtime is None:
+        # D-9: what S2 warned about is now reality — YouTube fetches FAIL
+        # without an external JS runtime, they don't just warn.
         js_note = (
-            "; no JS runtime (deno/node) found — yt-dlp warns on every "
-            "fetch and YouTube downloads may fail"
+            "; no JS runtime (deno/node) found — YouTube fetches WILL fail "
+            "(yt-dlp requires one for YouTube's signature solving)"
         )
         js_fix = "winget install DenoLand.Deno   (yt-dlp's preferred JS runtime)"
     data = {
@@ -320,8 +322,10 @@ def check_tts() -> Check:
         ok=False,
         detail=f"selected TTS '{selected}' not ready: {provider.get('detail', '?')}; {others}",
         fix=(
-            "zing render fetches the kokoro model on first VO use, or "
-            "pre-fetch per docs; ElevenLabs is optional via ELEVENLABS_API_KEY"
+            "download the kokoro model files to ~/.cache/myzing/kokoro (or "
+            "point ZING_KOKORO_MODEL/ZING_KOKORO_VOICES at them) — Zing "
+            "never auto-downloads models (D-6); ElevenLabs is optional via "
+            "ELEVENLABS_API_KEY"
         ),
         degraded_mode="renders proceed without voiceover tracks (stated in output)",
         data=status,
