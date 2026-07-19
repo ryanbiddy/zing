@@ -892,3 +892,33 @@
   - Test doctrine note: a new autouse fixture empties
     `_ytdlp_config_paths` for every doctor test — D-13 was
     host-config-dependent behavior, and the suite must never be.
+- **2026-07-19 (Lane B): B-S6 claimed — first seam shipped + contract
+  review filed.**
+  - Seam: `study_video(url, kept_media=path)` on the MCP surface,
+    threading to Lane A's shipped `study(kept_media=)` (their record
+    says it plainly: "Lane B's bridge hands us a path"). Passthrough
+    is expanded-once (F-11 doctrine), recorded in status.json, echoed
+    in the started response; an engine build predating A-S6 is
+    REFUSED at dispatch (a silent study-without-kept-file would be
+    exactly the quiet network fetch the caller tried to avoid).
+    Existence is deliberately NOT pre-checked — fallback-to-fetch
+    honesty is the engine's contract and its warnings surface through
+    get_breakdown unchanged.
+  - INTEGRATION-CONTRACT.md review (Lane B lens, filed before
+    ratification): §9's zing deltas are clear and buildable
+    (study_uoink_item over the resolver, import_shot_list, contract-
+    aware uoink probe — the probe's absent-calm/unhealthy-named-code
+    split matches doctor's existing #201/D-13 doctrine and can reuse
+    mark="degraded"). ONE gap worth fixing in the draft: §9 rules
+    study_uoink_item accepts "never an arbitrary peer path", but the
+    SHIPPED product surface (CLI --kept-media, A-S6; MCP kept_media,
+    this PR) accepts explicit user-chosen paths. Ask: ratified text
+    should name these product-level affordances (user-chose-the-file
+    rationale, exactly §6.2's justification for import_shot_list's
+    path) while the family gate keeps requiring resolver-mediated
+    acquisition receipts (`acquisition: "kept_media"`, path-free
+    source_handoff). Otherwise the first conformance sweep flags a
+    false violation. Wire work (resolver client, source_handoff
+    provenance shape, shot-list parser, peer probes) stays parked
+    until ratification per the draft's own "no implementation
+    authorized".

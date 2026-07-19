@@ -55,9 +55,12 @@ def fake_engine(monkeypatch):
     """
     api = types.ModuleType("myzing.study.api")
     api.calls = []
+    api.kept = []  # B-S6: kept_media values the engine actually received
 
-    def study(source: str, phase_callback=None):
+    def study(source: str, phase_callback=None, kept_media=None):
         api.calls.append(source)
+        if kept_media is not None:
+            api.kept.append(kept_media)
         if phase_callback:
             phase_callback("shots")
         if source.endswith("boom"):
@@ -239,6 +242,54 @@ def test_study_video_stamps_liveness_marker(zing_workspace, fake_engine):
     status = wait_done(result["slug"])
     assert status["pid"] == os.getpid()
     assert status["heartbeat_at"]
+
+
+def test_study_video_kept_media_reaches_the_engine(
+    zing_workspace, fake_engine, tmp_path
+):
+    """B-S6 seam: the bridge hands the engine a kept-media path — the MCP
+    surface passes it through expanded, records it in status, and echoes
+    it in the started response."""
+    kept = tmp_path / "kept.mp4"
+    kept.write_bytes(b"\x00" * 2048)
+    result = mcp_server.h_study_video(SRC_URL, kept_media=str(kept))
+    assert result["ok"] is True and result["status"] == "started"
+    assert result["kept_media"] == str(kept)
+    assert "zero network fetch" in result["hint"]
+    status = wait_done(result["slug"])
+    assert status["state"] == "done"
+    assert status["kept_media"] == str(kept)
+    assert fake_engine.kept == [str(kept)]
+
+
+def test_study_video_kept_media_engine_without_support_is_honest(
+    zing_workspace, monkeypatch, tmp_path
+):
+    """An engine build predating A-S6 must be refused at dispatch — not
+    silently studied without the kept file (that would be a quiet
+    network fetch the caller explicitly tried to avoid)."""
+    api = types.ModuleType("myzing.study.api")
+    api.study = lambda source, phase_callback=None: None
+    monkeypatch.setattr(mcp_server, "_study_api", lambda: api)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+    result = mcp_server.h_study_video(SRC_URL, kept_media=str(tmp_path / "k.mp4"))
+    assert result["ok"] is False
+    assert "kept-media support" in result["error"]
+
+
+def test_study_video_kept_media_blank_is_rejected(zing_workspace, fake_engine):
+    result = mcp_server.h_study_video(SRC_URL, kept_media="   ")
+    assert result["ok"] is False
+    assert "kept_media" in result["error"]
+
+
+def test_study_video_without_kept_media_omits_the_field(
+    zing_workspace, fake_engine
+):
+    result = mcp_server.h_study_video(SRC_URL)
+    assert result["ok"] is True
+    assert "kept_media" not in result  # absent, not null — nothing to echo
+    assert fake_engine.kept == []
 
 
 def test_study_video_tilde_path_dispatches_expanded(
