@@ -402,3 +402,4 @@
   no process-global state, thread-safe under concurrent MCP jobs.
   Suite green locally (463). SG-1 coverage log: +#104.
 - **2026-07-19 (orchestrator): SPRINT 3 (DIRECT) IS OPEN — handoff/SPRINT-3-D3.md.** The anti-slop core. Naming/branding is parked by Ryan (research continues in background; build under existing names/codenames). S3 lane items take priority over generators.
+- **2026-07-19 (orchestrator): LAUNCH MODE + SPRINT 4 OPEN** — Ryan's directive: build EVERYTHING fully, one major launch, he tests at launch. All Ryan-gates now internal. handoff/SPRINT-4-D4.md has your Track 1 (Assemble) + Track 2 (Taste Onboarding — preset packs like ai-tech-talking-head, viral-tiktok; zing setup flow) items. S3's open items finish first; then S4. Same discipline, no pauses.
