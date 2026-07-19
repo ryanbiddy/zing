@@ -55,8 +55,9 @@ def study(
     status reporting must never
     kill a measurement.
 
-    Transition detection is disabled by default because the v2 detector is
-    calibrated only on synthetic precision fixtures. When enabled, a probe
+    Transition detection is disabled by default because the v4 detector has
+    synthetic precision and recall checks but no measurable real-video
+    recall. Successful opt-in runs name that experimental status. A probe
     failure produces no observations, a named warning, and detector
     provenance instead of aborting the rest of the study.
 

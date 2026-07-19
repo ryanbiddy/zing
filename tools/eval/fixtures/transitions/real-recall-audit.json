@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "audited_at": "2026-07-19",
+  "recall_requirement": "Recall requires an exhaustive list of exact transition events and types. Coarse cut counts, detector outputs, and spot checks cannot reveal false negatives.",
+  "corpora": [
+    {
+      "id": "frozen-real-video-set",
+      "source_documents": [
+        "tools/eval/real_videos/manifest.json",
+        "tools/eval/real_videos/manifest-cq13.json"
+      ],
+      "sources": [
+        {
+          "fixture_id": "reference-cleo-antarctica",
+          "source_url": "https://www.youtube.com/shorts/nlGYV0bmddI",
+          "media_sha256": "840c39d46aa4587ce99fb6743a947a76e88b4056af7ae9ab250038ca64b8a226",
+          "evidence": "handoff/research/EXAMPLE-DATASET-TRUTH.md section 1",
+          "annotation": {
+            "status": "coarse-only",
+            "exhaustive_transition_events": false,
+            "reason": "The annotation gives cut density but no exhaustive exact event timestamps or transition types."
+          }
+        },
+        {
+          "fixture_id": "raw-editing-practice",
+          "source_url": "https://www.youtube.com/watch?v=FHMXO_VikdA",
+          "media_sha256": "0450698edfaea9004aab37f1c57f5dfd2e4324bfd5e9f1b373ea33199459d031",
+          "evidence": "handoff/research/EXAMPLE-DATASET-TRUTH.md section 2",
+          "annotation": {
+            "status": "coarse-only",
+            "exhaustive_transition_events": false,
+            "reason": "The annotation gives a total cut count and one dense window but no exhaustive exact event timestamps or transition types."
+          }
+        },
+        {
+          "fixture_id": "landscape-big-buck-bunny",
+          "source_url": "https://video.blender.org/w/dmhvQNzwBnrWy1iYzVv5g7",
+          "media_sha256": "a7cb66a0c07df7205bee78a6f724d93cc1894e73d33952a3d5f7b48e96059ae2",
+          "evidence": "tools/eval/real_videos/manifest-cq13.json",
+          "annotation": {
+            "status": "unjudged",
+            "exhaustive_transition_events": false,
+            "reason": "No independent human annotation was commissioned for this source."
+          }
+        },
+        {
+          "fixture_id": "x-nasa-artemis-backseat-drivers",
+          "source_url": "https://x.com/NASAArtemis/status/2040619776100147411",
+          "media_sha256": "38459f540ad352cc03a2540437e130d9306b3c3f7e275d0a835b0ac1bba4607e",
+          "evidence": "tools/eval/real_videos/manifest-cq13.json",
+          "annotation": {
+            "status": "unjudged",
+            "exhaustive_transition_events": false,
+            "reason": "No independent human annotation was commissioned for this source."
+          }
+        },
+        {
+          "fixture_id": "short-daily-dweebs",
+          "source_url": "https://video.blender.org/w/gdfAeNysimipmpo7AbgaTp",
+          "media_sha256": "d43cb62f12eeb73b9b420b4f1484b662e164d5682e266336782d2f81044e9c56",
+          "evidence": "tools/eval/real_videos/manifest-cq13.json",
+          "annotation": {
+            "status": "unjudged",
+            "exhaustive_transition_events": false,
+            "reason": "No independent human annotation was commissioned for this source."
+          }
+        }
+      ]
+    },
+    {
+      "id": "sprint-2-gate-pack",
+      "source_documents": [
+        "handoff/S2-GATE-PACK-2026-07-18.md",
+        "tools/eval/fixtures/transitions/real-gate-candidates.json"
+      ],
+      "sources": [
+        {
+          "fixture_id": "youtube-n13pfpa5ddi",
+          "source_url": "https://www.youtube.com/shorts/N13PfPA5dDI",
+          "media_sha256": "b60804ab07761311adcdd6f7d042d88eb313d56418a15144aa0947a2a01254b1",
+          "evidence": "tools/eval/fixtures/transitions/real-gate-candidates.json",
+          "detector_measurement": {
+            "detector_version": 4,
+            "predicted_event_counts": {
+              "hard_cut": 4,
+              "dissolve": 0,
+              "wipe": 1,
+              "zoom_punch": 1,
+              "audio_aligned_cut": 0
+            },
+            "accuracy_status": "unjudged"
+          },
+          "annotation": {
+            "status": "unjudged",
+            "exhaustive_transition_events": false,
+            "reason": "The gate pack froze detector measurements and two rejection spot checks, not frame-level transition truth."
+          }
+        },
+        {
+          "fixture_id": "youtube-jzrqqbancx8",
+          "source_url": "https://www.youtube.com/shorts/jZRQQbanCx8",
+          "media_sha256": "893c630c73aa2da63324bf81045c5c3e06ac195884dccd09fed9fcf367471fd5",
+          "evidence": "tools/eval/fixtures/transitions/real-gate-candidates.json",
+          "detector_measurement": {
+            "detector_version": 4,
+            "predicted_event_counts": {
+              "hard_cut": 0,
+              "dissolve": 0,
+              "wipe": 0,
+              "zoom_punch": 0,
+              "audio_aligned_cut": 0
+            },
+            "accuracy_status": "unjudged"
+          },
+          "annotation": {
+            "status": "unjudged",
+            "exhaustive_transition_events": false,
+            "reason": "The gate pack froze detector measurements and two rejection spot checks, not frame-level transition truth."
+          }
+        },
+        {
+          "fixture_id": "youtube-frj95og0xce",
+          "source_url": "https://www.youtube.com/shorts/Frj95og0xcE",
+          "media_sha256": "17b79c5b73e5217d8ce02a4217466b98fa8b722d15a3fa1dee7f4e297a1f9943",
+          "evidence": "tools/eval/fixtures/transitions/real-gate-candidates.json",
+          "detector_measurement": {
+            "detector_version": 4,
+            "predicted_event_counts": {
+              "hard_cut": 1,
+              "dissolve": 0,
+              "wipe": 2,
+              "zoom_punch": 0,
+              "audio_aligned_cut": 0
+            },
+            "accuracy_status": "unjudged"
+          },
+          "annotation": {
+            "status": "unjudged",
+            "exhaustive_transition_events": false,
+            "reason": "The gate pack froze detector measurements and two rejection spot checks, not frame-level transition truth."
+          }
+        }
+      ]
+    }
+  ],
+  "disposition": {
+    "status": "experimental-warning",
+    "reason": "Synthetic recall can prove detector wiring but cannot support real-video recall. Production outputs must stay explicitly experimental until exact exhaustive labels exist."
+  }
+}

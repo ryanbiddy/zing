@@ -23,7 +23,17 @@ SIGNATURES = (
     "audio_aligned_cut",
 )
 DETECTOR_NAME = "zing-transition-signatures"
-DETECTOR_VERSION = 3
+DETECTOR_VERSION = 4
+VALIDATION_STATUS = {
+    "status": "experimental",
+    "synthetic_recall_available": True,
+    "real_video_recall_available": False,
+}
+EXPERIMENTAL_RECALL_WARNING = (
+    "transition types are experimental: real-video recall is unavailable "
+    "because the audited corpora have no exhaustive frame-level transition "
+    "labels"
+)
 FRAME_WIDTH = 96
 FRAME_HEIGHT = 96
 ACTIVE_DIFFERENCE = 0.8
@@ -523,6 +533,7 @@ def detector_provenance(
         "transition_detector": DETECTOR_NAME,
         "transition_detector_version": DETECTOR_VERSION,
         "transition_thresholds": deepcopy(DETECTOR_THRESHOLDS),
+        "transition_validation": deepcopy(VALIDATION_STATUS),
     }
     if feature_summary is not None:
         provenance["transition_feature_summary"] = feature_summary
@@ -565,6 +576,6 @@ def detect_transitions(
         )
     return TransitionsResult(
         transitions=observations,
-        warnings=[],
+        warnings=[EXPERIMENTAL_RECALL_WARNING],
         provenance=detector_provenance(measurement["feature_summary"]),
     )
