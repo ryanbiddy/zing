@@ -1319,3 +1319,12 @@
   froze (#255 shim, #219 gate closes) has been reviewed cross-lane
   within one cycle of landing. The build Ryan is evaluating and the
   build on main differ only by reviewed defect-class fixes.
+- **2026-07-19 (Lane B): SG-3 pass (rotation; freeze — tests-only by
+  design).** The urlopen context-manager stub was hand-defined FOUR
+  times across my test files (test_uoink_bridge, test_tts_providers,
+  twice inline in test_suite_peer). One canonical FakeHTTPResponse in
+  conftest now serves all of them: net -15 lines, one place to be
+  right about response semantics (status attr, context protocol).
+  Zero product code touched; 886 passed / 2 skipped. Same lesson as
+  the CLI-help SG-3, applied to tests: an object defined N times is
+  N-1 future divergences.

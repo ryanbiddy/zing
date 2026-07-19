@@ -56,3 +56,17 @@ def zing_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "zing-home"
     monkeypatch.setenv(storage.ENV_VAR, str(root))
     return root
+
+
+class FakeHTTPResponse(__import__("io").BytesIO):
+    """The one canonical urlopen-response stub (SG-3: this context-manager
+    BytesIO was hand-defined in four places across the suite). Usable as
+    `return FakeHTTPResponse(body_bytes)` from a monkeypatched urlopen."""
+
+    status = 200
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
