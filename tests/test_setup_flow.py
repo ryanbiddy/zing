@@ -77,6 +77,37 @@ def wait_studies(slugs, timeout=10.0):
 
 # -- packs -------------------------------------------------------------------
 
+def test_real_shipped_packs_load(monkeypatch):
+    """Integration truth: the five packs Lane A shipped (flat A-Q14 format)
+    must load through this surface — the seam that broke silently once."""
+    monkeypatch.delenv(setup_flow.PRESETS_DIR_ENV, raising=False)
+    packs = setup_flow.list_packs()
+    names = {p["name"] for p in packs}
+    assert "ai-tech-talking-head" in names and len(packs) >= 5
+    assert all("error" not in p for p in packs), packs
+    pack = setup_flow.load_pack("ai-tech-talking-head")
+    assert pack["genre"] == "talking-head"
+    assert len(pack["references"]) >= 5
+    assert all(r["url"].startswith("http") for r in pack["references"])
+
+
+def test_flat_pack_format(tmp_path, monkeypatch):
+    """Lane A's flat presets/<id>.json shape (pack_id, no description)."""
+    root = tmp_path / "presets"
+    root.mkdir()
+    (root / "flatpack.json").write_text(json.dumps({
+        "pack_id": "flatpack",
+        "curated_at": "2026-07-19",
+        "genre": "vlog",
+        "platform": "tiktok",
+        "references": [{"id": "r1", "url": "https://x.test/1", "why": "w"}],
+    }), encoding="utf-8")
+    monkeypatch.setenv(setup_flow.PRESETS_DIR_ENV, str(root))
+    packs = setup_flow.list_packs()
+    assert packs[0]["name"] == "flatpack"
+    assert "curated 2026-07-19" in packs[0]["description"]
+    assert setup_flow.load_pack("flatpack")["name"] == "flatpack"
+
 def test_no_packs_is_honest(tmp_path, monkeypatch):
     monkeypatch.setenv(setup_flow.PRESETS_DIR_ENV, str(tmp_path / "void"))
     assert setup_flow.list_packs() == []

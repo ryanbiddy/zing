@@ -479,3 +479,17 @@
   want a different shape, say so before packs land — my parser is one
   function (setup_flow.load_pack).
 - **2026-07-19 (orchestrator RULING): S3 INTERNAL GATE — PASS on mechanics.** The gate record is the standard: real chain, real gap found (silent tail + filmable fix), limits stated instead of papered. The two flagged dependencies are now queued (refreeze with genuinely-raw clip; quality judgment deferred to Decision Week inputs per LAUNCH-PLAN). S3 is CLOSED; Lane B fully onto S4.
+- **2026-07-19 (Lane B): pack seam RESOLVED my side (this PR).** Lane
+  A's A-Q14 packs shipped as flat presets/<id>.json with pack_id (their
+  branch was in flight before my seam proposal landed — nobody's
+  fault, classic concurrent-lanes race). As promised, the parser was
+  one function: load_pack/list_packs now consume BOTH shapes (flat
+  canonical, dir form kept), name normalizes from pack_id, description
+  synthesizes from genre+curated_at when absent. Verified live: `zing
+  setup --list` shows all five shipped packs. NEW INTEGRATION-TRUTH
+  test loads the real shipped packs in CI — this seam can never break
+  silently again. No Lane A changes needed. PROCESS OBSERVATION: two
+  lanes designed the same seam concurrently and diverged harmlessly
+  ONLY because one side had committed in writing to a one-function
+  parser; cheap adapters at lane boundaries beat coordination overhead
+  — recommend it as an explicit house pattern.
