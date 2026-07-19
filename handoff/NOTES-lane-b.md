@@ -534,3 +534,20 @@
   Recommend disposing P-B2 as build-rejected/guidance-shipped. SG-5
   score so far: two proposals, zero unnecessary builds — the refutation
   requirement is earning its keep.
+- **2026-07-19 (Lane B): S4 gate defects FIXED (this PR) — D-3 (P1),
+  D-4, D-5, D-6, D-9-doctor.** D-3: `zing setup` now owns its jobs'
+  lifetime — the pack path routes through build_pack (synchronous
+  in-process studies; nothing daemonic dies), and the links path
+  advances → waits on its own jobs (reconciling status reads so a dead
+  worker can't spin the wait forever) → re-advances, bounded restart
+  rounds, honest per-slug failure report on give-up. D-4: advance_setup
+  restarts failed studies (it was telling users "call study_video
+  again" while never doing so itself). D-5: pack builds route through
+  Lane A's build_pack — manifest_sha + per-ref provenance stamped;
+  pack profiles adopt their pack-<id> naming convention (setup_taste
+  reports profile_name). D-6: doctor's tts hint no longer promises an
+  auto-download tts.py never does. D-9 doctor half: missing JS runtime
+  now says YouTube fetches WILL fail (S2's warning came true);
+  fetch-side bot-gate surfacing is Lane A's half. CORRECTION to the
+  gate doc: B-Q12's yt-dlp extra is NOT still open — it landed in #96
+  (pyproject line 17); the gate likely ran against an older checkout.

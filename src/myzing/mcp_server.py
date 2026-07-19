@@ -764,13 +764,18 @@ def h_setup_taste(
         links = [r["url"] for r in manifest["references"]]
         genre = genre or manifest.get("genre", "")
         platform = platform or manifest.get("platform", "")
+        # D-5: pack profiles are named by Lane A's build_pack convention;
+        # planning must track the name that will actually be written.
+        name = f"pack-{manifest.get('pack_id', manifest['name'])}"
     if not links:
         return _err(
             "provide links=[...] (your reference URLs) or pack=<preset name> "
             "— see list_presets()"
         )
     try:
-        outcome = setup_flow.advance_setup(name, links, genre, platform)
+        outcome = setup_flow.advance_setup(
+            name, links, genre, platform, pack=pack
+        )
     except (ValueError, storage.SlugError) as e:
         return _err(str(e))
     plan = outcome["plan"]

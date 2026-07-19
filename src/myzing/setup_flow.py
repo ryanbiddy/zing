@@ -145,19 +145,65 @@ def plan_setup(
     }
 
 
+def pack_manifest_path(name: str) -> Path | None:
+    """Public manifest-path lookup (build_pack needs the file, not the dict)."""
+    if not name or any(c in name for c in "/\\") or name.startswith("."):
+        return None
+    return _pack_path(name)
+
+
+def finish_pack(name: str, *, study_missing: bool = False) -> dict[str, Any]:
+    """Build a preset pack's profile through Lane A's build_pack so the
+    manifest provenance (pack_id, manifest_sha, per-ref outcomes) is
+    stamped (gate defect D-5). Default study_missing=False: the async
+    MCP caller starts studies itself and this is the fast final step;
+    the CLI passes True to study synchronously in-process (D-3: nothing
+    daemonic to die)."""
+    path = pack_manifest_path(name)
+    if path is None:
+        return {"ok": False, "error": f"no preset pack named '{name}'"}
+    try:
+        from myzing.profile.packs import PackError, build_pack
+    except ImportError:
+        return {
+            "ok": False,
+            "error": "the pack builder is not in this build — update Zing",
+        }
+    try:
+        result = build_pack(path, study_missing=study_missing)
+    except PackError as e:
+        return {"ok": False, "error": f"pack build failed: {e}"}
+    except Exception as e:  # noqa: BLE001 — boundary to errors-as-data
+        return {"ok": False, "error": f"pack build failed: {type(e).__name__}: {e}"}
+    return {
+        "ok": True,
+        "profile_name": result.profile.name,
+        "sources": len(result.profile.source_slugs),
+        "unjudged_sources": len(result.profile.unjudged_source_slugs),
+        "studied": result.studied,
+        "reused": result.reused,
+        "ref_failures": [f"{rid}: {why}" for rid, why in result.failed],
+        "warnings": result.warnings,
+    }
+
+
 def advance_setup(
     name: str,
     links: list[str],
     genre: str = "",
     platform: str = "",
+    pack: str = "",
 ) -> dict[str, Any]:
-    """One idempotent step of onboarding: start missing studies, build the
-    profile if everything is studied. The CLI and the MCP tool both drive
-    this — call it again after studies finish."""
+    """One idempotent step of onboarding: start missing studies, RESTART
+    failed ones (gate defect D-4), build the profile once everything is
+    studied. The CLI and the MCP tool both drive this — call it again
+    after studies finish. When ``pack`` is set the final build routes
+    through build_pack for manifest provenance (D-5)."""
     from myzing import mcp_server
 
     plan = plan_setup(name, links, genre, platform)
     started: list[str] = []
+    restarted: list[str] = []
     start_errors: list[str] = []
     for url in plan["unstudied"]:
         result = mcp_server.h_study_video(url)
@@ -165,23 +211,72 @@ def advance_setup(
             started.append(result.get("slug", url))
         else:
             start_errors.append(f"{url}: {result.get('error')}")
+    # D-4: a failed study is restartable, not a dead end — the reconcile
+    # message says "call study_video again"; setup is the caller that must
+    # actually do it.
+    failed_urls = [
+        s["url"] for s in plan["references"] if s["state"] == "failed"
+    ]
+    for url in failed_urls:
+        result = mcp_server.h_study_video(url)
+        if result.get("ok"):
+            restarted.append(result.get("slug", url))
+        else:
+            start_errors.append(f"{url}: {result.get('error')}")
     plan = plan_setup(name, links, genre, platform)
     outcome: dict[str, Any] = {
         "plan": plan,
         "started": started,
+        "restarted": restarted,
         "start_errors": start_errors,
         "built": False,
     }
     if plan["ready_to_build"]:
-        build = mcp_server.h_build_profile(
-            name,
-            [s["slug"] for s in plan["references"]],
-            genre=genre,
-            platform=platform,
-        )
+        if pack:
+            build = finish_pack(pack)
+        else:
+            build = mcp_server.h_build_profile(
+                name,
+                [s["slug"] for s in plan["references"]],
+                genre=genre,
+                platform=platform,
+            )
         outcome["build"] = build
         outcome["built"] = bool(build.get("ok"))
     return outcome
+
+
+def wait_for_studies(
+    name: str,
+    links: list[str],
+    genre: str = "",
+    platform: str = "",
+    poll_s: float = 1.0,
+    progress=None,
+) -> None:
+    """Block until no reference study is running (gate defect D-3: the CLI
+    spawns daemon workers that die with the process, so a one-shot CLI
+    MUST outlive its own jobs). Uses the reconciling status read so a
+    dead worker's 'running' is honestly rewritten instead of spinning
+    this loop forever."""
+    import time as _time
+
+    from myzing import mcp_server
+
+    while True:
+        plan = plan_setup(name, links, genre, platform)
+        running = []
+        for s in plan["references"]:
+            status = storage.read_status(s["slug"])
+            if status and status.get("state") == "running":
+                status = mcp_server._reconcile_running(s["slug"], status)
+                if status.get("state") == "running":
+                    running.append((s["slug"], status.get("phase", "")))
+        if not running:
+            return
+        if progress:
+            progress(running)
+        _time.sleep(poll_s)
 
 
 # ---------------------------------------------------------------------------
@@ -227,54 +322,92 @@ def run(argv: list[str]) -> int:
 
     genre, platform = args.genre, args.platform
     if args.pack:
+        # D-3 + D-5 (pack path): build_pack studies SYNCHRONOUSLY in this
+        # process (nothing daemonic dies with the CLI) and stamps the
+        # manifest provenance. One command, cold start to built taste.
         try:
-            pack = load_pack(args.pack)
+            if load_pack(args.pack) is None:
+                names = ", ".join(
+                    p["name"] for p in list_packs()
+                ) or "(none installed)"
+                print(
+                    f"zing setup: no pack named '{args.pack}' — "
+                    f"available: {names}"
+                )
+                return 1
         except ValueError as e:
             print(f"zing setup: {e}")
             return 1
-        if pack is None:
-            names = ", ".join(p["name"] for p in list_packs()) or "(none installed)"
-            print(f"zing setup: no pack named '{args.pack}' — available: {names}")
+        print(f"Building taste from pack '{args.pack}' (studies run now —")
+        print("this can take a few minutes per un-studied reference)…")
+        build = finish_pack(args.pack, study_missing=True)
+        if not build.get("ok"):
+            print(f"zing setup: {build.get('error')}")
             return 1
-        links = [r["url"] for r in pack["references"]]
-        name = args.name or pack.get("name", args.pack)
-        genre = genre or pack.get("genre", "")
-        platform = platform or pack.get("platform", "")
-    else:
-        links = args.links
-        if not args.name:
-            print("zing setup: --name is required with --links")
-            return 2
-        name = args.name
-
-    try:
-        outcome = advance_setup(name, links, genre, platform)
-    except (ValueError, storage.SlugError) as e:
-        print(f"zing setup: {e}")
-        return 1
-
-    for line in outcome["start_errors"]:
-        print(f"  could not start study: {line}")
-    plan = outcome["plan"]
-
-    if outcome["built"]:
-        build = outcome["build"]
+        for line in build.get("ref_failures", []):
+            print(f"  reference failed (pack built without it): {line}")
         print(
-            f"Taste '{name}' built from {build['sources']} references "
-            f"({build['unjudged_sources']} awaiting judgment). "
-            "Next: judge them with the study prompt, then re-run setup to "
-            "fold judgments in on rebuild."
+            f"Taste '{build['profile_name']}' built from "
+            f"{build['sources']} references "
+            f"({build['unjudged_sources']} awaiting judgment; "
+            f"{len(build['studied'])} freshly studied, "
+            f"{len(build['reused'])} reused)."
         )
         return 0
-    if plan["ready_to_build"]:  # build attempted and failed
-        print(f"zing setup: profile build failed: {outcome['build'].get('error')}")
-        return 1
 
-    print(f"Taste '{name}': studies in progress — run `zing setup` again when done.")
+    links = args.links
+    if not args.name:
+        print("zing setup: --name is required with --links")
+        return 2
+    name = args.name
+
+    # D-3 (links path): the CLI must outlive its own background studies —
+    # advance, wait for the jobs it started, advance again; a bounded
+    # number of restart rounds so repeated failures end honestly.
+    for attempt in range(4):
+        try:
+            outcome = advance_setup(name, links, genre, platform)
+        except (ValueError, storage.SlugError) as e:
+            print(f"zing setup: {e}")
+            return 1
+        for line in outcome["start_errors"]:
+            print(f"  could not start study: {line}")
+        plan = outcome["plan"]
+
+        if outcome["built"]:
+            build = outcome["build"]
+            print(
+                f"Taste '{name}' built from {build['sources']} references "
+                f"({build['unjudged_sources']} awaiting judgment). "
+                "Next: judge them with the study prompt, then re-run setup "
+                "to fold judgments in on rebuild."
+            )
+            return 0
+        if plan["ready_to_build"]:  # build attempted and failed
+            print(
+                f"zing setup: profile build failed: "
+                f"{outcome['build'].get('error')}"
+            )
+            return 1
+        if not (outcome["started"] or outcome["restarted"] or plan["in_progress"]):
+            break  # nothing running, nothing startable — fall through to report
+        if outcome["restarted"]:
+            print(
+                f"Retrying {len(outcome['restarted'])} failed studies "
+                f"(round {attempt + 1})…"
+            )
+
+        def _progress(running: list) -> None:
+            states = ", ".join(f"{slug}:{phase or '…'}" for slug, phase in running)
+            print(f"  studying {states}", flush=True)
+
+        wait_for_studies(name, links, genre, platform, progress=_progress)
+
+    plan = plan_setup(name, links, genre, platform)
+    print(f"Taste '{name}' could not be completed:")
     for s in plan["references"]:
-        print(f"  [{s['state']:>9}] {s['slug']}")
-    if outcome["started"]:
-        print(f"Started {len(outcome['started'])} new studies in the background.")
-    if plan["failed"]:
-        print("Failed studies (fix and re-run): " + ", ".join(plan["failed"]))
-    return 3  # in-progress: distinct exit code so scripts can poll
+        status = storage.read_status(s["slug"]) or {}
+        detail = f" — {status.get('error', '')}" if s["state"] == "failed" else ""
+        print(f"  [{s['state']:>9}] {s['slug']}{detail}")
+    print("Fix the causes above (zing doctor helps) and re-run.")
+    return 1
