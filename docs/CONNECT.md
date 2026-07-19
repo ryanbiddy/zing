@@ -70,9 +70,11 @@ studies in the background, so no timeout tuning is needed.
 ## Any other MCP client
 
 Zing is a standard stdio server: launch `<python> -m myzing.cli
-serve-mcp` and speak MCP over stdin/stdout. Clients without the prompts
-capability (Codex CLI, Gemini CLI) can fetch the judgment prompt through
-the `get_prompt` tool instead.
+serve-mcp` and speak MCP over stdin/stdout. Gemini CLI serves Zing's
+prompt pack as slash commands (same as Claude clients). Clients without
+the prompts capability (e.g. Codex CLI, which speaks tools and server
+instructions only) can fetch any judgment prompt through the
+`get_prompt` tool instead — same content, one extra call.
 
 ## Suite integration (uoink + Writer) — all optional
 

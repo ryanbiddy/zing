@@ -1328,3 +1328,16 @@
   Zero product code touched; 886 passed / 2 skipped. Same lesson as
   the CLI-help SG-3, applied to tests: an object defined N times is
   N-1 future divergences.
+- **2026-07-19 (Lane B): SG-4 pass (rotation; freeze — doc-truth
+  scope): MCP client prompt-capability scan.** Record in
+  research/SG4-MCP-CLIENTS-2026-07-19.md. One stale claim found and
+  fixed: CONNECT.md grouped Gemini CLI with Codex CLI as
+  "without the prompts capability" — Gemini CLI now serves MCP
+  prompts as slash commands (verified at the primary docs + the
+  landing PR), so Zing's prompt pack is native there too; Codex CLI's
+  half of the claim verified still true (tools + instructions only,
+  per its official MCP docs). Bonus check: Codex's advice to keep the
+  first 512 chars of the MCP instructions field self-contained — our
+  instructions string measured at 322 self-contained chars, within
+  budget. Doc-truth correction is the P2-7 change class; product
+  untouched.
