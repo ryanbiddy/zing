@@ -751,3 +751,12 @@
   watch-only (research code, maintenance risk). The invisible-cuts
   class remains hard for every scanned tool — the genre-warning
   disposition stands.
+
+- **2026-07-19 (Lane A, SG-5 round 3): formalized the pack --reverify
+  proposal into QUEUE PROPOSED** (it had lived informally in NOTES
+  since SW-2). New evidence sharpened it: build_pack's rot detection
+  has a structural blind spot — REUSED refs are never re-probed, so a
+  fully-cached rebuild reports all-green on a possibly-dead manifest.
+  Survived refutation on the Lane-D-ownership, fetch-budget, and
+  drift-false-positive angles (answers in the proposal). Read-only
+  tool, Lane D consumes the report.
