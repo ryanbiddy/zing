@@ -906,3 +906,9 @@
   guessed); my adjacent surfaces re-verified green (93 tests). #264
   is a model scan correction: stale capability claim found, doc
   fixed, correction on the record.
+
+- **2026-07-19 (Lane A): LANE-A-STATE.md filed — one-page successor
+  digest at the freeze** (matching Lane B's #273 pattern): owned
+  surfaces, gate-proven inventory, external-gated open threads,
+  truthful hard cases, operational gotchas. Chronology stays here;
+  state lives there.
