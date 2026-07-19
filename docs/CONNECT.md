@@ -1,9 +1,19 @@
 # Connecting your AI to Zing
 
-Zing's MCP server gives any MCP client twelve tools (`study_video`,
-`get_breakdown`, `list_breakdowns`, `generate_thumbnails`, `save_judgment`,
-`zing_status`, `build_profile`, `get_profile`, `list_profiles`, `get_frames`,
-`get_prompt`, `push_to_uoink`) plus the prompt pack as slash commands.
+Zing's MCP server gives any MCP client nineteen tools, plus the prompt
+pack as slash commands:
+
+- **Study:** `study_video`, `study_uoink_item`, `get_breakdown`,
+  `list_breakdowns`, `get_frames`, `zing_status`
+- **Judge:** `get_prompt`, `save_judgment`, `setup_taste`
+- **Profile:** `build_profile`, `get_profile`, `list_profiles`,
+  `list_presets`
+- **Render:** `render_edl`, `get_render`, `export_otio`,
+  `generate_thumbnails`
+- **Suite:** `push_to_uoink`, `import_shot_list`
+
+(This list is pinned by a test against the server's own tool registry —
+if it drifts, CI fails.)
 
 **One command prints your exact config with real paths — start there:**
 
@@ -56,13 +66,36 @@ serve-mcp` and speak MCP over stdin/stdout. Clients without the prompts
 capability (Codex CLI, Gemini CLI) can fetch the judgment prompt through
 the `get_prompt` tool instead.
 
+## Suite integration (uoink + Writer) — all optional
+
+Zing is fully standalone; these light up only when the sibling products
+are present (INTEGRATION-CONTRACT v1):
+
+- **Study a captured short without re-downloading:**
+  `study_uoink_item("uoink://item/<id>")` asks uoink for the kept media
+  file, verifies its hash, and studies it with **zero network fetch**;
+  if the file is gone, zing refetches from the original URL and the
+  breakdown's provenance says exactly why. Needs `UOINK_URL` (default
+  `http://127.0.0.1:5179`) and `UOINK_TOKEN` (uoink's `token.txt`,
+  next to its server.py — zing never reads that file itself).
+- **Import a Writer shot list:** `import_shot_list(path, slug)` takes
+  the `.md` file you exported from Writer and attaches it to a studied
+  breakdown as editorial context. Re-importing the same file is
+  idempotent. Zing's own measured direction stays the authority for
+  what's actually usable footage.
+- **Peer health, honestly:** `zing doctor` probes uoink through the
+  suite contract. Not installed → calm "absent" (never an error);
+  installed but no token → "unconfig" with the exact fix; installed
+  but drifted/broken → "unhealthy" with a named code. A missing uoink
+  never degrades anything else.
+
 ## Environment knobs (all optional)
 
 | Variable | Effect |
 |---|---|
 | `ZING_HOME` | workspace location (default `~/.zing`) |
 | `ZING_PROMPTS_DIR` | prompt pack location (default: the install's `prompts/`) |
-| `UOINK_URL` / `UOINK_TOKEN` | uoink helper address + token for `push_to_uoink` |
+| `UOINK_URL` / `UOINK_TOKEN` | uoink address + credential for `push_to_uoink`, `study_uoink_item`, and doctor's peer probe |
 
 ## When it doesn't work
 
@@ -92,12 +125,14 @@ Desktop's runtime resolves Python + dependencies from the bundled
 bundle serves Windows/macOS/Linux. The install dialog offers one
 optional setting — the Zing workspace directory (default `~/.zing`).
 
-**What is verified** (2026-07-18, this machine): the staged bundle tree
-is complete and CI-tested; `mcpb pack` produces the bundle; the
-manifest's exact launch command (`uv run --directory <bundle> --extra
-mcp python -m myzing.cli serve-mcp`) boots the server cold from the
-staged tree — initialize handshake, all 12 tools listed, both prompt-pack
-prompts served via the `${__dirname}/prompts` pin. **What still needs a
+**What is verified** (2026-07-18, this machine, then a 12-tool
+surface): the staged bundle tree is complete and CI-tested; `mcpb pack`
+produces the bundle; the manifest's exact launch command (`uv run
+--directory <bundle> --extra mcp python -m myzing.cli serve-mcp`) boots
+the server cold from the staged tree — initialize handshake, every tool
+listed, both prompt-pack prompts served via the `${__dirname}/prompts`
+pin. The served tool list follows the package (CI pins it), so bundles
+built today serve all nineteen. **What still needs a
 human:** the Claude Desktop double-click dialog itself (GUI). If it
 fails, the fallback is the manual config above — same server, same
 behavior. Requires a Claude Desktop recent enough to support uv-type

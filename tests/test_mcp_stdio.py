@@ -21,6 +21,7 @@ import queue
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -152,6 +153,27 @@ EXPECTED_TOOLS = {
     "list_presets",
     "setup_taste",
 }
+
+
+def test_connect_doc_names_every_tool():
+    """B-S6 doc-drift gate: CONNECT.md promised "twelve tools" while the
+    server served nineteen — the count and enumeration now live under
+    the same pin as the registry itself. Adding a tool without
+    documenting it (or documenting a tool that no longer exists) fails
+    here, not in a launch review."""
+    doc = (
+        Path(__file__).resolve().parents[1] / "docs" / "CONNECT.md"
+    ).read_text(encoding="utf-8")
+    undocumented = {t for t in EXPECTED_TOOLS if f"`{t}`" not in doc}
+    assert not undocumented, f"CONNECT.md is missing: {sorted(undocumented)}"
+    spelled = {
+        3: "three", 12: "twelve", 17: "seventeen", 18: "eighteen",
+        19: "nineteen", 20: "twenty",
+    }.get(len(EXPECTED_TOOLS))
+    assert spelled and spelled in doc, (
+        f"CONNECT.md's tool count is stale — the server serves "
+        f"{len(EXPECTED_TOOLS)} tools"
+    )
 
 
 def test_tools_list_and_zing_status_roundtrip(client):

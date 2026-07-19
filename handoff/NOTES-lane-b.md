@@ -1031,3 +1031,22 @@
   first SG-4 of the loop era with live network — claim-by-claim
   sourcing per the adopted doctrine, license check included
   (mcpb toolchain Apache-2.0/MIT; we vendor nothing).
+- **2026-07-19 (Lane B): B-S6 doc-surface completion — CONNECT.md
+  caught up with the sprint, and pinned so it can't lag again.**
+  With the final review's launch-readiness lens dispatched, my own
+  connection doc still said "twelve tools" against a 19-tool server
+  and never mentioned the family flows. Fixed: tool list regrouped by
+  flow (study/judge/profile/render/suite), a new "Suite integration"
+  section documents study_uoink_item (zero-fetch + honest fallback +
+  where the token comes from), import_shot_list (idempotent, direction
+  stays keeper authority), and doctor's peer states
+  (absent/unconfig/unhealthy-with-code); the .mcpb "what is verified"
+  claim re-scoped honestly to its 2026-07-18 12-tool run instead of
+  silently inflating. NEW DRIFT GATE:
+  test_connect_doc_names_every_tool asserts every EXPECTED_TOOLS name
+  appears in CONNECT.md AND the spelled-out count matches — adding a
+  tool without documenting it now fails CI, not a launch review.
+  Observation for the mesh: doc drift is coverage drift — the "twelve
+  tools" line survived seven tool additions because nothing owned it;
+  the same mirror-test doctrine that guards the wheel's data dirs now
+  guards the doc's promises.
