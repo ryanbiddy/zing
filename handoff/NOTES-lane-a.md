@@ -692,3 +692,20 @@
   - #229 (Lane B, peer probe): drift is never flattened into
     peer-absent (the contract's false-negative lesson), unhealthy
     names its code, probes are timeout-bounded. Pass.
+
+- **2026-07-19 (Lane A): reviewed the S6 gate's change to my draft.py
+  (#233 _output_dimensions) — sound, one observation filed for the
+  fix-sprint fixlist.** The design is right and honest: breakdown
+  measurements untouched, EDL gets the largest non-upscaled even
+  exact preset frame, mapping named in a warning (verified: 240x426
+  -> 234x416 exact 9:16; 1080x1920 passes through silently). All 21
+  draft tests green. **Observation (cross-lane, my draft.py + Lane
+  C's preset validation): non-preset aspects now hard-error — 
+  1080x1350, Instagram's NATIVE 4:5 portrait class, raises
+  AssembleError (0.8 vs nearest preset 1:1 = 20% off, far past the
+  2% tolerance).** Previously such sources rendered at measured dims
+  (C-Q5 made geometry EDL-derived, so 4:5 renders fine). Propose for
+  the fixlist: add 4x5 to OUTPUT_RATIOS (touches Lane C's preset
+  validation too) OR degrade to measured-dims-with-warning for
+  non-preset aspects ("flagged, not blocked"). Instagram being
+  cookie-walled for us doesn't make 4:5 rare in the wild.
