@@ -87,9 +87,15 @@ def measure_audio_delivery(
         return unavailable_audio_delivery(
             "ffmpeg ebur128 returned no finite loudness measurements"
         )
+    if integrated is None or true_peak is None:
+        missing = "integrated loudness" if integrated is None else "true peak"
+        return unavailable_audio_delivery(
+            "ffmpeg ebur128 returned an incomplete finite loudness measurement: "
+            f"missing {missing}"
+        )
 
     warnings = []
-    if integrated is not None and not (
+    if not (
         INTEGRATED_RANGE_LUFS[0] <= integrated <= INTEGRATED_RANGE_LUFS[1]
     ):
         warnings.append(
@@ -97,7 +103,7 @@ def measure_audio_delivery(
             f"range [{INTEGRATED_RANGE_LUFS[0]:.1f}, "
             f"{INTEGRATED_RANGE_LUFS[1]:.1f}] LUFS"
         )
-    if true_peak is not None and true_peak > MAX_TRUE_PEAK_DBTP:
+    if true_peak > MAX_TRUE_PEAK_DBTP:
         warnings.append(
             f"true peak {true_peak:.1f} dBTP exceeds advisory maximum "
             f"{MAX_TRUE_PEAK_DBTP:.1f} dBTP"
