@@ -10,6 +10,7 @@ from myzing.render import tts
 from myzing.render.tts import (
     KokoroOnnxProvider,
     SynthesisRequest,
+    TTSGenerationError,
     TTSUnavailableError,
     default_tts_provider,
 )
@@ -98,6 +99,78 @@ def test_kokoro_provider_fails_honestly_when_optional_runtime_is_missing(
             SynthesisRequest("Hello from Zing."),
             tmp_path / "voice.wav",
         )
+
+
+def test_kokoro_provider_reuses_loaded_engine_across_syntheses(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = tmp_path / "kokoro-v1.0.onnx"
+    voices = tmp_path / "voices-v1.0.bin"
+    model.write_bytes(b"model")
+    voices.write_bytes(b"voices")
+    calls: list[str] = []
+
+    class FakeKokoro:
+        def __init__(self, model_path: str, voices_path: str) -> None:
+            calls.append("init")
+
+        def create(self, text: str, **kwargs) -> tuple[list[float], int]:
+            calls.append(text)
+            return ([0.0, 0.25], 24_000)
+
+    monkeypatch.setattr(
+        tts.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(Kokoro=FakeKokoro),
+    )
+    provider = KokoroOnnxProvider(model, voices)
+
+    first = provider.synthesize(
+        SynthesisRequest("First result."),
+        tmp_path / "first.wav",
+    )
+    second = provider.synthesize(
+        SynthesisRequest("Second result."),
+        tmp_path / "second.wav",
+    )
+
+    assert calls == ["init", "First result.", "Second result."]
+    assert first.path.is_file()
+    assert second.path.is_file()
+
+
+def test_kokoro_provider_rejects_non_wav_output_before_loading_engine(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = tmp_path / "kokoro-v1.0.onnx"
+    voices = tmp_path / "voices-v1.0.bin"
+    model.write_bytes(b"model")
+    voices.write_bytes(b"voices")
+    calls: list[str] = []
+
+    class FakeKokoro:
+        def __init__(self, model_path: str, voices_path: str) -> None:
+            calls.append("init")
+
+        def create(self, text: str, **kwargs) -> tuple[list[float], int]:
+            calls.append("create")
+            return ([0.0], 24_000)
+
+    monkeypatch.setattr(
+        tts.importlib,
+        "import_module",
+        lambda name: SimpleNamespace(Kokoro=FakeKokoro),
+    )
+
+    with pytest.raises(TTSGenerationError, match=r"must use the \.wav extension"):
+        KokoroOnnxProvider(model, voices).synthesize(
+            SynthesisRequest("Do not synthesize this."),
+            tmp_path / "voice.mp3",
+        )
+
+    assert calls == []
 
 
 def test_default_provider_uses_explicit_local_model_directory(
