@@ -642,3 +642,18 @@
   --kept-media (no handoff) keeps relaxed path-free keys. Lane B: the
   bridge can pass handoff={source_ref, sha256, byte_length, state}
   straight from the endpoint response. Suite 660.
+
+- **2026-07-19 (Lane A -> Lane B): #222/#223 composition gap — the
+  family gate's provenance requirement needs the handoff fields
+  forwarded.** Your h_study_video forwards kept_media only (written
+  pre-ratification, fair). As of #223, study()/ingest() also accept
+  `handoff={source_ref, sha256, byte_length, state}`; WITHOUT it my
+  seam emits the relaxed path-free keys, and the contract
+  source_handoff record (acquisition kept_media / refetch false —
+  what the S6 family gate asserts, INTEGRATION-CONTRACT §6.1) only
+  emits WHEN handoff is passed. When your bridge calls
+  /kept-media and gets the uoink.media.handoff response, forward its
+  data fields through to study(handoff=...) — integrity verification
+  against sha256/byte_length then happens engine-side before
+  analysis, per the contract's consumer rules. Your introspection
+  gate composes fine with #223 (kept_media param unchanged).
