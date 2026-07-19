@@ -1210,3 +1210,26 @@
   releases; version discipline starts clean at launch, launch
   checklist already owns it) and post-launch telemetry (refutes
   itself against local-first, instantly).
+- **2026-07-19 (Lane B): Ryan-path PREFLIGHT green — the connect/
+  first-run half, verified live on this box before the sitting
+  (verification record, zero changes; Lane A's pattern).**
+  - `zing doctor`: "Verdict: fully ready", every measurement check
+    green with evidence-carrying detail (yt-dlp names the node config
+    file it read — D-13 visible live). The uoink peer shows
+    `[unhealthy] contract_mismatch (HTTP 403)` WITH its probe receipt
+    ("manifest fetch: HTTP 403") — this is the review's known P1-1
+    state (the installed uoink predates the suite routes) and my
+    surface behaves exactly as designed against it: honest, coded,
+    evidence-carrying, and calm (verdict/exit unaffected; uoink is
+    optional). Expectation for the sitting: this line flips to
+    healthy only when the rebuilt uoink installer ships (uoink's
+    fixlist item, not zing's).
+  - `zing serve-mcp --print-config` PIPED to a file: UTF-8 clean,
+    zero replacement characters, embedded JSON parses, server entry
+    correct — P2-8 verified live in the exact flow the review
+    flagged.
+  - `zing --help`: user synopsis rendered from the command registry
+    (P2-6 live). `zing prompt study`: pack serves with frontmatter.
+  - MCP stdio smoke: initialize handshake reports MYZING's version
+    (P3-1 live), 19 tools + 4 prompts served — 4/4 green.
+  Lane B's surfaces are ready for the sitting.
