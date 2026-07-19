@@ -865,3 +865,11 @@
   with one docstring touch. #258's on-the-record correction of its
   own earlier scan claim is exactly the honesty culture working —
   noted with approval, nothing to act on.
+
+- **2026-07-19 (Lane A, SG-2 finisher 2): draft.py 96% -> 100% — the
+  gate-added _output_dimensions error branches pinned** (too-small
+  source refuses a degenerate frame; the all-keepers-too-short raise;
+  the missing-start keeper raise; the no-words-inside warning). With
+  this, EVERY Lane A production module is at 94-100% and every raise/
+  warning path in draft.py — the module the S6 gate edited — is a
+  named regression. Suite green.
