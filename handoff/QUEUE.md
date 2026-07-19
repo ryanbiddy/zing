@@ -59,6 +59,30 @@ the bottom but never claim outside their lane.
   doc-only PR of fixes or a findings note.
 
 ## PROPOSED (workers append; orchestrator promotes)
+- **PROPOSED (Lane A, SG-5, 2026-07-19 #3): `zing profile pack
+  <manifest> --reverify` — reference-rot probe pass.**
+  PROPOSAL: metadata-probe (no download) every reference URL in a
+  pack manifest and report per-ref: live / dead / changed
+  (title/duration drift vs the studied breakdown), with probe dates.
+  Mutates NOTHING — output is the evidence Lane D's link-rot upkeep
+  process needs to curate replacements. Evidence: SW-2 (the S1 gate
+  video went "Video unavailable" within WEEKS); 32 shipped-pack refs
+  carry verified_at dates that only age; and build_pack's rot
+  detection has a structural blind spot — REUSED references are never
+  re-probed, so a fully-cached pack rebuild reports all-green on a
+  manifest that may be substantially dead (exactly SW-2's shape).
+  REFUTATION (mine): (1) Lane D owns link-rot upkeep — yes, the
+  PROCESS; this is the TOOL, and it lives in the pack builder Lane A
+  owns; output is theirs to act on. (2) fetch-budget risk — probes
+  are --simulate metadata calls (~1s, no media), but they DO count
+  against platform rolling windows; mitigation in-spec: sequential
+  with backoff, and the command is manual/scheduled, never implicit
+  in builds. (3) drift false-positives — titles get edited routinely;
+  "changed" is reported as observation with both values, never as
+  dead; only fetch-refusal states are "dead."
+  SURVIVES AS: a small subcommand flag + probe helper in
+  profile/packs.py + command.py, offline tests with mocked probes;
+  no schema change, no new deps; Lane D consumes the report.
 - **PROPOSED (Lane A, SG-5, 2026-07-19 #2): study-time breakdown
   self-consistency check.**
   PROPOSAL: before study() writes breakdown.json, run the invariant
