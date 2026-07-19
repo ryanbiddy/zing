@@ -212,24 +212,10 @@ def main(argv: list[str] | None = None) -> int:
     manifest_path = args.manifest.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    # Manifest is updated FIRST so every fixture's provenance records the
-    # hash of the manifest as committed, not a stale one.
-    manifest["media_policy"]["derived_frames_committed"] = True
-    manifest["media_policy"].setdefault(
-        "derived_frames_reason",
-        (
-            "A-Q6: small downscaled analysis thumbnails (<=360px JPEG) are "
-            "committed so visual judgment criteria are scoreable; source "
-            "media itself stays uncommitted."
-        ),
-    )
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    manifest_sha = sha256_text(manifest_path)
-
-    results = []
+    # Resolve and validate every required input before the first write. A
+    # missing later case must not leave the manifest claiming that its
+    # derived frames were committed.
+    prepared_cases = []
     for case in manifest["cases"]:
         human_truth = case.get("human_truth")
         if human_truth is not None and not human_truth["available"]:
@@ -255,6 +241,29 @@ def main(argv: list[str] | None = None) -> int:
         media = args.media_root / case["media_filename"]
         if not media.is_file():
             raise BackfillError(f"media missing: {media}")
+        prepared_cases.append(
+            (case_dir, media, truth_sha, truth_text, truth_section)
+        )
+
+    # Manifest is updated FIRST so every fixture's provenance records the
+    # hash of the manifest as committed, not a stale one.
+    manifest["media_policy"]["derived_frames_committed"] = True
+    manifest["media_policy"].setdefault(
+        "derived_frames_reason",
+        (
+            "A-Q6: small downscaled analysis thumbnails (<=360px JPEG) are "
+            "committed so visual judgment criteria are scoreable; source "
+            "media itself stays uncommitted."
+        ),
+    )
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    manifest_sha = sha256_text(manifest_path)
+
+    results = []
+    for case_dir, media, truth_sha, truth_text, truth_section in prepared_cases:
         results.append(backfill_case(
             case_dir, media, args.ffmpeg,
             manifest_sha, truth_sha, truth_text, truth_section,
