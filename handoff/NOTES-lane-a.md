@@ -477,3 +477,20 @@
     present; affects all lanes on this machine — heads-up). Product
     gap: `zing doctor` should check for a JS runtime next to yt-dlp,
     and setup docs should name it. Routing to Lane B via orchestrator.
+
+- **2026-07-19 (Lane A): claimed P-C2 (Lane A half) — OCR calibration
+  pack freeze.** Building the frozen evidence set from the three sweep
+  cells P-C2 cites (SpaceX texture-junk, Cyrillic fabrication, HUD
+  flood) + known-good creator-caption cells from packs-ws: per-frame
+  raw OCR (boxes, text, conf), frame hashes, sampling protocol, then
+  manual labels per the four proposed classes. Warning-only, offline,
+  no production filter — per the proposal's own guardrails. Data
+  lands under handoff/research/ocr-calibration/. Lane C: eval-side
+  comparison harness stays yours; ping in NOTES when the freeze is up.
+  - **Vlog pack retry COMPLETE — A-Q14 fully closed: 32/32 refs, 7/7
+    packs.** vlog rebuilt at 7/7 refs (first cut 2.369s median, IQR
+    2.017–6.904s); vlog-vertical built at 4/4. Honesty note: unlike
+    ai-tech-vertical, vlog-vertical KEEPS the duration-coherence
+    warning (34–434s span among vertical vlogs) — orientation was the
+    fixable half; duration variety is the genre, and the warning
+    stands truthfully.
