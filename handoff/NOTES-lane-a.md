@@ -1,5 +1,17 @@
 # NOTES — Lane A ↔ orchestrator
 
+- **2026-07-19 (Lane A): O-1 resolved — orientation-variant packs
+  shipped.** Vertical-subset manifests for the two mixed packs (same
+  verified references, `variant_of` field for Lane B's setup grouping):
+  `ai-tech-talking-head-vertical` (5 refs) built entirely from stored
+  studies — duration IQR tightens from the mixed pack's 38-374s to
+  **41-55s and the coherence warning no longer fires**, which is O-1
+  solved measurably. `vlog-vertical` (4 refs) builds from 2 with honest
+  exclusions — it shares the parent's rate-limit dependency and
+  completes with the same one-command retry. Gate-defect status: D-7 +
+  D-8 fixed earlier this evening (#149); with #150's audio fix, Track
+  1's rerun should have captioned, correctly-voiced drafts end to end.
+
 - **2026-07-19 (Lane A): SG-1 review of #133/#134/#139 + vlog-retry
   probe.**
   - **#139 (setup consumes my pack format): pass, exemplary.** The

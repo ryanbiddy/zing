@@ -22,10 +22,12 @@ from tools.eval.preset_packs import (
 
 SHIPPED_PACK_IDS = {
     "ai-tech-talking-head",
+    "ai-tech-talking-head-vertical",   # O-1 orientation variant
     "informative-explainer",
     "product-launch",
     "viral-tiktok-reels",
     "vlog",
+    "vlog-vertical",                   # O-1 orientation variant
 }
 
 
