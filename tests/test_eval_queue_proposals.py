@@ -14,6 +14,10 @@ RENDER_LIFECYCLE_HEADING = (
     "- **P-C4 (Lane C, SG-5, 2026-07-19) \u00b7 "
     "cancellable render lifecycle without ETA theater.**"
 )
+RENDER_FAILURE_CAPSULE_HEADING = (
+    "- **P-C5 (Lane C, SG-5, 2026-07-19) \u00b7 "
+    "opt-in renderer failure capsule.**"
+)
 
 
 def test_p_c2_keeps_ocr_quality_work_calibration_first_and_warning_only():
@@ -80,3 +84,28 @@ def test_p_c4_keeps_render_progress_monotonic_cancellable_and_honest():
     assert "forced kill" in normalized
     assert "never publish" in normalized
     assert "no new MCP tool" in normalized
+
+
+def test_p_c5_keeps_failure_evidence_opt_in_redacted_and_non_diagnostic():
+    queue = QUEUE.read_text(encoding="utf-8")
+
+    assert RENDER_FAILURE_CAPSULE_HEADING in queue
+    proposal = queue.split(RENDER_FAILURE_CAPSULE_HEADING, 1)[1].split(
+        "\n- **", 1
+    )[0]
+    normalized = " ".join(proposal.split())
+
+    assert "**Proposal:**" in proposal
+    assert "**Refutation:**" in proposal
+    assert "**Survives as:**" in proposal
+    assert "`--keep-work`" in normalized
+    assert "S4-D1" in normalized
+    assert "R3-ai-editor-sentiment.md" in normalized
+    assert "AutoClip" in normalized
+    assert "no new CLI flag" in normalized
+    assert "no upload" in normalized
+    assert "absolute paths" in normalized
+    assert "caption or script text" in normalized
+    assert "cannot prove the cause" in normalized
+    assert "existing output remains unchanged" in normalized
+    assert "Normal success writes no failure capsule" in normalized

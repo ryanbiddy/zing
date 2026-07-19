@@ -346,6 +346,43 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   cleanup, and proof that cancellation cannot publish or replace the requested
   output. Run those process tests on Windows and Linux before any CLI or MCP
   surface is proposed.
+- **P-C5 (Lane C, SG-5, 2026-07-19) · opt-in renderer failure capsule.**
+  **Proposal:** when a creator already asks for `--keep-work`, write a
+  versioned `failure.json` if rendering fails. Today `render_edl()` probes and
+  validates before it enters the requested work directory, so those failures
+  leave no structured artifact. Later failures retain some generated files,
+  but the caller receives only the public exception; FFmpeg stderr is bounded
+  to its last 4,000 characters. The capsule would record the failed phase
+  (`probe`, `validate`, `caption`, `graph`, `encode`, or `publish`), the
+  sanitized public error, available FFmpeg/FFprobe identities, the EDL hash,
+  intended duration/dimensions/preset, a role-based input inventory, and
+  hashes of any retained graph or caption artifacts. This is adjacent demand,
+  not a measured creator request: the reliability record in
+  `handoff/research/R3-ai-editor-sentiment.md` says unstable exports drive
+  churn, while the prior-art review found that AutoClip keeps failed responses
+  and parsed timelines so failures can be inspected. Zing's own S4-D1
+  investigation also depended on the exact FFmpeg 8.1.1 environment and
+  filter order after six integration tests missed the defect.
+  **Refutation:** a capsule is evidence, not a diagnosis. S4-D1 returned a
+  successful but wrong render, so this artifact would not have caught it and
+  cannot prove the cause of any recorded failure. `--keep-work` already
+  retains the filtergraph and ASS file after those stages exist; the terminal
+  already prints the error. Capturing tool versions adds subprocesses on an
+  unhappy path, and redacting arbitrary tool output is brittle. Restructuring
+  validation around a writable diagnostic directory also adds failure paths;
+  if that directory itself cannot be created, no capsule is possible. A
+  default sidecar would overlap P-C1, clutter successful renders, and tempt
+  users to share absolute paths, media names, or caption or script text.
+  **Survives as:** a failure-only extension to the existing explicit
+  `--keep-work` contract, with no new CLI flag, no upload, no score, and no
+  claim that the record found the cause. Normal success writes no failure
+  capsule. The JSON uses role tokens instead of absolute paths, excludes
+  source names and caption or script text, bounds and sanitizes the public
+  error, and gives an unavailable reason for any tool identity it cannot
+  collect. Promotion requires constructed failures at every named phase,
+  redaction mutations for paths and private text, proof that the existing
+  output remains unchanged, and an honest no-artifact error when the requested
+  work directory is unwritable.
 - **CD-Q1 (Lane C + Lane D, S3 full-fidelity follow-up):** replace the raw-editing-practice stand-in: Lane D sources ONE genuinely unedited talking-head clip (live-verify + eyeball per F-16 lesson; document license/provenance); Lane C studies it with raw_mode ON and re-freezes it into the regression set with raw-mode provenance + regeneration command. Then Lane B reruns the direction gate against it for the full-fidelity record (keepers from real raw measurements).
 - **P-B2 (Lane B, SG-5, 2026-07-19) · judgment-backlog surface.**
   PROPOSAL: a `list_unjudged()` MCP tool / `zing judge-queue` CLI
