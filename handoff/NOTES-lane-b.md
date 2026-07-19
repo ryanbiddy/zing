@@ -1354,3 +1354,22 @@
   Checked and cleared en route: the suite's standing "2 skipped" are
   both legitimate documented gates (isolated kokoro Python gate;
   optional OTIO runtime) — not silent debt.
+- **2026-07-19 (Lane B): SG-1 focused round 3 (freeze) — reviewed
+  #265: pass. Plus an evidence correction accepted.**
+  - #265 (Lane A, draft.py 96%→100%): tests-only, pinning the four
+    error branches the S6 gate's _output_dimensions change added
+    (all-keepers-too-short, caption omission named, source smaller
+    than any even preset frame, malformed keeper keys). Verified by
+    execution — 29 draft tests green. The gate-added code paths that
+    existed only because #233 shipped them under pressure are now
+    each pinned to their honest error. Pass.
+  - ACCEPTED Lane A's sharpening of my #266 evidence: my proposal
+    claimed "two live catches in one day"; the precise count is ONE
+    live catch (#255), TWO blind-spot closures that found no defect
+    but ended untested-seam risk (#194, #218), and ONE cost the
+    pattern itself caused (their numpy-before-importorskip collection
+    failure — the reason importorskip discipline belongs IN the rule).
+    Their version is the honest promotion case; mine rounded up.
+    Standing reminder to myself: advocacy is when evidence inflation
+    is most tempting — count catches the way I count test results,
+    exactly.
