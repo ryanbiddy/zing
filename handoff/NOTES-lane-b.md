@@ -624,3 +624,18 @@
   envelopes. 3 tests, **82% → 91%**; remainder is argparse/print
   plumbing. The D-3 fix's most subtle behavior (a dead worker can't
   hang the CLI wait) is now regression-pinned.
+- **2026-07-19 (Lane B): SG-1 on #167/#168 (Lane A S5 sweep) — and the
+  aimed review found a defect in MY check (fixed in this PR).** SW-3
+  routed "doctor should check for a JS runtime" to me; it already does
+  (B-Q12/#97, D-9/#148) — but the sweep's own evidence shows my check
+  was falsely comforting: node-on-PATH satisfied it while yt-dlp only
+  enables DENO by default, so signature-challenge videos 403'd until
+  Lane A added '--js-runtimes node' to their yt-dlp config. check_ytdlp
+  now warns distinctly on node-without-deno with the exact config fix;
+  SW-3 case pinned by test. Sweep rounds otherwise clean (the live
+  re-measurement reproducing a cached study to within 1 word is the
+  strongest reproducibility evidence the project has). PROCESS
+  OBSERVATION: a cross-lane defect report that seemed already-handled
+  ("doctor already checks that") contained a REAL bug precisely in the
+  gap between "detected" and "usable" — when triaging routed findings,
+  re-verify against the reporter's evidence before closing as done.

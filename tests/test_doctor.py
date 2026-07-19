@@ -298,3 +298,20 @@ def test_verdict_line_fully_ready(full_machine, monkeypatch, capsys):
     doctor.run([])
     verdict = capsys.readouterr().out.splitlines()[2]
     assert verdict == "Verdict: fully ready"
+
+
+# -- SW-3 (Lane A sweep finding): node-on-PATH is a false comfort -------------
+
+def test_node_only_warns_about_default_runtimes(monkeypatch):
+    """node present but no deno: yt-dlp won't use it without explicit
+    config — signature-challenge videos 403 (SW-3). The check must warn
+    with the config fix, not report quiet health."""
+    monkeypatch.setattr(
+        doctor, "_which",
+        lambda name: f"/bin/{name}" if name in ("yt-dlp", "node") else None,
+    )
+    monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
+    check = doctor.check_ytdlp(today=date(2026, 7, 19))
+    assert check.data["js_runtime"] == "node"
+    assert "403" in check.detail
+    assert "--js-runtimes node" in check.fix
