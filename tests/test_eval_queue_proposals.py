@@ -10,6 +10,10 @@ RENDER_PROOF_HEADING = (
     "- **P-C3 (Lane C, SG-5, 2026-07-19) · "
     "opt-in rendered-output proof sheet.**"
 )
+RENDER_LIFECYCLE_HEADING = (
+    "- **P-C4 (Lane C, SG-5, 2026-07-19) \u00b7 "
+    "cancellable render lifecycle without ETA theater.**"
+)
 
 
 def test_p_c2_keeps_ocr_quality_work_calibration_first_and_warning_only():
@@ -52,3 +56,27 @@ def test_p_c3_keeps_render_proof_visual_bounded_and_advisory():
     assert "no pass/fail verdict" in normalized
     assert "cannot verify audio" in normalized
     assert "cannot prove motion" in normalized
+
+
+def test_p_c4_keeps_render_progress_monotonic_cancellable_and_honest():
+    queue = QUEUE.read_text(encoding="utf-8")
+
+    assert RENDER_LIFECYCLE_HEADING in queue
+    proposal = queue.split(RENDER_LIFECYCLE_HEADING, 1)[1].split(
+        "\n- **", 1
+    )[0]
+    normalized = " ".join(proposal.split())
+
+    assert "**Proposal:**" in proposal
+    assert "**Refutation:**" in proposal
+    assert "**Survives as:**" in proposal
+    assert "UX-STUDY-AND-SURFACE.md" in normalized
+    assert "ffmpeg-progress-yield" in normalized
+    assert "900-second timeout" in normalized
+    assert "`-progress pipe:1`" in normalized
+    assert "no ETA" in normalized
+    assert "monotonic" in normalized
+    assert "graceful quit" in normalized
+    assert "forced kill" in normalized
+    assert "never publish" in normalized
+    assert "no new MCP tool" in normalized
