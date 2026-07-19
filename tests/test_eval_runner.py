@@ -116,6 +116,31 @@ def test_success_and_error_reports_share_environment_builder(
     assert error["environment_marker"] == "error-ffmpeg"
 
 
+def test_success_and_error_reports_share_json_writer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writes = []
+    real_writer = eval_run._write_report
+
+    def recording_writer(path: Path, report: dict) -> None:
+        writes.append((path, report["passed"]))
+        real_writer(path, report)
+
+    monkeypatch.setattr(eval_run, "_write_report", recording_writer)
+    success_path = tmp_path / "success.json"
+    error_path = tmp_path / "error.json"
+
+    evaluate([SAMPLE_DIRECTORY], success_path, ffmpeg="not-installed-ffmpeg")
+    eval_run._write_error_report(
+        error_path,
+        "not-installed-ffmpeg",
+        ValueError("fixture error"),
+    )
+
+    assert writes == [(success_path, True), (error_path, False)]
+
+
 def test_runner_rejects_empty_case_set(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="no evaluation cases"):
         evaluate([], tmp_path / "report.json")
