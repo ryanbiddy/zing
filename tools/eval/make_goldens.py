@@ -17,6 +17,14 @@ FILLER_FIXTURE = HERE / "fixtures" / "speech" / "ripe-figs-like.wav"
 TRANSITION_OUTPUT = HERE / "transition_goldens"
 RAW_FOOTAGE_OUTPUT = HERE / "raw_footage_goldens"
 
+
+def _write_json(path: Path, payload: object) -> None:
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
 PATTERN_A = (
     "color=c=0x2040c0:s={size}:r={fps}:d={duration},"
     "drawbox=x=8:y=8:w=22:h=72:c=white:t=fill,"
@@ -509,10 +517,7 @@ def generate_transition_goldens(
                 "signatures": case["signatures"],
             },
         }
-        (directory / "transition-truth.json").write_text(
-            json.dumps(truth, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        _write_json(directory / "transition-truth.json", truth)
         directories.append(directory)
     return directories
 
@@ -565,10 +570,7 @@ def generate_raw_footage_goldens(
             },
             "raw_footage": case["raw_footage"],
         }
-        (directory / "raw-footage-truth.json").write_text(
-            json.dumps(truth, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        _write_json(directory / "raw-footage-truth.json", truth)
         directories.append(directory)
     return directories
 
@@ -616,10 +618,7 @@ def generate_goldens(output: Path = DEFAULT_OUTPUT, ffmpeg: str = "ffmpeg") -> l
                 ),
             },
         }
-        (case_directory / "truth.json").write_text(
-            json.dumps(truth, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        _write_json(case_directory / "truth.json", truth)
         case_directories.append(case_directory)
     return case_directories
 
