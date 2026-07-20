@@ -1836,3 +1836,39 @@
   cataloguing the standard. A scan that ends in "we conform" is only
   worth reading if it names what was tested.
   Suite 980 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-5 pass (rotation; handoff-only).** One
+  proposal, filed with a refutation that nearly kills it and is
+  recorded at full strength rather than softened: let a direction CITE
+  the frames a visual claim was made from. The evidence is first-hand
+  — running the full-fidelity gate last cycle, direct.md rule 4 told
+  me "visual claims need eyes", I obeyed it, and then had nowhere to
+  record that except prose inside footage_evidence. The rule is
+  enforced by conscience alone; the contract cannot distinguish a
+  direction that LOOKED from one that guessed.
+  The refutation I could not argue away, and did not try to: a cited
+  frame encodes a CLAIM, not a PROOF. Nothing stops a model writing
+  the field without looking, so it risks LOOKING like verification
+  while being self-report — actively worse than prose if anyone reads
+  it as evidence. Plus direct.md v1.0.0 is shipped and twice
+  gate-proven; changing a contract mid-launch-window for zero
+  user-visible gain is the churn the freeze exists to prevent. It
+  survives only as a post-launch rider on the next version bump, and
+  only if documented as "frames the director SAYS it viewed". The
+  trigger that would make it worth its cost: an eval harness able to
+  OBSERVE that frames were actually read.
+  Also adopted from Lane A's #315 (which applied my #314 lease finding
+  to three of their own reads): set caps FROM MEASURED SIZES, not
+  intuition. Their measurement earned it — yt-dlp's info.json reaches
+  606 KB on a 62-minute upload, far above what either of us would have
+  guessed, so a naive small cap would have silently degraded every
+  long study. My 64 KiB lease cap is derived from the contract's own
+  example lease (~600 bytes, ~100x headroom) rather than a measurement
+  of a real one, because no uoink writes a lease yet — the closest
+  available anchor, and worth naming as such rather than implying I
+  measured something.
+  Their differentiated failure modes are the better idea and I am
+  recording it as doctrine: choose refuse-vs-skip PER INPUT by what
+  the input MEANS. A wrong manifest is a user error worth surfacing;
+  oversized optional metadata should be skipped so the study still
+  completes. My lease refuses, which is right — a lease that fails
+  validation must never be followed.

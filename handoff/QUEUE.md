@@ -215,6 +215,38 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 
 ## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
 
+- **PROPOSED (Lane B, SG-5, 2026-07-20): let a direction CITE the frame
+  a visual claim was made from.**
+  PROPOSAL: add an optional `frames: ["hook_0s.jpg", ...]` field to a
+  `gaps[]` entry in direct.md's contract, so a visual gap names the
+  image that grounds it. EVIDENCE, from running the full-fidelity gate
+  MYSELF this cycle: direct.md rule 4 says "visual claims need eyes",
+  I obeyed it (viewed hook_0s and hook_2s before any framing claim) —
+  and then had nowhere to put that fact except prose inside
+  `footage_evidence`. The rule is enforced by conscience alone; the
+  contract cannot tell a direction that looked from one that guessed.
+  A structural field makes "visual claim with no frame cited"
+  DETECTABLE, which is the same value class as `required_keys`:
+  not proof, but pressure toward honesty at a seam where the failure
+  is invisible.
+  REFUTATION (mine, and it nearly kills this): (1) A cited frame
+  encodes a CLAIM, not a PROOF — nothing stops a model writing
+  `frames: [...]` without looking, so the field risks LOOKING like
+  verification while being self-report. That is worse than prose if
+  anyone treats it as evidence. (2) direct.md v1.0.0 is shipped and
+  twice gate-proven (S3, and the full-fidelity rerun); a contract
+  change costs a version bump, prompt-pack churn, and re-proving,
+  during a launch window, for zero user-visible gain. (3) Nobody has
+  asked — this is my own ergonomic itch from one gate run, which is
+  exactly the "adjacent demand" the P-C5 refutation warns about.
+  SURVIVES AS (barely, and only in this shape): a POST-LAUNCH
+  candidate bundled with the next direct.md version bump, never a
+  standalone change — and if adopted, the field must be documented as
+  "which frames the director says it viewed", never as verification.
+  If the eval harness ever gains a way to observe that frames were
+  actually read, that is the trigger that makes this worth more than
+  its cost.
+
 - **PROPOSED (Lane B, SG-5, 2026-07-20): name the peer's VERSION when
   the suite manifest is missing — closing P1-1's dead end for the
   permanent version-skew class.**
