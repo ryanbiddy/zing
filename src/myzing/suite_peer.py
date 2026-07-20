@@ -79,6 +79,18 @@ def _unhealthy(code: str, message: str, retryable: bool) -> dict[str, Any]:
     }
 
 
+def _bad(
+    code: str, message: str, evidence: str, *, retryable: bool
+) -> tuple[dict[str, Any], str]:
+    """A not-ok verdict paired with the receipt for it.
+
+    Every failed return in the probe is this shape. Naming it once keeps
+    each check's RULE on screen instead of its packaging — the sequence
+    of §4 states is the thing a reader needs to follow.
+    """
+    return _unhealthy(code, message, retryable=retryable), evidence
+
+
 def _validate_url(url: str) -> str | None:
     """§3.3: loopback only, explicit port, no userinfo/query/fragment.
     Returns a defect description or None."""
@@ -394,123 +406,107 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     try:
         status, manifest = _get_json(base + "/.well-known/suite-service.json")
     except (TimeoutError, urllib.error.URLError, OSError) as e:
-        is_timeout = isinstance(e, TimeoutError) or "timed out" in str(e)
-        if configured:
-            # §4: a configured URL *or a valid current lease* that fails
-            # transport is never calm — only the bare default address is.
-            if is_timeout:
-                return (
-                _unhealthy(
-                    "timeout", f"uoink at {base} timed out", retryable=True
-                ),
-                    "manifest fetch timed out",
-                )
-            return (
-                _unhealthy(
-                    "unavailable",
-                    f"uoink at {base} refused the connection",
-                    retryable=True,
-                ),
-                "manifest fetch refused",
-            )
         # §4: refusal or timeout at the DEFAULT address with no other
-        # evidence is calm absence.
-        return _peer("absent"), f"nothing answered at the default {base}"
+        # evidence is calm absence. A configured URL — or a valid current
+        # lease — that fails transport is never calm.
+        if not configured:
+            return _peer("absent"), f"nothing answered at the default {base}"
+        if isinstance(e, TimeoutError) or "timed out" in str(e):
+            return _bad(
+                "timeout",
+                f"uoink at {base} timed out",
+                "manifest fetch timed out",
+                retryable=True,
+            )
+        return _bad(
+            "unavailable",
+            f"uoink at {base} refused the connection",
+            "manifest fetch refused",
+            retryable=True,
+        )
+
     if status != 200 or manifest is None:
-        return (
-            _unhealthy(
-                "contract_mismatch",
-                f"no suite manifest at {base} (HTTP {status}) — a service "
-                "answered but does not speak INTEGRATION-CONTRACT v1; if this "
-                "is uoink, update it",
-                retryable=False,
-            ),
+        return _bad(
+            "contract_mismatch",
+            f"no suite manifest at {base} (HTTP {status}) — a service "
+            "answered but does not speak INTEGRATION-CONTRACT v1; if this "
+            "is uoink, update it",
             f"manifest fetch: HTTP {status}",
+            retryable=False,
         )
     defect = _manifest_defect(manifest)
     if defect is not None:
-        return (
-            _unhealthy(
-                "contract_mismatch", f"manifest drift: {defect}", retryable=False
-            ),
+        return _bad(
+            "contract_mismatch",
+            f"manifest drift: {defect}",
             "manifest fetched but non-conformant",
+            retryable=False,
         )
+
     service = manifest["service"]
     evidence = (
         f"via {source}; manifest read: "
         f"{service['id']} {service['service_version']}"
     )
     if service["id"] != "uoink":
-        return (
-            _unhealthy(
-                "wrong_service",
-                f"the endpoint at {base} identifies as "
-                f"{service['id']!r}, not uoink",
-                retryable=False,
-            ),
+        return _bad(
+            "wrong_service",
+            f"the endpoint at {base} identifies as "
+            f"{service['id']!r}, not uoink",
             evidence,
+            retryable=False,
         )
     capabilities = service["capabilities"]
     if _REQUIRED_CAPABILITY not in capabilities:
-        return (
-            _unhealthy(
-                "contract_mismatch",
-                f"uoink does not offer {_REQUIRED_CAPABILITY} — update uoink",
-                retryable=False,
-            ),
+        return _bad(
+            "contract_mismatch",
+            f"uoink does not offer {_REQUIRED_CAPABILITY} — update uoink",
             evidence,
+            retryable=False,
         )
 
     try:
         status, health = _get_json(base + service["health"]["href"])
     except (TimeoutError, urllib.error.URLError, OSError):
-        return (
-            _unhealthy(
-                "unavailable",
-                "uoink served its manifest but its health endpoint did not answer",
-                retryable=True,
-            ),
+        return _bad(
+            "unavailable",
+            "uoink served its manifest but its health endpoint did not answer",
             evidence + "; health: no answer",
+            retryable=True,
         )
     if status != 200 or health is None:
-        return (
-            _unhealthy(
-                "contract_mismatch",
-                f"health endpoint answered HTTP {status} without a valid body",
-                retryable=False,
-            ),
+        return _bad(
+            "contract_mismatch",
+            f"health endpoint answered HTTP {status} without a valid body",
             evidence + f"; health: HTTP {status}",
+            retryable=False,
         )
     defect = _health_defect(health)
     if defect is not None:
-        return (
-            _unhealthy(
-                "contract_mismatch", f"health drift: {defect}", retryable=False
-            ),
+        return _bad(
+            "contract_mismatch",
+            f"health drift: {defect}",
             evidence + "; health non-conformant",
+            retryable=False,
         )
     if health["service_id"] != "uoink":
-        return (
-            _unhealthy(
-                "wrong_service",
-                f"health identifies as {health['service_id']!r}, not uoink",
-                retryable=False,
-            ),
+        return _bad(
+            "wrong_service",
+            f"health identifies as {health['service_id']!r}, not uoink",
             evidence,
+            retryable=False,
         )
     if health["ok"] is not True:
         failed = [
             c["id"] for c in health["checks"]
             if c["required"] and c["status"] == "failed"
         ]
-        return (
-            _unhealthy(
-                "peer_unhealthy",
-                "uoink reports required checks failed: "
-                + ", ".join(failed) + " — open uoink's own doctor for the fix",
-                retryable=True,
-            ),
+        return _bad(
+            "peer_unhealthy",
+            "uoink reports required checks failed: "
+            + ", ".join(failed) + " — open uoink's own doctor for the fix",
             evidence + "; health read, ok=false",
+            retryable=True,
         )
 
     token = os.environ.get(UOINK_TOKEN_ENV, "").strip()
@@ -541,50 +537,44 @@ def _conformance_read(
         with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
+        seen = evidence + f"; conformance read: HTTP {e.code}"
         if e.code in (401, 403):
-            return (
-                _unhealthy(
-                    "authentication_failed",
-                    f"uoink rejected the configured {UOINK_TOKEN_ENV} "
-                    f"(HTTP {e.code})",
-                    retryable=False,
-                ),
-                evidence + f"; conformance read: HTTP {e.code}",
+            return _bad(
+                "authentication_failed",
+                f"uoink rejected the configured {UOINK_TOKEN_ENV} "
+                f"(HTTP {e.code})",
+                seen,
+                retryable=False,
             )
         try:
             body = json.loads(e.read().decode("utf-8"))
         except (ValueError, OSError):
-            return (
-                _unhealthy(
-                    "contract_mismatch",
-                    f"conformance read answered HTTP {e.code} without a "
-                    "handoff envelope",
-                    retryable=False,
-                ),
-                evidence + f"; conformance read: HTTP {e.code}",
+            return _bad(
+                "contract_mismatch",
+                f"conformance read answered HTTP {e.code} without a "
+                "handoff envelope",
+                seen,
+                retryable=False,
             )
     except (TimeoutError, urllib.error.URLError, OSError):
-        return (
-            _unhealthy(
-                "unavailable",
-                "uoink stopped answering during the conformance read",
-                retryable=True,
-            ),
+        return _bad(
+            "unavailable",
+            "uoink stopped answering during the conformance read",
             evidence + "; conformance read: no answer",
+            retryable=True,
         )
+
     if (
         not isinstance(body, dict)
         or body.get("contract") != "uoink.media.handoff"
         or body.get("version") != 1
     ):
-        return (
-            _unhealthy(
-                "contract_mismatch",
-                "the kept-media conformance read did not return a "
-                "uoink.media.handoff v1 envelope",
-                retryable=False,
-            ),
+        return _bad(
+            "contract_mismatch",
+            "the kept-media conformance read did not return a "
+            "uoink.media.handoff v1 envelope",
             evidence + "; conformance read non-conformant",
+            retryable=False,
         )
     return (
         _peer("available", capabilities),

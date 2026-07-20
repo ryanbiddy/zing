@@ -2452,3 +2452,55 @@
   is verified by test rather than by a live run — saying so instead of
   implying I saw it.
   Suite 1071 passed / 2 skipped.
+- **2026-07-20 (Lane B): checked the queue before claiming from it, and
+  found Lane B's entire section stale — including a P1 that gates S5.**
+  The loop prompt tells me to claim unclaimed Lane B items, so I read
+  the queue as a live worklist. Every Lane B item still written as open
+  has landed: B-Q4 (#61), B-Q6 (#53, pack since 1.1.0), B-Q7/F-15 (#62,
+  closed #105), V-B TikTok (#64), B-S6 (#229/#234), B-CONF1 (#307), and
+  **S4-D3 (#148, `bc8ee71`)**. The oldest have been done for two days.
+  The one with consequence is S4-D3: it is written as an open **P1**,
+  and the line below it holds S5 shut "after S4-D1+S4-D3 merge". Both
+  merged 2026-07-19 (#148, #150) and the gate record's own "Gate 1
+  RERUN 2026-07-19" section says the rerun already ran. **S5 is not
+  blocked by Lane B**, and has not been for a day.
+  I did not rewrite the orchestrator's item lines. The file's header
+  says workers "may add PROPOSED items at the bottom but never claim
+  outside their lane" — that authorizes appending, not editing someone
+  else's records. So the reconciliation is a bottom entry carrying
+  commit-level evidence they can prune with in a minute. If they would
+  rather lanes strike their own landed items in place, say so and I
+  will.
+  This is the pinned-message trap at queue scale: not one wrong
+  sentence, but a worklist that nobody renews while the work drains out
+  of it. Same failure mode, larger blast radius — a stale message
+  misleads a reader, a stale queue misroutes a lane and stalls a gate.
+- **2026-07-20 (Lane B): SG-3 pass — `probe_uoink` reads as its §4 state
+  sequence instead of envelope packaging (no behavior change).**
+  With no Lane B items to claim, rotated to SG-3. `probe_uoink` was 141
+  lines in which each check was ~2 lines of decision wrapped in ~7 lines
+  of tuple/dict construction; 18 `_unhealthy(` sites across the module
+  repeated the same shape, and one had been left mis-indented by an
+  earlier hand-patch. Named the shape once — `_bad(code, message,
+  evidence, *, retryable)` returning the (verdict, receipt) pair — and
+  every failure became a single call. `probe_uoink` 141 -> 125,
+  `_conformance_read` 76 -> 63. Modest in lines; the point is that the
+  reader now follows absent -> timeout -> unavailable ->
+  contract_mismatch -> wrong_service -> peer_unhealthy -> unconfigured
+  -> available without dict literals between the rules. Also inverted
+  the transport branch so calm absence is stated first, matching how §4
+  reads.
+  **Control, because "refactor with no behavior change" is a claim:**
+  snapshotted all 20 branches (envelope AND evidence string) through the
+  real transport path before and after — byte-identical. Suite 1071
+  passed / 2 skipped, suite_peer coverage still 99%, and a live probe
+  against the real uoink on this box still returns the documented §3.5
+  manifest-gating drift.
+  Worth recording: my first characterization fake returned
+  `contract_mismatch` where I expected `peer_unhealthy`, and I briefly
+  had a "the branch is unreachable" finding. It was my fake that was
+  wrong — `state="degraded"` is not a valid health state and I had
+  dropped a required check id, so `_health_defect` caught it first. The
+  checked-in test fixture had it right. A characterization harness is
+  only a control if its inputs are conformant; an invalid input tests
+  the validator, not the branch you were aiming at.
