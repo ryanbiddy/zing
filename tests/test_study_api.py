@@ -32,6 +32,39 @@ from myzing.study.transcribe import TranscribeResult
 SOURCE = "https://www.tiktok.com/@cleo/video/777"
 
 
+def wire_measurement_stages_only(monkeypatch):
+    """Everything AFTER ingest, mocked — ingest itself stays real so the
+    acquisition path is exercised end to end (family-scenario regression)."""
+    monkeypatch.setattr(
+        api.shots_mod, "detect_shots",
+        lambda p, d, f: ShotResult(
+            shots=[Shot(0, 0.0, 12.0)], provenance={"shot_detector": "test"},
+        ),
+    )
+    monkeypatch.setattr(
+        api.keyframes_mod, "extract_keyframes",
+        lambda media, bdir, shots, duration, warnings: None,
+    )
+    monkeypatch.setattr(
+        api.transcribe_mod, "transcribe",
+        lambda p, duration=0.0: TranscribeResult(
+            words=[Word("hi", 0.0, 0.2, 0.9)],
+            provenance={"whisper_model": "test"},
+        ),
+    )
+    monkeypatch.setattr(
+        api.captions_mod, "read_captions",
+        lambda p, d: CaptionsResult(provenance={"ocr_backend": "test"}),
+    )
+    monkeypatch.setattr(
+        api.audio_mod, "measure_audio",
+        lambda p, d: AudioResult(
+            audio=AudioLayout(False, 0.0, True, 0.9, [-20.0]),
+            provenance={"vad": "test"},
+        ),
+    )
+
+
 def wire_stages(monkeypatch, slug="tiktok-777"):
     def fake_ingest(source, root=None, **stage_kwargs):
         d = storage.breakdown_dir(slug)
@@ -394,3 +427,139 @@ def test_zing_version_unknown_on_metadata_failure(monkeypatch):
     monkeypatch.setattr(importlib.metadata, "version", boom)
 
     assert api._zing_version() == "unknown"
+
+
+# -- family-scenario regression (S6, Lane A half) ----------------------------
+
+def _probe_json() -> str:
+    return json.dumps({
+        "streams": [
+            {
+                "codec_type": "video", "codec_name": "h264",
+                "width": 1080, "height": 1920,
+                "avg_frame_rate": "30/1", "r_frame_rate": "30/1",
+            },
+            {"codec_type": "audio", "codec_name": "aac"},
+        ],
+        "format": {"duration": "8.0"},
+    })
+
+
+def _cfr_pts() -> str:
+    return "\n".join(f"{i / 30:.6f}" for i in range(240)) + "\n"
+
+
+def _tools_that_must_not_fetch(calls):
+    """proc.run stub: answers ffprobe honestly, records everything, and
+    FAILS the test if yt-dlp is ever invoked."""
+    import subprocess as sp
+
+    def run(cmd, timeout=None):
+        calls.append(cmd)
+        if cmd[0] == "ffprobe":
+            if any("packet=pts_time" in part for part in cmd):
+                return sp.CompletedProcess(cmd, 0, _cfr_pts(), "")
+            return sp.CompletedProcess(cmd, 0, _probe_json(), "")
+        raise AssertionError(f"zero-refetch violated: {cmd[0]} was invoked")
+    return run
+
+
+def test_family_scenario_kept_media_hop_end_to_end(
+    zing_workspace, tmp_path, monkeypatch
+):
+    """S6 family scenario, Lane A half, fully offline: a uoink-kept file
+    plus its uoink.media.handoff record must produce a persisted breakdown
+    with ZERO network fetch and the contract's path-free provenance
+    (acquisition kept_media / refetch false) — what the gate asserts.
+
+    Real ingest; only subprocess and the measurement stages are stubbed.
+    """
+    import hashlib
+
+    wire_measurement_stages_only(monkeypatch)
+    calls: list[list[str]] = []
+    monkeypatch.setattr("myzing.study.ingest.proc.run", _tools_that_must_not_fetch(calls))
+    monkeypatch.setattr("myzing.doctor.resolve_ytdlp_argv", lambda: ["yt-dlp"])
+
+    payload = b"uoink-kept-bytes-for-the-family-scenario"
+    kept = tmp_path / "uoink-corpus" / "short-123" / "video.mp4"
+    kept.parent.mkdir(parents=True)
+    kept.write_bytes(payload)
+    url = "https://www.tiktok.com/@creator/video/7239871234"
+    handoff = {
+        "source_ref": "uoink://item/short-123",
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "byte_length": len(payload),
+    }
+
+    breakdown = api.study(url, kept_media=kept, handoff=handoff)
+
+    assert not [c for c in calls if c[0] == "yt-dlp"]        # zero refetch
+    sh = breakdown.provenance["source_handoff"]
+    assert sh == {
+        "contract": "uoink.media.handoff",
+        "version": 1,
+        "source_ref": "uoink://item/short-123",
+        "acquisition": "kept_media",
+        "refetch": False,
+        "sha256": handoff["sha256"],
+    }
+    assert not any("path" in str(v).lower() for v in sh.values())
+    # persisted, and the stable reference stays URL-derived
+    saved = storage.load_breakdown("tiktok-7239871234")
+    assert saved.provenance["source_handoff"] == sh
+    assert saved.meta.source_url == url
+    assert saved.meta.platform == "tiktok"
+
+
+def test_family_scenario_tampered_kept_media_refetches_honestly(
+    zing_workspace, tmp_path, monkeypatch
+):
+    """The gate's negative: bytes that do not match the handoff must NOT
+    be measured — integrity fails, the study refetches, and provenance
+    says so (acquisition source_refetch / reason integrity_mismatch)."""
+    import hashlib
+    import subprocess as sp
+
+    wire_measurement_stages_only(monkeypatch)
+    fetched: list[list[str]] = []
+
+    def run(cmd, timeout=None):
+        if cmd[0] == "ffprobe":
+            if any("packet=pts_time" in part for part in cmd):
+                return sp.CompletedProcess(cmd, 0, _cfr_pts(), "")
+            return sp.CompletedProcess(cmd, 0, _probe_json(), "")
+        if cmd[0] == "yt-dlp":
+            fetched.append(cmd)
+            dest = Path(cmd[cmd.index("-P") + 1])
+            (dest / "media.mp4").write_bytes(b"authentic-fetched-bytes")
+            return sp.CompletedProcess(cmd, 0, "", "")
+        raise AssertionError(cmd)
+    monkeypatch.setattr("myzing.study.ingest.proc.run", run)
+    monkeypatch.setattr("myzing.doctor.resolve_ytdlp_argv", lambda: ["yt-dlp"])
+
+    # Same LENGTH, different bytes — the realistic tamper, and the case
+    # only the hash can catch (a size-only check would pass it through).
+    original = b"the-original-bytes-from-uoink"
+    tampered = b"the-TAMPERED-bytes-from-nope!"
+    assert len(original) == len(tampered)
+    kept = tmp_path / "tampered.mp4"
+    kept.write_bytes(tampered)
+    handoff = {
+        "source_ref": "uoink://item/short-123",
+        "sha256": hashlib.sha256(original).hexdigest(),
+        "byte_length": len(original),
+    }
+
+    breakdown = api.study(
+        "https://www.tiktok.com/@creator/video/7239871234",
+        kept_media=kept,
+        handoff=handoff,
+    )
+
+    assert len(fetched) == 1
+    sh = breakdown.provenance["source_handoff"]
+    assert sh["acquisition"] == "source_refetch"
+    assert sh["refetch"] is True
+    assert sh["reason"] == "integrity_mismatch"
+    assert any("integrity mismatch" in w for w in breakdown.warnings)
