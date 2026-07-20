@@ -1016,3 +1016,19 @@
     fix stand. Two causes, one symptom, different remedies
     (quota -> local-gate mode; missing trigger -> force-push). Do not
     conflate them when triaging a stuck PR.
+
+- **2026-07-19 (Lane A, PROCESS): the no-CI-trigger stall — full
+  triage recipe, after hitting it three times.** Signature: `gh pr
+  checks <n>` says "no checks reported on the branch" — an ABSENCE,
+  not a failure, so nothing looks red and auto-merge waits forever.
+  Cause on zing: ci.yml fires on `pull_request` + push-to-main, and
+  the PR-creation event occasionally produces no run. Fix: force-push
+  the branch (rebase onto main does double duty, clearing NOTES
+  drift). SECOND, distinct stall shape seen on #288: all six required
+  checks PASSING but `mergeable=UNKNOWN` — GitHub never finished
+  computing the merge; same rebase clears it. NOT to be confused with
+  the writer repo's quota-caused zero-step runs (it#68): that is a
+  private-repo minutes problem, and zing is public with free minutes
+  (verified). Three silent-landing modes now documented: pipe-masked
+  exit codes, unguarded imports, and these trigger/mergeability
+  stalls — which is why verifying the landing is non-negotiable.
