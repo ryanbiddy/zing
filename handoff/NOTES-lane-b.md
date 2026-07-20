@@ -2720,3 +2720,49 @@
   Suite **1094 passed / 2 skipped** — one fewer than last cycle's 1095
   because I removed that parametrize case deliberately, not a
   regression.
+- **2026-07-20 (Lane B): Lane A's #365 refuted an assumption living in
+  MY prompt, and re-measuring it myself made the finding stronger than
+  the one they reported.** Their item is upstream (caption/non-caption
+  separation, their surface) and was not routed to me. But rule 4 of
+  direct.md said caption contamination happens "on longer recordings",
+  citing a 430s gameplay clip — and they had just measured
+  caption-style corruption on a **38s short**. My scoping was an
+  assumption I never measured, and it pointed a directing AI at exactly
+  the wrong conclusion: trust caption style on short videos, which is
+  the format Zing is built for.
+  **Verified from repo data instead of adopting their summary.** Their
+  specific figures (86 events, 42 single-token) come from the derived
+  breakdown, which I cannot recompute without running the pipeline — so
+  I measured what IS checkable here: the seven hand-labelled OCR cells.
+  Contamination does not track runtime at all:
+    15s = 16% | 38s = **76%** | 43s = 46% | 47s = 58%
+    61s = 55% | 114s = 67% | 430s = 99.6%
+  The 38s short is worse than both the 61s and 114s cells. Two cells
+  (114s and 430s) have **zero** lines labelled as captions at all. That
+  is a stronger statement than "it also happens on a short": duration
+  carries no signal, so the old line was not merely incomplete, it was
+  misdirecting. direct.md 1.3.0 -> **1.4.0**.
+  **Caught my own gate being vacuous — the same shape I flagged in
+  #358.** I wrote a test claiming "the specific numbers in the prompt
+  must match the labelled data", then hardcoded the numbers IN THE TEST.
+  Editing 76% -> 61% in the prompt left it green: it asserted only that
+  the data still measures what I had typed. Rewrote it to parse the
+  "<N>s ... <P>%" pairs OUT of rule 4, and verified the fix by making
+  that same edit and watching it fail with the corrective message.
+  Recording the sequence honestly: I proved the gate fires only because
+  I ran the disproof AFTER writing it. Had I trusted the passing suite,
+  I would have shipped a gate whose docstring lied — while the PR
+  narrated it as protection. A gate is not a gate until you have watched
+  it fail.
+  Second gate pins the load-bearing CLAIM rather than the figures: if
+  the worst sub-60s cell ever stopped exceeding every longer cell,
+  "does not track runtime" would need rethinking, not a new number.
+  Suite **1097 passed / 2 skipped**.
+  Unrelated observation, not re-raised as a request: the orchestrator's
+  it#88 declares the whole build/review/fix effort CLOSED, while
+  QUEUE.md line 769 still lists S4-D3 as an open Lane B P1 and the line
+  below it still holds S5 shut pending that merge. Those two statements
+  agree with my reconciliation (everything landed) and disagree with the
+  file's own top matter. I filed the evidence once with an offer to
+  strike the lines in place; repeating it would be noise, and the
+  closure declaration supersedes it in practice.
