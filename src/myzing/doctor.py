@@ -655,6 +655,40 @@ def _verdict_line(checks: list[Check]) -> str:
     return "Verdict: fully ready"
 
 
+def _next_step() -> str:
+    """What to actually DO once the environment is usable.
+
+    `zing doctor` is the first command a new user runs, and it ended on
+    a bare "Ready." — correct, and a dead end. The next step depends on
+    what the workspace already holds, so this reads state rather than
+    printing an advert: nothing studied yet is a different situation
+    from a workspace full of breakdowns.
+    """
+    from myzing import storage
+
+    try:
+        studied = len(storage.list_breakdowns())
+        profiles = len(storage.list_profiles())
+    except Exception:  # noqa: BLE001 — advice must never break the report
+        return ""
+    if studied == 0:
+        return (
+            "Next: study your first reference —\n"
+            "  zing setup --list                 (curated preset packs)\n"
+            "  zing study <url or file>          (your own)"
+        )
+    if profiles == 0:
+        return (
+            f"Next: {studied} studied video(s), no taste profile yet —\n"
+            "  zing setup --links <url> ... --name my-taste\n"
+            "  (or connect an AI to judge them: zing serve-mcp --print-config)"
+        )
+    return (
+        f"Next: {studied} studied, {profiles} profile(s) — direct your own "
+        "footage by\nconnecting an AI: zing serve-mcp --print-config"
+    )
+
+
 def _print_human(checks: list[Check]) -> None:
     print("zing doctor\n")
     print(_verdict_line(checks) + "\n")
@@ -684,6 +718,10 @@ def _print_human(checks: list[Check]) -> None:
         )
     else:
         print("\nReady.")
+    if not missing:
+        step = _next_step()
+        if step:
+            print("\n" + step)
 
 
 def run(argv: list[str]) -> int:

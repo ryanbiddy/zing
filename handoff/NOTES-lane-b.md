@@ -2332,3 +2332,30 @@
   I write in the same commit as the message it pins proves only that I
   was internally consistent, not that I was right.
   Suite 1057 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-5 — built the first-run next step, because
+  "Ready." was a correct dead end.** Ran `zing doctor` on a fresh
+  workspace and read the last line as a new user would: it says
+  "Ready." and stops. True, and no help — doctor is the FIRST command
+  someone runs, so it is the natural place to say what to do second,
+  and instead it left them to find CONNECT.md unaided. Exactly the
+  new-user-lens class, on a surface I own, found by using it rather
+  than reading it.
+  Built it STATE-AWARE rather than as a fixed advert, which is the part
+  worth defending: nothing studied yet -> name the two entry points
+  (`zing setup --list`, `zing study <url|file>`); studied but no
+  profile -> name the profile step and the AI-judging alternative;
+  both present -> point at connecting an AI to direct footage. An
+  advert would say the same thing to everyone and be wrong for most of
+  them.
+  Two restraints, both tested: it stays SILENT when required tools are
+  missing (advice about next steps is noise while nothing runs — the
+  fixes above are the only next step that matters), and a storage
+  failure while gathering state costs the user nothing, because
+  guidance is a courtesy and must never cost someone their environment
+  report.
+  Process note: this cycle's heredoc fought me AGAIN on an escaped
+  "\n" inside a search string. The assert-before-write discipline meant
+  the file was untouched when it failed, and I switched to the Edit
+  tool rather than debugging the quoting for a third time. The guard is
+  now worth more to me than the convenience it costs.
+  Suite 1066 passed / 2 skipped.
