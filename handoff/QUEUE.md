@@ -122,6 +122,21 @@ the bottom but never claim outside their lane.
   captions lost, measured), so this is a completeness fix, not a
   correctness fix. (4) It is post-launch by nature: it changes
   measurement behaviour on long-form.
+  PROTOTYPED WITH EVIDENCE (2026-07-20,
+  handoff/research/region_merge_prototype.py — run it):
+  measuring persistence on a region's STABLE TOKEN SET instead of its
+  joined string does work. On the HUD cell the shipped rule fires 0
+  warnings; the prototype flags one region whose stable tokens
+  {GNN, TV} persist **427.0s** of a 430s video. Safety check across
+  all four captioned cells: **zero caption tokens flagged**, so it
+  preserves the property that makes the current rule trustworthy.
+  Stated limits (the script prints them): 5 cells, English, one
+  long-form; it replaces the PERSISTENCE MEASURE only and its
+  interaction with clustering is unmeasured; NOT run against Lane C's
+  frozen eval fixtures, so regression risk there is unknown; and a
+  token that legitimately recurs in every caption (a name) would look
+  stable. Whoever takes this starts from a working measurement, not a
+  description — but it is not ready to ship as-is.
   SURVIVES AS: a queued item with the frozen HUD cell as its
   regression fixture — the failure is already reproducible offline,
   so whoever takes it starts with a red test rather than a

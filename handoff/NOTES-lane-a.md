@@ -1825,3 +1825,25 @@
   which is the queued region-merge item, now widened with this trace.
   Defect pinned by a test that asserts BOTH the wrong style and the
   absence of any warning, with instructions to invert it when fixed.
+
+- **2026-07-20 (Lane A): PROTOTYPED my own queued region-merge fix —
+  it works, and now the proposal carries evidence instead of a
+  description.** A proposal is cheap; knowing whether it works is
+  not. Measuring persistence on a region's STABLE TOKEN SET (intersect
+  consecutive observations' tokens) rather than its joined string:
+  - HUD cell: shipped rule fires **0** warnings; prototype flags one
+    region whose stable tokens {GNN, TV} persist **427.0s** of a 430s
+    video — the watermark, caught.
+  - Safety across all four captioned cells: **zero caption tokens
+    flagged**, so it keeps the property that makes the current rule
+    trustworthy (never eats a caption).
+  Shipped as `handoff/research/region_merge_prototype.py`, which
+  PRINTS ITS OWN LIMITS so nobody mistakes it for a patch: 5 cells,
+  English, one long-form; it replaces the persistence measure only and
+  its interaction with clustering is unmeasured; it has NOT been run
+  against Lane C's frozen eval fixtures so regression risk there is
+  unknown; and a token recurring in every caption (a speaker's name)
+  would look stable. Queue item updated with the result.
+  This is the form I want proposals to take from now on: a measured
+  result plus the reasons it is not yet safe, so the person who takes
+  it inherits both.
