@@ -1725,3 +1725,22 @@
   literal. Rebuilt from what the extractor actually sees, with that
   lesson recorded in the file. Then mutation-verified: adding a bogus
   "stage skipped" warning fails the gate. Suite 1073.
+
+- **2026-07-20 (Lane A, SG-3): merged two caption-style warnings I had
+  introduced separately — they both fire on the same draft.** A
+  430s recording with only 8 caption events triggers BOTH the
+  long-form warning (added 3 cycles ago) and the thin-basis warning
+  (added at the S5 gate), with overlapping text: "caption style
+  derived from 8 on-screen text event(s)" next to "caption style
+  measured from only 8 on-screen text event(s)". Two warnings about
+  one concern, in the list judging AIs are told to read FIRST —
+  training exactly the skimming that list exists to prevent. That is
+  the same disease I flagged in the always-fires proposal, and I had
+  caused an instance of it myself.
+  Now one warning naming whichever risks apply, via
+  `_caption_style_risks`. The measured justifications for each risk
+  survive in that helper's comments (overlay under-firing past 180s;
+  thin basis from the S5 gate) rather than being lost in the merge.
+  Three tests updated and one added pinning that BOTH risks yield ONE
+  warning that names both. Registry updated so it keeps describing
+  the code. Suite 1074.

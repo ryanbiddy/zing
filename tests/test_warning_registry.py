@@ -86,6 +86,7 @@ REGISTERED: dict[str, str] = {
     "transition audio alignment skipped": "names the decode failure",
     "kept media unavailable": "paired with the falling-back message",
     "kept media failed probe": "paired with the falling-back message",
+    "on-screen text event(s) and was applied to": "merged style warning; names each risk and says verify against a frame",
 }
 
 
