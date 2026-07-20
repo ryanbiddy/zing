@@ -1364,6 +1364,47 @@ def h_get_prompt(name: str = "study") -> dict[str, Any]:
 # Server assembly (SDK required only from here down)
 # ---------------------------------------------------------------------------
 
+def _installed_mcp_version() -> str:
+    try:
+        from importlib.metadata import version
+
+        return version("mcp")
+    except Exception:
+        return "unknown version"
+
+
+def mcp_sdk_defect() -> str | None:
+    """None when the SDK zing targets is usable, else what to do about it.
+
+    Distinguishes ABSENT from INCOMPATIBLE, which `import mcp` alone
+    cannot. SDK v2 keeps the top-level `mcp` package but moved the
+    FastMCP API to `mcp.server.mcpserver.MCPServer`, so the old guard
+    passed on v2 and the user got a bare
+    ``ImportError: No module named 'mcp.server.fastmcp'`` traceback out
+    of build_server — no cause, no version, no fix. pyproject pins
+    ``mcp<2`` so a normal install cannot land there, but a shared
+    environment or an ignored extra still can.
+    """
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        return (
+            "the MCP SDK is not installed in this Python — run "
+            'python -m pip install "myzing[mcp]" '
+            '(from a source checkout: pip install -e ".[mcp]")'
+        )
+    try:
+        from mcp.server.fastmcp import FastMCP  # noqa: F401
+    except ImportError:
+        return (
+            f"the installed MCP SDK ({_installed_mcp_version()}) has no "
+            "mcp.server.fastmcp. Zing targets the v1 FastMCP API, and SDK "
+            "v2 renamed it to mcp.server.mcpserver.MCPServer — install the "
+            'v1 line with python -m pip install "mcp>=1.2,<2"'
+        )
+    return None
+
+
 def build_server():
     from mcp.server.fastmcp import FastMCP
     from mcp.server.fastmcp.prompts import Prompt
@@ -1640,14 +1681,12 @@ def _print_connect_config(target: str) -> int:
             print()
         print("# Claude Code — run this once:")
         print(code_cmd)
-    try:
-        import mcp  # noqa: F401
-    except ImportError:
+    defect = mcp_sdk_defect()
+    if defect is not None:
         print(
-            '\n# NOTE: the mcp SDK is not installed in this Python yet — run'
-            '\n#   python -m pip install "myzing[mcp]"'
-            '\n# (from a source checkout: pip install -e ".[mcp]")'
-            "\n# before connecting a client, or the server will exit at launch.",
+            f"\n# NOTE: {defect}"
+            "\n# Do this before connecting a client, or the server will exit"
+            " at launch."
         )
     return 0
 
@@ -1666,13 +1705,10 @@ def run(argv: list[str]) -> int:
             print(f"unknown --print-config target '{target}' (use: desktop, code)")
             return 2
         return _print_connect_config(target)
-    try:
-        import mcp  # noqa: F401
-    except ImportError:
+    defect = mcp_sdk_defect()
+    if defect is not None:
         print(
-            "zing serve-mcp needs the MCP SDK: "
-            'python -m pip install "myzing[mcp]" '
-            '(from a source checkout: pip install -e ".[mcp]")',
+            f"zing serve-mcp cannot start: {defect}",
             file=sys.stderr,
         )
         return 2

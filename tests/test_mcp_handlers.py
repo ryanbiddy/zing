@@ -937,8 +937,45 @@ def test_print_config_notes_missing_sdk(monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "mcp", None)
     assert mcp_server.run(["--print-config"]) == 0
     out = capsys.readouterr().out
-    assert "mcp SDK is not installed" in out
+    assert "not installed" in out
+    assert "myzing[mcp]" in out
     assert "source checkout" in out
+
+
+def _sdk_v2_shape(monkeypatch):
+    """An environment holding SDK v2: `import mcp` succeeds, but the v1
+    FastMCP path is gone (it became mcp.server.mcpserver.MCPServer)."""
+    import types
+
+    monkeypatch.setitem(sys.modules, "mcp", types.ModuleType("mcp"))
+    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", None)
+    monkeypatch.setattr(
+        mcp_server, "_installed_mcp_version", lambda: "2.0.0")
+
+
+def test_sdk_v2_is_named_as_incompatible_not_reported_as_missing(
+    monkeypatch, capsys
+):
+    """The failure that arrives when SDK v2 ships.
+
+    `import mcp` SUCCEEDS on v2, so the old guard passed and the user got
+    a bare "No module named 'mcp.server.fastmcp'" traceback out of
+    build_server: no cause, no version, no fix. Telling them to install
+    the SDK would also be wrong — it IS installed.
+    """
+    _sdk_v2_shape(monkeypatch)
+    assert mcp_server.run([]) == 2
+    err = capsys.readouterr().err
+
+    assert "2.0.0" in err, "name the version actually installed"
+    assert "mcp>=1.2,<2" in err, "name the pin that fixes it"
+    assert "MCPServer" in err, "name where the API went"
+    assert "not installed" not in err, "it IS installed — do not say otherwise"
+
+
+def test_healthy_sdk_reports_no_defect():
+    """The control: the guard must not fire on the environment CI runs."""
+    assert mcp_server.mcp_sdk_defect() is None
 
 
 def test_export_otio_without_render_extras_is_actionable(

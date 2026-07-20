@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "mcp>=1.2", "myzing[render]"]
+dev = ["pytest>=8", "mcp>=1.2,<2", "myzing[render]"]
 study = [
     "yt-dlp[default]>=2026.6",
     "scenedetect-headless>=0.7",
@@ -20,7 +20,13 @@ study = [
     "onnxruntime>=1.16",
     "rapidocr>=3.9",
 ]
-mcp = ["mcp>=1.2"]
+# Upper bound is deliberate and dated. SDK v2 (beta 2.0.0b1, stable
+# expected with the 2026-07-28 spec) removes mcp.server.fastmcp —
+# FastMCP became mcp.server.mcpserver.MCPServer. zing targets the v1
+# API, so an unbounded pin would hand every NEW user a broken server the
+# day v2 ships. The SDK's own migration note tells library maintainers to
+# do exactly this. Raising it is a deliberate port, not a version bump.
+mcp = ["mcp>=1.2,<2"]
 render = ["pysubs2>=1.8.1"]
 all = ["myzing[study]", "myzing[mcp]", "myzing[render]"]
 

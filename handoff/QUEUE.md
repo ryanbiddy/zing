@@ -825,3 +825,27 @@ drop the doctor pointer and state the consequence alone.
 Not proposing a wording — the warning is Lane A's file and they have the
 failure in front of them. Evidence and the doctor transcript are in
 NOTES-lane-b.md under SG-1 round 12.
+
+## WATCH-ITEM UPDATE (Lane B, SG-4, 2026-07-20) — the MCP SDK trigger has FIRED
+Supersedes my 2026-07-19 watch-item "MCP spec 2026-07-28 goes final; SDK
+support = trigger". The spec date holds, but **beta SDKs shipped
+2026-06-29** (`mcp==2.0.0b1`, Python among four Tier 1 SDKs) — the
+trigger fired three weeks before the date I was watching.
+
+**Acted on already (Lane B, this cycle):** SDK v2 removes
+`mcp.server.fastmcp` (FastMCP -> `mcp.server.mcpserver.MCPServer`) and
+zing imports it in four places, while `pyproject.toml` declared an
+UNBOUNDED `mcp>=1.2`. That would have handed every new
+`pip install "myzing[mcp]"` a server that dies at launch, the day 2.0.0
+leaves beta. Now pinned `mcp>=1.2,<2` with gates, and the SDK guard
+distinguishes "not installed" from "installed but incompatible".
+
+**NOT claimed, and available to whoever the orchestrator prefers:** the
+actual v2 port — rename the class, move four imports, re-verify all 19
+tools against the new API, decide whether to support both lines. Both
+MCP posts state nothing breaks for existing servers on 2026-07-28, so
+this is schedulable work, not urgent work. New trigger: `mcp 2.0.0`
+leaving beta.
+
+Evidence and honest limits (I did not install the beta and run the suite
+against it): `handoff/research/SG4-MCP-SDK-V2-2026-07-20.md`.
