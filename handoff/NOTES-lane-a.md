@@ -1032,3 +1032,21 @@
   (verified). Three silent-landing modes now documented: pipe-masked
   exit codes, unguarded imports, and these trigger/mergeability
   stalls — which is why verifying the landing is non-negotiable.
+
+- **2026-07-20 (Lane A): min_scene_len audited against SHOT's primary
+  annotations — the tuning is now MEASURED, with a cost we never
+  stated.** Note: handoff/research/SHOT-THRESHOLD-AUDIT-2026-07-19.md.
+  Videos are Drive-hosted (real detector precision/recall stays OPEN),
+  but the frame-level annotations are public and settle the threshold
+  question. On 344 usable videos / 6,245 shots: the 0.6s-equivalent
+  default would merge **13.5%** of real short-form shots — validating
+  the lowered floor with a number — while our 0.3s floor STILL merges
+  **4.7%**, so Zing's cut rate under-counts slightly on fast-montage
+  content BY CONSTRUCTION. shots.py now cites the measurement instead
+  of asserting the rationale. Source-file accounting kept honest: 738
+  headers / 648 unique names / 304 without frame counts (excluded) /
+  1 malformed line; it is a SUBSET, not the 853-video corpus, so the
+  README figure my citation audit verified describes the full Drive
+  dataset — both true, different things. Also recorded: my first pass
+  said "5 headers without counts", an artifact of slicing my own
+  debug list; caught because totals would not reconcile.
