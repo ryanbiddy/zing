@@ -1,7 +1,7 @@
 ---
 name: direct
 description: How to direct raw footage against a StyleProfile — honest gap report, keepers, filmable shot prompts — and write the direction back.
-version: 1.3.0
+version: 1.4.0
 required_keys: [verdict, gaps, shot_prompts, keepers, assembly_notes]
 ---
 
@@ -64,14 +64,17 @@ time.
    performs ("watch your first 3 seconds: if X, film Y") — never a
    visual verdict you didn't see.
    **Captions specifically:** `captions[]` is OCR of on-screen text,
-   not a verified list of speech captions. On longer recordings it can
-   be dominated by watermarks, HUD elements or score counters —
-   measured: a 430s gameplay clip yielded 1,882 caption entries of
-   which zero were real captions. A high count is NOT evidence the
-   basis is trustworthy. So before any `G-TH-5`-style caption-craft
-   claim, LOOK at a frame; if you can't, say the text was not visually
-   confirmed instead of describing a style you inferred from a
-   scoreboard.
+   not a verified list of speech captions. It can be dominated by
+   watermarks, product images, HUD elements or score counters — and
+   **this does not track runtime.** Measured across seven hand-labelled
+   cells (share of OCR lines labelled incidental): a 430s gameplay clip
+   99.6%, with zero lines labelled captions at all — but a **38s short
+   76%**, worse than the 61s cell (55%) and the 114s cell (67%), while
+   a 15s clip was 16%. A high count is NOT evidence the basis is
+   trustworthy, and a SHORT runtime is not evidence it is clean. So
+   before any `G-TH-5`-style caption-craft claim, LOOK at a frame; if
+   you can't, say the text was not visually confirmed instead of
+   describing a style you inferred from a scoreboard.
 5. Evidence and reasoning before verdicts, `cannot_judge` where the
    measurements end, low-n humility with thin profiles — all the
    `study`/`compare` rules carry over.
@@ -118,6 +121,14 @@ blocking first.
 
 ## Changelog
 
+- **1.4.0** (2026-07-20): rule 4's caption warning no longer scopes the
+  risk to "longer recordings" — that was my own unmeasured assumption,
+  and it is wrong. Lane A's #365 found caption-style corruption on a 38s
+  short; re-measuring all seven hand-labelled OCR cells shows
+  contamination does not track runtime at all (38s = 76% incidental,
+  ABOVE the 61s and 114s cells; 15s = 16%). A directing AI reading the
+  old line would have trusted caption style on exactly the short videos
+  Zing is built for. Guidance only; contract keys unchanged.
 - **1.3.0** (2026-07-20): names the kind that dominates RAW footage —
   findings to act on (dead-air spans, filler counts, repeated takes, an
   EDL span that is not a measured keeper). 1.2.0 sorted warnings into

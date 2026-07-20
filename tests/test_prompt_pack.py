@@ -313,3 +313,99 @@ def test_most_warnings_are_not_problems_which_is_why_the_guidance_exists():
         "most warnings are now problem-reports; study.md's advice to treat a "
         "long warnings[] as normal no longer follows from the data"
     )
+
+
+# -- direct.md's caption-contamination figures -------------------------------
+
+
+def _labelled_ocr_cells():
+    """{slug: (duration_s, incidental_share)} from the hand-labelled set."""
+    import json as _json
+
+    root = pathlib.Path(__file__).resolve().parents[1] / "handoff" / "research"
+    labels_dir, frozen_dir = root / "ocr-calibration" / "labels", root / "ocr-calibration" / "frozen"
+    cells = {}
+    for lab in sorted(labels_dir.glob("*.jsonl")):
+        rows = [
+            _json.loads(line)
+            for line in lab.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        labelled = [r for r in rows if "label" in r]
+        if not labelled:
+            continue
+        frozen = frozen_dir / f"{lab.stem}.jsonl"
+        if not frozen.exists():
+            continue
+        head = _json.loads(
+            frozen.read_text(encoding="utf-8").splitlines()[0])
+        duration = head.get("provenance", {}).get("duration")
+        if not duration:
+            continue
+        incidental = sum(1 for r in labelled if r["label"] == "incidental_text")
+        cells[lab.stem] = (duration, incidental / len(labelled) * 100)
+    assert cells, "no labelled OCR cells found — this gate would pass vacuously"
+    return cells
+
+
+def test_caption_contamination_still_does_not_track_runtime():
+    """direct.md 1.4.0 tells a directing AI that a SHORT runtime is not
+    evidence the caption basis is clean, and cites the labelled cells.
+
+    Pinned to the load-bearing CLAIM rather than to the exact
+    percentages: if the worst sub-60s cell ever fell below every longer
+    cell, "does not track runtime" would stop following from the data and
+    the guidance would need rethinking, not a new number.
+    """
+    cells = _labelled_ocr_cells()
+    short = {s: v for s, v in cells.items() if v[0] < 60}
+    long_ = {s: v for s, v in cells.items() if v[0] >= 60}
+    assert short and long_, "need cells on both sides of 60s to compare"
+
+    worst_short = max(share for _, share in short.values())
+    beaten = [s for s, (_, share) in long_.items() if share < worst_short]
+    assert beaten, (
+        f"the worst sub-60s cell ({worst_short:.0f}% incidental) no longer "
+        "exceeds ANY longer cell — direct.md 1.4.0 claims contamination does "
+        "not track runtime, which would no longer follow from the data"
+    )
+
+
+def test_direct_md_cites_the_measured_contamination_figures():
+    """Every "<N>s ... <P>%" pair in rule 4 must match the labelled data.
+
+    Same reasoning as the warnings ratio gate: a figure written into
+    guidance is a freshness claim nobody renews.
+
+    The pairs are parsed OUT of the prompt rather than restated here.
+    The first version of this test hardcoded them, so editing the prompt
+    could not fail it — it asserted only that the data still measures
+    what I had typed into the test, which is the vacuous-test shape
+    caught in #358. Verified by editing 76% -> 61% and watching this
+    fail.
+    """
+    body = (
+        pathlib.Path(__file__).resolve().parents[1] / "prompts" / "direct.md"
+    ).read_text(encoding="utf-8")
+    rule4 = body.split("**Captions specifically:**", 1)[1].split("\n5.", 1)[0]
+
+    cited = re.findall(r"(\d+)s\D{0,30}?(\d+(?:\.\d+)?)%", rule4)
+    assert len(cited) >= 4, (
+        f"expected the four cited cells in rule 4, parsed {cited!r} — if the "
+        "wording changed, update this parser rather than deleting the gate"
+    )
+
+    cells = _labelled_ocr_cells()
+    for duration_text, claimed_text in cited:
+        duration, claimed = float(duration_text), float(claimed_text)
+        near = [v for v in cells.values() if abs(v[0] - duration) < 1.5]
+        assert near, (
+            f"direct.md cites a {duration:.0f}s cell; no labelled cell is "
+            "near that duration any more"
+        )
+        measured = near[0][1]
+        assert abs(measured - claimed) < 1.0, (
+            f"direct.md cites {claimed}% incidental for the {duration:.0f}s "
+            f"cell; the labelled data now measures {measured:.1f}%. Update "
+            "the prompt and its changelog."
+        )
