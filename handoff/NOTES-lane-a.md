@@ -1552,3 +1552,26 @@
   queued region-merge item as IMPACT TRACED — the upstream fix
   removes this text before it reaches assembly, so this is one defect
   with two faces, not two items. Suite green.
+
+- **2026-07-20 (Lane A, SG-1 + fix): reviewed Lane B's #344 (PASS) and
+  closed the half it could not reach.** Their direct.md 1.1.0 makes
+  caption style a visual claim needing eyes, citing my measurement
+  accurately ("1,882 caption entries of which zero were real
+  captions"; "a high count is NOT evidence the basis is trustworthy"),
+  version bumped, wheel mirror in sync, contract keys unchanged so
+  1.0.0 judgments still validate. Good mitigation.
+  **But it lands at the PROMPT layer, and `zing assemble` runs with no
+  AI in the loop** — a user assembling a long-form draft still got
+  scoreboard styling in silence. Added the engine-side counterpart:
+  past the short-form boundary (180s), where overlay exclusion is
+  MEASURED to under-fire, the draft warns that the style basis may
+  include watermarks or HUD and says to verify against a frame.
+  Deliberately NOT a classifier — it is a statement about a measured
+  limitation applying to this input, which is why it can be honest
+  without the caption/non-caption discriminator P-C2 showed does not
+  exist. It will also fire on genuinely captioned long-form; that is
+  correct, since those captions may equally carry unexcluded
+  watermarks.
+  Now both guards exist and neither pretends to be the other: thin
+  basis (<15 events) and long-form basis (measured under-firing).
+  Suite green.
