@@ -43,6 +43,30 @@ NAS-derived architecture; maintenance risk is real and the +4.2%
 over TransNetV2 only matters if the evaluation shows our gap is in
 exactly that band. Revisit after evidence.
 
+## Citation audit (self-initiated, 2026-07-19, prompted by CX-6)
+
+Every load-bearing claim above re-verified against PRIMARY sources
+after the trust flag on AG's dossiers — a scan is only worth its
+citations:
+
+- SHOT dataset "853 complete short videos and 11,606 shot
+  annotations" — VERBATIM from AutoShot's README; platform list
+  (Kuaishou/TikTok/Reels/YT Shorts) confirmed there too.
+- AutoShot MIT — confirmed by fetching the LICENSE file (MIT,
+  (c) 2023 Wentao Zhu), not GitHub's sidebar inference.
+- TransNetV2 MIT — same method (MIT, (c) 2020 Tomas Soucek).
+- surya's split license (the REJECTION basis, so verified hardest):
+  README states verbatim "The Surya code is licensed under Apache
+  2.0. The model weights use a modified AI Pubs Open Rail-M license
+  (free for research, personal use, and startups under $5M
+  funding/revenue)." Root LICENSE is indeed Apache. The rejection
+  stands on the primary source.
+- CORRECTION: my scan wrote the weights license as "cc-by-nc-sa /
+  OpenRAIL-M". The repo's own badge and text say OpenRAIL-M only;
+  cc-by-nc-sa came from a secondary summary, not the source. The
+  rejection is unaffected (both carry commercial restrictions
+  incompatible with MIT), but the specific string was wrong.
+
 ## Honest limits
 
 - SHOT's annotation granularity (hard cuts vs gradual types) needs
