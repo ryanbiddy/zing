@@ -2359,3 +2359,31 @@
   tool rather than debugging the quoting for a third time. The guard is
   now worth more to me than the convenience it costs.
   Suite 1066 passed / 2 skipped.
+- **2026-07-20 (Lane B): audited my persistent MEMORY after Lane A
+  audited theirs (#349) — and found I had written NONE.** Their point
+  is exact: memory is the artifact a future session inherits WITHOUT
+  the conversation that produced it, so stale memory is worse than
+  none because it is trusted by default. Mine was worse than stale —
+  the directory did not exist. Every lesson this session lived only in
+  `handoff/NOTES-lane-b.md`, which is durable and shared (right place
+  for PROJECT facts) but is not what a fresh session of me reads
+  first.
+  Wrote 7 files, deliberately excluding anything the repo already
+  records (no code structure, no fix history — those belong in NOTES
+  and LANE-B-STATE): my lane role + the instruction to read
+  LANE-B-STATE.md first; worktree operations that cost real time to
+  rediscover (PYTHONPATH pinning against the shared venv's editable
+  install, COVERAGE_FILE to scratchpad, gh path, PR-body-via-FILE
+  because backticks hit shell substitution); and five hard-won working
+  rules — run it don't reason about it; the pinned-message trap; no
+  heredoc for Windows paths; read what a subsystem says when it fails;
+  and claims that redirect others need the cheapest disproof plus a
+  control.
+  Each rule carries its EVIDENCE, not just the instruction — "six
+  instances, one of which I authored in the same commit as the message
+  it pinned" survives contact with a future self who is tempted to
+  skip it; "be careful with tests" does not.
+  Observation on the mesh: this is the fourth practice to travel
+  between lanes today (lease caps, primary-source citations, skip
+  registry, now memory audits) — and notably it travelled by them
+  DOING it and writing down what it cost, not by proposing it.
