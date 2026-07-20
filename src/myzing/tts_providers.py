@@ -22,7 +22,9 @@ provider produced a track.
 from __future__ import annotations
 
 import json
+import importlib.util
 import os
+import sys
 import urllib.error
 import urllib.request
 import wave
@@ -184,7 +186,32 @@ def tts_status() -> dict[str, Any]:
     from myzing.render.tts import MODEL_FILENAME, VOICES_FILENAME  # noqa: F401
 
     kokoro = default_tts_provider()
-    kokoro_ready = kokoro.model_path.is_file() and kokoro.voices_path.is_file()
+    # Readiness needs BOTH halves. Model files alone were the old test —
+    # a proxy for the capability, not the capability (audit #201's lineage:
+    # doctor must never report ready over a path that will fail). Found
+    # live on Python 3.14, where the model files sit on disk but
+    # kokoro-onnx caps at <3.14 and cannot be imported at all, so
+    # voiceover failed at RENDER time after doctor said it was fine.
+    kokoro_files = kokoro.model_path.is_file() and kokoro.voices_path.is_file()
+    kokoro_runtime = importlib.util.find_spec("kokoro_onnx") is not None
+    kokoro_ready = kokoro_files and kokoro_runtime
+    if kokoro_ready:
+        kokoro_detail = "model files present, kokoro-onnx importable"
+    elif not kokoro_runtime and kokoro_files:
+        kokoro_detail = (
+            "model files present but kokoro-onnx is not importable in this "
+            f"Python ({sys.version_info.major}.{sys.version_info.minor}) — "
+            'install it (pip install "myzing[render]"), or if your Python is '
+            "too new for it, use the elevenlabs provider or run zing on a "
+            "Python it supports"
+        )
+    elif not kokoro_runtime:
+        kokoro_detail = (
+            "kokoro-onnx not installed and model files missing "
+            f"(looked at {kokoro.model_path})"
+        )
+    else:
+        kokoro_detail = f"model files missing (looked at {kokoro.model_path})"
     key_set = bool(os.environ.get(ELEVENLABS_KEY_ENV, "").strip())
     selected = (
         os.environ.get(PROVIDER_ENV, "").strip().lower() or DEFAULT_PROVIDER
@@ -194,11 +221,7 @@ def tts_status() -> dict[str, Any]:
         "providers": {
             "kokoro": {
                 "ready": kokoro_ready,
-                "detail": (
-                    "model files present"
-                    if kokoro_ready
-                    else f"model files missing (looked at {kokoro.model_path})"
-                ),
+                "detail": kokoro_detail,
             },
             "elevenlabs": {
                 "ready": key_set,

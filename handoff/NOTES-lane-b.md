@@ -1971,3 +1971,30 @@
   refactors the safety net is the test suite, so run it before
   believing the diff.
   Suite 1002 passed / 2 skipped (first four-figure count).
+- **2026-07-20 (Lane B): SG-4 pass (rotation) — scanned the optional
+  TTS tier my own #248 scan skipped, and it was hiding a live
+  false-ready.** Record: research/SG4-TTS-TIER-2026-07-20.md.
+  **THE FINDING:** kokoro-onnx caps at Python <3.14; this box runs
+  3.14.6, so the package cannot be installed — yet `tts_status()`
+  reported `ready: True` ("model files present") and doctor printed a
+  healthy TTS line. A user on 3.14 would have learned the truth at
+  RENDER time, the most expensive possible place.
+  It is the exact shape of audit #201 and D-11, on a third surface:
+  readiness tested through a PROXY (model files on disk) instead of the
+  CAPABILITY (can the runtime be imported). I have now fixed this
+  pattern three times in three different modules, which says the
+  pattern is the thing to watch for, not the individual bugs.
+  Fixed: readiness requires model files AND kokoro_onnx importable; the
+  detail names the Python version and both real ways forward; and the
+  doctor FIX is branch-aware, because prescribing a model download to
+  someone whose Python cannot run the engine is D-13's re-prescribed-
+  fix dead end wearing a different hat.
+  Sharpest lesson, recorded for the mesh: the version ceiling was
+  ALREADY KNOWN — test_eval_voiceover skips with "the isolated Python
+  3.10-3.13 gate". The constraint lived in a test skip and never
+  reached the readiness REPORT. **A known constraint that exists only
+  in a test skip is a constraint the product does not know.** Worth
+  grepping other lanes' skips for the same shape.
+  Not changed: the <3.14 ceiling is upstream's. Zing supporting 3.10+
+  while an OPTIONAL provider supports 3.10-3.13 is legitimate — honest
+  degradation is the entire point of the optional tier. Suite 1005.
