@@ -1494,3 +1494,34 @@
   SDK floor's negotiated revision BEFORE registry publication, or the
   registry advertises a server that new-revision clients fail to
   handshake with. Suite 925 passed / 2 skipped.
+- **2026-07-19 (Lane B): CLAIMED the collateral lens's zing-docs
+  slices — CX1-P2-1 and the Lane-D-roster P3 — both closed.**
+  Lane A verified CX1-P2-1 doesn't touch their surfaces ("docs-only");
+  docs and the TTS provider registry are mine, so it routed here.
+  - CX1-P2-1: README claimed "all locally" and "No API keys, no
+    cloud" while tts_providers has shipped a key-gated ElevenLabs
+    provider since S4-B — my own surface contradicting my own README.
+    Rewritten to what is actually true: measurement and rendering run
+    on your machine; zing needs no API key and runs no service of its
+    own; the only network calls are the ones you ask for (the URL you
+    hand it, and opt-in ElevenLabs voiceover — default engine local);
+    your AI client is yours to choose, cloud or local. That last
+    clause also settles the quiet contradiction between "no cloud"
+    and "judgment is done by your own AI over MCP" (usually Claude
+    Desktop — cloud).
+    Pinned STRUCTURALLY, same doctrine as the CONNECT tool-count
+    gate: a test walks `_REGISTRY`, and any provider that isn't the
+    local default must appear in the README, plus the struck absolute
+    phrasings can't come back. Adding a second external provider now
+    fails CI until it's disclosed.
+  - P3 (roster): removed the Lane A–D worktree roster from the public
+    DEVELOPER-GUIDE — Lane D is retired, and the new-user lens had
+    already called the section agent-orchestration jargon. Replaced
+    with the contributor facts that actually matter (PR flow, suite
+    must pass, subsystem partitioning, schemas.py as the coordinated
+    shared contract).
+  Observation: this is the SG-3 lesson again from the other end — a
+  promise duplicated between CODE and PROSE drifts the same way one
+  duplicated between two files does. The registry is the truth; the
+  README now cites it under test.
+  Suite 927 passed / 2 skipped.
