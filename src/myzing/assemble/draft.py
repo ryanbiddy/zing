@@ -221,7 +221,31 @@ def _output_dimensions(
 def _caption_style(breakdown: Breakdown) -> tuple[str, bool, bool]:
     """(position, all_caps, word_timed) — measured from the source's own
     captions when it has any, sensible short-form defaults otherwise
-    (raw recordings have no captions to measure)."""
+    (raw recordings have no captions to measure).
+
+    KNOWN DEFECT, measured 2026-07-20, traced but NOT fixed here.
+    This reads `breakdown.captions`, which on long-form can be entirely
+    non-caption text: the overlay exclusion in captions.py cannot fire
+    there (see its MEASURED LIMIT note), so gameplay HUD, scoreboards
+    and watermarks arrive as "captions". On the P-C2 HUD cell — 1,882
+    events, ZERO of them real captions by hand label — this function
+    returns position='center', all_caps=False, word_timed=True, i.e. it
+    styles a creator's draft from a scoreboard, silently.
+
+    The O-3 thin-basis warning does NOT catch this: it fires below
+    THIN_STYLE_BASIS_EVENTS, and here the basis is huge — just wrong.
+    A rich basis is not a trustworthy one.
+
+    Refuted candidate (measured, do not retry blind): position
+    CONCENTRATION does not separate them. The HUD cell's dominant
+    position holds 73.6% of events — HIGHER than two cells with real
+    captions (47.6%, 60.3%).
+
+    The upstream fix is the queued region-merge item: restoring overlay
+    exclusion on long-form removes most of this text before it ever
+    reaches here. Fixing it downstream would need the caption/
+    non-caption discriminator that P-C2 showed does not yet exist.
+    """
     measured = breakdown.captions
     if not measured:
         return "lower", True, True
