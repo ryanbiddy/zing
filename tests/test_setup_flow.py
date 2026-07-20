@@ -438,3 +438,114 @@ def test_summary_preserves_start_denied_cause(zing_workspace, monkeypatch, capsy
     summary = out[out.index("could not be completed"):]
     assert "[not-started]" in summary.replace(" ", "") or "not-started" in summary
     assert "not in this build yet" in summary  # the cause, in the summary itself
+
+
+# -- SG-2: onboarding FAILURE paths (what a new user actually hits) ----------
+
+def test_finish_pack_unknown_name_is_honest(zing_workspace, pack_dir):
+    result = setup_flow.finish_pack("no-such-pack")
+    assert result["ok"] is False
+    assert "no preset pack named 'no-such-pack'" in result["error"]
+
+
+def test_finish_pack_reports_pack_build_failure(zing_workspace, pack_dir, monkeypatch):
+    from myzing.profile.packs import PackError
+
+    def failing(*a, **k):
+        raise PackError("no reference could be studied")
+
+    monkeypatch.setattr("myzing.profile.packs.build_pack", failing)
+    result = setup_flow.finish_pack("ai-tech-talking-head")
+    assert result["ok"] is False
+    assert "pack build failed" in result["error"]
+    assert "no reference could be studied" in result["error"]
+
+
+def test_finish_pack_unexpected_error_becomes_data_with_its_type(
+    zing_workspace, pack_dir, monkeypatch
+):
+    """The boundary exists so an engine bug reaches the user as an
+    envelope, not a traceback — and names the exception type so the
+    report is actionable."""
+    def exploding(*a, **k):
+        raise RuntimeError("ffprobe vanished")
+
+    monkeypatch.setattr("myzing.profile.packs.build_pack", exploding)
+    result = setup_flow.finish_pack("ai-tech-talking-head")
+    assert result["ok"] is False
+    assert "RuntimeError" in result["error"]
+    assert "ffprobe vanished" in result["error"]
+
+
+def test_cli_lists_a_broken_pack_as_broken(tmp_path, monkeypatch, capsys):
+    """A malformed pack must be listed as BROKEN with its reason, not
+    hidden — a silently-missing pack is unexplainable to the user."""
+    d = tmp_path / "presets"
+    d.mkdir()
+    (d / "wrecked.json").write_text("{not json", encoding="utf-8")
+    monkeypatch.setenv(setup_flow.PRESETS_DIR_ENV, str(d))
+    assert setup_flow.run(["--list"]) == 0
+    out = capsys.readouterr().out
+    assert "BROKEN" in out and "wrecked" in out
+
+
+def test_cli_pack_build_failure_exits_nonzero_with_reason(
+    zing_workspace, pack_dir, monkeypatch, capsys
+):
+    monkeypatch.setattr(
+        setup_flow, "finish_pack",
+        lambda name, study_missing=False: {
+            "ok": False, "error": "profiles need 2+ studied sources"
+        },
+    )
+    code = setup_flow.run(["--pack", "ai-tech-talking-head"])
+    assert code == 1
+    assert "profiles need 2+" in capsys.readouterr().out
+
+
+def test_cli_pack_names_references_it_built_without(
+    zing_workspace, pack_dir, monkeypatch, capsys
+):
+    """A pack that builds from 4 of 5 refs must SAY which one it lost —
+    silently building from less than the curated set is the lie D-12
+    was filed about, on the setup surface."""
+    monkeypatch.setattr(
+        setup_flow, "finish_pack",
+        lambda name, study_missing=False: {
+            "ok": True,
+            "profile_name": "pack-ai-tech-talking-head",
+            "sources": 1,
+            "unjudged_sources": 1,
+            "studied": ["r1"],
+            "reused": [],
+            "ref_failures": ["r2: Video unavailable"],
+            "warnings": [],
+        },
+    )
+    assert setup_flow.run(["--pack", "ai-tech-talking-head"]) == 0
+    out = capsys.readouterr().out
+    assert "reference failed (pack built without it): r2: Video unavailable" in out
+
+
+def test_wait_for_studies_reports_progress_while_polling(
+    zing_workspace, monkeypatch
+):
+    """The CLI's progress callback is the only thing standing between a
+    long study and a user who thinks zing hung."""
+    slug = storage.slug_for(LINKS[0])
+    storage.write_status(slug, state="running", phase="shots", pid=1)
+    seen: list[list] = []
+    calls = {"n": 0}
+
+    def fake_reconcile(s, status):
+        calls["n"] += 1
+        if calls["n"] >= 2:  # second look: the runner is gone
+            return {"state": "failed", "error": "runner died"}
+        return status
+
+    monkeypatch.setattr(mcp_server, "_reconcile_running", fake_reconcile)
+    setup_flow.wait_for_studies(
+        "mytaste", [LINKS[0]], poll_s=0.0, progress=seen.append
+    )
+    assert seen and seen[0][0][0] == slug  # reported the running slug
+    assert seen[0][0][1] == "shots"  # ...with its phase, not just a spinner
