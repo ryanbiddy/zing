@@ -57,7 +57,7 @@ def main() -> int:
     non = [r for r in rows if r["label"] != CAPTION]
     print(f"labeled lines: {len(rows)} | captions {len(caps)} | other {len(non)}\n")
 
-    print("composition by cell (3 of 5 cells contain zero captions):")
+    print("composition by cell (3 of 6 cells contain zero captions):")
     per = collections.defaultdict(lambda: [0, 0])
     for r in rows:
         per[r["slug"]][0] += 1
@@ -92,9 +92,10 @@ def main() -> int:
     for slug in captioned:
         ys = [r["y_center"] for r in caps if r["slug"] == slug]
         print(f"  {slug:26} y min={min(ys):.2f} median={statistics.median(ys):.2f} max={max(ys):.2f}")
-    print("  every captioned cell is lower-third; a top-captioned video")
-    print("  would score recall 0 under this rule. Perfect recall above is")
-    print("  a property of the sample, not evidence of generality.")
+    print("  The y>=0.55 rule was FALSIFIED by adding youtube-fuxm3vz-keo")
+    print("  (karaoke captions at y~0.38, frame-verified): it scores")
+    print("  P=0.000 R=0.000 there, and aggregate recall fell 1.000 ->")
+    print("  0.778. Position is style-dependent, not a caption invariant.")
     return 0
 
 

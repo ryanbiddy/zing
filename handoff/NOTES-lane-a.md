@@ -1294,3 +1294,29 @@
   centre-captioned cell — a smaller job than the original freeze.
   Note + regeneration script:
   handoff/research/P-C2-BASELINE-2026-07-20.md, pc2_baseline.py.
+
+- **2026-07-20 (Lane A): FALSIFIED my own P-C2 candidate rule — the
+  prediction was tested and came true.** Last cycle I reported that
+  lower-third + >=2 tokens hit F1=0.821 and explicitly refused to
+  recommend shipping it, because every captioned cell in the dataset
+  used lower-third captions and a top-captioned video "would score
+  RECALL 0". Rather than leave that as a caveat for someone else, I
+  sourced the falsifier from my own corpus: `youtube-fuxm3vz-keo`, a
+  phone-comparison short whose burned-in KARAOKE captions sit at
+  **y~0.38** (frame-verified at t=1 — "SAMSUNG DEBATE IS" with the
+  active word highlighted), above centre, with pasted product images
+  above and price text below. Froze it (490 raw OCR lines), labeled
+  it (105 captions), re-ran the baseline.
+  **Result: P=0.000, R=0.000 on the new cell — the rule catches ZERO
+  of its 105 captions.** Aggregate recall fell 1.000 -> 0.778, F1
+  0.821 -> 0.735. The predicted failure occurred exactly.
+  **Conclusion: caption position is a STYLE, not an invariant.** Any
+  promoted signal must be position-agnostic or first measure the
+  video's own caption band — which Zing already does (`_caption_style`
+  derives position from the source's measured captions), so the
+  honest version of this rule is per-video, not global. Finding 1
+  (confidence anti-correlated: captions 0.988 vs others 1.000) is
+  UNAFFECTED and holds on the enlarged 15,721-line set.
+  Dataset now 6 cells / 15,721 labels, and pc2_baseline.py's stale
+  "every captioned cell is lower-third" line is corrected — a script
+  that asserts a fact must not outlive the fact.
