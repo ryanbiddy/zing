@@ -105,6 +105,13 @@ _LEASE_KEYS = {
     "pid", "started_at",
 }
 
+# The lease is the most attacker-controllable input zing has: a file any
+# local process can write, read on every doctor run. A conformant lease
+# is well under a kilobyte, so cap the read — `shot_list` already caps
+# its (user-CHOSEN, therefore less hostile) import at 2 MiB, and leaving
+# this one unbounded was an inconsistency, not a decision.
+_LEASE_SIZE_LIMIT = 64 * 1024
+
 
 def lease_paths(service_id: str) -> list[Path]:
     """The per-user runtime-lease locations from §3.4, in platform order.
@@ -197,6 +204,14 @@ def read_lease(service_id: str) -> tuple[str | None, str | None, str]:
     """
     for path in lease_paths(service_id):
         try:
+            if path.stat().st_size > _LEASE_SIZE_LIMIT:
+                return (
+                    None,
+                    "invalid_lease",
+                    f"lease at {path} is larger than "
+                    f"{_LEASE_SIZE_LIMIT // 1024} KiB — a conformant lease is "
+                    "well under a kilobyte; refusing to read it",
+                )
             raw = path.read_text(encoding="utf-8")
         except (OSError, ValueError):
             continue  # absent or unreadable: try the next platform location

@@ -727,3 +727,47 @@ def test_lease_paths_cover_all_three_platforms(monkeypatch):
     assert any("RyanSuite/services.d/uoink.json" in p for p in paths)
     assert any("Library/Application Support/RyanSuite" in p for p in paths)
     assert any("ryan-suite/services.d/uoink.json" in p for p in paths)
+
+
+def test_oversized_lease_is_refused_without_reading_it(lease_dir, monkeypatch):
+    """SG-4 security scan: the lease is the most attacker-controllable
+    input on this surface — a file any local process can write, read on
+    every doctor run. shot_list already capped its (user-chosen, less
+    hostile) import; leaving this unbounded was an inconsistency."""
+    big = lease_dir / "uoink.json"
+    big.write_bytes(b"{" + b" " * (suite_peer._LEASE_SIZE_LIMIT + 1))
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen",
+        lambda *a, **k: pytest.fail("an oversized lease must not be followed"),
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "invalid_lease"
+    assert "KiB" in peer["error"]["message"]
+    assert peer_is_valid(peer)
+
+
+def test_configured_token_never_appears_in_any_surface(lease_dir, monkeypatch):
+    """SG-4 security scan: the sibling product's review found a token
+    printed into a URL. Assert zing cannot: not in the request URL, the
+    peer envelope, the evidence receipt, or any doctor field."""
+    secret = "SUPERSECRET-TOKEN-VALUE"
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, secret)
+    seen_urls: list[str] = []
+
+    class Recording(FakeUoink):
+        def __call__(self, request, timeout=0):
+            seen_urls.append(request.full_url)
+            return super().__call__(request, timeout)
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", Recording())
+    peer, evidence = suite_peer.probe_uoink()
+    doctor._peer_cache.clear()
+    monkeypatch.setattr(suite_peer, "probe_uoink", lambda: (peer, evidence))
+    check = doctor.check_uoink()
+
+    haystacks = [
+        *seen_urls, json.dumps(peer), evidence,
+        check.detail, check.fix, json.dumps(check.data),
+    ]
+    for text in haystacks:
+        assert secret not in text
