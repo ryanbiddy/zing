@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,18 @@ def _git(repo: Path, *arguments: str) -> None:
         text=True,
         check=True,
     )
+
+
+def test_port_probe_refuses_a_reusable_bound_listener() -> None:
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+
+        assert smoke._port_available(listener.getsockname()[1]) is False
+    finally:
+        listener.close()
 
 
 def test_recorded_revision_refuses_uncommitted_runtime_source(
