@@ -2672,3 +2672,51 @@
   MCP posts confirm nothing breaks for existing servers on 07-28, so
   there is no urgency to port, only urgency not to drift into it. New
   trigger: `mcp 2.0.0` leaving beta.
+- **2026-07-20 (Lane B): claimed the routed item from Lane A's #363 —
+  my warning taxonomy was missing a kind, and my own data had shown it
+  to me.** Lane A reviewed #360's three kinds (skipped/degraded,
+  resolution stated, normalization applied), found each accurate but the
+  set INCOMPLETE, and routed the gap to me because prompts are mine.
+  The missing kind is **a measurement that RAN and found something**:
+  dead-air spans, filler counts, repeated takes, profile-coherence
+  spread, an EDL span that is not a measured keeper.
+  Their argument for why the omission is the costly one is right and I
+  had it backwards: forcing these into kind 1 says "evidence is MISSING"
+  when the evidence is present and speaking, and into kind 3 says
+  "confidence went UP", which is not what a repeated take means. These
+  are exactly the entries a creator should ACT on — retake-spotting is
+  the S3 feature's whole point — so misfiling them as "nothing went
+  wrong" is the worst available error.
+  **What stings is that my own measurement showed me this.** My
+  classification script printed `raw: 1 keeper segment(s)` in the
+  not-a-problem bucket, and I wrote "and one finding" in last cycle's
+  NOTES — then encoded three kinds. I had the counter-example in hand
+  and let the taxonomy I had already drafted absorb it. Measuring is not
+  the same as reading what you measured.
+  Verified before adopting rather than trusting the routing: all six
+  cited warnings exist in the emitting source (`study/raw.py`,
+  `study/command.py`, `study/captions.py`, `profile/api.py`,
+  `assemble/draft.py`). Re-classified the frozen set into four kinds —
+  **1 skipped / 6 resolution / 4 normalization / 1 finding** — so "11 of
+  12 are not gaps" survives, but my sentence "11 of 12 are kinds 2 and
+  3" did not, and is now "kinds 2-4".
+  study.md 0.5.0 -> **0.6.0** (kind 4, plus the honest note that the
+  frozen set UNDER-represents it at 1 of 12 because those are mostly
+  finished videos — a raw-mode study is dominated by it). direct.md
+  1.2.0 -> **1.3.0**, where it matters most: a directing AI reading "51
+  dead-air spans" as noise to skip is the failure, when those entries
+  name times and are the material to direct from.
+  **Two smaller honesty repairs found while doing it.** (1) direct.md's
+  1.2.0 changelog said the 11 were "stated resolutions or applied
+  normalizations" — imprecise when I wrote it, since one is a finding.
+  Corrected in place with a note rather than silently, because a
+  changelog stating a false fact is a pinned-message trap aimed at
+  whoever reads it next. (2) My ratio gate was parametrized over study
+  AND direct, but direct.md 1.3.0 states the idea qualitatively and
+  carries no live number — so that half was matching its CHANGELOG,
+  pinning history instead of guidance. Scoped the gate to study.md and
+  said why in the docstring. A gate pointed at the wrong text is the
+  appearance of a gate.
+  Suite **1094 passed / 2 skipped** — one fewer than last cycle's 1095
+  because I removed that parametrize case deliberately, not a
+  regression.

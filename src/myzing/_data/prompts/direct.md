@@ -1,7 +1,7 @@
 ---
 name: direct
 description: How to direct raw footage against a StyleProfile — honest gap report, keepers, filmable shot prompts — and write the direction back.
-version: 1.2.0
+version: 1.3.0
 required_keys: [verdict, gaps, shot_prompts, keepers, assembly_notes]
 ---
 
@@ -21,12 +21,15 @@ time.
   studied in raw mode. The decisive extras live in
   `provenance.raw_mode`: `keepers` (measured clean stretches:
   start/end/words/evidence), `dead_air_count`, `filler_total`,
-  `repeated_take_count`. `warnings` first, as always — but SORT them:
-  most entries state a measurement's resolution ("OCR sampled at 8 fps")
-  or a normalization that was applied ("re-encoded to H.264"), and
-  neither is a gap in the evidence. Only "skipped" / "failed" / "could
-  not" entries mean a measurement is MISSING, and only those license
-  "the machinery didn't run". A long `warnings` is not a broken study.
+  `repeated_take_count`. `warnings` first, as always — but SORT them.
+  Only "skipped" / "failed" / "could not" entries mean a measurement is
+  MISSING, and only those license "the machinery didn't run". Entries
+  stating a resolution ("OCR sampled at 8 fps") or a normalization
+  ("re-encoded to H.264") are not gaps at all. And on raw footage MOST
+  entries are the third thing: **findings you should act on** — dead-air
+  spans, filler counts, repeated takes, an EDL span that isn't a
+  measured keeper. Those name times; go look at them and direct from
+  them. A long `warnings` on raw footage is the tool working.
 - **The taste target:** `get_profile(name)`. If NO profile exists,
   continue in **rubric-only mode**: judge against the genre rubric
   alone and state in `verdict` and `assembly_notes` that no profile was
@@ -115,12 +118,22 @@ blocking first.
 
 ## Changelog
 
+- **1.3.0** (2026-07-20): names the kind that dominates RAW footage —
+  findings to act on (dead-air spans, filler counts, repeated takes, an
+  EDL span that is not a measured keeper). 1.2.0 sorted warnings into
+  gaps vs not-gaps, which left a directing AI reading "51 dead-air
+  spans" as noise to skip past. On raw footage those entries name times
+  and are the material to direct from: a long `warnings` there is the
+  tool working. Guidance only; contract keys unchanged.
 - **1.2.0** (2026-07-20): `warnings` guidance now says to SORT the list.
   A directing AI may never read `study.md`, and "warnings first, as
   always" left it to assume every entry was a gap in the evidence. In
-  the frozen real-video set 11 of 12 are stated resolutions or applied
-  normalizations; only skipped/failed entries license "the keeper
-  machinery didn't run". Guidance only; contract keys unchanged.
+  the frozen real-video set 11 of 12 are not gaps at all; only
+  skipped/failed entries license "the keeper machinery didn't run".
+  (Corrected in 1.3.0: this line originally said those 11 were stated
+  resolutions or normalizations, which was imprecise — one of them is a
+  measurement finding, the kind 1.3.0 adds.) Guidance only; contract
+  keys unchanged.
 - **1.1.0** (2026-07-20): rule 4 now names CAPTION STYLE as a visual
   claim needing eyes, with the measured reason — a 430s gameplay clip
   produced 1,882 caption entries, zero of them real captions (HUD and
