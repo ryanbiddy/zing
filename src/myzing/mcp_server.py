@@ -309,6 +309,20 @@ def _record_engagement_if_earned(breakdown: Any, slug: str) -> None:
     storage.save_breakdown(breakdown, slug=slug)
 
 
+ENGINE_MISSING = (
+    "the study engine needs the study extras, which are not installed in "
+    'this Python: python -m pip install "myzing[study]" (they carry '
+    "scenedetect, faster-whisper and the OCR backend; the one-click .mcpb "
+    "bundle installs only the MCP server, so this is the expected first "
+    "step there). `zing doctor` names any tool still missing afterwards."
+)
+
+PROFILE_ENGINE_MISSING = (
+    "the profile builder needs the study extras, which are not installed "
+    'in this Python: python -m pip install "myzing[study]"'
+)
+
+
 def _run_study(
     study_fn: Any,
     source: str,
@@ -420,9 +434,7 @@ def h_study_video(
     api = _study_api()
     if api is None:
         return _err(
-            "the study engine is not in this build yet (Sprint 1 in "
-            "progress) — study_video will work here unchanged once it "
-            "lands; zing_status().engine_available will flip to true"
+            ENGINE_MISSING
         )
     if kept is not None and not _engine_supports(api, "kept_media"):
         return _err(
@@ -534,8 +546,7 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
     api = _study_api()
     if api is None:
         return _err(
-            "the study engine is not in this build yet — "
-            "zing_status().engine_available will flip to true when it lands"
+            ENGINE_MISSING
         )
     if not (_engine_supports(api, "kept_media") and _engine_supports(api, "handoff")):
         return _err(
@@ -887,9 +898,7 @@ def h_build_profile(
     api = _profile_api()
     if api is None:
         return _err(
-            "the profile builder is not in this build yet (Sprint 2 in "
-            "progress) — build_profile will work here unchanged once it "
-            "lands"
+            PROFILE_ENGINE_MISSING
         )
 
     kwargs: dict[str, Any] = {}

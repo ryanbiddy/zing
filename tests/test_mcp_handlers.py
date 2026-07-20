@@ -210,7 +210,11 @@ def test_study_video_engine_absent_is_honest(zing_workspace, monkeypatch):
     monkeypatch.setattr(mcp_server, "_study_api", lambda: None)
     result = mcp_server.h_study_video(SRC_URL)
     assert result["ok"] is False
-    assert "not in this build yet" in result["error"]
+    # Was "not in this build yet (Sprint 1 in progress)" — this test
+    # PINNED the stale message and so protected it from being noticed.
+    # A test asserting a message is also a test asserting that message
+    # stays correct; when the world moved, the pin held the lie in place.
+    assert 'myzing[study]' in result["error"]
 
 
 def test_study_video_job_lifecycle(zing_workspace, fake_engine):
@@ -1058,3 +1062,67 @@ def test_study_kwargs_only_passes_what_the_engine_accepts():
         ...
 
     assert mcp_server._study_kwargs(minimal, None, None, print) == {}
+
+
+# -- SG-4: the .mcpb bundle's world (core installed, study extras absent) ---
+
+@pytest.fixture
+def extras_absent(monkeypatch):
+    """Exactly what the documented one-click .mcpb install produces: the
+    core package plus `mcp`, and NO study extras (they carry compiled
+    wheels the uv-type bundle deliberately does not ship)."""
+    real = mcp_server.importlib.import_module
+
+    def missing(name, *a, **k):
+        if name in ("myzing.study.api", "myzing.profile.api"):
+            raise ImportError("No module named 'scenedetect'")
+        return real(name, *a, **k)
+
+    monkeypatch.setattr(mcp_server.importlib, "import_module", missing)
+    monkeypatch.setattr(mcp_server.shutil, "which", lambda n: f"/bin/{n}")
+
+
+def test_bundle_user_is_told_to_install_extras_not_to_wait(
+    zing_workspace, extras_absent
+):
+    """Found by scanning our own install paths: this message used to say
+    'not in this build yet (Sprint 1 in progress) — study_video will work
+    here unchanged once it lands'. Sprint 1 shipped long ago; the engine
+    IS in the build; the extras are not. It told a user reachable via our
+    documented .mcpb path to WAIT for something that already exists —
+    unactionable advice for a one-command fix."""
+    for result in (
+        mcp_server.h_study_video("https://www.tiktok.com/@a/video/1"),
+        mcp_server.h_study_uoink_item("uoink://item/short-1"),
+    ):
+        assert result["ok"] is False
+        error = result["error"]
+        assert 'myzing[study]' in error
+        assert "not in this build yet" not in error
+        assert "Sprint" not in error
+        assert "once it lands" not in error
+
+
+def test_profile_builder_absence_names_the_extras_too(zing_workspace, extras_absent):
+    b = make_breakdown()
+    storage.save_breakdown(b, slug=SLUG)
+    result = mcp_server.h_build_profile("mine", [SLUG])
+    assert result["ok"] is False
+    assert 'myzing[study]' in result["error"]
+    assert "Sprint" not in result["error"]
+
+
+def test_no_user_facing_message_cites_a_sprint():
+    """Sprint numbers are internal scheduling. A user reading one learns
+    nothing they can act on, and it dates the product on their screen."""
+    import re
+    from pathlib import Path
+
+    src = Path(mcp_server.__file__).read_text(encoding="utf-8")
+    # Only inside string literals that reach users — the module docstring
+    # and code comments legitimately cite sprint rulings as provenance.
+    offenders = [
+        line.strip() for line in src.splitlines()
+        if re.search(r'"[^"]*Sprint \d', line)
+    ]
+    assert not offenders, f"user-facing text citing a sprint: {offenders}"

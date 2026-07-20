@@ -2121,3 +2121,33 @@
   testability rather than length (probe_uoink, resolve_kept_media, now
   this) — the pattern is that a condition worth a comment is usually a
   condition worth a function.
+- **2026-07-20 (Lane B): SG-4 pass — scanned zing's platform-install
+  position after the RB block's macOS/LGPL findings, and found a
+  user-facing lie on our own one-click path.** Record:
+  research/SG4-PLATFORM-INSTALL-2026-07-20.md.
+  Good news first, and worth stating plainly while the suite has a live
+  LGPL question: zing's core has ZERO runtime dependencies, every
+  compiled thing lives in the optional [study] extra, and **ffmpeg is
+  required but never bundled** — we distribute no binary and link
+  nothing, so that legal question does not arise on our side.
+  **THE FINDING:** a .mcpb install produces core + mcp and NO study
+  extras (by design — the uv bundle deliberately ships no compiled
+  wheels). Ask that install to study, and it said "the study engine is
+  not in this build yet (Sprint 1 in progress) — study_video will work
+  here unchanged once it lands." Stale, misdiagnosed (the engine IS in
+  the wheel; the extras are not), and actively misleading: it tells a
+  user to WAIT for something that already exists, when the fix is one
+  pip command. Same family as D-13 and P1-1 — advice that cannot be
+  followed. Fixed at all three sites to name the cause and the command.
+  **Why it survived is the real lesson: THREE tests pinned the wrong
+  text.** Each was written to protect an honest message; when the world
+  moved, they protected a lie instead — and made it invisible, because
+  green tests read as confirmation. A test that pins a message pins
+  that message's CORRECTNESS too, and nothing was watching whether the
+  sentence remained true. I have now been on both sides of this in one
+  session: pins caught my regressions, and pins hid this defect for
+  ~15 sprints.
+  New guard: no user-facing string in mcp_server may cite "Sprint N".
+  Sprint numbers are internal scheduling — a user learns nothing
+  actionable and sees the product's age on their screen.
+  Suite 1032 passed / 2 skipped.

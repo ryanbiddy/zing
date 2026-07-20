@@ -437,7 +437,9 @@ def test_summary_preserves_start_denied_cause(zing_workspace, monkeypatch, capsy
     assert code == 1
     summary = out[out.index("could not be completed"):]
     assert "[not-started]" in summary.replace(" ", "") or "not-started" in summary
-    assert "not in this build yet" in summary  # the cause, in the summary itself
+    # the CAUSE must reach the summary; the cause is now named
+    # accurately (missing extras) rather than as a stale sprint note.
+    assert 'myzing[study]' in summary
 
 
 # -- SG-2: onboarding FAILURE paths (what a new user actually hits) ----------
