@@ -39,6 +39,11 @@ vocabulary. The prompt's plain-language rule held under real use.
    full-fidelity gate (keepers from real raw-mode measurements of a
    genuinely unedited clip) needs the re-frozen replacement with
    `raw_mode` provenance — Lane C/D dependency, flagged here.
+
+   **CLOSED 2026-07-20** by `S3-GATE-FULL-FIDELITY-2026-07-20.md`: the
+   rerun directs `raw-talking-head-korky-paul` (CC0, verified unedited,
+   Lane C's C-CD1 freeze #309) with keepers grounded in real raw-mode
+   evidence. PASS.
 2. The gate profile remains taste-incoherent (S2 gate record) — fine
    for chain-proving, wrong for judging direction QUALITY. Ryan's real
    reference set remains the input for that.
