@@ -35,7 +35,8 @@ Review scope covered the current integration surfaces:
 - the ratified contract, `S6-INTEGRATION.md`, `SUITE-CONNECT.md`,
   `LAUNCH-PLAN.md`, and the Decision Week packet;
 - Zing's `docs/CONNECT.md`, `docs/DEVELOPER-GUIDE.md`, and
-  `docs/SUITE-SMOKE-CI.md`;
+  `docs/SUITE-SMOKE-CI.md`, plus the integration claims in
+  `docs/taste/UX-STUDY-AND-SURFACE.md`;
 - Writer's README and `docs/ARCHITECTURE.md`;
 - Uoink's README, `docs/v2-mcp.md`,
   `docs/writer-compatibility.md`, and short-video `keep_media` surface map.
@@ -67,6 +68,7 @@ they are not current setup instructions and were not rewritten.
 | `DECISION-WEEK-PACKET.md` | **Pass for integration after the guide fix** | Its family-flow instruction delegates setup detail to `SUITE-CONNECT.md`; it does not add a conflicting token or handoff claim. |
 | Zing `docs/CONNECT.md` | **Accurate after CX-4 edits** | Added installed Windows/macOS/source token locations, explicit custody, exact peer-state language, and conditional HTTP(S)-only refetch. |
 | Zing `docs/SUITE-SMOKE-CI.md` | **Pass** | The deterministic-versus-live boundary, artifacts, assertions, cleanup, and red lines match the workflow and merged-main record. |
+| Zing UX study | **Accurate after CX-4 edits** | Relabeled the 5180 dashboard as a deferred sketch. Zing has no current HTTP listener, and Uoink does not push work into it; a user or AI invokes `study_uoink_item` with a stable reference. |
 | Writer README and architecture | **Pass for integration** | They name `WRITER_UOINK_URL` and `WRITER_UOINK_TOKEN`, constrain corpus access to `uoink.corpus.read` v1, preserve the stable reference, and state that Writer makes no live Zing call. The README's stale “private migration work” sentence is release-status drift, not an integration claim; CX-1 already owns collateral drift. |
 | Uoink README and integration docs | **Pass with routed peer-client gap** | Direct stdio and authenticated HTTP are distinguished; `keep_media` is opt-in and short-video-only; `UOINK_WRITER_URL` and `UOINK_WRITER_TOKEN` are explicit. The peer response implementation is not yet the ratified envelope. |
 
@@ -104,6 +106,7 @@ requires product-code regressions and normal CI in the owning repositories.
 
 `tests/test_integration_docs_contract.py` failed before the edits on the stale
 source-checkout-only token path, the abbreviated peer state presented as the
-contract state, the unconditional refetch promise, and the missing QA record.
-It now pins the corrected Zing setup language and this review's coverage of all
-ratified integration boundaries.
+contract state, the unconditional refetch promise, the missing QA record, the
+claimed live listener on reserved port 5180, and the claimed Uoink push into
+Zing. It now pins the corrected Zing setup language, the deferred dashboard
+boundary, and this review's coverage of all ratified integration boundaries.
