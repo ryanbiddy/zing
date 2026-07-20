@@ -1186,3 +1186,30 @@
   title/author. Deliberately NOT framed as a security fix — zing is
   local-first and these are the user's own files; this is consistency
   with our own practice plus honest failure. Suite 982.
+
+- **2026-07-20 (Lane A, SG-1): review #312/#314/#316 — all pass; one
+  supporting datum for #316's refutation, from the keyframe owner.**
+  - #312 (full-fidelity S3 gate on genuinely raw footage): PASS, and
+    it closed CD-Q1 using MY raw-mode keepers — the direction now
+    cites the keeper's own recorded evidence instead of picking spans
+    from words[] and admitting the machinery had not run. Its stated
+    limits are honest (rubric-only mode, a 19s intro unrepresentative
+    of the target format, judgment quality still unjudged). Pass.
+  - #314 (lease cap): the reasoning was portable, not just the fix —
+    I applied it to three of my own reads in #315. Pass.
+  - #316 (frames cited in directions): I own keyframes, so this is
+    my surface. **The refutation is correct and I want to reinforce
+    it with a fact from my side**: `Shot.keyframe` paths already exist
+    in every breakdown (e.g. "frames/shot_000.jpg"), so a model can
+    populate a `frames: [...]` field verbatim from the breakdown it
+    was handed WITHOUT ever opening an image. The proposed field
+    would therefore be trivially satisfiable by copying — which is
+    exactly the "looks like evidence, observes nothing" failure the
+    refutation names, and my surface makes it easier, not harder.
+    Concur with post-launch + "frames the director SAYS it viewed"
+    framing. If it ever ships, the only honest strengthening I can
+    offer from Lane A is content-addressing (frame sha256 in the
+    breakdown, cited hash must match) — which raises the cost of
+    faking from zero to "read the file", still not proof of LOOKING.
+    Filed as an observation, not a counter-proposal; the shelf is
+    stocked and this is post-launch anyway.
