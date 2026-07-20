@@ -52,14 +52,19 @@ Zing is the *taste, evaluation, and editing* engine, whereas Uoink is the *captu
 
 ---
 
-## 3. Local Dashboard Surface Sketch (Uoink-Style)
+## 3. Deferred Local Dashboard Surface Sketch (Uoink-Style)
 
-The dashboard operates locally at `localhost:5180` (sibling to Uoink's `localhost:5179`), built on the same lightweight web stack but styled in dark-grid mode.
+This section is a future product sketch, not a description of the current
+application. Zing currently runs through its CLI and direct stdio MCP server;
+it has no HTTP listener. Port `5180` is reserved only. A local dashboard should
+remain demand-gated until its first real user workflow justifies the extra
+surface.
 
 ### Tab Architecture
 1. **The Inbox (Incoming)**:
-   - Displays incoming videos pushed from Uoink.
-   - Left panel: list of raw captures awaiting scoring.
+   - Lets the user choose a stable `uoink://item/<id>` reference and invoke
+     `study_uoink_item`; Uoink does not push into Zing.
+   - Left panel: user-selected captures awaiting or undergoing scoring.
    - Right panel: active video preview with a draft score meter.
 2. **The Workbench (Build)**:
    - Tool to select multiple scored clips and compile them into an edit decision list (EDL).
