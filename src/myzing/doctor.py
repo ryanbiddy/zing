@@ -603,6 +603,15 @@ def check_uoink() -> Check:
         tier=OPTIONAL,
         ok=False,
         detail=f"no uoink at {url} (fine — Zing is fully standalone)",
+        # The consequence belongs in degraded_mode, not in a parenthetical:
+        # zing_status serves these fields to an AI, and every other check
+        # puts "what you lose" here. Found by the anti-stranding test —
+        # this was the one branch reporting not-ok with neither a fix nor
+        # a stated consequence in the field consumers read.
+        degraded_mode=(
+            "kept-media study (study_uoink_item) and corpus push are "
+            "unavailable; studying URLs and local files is unaffected"
+        ),
         data={"url": url, "peer": peer, "evidence": evidence},
     )
 
