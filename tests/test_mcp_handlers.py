@@ -3,6 +3,7 @@ job lifecycle on disk, judgment stamping/validation, prompt access."""
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -1112,17 +1113,37 @@ def test_profile_builder_absence_names_the_extras_too(zing_workspace, extras_abs
     assert "Sprint" not in result["error"]
 
 
-def test_no_user_facing_message_cites_a_sprint():
-    """Sprint numbers are internal scheduling. A user reading one learns
-    nothing they can act on, and it dates the product on their screen."""
+def test_no_user_facing_message_misdiagnoses_a_missing_extra():
+    """Two phrasings that shipped for ~15 sprints and could not be acted
+    on: a sprint number (internal scheduling, dates the product on the
+    user's screen) and "not in this build" (the code IS in the build —
+    the EXTRAS are missing, and updating cannot fix that).
+
+    Lane-wide, because the same misdiagnosis was found in two modules on
+    two different cycles: mcp_server (#334) and setup_flow (this one).
+    Docstrings and comments are exempt — they legitimately cite sprint
+    rulings as provenance; only string literals reaching users are
+    checked."""
     import re
     from pathlib import Path
 
-    src = Path(mcp_server.__file__).read_text(encoding="utf-8")
-    # Only inside string literals that reach users — the module docstring
-    # and code comments legitimately cite sprint rulings as provenance.
-    offenders = [
-        line.strip() for line in src.splitlines()
-        if re.search(r'"[^"]*Sprint \d', line)
-    ]
-    assert not offenders, f"user-facing text citing a sprint: {offenders}"
+    root = Path(mcp_server.__file__).parent
+    offenders = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        docstrings = {
+            ast.get_docstring(n, clean=False)
+            for n in ast.walk(tree)
+            if isinstance(n, (ast.Module, ast.ClassDef, ast.FunctionDef))
+        }
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                continue
+            if node.value in docstrings:
+                continue
+            if re.search(r"Sprint \d|not in this build", node.value):
+                offenders.append(f"{path.name}:{node.lineno} {node.value[:60]!r}")
+    assert not offenders, (
+        "user-facing text that misdiagnoses or cites internal scheduling: "
+        f"{offenders}"
+    )

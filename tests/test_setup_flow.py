@@ -338,7 +338,12 @@ def test_finish_pack_error_paths(pack_dir, monkeypatch):
 
     monkeypatch.setitem(_sys.modules, "myzing.profile.packs", None)
     result = setup_flow.finish_pack("ai-tech-talking-head")
-    assert result["ok"] is False and "update Zing" in result["error"]
+    # Was pinned to "update Zing" — the FOURTH test found pinning this
+    # misdiagnosis class. The builder ships in the wheel; an ImportError
+    # means the study extras are absent, and updating gets the user the
+    # same extras they already lack.
+    assert result["ok"] is False
+    assert 'myzing[study]' in result["error"]
 
 
 # -- main-red regression 2026-07-19: torn status reads --------------------------

@@ -2151,3 +2151,31 @@
   Sprint numbers are internal scheduling — a user learns nothing
   actionable and sees the product's age on their screen.
   Suite 1032 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-5 pass — turned last cycle's lesson into a
+  SCAN, and it found a second instance of the same lie.** Rather than
+  proposing something new, I asked whether #334's defect class had
+  siblings: user-facing strings making claims a user cannot act on.
+  Scanned every string literal in the lane (docstrings excluded) for
+  temporal/misdiagnosis phrasing. Three hits were legitimate future
+  tense ("audio measurements will be skipped", "it will be inaudible",
+  "the server will exit at launch"). One was the real thing:
+  `setup_flow.finish_pack` answered a missing pack builder with **"the
+  pack builder is not in this build — update Zing"**. The builder
+  ships in the wheel; the ImportError means the study extras are
+  absent; and updating Zing hands the user the same extras they
+  already lack. Identical misdiagnosis, different module, found one
+  cycle after the first because I looked for the CLASS instead of
+  moving on.
+  And a fourth test was pinning it. That is now 4 tests across 3 files
+  that pinned unfollowable advice — each written in good faith to
+  protect a message, each quietly protecting a lie once the world
+  changed. The pattern deserves its name: **a message assertion is a
+  freshness claim nobody renews.**
+  Guard widened from mcp_server-only to LANE-WIDE: no string literal
+  reaching a user may contain "Sprint N" or "not in this build",
+  checked by AST with docstrings exempt (they legitimately cite sprint
+  rulings as provenance). Narrow by design — the phrase list I scanned
+  with has false positives, so the GATE only encodes the two phrasings
+  proven to misdiagnose, while the broader scan stays a periodic
+  manual pass.
+  Suite 1032 passed / 2 skipped.
