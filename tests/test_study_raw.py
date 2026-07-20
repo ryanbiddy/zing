@@ -287,3 +287,46 @@ def test_keeper_summary_without_truncation_has_no_remainder():
 
     (warning,) = [w for w in result.warnings if "keeper segment" in w]
     assert "more" not in warning
+
+
+# -- filler precision: "like" is also a verb/preposition/comparative --------
+
+def test_like_as_verb_or_preposition_is_not_counted():
+    """Measured on a real 62-min interview: ~25% of raw 'like' hits were
+    ordinary uses, not fillers. Guards resolve the unambiguous ones."""
+    cases = [
+        [("made", 0.0, 0.2), ("it", 0.3, 0.4), ("sound", 0.5, 0.7),
+         ("like", 0.8, 0.9), ("magic", 1.0, 1.3)],            # preposition
+        [("i", 0.0, 0.1), ("don't", 0.2, 0.4), ("like", 0.5, 0.6),
+         ("waiting", 0.7, 1.1)],                              # verb
+        [("he", 0.0, 0.1), ("was", 0.2, 0.3), ("like", 0.4, 0.5),
+         ("this", 0.6, 0.8)],                                 # comparative
+    ]
+    for spec in cases:
+        counts, _ = raw.find_fillers(words_from(spec))
+        assert "like" not in counts, f"false positive on: {[s[0] for s in spec]}"
+
+
+def test_quotative_and_hedge_like_still_counted():
+    """The guards must not silence real filler use — quotative 'I was
+    like, dude' and bare hedges stay counted."""
+    quotative = words_from([
+        ("i", 0.0, 0.1), ("was", 0.2, 0.3), ("like", 0.4, 0.5),
+        ("dude", 0.6, 0.9),
+    ])
+    hedge = words_from([
+        ("it", 0.0, 0.1), ("happened", 0.2, 0.5), ("like", 0.6, 0.7),
+        ("yesterday", 0.8, 1.2),
+    ])
+    for ws in (quotative, hedge):
+        counts, _ = raw.find_fillers(ws)
+        assert counts.get("like") == 1
+
+
+def test_other_fillers_are_untouched_by_the_like_guards():
+    ws = words_from([
+        ("um", 0.0, 0.2), ("sound", 0.3, 0.5), ("uh", 0.6, 0.8),
+        ("this", 0.9, 1.1),
+    ])
+    counts, _ = raw.find_fillers(ws)
+    assert counts.get("um") == 1 and counts.get("uh") == 1

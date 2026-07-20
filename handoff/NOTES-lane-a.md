@@ -1119,3 +1119,30 @@
   NOT claimed: that the rubrics themselves are bad — they were OUTSIDE
   CX-6's scope (dr-1..dr-7 + BR-1 only) and I have not audited them.
   The point is narrower and verifiable: Lane A does not depend on them.
+
+- **2026-07-20 (Lane A): first real accuracy validation of raw mode —
+  and it found an over-count.** C-CD1's frozen clip (#309) is the
+  first real-video raw-mode fixture, but its human truth honestly
+  says the raw numbers are "analyzer outputs, not hand-labeled truth",
+  and the clip is CLEAN (0 dead air / 0 fillers / 0 takes) — so it can
+  only show absence of false positives. I verified that much
+  independently from the fixture's own word timings (0 gaps >=1.5s,
+  edge silences under the floor, keeper 0.3-17.7s tracking measured
+  speech 0.34-17.74s — all correct). Then I closed the positive-
+  detection half using the sweep's 62-min live interview (10,088 real
+  conversational words): raw mode found 51 dead-air spans and 105
+  fillers with a believable distribution. **But sampling 12 random
+  "like" contexts showed ~25% are not fillers at all** — "made it
+  sound LIKE it's some big secret" (preposition), "he was LIKE this"
+  (comparative), "i don't LIKE i don't trust" (verb). A creator told
+  "you said like 37 times" would find several are ordinary English;
+  over-counting is the same honesty failure as under-reporting.
+  Shipped a deliberately CONSERVATIVE fix (only unambiguous verb/
+  preposition/comparative contexts are skipped; quotative "I was like,
+  dude" and hedges stay counted; anything ambiguous stays COUNTED so
+  the measurement errs toward reporting). Effect: like 37 -> 26, total
+  105 -> 94, no other class touched. Limits recorded in
+  handoff/research/RAW-FILLER-PRECISION-2026-07-20.md: the 25% is a
+  12-context sample of ONE speaker, not a precision metric; residual
+  over-count is unmeasured and needs a labeled filler set (same shape
+  as P-C2); "you know"/"kind of" not audited. Suite 975.
