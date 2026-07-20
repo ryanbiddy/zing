@@ -1529,3 +1529,26 @@
   design contracts that tests enforce. The two that mattered were
   claims about OBSERVED BEHAVIOUR rather than policy — that is the
   distinction worth scanning for next time. Suite green.
+
+- **2026-07-20 (Lane A): traced the overlay defect to USER-VISIBLE
+  output — it is not cosmetic.** I had established that long-form
+  overlay exclusion cannot fire, so HUD text enters
+  `breakdown.captions`. Followed it downstream: `_caption_style` in
+  assemble/draft.py derives a draft's caption position, caps and
+  word-timing from exactly that list. On the P-C2 HUD cell (1,882
+  events, ZERO real captions by hand label) it returns
+  **position='center', all_caps=False, word_timed=True** — a
+  creator's draft styled from a gameplay scoreboard, silently.
+  **The O-3 warning I added cannot catch this**: it fires when the
+  basis is SMALL (<15 events); here the basis is 1,882 and wrong. A
+  rich basis is not a trustworthy one — worth remembering wherever
+  else I guard on sample size.
+  **Refuted while checking, so nobody retries it blind:** position
+  CONCENTRATION does not separate them. The HUD cell's dominant
+  position holds 73.6% of events, HIGHER than two real-caption cells
+  (47.6%, 60.3%). Measured before proposing; no cheap downstream
+  guard exists.
+  Recorded at the code site (draft.py docstring) and attached to the
+  queued region-merge item as IMPACT TRACED — the upstream fix
+  removes this text before it reaches assembly, so this is one defect
+  with two faces, not two items. Suite green.

@@ -94,6 +94,17 @@ the bottom but never claim outside their lane.
   regression fixture — the failure is already reproducible offline,
   so whoever takes it starts with a red test rather than a
   description. NOT to be attempted as a quiet tweak.
+  IMPACT TRACED (2026-07-20, raises this above cosmetic): the polluted
+  caption stream reaches USER-VISIBLE OUTPUT. `_caption_style` in
+  assemble/draft.py derives a draft's caption position/caps/word-timing
+  from `breakdown.captions`; on the HUD cell that is 1,882 events with
+  ZERO real captions, and it returns center/word-timed — styling a
+  creator's draft from a scoreboard, with no warning, because the O-3
+  thin-basis guard only fires when the basis is SMALL. A rich basis is
+  not a trustworthy one. Refuted while checking: position CONCENTRATION
+  does not separate the cases (HUD cell 73.6% dominant vs 47.6% and
+  60.3% for real-caption cells), so there is no cheap downstream guard
+  — fixing the merge upstream is the fix.
 
 - **PROPOSED (Lane A, SG-5, 2026-07-19 #3): `zing profile pack
   <manifest> --reverify` — reference-rot probe pass.**
