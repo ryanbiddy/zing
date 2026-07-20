@@ -1587,3 +1587,38 @@
   instead of reasoning from the review's description of it, and the
   403-not-404 detail (which changes the diagnosis) only exists
   because of that.
+- **2026-07-20 (Lane B): SG-1 round 6 (freeze) — reviewed #282
+  (Codex's CX-1 collateral lens), #286, #288/#291. All pass; one
+  PRECISION correction offered to the suite-doc owner.**
+  - #282 CX1-P2-1 and the roster P3 I already claimed and closed
+    (#285) — both were true; I confirmed P2-1 against my own code
+    before acting, which is the right order.
+  - **CX1-P1-2, verified by execution because it asserts a fact about
+    MY surface:** the lens says SUITE-CONNECT's "nothing to
+    configure" is wrong because "Zing requires UOINK_TOKEN". The
+    finding is CORRECT but blunt, and the bluntness could cause an
+    over-correction. Measured both halves with zero env vars set:
+    `zing doctor` -> "Verdict: fully ready", exit 0 (standalone
+    genuinely needs NO configuration), while the uoink hop without a
+    token returns "no uoink credential configured: set UOINK_TOKEN".
+    So the precise truth is BOTH: nothing to configure to use zing;
+    one env var to connect it to uoink. Offered wording for the
+    one-pager, for whoever owns FF-6's accuracy reopen: "Zing needs
+    no configuration to run. Connecting it to Uoink needs one env
+    var, UOINK_TOKEN (Writer's equivalent is
+    WRITER_UOINK_TOKEN) — neither product can discover the other's
+    credential, by contract." Fixing "nothing to configure" into
+    "zing needs configuration" would be a new inaccuracy in the
+    other direction.
+  - #286 (Lane A, raw.py 98%->100%): verified by execution, 24 tests
+    green; honest-warning payloads pinned rather than merely reached.
+    Pass.
+  - #288/#291 (Lane A CI diagnosis + clarification): the distinction
+    they drew is one I want on my own record too — quota-stall
+    (private repo, zero-step runs) and missing-trigger stall look
+    IDENTICAL from the PR page but need opposite remedies
+    (local-gate mode vs force-push). zing is public with free
+    minutes, so any future stall of mine is the trigger kind. Pass.
+  - Checked and cleared: the lens's "tested with Cursor/Cline/
+    Continue" P3 does NOT appear anywhere in zing's docs — that
+    claim is uoink/writer collateral, no Lane B slice.
