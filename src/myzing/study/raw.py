@@ -28,7 +28,18 @@ TAKE_GAP_S = 0.8              # word gap that splits raw speech into chunks
 TAKE_MIN_WORDS = 4
 TAKE_SIMILARITY = 0.75
 
-FILLER_WORDS = {"um", "uh", "uhm", "erm", "hmm", "like", "literally"}
+# "basically" earns its place on the same evidence "literally" has: it is
+# the same hedging class, and across the studied corpus it appears in MORE
+# speakers' transcripts (12) than "literally" (7), at comparable volume.
+# All sampled uses are hedges ("basically told me", "basically what we're
+# doing is") and it has no common non-filler sense, so it needs no guard.
+# Deliberately NOT added, with reasons (RAW-FILLER-RECALL-2026-07-20.md):
+# "obviously" (12 of 13 hits are one speaker — idiosyncrasy, not a general
+# filler), "actually" (usually contrastive: "the newsletter is actually
+# free"), and "just"/"well"/"right"/"yeah" (each carries a dominant
+# non-filler sense and would import exactly the ambiguity the "like" and
+# "kind of" guards had to undo).
+FILLER_WORDS = {"um", "uh", "uhm", "erm", "hmm", "like", "literally", "basically"}
 FILLER_BIGRAMS = {("you", "know"), ("i", "mean"), ("sort", "of"), ("kind", "of")}
 
 # "like" is the one filler candidate that is ALSO an ordinary verb,

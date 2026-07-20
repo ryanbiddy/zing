@@ -367,3 +367,27 @@ def test_known_false_negative_complementizer_that_is_documented():
     ])
     counts, _ = raw.find_fillers(ws)
     assert "kind of" not in counts   # the documented miss
+
+
+def test_basically_is_counted_like_its_sibling_literally():
+    """Added on corpus evidence: "basically" appears across 12 studied
+    transcripts vs "literally"'s 7, same hedging class, no common
+    non-filler sense (so no guard is needed)."""
+    ws = words_from([
+        ("he", 0.0, 0.1), ("basically", 0.2, 0.6), ("told", 0.7, 0.9),
+        ("me", 1.0, 1.1),
+    ])
+    counts, _ = raw.find_fillers(ws)
+    assert counts.get("basically") == 1
+
+
+def test_ambiguous_markers_stay_out_of_the_filler_list():
+    """Recall was measured, not guessed: these markers are frequent in
+    real transcripts but each carries a dominant non-filler sense, so
+    adding them would import the ambiguity the like/kind-of guards
+    exist to undo. Pinned so a future 'just add more fillers' change
+    has to argue with the evidence."""
+    for word in ("obviously", "actually", "just", "well", "right", "yeah"):
+        ws = words_from([("i", 0.0, 0.1), (word, 0.2, 0.5), ("went", 0.6, 0.9)])
+        counts, _ = raw.find_fillers(ws)
+        assert word not in counts, f"{word} should not count as a filler"
