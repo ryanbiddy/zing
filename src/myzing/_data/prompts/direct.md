@@ -1,7 +1,7 @@
 ---
 name: direct
 description: How to direct raw footage against a StyleProfile — honest gap report, keepers, filmable shot prompts — and write the direction back.
-version: 1.1.0
+version: 1.2.0
 required_keys: [verdict, gaps, shot_prompts, keepers, assembly_notes]
 ---
 
@@ -21,7 +21,12 @@ time.
   studied in raw mode. The decisive extras live in
   `provenance.raw_mode`: `keepers` (measured clean stretches:
   start/end/words/evidence), `dead_air_count`, `filler_total`,
-  `repeated_take_count`. `warnings` first, as always.
+  `repeated_take_count`. `warnings` first, as always — but SORT them:
+  most entries state a measurement's resolution ("OCR sampled at 8 fps")
+  or a normalization that was applied ("re-encoded to H.264"), and
+  neither is a gap in the evidence. Only "skipped" / "failed" / "could
+  not" entries mean a measurement is MISSING, and only those license
+  "the machinery didn't run". A long `warnings` is not a broken study.
 - **The taste target:** `get_profile(name)`. If NO profile exists,
   continue in **rubric-only mode**: judge against the genre rubric
   alone and state in `verdict` and `assembly_notes` that no profile was
@@ -110,6 +115,12 @@ blocking first.
 
 ## Changelog
 
+- **1.2.0** (2026-07-20): `warnings` guidance now says to SORT the list.
+  A directing AI may never read `study.md`, and "warnings first, as
+  always" left it to assume every entry was a gap in the evidence. In
+  the frozen real-video set 11 of 12 are stated resolutions or applied
+  normalizations; only skipped/failed entries license "the keeper
+  machinery didn't run". Guidance only; contract keys unchanged.
 - **1.1.0** (2026-07-20): rule 4 now names CAPTION STYLE as a visual
   claim needing eyes, with the measured reason — a 430s gameplay clip
   produced 1,882 caption entries, zero of them real captions (HUD and

@@ -798,3 +798,30 @@ will.
 Genuinely open for Lane B: nothing assigned. Standing generators plus
 the watch-items already filed (MCP spec 2026-07-28, `scenedetect-core`
 stable, registry publication pending naming).
+
+## FOR LANE A (Lane B, SG-1 round 12, 2026-07-20) — #353's decode-stack pointer has no answer behind it
+#353 improved two warnings by naming an action. One of them names a tool
+that cannot perform it, and the fix is not Lane B's to make.
+
+`shots.py`: *"shot detection failed: {e} — scenedetect is installed but
+could not read this file; run 'zing doctor' to check the decode stack"*.
+
+Ran the real `zing doctor` in that situation: it reports
+`[ok] scenedetect — scenedetect installed (PySceneDetect AdaptiveDetector)`
+and `[ok] ffmpeg`. Doctor is an ENVIRONMENT checker; it cannot diagnose
+"this particular file failed to decode". So the user is sent to a tool
+that confirms the one fact the warning already stated, sees green, and
+is stranded — the class #353 set out to fix, one step further down.
+
+I fixed the sibling case on my own surface instead of reporting it:
+`check_whisper` now answers the "download or disk-space problem" the
+whisper warning points at (is the configured model downloaded, is there
+room, honouring ZING_WHISPER_MODEL). The decode-stack case has no
+equivalent environment fact to check, so it needs a different action,
+not a better doctor. Options that stay honest, for Lane A to choose:
+surface the underlying decode error, suggest re-encoding the file, or
+drop the doctor pointer and state the consequence alone.
+
+Not proposing a wording — the warning is Lane A's file and they have the
+failure in front of them. Evidence and the doctor transcript are in
+NOTES-lane-b.md under SG-1 round 12.

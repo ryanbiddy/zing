@@ -2559,3 +2559,71 @@
   **build fixtures with the module's own constructors** (`_empty_state()`,
   the checked-in contract fixtures) — a hand-written one tests the
   validator, not the thing you were aiming at.
+- **2026-07-20 (Lane B): SG-1 round 12 — reviewed #353/#355/#357/#359,
+  and the review found two defects on MY surface, not theirs.**
+  Reviewed with a stake rather than a checklist: Lane A shipped three
+  warnings PRs, and my prompt pack is the file that TELLS a judging AI
+  what `warnings[]` means. If they changed the list, my description of
+  it may have gone stale. Both findings below are mine to fix.
+  **(1) study.md described `warnings[]` wrongly — measurably.** It said
+  "read this first. Every measurement that was skipped or degraded is
+  named here." Measured across the six frozen real breakdowns: **11 of
+  12 entries are NOT skips or degradations.** They are stated
+  measurement resolutions (OCR sampling, in 6/6 videos), applied
+  normalizations (av1/vp8 re-encode, CFR conversion — corrections that
+  made measurement MORE reliable), and one finding. So the prompt told
+  an AI to read the list first and treat all of it as damage, when
+  almost none of it is. That either over-discounts good measurements or
+  teaches the reader to skip the list — which is the desensitization I
+  described in #352 without noticing my own prompt was causing it.
+  Rewrote it as three kinds with opposite implications (evidence
+  MISSING / resolution STATED / normalization APPLIED), scoping "skipped
+  is not absence" to the one kind it applies to. Same in direct.md,
+  whose reader may never open study.md and was left to assume every
+  entry was a gap. study 0.4.0 -> 0.5.0, direct 1.1.0 -> 1.2.0.
+  Note what this is NOT: it does not touch schemas or Lane A's code, and
+  it does not depend on #351 being promoted. #351 proposes changing the
+  DATA (split setup notes out of warnings). Describing the list
+  accurately is available today and is entirely my file.
+  **I then pinned my own number**, because writing "11 of 12" into a
+  prompt is exactly the pinned-message trap I keep charging others with
+  — a freshness claim nobody renews. The gate parses the ratio back OUT
+  of the prompt and checks it against the frozen breakdowns, so the two
+  cannot disagree; a second gate asserts the load-bearing claim
+  (problems are the minority) independently of the exact count, since if
+  that inverted the ADVICE would be wrong, not just the number.
+  Verified the gate fires by editing the prompt to "9 of 12" and
+  watching it fail with the corrective message.
+  **(2) #353 points two warnings at `zing doctor`, and doctor did not
+  answer either.** Their new text says a failed whisper load is "usually
+  a download or disk-space problem; run 'zing doctor' and retry", and a
+  shot-detection failure says "run 'zing doctor' to check the decode
+  stack". Ran the real doctor: both checks report **ok** in exactly
+  those situations, because both only test whether the module IMPORTS.
+  A user follows the advice, sees green, and is stranded — the same
+  class #353 set out to fix, moved one step down the chain.
+  Fixed the half that is mine: `check_whisper` now reports whether the
+  configured model is actually downloaded, honours the
+  `ZING_WHISPER_MODEL` override (checking large-v2 while transcribe
+  loads `small` would be a confident answer about the wrong file), and
+  when the model is absent AND the cache volume is short of room it goes
+  not-ok with a fix (free space / set HF_HOME / use a smaller model).
+  The 4 GB threshold is measured, not guessed: large-v2 is **3.09 GB**
+  on disk here. A missing cache directory reports UNKNOWN, never
+  "absent" — Zing cannot check a size when it cannot find the volume.
+  **The decode-stack half is NOT mine and I did not touch it.** An
+  environment checker cannot diagnose "this specific file failed to
+  decode"; doctor will keep saying scenedetect is installed, which the
+  warning already said. Filed for Lane A rather than fixed by me.
+  **Nearly reintroduced a defect while fixing one:** check_whisper now
+  reads a real cache directory, and the doctor suite has an autouse
+  fixture making every module importable — so the tests would have
+  asserted the HOST's download state, green on my machine and different
+  on CI. That is precisely the defect #276 fixed for the yt-dlp solver
+  probe, and the fixture's own docstring warns about it. Added an
+  autouse `_hermetic_whisper_cache` pinning the cache the same way
+  imports are pinned.
+  Suite 1082 -> **1091 passed / 2 skipped**. #355 and #357 pass on
+  review: #357 in particular rejected a regex classifier after reading
+  its output (19 flagged, 3 real) and says so in the file — the same
+  narrowing discipline, recorded where the next editor will see it.

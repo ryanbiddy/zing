@@ -362,16 +362,106 @@ def check_ytdlp(today: date | None = None) -> Check:
     )
 
 
+def _whisper_model_name() -> str:
+    """The model transcribe.py will actually load (same env override)."""
+    from .study import transcribe
+
+    return (
+        os.environ.get(transcribe.ENV_MODEL, "").strip()
+        or transcribe.DEFAULT_MODEL
+    )
+
+
+def _whisper_cache() -> tuple[Path | None, bool]:
+    """(hub cache dir, is the configured model already downloaded).
+
+    A cache dir of None means Zing could not locate one — reported as
+    unknown, never as absent.
+    """
+    for env in ("HF_HUB_CACHE", "HUGGINGFACE_HUB_CACHE"):
+        raw = os.environ.get(env, "").strip()
+        if raw:
+            root = Path(raw)
+            break
+    else:
+        home = os.environ.get("HF_HOME", "").strip()
+        root = (
+            Path(home) / "hub" if home
+            else Path.home() / ".cache" / "huggingface" / "hub"
+        )
+    if not root.is_dir():
+        return None, False
+    needle = f"faster-whisper-{_whisper_model_name()}"
+    return root, any(
+        entry.name.endswith(needle) for entry in root.iterdir()
+    )
+
+
 def check_whisper() -> Check:
     if _has_module("faster_whisper"):
+        # Lane A's #353 points a failed model load at `zing doctor`
+        # ("usually a download or disk-space problem; run 'zing doctor'").
+        # Reporting only that the package imports answered READY in
+        # exactly the situation that produced that warning — so say
+        # whether the weights are actually here, and whether there is
+        # room for them. Measured: large-v2 is 3.09 GB on disk.
+        model = _whisper_model_name()
+        cache, cached = _whisper_cache()
+        if cached:
+            return Check(
+                name="faster-whisper",
+                tier=RECOMMENDED,
+                ok=True,
+                detail=f"package installed; model '{model}' is downloaded",
+                data={"model": model, "cached": True, "cache": str(cache)},
+            )
+        if cache is None:
+            return Check(
+                name="faster-whisper",
+                tier=RECOMMENDED,
+                ok=True,
+                detail=(
+                    f"package installed; model '{model}' downloads on the "
+                    "first `zing study` run (no Hugging Face cache directory "
+                    "yet, so its size could not be checked)"
+                ),
+                data={"model": model, "cached": False, "cache": None},
+            )
+        free_gb = shutil.disk_usage(cache).free / 1e9
+        if free_gb < 4.0:
+            return Check(
+                name="faster-whisper",
+                tier=RECOMMENDED,
+                ok=False,
+                detail=(
+                    f"package installed, but model '{model}' is not "
+                    f"downloaded and only {free_gb:.1f} GB is free at "
+                    f"{cache} (large-v2 needs ~3.1 GB)"
+                ),
+                fix=(
+                    "free space on that volume, or set HF_HOME to a roomier "
+                    "one, or pick a smaller model with "
+                    "ZING_WHISPER_MODEL=small"
+                ),
+                degraded_mode=(
+                    "the first `zing study` will fail its model download: "
+                    "empty transcript + a warning in the breakdown"
+                ),
+                data={
+                    "model": model,
+                    "cached": False,
+                    "free_gb": round(free_gb, 1),
+                },
+            )
         return Check(
             name="faster-whisper",
             tier=RECOMMENDED,
             ok=True,
             detail=(
-                "package installed (model weights download on first "
-                "`zing study` run and are cached)"
+                f"package installed; model '{model}' downloads on the first "
+                f"`zing study` run ({free_gb:.0f} GB free at the cache)"
             ),
+            data={"model": model, "cached": False, "free_gb": round(free_gb, 1)},
         )
     return Check(
         name="faster-whisper",

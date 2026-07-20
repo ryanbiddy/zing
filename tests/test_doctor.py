@@ -42,6 +42,25 @@ def _hermetic_modules(monkeypatch):
     monkeypatch.setattr(doctor, "_has_module", lambda name: True)
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_whisper_cache(monkeypatch, tmp_path):
+    """Pin the Hugging Face cache the way _hermetic_modules pins imports.
+
+    check_whisper now reads a real cache directory, so without this the
+    doctor suite would assert the HOST's download state — green on a
+    machine that has run `zing study`, different on CI. Same defect
+    #276 fixed for the yt-dlp solver probe.
+
+    Baseline: the configured model is already downloaded, which is also
+    the branch that touches no disk-space math. Tests for the other
+    states override this explicitly.
+    """
+    cache = tmp_path / "hf-hub"
+    (cache / "models--Systran--faster-whisper-large-v2").mkdir(parents=True)
+    monkeypatch.setenv("HF_HUB_CACHE", str(cache))
+    return cache
+
+
 @pytest.fixture
 def bare_machine(monkeypatch):
     """A machine with nothing installed and no network."""
@@ -640,3 +659,92 @@ def test_every_required_and_recommended_failure_names_a_command(
         and not RUNNABLE.search(c.fix or "")
     ]
     assert not bad, f"fixable tier without a runnable command: {bad}"
+
+
+class _Usage:
+    """Minimal shutil.disk_usage stand-in (only .free is read)."""
+
+    def __init__(self, free: int) -> None:
+        self.free = free
+        self.total = free * 10
+        self.used = self.total - free
+
+
+def _named(checks, name):
+    for check in checks:
+        if check.name == name:
+            return check
+    raise AssertionError(f"no {name} check in doctor output")
+
+
+# -- check_whisper answers the question Lane A's #353 sends users to ask -------
+
+
+def test_downloaded_model_is_reported_as_present(_hermetic_whisper_cache):
+    """The warning says a failed load is 'usually a download or disk-space
+    problem; run zing doctor'. Doctor has to speak to the download."""
+    check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
+    assert check.ok
+    assert "is downloaded" in check.detail
+    assert check.data["cached"] is True
+
+
+def test_absent_model_is_named_with_the_room_available(
+    monkeypatch, _hermetic_whisper_cache
+):
+    """Not downloaded yet is NOT a failure — it downloads on first run —
+    but doctor must say so rather than implying the weights are here."""
+    for entry in _hermetic_whisper_cache.iterdir():
+        entry.rmdir()
+    check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
+    assert check.ok
+    assert "downloads on the first" in check.detail
+    assert check.data["cached"] is False
+
+
+def test_no_room_for_the_model_is_a_fixable_failure(
+    monkeypatch, _hermetic_whisper_cache
+):
+    """The disk-space half of that warning. Reporting READY here is what
+    stranded the user: they were told to run doctor, and doctor said the
+    package imports."""
+    for entry in _hermetic_whisper_cache.iterdir():
+        entry.rmdir()
+    monkeypatch.setattr(
+        doctor.shutil, "disk_usage", lambda path: _Usage(free=int(1.2e9))
+    )
+    check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
+
+    assert not check.ok
+    assert "1.2 GB is free" in check.detail
+    assert check.fix, "a disk problem must name what to do"
+    assert check.degraded_mode, "and what it costs"
+    assert "ZING_WHISPER_MODEL=small" in check.fix
+
+
+def test_a_missing_cache_directory_is_unknown_never_asserted_absent(
+    monkeypatch, tmp_path
+):
+    """No cache dir yet means Zing cannot tell whether the weights fit —
+    say that, do not report a size check that never happened."""
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "nothing-here"))
+    check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
+    assert check.ok
+    assert "could not be checked" in check.detail
+    assert check.data["cache"] is None
+
+
+def test_the_model_checked_is_the_model_transcribe_will_load(
+    monkeypatch, _hermetic_whisper_cache
+):
+    """Checking large-v2 while transcribe loads a different model would be
+    a confident answer about the wrong file."""
+    from myzing.study import transcribe
+
+    monkeypatch.setenv(transcribe.ENV_MODEL, "small")
+    check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
+
+    assert check.data["model"] == "small"
+    # large-v2 IS cached in the fixture; 'small' is not, so a check that
+    # ignored the override would wrongly report the weights as present.
+    assert check.data["cached"] is False
