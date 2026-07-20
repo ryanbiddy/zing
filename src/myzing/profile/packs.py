@@ -24,6 +24,13 @@ from typing import Any
 from myzing import storage
 from myzing.schemas import StyleProfile
 
+# A curator-chosen file, like shot_list's import — which is capped, so
+# leaving this unbounded was an inconsistency rather than a decision
+# (same reasoning as the lease cap, #314). Largest shipped manifest is
+# 2.7 KB; 1 MiB is ~400x headroom and turns a pathological file into a
+# named error instead of an unbounded read.
+MANIFEST_SIZE_LIMIT = 1024 * 1024
+
 MANIFEST_REQUIRED = ("pack_id", "genre", "platform", "references")
 REFERENCE_REQUIRED = ("id", "url", "why", "verified_at")
 
@@ -43,6 +50,14 @@ class PackResult:
 
 def load_manifest(path: Path) -> dict[str, Any]:
     try:
+        size = path.stat().st_size
+        if size > MANIFEST_SIZE_LIMIT:
+            raise PackError(
+                f"pack manifest is {size} bytes, over the "
+                f"{MANIFEST_SIZE_LIMIT}-byte limit: {path} — a manifest is "
+                "a short curated list, so this is almost certainly the "
+                "wrong file"
+            )
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise PackError(f"unreadable pack manifest: {path} ({exc})") from exc

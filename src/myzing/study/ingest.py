@@ -348,9 +348,19 @@ def _stage_local(path_str: str, slug: str) -> Path:
     return target
 
 
+# yt-dlp's sidecar carries the full format/thumbnail/subtitle inventory
+# and is genuinely large — 606 KB observed on a 62-min upload, so any cap
+# must be set from data, not intuition. 8 MiB is ~13x the largest seen and
+# converts a pathological sidecar into an honest skip (metadata is
+# optional; the study proceeds without it).
+INFO_JSON_SIZE_LIMIT = 8 * 1024 * 1024
+
+
 def _read_info_json(dest: Path) -> dict:
     path = dest / "media.info.json"
     if not path.is_file():
+        return {}
+    if path.stat().st_size > INFO_JSON_SIZE_LIMIT:
         return {}
     try:
         return json.loads(path.read_text(encoding="utf-8"))

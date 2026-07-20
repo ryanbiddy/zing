@@ -9,6 +9,11 @@ import json
 from pathlib import Path
 
 
+# Matches shot_list's 2 MiB import cap: a direction is small JSON, and a
+# capped read fails with a name instead of consuming whatever it is given.
+DIRECTION_SIZE_LIMIT = 2 * 1024 * 1024
+
+
 def run(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="zing assemble",
@@ -29,8 +34,14 @@ def run(argv: list[str]) -> int:
     from myzing.assemble.draft import AssembleError, draft_for_slug
 
     try:
+        size = args.direction.stat().st_size
+        if size > DIRECTION_SIZE_LIMIT:
+            raise ValueError(
+                f"direction file is {size} bytes, over the "
+                f"{DIRECTION_SIZE_LIMIT}-byte limit"
+            )
         direction = json.loads(args.direction.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"zing assemble: unreadable direction file: {exc}")
         return 1
 
