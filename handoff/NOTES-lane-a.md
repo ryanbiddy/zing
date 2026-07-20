@@ -1213,3 +1213,28 @@
     faking from zero to "read the file", still not proof of LOOKING.
     Filed as an observation, not a counter-proposal; the shelf is
     stocked and this is post-launch anyway.
+
+- **2026-07-20 (Lane A): measured filler RECALL — the other half of
+  the precision work — and it found one inconsistency.** Precision
+  asked "are the fillers we count real?"; this asks "do we count the
+  fillers real speakers use?" Frequency + context sampling across the
+  whole studied corpus (12+ videos with >=100 transcribed words).
+  **`basically` added**: same hedging class as `literally`, but it
+  appears in MORE speakers' transcripts (12 vs 7) at comparable
+  volume, every sampled use is a hedge, and it has no common
+  non-filler sense — so unlike `like`/`kind of` it needs NO guard.
+  Counting `literally` while ignoring `basically` was an
+  inconsistency, not a decision (same shape as the uncapped reads).
+  **Six candidates deliberately REJECTED with reasons**: `obviously`
+  (12 of 13 hits are ONE speaker — idiosyncrasy, and it asserts
+  meaning), `actually` (usually contrastive: "the newsletter is
+  actually free"), and `just`/`well`/`right`/`yeah` (each has a
+  dominant non-filler sense). Adding them would import exactly the
+  ambiguity the like/kind-of guards had to undo, and every guard
+  costs a false negative. The rejections are PINNED by a test so a
+  future "just add more fillers" change must argue with the evidence
+  instead of silently widening the net. Limits recorded in
+  handoff/research/RAW-FILLER-RECALL-2026-07-20.md: the corpus is
+  what Zing happened to study (English, mostly single-speaker),
+  sampling was 5-6 per candidate, and recall against a LABELED set
+  remains unmeasured. Suite 984.
