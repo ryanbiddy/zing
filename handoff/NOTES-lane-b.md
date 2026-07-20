@@ -1773,3 +1773,32 @@
   bigger and nobody notices in review — the fix is to extract in the
   SAME PR as the feature, not one cycle later hoping rotation catches
   it.
+- **2026-07-20 (Lane B): CLAIMED the C-CD1 handoff and CLOSED S3's
+  standing limit — the full-fidelity direction gate is PASS.** Record:
+  `S3-GATE-FULL-FIDELITY-2026-07-20.md`; the S3 record's limit #1 now
+  points at it. Since S3 the direction gate had run against
+  `raw-editing-practice`, which F-16 measured as EDITED (34 shots, 49
+  burned captions) standing in as "raw" — the chain was proven, the
+  keeper machinery was not. Lane C's CC0 Korky Paul freeze (#309) made
+  the real thing available and their note handed it to me explicitly.
+  Ran the real chain: seeded workspace, frozen breakdown as a slug,
+  direct.md v1.0.0 followed as written, save_judgment(section=direct)
+  → contract validated, prompt_version stamped, direction.md rendered.
+  Three things only genuinely-raw footage could test, now tested:
+  keepers cite the measured keeper's OWN evidence instead of me
+  picking spans from words[] and admitting the machinery hadn't run;
+  "no captions" is a fact about the SOURCE rather than an untestable
+  branch behind 49 burned ones; and `cuts in 0-3s: 0` is a rubric
+  measurement that only means something on footage that truly has no
+  cuts.
+  Followed rule 4 literally — VIEWED hook_0s and hook_2s before making
+  any framing claim, and the direction names which frames were viewed.
+  Rubric-only mode was the honest outcome (no profile in the scratch
+  workspace) and is stated in verdict AND assembly_notes per the
+  prompt's degradation rule, not silently assumed.
+  Limits stated rather than buried: a 19s CC0 introduction is ideal
+  for proving raw-mode direction and unrepresentative of the format
+  Zing targets, and judgment QUALITY remains unjudged — this gate
+  proves the chain is honest and grounded, not that the taste is
+  right. S3 limit #2 (profile taste-coherence) is unchanged and still
+  belongs to Ryan's reference set.
