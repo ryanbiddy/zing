@@ -2504,3 +2504,58 @@
   checked-in test fixture had it right. A characterization harness is
   only a control if its inputs are conformant; an invalid input tests
   the validator, not the branch you were aiming at.
+- **2026-07-20 (Lane B): SG-2 thirteenth pass — coverage pointed at two
+  tests that were passing without testing anything, and one of them was
+  asserting the wrong behavior.**
+  `engagement.py` sat at 89%, and the uncovered lines were inside `_post`
+  — the timeout, size-cap and parse guards. But two tests NAMED those
+  guards and passed. That contradiction is the finding: if
+  `test_timeout_and_unavailable_are_distinct_and_retryable` runs green
+  while the timeout handler is uncovered, the test is not reaching it.
+  Cause: neither test configured `UOINK_TOKEN`, so `record_opened`
+  spooled as **unconfigured** and never opened a socket. Both asserted
+  `receipt["state"] == "spooled"`, which was true — for a completely
+  different reason than the one in the test name.
+  **Proved it by mutation rather than by argument**: deleted the size cap
+  and made the timeout handler raise, then ran the two tests. Both passed
+  against the mutant. After the rewrite both mutants are KILLED.
+  Two further defects surfaced once delivery actually happened. (1) The
+  timeout test asserted the SAME thing for both cases while claiming they
+  are "distinct" — it could not have told them apart; the codes live in
+  the spool's `last_error_code`, not in the receipt, which carries counts
+  only. (2) The oversize test asserted `spooled`, and against a real
+  transport an oversized **200** is durably `rejected` — retryability
+  keys off `status >= 500`. So the assertion was not merely weak, it was
+  wrong, and only a test that delivers can notice. Added the paired
+  control (identical oversized body, 500 status → spooled) so the rule is
+  visible rather than incidental.
+  **Fixed the class, not the two instances:** a `delivery_seam` fixture
+  configures the credential, counts transport calls, and FAILS THE TEST
+  IN TEARDOWN if the transport was never reached. Demonstrated with a
+  throwaway test that takes the fixture and delivers nothing — it errors
+  with "this test never reached the transport, so it proves nothing about
+  delivery". A future vacuous delivery test cannot pass quietly.
+  Then pinned the rest of the failure surface while I was in there:
+  unparseable body, malformed error envelope, settled-rejection replay
+  (asserts the network is NOT touched a second time), corrupt pending
+  event, uncommittable spool, the Windows `PermissionError` retry loop on
+  `os.replace` (a scanner or indexer holding the file — the one
+  platform-specific durability rule in the spool, previously
+  unexercised), its bounded give-up, and a non-retryable rejection
+  carried in the response body.
+  `engagement.py` 89% -> **100%**, 11 tests (9 new, 2 rewritten), suite
+  1073 -> **1082 passed / 2 skipped**.
+  This is direct evidence for the unmocked-seam rule I proposed under
+  SG-5 and which is still awaiting disposition: the proposal was
+  reasoning, this is a measured instance of exactly the failure it
+  predicts. Two guards on a credential-carrying network path were
+  unprotected for as long as those tests existed.
+  **My own error, again the same shape:** my first new test hand-built a
+  spool dict and `_read_state` rejected it as "unsupported shape" —
+  because the exact key set includes `version`. It read like a code
+  defect for a moment; it was my fixture. That is twice in two cycles
+  that a hand-rolled input impersonated a finding (the other was an
+  invalid health body in the probe characterization). Rule earned:
+  **build fixtures with the module's own constructors** (`_empty_state()`,
+  the checked-in contract fixtures) — a hand-written one tests the
+  validator, not the thing you were aiming at.
