@@ -1622,3 +1622,26 @@
   - Checked and cleared: the lens's "tested with Cursor/Cline/
     Continue" P3 does NOT appear anywhere in zing's docs — that
     claim is uoink/writer collateral, no Lane B slice.
+- **2026-07-20 (Lane B): SG-2 ninth pass (rotation; freeze,
+  tests-only) — setup_flow 91%→98%, the onboarding FAILURE paths.**
+  Targeted the lane's floor, and every gap turned out to be a path a
+  new user hits when something goes wrong — the worst place to be
+  unpinned. 7 tests: finish_pack's unknown-pack / PackError /
+  unexpected-exception boundary (asserting the exception TYPE reaches
+  the user, since an engine bug must arrive as an envelope and still
+  be diagnosable); the CLI listing a malformed pack as BROKEN with
+  its reason rather than hiding it; pack-build failure exiting 1 with
+  the cause; the ref_failures line that NAMES a reference the pack
+  built without (D-12's lie-by-omission class, on the setup surface);
+  and wait_for_studies' progress callback reporting slug AND phase —
+  the only thing between a long study and a user who thinks zing
+  hung.
+  Two self-inflicted test failures worth recording, both caught
+  immediately: I passed a positional arg to a CLI that takes only
+  flags, and I stubbed finish_pack with fewer keys than the real one
+  returns (KeyError on 'unjudged_sources'). The second is the more
+  interesting: a stub thinner than its subject is a test that would
+  pass while the real shape drifts — matching the real return keys is
+  part of the test, not bookkeeping.
+  Remaining 5 misses are the packaged-data fallback branch and
+  argparse plumbing. Suite 944 passed / 2 skipped.
