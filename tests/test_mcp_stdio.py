@@ -221,3 +221,41 @@ def test_tool_error_is_data_not_protocol_error(client):
     payload = json.loads(text)
     assert payload["ok"] is False
     assert "list_breakdowns" in payload["error"]
+
+
+# -- protocol-version negotiation (SG-4, 2026-07-19) -------------------------
+
+@pytest.mark.parametrize("asked,expect", [
+    # An old client still gets its own version back (backward compat) —
+    # this is what the rest of this file's smoke tests exercise.
+    ("2024-11-05", "2024-11-05"),
+    # What a current client actually negotiates.
+    (None, None),  # None => the SDK's LATEST_PROTOCOL_VERSION, echoed back
+    # A client from the FUTURE (the 2026-07-28 revision goes final in
+    # days and is the largest ever): the server must answer with its own
+    # latest supported version, never echo a version it cannot speak and
+    # never fail the handshake. Verified live before this test was
+    # written; pinned here so an SDK bump can't silently change it.
+    ("2026-07-28", None),
+])
+def test_protocol_version_negotiation(tmp_path, asked, expect):
+    from mcp.types import LATEST_PROTOCOL_VERSION
+
+    asked = asked or LATEST_PROTOCOL_VERSION
+    expect = expect or LATEST_PROTOCOL_VERSION
+    env = dict(os.environ)
+    env["ZING_HOME"] = str(tmp_path / "zing-home")
+    c = StdioClient(env)
+    try:
+        result = c.send(
+            "initialize",
+            {
+                "protocolVersion": asked,
+                "capabilities": {},
+                "clientInfo": {"name": "zing-proto-test", "version": "0"},
+            },
+        )
+        assert result["protocolVersion"] == expect
+        assert result["serverInfo"]["name"] == "zing"
+    finally:
+        c.close()
