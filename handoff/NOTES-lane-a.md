@@ -1626,3 +1626,29 @@
   Verified the other two memory files are current (merge-flow already
   carries the fresh-branch CI remedy; environment carries the solver
   probe fix). Index rewritten to match. No repo code touched.
+
+- **2026-07-20 (Lane A): audited warning SIGNAL, not just warning
+  correctness — and the fix I reached for was wrong.** Warnings only
+  work if they are read, and I have added several this session, so I
+  measured volume across all 47 studied videos: max 3 per study,
+  median 1. **No wall of noise** — the risk I was checking is not
+  present, which is worth knowing.
+  But one warning fires on 47 of 47: the caption-OCR sampling note. A
+  warning present in 100% of outputs carries no information by its
+  presence — it is a constant describing HOW OCR works, sitting among
+  variable events (music inconclusive, codec re-encoded, overlay
+  excluded).
+  **My first instinct — delete it, it duplicates provenance — was
+  wrong, and checking caught it.** The rendered breakdown.md surfaces
+  sampling resolution ONLY through that warning; removing it would
+  HIDE information from markdown readers, which is strictly worse
+  than noise. Second problem found while checking: `warnings[]`
+  contents are frozen into Lane C's real-video fixtures and their
+  provenance, so this is a CONTRACT change needing a coordinated
+  re-freeze, not a quiet edit in my lane.
+  Filed as a PROPOSED item with both objections and a third of my own
+  (the "always fires" critique is weaker than it sounds — a
+  first-time reader does learn from it, and sampling resolution is
+  load-bearing for caption-sync judgment). Explicitly marked as an
+  ergonomics refinement I would not spend a launch on. No code
+  changed.

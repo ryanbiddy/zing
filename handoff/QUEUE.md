@@ -59,6 +59,38 @@ the bottom but never claim outside their lane.
   doc-only PR of fixes or a findings note.
 
 ## PROPOSED (workers append; orchestrator promotes)
+- **PROPOSED (Lane A, 2026-07-20): separate "how we measured" from
+  "what degraded" in the warnings list.**
+  MEASURED FIRST (47 studies in the corpus): warning volume is
+  healthy — max 3 per study, median 1, so there is no wall of noise.
+  But ONE warning fires on 47 of 47: the caption-OCR sampling note
+  ("sampled at 8 fps in 0-3s, N fps after; text between samples is
+  unobserved"). A warning present in 100% of outputs carries no
+  information by its presence; it is a constant describing HOW OCR
+  works, sitting in a list whose other members are variable events
+  (music inconclusive, codec re-encoded, media reused, persistent
+  overlay excluded). It dilutes the ones that carry signal.
+  PROPOSAL: render it as a "Measurement setup" line in breakdown.md
+  and in provenance (where hook_fps/body_fps ALREADY live), leaving
+  `warnings[]` for things that actually degraded or were skipped.
+  REFUTATION (mine, and it is why I did not just do it): (1) the .md
+  currently surfaces sampling ONLY through this warning — removing it
+  without adding the setup line would HIDE information from markdown
+  readers, which is strictly worse than noise. I checked; that is
+  real. (2) It is a CONTRACT change: `warnings[]` contents are frozen
+  into Lane C's real-video fixtures
+  (landscape-big-buck-bunny, raw-editing-practice) and their
+  provenance, so this needs a coordinated re-freeze, not a quiet edit
+  in my lane. (3) The "always fires" critique is weaker than it
+  sounds — a reader who has never seen a breakdown DOES learn
+  something the first time, and honesty about sampling resolution is
+  load-bearing for caption-sync judgment. This is an ergonomics
+  refinement, not a correctness fix.
+  SURVIVES AS: a coordinated item — Lane A moves the note, Lane C
+  re-freezes the two fixtures in the same PR pair. Worth doing only
+  if the orchestrator judges warning-list signal-to-noise worth a
+  fixture churn; I would not spend a launch on it.
+
 - **PROPOSED (Lane A, 2026-07-20): region tracks merge static overlays
   with the changing text beside them, disabling overlay exclusion.**
   EVIDENCE (measured, reproducible via
