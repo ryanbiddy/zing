@@ -205,6 +205,57 @@ band), so it must not be used to evaluate position rules — circular.
 It is valid for the token floor and persistence, which are
 position-independent.
 
+## RESOLUTION: the mechanism already shipping passes P-C2's own bar
+
+P-C2 asked for a signal that "separates at least one failure class
+without reducing recall on real captions". Every candidate above
+chased CAPTIONS. The failure class is the opposite thing — watermarks
+and HUD text reported as captions — and Zing has shipped a detector
+for it since S1: `cluster_regions` diverts any event lasting
+≥ max(15s, 25% of duration) into a named warning ("persistent
+on-screen text (likely watermark/label) excluded from captions").
+
+Measured against all 15,999 labels, 7 cells, both caption styles that
+broke the candidate rules:
+
+| | value |
+|---|---|
+| lines flagged as persistent overlay | 2,080 |
+| of those, genuinely non-caption | **2,080** |
+| precision on the failure class | **1.0000** |
+| real captions lost | **0 / 577 (0.00%)** |
+
+**P-C2's bar is met — by the incumbent.** The calibration pack's most
+valuable output is not a new signal but a MEASUREMENT of the one
+already in production, which no one had ever scored.
+
+### The correction that made this trustworthy
+
+My first pass reported precision 0.9975 with 22 captions lost — a
+striking number I nearly published. Examining those 22 showed they
+were not persistence at all: "IN ANTARCTICA," appeared at t=0.0 and
+again at t=33.2 (a 31.8s GAP), "Paris" at 1.8 and 18.0. These are
+phrases SAID TWICE, not text held on screen.
+
+The flaw was mine, not the rule's. I measured span as
+last-sighting minus first-sighting; the shipped rule clusters
+observations into events and closes one after a
+`MAX_FLICKER_GAP_S` (0.5s) gap, so a recurrence becomes a SEPARATE
+event and is never treated as persistent. Re-measuring with the same
+event-run logic gives the table above. Had I published the first
+number, I would have reported a 3.8% caption cost that does not
+exist and impugned a correct mechanism.
+
+### Recommendation
+
+Resolve P-C2 as **validated-incumbent**: keep the overlay warning
+exactly as it is, cite this measurement as its evidence, and do NOT
+add a caption-side filter — the candidates that looked strongest
+(position, token floor) each destroyed a real caption style, and the
+one that survived (persistence) cannot separate single-token captions
+from single-token noise. The dataset stays useful as a regression
+check on the overlay threshold if it is ever tuned.
+
 ## What this does NOT establish (the part that matters)
 
 **Every captioned cell in this dataset uses lower-third captions.**
