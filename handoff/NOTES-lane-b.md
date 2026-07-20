@@ -2421,3 +2421,34 @@
     assemble impact, the CLI-side long-form warning, the research
     reproducibility gate, and the memory audit each name what they
     cannot conclude. Pass.
+- **2026-07-20 (Lane B): mirrored Lane A's warning-actionability audit
+  onto my error surface — and adopted their DISCIPLINE, which mattered
+  more than the finding.** Their #353 enumerated 52 warnings, found 7
+  with actions and 45 without, then refused to report "45 lack
+  actions" because most correctly need none. I hit the same shape: a
+  crude scan flagged 84 error-ish strings with only 27 naming an
+  action, and 21 `_err` sites "without a next step". Nearly all of
+  that is noise — doctor separates `detail` from a sibling `fix`
+  field, and MCP argument errors state the correct FORM ("pass a video
+  URL or an existing local file path"), which IS the action. Reporting
+  those counts would have been technically true and substantively
+  misleading.
+  So I narrowed to the class that can actually strand someone and
+  wrote it as an INVARIANT instead of a count: no check may report
+  not-ok with neither a fix nor a stated consequence, and every
+  fixable-tier failure must name a runnable command (optional peers
+  exempt — calm absence has nothing to run). Exercised on the BARE
+  machine, because an audit that only tests today's host proves
+  nothing about the states a new user actually hits.
+  **It immediately found one:** the absent-uoink branch reported
+  not-ok with both fields empty. Not a lie — its consequence sat in a
+  parenthetical inside `detail` ("fine — Zing is fully standalone") —
+  but in the WRONG FIELD, since `zing_status` serves these to an AI
+  and every other check puts "what you lose" in `degraded_mode`. Now
+  states it properly: kept-media study and corpus push unavailable,
+  URL and local-file study unaffected.
+  Honest scope: the absent branch is only reachable when nothing
+  answers the DEFAULT address, and uoink runs on this box, so this one
+  is verified by test rather than by a live run — saying so instead of
+  implying I saw it.
+  Suite 1071 passed / 2 skipped.

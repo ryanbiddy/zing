@@ -603,3 +603,40 @@ def test_next_step_never_breaks_the_report(full_machine, zing_workspace, monkeyp
     out = capsys.readouterr().out
     assert "Ready." in out
     assert "Next:" not in out
+
+
+def test_no_failing_check_strands_the_user(bare_machine, zing_workspace):
+    """Every check that is NOT ok must either name a FIX or explain what
+    is lost (degraded_mode) — ideally both. Mirrors Lane A's #353, which
+    found dependency-broken warnings that said what failed but not what
+    to do, while their missing-dependency siblings named the command.
+
+    Uses the bare machine so every not-ok branch actually fires: an
+    audit that only exercises today's host proves nothing about the
+    states a new user is most likely to hit."""
+    stranded = [
+        c.name for c in doctor.run_checks(today=date(2026, 7, 20))
+        if not c.ok and not c.fix and not c.degraded_mode
+    ]
+    assert not stranded, (
+        f"check(s) report a problem with neither a fix nor a stated "
+        f"consequence: {stranded}"
+    )
+
+
+def test_every_required_and_recommended_failure_names_a_command(
+    bare_machine, zing_workspace
+):
+    """For the tiers a user can DO something about, the fix must be a
+    runnable command rather than a description. Optional peers are
+    exempt: 'no uoink at ...' is calm absence with nothing to run."""
+    import re
+
+    RUNNABLE = re.compile(r"pip install|winget|brew install|apt install|zing ")
+    bad = [
+        (c.name, c.fix)
+        for c in doctor.run_checks(today=date(2026, 7, 20))
+        if not c.ok and c.tier in (doctor.REQUIRED, doctor.RECOMMENDED)
+        and not RUNNABLE.search(c.fix or "")
+    ]
+    assert not bad, f"fixable tier without a runnable command: {bad}"
