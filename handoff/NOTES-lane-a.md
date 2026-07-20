@@ -1146,3 +1146,24 @@
   12-context sample of ONE speaker, not a precision metric; residual
   over-count is unmeasured and needs a labeled filler set (same shape
   as P-C2); "you know"/"kind of" not audited. Suite 975.
+
+- **2026-07-20 (Lane A): finished the filler audit I had explicitly
+  left incomplete — bigrams.** Last cycle's note said "you know" and
+  "kind of" were NOT audited; leaving that standing would have been a
+  known gap dressed as a finished job. Audited all four bigram classes
+  on the same 62-min interview. `you know` (34) and `i mean` (11):
+  every sampled use is a genuine discourse marker, and their
+  false-positive shapes ("do you know where", "what I mean is") never
+  occur in this transcript — so NO guard was added, because a rule
+  with no observed error to fix is speculation, not measurement.
+  `kind of`: audited EXHAUSTIVELY (all 15, not sampled) — 6 are
+  determiner-preceded noun phrases ("some kind of banner", "that kind
+  of stuff") where "kind" means TYPE. Guard added: 15 -> 9.
+  **The honest cost, pinned in a test:** the 6th determiner-preceded
+  hit ("sure THAT kind of revolutionized warfare") is a real hedge
+  whose "that" is a complementizer — the rule wrongly skips it. Net 5
+  false positives removed for 1 false negative introduced; separating
+  them needs POS tagging, not worth a dependency. The miss has its own
+  test that says to update it if someone fixes the case, so it stays a
+  visible cost rather than becoming folklore. Cumulative on that
+  interview: 105 -> 94 -> 88 fillers; no class silenced. Suite 978.

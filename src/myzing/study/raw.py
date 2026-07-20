@@ -46,6 +46,21 @@ LIKE_VERB_OR_PREP_BEFORE = {
 }
 LIKE_COMPARATIVE_AFTER = {"this", "that", "these", "those", "it", "him", "her", "them", "us", "me"}
 
+# "kind of"/"sort of" are hedges ("kind of tough") but ALSO ordinary noun
+# phrases ("some kind of banner", "that kind of stuff"), where "kind"
+# means type. A preceding determiner marks the noun-phrase use. Measured
+# on the same interview: of 15 "kind of" hits, 6 were determiner-preceded
+# and 5 of those were genuine noun phrases.
+# KNOWN COST, recorded rather than hidden: the 6th ("sure THAT kind of
+# revolutionized warfare") is a real hedge whose "that" is a
+# complementizer, not a determiner — this rule wrongly skips it. Net 5
+# false positives removed for 1 false negative introduced; distinguishing
+# them needs part-of-speech tagging, which is not worth a dependency here.
+KIND_OF_DETERMINER_BEFORE = {
+    "that", "this", "these", "those", "some", "any", "what",
+    "each", "every", "the", "a", "an", "other", "another", "all",
+}
+
 
 @dataclass
 class DeadAir:
@@ -328,6 +343,12 @@ def find_fillers(
         if index + 1 < len(cleaned):
             bigram = (text, cleaned[index + 1][0])
             if bigram in FILLER_BIGRAMS:
+                if bigram in (("kind", "of"), ("sort", "of")) and (
+                    index > 0
+                    and cleaned[index - 1][0] in KIND_OF_DETERMINER_BEFORE
+                ):
+                    index += 1
+                    continue
                 label = " ".join(bigram)
                 counts[label] = counts.get(label, 0) + 1
                 locations.append((label, word.start))

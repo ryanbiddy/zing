@@ -330,3 +330,40 @@ def test_other_fillers_are_untouched_by_the_like_guards():
     ])
     counts, _ = raw.find_fillers(ws)
     assert counts.get("um") == 1 and counts.get("uh") == 1
+
+
+def test_kind_of_as_noun_phrase_is_not_counted():
+    """'some kind of banner' means TYPE, not a hedge. Measured: 5 of 15
+    'kind of' hits on a real interview were determiner-preceded noun
+    phrases."""
+    for det in ("some", "that", "any", "another"):
+        ws = words_from([
+            (det, 0.0, 0.2), ("kind", 0.3, 0.5), ("of", 0.6, 0.7),
+            ("thing", 0.8, 1.1),
+        ])
+        counts, _ = raw.find_fillers(ws)
+        assert "kind of" not in counts, f"false positive after '{det}'"
+
+
+def test_kind_of_as_hedge_is_still_counted():
+    ws = words_from([
+        ("it", 0.0, 0.1), ("was", 0.2, 0.3), ("kind", 0.4, 0.6),
+        ("of", 0.7, 0.8), ("tough", 0.9, 1.2),
+    ])
+    counts, _ = raw.find_fillers(ws)
+    assert counts.get("kind of") == 1
+
+
+def test_known_false_negative_complementizer_that_is_documented():
+    """KNOWN LIMITATION, pinned deliberately: in 'sure THAT kind of
+    revolutionized warfare' the 'that' is a complementizer and the hedge
+    is real, but the determiner rule skips it. Distinguishing this needs
+    POS tagging. If a future change fixes it, this test should be
+    updated to assert the hedge IS counted — it exists to make the cost
+    visible, not to enshrine it."""
+    ws = words_from([
+        ("sure", 0.0, 0.2), ("that", 0.3, 0.4), ("kind", 0.5, 0.7),
+        ("of", 0.8, 0.9), ("revolutionized", 1.0, 1.6),
+    ])
+    counts, _ = raw.find_fillers(ws)
+    assert "kind of" not in counts   # the documented miss
