@@ -334,3 +334,112 @@ def test_index_survives_extra_files(zing_workspace):
     (d / "notes.txt").write_text("misc", encoding="utf-8")
     assert json.loads((d / "breakdown.json").read_text(encoding="utf-8"))
     assert storage.list_breakdowns()[0]["slug"] == "tiktok-123"
+
+
+# -- SG-2: the foundation's failure paths (silent data loss lives here) -------
+
+def test_validate_rejects_non_string_and_blank_names():
+    """Slugs are AI/user input; a non-string reaching Path() would raise
+    an internal TypeError instead of an honest SlugError."""
+    for bad in (None, 42, [], {}):
+        with pytest.raises(storage.SlugError, match="must be a string"):
+            storage.validate_slug(bad)
+    for blank in ("", "   ", "\t"):
+        with pytest.raises(storage.SlugError, match="must not be empty"):
+            storage.validate_slug(blank)
+
+
+def test_traversal_names_are_refused_by_the_first_line_of_defence(zing_workspace):
+    """F-02: '..' is rejected by the CHARACTER filter, before the
+    resolve-outside check ever runs. Written after a test of mine
+    asserted the deeper message and failed: the resolve check is
+    defence-in-depth that normal inputs cannot reach, and pretending
+    otherwise would have documented a path that does not exist."""
+    with pytest.raises(storage.SlugError, match="must not contain"):
+        storage.validate_slug("..")
+    for bad in ("../escape", "a/b", "a\b"):
+        with pytest.raises(storage.SlugError):
+            storage.validate_slug(bad)
+
+
+def test_find_media_returns_none_for_absent_and_empty_dirs(zing_workspace):
+    assert storage.find_media("tiktok-nothing") is None
+    storage.breakdown_dir("tiktok-empty").mkdir(parents=True)
+    assert storage.find_media("tiktok-empty") is None
+
+
+def test_resolve_relpath_joins_relative_and_passes_absolute_through(
+    zing_workspace, tmp_path
+):
+    """Contract rule: paths are stored relative to the breakdown folder so
+    the folder survives being moved or synced; this is the one place that
+    joins them back."""
+    absolute = tmp_path / "elsewhere" / "media.mp4"
+    assert storage.resolve_relpath("tiktok-1", str(absolute)) == absolute
+    assert (
+        storage.resolve_relpath("tiktok-1", "frames/shot_000.jpg")
+        == storage.breakdown_dir("tiktok-1") / "frames" / "shot_000.jpg"
+    )
+
+
+def test_atomic_write_cleans_up_its_temp_file_on_failure(zing_workspace, monkeypatch):
+    """A failed status write must not leave a temp file behind — the
+    directory listing is user-visible."""
+    d = storage.breakdown_dir("tiktok-1")
+    d.mkdir(parents=True)
+
+    def boom(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(storage.os, "replace", boom)
+    with pytest.raises(OSError):
+        storage.write_status_at(d, state="running")
+    leftovers = [p.name for p in d.iterdir()]
+    assert leftovers == [], f"temp file left behind: {leftovers}"
+
+
+def test_read_status_gives_up_honestly_on_a_permanently_bad_file(zing_workspace):
+    """A torn read retries; a file that is simply corrupt must return
+    None rather than raising into a caller that has no recourse."""
+    d = storage.breakdown_dir("tiktok-1")
+    d.mkdir(parents=True)
+    (d / "status.json").write_text("{not json at all", encoding="utf-8")
+    assert storage.read_status_at(d) is None
+
+
+def test_rebuild_over_corrupt_prior_breakdown_does_not_lose_the_new_one(
+    zing_workspace,
+):
+    """The judgment-preserving path reads the prior file; if that file is
+    corrupt there is nothing to preserve, and the REBUILD must still
+    succeed rather than failing on someone else's bad bytes."""
+    slug = "tiktok-1"
+    d = storage.breakdown_dir(slug)
+    d.mkdir(parents=True)
+    (d / "breakdown.json").write_text("{corrupt", encoding="utf-8")
+    fresh = make_breakdown()
+    storage.save_breakdown(fresh, slug=slug)
+    loaded = storage.load_breakdown(slug)
+    assert loaded.meta.source_url == fresh.meta.source_url
+    assert (d / "breakdown.json.bak").is_file()  # the corrupt one is kept
+
+
+def test_listings_report_foreign_and_incomplete_directories_as_data(
+    zing_workspace,
+):
+    """list_breakdowns/list_profiles walk a directory the user can touch.
+    A stray folder must appear as an honest entry, never crash the list
+    and never be silently hidden."""
+    (storage.breakdowns_root() / "tiktok-nobreakdown").mkdir(parents=True)
+    (storage.profiles_root() / "half-built").mkdir(parents=True)
+
+    breakdowns = storage.list_breakdowns()
+    assert any(
+        e.get("slug") == "tiktok-nobreakdown" and "no breakdown.json" in e.get("error", "")
+        for e in breakdowns
+    )
+    profiles = storage.list_profiles()
+    assert any(
+        e.get("name") == "half-built" and "no profile.json" in e.get("error", "")
+        for e in profiles
+    )
