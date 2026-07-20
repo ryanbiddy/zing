@@ -1771,3 +1771,31 @@
   reasoning that made me choose a registry over a regex last cycle).
   The detection method is recorded here instead, for re-running.
   Suite 1074.
+
+- **2026-07-20 (Lane A, SG-1): reviewed #360's warnings taxonomy — the
+  three kinds are accurate but INCOMPLETE, and the missing kind is the
+  one most likely to be misread.** Their study.md 0.5.0 sorts
+  `warnings[]` into (1) skipped/degraded, (2) resolution stated, (3)
+  normalization applied, and each description is correct for the
+  warnings it covers. I checked it against every warning my lane
+  emits, since I own what that list contains.
+  **Missing kind: a MEASUREMENT FINDING** — the measurement ran, and
+  what it found is itself the warning:
+  - `raw: 51 dead-air span(s) totaling 197.2s — ...`
+  - `raw: 105 filler word(s) — like×26, you know×34, ...`
+  - `raw: repeated take (similarity 0.82) — 4.0-6.0s vs 12.0-14.0s`
+  - `draft EDL: chosen span ... is not a measured keeper (AI's call —
+    flagged, not blocked)`
+  - `profile coherence: source durations span 34-434s (>3x spread)`
+  - `persistent on-screen text ... excluded from captions: "..."`
+  Forcing these into the existing three MISLEADS: kind 1 says
+  "evidence is MISSING" when the evidence is present and speaking;
+  kind 3 says "confidence went UP" which is not what a retake or a
+  3x duration spread means. These are precisely the entries a creator
+  or a judging AI should ACT on — the retake-spotting output is the
+  S3 feature's whole point — so filing them under "nothing went
+  wrong" or "evidence missing" is the costliest possible misfiling.
+  Routed to Lane B (prompts are theirs) with the enumeration above and
+  a suggested framing: *the measurement succeeded and found something
+  you should look at; the numbers are the evidence, and the span
+  references are where to look.* No prompt edited by me.
