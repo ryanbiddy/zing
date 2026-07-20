@@ -771,3 +771,131 @@ def test_configured_token_never_appears_in_any_surface(lease_dir, monkeypatch):
     ]
     for text in haystacks:
         assert secret not in text
+
+
+# -- SG-2: every lease validation RULE proven to reject ----------------------
+
+@pytest.mark.parametrize("patch,expect", [
+    ({"contract": "ryan.suite.other"}, "contract="),
+    ({"version": 2}, "version="),
+    ({"service_id": "writer"}, "service_id="),
+    ({"base_url": 5179}, "base_url must be a string"),
+    ({"health_url": None}, "health_url must be a string"),
+    ({"manifest_url": "http://evil.test:80/x"}, "manifest_url"),
+    ({"capabilities": "uoink.media.handoff/1"}, "list of strings"),
+    ({"capabilities": [1, 2]}, "list of strings"),
+    ({"ui": {"home": "/x"}}, "ui keys"),
+    ({"ui": {"home": "/x", "routes": ["not", "a", "map"]}}, "ui.routes"),
+    ({"started_at": 1753000000}, "started_at must be a string"),
+], ids=["contract", "version", "identity", "base-url-type", "health-url-type",
+        "manifest-url-offloopback", "caps-string", "caps-ints", "ui-keys",
+        "ui-routes-type", "started-at-type"])
+def test_every_lease_rule_rejects_what_it_claims_to(patch, expect):
+    """§3.4 is a security boundary: the lease is a file any local process
+    can write. A validation branch nobody has exercised is a rule nobody
+    has proven REJECTS anything — these were the lane's largest coverage
+    gap immediately after I wrote them."""
+    lease = valid_lease(**patch)
+    defect = suite_peer.lease_defect(lease, "uoink")
+    assert defect is not None and expect in defect
+
+
+def test_lease_url_with_unparseable_port_is_rejected():
+    """urlsplit raises ValueError on a non-numeric port only when .port
+    is READ — the guard exists because a hostile lease is exactly where
+    that would otherwise escape as a traceback."""
+    assert suite_peer._validate_url("http://127.0.0.1:notaport") is not None
+
+
+def test_manifest_and_health_key_drift_are_named(monkeypatch):
+    """The two remaining exact-key branches: a manifest whose SERVICE
+    block drifts, and a health body with wrong top-level keys."""
+    bad_service = make_manifest()
+    del bad_service["service"]["api_version"]
+    assert "service keys" in (suite_peer._manifest_defect(bad_service) or "")
+
+    bad_health = make_health()
+    del bad_health["service_version"]
+    assert "health keys" in (suite_peer._health_defect(bad_health) or "")
+
+
+# -- SG-2: the probe's remaining transport/validation endings ---------------
+
+def test_configured_peer_timeout_is_named_timeout(monkeypatch):
+    """§4 distinguishes `timeout` from `unavailable` — both retryable,
+    but a user chasing a slow peer needs to know which one happened."""
+    monkeypatch.setenv(suite_peer.UOINK_URL_ENV, "http://127.0.0.1:6002")
+
+    def slow(request, timeout=0):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", slow)
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "timeout"
+    assert peer["error"]["retryable"] is True
+    assert "timed out" in evidence
+    assert peer_is_valid(peer)
+
+
+def test_drifted_manifest_body_is_contract_mismatch(monkeypatch):
+    """A 200 that parses but is not a conformant manifest."""
+    bad = make_manifest()
+    del bad["service"]["mcp"]
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen", FakeUoink(manifest=bad)
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "contract_mismatch"
+    assert "manifest drift" in peer["error"]["message"]
+
+
+def test_health_endpoint_that_dies_after_a_good_manifest(monkeypatch):
+    """The manifest verified, then the peer stopped answering — the
+    evidence receipt must still name what WAS read."""
+    class ManifestThenDeath(FakeUoink):
+        def __call__(self, request, timeout=0):
+            if "/api/suite/v1/health" in request.full_url:
+                raise urllib.error.URLError("gone")
+            return super().__call__(request, timeout)
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", ManifestThenDeath())
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "unavailable"
+    assert "manifest read: uoink 3.6.0" in evidence  # what WAS verified
+
+
+def test_health_non_200_and_drifted_health_are_distinguished(monkeypatch):
+    import io
+
+    class HealthHTTPError(FakeUoink):
+        def __call__(self, request, timeout=0):
+            if "/api/suite/v1/health" in request.full_url:
+                raise urllib.error.HTTPError(
+                    request.full_url, 500, "boom", {}, io.BytesIO(b"nope")
+                )
+            return super().__call__(request, timeout)
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", HealthHTTPError())
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "contract_mismatch"
+    assert "health: HTTP 500" in evidence
+
+    bad = make_health()
+    del bad["state"]
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen", FakeUoink(health=bad)
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert "health drift" in peer["error"]["message"]
+
+
+def test_health_claiming_another_service_is_wrong_service(monkeypatch):
+    """Manifest says uoink, health says writer — identity must be
+    checked at BOTH seams, not just the first."""
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen",
+        FakeUoink(health=make_health(service_id="writer")),
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "wrong_service"
+    assert "writer" in peer["error"]["message"]

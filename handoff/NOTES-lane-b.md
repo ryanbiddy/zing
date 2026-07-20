@@ -2072,3 +2072,29 @@
   lane within the hour. Third doctrine of mine to travel (lease caps,
   primary-source citations, now skip registration), which suggests the
   mesh moves practices faster than it moves code.
+- **2026-07-20 (Lane B): SG-2 eleventh pass — suite_peer 93%→99%, and
+  the gap was concentrated in code I had just written.** The lane's
+  largest remaining hole was the LEASE validator: eleven §3.4 rules
+  whose reject-branches nothing had ever exercised. That matters more
+  than a coverage number, because the lease is a file any local
+  process can write — **a validation branch nobody has run is a rule
+  nobody has proven REJECTS anything.** All eleven now have a test
+  proving they reject what they claim (wrong contract, version,
+  identity; non-string URL fields; an off-loopback manifest_url; a
+  capabilities string instead of a list; ui missing routes; routes as
+  a list; non-string started_at), plus the unparseable-port guard.
+  Also closed the probe's remaining endings, each a state §4
+  distinguishes and a user needs told apart: `timeout` vs
+  `unavailable`; a 200 that parses but drifts; a health endpoint that
+  dies AFTER a good manifest (the evidence receipt still names what
+  WAS verified); health non-200 vs health drift; and health claiming a
+  different service than the manifest did — identity checked at BOTH
+  seams, not just the first.
+  Loop closed from last cycle: Lane A committed derived filler counts
+  (#329) specifically because my SG-1 said I could not reproduce their
+  figures. I recomputed from their file: basically 20 hits / 10
+  transcripts, literally 8/4, over 29 transcripts and 25,516 words —
+  **exactly their published corrected numbers.** Two cycles ago those
+  figures were unverifiable by anyone but them; now any lane can check
+  them in ten seconds. That is the review loop doing what it is for.
+  Suite 1025 passed / 2 skipped.
