@@ -952,3 +952,19 @@
   (the realistic tamper, catchable only by hash); disabling the sha
   comparison now fails the test. A test that cannot fail is not
   protection.
+
+- **2026-07-19 (Lane A): CX1-P1-3 point 3 independently VERIFIED, and
+  the half CX-1 could only call "may be defensible" is now MEASURED.**
+  Their factual claim holds exactly: repo has 0 tags, 0 releases,
+  and pypi.org/pypi/myzing/json returns 404 — "tagged" is false and
+  should be struck from the packet. But "PyPI-ready from source" is
+  now EVIDENCED rather than asserted: built both artifacts from a
+  clean tree (`python -m build`), `twine check` PASSED on the sdist
+  AND the wheel (PyPI's own metadata validation), installed the wheel
+  into a fresh venv, and smoke-tested it — CLI runs and all 7
+  packaged preset packs are visible through the wheel's data path.
+  So the accurate packet line is: "public source, no tag/release/PyPI
+  publication; artifacts build and pass twine check today."
+  Also checked and CLEAR: CX1-P2-1's absolute local-only claim does
+  NOT appear anywhere in Lane A's surfaces (study/profile/assemble/
+  presets/report) — that finding is docs-only, no Lane A slice.
