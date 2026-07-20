@@ -167,8 +167,20 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
 # — watermark fragments leaked into caption event text on all three real
 # videos. Concurrent regions are now tracked independently by vertical
 # position; persistent static overlays are excluded from captions and
-# reported in warnings instead (honest, but no longer polluting the
-# caption stream that style metrics and sync judgment read).
+# reported in warnings instead.
+#
+# MEASURED LIMIT (2026-07-20, P-C2 labels — do not read the line above
+# as "solved"): exclusion works on short-form but effectively cannot
+# fire on long-form. On a 430s cell whose 1,882 events are ALL
+# non-caption HUD text, ZERO overlay warnings fire and every one of
+# those events reaches the caption stream. Cause is not the threshold
+# alone: track_regions merges a static watermark with the changing
+# counter beside it, so the region's joined text differs almost every
+# frame (978 observations, 972 distinct texts) and events never age.
+# Evidence + regression fixture: handoff/research/
+# P-C2-BASELINE-2026-07-20.md, tests/test_overlay_rule_against_labels.py.
+# Fix is queued (region-merge proposal), NOT to be tweaked quietly —
+# the current silence costs 0 captions, measured.
 
 BLOB_GAP_Y = 0.07        # y gap that separates two text regions in a frame
 TRACK_MATCH_Y = 0.08     # blob-to-track vertical matching distance

@@ -6,8 +6,17 @@ A pack manifest (presets/<pack-id>.json) is the reproducibility contract
 exact URLs, and per-reference verification dates. The builder studies
 whatever isn't studied yet, builds the pack profile from the survivors,
 and records the manifest's sha256 + per-reference outcomes in provenance
-— so a rebuilt pack can prove what it was built from, and drift (a
-reference gone dead, a changed manifest) is detectable, never silent.
+— so a rebuilt pack can prove what it was built from.
+
+Drift detection is PARTIAL, and the boundary matters: a changed
+manifest is caught (its sha256 is recorded), and a reference that
+fails to fetch is caught (it lands in `failed` with its cause). But a
+reference already studied into this workspace is REUSED without any
+re-probe — see the `load_breakdown` path below — so a pack rebuilt
+entirely from cache reports all-green even if every URL has since
+died. That is not hypothetical: SW-2 saw the S1 gate video vanish
+within weeks. A `--reverify` pass is proposed in QUEUE.md; until it
+exists, "reused" means "we had bytes", not "the source still lives".
 
 Regeneration = run the same command on the same manifest.
 """

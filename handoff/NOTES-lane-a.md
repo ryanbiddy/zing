@@ -1502,3 +1502,30 @@
   the path every caption measurement flows through, the current
   silence is SAFE (0 captions lost, measured), so this is a
   completeness fix and post-launch by nature.
+
+- **2026-07-20 (Lane A): applied Lane B's misdiagnosis-class scan to my
+  own CODE — two overclaims found, both mine, both corrected.** Their
+  #336 named the pattern ("a message assertion is a claim") and found
+  a second instance by looking for the CLASS. I asked the same
+  question of my modules, where it is worse: a comment outlives a
+  note, and nobody re-checks it.
+  **1. captions.py** asserted persistent overlays "are excluded from
+  captions ... no longer polluting the caption stream". I had just
+  MEASURED the opposite on long-form: zero warnings fire on the 430s
+  cell while all 1,882 HUD events enter the caption stream. The
+  comment described intent as achievement. Now states the measured
+  limit, its real cause (region merging), and points at the evidence
+  and the queued fix.
+  **2. profile/packs.py** asserted drift "is detectable, never
+  silent". False in one specific way I had already documented
+  elsewhere and never fixed at the source: a REUSED reference is
+  never re-probed, so a pack rebuilt entirely from cache reports
+  all-green even if every URL has died — exactly SW-2's shape. Now
+  states which drift IS caught (changed manifest, failed fetch) and
+  which is not, and that "reused" means "we had bytes", not "the
+  source still lives".
+  Method note: a regex for absolute claims (never/always/no
+  longer/guarantees) over my lane returned 32 hits; most are genuine
+  design contracts that tests enforce. The two that mattered were
+  claims about OBSERVED BEHAVIOUR rather than policy — that is the
+  distinction worth scanning for next time. Suite green.
