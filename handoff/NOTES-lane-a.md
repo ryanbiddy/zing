@@ -1078,3 +1078,21 @@
   beyond my own lane, run the cheapest test that would DISPROVE the
   claim. An urgent claim that redirects other lanes' work carries a
   higher evidence bar than one that only costs me a cycle.
+
+- **2026-07-20 (Lane A): shipped the regeneration script for the
+  min_scene_len audit — and it immediately caught an error in my own
+  published note.** The audit's numbers were originally produced in
+  throwaway shell, so the note asserted figures nobody could
+  reproduce — precisely the gap I would flag in someone else's
+  research (and which P-C2's freeze.py was built to avoid).
+  `handoff/research/shot_threshold_audit.py` (stdlib only, read-only,
+  offline with a local path) now regenerates every figure, verified
+  identical: 344 usable videos, 6,245 shots, 4.68% under our 0.3s
+  floor, 13.48% under the 0.6s default. **The catch:** the note said
+  "1 malformed annotation line" because I stopped at the first
+  example; the script counts **5** (two double-comma, three
+  trailing-comma). All five carry two unambiguous frame numbers, so
+  parsing is unchanged and no reported figure moves — but the note
+  was wrong and is corrected in place with the reason recorded.
+  Writing the regeneration command is what found it; that is the
+  argument for regeneration commands.
