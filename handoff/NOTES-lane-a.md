@@ -1050,3 +1050,31 @@
   dataset — both true, different things. Also recorded: my first pass
   said "5 headers without counts", an artifact of slicing my own
   debug list; caught because totals would not reconcile.
+
+- **2026-07-20 (Lane A): I FILED A WRONG URGENT ESCALATION AND
+  RETRACTED IT — there was no Actions outage.** I claimed repo-wide
+  Actions failure after four trigger types failed to start CI on my
+  branch and ~9 minutes passed with no new runs repo-wide (last was
+  `main push 02:33:29Z`). That was a coincidental lull plus a
+  branch-specific stall, generalized into a fleet-wide claim.
+  DISPROOF, from the same tooling I already had: `lane-b-surface` got
+  a pull_request run at 02:45:17Z, main pushed at 02:47:47Z, and
+  decisively — the branch I created DURING the supposed outage in
+  order to file the escalation triggered 2 runs immediately.
+  WHAT IS ACTUALLY TRUE: two specific branches
+  (lane-a/shot-threshold-audit, lane-a/shot-min-scene-audit) reached
+  0 runs and would not start one via push, empty-commit synchronize,
+  PR create, or close/reopen — the missing-trigger stall I had
+  already documented, in a form where the force-push remedy failed.
+  Remedy that works: create a fresh branch (proven twice since). No
+  fleet action was needed; the escalation was withdrawn before anyone
+  acted on it (PR #296).
+  WHY I GOT IT WRONG, for the record: I never ran the cheap
+  falsifier — "does a brand-new branch trigger CI right now?" — one
+  command, available to me, and it refutes the claim outright. That
+  is twice this session I concluded ahead of the evidence (the first:
+  declaring a PR "never created" while its creation was still in
+  flight). Standing rule, now written down: BEFORE escalating scope
+  beyond my own lane, run the cheapest test that would DISPROVE the
+  claim. An urgent claim that redirects other lanes' work carries a
+  higher evidence bar than one that only costs me a cycle.
