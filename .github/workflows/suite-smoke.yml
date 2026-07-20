@@ -76,8 +76,10 @@ jobs:
             "keyring==25.7.0"
 
       - name: Run the deterministic family scenario
+        shell: bash
         working-directory: zing
         run: |
+          set -o pipefail
           rm -rf "$SMOKE_DIR" "$SMOKE_WORK_DIR"
           mkdir -p "$SMOKE_DIR"
           python -m tools.eval.run_suite_smoke \
@@ -86,7 +88,9 @@ jobs:
             --writer-repo "$GITHUB_WORKSPACE/writer" \
             --zing-repo "$GITHUB_WORKSPACE/zing" \
             --work-dir "$SMOKE_WORK_DIR" \
-            --output "$SMOKE_DIR/suite-smoke.json"
+            --output "$SMOKE_DIR/suite-smoke.json" \
+            2> >(tee "$SMOKE_DIR/suite-smoke-failure.json" >&2)
+          rm -f "$SMOKE_DIR/suite-smoke-failure.json"
 
       - name: Independently evaluate the family record
         working-directory: zing
@@ -100,8 +104,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: suite-smoke-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ runner.temp }}/suite-smoke/suite-smoke.json
-            ${{ runner.temp }}/suite-smoke/suite-smoke-eval.json
+          path: ${{ runner.temp }}/suite-smoke/suite-smoke*.json
           if-no-files-found: error
           retention-days: 14
