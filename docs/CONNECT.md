@@ -84,20 +84,32 @@ are present (INTEGRATION-CONTRACT v1):
 - **Study a captured short without re-downloading:**
   `study_uoink_item("uoink://item/<id>")` asks uoink for the kept media
   file, verifies its hash, and studies it with **zero network fetch**;
-  if the file is gone, zing refetches from the original URL and the
-  breakdown's provenance says exactly why. Needs `UOINK_URL` (default
-  `http://127.0.0.1:5179`) and `UOINK_TOKEN` (uoink's `token.txt`,
-  next to its server.py — zing never reads that file itself).
+  if that file is missing or fails integrity checks, Zing may refetch
+  only from the handoff's HTTP(S) source URL. A missing source URL or a
+  failed refetch leaves the study failed rather than guessing. The
+  breakdown records whether it used kept media or refetched, with the
+  reason. `UOINK_URL` defaults to `http://127.0.0.1:5179`.
+- **Supply the Uoink credential explicitly:** set `UOINK_TOKEN` in the
+  environment that launches Zing's MCP server. For an installed Uoink
+  helper, the value is stored at
+  `%LOCALAPPDATA%\Uoink\token.txt` on Windows or
+  `~/Library/Application Support/Uoink/token.txt` on macOS; a source
+  checkout keeps `token.txt` beside `server.py`. Copy the value into the
+  process environment. Zing never reads Uoink's token file and never puts
+  the token in a URL.
 - **Import a Writer shot list:** `import_shot_list(path, slug)` takes
   the `.md` file you exported from Writer and attaches it to a studied
   breakdown as editorial context. Re-importing the same file is
   idempotent. Zing's own measured direction stays the authority for
   what's actually usable footage.
 - **Peer health, honestly:** `zing doctor` probes uoink through the
-  suite contract. Not installed → calm "absent" (never an error);
-  installed but no token → "unconfig" with the exact fix; installed
-  but drifted/broken → "unhealthy" with a named code. A missing uoink
-  never degrades anything else.
+  suite contract. No service at the default address is calm `absent`;
+  a verified service without `UOINK_TOKEN` is calm `unconfigured`; a
+  configured service that rejects authentication, serves the wrong
+  contract, or fails health is `unhealthy` with a named code. The human
+  doctor row abbreviates `unconfigured` as `unconfig`, while its peer data
+  keeps the contract state. A missing Uoink does not fail Zing's
+  standalone local-file study, profile, or render paths.
 
 ## Environment knobs (all optional)
 
