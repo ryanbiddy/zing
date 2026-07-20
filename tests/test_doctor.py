@@ -546,3 +546,60 @@ def test_developer_guide_checklist_matches_doctor(full_machine):
         assert check.name in guide, (
             f"DEVELOPER-GUIDE.md's doctor checklist is missing {check.name!r}"
         )
+
+
+# -- first-run: "Ready." was a correct dead end -------------------------------
+
+def test_ready_names_the_next_command_on_an_empty_workspace(
+    full_machine, zing_workspace, capsys
+):
+    """`zing doctor` is the first command a new user runs, and it ended
+    on a bare "Ready." — true, and no help at all. The next step must
+    depend on workspace STATE, not be a fixed advert."""
+    doctor.run([])
+    out = capsys.readouterr().out
+    assert "Ready." in out
+    assert "zing setup --list" in out
+    assert "zing study" in out
+
+
+def test_next_step_changes_once_something_is_studied(
+    full_machine, zing_workspace, capsys
+):
+    from myzing import storage
+    from myzing.schemas import Breakdown, VideoMeta
+
+    storage.save_breakdown(
+        Breakdown(meta=VideoMeta(source_url="https://x.test/v", platform="tiktok")),
+        slug="tiktok-1",
+    )
+    doctor.run([])
+    out = capsys.readouterr().out
+    assert "1 studied video(s), no taste profile yet" in out
+    assert "zing setup --links" in out
+
+
+def test_next_step_is_silent_when_required_tools_are_missing(
+    bare_machine, zing_workspace, capsys
+):
+    """Advice about what to do next is noise while the user cannot run
+    anything — the fixes above are the only next step that matters."""
+    doctor.run([])
+    out = capsys.readouterr().out
+    assert "NOT ready" in out
+    assert "Next:" not in out
+
+
+def test_next_step_never_breaks_the_report(full_machine, zing_workspace, monkeypatch, capsys):
+    """Guidance is a courtesy; a storage failure must not cost the user
+    their environment report."""
+    from myzing import storage
+
+    monkeypatch.setattr(
+        storage, "list_breakdowns",
+        lambda: (_ for _ in ()).throw(OSError("workspace unreadable")),
+    )
+    assert doctor.run([]) == 0
+    out = capsys.readouterr().out
+    assert "Ready." in out
+    assert "Next:" not in out
