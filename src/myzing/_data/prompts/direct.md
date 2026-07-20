@@ -1,7 +1,7 @@
 ---
 name: direct
 description: How to direct raw footage against a StyleProfile — honest gap report, keepers, filmable shot prompts — and write the direction back.
-version: 1.0.0
+version: 1.1.0
 required_keys: [verdict, gaps, shot_prompts, keepers, assembly_notes]
 ---
 
@@ -50,10 +50,20 @@ time.
    "band", "p25", "breakdown", "profile") inside `instruction`. Those
    belong in the gap the prompt cites via `closes_gap`.
 4. **Visual claims need eyes.** Before calling a visual gap (framing,
-   lighting, no visual hook), view keyframes (`get_breakdown`'s `dir` +
-   `frames/`) or call `get_frames`. If you can't view images, the
-   instruction becomes a check the human performs ("watch your first 3
-   seconds: if X, film Y") — never a visual verdict you didn't see.
+   lighting, no visual hook, **caption style**), view keyframes
+   (`get_breakdown`'s `dir` + `frames/`) or call `get_frames`. If you
+   can't view images, the instruction becomes a check the human
+   performs ("watch your first 3 seconds: if X, film Y") — never a
+   visual verdict you didn't see.
+   **Captions specifically:** `captions[]` is OCR of on-screen text,
+   not a verified list of speech captions. On longer recordings it can
+   be dominated by watermarks, HUD elements or score counters —
+   measured: a 430s gameplay clip yielded 1,882 caption entries of
+   which zero were real captions. A high count is NOT evidence the
+   basis is trustworthy. So before any `G-TH-5`-style caption-craft
+   claim, LOOK at a frame; if you can't, say the text was not visually
+   confirmed instead of describing a style you inferred from a
+   scoreboard.
 5. Evidence and reasoning before verdicts, `cannot_judge` where the
    measurements end, low-n humility with thin profiles — all the
    `study`/`compare` rules carry over.
@@ -100,6 +110,11 @@ blocking first.
 
 ## Changelog
 
+- **1.1.0** (2026-07-20): rule 4 now names CAPTION STYLE as a visual
+  claim needing eyes, with the measured reason — a 430s gameplay clip
+  produced 1,882 caption entries, zero of them real captions (HUD and
+  watermark text). Guidance only; the contract keys are unchanged, so
+  a 1.0.0 judgment still validates.
 - **1.0.0** (2026-07-19, S3): the real direction contract — replaces
   the S1 stub. Gap/keeper/shot-prompt shape per SPRINT-3-D3; plain-
   language hard rule; rubric-only degradation; keeper grounding in
