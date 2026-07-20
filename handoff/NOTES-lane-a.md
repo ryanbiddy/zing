@@ -1369,3 +1369,28 @@
   not just the conclusion — a finding a peer cannot check is a
   finding they must take on trust, and this project does not run on
   trust.
+
+- **2026-07-20 (Lane A): audited my own P-C2 LABELS by frame
+  inspection — they hold, and the reason exposed a blind spot in the
+  dataset.** The persistence result carried the caveat that labels
+  assigned by transcript matching might be circular, so I checked
+  them the only independent way available: looking at frames, no
+  transcript. `youtube-nlgyv0bmddi` at t~1s shows TWO texts at once —
+  a green graphic "ANTARCTICA" at y~0.52 and the white speech caption
+  "YOU'RE NEVER ALLOWED TO" at y~0.79. Naive transcript matching
+  would call the GRAPHIC a caption when the narrator says the word.
+  **It did not**: all 33 graphic lines are incidental_text, only the
+  11 caption-band lines are likely_caption. Labels verified correct
+  by eye.
+  **But tracing WHY it worked found the blind spot.** The rule
+  required >=2 tokens; "ANTARCTICA" is one token, so it never
+  matched. Consequence across the whole dataset: **0 single-token
+  lines are labeled caption, against 14,022 labeled non-caption.**
+  No single-word caption exists in this data BY CONSTRUCTION, not by
+  observation — yet word-by-word karaoke captioning is a common real
+  style. So every recall figure I have published for this dataset
+  silently excludes that style, and the ">=2 words" term appearing in
+  BOTH candidate rules is partly fitting my labeling method rather
+  than the phenomenon.
+  Recorded in the baseline note. Next step for this dataset is now
+  clear and cheap: label one cell with NO token-count floor.
