@@ -204,6 +204,30 @@ def test_safe_environment_removes_provider_credentials_and_forces_offline(
 
 
 @pytest.mark.parametrize(
+    ("platform_name", "expected"),
+    [
+        ("win32", Path("RyanSuite/services.d")),
+        (
+            "darwin",
+            Path("home/Library/Application Support/RyanSuite/services.d"),
+        ),
+        ("linux", Path("xdg-state/ryan-suite/services.d")),
+    ],
+)
+def test_runtime_registry_path_matches_the_product_contract(
+    tmp_path: Path,
+    platform_name: str,
+    expected: Path,
+) -> None:
+    env = smoke._safe_base_env(tmp_path)
+
+    assert smoke._runtime_registry_dir(
+        env,
+        platform_name=platform_name,
+    ) == tmp_path / expected
+
+
+@pytest.mark.parametrize(
     ("value", "expected"),
     [
         ("C:\\Users\\Ryan\\clip.mp4", True),
