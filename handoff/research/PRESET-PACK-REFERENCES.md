@@ -25,7 +25,16 @@ staleness lesson that moved curation to this lane.
 | viral-tiktok-reels | 7 | vertical | talking-head |
 | vlog | 7 | 4 vertical + 3 horizontal (Neistat canon) | vlog |
 
-Per-reference one-line rubric-cited "why" lives in each manifest entry.
+Per-reference one-line "why" lives in each manifest entry. These are
+OBSERVABLE descriptions — what a reader can confirm by watching the
+video (cold-open type, cut behavior, caption treatment) — not
+citations of rubric criteria. (Clarified 2026-07-20: this line
+previously said "rubric-cited", which misdescribed the shipped
+manifests. The distinction became load-bearing when CX-6 found the
+AG design-research dossiers untrustworthy: because these whys rest
+on observable properties, the packs carry no dependency on that
+work. The genre-rubric MAPPING below is a separate, per-manifest
+field and is unaffected.)
 Anchors worth naming: Cleo Abram's Antarctica short (the project's
 original reference exemplar — re-verified live), Zach King's graffiti
 illusion (most-viewed Short ever), MrBeast's baguette (most-liked video),

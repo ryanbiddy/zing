@@ -58,7 +58,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
             if not reference.get(key):
                 raise PackError(
                     f"reference {index} missing '{key}' — every reference "
-                    "carries a stable id, url, rubric-cited why, and its "
+                    "carries a stable id, url, an OBSERVABLE why (something "
+                    "a reader can check by watching the video), and its "
                     "live-verification date (reproducibility rules)"
                 )
         if reference["id"] in seen_ids:
