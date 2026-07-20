@@ -1096,3 +1096,26 @@
   was wrong and is corrected in place with the reason recorded.
   Writing the regeneration command is what found it; that is the
   argument for regeneration commands.
+
+- **2026-07-20 (Lane A): checked Lane A for AG-research contamination
+  after CX-6's verdicts — CLEAN, with one wording fix.** CX-6 found
+  4 of 8 AG dossiers FABRICATED at the artifact-evidence level and 4
+  THIN-REDO, none trustworthy, and maps downstream contamination. The
+  obvious question for me: do any Lane A artifacts rest on that
+  author's work? Checked every owned surface (study/, profile/,
+  assemble/, presets/, the sweep record, the P-C2 calibration) for
+  references to dr-1..dr-7, BR-1, the rubrics, or TASTE-FRAMEWORK.
+  **Result: no dependency.** Specifically, the 32 shipped pack
+  references' `why` fields describe OBSERVABLE properties of each
+  video ("opinion-first cold open with punch-in cuts on the thesis
+  line and burned-in captions") — claims anyone can falsify by
+  watching the video — rather than citing borrowed rubric criteria.
+  That was a curation choice at the time; it now turns out to be why
+  the packs survive an upstream research failure untouched.
+  ONE FIX: packs.py's manifest-validation error text told curators a
+  why must be "rubric-cited", which points future curation at
+  unaudited AG rubrics and misdescribes what the shipped manifests
+  actually do. Reworded to ask for an observable, checkable reason.
+  NOT claimed: that the rubrics themselves are bad — they were OUTSIDE
+  CX-6's scope (dr-1..dr-7 + BR-1 only) and I have not audited them.
+  The point is narrower and verifiable: Lane A does not depend on them.
