@@ -228,6 +228,30 @@ def test_runtime_registry_path_matches_the_product_contract(
 
 
 @pytest.mark.parametrize(
+    ("platform_name", "expected"),
+    [
+        ("win32", Path("Uoink")),
+        (
+            "darwin",
+            Path("home/Library/Application Support/Uoink"),
+        ),
+        ("linux", Path("xdg-data/Uoink")),
+    ],
+)
+def test_uoink_data_path_matches_the_product_contract(
+    tmp_path: Path,
+    platform_name: str,
+    expected: Path,
+) -> None:
+    env = smoke._safe_base_env(tmp_path)
+
+    assert smoke._uoink_data_dir(
+        env,
+        platform_name=platform_name,
+    ) == tmp_path / expected
+
+
+@pytest.mark.parametrize(
     ("value", "expected"),
     [
         ("C:\\Users\\Ryan\\clip.mp4", True),

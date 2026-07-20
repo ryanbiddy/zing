@@ -649,6 +649,25 @@ def _runtime_registry_dir(
     return Path(env["XDG_STATE_HOME"]) / "ryan-suite" / "services.d"
 
 
+def _uoink_data_dir(
+    env: Mapping[str, str],
+    *,
+    platform_name: str | None = None,
+) -> Path:
+    """Resolve Uoink's isolated data directory exactly as Uoink does."""
+    platform_name = platform_name or sys.platform
+    if platform_name == "win32":
+        return Path(env["LOCALAPPDATA"]) / "Uoink"
+    if platform_name == "darwin":
+        return (
+            Path(env["HOME"])
+            / "Library"
+            / "Application Support"
+            / "Uoink"
+        )
+    return Path(env["XDG_DATA_HOME"]) / "Uoink"
+
+
 def _validate_contract(
     contract: str,
     payload: dict[str, Any],
@@ -789,7 +808,7 @@ def _seed_uoink_fixture(
         "import json, os;"
         "from pathlib import Path;"
         "import index;"
-        "root=Path(os.environ['LOCALAPPDATA'])/'Uoink';"
+        "root=Path(os.environ['SUITE_SMOKE_UOINK_DATA']);"
         "idx=index.Index.open(root/'index.db');"
         "record=json.loads(os.environ['SUITE_SMOKE_ROW']);"
         "idx.upsert_yoink(record, content='deterministic suite smoke fixture');"
@@ -821,6 +840,7 @@ def _seed_uoink_fixture(
     }
     seed_env = dict(env)
     seed_env["SUITE_SMOKE_ROW"] = json.dumps(record)
+    seed_env["SUITE_SMOKE_UOINK_DATA"] = str(_uoink_data_dir(env))
     result = subprocess.run(
         [python, "-c", seed],
         cwd=uoink_repo,
