@@ -31,6 +31,21 @@ TAKE_SIMILARITY = 0.75
 FILLER_WORDS = {"um", "uh", "uhm", "erm", "hmm", "like", "literally"}
 FILLER_BIGRAMS = {("you", "know"), ("i", "mean"), ("sort", "of"), ("kind", "of")}
 
+# "like" is the one filler candidate that is ALSO an ordinary verb,
+# preposition and comparative. Measured on a real 62-min interview
+# (handoff/research/RAW-FILLER-PRECISION-2026-07-20.md), ~25% of raw
+# "like" hits were non-filler uses. These guards skip only the
+# unambiguous ones — a word BEFORE "like" that makes it a verb or
+# preposition, or a word AFTER it that makes it a comparative. Genuine
+# filler and quotative "like" ("I was like, dude") are untouched.
+LIKE_VERB_OR_PREP_BEFORE = {
+    "don't", "dont", "doesn't", "doesnt", "didn't", "didnt", "not",
+    "sound", "sounds", "sounded", "look", "looks", "looked",
+    "feel", "feels", "felt", "seem", "seems", "seemed",
+    "act", "acts", "acted", "just", "much", "more",
+}
+LIKE_COMPARATIVE_AFTER = {"this", "that", "these", "those", "it", "him", "her", "them", "us", "me"}
+
 
 @dataclass
 class DeadAir:
@@ -319,10 +334,26 @@ def find_fillers(
                 index += 2
                 continue
         if text in FILLER_WORDS:
+            if text == "like" and _like_is_not_filler(cleaned, index):
+                index += 1
+                continue
             counts[text] = counts.get(text, 0) + 1
             locations.append((text, word.start))
         index += 1
     return counts, locations
+
+
+
+def _like_is_not_filler(cleaned: list[tuple[str, Word]], index: int) -> bool:
+    """True when "like" is unambiguously a verb, preposition or
+    comparative rather than a filler. Deliberately conservative: it
+    resolves only the clear cases and leaves anything ambiguous counted,
+    so the measurement errs toward reporting rather than hiding."""
+    prev = cleaned[index - 1][0] if index > 0 else ""
+    nxt = cleaned[index + 1][0] if index + 1 < len(cleaned) else ""
+    if prev in LIKE_VERB_OR_PREP_BEFORE:
+        return True
+    return nxt in LIKE_COMPARATIVE_AFTER
 
 
 def _chunks(words: list[Word]) -> list[list[Word]]:
