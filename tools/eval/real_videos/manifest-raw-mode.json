@@ -1,0 +1,63 @@
+{
+  "schema_version": 2,
+  "source_document": "handoff/research/RAW-MODE-SOURCE.md",
+  "media_policy": {
+    "committed": false,
+    "reason": "The CC0 source video stays outside Git. Frozen measurements, provenance, and downscaled analysis thumbnails are committed.",
+    "derived_frames_committed": true,
+    "derived_frames_reason": "Downscaled JPEG analysis thumbnails (height <=360px) are committed so the zero-cut talking-head verdict remains visually inspectable.",
+    "recovery": "Fetch the pinned Wikimedia Commons original, verify its SHA-256, then run the recorded freeze and frame commands."
+  },
+  "source_acquisition": {
+    "tool": "curl.exe",
+    "version": "8.21.0",
+    "format_selector": "original",
+    "no_playlist": true
+  },
+  "regeneration": {
+    "fetch_command": "curl.exe -L --fail --retry 3 -o \"<media-root>/korky-paul-introduction.webm\" \"https://upload.wikimedia.org/wikipedia/commons/8/8d/Korky_Paul_Introduction.webm\"",
+    "freeze_command": "python -m tools.eval.freeze_real_videos --media-root \"<media-root>\" --manifest tools/eval/real_videos/manifest-raw-mode.json --output tools/eval/real_videos",
+    "frames_command": "python -m tools.eval.backfill_frames --media-root \"<media-root>\" --manifest tools/eval/real_videos/manifest-raw-mode.json"
+  },
+  "cases": [
+    {
+      "fixture_id": "raw-talking-head-korky-paul",
+      "role": "raw-talking-head",
+      "video_id": "commons-92974199",
+      "selected_format_ids": [
+        "original"
+      ],
+      "media_filename": "korky-paul-introduction.webm",
+      "source_url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
+      "title": "Korky Paul Introduction",
+      "creator": "Mvolz",
+      "human_truth": {
+        "available": true,
+        "path": "handoff/research/RAW-MODE-SOURCE.md",
+        "section": "Human truth for the regression"
+      },
+      "rights": {
+        "label": "CC0 1.0 Universal",
+        "spdx": "CC0-1.0",
+        "evidence_url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
+        "evidence_checked_at": "2026-07-19",
+        "attribution": "Korky Paul (subject); Mvolz (recorder/uploader)",
+        "limitations": "CC0 requires no attribution; identity and source are retained for provenance."
+      },
+      "acquisition": {
+        "source_media_url": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Korky_Paul_Introduction.webm",
+        "format_selector": "original",
+        "commons_sha1": "6d81684ef379677514940da2928b6c5642551c66"
+      },
+      "study_options": {
+        "raw_mode": true
+      },
+      "expected_media": {
+        "duration_seconds": 19.069,
+        "width": 1080,
+        "height": 1920,
+        "sha256": "8243758381ebca3f4ab75c714ecca8e02f60dee67037b3508301d89aa17da574"
+      }
+    }
+  ]
+}

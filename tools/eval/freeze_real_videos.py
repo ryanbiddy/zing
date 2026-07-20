@@ -115,6 +115,33 @@ def _load_manifest(path: Path) -> dict[str, Any]:
                 raise RegressionFreezeError(
                     f"{fixture_id}: schema 2 requires rights evidence"
                 )
+            study_options = case.get("study_options", {})
+            if not isinstance(study_options, dict):
+                raise RegressionFreezeError(
+                    f"{fixture_id}: study_options must be an object"
+                )
+            if (
+                "raw_mode" in study_options
+                and not isinstance(study_options["raw_mode"], bool)
+            ):
+                raise RegressionFreezeError(
+                    f"{fixture_id}: study_options.raw_mode must be boolean"
+                )
+            if study_options.get("raw_mode"):
+                regeneration = manifest.get("regeneration")
+                required_commands = {
+                    "fetch_command",
+                    "freeze_command",
+                    "frames_command",
+                }
+                if (
+                    not isinstance(regeneration, dict)
+                    or not required_commands <= regeneration.keys()
+                ):
+                    raise RegressionFreezeError(
+                        f"{fixture_id}: raw-mode fixtures require fetch, "
+                        "freeze, and frames regeneration commands"
+                    )
     return manifest
 
 
@@ -156,6 +183,8 @@ def _portable_breakdown(
         "video_id": case["video_id"],
         "role": case["role"],
     }
+    if "study_options" in case:
+        fixture_provenance["study_options"] = dict(case["study_options"])
     if "human_truth" in case:
         fixture_provenance["human_truth"] = dict(case["human_truth"])
     else:
@@ -196,6 +225,12 @@ def _freeze_with_adapter(
             raise RegressionFreezeError(
                 f"media not found for {case['fixture_id']}: {media_path}"
             )
+        expected_sha256 = case.get("expected_media", {}).get("sha256")
+        if expected_sha256 and _sha256(media_path) != expected_sha256:
+            raise RegressionFreezeError(
+                f"{case['fixture_id']}: source media SHA-256 does not "
+                "match expected_media.sha256"
+            )
         case_directory = output / case["fixture_id"]
         if case_directory.exists():
             raise RegressionFreezeError(
@@ -212,7 +247,27 @@ def _freeze_with_adapter(
         media_path = media_root / case["media_filename"]
         case_directory = output / case["fixture_id"]
 
-        measured = adapter(media_path)
+        study_options = dict(case.get("study_options", {}))
+        measured = adapter(media_path, **study_options)
+        expected_media = case.get("expected_media", {})
+        for field in ("width", "height"):
+            expected = expected_media.get(field)
+            if expected is not None and getattr(measured.meta, field) != expected:
+                raise RegressionFreezeError(
+                    f"{case['fixture_id']}: measured {field} "
+                    f"{getattr(measured.meta, field)} does not match "
+                    f"expected {expected}"
+                )
+        expected_duration = expected_media.get("duration_seconds")
+        if (
+            expected_duration is not None
+            and abs(measured.meta.duration - expected_duration) > 0.02
+        ):
+            raise RegressionFreezeError(
+                f"{case['fixture_id']}: measured duration "
+                f"{measured.meta.duration} does not match expected "
+                f"{expected_duration}"
+            )
         artifact_directory = adapter.artifact_directory_for(media_path)
         if artifact_directory is None or not artifact_directory.is_dir():
             raise RegressionFreezeError(
@@ -254,6 +309,16 @@ def _freeze_with_adapter(
             },
             "human_truth": truth_provenance,
             **({"rights": case["rights"]} if "rights" in case else {}),
+            **(
+                {"study_options": study_options}
+                if study_options
+                else {}
+            ),
+            **(
+                {"regeneration": dict(manifest["regeneration"])}
+                if manifest.get("regeneration")
+                else {}
+            ),
             "source_media": {
                 "committed": False,
                 "filename": case["media_filename"],

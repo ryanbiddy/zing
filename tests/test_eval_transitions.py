@@ -82,9 +82,9 @@ def test_real_recall_audit_covers_both_requested_corpora() -> None:
     result = summarize_real_transition_recall()
 
     assert DEFAULT_REAL_RECALL_AUDIT.is_file()
-    assert result["source_count"] == 8
+    assert result["source_count"] == 9
     assert result["corpora"] == {
-        "frozen-real-video-set": 5,
+        "frozen-real-video-set": 6,
         "sprint-2-gate-pack": 3,
     }
     assert result["exhaustively_labeled_source_count"] == 0

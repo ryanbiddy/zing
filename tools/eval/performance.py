@@ -154,18 +154,25 @@ class StudyBenchmarkAdapter:
         self._records: dict[str, dict[str, Any]] = {}
         self._artifact_directories: dict[str, Path] = {}
 
-    def __call__(self, media_path: Path) -> Breakdown:
+    def __call__(
+        self,
+        media_path: Path,
+        *,
+        raw_mode: bool = False,
+    ) -> Breakdown:
         media_path = media_path.resolve()
         study_fn = self._study_fn or _load_study()
         timer = PhaseTimer(self._clock)
         with _study_workspace(self._workspace) as workspace:
             timer.start()
             try:
-                breakdown = study_fn(
-                    str(media_path),
-                    workspace=workspace,
-                    phase_callback=timer.begin,
-                )
+                study_kwargs: dict[str, Any] = {
+                    "workspace": workspace,
+                    "phase_callback": timer.begin,
+                }
+                if raw_mode:
+                    study_kwargs["raw_mode"] = True
+                breakdown = study_fn(str(media_path), **study_kwargs)
             finally:
                 timer.finish()
             if self._workspace is not None:

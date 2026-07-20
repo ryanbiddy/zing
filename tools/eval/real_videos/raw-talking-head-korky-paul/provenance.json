@@ -1,0 +1,214 @@
+{
+  "schema_version": 2,
+  "fixture_id": "raw-talking-head-korky-paul",
+  "source": {
+    "url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
+    "video_id": "commons-92974199",
+    "role": "raw-talking-head",
+    "title": "Korky Paul Introduction",
+    "creator": "Mvolz"
+  },
+  "human_truth": {
+    "available": true,
+    "path": "handoff/research/RAW-MODE-SOURCE.md",
+    "section": "Human truth for the regression",
+    "sha256": "8fbc0ba806bc114ecdfaed8158dea2afc31ac7e524d1d453609b380539f72ff5"
+  },
+  "rights": {
+    "label": "CC0 1.0 Universal",
+    "spdx": "CC0-1.0",
+    "evidence_url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
+    "evidence_checked_at": "2026-07-19",
+    "attribution": "Korky Paul (subject); Mvolz (recorder/uploader)",
+    "limitations": "CC0 requires no attribution; identity and source are retained for provenance."
+  },
+  "study_options": {
+    "raw_mode": true
+  },
+  "regeneration": {
+    "fetch_command": "curl.exe -L --fail --retry 3 -o \"<media-root>/korky-paul-introduction.webm\" \"https://upload.wikimedia.org/wikipedia/commons/8/8d/Korky_Paul_Introduction.webm\"",
+    "freeze_command": "python -m tools.eval.freeze_real_videos --media-root \"<media-root>\" --manifest tools/eval/real_videos/manifest-raw-mode.json --output tools/eval/real_videos",
+    "frames_command": "python -m tools.eval.backfill_frames --media-root \"<media-root>\" --manifest tools/eval/real_videos/manifest-raw-mode.json"
+  },
+  "source_media": {
+    "committed": false,
+    "filename": "korky-paul-introduction.webm",
+    "byte_size": 8399608,
+    "sha256": "8243758381ebca3f4ab75c714ecca8e02f60dee67037b3508301d89aa17da574",
+    "acquisition": {
+      "tool": "curl.exe",
+      "version": "8.21.0",
+      "format_selector": "original",
+      "no_playlist": true,
+      "source_media_url": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Korky_Paul_Introduction.webm",
+      "commons_sha1": "6d81684ef379677514940da2928b6c5642551c66",
+      "selected_format_ids": [
+        "original"
+      ]
+    }
+  },
+  "measured_media": {
+    "committed": false,
+    "byte_size": 15169075,
+    "sha256": "59ddf10a8787927ad14848b80bd815f40e460a9de8589048280f3c23ccc2377a"
+  },
+  "normalizations": [
+    "Replaced the temporary local source path with the canonical URL.",
+    "Restored canonical title, creator, and platform metadata.",
+    "Cleared meta.media_path because source media is not committed.",
+    "Backfilled shot keyframe paths and committed downscaled analysis thumbnails (A-Q6); frames grabbed from SHA-verified source media at frozen timestamps — measurements untouched."
+  ],
+  "measurement": {
+    "shot_detector": "scenedetect-0.7 AdaptiveDetector",
+    "adaptive_threshold": 3.0,
+    "min_scene_len_s": 0.3,
+    "whisper_model": "large-v2",
+    "device": "cpu",
+    "compute_type": "int8",
+    "faster_whisper": "1.2.1",
+    "language": "en",
+    "language_probability": 0.993,
+    "vad_filter": true,
+    "condition_on_previous_text": false,
+    "pipeline": "sequential",
+    "ocr_backend": "rapidocr-3.9.1",
+    "conf_threshold": 0.75,
+    "hook_fps": 8.0,
+    "body_fps": 4.0,
+    "hook_window_s": 3.0,
+    "clustering": "region-tracked v2 (A-Q8)",
+    "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
+    "vad": "silero (faster-whisper bundled), upstream-style params",
+    "vad_params": {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 250,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 30
+    },
+    "has_music": "gap-floor heuristic v1",
+    "raw_mode": {
+      "dead_air_min_s": 1.5,
+      "take_similarity": 0.75,
+      "dead_air_count": 0,
+      "filler_total": 0,
+      "repeated_take_count": 0,
+      "keeper_count": 1,
+      "keepers": [
+        {
+          "start": 0.34,
+          "end": 17.74,
+          "words": 49,
+          "evidence": [
+            "one uninterrupted take (17.4s)",
+            "no filler words",
+            "no interior dead air",
+            "loudness within 12 dB of speech level throughout"
+          ]
+        }
+      ]
+    },
+    "zing_version": "0.1.0",
+    "measured_at": "2026-07-20T03:57:33+00:00",
+    "regression_fixture": {
+      "fixture_id": "raw-talking-head-korky-paul",
+      "video_id": "commons-92974199",
+      "role": "raw-talking-head",
+      "study_options": {
+        "raw_mode": true
+      },
+      "human_truth": {
+        "available": true,
+        "path": "handoff/research/RAW-MODE-SOURCE.md",
+        "section": "Human truth for the regression"
+      }
+    }
+  },
+  "performance": {
+    "study_total_seconds": 44.402032,
+    "stage_order": [
+      "ingest",
+      "shots",
+      "keyframes",
+      "transcribe",
+      "ocr",
+      "audio",
+      "raw",
+      "markdown",
+      "render"
+    ],
+    "stages": {
+      "ingest": 1.808382,
+      "shots": 1.307723,
+      "keyframes": 0.421217,
+      "transcribe": 19.416085,
+      "ocr": 21.283717,
+      "audio": 0.161821,
+      "raw": 0.000883,
+      "markdown": 0.002189,
+      "render": 4.67994
+    },
+    "render_seconds": 4.67994,
+    "total_seconds": 49.081972,
+    "input_duration_seconds": 19.067,
+    "real_time_factor": 2.574184,
+    "render_profile": {
+      "width": 1080,
+      "height": 1920,
+      "fps": 30.0
+    },
+    "study_warnings": [
+      "source codec 'vp8' is not reliable for frame-accurate measurement here; re-encoded to H.264",
+      "caption OCR sampled at 8 fps in 0-3s, 4 fps after; text between samples is unobserved",
+      "raw: 1 keeper segment(s) — 0.3-17.7s"
+    ],
+    "budget_assessment": {
+      "status": "pass",
+      "passed": true,
+      "reason": "cell is within the scaled ROADMAP performance target",
+      "input_duration_seconds": 19.067,
+      "total_seconds": 49.081972,
+      "target_seconds": 300.0,
+      "defect_threshold_seconds": 600.0,
+      "budget_ratio": 0.163607
+    },
+    "available": true
+  },
+  "environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "python": "3.14.6",
+    "ffmpeg": "ffmpeg version 8.1.1-full_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+    "myzing": "0.1.0",
+    "scenedetect": "0.7",
+    "faster_whisper": "1.2.1",
+    "rapidocr": "3.9.1",
+    "onnxruntime": "1.27.0",
+    "yt_dlp": "2026.7.4"
+  },
+  "manifest": {
+    "path": "tools/eval/real_videos/manifest-raw-mode.json",
+    "sha256": "ed855446702f1219cba0b4d0f5a9077c6e4f9cbd747c31a9f02318ad4e6dce5d"
+  },
+  "source_document": {
+    "path": "handoff/research/RAW-MODE-SOURCE.md",
+    "sha256": "8fbc0ba806bc114ecdfaed8158dea2afc31ac7e524d1d453609b380539f72ff5"
+  },
+  "artifacts": {
+    "breakdown.json": "50dad3ee0970695a9060123052b5ebd95b0614958ae86ad2809580c16d271d3a",
+    "frames/shot_000.jpg": "3342a4f4bb1243d0b57216e76acc03129c4be8c84c1c868c5f64f0787faa24e4",
+    "frames/hook_0s.jpg": "3342a4f4bb1243d0b57216e76acc03129c4be8c84c1c868c5f64f0787faa24e4",
+    "frames/hook_1s.jpg": "93411b1b7b261d80187ee1eb0502f69487759ec0d91d99d92de8563375df3c8f",
+    "frames/hook_2s.jpg": "faa3ffc9bf47a5cced9071ab89bf5bcc797356e3d0e3f619bebdb855185d447d"
+  },
+  "derived_frames": {
+    "committed": true,
+    "decision": "Small analysis thumbnails ship with baselines so visual judgment criteria are scoreable; source media remains uncommitted.",
+    "recipe": {
+      "source": "sha256-verified source media (see source_media)",
+      "timestamps": "frozen shot starts + 1 fps over the hook window",
+      "scale": "height<=360",
+      "jpeg_quality": "7"
+    },
+    "count": 4
+  }
+}
