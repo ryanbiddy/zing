@@ -593,7 +593,6 @@ def _wait_http(url: str, process: ManagedProcess) -> None:
 def _port_available(port: int) -> bool:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("127.0.0.1", port))
         return True
     except OSError:
@@ -617,6 +616,7 @@ def _safe_base_env(local_data: Path) -> dict[str, str]:
     for name in FORBIDDEN_PROVIDER_ENV:
         env.pop(name, None)
     env.update({
+        "HOME": str(local_data / "home"),
         "LOCALAPPDATA": str(local_data),
         "XDG_DATA_HOME": str(local_data / "xdg-data"),
         "XDG_STATE_HOME": str(local_data / "xdg-state"),
@@ -627,6 +627,26 @@ def _safe_base_env(local_data: Path) -> dict[str, str]:
         "PYTHONUTF8": "1",
     })
     return env
+
+
+def _runtime_registry_dir(
+    env: Mapping[str, str],
+    *,
+    platform_name: str | None = None,
+) -> Path:
+    """Resolve the isolated registry exactly as the products do."""
+    platform_name = platform_name or sys.platform
+    if platform_name == "win32":
+        return Path(env["LOCALAPPDATA"]) / "RyanSuite" / "services.d"
+    if platform_name == "darwin":
+        return (
+            Path(env["HOME"])
+            / "Library"
+            / "Application Support"
+            / "RyanSuite"
+            / "services.d"
+        )
+    return Path(env["XDG_STATE_HOME"]) / "ryan-suite" / "services.d"
 
 
 def _validate_contract(
@@ -767,9 +787,9 @@ def _seed_uoink_fixture(
     )
     seed = (
         "import json, os;"
-        "from pathlib import Path;"
+        "import _platform;"
         "import index;"
-        "root=Path(os.environ['LOCALAPPDATA'])/'Uoink';"
+        "root=_platform.user_data_dir();"
         "idx=index.Index.open(root/'index.db');"
         "record=json.loads(os.environ['SUITE_SMOKE_ROW']);"
         "idx.upsert_yoink(record, content='deterministic suite smoke fixture');"
@@ -1446,7 +1466,7 @@ def run_suite_smoke(
             }
 
         with ledger.step("validate_discovery"):
-            registry = local_data / "RyanSuite" / "services.d"
+            registry = _runtime_registry_dir(base_env)
             leases = {
                 product: _read_json_file(
                     registry / f"{product}.json",

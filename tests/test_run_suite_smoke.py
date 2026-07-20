@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import socket
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,6 +23,18 @@ def _git(repo: Path, *arguments: str) -> None:
         text=True,
         check=True,
     )
+
+
+def test_port_probe_refuses_a_reusable_bound_listener() -> None:
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+
+        assert smoke._port_available(listener.getsockname()[1]) is False
+    finally:
+        listener.close()
 
 
 def test_recorded_revision_refuses_uncommitted_runtime_source(
@@ -82,6 +96,56 @@ def test_generated_fixture_uses_an_exact_render_preset(
 
     assert (stream["width"], stream["height"]) == (360, 640)
     assert output_preset(stream["width"], stream["height"]) == "vertical"
+
+
+def test_fixture_seed_uses_uoink_platform_data_root(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "uoink"
+    repo.mkdir()
+    observed = tmp_path / "observed-root.txt"
+    product_data = tmp_path / "product-data"
+    (repo / "_platform.py").write_text(
+        "import os\n"
+        "from pathlib import Path\n"
+        "def user_data_dir():\n"
+        "    return Path(os.environ['UOINK_TEST_DATA_ROOT'])\n",
+        encoding="utf-8",
+    )
+    (repo / "index.py").write_text(
+        "import os\n"
+        "from pathlib import Path\n"
+        "class Index:\n"
+        "    @classmethod\n"
+        "    def open(cls, path):\n"
+        "        Path(os.environ['SUITE_SMOKE_OBSERVED_ROOT']).write_text(\n"
+        "            str(path), encoding='utf-8')\n"
+        "        return cls()\n"
+        "    def upsert_yoink(self, record, content):\n"
+        "        pass\n"
+        "    def close(self):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    fixture = tmp_path / "fixture.mp4"
+    fixture.write_bytes(b"fixture")
+    env = smoke._safe_base_env(tmp_path / "isolated")
+    env.update({
+        "UOINK_TEST_DATA_ROOT": str(product_data),
+        "SUITE_SMOKE_OBSERVED_ROOT": str(observed),
+    })
+
+    smoke._seed_uoink_fixture(
+        python=sys.executable,
+        uoink_repo=repo,
+        env=env,
+        output_root=tmp_path / "output",
+        fixture_media=fixture,
+    )
+
+    assert observed.read_text(encoding="utf-8") == str(
+        product_data / "index.db"
+    )
 
 
 def test_step_ledger_duration_matches_serialized_timestamps(
@@ -188,6 +252,30 @@ def test_safe_environment_removes_provider_credentials_and_forces_offline(
     assert env["LOCALAPPDATA"] == str(tmp_path)
     assert env["HF_HUB_OFFLINE"] == "1"
     assert env["TRANSFORMERS_OFFLINE"] == "1"
+
+
+@pytest.mark.parametrize(
+    ("platform_name", "expected"),
+    [
+        ("win32", Path("RyanSuite/services.d")),
+        (
+            "darwin",
+            Path("home/Library/Application Support/RyanSuite/services.d"),
+        ),
+        ("linux", Path("xdg-state/ryan-suite/services.d")),
+    ],
+)
+def test_runtime_registry_path_matches_the_product_contract(
+    tmp_path: Path,
+    platform_name: str,
+    expected: Path,
+) -> None:
+    env = smoke._safe_base_env(tmp_path)
+
+    assert smoke._runtime_registry_dir(
+        env,
+        platform_name=platform_name,
+    ) == tmp_path / expected
 
 
 @pytest.mark.parametrize(
