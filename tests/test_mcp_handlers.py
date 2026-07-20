@@ -1147,3 +1147,36 @@ def test_no_user_facing_message_misdiagnoses_a_missing_extra():
         "user-facing text that misdiagnoses or cites internal scheduling: "
         f"{offenders}"
     )
+
+
+def test_a_late_heartbeat_cannot_resurrect_a_finished_job(zing_workspace):
+    """The invariant the heartbeat comment now credits correctly: the
+    beater writes ONLY heartbeat_at. Simulate the worst case the timeout
+    join allows — a beat landing AFTER the final write — and the finished
+    state must survive."""
+    storage.write_status(SLUG, state="running", phase="shots", pid=os.getpid())
+    storage.write_status(SLUG, state="done", finished_at="2026-07-20T00:00:00+00:00")
+
+    # exactly what _beat does, arriving late
+    storage.write_status(SLUG, heartbeat_at="2026-07-20T00:00:09+00:00")
+
+    status = storage.read_status(SLUG)
+    assert status["state"] == "done"          # not resurrected
+    assert status["heartbeat_at"].endswith("00:09+00:00")  # merged, harmlessly
+
+
+def test_slug_for_never_emits_a_dot_as_the_validator_assumes(zing_workspace):
+    """storage's validator refuses any '.' and justifies it with 'slug_for()
+    never emits a dot'. That is a claim about ANOTHER function, so it is
+    exactly the kind that rots silently — pin it, including the file stems
+    most likely to break it."""
+    for source in (
+        r"C:\clips\my.video.file.mp4",
+        r"C:\clips\take.1.mp4",
+        "/home/x/a.b.c.mov",
+        "https://example.com/v.mp4",
+        r"C:\clips\....mp4",
+    ):
+        slug = storage.slug_for(source)
+        assert "." not in slug, (source, slug)
+        storage.validate_slug(slug)  # and the validator accepts its own output
