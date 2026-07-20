@@ -1598,3 +1598,31 @@
   headers, duplicate names, double-comma and trailing-comma lines).
   Mutation-verified: disabling the duplicate counter fails the test.
   Suite green.
+
+- **2026-07-20 (Lane A): audited my own PERSISTENT MEMORY for
+  staleness — it was materially wrong.** I have spent this session
+  auditing code comments, research notes and published figures; the
+  one artifact I had never re-read was the cross-session memory that
+  a future session inherits WITHOUT the conversation that produced
+  it. Stale memory is worse than none, because it is trusted by
+  default.
+  Found and fixed: the project-state file still said the P-C2
+  calibration dataset was "delivered to Lane C whose comparison
+  harness hasn't run" — I ran it myself, grew it to 7 cells / 15,999
+  labels, falsified the position rule, and RESOLVED the proposal. A
+  future session would have re-opened settled work. Also stale: 4
+  proposals (now 5), and the SHOT path described as "filed" when it
+  is measured (13.5% vs our 4.7% merge rates).
+  Rewrote both affected files. project-state now carries a RESOLVED
+  ARCS section — "do not re-open blind, evidence is committed" — with
+  the conclusions AND their causes, so the next session inherits the
+  findings rather than the temptation to redo them. The honesty
+  doctrine gained an EPISTEMIC LESSONS section holding what this
+  session actually paid for: run it don't reason about it (three
+  wrong mechanisms, each caught by executing); ship derived evidence
+  not conclusions; a rich basis is not a trustworthy one; test the
+  cheapest falsifier before escalating scope; comments assert claims
+  too; write the regeneration script.
+  Verified the other two memory files are current (merge-flow already
+  carries the fresh-branch CI remedy; environment carries the solver
+  probe fix). Index rewritten to match. No repo code touched.
