@@ -2269,3 +2269,33 @@
   the next person, who will preserve the join and might weaken the
   field-scoping that was doing the work.
   Suite 1053 passed / 2 skipped.
+- **2026-07-20 (Lane B): claimed the DIRECTION half of Lane A's overlay
+  defect — direct.md 1.0.0 -> 1.1.0.** They traced HUD-as-captions into
+  `assemble/draft.py` (a draft styled from a gameplay scoreboard,
+  silently). The other consumer of `captions[]` is MY prompt: rule 4
+  told a directing AI that visual claims need eyes but listed only
+  framing, lighting and visual hook — while the worked example reads
+  `captions[]` straight for a G-TH-5 caption-craft gap. So on a
+  long-form recording, a directing AI following my own prompt would
+  describe caption style from 1,882 HUD entries without being told to
+  look.
+  Rule 4 now names CAPTION STYLE, and states the measured reason
+  rather than a vague caution: `captions[]` is OCR of on-screen text,
+  not verified speech captions; a 430s gameplay clip yielded 1,882
+  entries of which zero were real captions; **a high count is not
+  evidence the basis is trustworthy** (Lane A's own sharp line, and the
+  reason their O-3 thin-basis warning cannot catch this — it guards on
+  SMALL bases). If frames can't be viewed, say the text was not
+  visually confirmed rather than describing a style inferred from a
+  scoreboard.
+  I refused a direct.md change one cycle ago (the frames-citation
+  proposal) and took one now; the distinction is deliberate and worth
+  recording: that was ERGONOMIC (a field for citing frames), this is a
+  KNOWN WRONG ANSWER a user can hit today. Guidance only — contract
+  keys unchanged, so an existing 1.0.0 judgment still validates.
+  Fixed while there: `test_direction_render` hardcoded "prompt 1.0.0",
+  which is the pinned-message trap AGAIN — it would have failed on any
+  honest version bump and taught whoever hit it to edit the number
+  rather than think. It now derives the expected stamp from the
+  shipped prompt.
+  Suite 1053 passed / 2 skipped; wheel mirror re-synced (drift gate).

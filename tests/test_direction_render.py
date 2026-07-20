@@ -72,7 +72,11 @@ def test_save_judgment_direct_writes_direction_md(real_pack, zing_workspace):
     assert md_path.name == "direction.md"
     md = md_path.read_text(encoding="utf-8")
     assert "## What to film" in md
-    assert "prompt 1.0.0" in md  # _meta stamp rendered
+    # the stamp must match the SHIPPED prompt, not a frozen literal —
+    # a hardcoded version here is the "pinned message" trap again.
+    from myzing.prompt_pack import load_prompt
+
+    assert f"prompt {load_prompt('direct')[0]['version']}" in md
 
 
 def test_render_failure_keeps_judgment_and_reports(real_pack, zing_workspace, monkeypatch):
