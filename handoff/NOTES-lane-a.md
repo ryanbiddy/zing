@@ -1238,3 +1238,29 @@
   what Zing happened to study (English, mostly single-speaker),
   sampling was 5-6 per candidate, and recall against a LABELED set
   remains unmeasured. Suite 984.
+
+- **2026-07-20 (Lane A): shipped the filler corpus audit script — and
+  it caught my THIRD self-error in this workstream.** The recall note
+  cited "12+ real videos" without naming one, and its figures came
+  from ad-hoc shell, so nobody could re-derive them. Now:
+  `handoff/research/filler_corpus_audit.py` recomputes hits AND
+  spread (distinct transcripts) over any workspace — spread being the
+  number the whole recall argument turns on.
+  **What it exposed:** my published figures were INFLATED by duplicate
+  counting. The ad-hoc scan globbed every workspace without
+  deduplicating by slug, so a video studied into two scratch
+  workspaces counted twice. Real deduplicated numbers: `basically`
+  20 hits / 10 transcripts (published 22/12), `literally` 8/4
+  (published 14/7). The conclusion STRENGTHENS — basically reaches
+  10 distinct speakers vs literally's 4, a wider margin than the
+  inflated figures showed — but the published numbers were wrong and
+  are corrected in place with the cause named.
+  Also added an EVIDENCE MANIFEST: 29 videos, 25,516 words, with the
+  seven largest contributors' URLs listed, so the corpus is
+  identifiable and regenerable (`zing study <url>`) even as link rot
+  takes individual videos.
+  Running tally for this workstream: three errors of my own, all
+  caught by building the tool rather than by review — 5-vs-1
+  malformed lines, and now duplicate-inflated corpus counts twice
+  over. Ad-hoc shell analysis is where my mistakes live; regeneration
+  scripts are where they die.

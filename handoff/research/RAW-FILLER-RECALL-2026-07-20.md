@@ -18,8 +18,18 @@ speaker's idiosyncrasy, not a general filler.
 
 | Word | Hits | Transcripts | Verdict |
 |---|---|---|---|
-| `literally` (already counted) | 14 | 7 | — |
-| **`basically`** | **22** | **12** | **ADD** |
+| `literally` (already counted) | 8 | 4 | — |
+| **`basically`** | **20** | **10** | **ADD** |
+
+**CORRECTED 2026-07-20** (originally published as 14/7 and 22/12).
+Writing `filler_corpus_audit.py` exposed the error: my ad-hoc scan
+globbed every workspace without deduplicating by slug, so videos
+studied into more than one scratch workspace were counted repeatedly.
+The deduplicated figures are above. The conclusion does not just
+survive — it strengthens: `basically` reaches 10 distinct speakers'
+transcripts against `literally`'s 4, a wider margin than the inflated
+numbers showed. Regeneration:
+`python handoff/research/filler_corpus_audit.py <workspace-root>`.
 
 `basically` is the same hedging class as `literally`, appears in MORE
 speakers' transcripts, at comparable volume, and every sampled use is
@@ -36,10 +46,10 @@ not a decision — the same shape as the uncapped-read finding.
 |---|---|---|---|
 | `obviously` | 13 | **2** | 12 of 13 hits are ONE speaker — idiosyncrasy. And its uses assert something IS obvious ("he obviously was tipped off"): removing it changes meaning. |
 | `actually` | 31 | 9 | Broad, but usually contrastive and meaning-bearing: "the newsletter is **actually** free", "hopefully they **actually** do something". |
-| `just` | 39 | many | Dominant sense is the adverb ("I just arrived"). |
-| `well` | 28 | many | Discourse-marker use is real ("well, I think…") but competes with adverb/noun senses. |
-| `right` | 19 | many | Tag-question use is real ("right?") but competes with "the right way". |
-| `yeah` | 33 | many | Often a genuine answer, not a tic. |
+| `just` | 126 | 21 | Dominant sense is the adverb ("I just arrived"). |
+| `well` | 46 | 9 | Discourse-marker use is real ("well, I think…") but competes with adverb/noun senses. |
+| `right` | 42 | 12 | Tag-question use is real ("right?") but competes with "the right way". |
+| `yeah` | 41 | 7 | Often a genuine answer, not a tic. |
 
 Each of these would import exactly the ambiguity that the `like` and
 `kind of` guards had to undo — and every guard costs a false negative
@@ -61,3 +71,28 @@ than silently widen the net.
 - Recall against a LABELED filler set is still unmeasured. This note
   narrows the gap using available evidence; it does not close it.
 - Non-English filler behaviour is entirely unexamined.
+- The corpus itself is NOT in the repo (scratch workspaces, and the
+  transcripts are of third-party video). What IS reproducible is the
+  method: `filler_corpus_audit.py` recomputes hits AND spread over any
+  workspace, and the source URLs are listed in the manifest below, so
+  the finding can be re-derived on a fresh corpus even after link rot
+  takes individual videos (SW-2 says it will).
+
+## Evidence manifest — the corpus these figures came from
+
+29 studied videos, 25,516 transcribed words. Largest contributors:
+
+| Words | Source |
+|---|---|
+| 10,088 | https://x.com/ShawnRyanShow/status/1875286149788573873 |
+| 3,110 | https://www.youtube.com/watch?v=22wlLy7hKP4 |
+| 2,052 | https://www.youtube.com/watch?v=C25g53PC5QQ |
+| 1,339 | https://www.youtube.com/watch?v=Xn-gtHDsaPY |
+| 1,215 | https://www.youtube.com/watch?v=-UC6b5owmCA |
+| 1,198 | https://www.youtube.com/watch?v=Rybj0X8eLH0 |
+| 1,046 | https://www.youtube.com/watch?v=-01ZCTt-CJw |
+
+The remaining 22 are short-form (43–360s) from the S5 sweep and the
+preset-pack curation; every one is listed with its slug in
+`S5-SWEEP-LANE-A.md` and `PRESET-PACK-REFERENCES.md`. Regenerate any
+of them with `zing study <url> --workspace <ws>`.
