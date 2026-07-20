@@ -2238,3 +2238,34 @@
   Remaining 21 misses are threading/retry timing and the delivery
   happy-path already covered end-to-end by the family gate.
   Suite 1051 passed / 2 skipped.
+- **2026-07-20 (Lane B): audited my own absolute-claim COMMENTS after
+  Lane A applied my misdiagnosis scan to theirs (#341) and found two
+  overclaims.** They took the class one level deeper than I had — from
+  user-facing strings to code comments, "where it is worse: a comment
+  outlives a note, and nobody re-checks it." Correct, so I ran it on my
+  lane: 18 comments asserting never / always / cannot / by
+  construction. Checked each against the code.
+  **Honest headline: 17 held.** I verified rather than assumed the two
+  most rot-prone: `slug_for() never emits a dot` (a claim about ANOTHER
+  function, justifying the validator's blanket dot-refusal) — tested
+  with the stems most likely to break it, including "my.video.file.mp4"
+  and "....mp4"; all sanitize to hyphens. And `never an auth attempt
+  with an empty token`, already pinned. Reporting that most claims held
+  matters as much as reporting the one that did not — a scan that only
+  ever finds problems is a scan tuned to find them.
+  **The one that needed correcting was subtler than an overclaim — it
+  credited the WRONG MECHANISM.** The heartbeat comment said stopping
+  before the final write means a late beat "can never resurrect a
+  finished job's running state". The conclusion is true; the reason
+  given is not sufficient, because `join()` has a TIMEOUT and so cannot
+  promise the beater is gone. What actually guarantees it: `_beat`
+  writes ONLY `heartbeat_at` and never `state`, so a late beat
+  refreshes a timestamp on a finished record. Ordering is tidiness;
+  field-scoping is the invariant. Corrected in place, and pinned by a
+  test that simulates the exact worst case the timeout allows.
+  Generalization worth keeping: an incorrect REASON attached to a
+  correct conclusion is the hardest kind of comment rot to see, because
+  nothing fails and the sentence reads true. It also actively misleads
+  the next person, who will preserve the join and might weaken the
+  field-scoping that was doing the work.
+  Suite 1053 passed / 2 skipped.

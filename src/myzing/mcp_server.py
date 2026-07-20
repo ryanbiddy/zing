@@ -367,8 +367,16 @@ def _run_study(
             try:
                 breakdown = study_fn(source, **kwargs)
             finally:
-                # stop the heartbeat BEFORE the final write so a late beat
-                # can never resurrect a finished job's `running` state
+                # Stop the heartbeat before the final write. Note what
+                # actually guarantees what: the join has a TIMEOUT, so
+                # ordering alone cannot promise the beater is gone. The
+                # durable guarantee is that `_beat` writes ONLY
+                # `heartbeat_at` and never `state` — so even a beat that
+                # lands after the final write refreshes a timestamp on a
+                # finished record, it cannot resurrect `running`.
+                # (An earlier comment credited the ordering for that
+                # promise; the ordering is tidiness, the field-scoping is
+                # the invariant.)
                 stop_beating.set()
                 beater.join(timeout=HEARTBEAT_INTERVAL + 5)
             json_path = storage.breakdown_dir(slug) / "breakdown.json"
