@@ -204,3 +204,30 @@ def test_non_wav_output_rejected_before_any_network_call(monkeypatch, tmp_path):
             SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.mp3"
         )
     assert calls["n"] == 0  # rejection is free — ElevenLabs never contacted
+
+
+# -- CX1-P2-1: the privacy claim must track the provider registry -------------
+
+def test_readme_discloses_every_external_provider():
+    """Collateral lens CX1-P2-1: the README claimed 'No API keys, no
+    cloud' while this module has shipped an optional key-gated external
+    provider since S4-B. Absolute privacy claims are the kind that erode
+    trust in every other claim, so pin the disclosure to the REGISTRY:
+    adding another external provider without disclosing it fails here."""
+    from pathlib import Path
+
+    readme = (
+        Path(__file__).resolve().parents[1] / "README.md"
+    ).read_text(encoding="utf-8")
+    external = set(tts_providers._REGISTRY) - {tts_providers.DEFAULT_PROVIDER}
+    for name in external:
+        assert name in readme.lower(), (
+            f"README does not disclose the optional external provider "
+            f"{name!r} — see CX1-P2-1"
+        )
+    # And the absolute forms the lens struck must not come back.
+    lowered = readme.lower()
+    for absolute in ("no api keys, no cloud", "nothing leaves your machine"):
+        assert absolute not in lowered, (
+            f"README carries the absolute claim {absolute!r} again"
+        )

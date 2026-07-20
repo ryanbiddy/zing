@@ -74,10 +74,8 @@ The codebase is organized in the [src/myzing](../src/myzing) directory:
 
 ## 5. Development Workflow
 
-Zing utilizes git worktrees for parallel lane development:
-* **Lane A:** Study engine and video ingestion.
-* **Lane B:** Surface, doctor, storage, and MCP server.
-* **Lane C:** Pacing, audio ducking, and video renderer.
-* **Lane D (Antigravity):** Taste guidelines, truth data, and QA review.
-
-All changes must be submitted via pull requests targeting `main` with squash-merge enabled.
+All changes are submitted as pull requests targeting `main` with
+squash-merge enabled, and the full test suite must pass. The codebase is
+partitioned by subsystem (see the module map above) so that independent
+work rarely touches the same files; `src/myzing/schemas.py` is the shared
+contract and changes to it are coordinated deliberately.
