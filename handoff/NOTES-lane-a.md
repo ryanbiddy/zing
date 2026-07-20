@@ -1702,3 +1702,26 @@
   Updated the existing transition test to REQUIRE the consequence
   rather than match the old exact string, with a comment explaining
   what it protects. Suite 1071.
+
+- **2026-07-20 (Lane A): built the warning-registry gate — Lane B made
+  a rule where I had made three fixes, so I finished the job.** Their
+  #354 turned my point-fixes into a live doctor invariant; my lane
+  needed the same, but a regex gate would have been WRONG here: my own
+  classifier flagged 19 stranded warnings when reading them showed 3,
+  because consequences get phrased as "fell back to sequential" or
+  "treated as empty". A gate built on that would enshrine false
+  positives and train editors to ignore it.
+  So this follows the repo's existing skip-registry precedent (#327):
+  all 35 problem-reporting warnings are listed WITH the reason each is
+  honest — a fix named, a consequence named, or the warning IS the
+  consequence. The test never judges wording; it fails when a NEW
+  problem-warning appears unregistered, forcing the author to make the
+  decision consciously instead of by omission. A second test kills
+  stale entries, because a registry outliving its warnings is its own
+  kind of lie.
+  **Building it corrected me twice more.** First draft's keys were
+  written from what I believed the strings said; five did not exist
+  because warnings split across line-continuations never appear as one
+  literal. Rebuilt from what the extractor actually sees, with that
+  lesson recorded in the file. Then mutation-verified: adding a bogus
+  "stage skipped" warning fails the gate. Suite 1073.
