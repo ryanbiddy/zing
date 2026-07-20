@@ -1744,3 +1744,30 @@
   Three tests updated and one added pinning that BOTH risks yield ONE
   warning that names both. Registry updated so it keeps describing
   the code. Suite 1074.
+
+- **2026-07-20 (Lane A): applied Lane B's vacuous-test finding (#358)
+  to my lane and found one — which I had created LAST CYCLE.**
+  They found two engagement tests that passed without testing
+  anything. I checked mine the rigorous way: for a negative
+  ("does not warn") test, the correct mutation is to make the warning
+  fire UNCONDITIONALLY and confirm the test catches it.
+  It did not. All 32 draft tests passed with
+  `_caption_style_risks` mutated to always return a risk.
+  **Cause: my own merge one cycle ago.**
+  `test_rich_caption_style_basis_does_not_warn` asserted
+  `not any("style measured from only" in w ...)` — a substring the
+  merge DELETED. The test could not fail. I updated two sibling tests
+  during that merge and missed this one; the suite stayed green and
+  told me nothing, which is exactly what makes this class dangerous.
+  Fixed both negative tests to assert the CATEGORY ("caption style")
+  rather than a phrase — category survives rewording, a phrase does
+  not. Both now fail under the mutation and pass without it.
+  Swept every `assert not any("...")` in my tests against src: one
+  further hit, `'MetalWood HELLO'`, which is CORRECT — it is a
+  constructed bad-output string the test exists to forbid, so its
+  absence from src is the point. Deliberately did NOT build a
+  permanent gate: it would flag that legitimate case forever, and a
+  gate that cries wolf teaches people to ignore gates (the same
+  reasoning that made me choose a registry over a regex last cycle).
+  The detection method is recorded here instead, for re-running.
+  Suite 1074.

@@ -388,7 +388,11 @@ def test_rich_caption_style_basis_does_not_warn(media):
         {"start": 4.5, "end": 8.0, "why": "x"},
     ]), media)
 
-    assert not any("style measured from only" in w for w in result.warnings)
+    # Assert the CATEGORY, not a phrase: this test asserted a substring
+    # that a later merge deleted, so it could not fail for one cycle —
+    # the vacuous-test class Lane B found in #358. Category survives
+    # rewording; a phrase does not.
+    assert not any("caption style" in w for w in result.warnings)
 
 
 def test_every_keeper_too_short_is_an_error(media):
@@ -468,7 +472,7 @@ def test_short_form_caption_style_does_not_get_the_long_form_warning(media):
         {"start": 4.5, "end": 8.0, "why": "x"},
     ]), media)
 
-    assert not any("under-fire" in w for w in result.warnings)
+    assert not any("caption style" in w for w in result.warnings)
 
 
 def test_both_caption_style_risks_produce_one_warning_naming_both(media):
