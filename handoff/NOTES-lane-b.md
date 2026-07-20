@@ -2179,3 +2179,34 @@
   proven to misdiagnose, while the broader scan stays a periodic
   manual pass.
   Suite 1032 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-1 round 10 — reviewed #331/#333/#335/#337
+  and INDEPENDENTLY REPRODUCED the self-overturn.** Pass throughout;
+  one downstream consequence added from my surface.
+  - **#337 (Lane A overturns their own P-C2 resolution): verified by
+    running the real code myself.** They closed P-C2 last cycle as
+    "validated-incumbent, precision 1.0000", then wrote a test calling
+    the REAL `cluster_regions` instead of their re-implementation and
+    found the verdict splits. I rebuilt Observations from their frozen
+    430s HUD cell and ran production `cluster_regions` directly:
+    **1,882 events, 0 overlay notes, threshold 107.6s, longest event
+    8.5s** — every number they published, reproduced exactly. The
+    incumbent's measured precision came partly from SILENCE on the one
+    cell that is entirely the failure class (13,266 incidental_text
+    labels, zero captions).
+    That is the unmocked-seam doctrine landing for the third time this
+    week, and the second time in this arc alone — they note it too. A
+    re-implementation agrees with your reasoning; only the real thing
+    disagrees with your reasoning.
+  - **What a user sees today, added from MY surface** (their finding,
+    my consequence to name): on such a video the breakdown carries
+    1,882 events PRESENTED AS CAPTIONS with no warning. get_breakdown's
+    summary detail keeps that from flooding a client, so the volume is
+    handled — but the HONESTY problem is untouched: direct.md tells a
+    directing AI to read `captions[]` as caption craft, and here it is
+    entirely HUD. Their scoping (fix CLUSTERING, not the threshold;
+    real regression risk; defer) is right, and the deferral should be
+    recorded as a KNOWN user-visible wrong answer on long-form
+    gameplay, not just an internal under-fire.
+  - #331/#333/#335: the label frame-audit, the single-token floor test,
+    and the resolution chain each name what they cannot conclude.
+    Pass.
