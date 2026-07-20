@@ -485,9 +485,19 @@ def check_tts() -> Check:
         tier=OPTIONAL,
         ok=False,
         detail=f"selected TTS '{selected}' not ready: {provider.get('detail', '?')}; {others}",
+        # The fix must address what is ACTUALLY missing: a runtime the
+        # model files cannot substitute for is a different problem than
+        # absent model files, and prescribing the download to someone
+        # whose Python cannot run kokoro-onnx is the re-prescribed-fix
+        # dead end D-13 and the review's P1-1 both punished.
         fix=(
-            "download the kokoro model files to ~/.cache/myzing/kokoro (or "
-            "point ZING_KOKORO_MODEL/ZING_KOKORO_VOICES at them) — Zing "
+            "install the render extras so kokoro-onnx is importable: "
+            'python -m pip install "myzing[render]" — if your Python is too '
+            "new for it, run zing on a Python it supports or set "
+            "ELEVENLABS_API_KEY to use the optional cloud provider"
+            if "not importable" in str(provider.get("detail", ""))
+            else "download the kokoro model files to ~/.cache/myzing/kokoro "
+            "(or point ZING_KOKORO_MODEL/ZING_KOKORO_VOICES at them) — Zing "
             "never auto-downloads models (D-6); ElevenLabs is optional via "
             "ELEVENLABS_API_KEY"
         ),

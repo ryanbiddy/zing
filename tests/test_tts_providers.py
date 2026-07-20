@@ -231,3 +231,57 @@ def test_readme_discloses_every_external_provider():
         assert absolute not in lowered, (
             f"README carries the absolute claim {absolute!r} again"
         )
+
+
+# -- SG-4: readiness must test the CAPABILITY, not a proxy for it ------------
+
+def _kokoro_files_present(monkeypatch, tmp_path):
+    model = tmp_path / "kokoro-v1.0.onnx"
+    voices = tmp_path / "voices-v1.0.bin"
+    model.write_bytes(b"model")
+    voices.write_bytes(b"voices")
+    monkeypatch.setenv("ZING_KOKORO_MODEL", str(model))
+    monkeypatch.setenv("ZING_KOKORO_VOICES", str(voices))
+
+
+def test_kokoro_not_ready_when_the_runtime_is_missing(monkeypatch, tmp_path):
+    """Found live on Python 3.14: the model files sat on disk, kokoro-onnx
+    caps at <3.14 and could not be imported, and status reported READY —
+    so voiceover failed at render time after doctor said it was fine.
+    Model files are a proxy for the capability, not the capability
+    (audit #201's lineage)."""
+    _kokoro_files_present(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        tts_providers.importlib.util, "find_spec", lambda name: None
+    )
+    kokoro = tts_providers.tts_status()["providers"]["kokoro"]
+    assert kokoro["ready"] is False
+    assert "not importable" in kokoro["detail"]
+    assert "elevenlabs" in kokoro["detail"]  # names the working alternative
+
+
+def test_kokoro_ready_needs_both_halves(monkeypatch, tmp_path):
+    _kokoro_files_present(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        tts_providers.importlib.util, "find_spec", lambda name: object()
+    )
+    kokoro = tts_providers.tts_status()["providers"]["kokoro"]
+    assert kokoro["ready"] is True
+    assert "importable" in kokoro["detail"]
+
+
+def test_doctor_prescribes_the_runtime_not_the_download(monkeypatch, tmp_path):
+    """D-13's lesson generalized: never prescribe a fix for something
+    that is not what is missing. Model files present + no runtime must
+    point at the install, not at another download."""
+    from myzing import doctor
+
+    _kokoro_files_present(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        tts_providers.importlib.util, "find_spec", lambda name: None
+    )
+    monkeypatch.delenv(tts_providers.ELEVENLABS_KEY_ENV, raising=False)
+    check = doctor.check_tts()
+    assert check.ok is False
+    assert 'myzing[render]' in check.fix
+    assert "download the kokoro model files" not in check.fix
