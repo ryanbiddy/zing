@@ -161,6 +161,50 @@ Closing that needs a cell labeled without a token-count floor —
 smaller than a fresh freeze, and now the highest-value next step for
 this dataset.
 
+## The token floor tested against real single-word captions (2026-07-20)
+
+The label audit above predicted that the `≥2 words` term in both
+candidate rules was partly fitting my labeling method. That was
+testable, so I tested it: found a word-by-word captioned video in the
+corpus (`youtube-se50vifj0aq` — frame-verified, "$100" in green as a
+SINGLE-TOKEN caption), froze it, and labeled it with **no token
+floor**. The dataset went from **0 single-token captions to 68**.
+
+On that cell:
+
+| rule | precision | recall | F1 |
+|---|---|---|---|
+| persistence ≤20 AND ≥2 words | 0.400 | **0.346** | 0.371 |
+| persistence ≤20, no token floor | 0.374 | **1.000** | 0.545 |
+
+**The token floor discards two thirds of this style's captions.** The
+prediction held.
+
+But dropping it globally is not the answer either:
+
+| rule (7 cells, 15,999 lines) | precision | recall | F1 |
+|---|---|---|---|
+| confidence ≥0.75 (ships today) | 0.036 | 1.000 | 0.070 |
+| persistence ≤20 AND ≥2 words | 0.477 | 0.882 | 0.619 |
+| persistence ≤20, no token floor | **0.085** | 1.000 | 0.157 |
+
+Without the floor, precision collapses from 0.477 to 0.085 — the
+single-token world is dominated by HUD glyphs, keyboard keys, prices
+and serial numbers.
+
+**What this actually establishes:** the token floor is not a caption
+property, it is a cheap proxy that trades one style away for
+precision. A signal that handles both must separate single-token
+CAPTIONS from single-token NOISE some other way — persistence alone
+does not, because a one-word caption and a flickering HUD digit both
+change fast. That is a real, named, unsolved problem, and it is more
+useful than a headline F1.
+
+Note on validity: this cell was labeled BY POSITION (frame-verified
+band), so it must not be used to evaluate position rules — circular.
+It is valid for the token floor and persistence, which are
+position-independent.
+
 ## What this does NOT establish (the part that matters)
 
 **Every captioned cell in this dataset uses lower-third captions.**
