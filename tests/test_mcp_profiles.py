@@ -68,7 +68,8 @@ def test_build_builder_absent_is_honest(studied_set, monkeypatch):
     monkeypatch.setattr(mcp_server, "_profile_api", lambda: None)
     result = mcp_server.h_build_profile("my-taste", SLUGS)
     assert result["ok"] is False
-    assert "not in this build yet" in result["error"]
+    # was "not in this build yet (Sprint 2 in progress)" — see #333
+    assert 'myzing[study]' in result["error"]
 
 
 def test_build_wires_seam_and_persists(studied_set, fake_builder):
