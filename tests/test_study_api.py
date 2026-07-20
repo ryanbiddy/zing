@@ -252,10 +252,14 @@ def test_study_transition_failure_is_named(zing_workspace, monkeypatch):
 
     assert breakdown.transitions == []
     assert breakdown.provenance["transition_detector"] == "test-v2"
-    assert breakdown.warnings[-1] == (
-        "transition detection skipped: "
-        "ffmpeg could not decode transition frames"
+    # The warning must distinguish NOT-MEASURED from measured-empty: an
+    # empty transitions[] with a silent skip reads as "no transitions
+    # found", which is the exact ambiguity the doctrine forbids.
+    warning = breakdown.warnings[-1]
+    assert warning.startswith(
+        "transition detection skipped: ffmpeg could not decode transition frames"
     )
+    assert "NOT-MEASURED" in warning and "provenance" in warning
 
 
 def test_workspace_override_never_touches_env_with_use_workspace(
