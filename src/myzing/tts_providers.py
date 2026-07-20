@@ -201,9 +201,8 @@ def tts_status() -> dict[str, Any]:
         kokoro_detail = (
             "model files present but kokoro-onnx is not importable in this "
             f"Python ({sys.version_info.major}.{sys.version_info.minor}) — "
-            'install it (pip install "myzing[render]"), or if your Python is '
-            "too new for it, use the elevenlabs provider or run zing on a "
-            "Python it supports"
+            "install kokoro-onnx separately (it is outside the extras "
+            "by design), or use the elevenlabs provider"
         )
     elif not kokoro_runtime:
         kokoro_detail = (

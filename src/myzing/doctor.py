@@ -491,10 +491,18 @@ def check_tts() -> Check:
         # whose Python cannot run kokoro-onnx is the re-prescribed-fix
         # dead end D-13 and the review's P1-1 both punished.
         fix=(
-            "install the render extras so kokoro-onnx is importable: "
-            'python -m pip install "myzing[render]" — if your Python is too '
-            "new for it, run zing on a Python it supports or set "
-            "ELEVENLABS_API_KEY to use the optional cloud provider"
+            # The provider's OWN error is the source of truth here
+            # (render/tts.py): kokoro-onnx is deliberately NOT in any
+            # extra because its runtime pulls espeakng-loader, so it is
+            # installed separately. An earlier version of this line
+            # prescribed `myzing[render]`, which contains only pysubs2
+            # and therefore could never make kokoro importable — a fix
+            # that cannot work, written while fixing a fix that could
+            # not work.
+            "python -m pip install kokoro-onnx   (deliberately outside "
+            "the extras: its runtime pulls espeakng-loader; needs Python "
+            "3.10-3.13) — or set ELEVENLABS_API_KEY to use the optional "
+            "cloud provider instead"
             if "not importable" in str(provider.get("detail", ""))
             else "download the kokoro model files to ~/.cache/myzing/kokoro "
             "(or point ZING_KOKORO_MODEL/ZING_KOKORO_VOICES at them) — Zing "
