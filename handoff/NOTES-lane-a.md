@@ -968,3 +968,20 @@
   Also checked and CLEAR: CX1-P2-1's absolute local-only claim does
   NOT appear anywhere in Lane A's surfaces (study/profile/assemble/
   presets/report) — that finding is docs-only, no Lane A slice.
+
+- **2026-07-19 (Lane A): self-initiated CITATION AUDIT of my SG-4
+  scans (prompted by CX-6's trust flag on AG's dossiers).** If
+  another lane's research is being audited for fabrication, mine
+  should survive the same test unasked. Re-verified every
+  load-bearing claim against PRIMARY sources (raw LICENSE files,
+  README text — not GitHub sidebars or search summaries): SHOT's
+  "853 videos / 11,606 annotations" verbatim-correct; AutoShot and
+  TransNetV2 MIT confirmed from their LICENSE files; surya's split
+  license confirmed verbatim, so that REJECTION rests on primary
+  evidence. **One error found and corrected in both scans:** I wrote
+  surya's weights license as "cc-by-nc-sa / OpenRAIL-M" — the repo
+  says modified AI Pubs OpenRAIL-M only; cc-by-nc-sa came from a
+  secondary summary I never checked. Conclusion unaffected, string
+  wrong. Lane A's other research (sweep record, P-C2 labels) is
+  self-verifying by construction: frozen artifacts with regeneration
+  commands, auditable without trusting me.
