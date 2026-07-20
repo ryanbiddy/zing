@@ -105,3 +105,20 @@ def test_cuts_per_10s_skip_is_empty():
 def test_cut_exactly_on_window_boundary_counts_in_later_window():
     s = _mk([(0, 10.0), (10.0, 20.0)])
     assert shots.cuts_per_10s(s, duration=20.0) == [0.0, 1.0]
+
+
+def test_decode_failure_points_at_doctor_like_its_sibling(monkeypatch):
+    """Consistency gate: the 'not installed' path names a fix (pip
+    install), so its sibling 'installed but failed' path must too —
+    otherwise the same user-visible outcome is helpful or useless
+    depending on which branch fired."""
+    def boom(path, frames):
+        raise RuntimeError("could not decode stream")
+    monkeypatch.setattr(shots, "_run_detector", boom)
+
+    result = shots.detect_shots(Path("m.mp4"), duration=10.0, fps=30.0)
+
+    assert result.shots == []
+    (warning,) = result.warnings
+    assert "shot detection failed" in warning
+    assert "zing doctor" in warning, "a failure with no next step strands the user"

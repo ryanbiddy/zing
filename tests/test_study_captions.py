@@ -395,3 +395,15 @@ def test_ocr_drops_blank_and_low_confidence_lines():
     )
     lines = captions._ocr(lambda frame: out, FakeFrame())
     assert [ln.text for ln in lines] == ["KEEP"]
+
+
+def test_engine_start_failure_points_at_doctor(monkeypatch):
+    """The not-installed path names pip; this one must name a next step."""
+    def boom():
+        raise RuntimeError("onnxruntime DLL load failed")
+    monkeypatch.setattr(captions, "_engine", boom)
+
+    result = captions.read_captions(Path("m.mp4"), duration=1.0)
+
+    (warning,) = result.warnings
+    assert "backend failed to start" in warning and "zing doctor" in warning
