@@ -1264,3 +1264,33 @@
   malformed lines, and now duplicate-inflated corpus counts twice
   over. Ad-hoc shell analysis is where my mistakes live; regeneration
   scripts are where they die.
+
+- **2026-07-20 (Lane A): ran the P-C2 baseline — the proposal's core
+  premise is CONFIRMED with numbers, and the obvious fix is
+  under-evidenced in a way worth stating loudly.** The dataset has sat
+  complete for many cycles while the comparison harness (Lane C's
+  half) has not run, so I measured the Lane A half: what does
+  confidence alone achieve on my 15,231 labeled lines?
+  **Finding 1 (solid, all cells agree):** OCR confidence is not merely
+  weak, it is ANTI-CORRELATED with caption-ness — non-captions median
+  1.000 vs captions 0.988. HUD counters, watermarks and UI labels are
+  crisp synthetic glyphs; real captions carry outlines, shadows and
+  motion blur. So the shipped 0.75 threshold cannot be tuned into
+  usefulness: at 0.98 you lose 29% of captions and precision is STILL
+  2%. P-C2's premise is now measured, not asserted.
+  **Finding 2 (promising, under-evidenced):** two features already in
+  the data — lower-third position AND >=2 tokens — reach P=0.697 /
+  R=1.000 / F1=0.821 vs confidence's F1=0.047, holding up across a
+  train-on-one/test-on-the-other check (P=0.701 and P=0.922).
+  **Why I am NOT recommending it ship:** every captioned cell in the
+  dataset uses lower-third captions (y 0.79 and 0.65-0.78). A
+  top-captioned video — a style Zing already measures and draft.py
+  already supports — would score RECALL 0. The perfect recall is a
+  property of a two-video sample sharing one style, not generality,
+  and 3 of 5 cells have zero captions so the set is strong on false
+  positives and weak on recall. Recommendation: act on Finding 1;
+  keep Finding 2 as a WARNING never a drop (which is what P-C2 itself
+  specified); settle it by labeling one top-captioned and one
+  centre-captioned cell — a smaller job than the original freeze.
+  Note + regeneration script:
+  handoff/research/P-C2-BASELINE-2026-07-20.md, pc2_baseline.py.
