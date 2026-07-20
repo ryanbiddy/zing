@@ -1,0 +1,107 @@
+name: suite-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: suite-smoke-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  deterministic-family:
+    name: deterministic family gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      SMOKE_DIR: ${{ runner.temp }}/suite-smoke
+      SMOKE_WORK_DIR: ${{ runner.temp }}/suite-smoke-work
+    steps:
+      - name: Check out Zing
+        uses: actions/checkout@v4
+        with:
+          path: zing
+          persist-credentials: false
+
+      - name: Check out Uoink main
+        uses: actions/checkout@v4
+        with:
+          repository: ryanbiddy/uoink
+          ref: main
+          path: uoink
+          persist-credentials: false
+
+      - name: Check out Writer main
+        uses: actions/checkout@v4
+        with:
+          repository: ryanbiddy/writer
+          ref: main
+          path: writer
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            zing/pyproject.toml
+            writer/pyproject.toml
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          ffmpeg -version
+          ffprobe -version
+
+      - name: Install the three product runtimes
+        run: |
+          python -m pip install \
+            -e "./zing[all,dev]" \
+            -e "./writer[dev]" \
+            "mcp==1.27.1" \
+            "Pillow==10.4.0" \
+            "keyring==25.7.0"
+
+      - name: Run the deterministic family scenario
+        working-directory: zing
+        run: |
+          rm -rf "$SMOKE_DIR" "$SMOKE_WORK_DIR"
+          mkdir -p "$SMOKE_DIR"
+          python -m tools.eval.run_suite_smoke \
+            --mode deterministic_ci \
+            --uoink-repo "$GITHUB_WORKSPACE/uoink" \
+            --writer-repo "$GITHUB_WORKSPACE/writer" \
+            --zing-repo "$GITHUB_WORKSPACE/zing" \
+            --work-dir "$SMOKE_WORK_DIR" \
+            --output "$SMOKE_DIR/suite-smoke.json"
+
+      - name: Independently evaluate the family record
+        working-directory: zing
+        run: |
+          python -m tools.eval.suite_smoke \
+            "$SMOKE_DIR/suite-smoke.json" \
+            --report "$SMOKE_DIR/suite-smoke-eval.json"
+
+      - name: Upload the path-free family record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: suite-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/suite-smoke/suite-smoke.json
+            ${{ runner.temp }}/suite-smoke/suite-smoke-eval.json
+          if-no-files-found: error
+          retention-days: 14
