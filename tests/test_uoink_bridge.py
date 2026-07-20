@@ -386,3 +386,53 @@ def test_push_http_error_names_the_status(studied, monkeypatch):
     result = uoink_bridge.push_breakdown(SLUG)
     assert result["ok"] is False
     assert "HTTP 500" in result["error"]
+
+
+# -- SG-3 / P3-3 residue: token guidance is installed-app-aware everywhere ----
+
+def test_no_credential_error_names_the_installed_app_token_path(monkeypatch):
+    """Final review P3-3 was fixed in doctor (#220) but survived here in
+    three copies of the older source-checkout-only wording — the exact
+    way a closed finding lives on. One TOKEN_LOCATION constant now."""
+    monkeypatch.delenv(uoink_bridge.UOINK_TOKEN_ENV, raising=False)
+    error = uoink_bridge.resolve_kept_media(REF)["error"]
+    assert "%LOCALAPPDATA%/Uoink/token.txt" in error
+    assert "source checkout" in error
+
+
+def test_rejected_credential_error_names_the_installed_app_token_path(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "bad")
+
+    def forbidden(request, timeout=0):
+        raise urllib.error.HTTPError(request.full_url, 403, "no", {}, io.BytesIO())
+
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
+    error = uoink_bridge.resolve_kept_media(REF)["error"]
+    assert "%LOCALAPPDATA%/Uoink/token.txt" in error
+
+
+def test_push_auth_error_names_the_installed_app_token_path(studied, monkeypatch):
+    def forbidden(request, timeout=0):
+        raise urllib.error.HTTPError(request.full_url, 401, "no", {}, None)
+
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
+    error = uoink_bridge.push_breakdown(SLUG)["error"]
+    assert "%LOCALAPPDATA%/Uoink/token.txt" in error
+    assert uoink_bridge.UOINK_TOKEN_ENV in error
+
+
+def test_every_failure_envelope_has_the_house_shape(monkeypatch, zing_workspace):
+    """The envelope shape is now built in one place; assert the contract
+    it guarantees rather than trusting 15 hand-written literals."""
+    monkeypatch.delenv(uoink_bridge.UOINK_TOKEN_ENV, raising=False)
+    failures = [
+        uoink_bridge.resolve_kept_media("C:/not/a/ref.mp4"),
+        uoink_bridge.resolve_kept_media("uoink://item/"),
+        uoink_bridge.resolve_kept_media(REF),
+        uoink_bridge.push_breakdown("../../escape"),
+        uoink_bridge.push_breakdown("tiktok-nothing-here"),
+    ]
+    for envelope in failures:
+        assert envelope["ok"] is False
+        assert isinstance(envelope["error"], str) and envelope["error"]
+        assert "\n" not in envelope["error"]  # one actionable line, not a dump
