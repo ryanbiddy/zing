@@ -26,8 +26,6 @@ jobs:
       HF_HUB_DISABLE_TELEMETRY: "1"
       DO_NOT_TRACK: "1"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
-      SMOKE_DIR: ${{ runner.temp }}/suite-smoke
-      SMOKE_WORK_DIR: ${{ runner.temp }}/suite-smoke-work
     steps:
       - name: Check out Zing
         uses: actions/checkout@v4
@@ -78,6 +76,9 @@ jobs:
       - name: Run the deterministic family scenario
         shell: bash
         working-directory: zing
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/suite-smoke
+          SMOKE_WORK_DIR: ${{ runner.temp }}/suite-smoke-work
         run: |
           set -o pipefail
           rm -rf "$SMOKE_DIR" "$SMOKE_WORK_DIR"
@@ -94,6 +95,8 @@ jobs:
 
       - name: Independently evaluate the family record
         working-directory: zing
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/suite-smoke
         run: |
           python -m tools.eval.suite_smoke \
             "$SMOKE_DIR/suite-smoke.json" \

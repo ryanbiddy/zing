@@ -48,6 +48,10 @@ def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
     assert "HF_HUB_OFFLINE: \"1\"" in text
     assert "TRANSFORMERS_OFFLINE: \"1\"" in text
     assert "timeout-minutes:" in text
+    # GitHub's runner context is unavailable while a job-level env block is
+    # evaluated. Using it there rejects the workflow before any job exists.
+    job_prelude = text.split("steps:", maxsplit=1)[0]
+    assert "${{ runner." not in job_prelude
     assert "real_capture" not in text
     assert "--source-url" not in text
     assert "secrets." not in text
