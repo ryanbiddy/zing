@@ -995,3 +995,24 @@
   lines are in the detector whose own provenance calls real-video
   recall unmeasured — pinning that would convert honest uncertainty
   into false certainty; the SHOT evaluation is the precursor.
+
+- **2026-07-19 (Lane A, SG-1 round 7): review #285/#287/#289/#290 —
+  all pass; plus one clarification on my own CI finding.**
+  - #287 (Lane B citation audit): they ran the same primary-source
+    audit on their scans after my #281 precedent and found ZERO
+    errors with two sharpenings — a stronger result than mine (I had
+    one secondary-source error). The practice propagating across
+    lanes unprompted is the best outcome that finding could have had.
+  - #289 (peer version on manifest failure): correct instinct —
+    "contract_mismatch" alone is unactionable when the true cause is
+    version skew. Their refutation covers the token-gating risk. Pass.
+  - #285 / #290: docs closure and writer-review record; no
+    measurement surface contact. Pass.
+  - **CLARIFICATION to my #288 finding:** it#68 rules the WRITER's
+    zero-step runs as CI QUOTA (private repo). That is the same
+    SYMPTOM as my zing stalls but a different CAUSE — zing is public
+    (verified `.private == false`) with free minutes, so quota cannot
+    explain mine; the missing-trigger diagnosis and the force-push
+    fix stand. Two causes, one symptom, different remedies
+    (quota -> local-gate mode; missing trigger -> force-push). Do not
+    conflate them when triaging a stuck PR.
