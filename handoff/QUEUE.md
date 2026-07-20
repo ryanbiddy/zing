@@ -59,6 +59,42 @@ the bottom but never claim outside their lane.
   doc-only PR of fixes or a findings note.
 
 ## PROPOSED (workers append; orchestrator promotes)
+- **PROPOSED (Lane A, 2026-07-20): region tracks merge static overlays
+  with the changing text beside them, disabling overlay exclusion.**
+  EVIDENCE (measured, reproducible via
+  tests/test_overlay_rule_against_labels.py and pc2_baseline.py): on
+  the 430s HUD cell, `cluster_regions` emits ZERO
+  persistent-overlay warnings although 1,882 of its events are
+  non-caption HUD text — the exact class the warning exists for. Cause
+  is NOT the 25%-of-runtime threshold alone and NOT OCR jitter (the
+  watermark reads stably: "GNN"/"TV"/"GAMING", 60 sightings each).
+  `track_regions` merges that static watermark with the score counter
+  beside it into ONE region whose joined text changes every frame
+  ("TV GNN GAMING x6000042" -> "...x6000064"): 978 observations, 972
+  DISTINCT texts, so `_same_event` closes an event almost every frame
+  and the longest is 8.5s. A neighbouring track merges a HUD label, a
+  changing number and story text into one string.
+  PROPOSAL: make persistence a property of the STABLE SUB-TEXT of a
+  region rather than its whole joined string — e.g. track the longest
+  token subsequence common to consecutive observations of a region,
+  and age THAT. A watermark would then persist even while a counter
+  churns next to it.
+  REFUTATION (mine, and it is not fatal but it is real): (1) this
+  touches `_same_event`/`track_regions`, the code path every caption
+  measurement flows through — regression risk is high and the S1
+  region-tracking work exists because naive approaches concatenated
+  unrelated text. (2) The "stable sub-text" idea can itself
+  over-merge: two genuinely different captions sharing a word would
+  look continuous. (3) Nobody has shown that firing this warning
+  IMPROVES any downstream output — the current silence is safe (0
+  captions lost, measured), so this is a completeness fix, not a
+  correctness fix. (4) It is post-launch by nature: it changes
+  measurement behaviour on long-form.
+  SURVIVES AS: a queued item with the frozen HUD cell as its
+  regression fixture — the failure is already reproducible offline,
+  so whoever takes it starts with a red test rather than a
+  description. NOT to be attempted as a quiet tweak.
+
 - **PROPOSED (Lane A, SG-5, 2026-07-19 #3): `zing profile pack
   <manifest> --reverify` — reference-rot probe pass.**
   PROPOSAL: metadata-probe (no download) every reference URL in a
