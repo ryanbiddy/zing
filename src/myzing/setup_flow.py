@@ -170,9 +170,17 @@ def finish_pack(name: str, *, study_missing: bool = False) -> dict[str, Any]:
     try:
         from myzing.profile.packs import PackError, build_pack
     except ImportError:
+        # Same misdiagnosis the MCP surface carried (#334): the builder
+        # ships in the wheel, so an ImportError here means the study
+        # extras are absent — and "update Zing" is advice that cannot
+        # work, because a newer version has exactly the same extras.
         return {
             "ok": False,
-            "error": "the pack builder is not in this build — update Zing",
+            "error": (
+                "building a preset pack needs the study extras, which are "
+                'not installed in this Python: python -m pip install '
+                '"myzing[study]"'
+            ),
         }
     try:
         result = build_pack(path, study_missing=study_missing)
