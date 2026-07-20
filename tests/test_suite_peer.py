@@ -9,6 +9,7 @@ through Lane C's own contract validator.
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 from pathlib import Path
 
@@ -567,7 +568,12 @@ def valid_lease(**overrides):
             "uoink.media.handoff/1",
         ],
         "ui": {"home": "/dashboard", "routes": {"library": "/dashboard#library"}},
-        "pid": 4,  # the System process: alive and not ours (F-03 pin)
+        # Must be alive on EVERY platform: the test process itself. The
+        # first draft used pid 4 (Windows' System process) — alive there,
+        # absent on macOS/Linux, so the lease read as stale and two tests
+        # failed on two platforms. Cross-platform tests need a
+        # cross-platform liveness fact.
+        "pid": os.getpid(),
         "started_at": "2026-07-19T12:00:00Z",
     }
     lease.update(overrides)

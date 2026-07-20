@@ -1737,3 +1737,15 @@
   Suite 967 passed / 2 skipped. Remaining B-CONF1 tail: SUITE-CONNECT's
   caveat line lives in uoink's repo — flagged for that doc's owner,
   since this closes the gap it documents as current.
+  CI CAUGHT ONE OF MINE, and it is the good kind: my lease fixture
+  used `pid: 4` — the Windows System process, alive there, absent on
+  macOS/Linux — so two tests failed on TWO platforms while passing
+  locally on Windows. Platform-specific reasoning inside a
+  cross-platform test. Fixed with `os.getpid()`, which is alive
+  everywhere by definition. Rule: a cross-platform test needs a
+  cross-platform FACT, and 'it passes on my box' is exactly the
+  evidence that cannot show the difference.
+  Also, per Lane A's stall-triage clarification: the first Windows
+  failure on this PR was a CANCELLED pip install (infrastructure),
+  the second was a REAL two-platform test failure. Same red X, two
+  causes — I read the log both times instead of re-running blind.
