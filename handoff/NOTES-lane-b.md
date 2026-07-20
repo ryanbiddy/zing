@@ -2210,3 +2210,31 @@
   - #331/#333/#335: the label frame-audit, the single-token floor test,
     and the resolution chain each name what they cannot conclude.
     Pass.
+- **2026-07-20 (Lane B): SG-2 twelfth pass — engagement.py 83%→89%,
+  the lane's floor and the one module where the failure mode is SILENT
+  LOSS.** Contract §7's zing side promises "uncertain delivery is
+  spooled; permanent rejection remains durably visible" — a promise
+  made entirely of failure paths, most of which nothing had exercised.
+  11 tests now prove each is honest: nonconformant envelopes named
+  contract_mismatch; accounting that does not add up REFUSED (submitted
+  must equal accepted + duplicates + rejected, else the peer is
+  claiming something it cannot support and the event must not be marked
+  delivered); malformed rejection entries refused; timeout vs
+  unavailable both spooling rather than claiming success or raising;
+  an oversized response refused BY SIZE before parsing (same doctrine
+  as the lease cap); and storage trouble raising a NAMED error instead
+  of degrading to an empty spool — which would read as "nothing was
+  ever recorded", the worst possible lie for a delivery ledger.
+  **The code was right and I was wrong, twice, and the second one
+  taught me something.** I asserted an invalid UOINK_URL would SPOOL;
+  it REJECTS — correctly, because a bad URL cannot become good by
+  waiting, so spooling it would be a queue pretending a retry might
+  work. That distinction IS the module's promise, and I had to be
+  corrected by the code to see it. (The first was calling
+  `_validate_response` with the wrong signature — third time this
+  session I have written a test from memory of an interface instead of
+  from the interface. The habit to build: read the signature, then
+  write the call.)
+  Remaining 21 misses are threading/retry timing and the delivery
+  happy-path already covered end-to-end by the family gate.
+  Suite 1051 passed / 2 skipped.

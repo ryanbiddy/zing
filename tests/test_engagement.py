@@ -367,3 +367,129 @@ def test_refetched_study_emits_no_opened_event(
     )
 
     assert storage.read_status("example-test-123")["state"] == "done"
+
+
+# -- SG-2: durable delivery's failure paths (silent loss is the defect) ------
+
+def _valid_response(submitted=1, accepted=1, duplicates=0, rejected=None):
+    return {
+        "ok": True,
+        "contract": "uoink.engagement.ingest",
+        "version": 1,
+        "data": {
+            "submitted": submitted,
+            "accepted": accepted,
+            "duplicates": duplicates,
+            "rejected": rejected if rejected is not None else [],
+        },
+    }
+
+
+def _serve(monkeypatch, payload, status=200):
+    class Resp(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    body = json.dumps(payload).encode("utf-8") if not isinstance(payload, bytes) else payload
+    monkeypatch.setattr(
+        engagement.urllib.request, "urlopen",
+        lambda *a, **k: Resp(body),
+    )
+
+
+@pytest.mark.parametrize("payload,expect", [
+    ("not an object", "not a JSON object"),
+    ({"ok": True, "contract": "wrong", "version": 1, "data": {}}, "contract version 1"),
+    ({"ok": True, "contract": "uoink.engagement.ingest", "version": 2, "data": {}},
+     "contract version 1"),
+], ids=["nondict", "wrong-contract", "wrong-version"])
+def test_nonconformant_envelopes_are_named_contract_mismatch(payload, expect):
+    with pytest.raises(engagement._DeliveryError) as e:
+        engagement._validate_response(payload, status=200, event_id="evt-1")
+    assert expect in str(e.value.message)
+    assert e.value.code == "contract_mismatch"
+
+
+@pytest.mark.parametrize("data,expect", [
+    ({"submitted": 1}, "accounting is nonconformant"),
+    ({"submitted": -1, "accepted": 0, "duplicates": 0, "rejected": []}, "counts"),
+    ({"submitted": True, "accepted": 0, "duplicates": 0, "rejected": []}, "counts"),
+    ({"submitted": 1, "accepted": 1, "duplicates": 0, "rejected": "no"}, "rejections"),
+    ({"submitted": 5, "accepted": 1, "duplicates": 0, "rejected": []}, "inconsistent"),
+], ids=["missing-keys", "negative", "bool-as-int", "rejected-type", "sums-wrong"])
+def test_accounting_that_does_not_add_up_is_refused(data, expect):
+    """The accounting IS the receipt: submitted must equal accepted +
+    duplicates + rejected, or the peer is claiming something it cannot
+    support and the event must not be marked delivered."""
+    payload = {
+        "ok": True, "contract": "uoink.engagement.ingest", "version": 1,
+        "data": data,
+    }
+    with pytest.raises(engagement._DeliveryError) as e:
+        engagement._validate_response(payload, status=200, event_id="evt-1")
+    assert expect in str(e.value.message)
+
+
+def test_malformed_rejection_entry_is_refused():
+    payload = _valid_response(submitted=1, accepted=0, rejected=[{"code": "x"}])
+    with pytest.raises(engagement._DeliveryError) as e:
+        engagement._validate_response(payload, status=200, event_id="evt-1")
+    assert "rejection is nonconformant" in str(e.value.message)
+
+
+def test_timeout_and_unavailable_are_distinct_and_retryable(monkeypatch, zing_workspace):
+    for raiser, code in (
+        (lambda *a, **k: (_ for _ in ()).throw(TimeoutError("slow")), "timeout"),
+        (lambda *a, **k: (_ for _ in ()).throw(urllib.error.URLError("down")),
+         "unavailable"),
+    ):
+        monkeypatch.setattr(engagement.urllib.request, "urlopen", raiser)
+        receipt = engagement.record_opened("uoink://item/x", "ab" * 32)
+        # Uncertain delivery must SPOOL, never claim success and never raise.
+        assert receipt["state"] == "spooled", (code, receipt)
+
+
+def test_oversized_response_is_refused_rather_than_parsed(monkeypatch, zing_workspace):
+    """A peer that floods the response is refused by size before json
+    parsing — the same doctrine as the lease cap."""
+    big = b'{"ok": true, "pad": "' + b"x" * (engagement._MAX_RESPONSE_BYTES + 10) + b'"}'
+    _serve(monkeypatch, big)
+    receipt = engagement.record_opened("uoink://item/x", "ab" * 32)
+    assert receipt["state"] == "spooled"
+
+
+def test_invalid_uoink_url_never_attempts_delivery(monkeypatch, zing_workspace):
+    monkeypatch.setenv(suite_peer_env := "UOINK_URL", "http://evil.example.com:80")
+    monkeypatch.setattr(
+        engagement.urllib.request, "urlopen",
+        lambda *a, **k: pytest.fail("must not deliver to a non-loopback URL"),
+    )
+    receipt = engagement.record_opened("uoink://item/x", "ab" * 32)
+    # REJECTED, not spooled — and that distinction is the module's whole
+    # promise: "uncertain delivery is spooled; permanent rejection remains
+    # durably visible". A bad URL cannot become good by waiting, so
+    # spooling it would be a queue that pretends a retry might work. My
+    # first draft asserted "spooled"; the code was right and I was wrong.
+    assert receipt["state"] == "rejected"
+
+
+def test_unreadable_spool_is_a_named_storage_error(zing_workspace, monkeypatch):
+    """Storage trouble must be its own named error — never silently an
+    empty spool, which would look like 'nothing was ever recorded'."""
+    def boom(*a, **k):
+        raise OSError("permission denied")
+
+    monkeypatch.setattr(engagement.Path, "read_text", boom)
+    with pytest.raises(engagement.EngagementStorageError, match="unreadable"):
+        engagement._read_state()
+
+
+def test_spool_with_an_unsupported_shape_is_refused(zing_workspace):
+    path = engagement._state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"pending": "not a map"}), encoding="utf-8")
+    with pytest.raises(engagement.EngagementStorageError, match="unsupported shape"):
+        engagement._read_state()
