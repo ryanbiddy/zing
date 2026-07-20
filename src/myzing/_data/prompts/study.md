@@ -1,7 +1,7 @@
 ---
 name: study
 description: How to judge a Zing Breakdown — hook, beats, caption style, why it works — and write the judgment back.
-version: 0.4.0
+version: 0.5.0
 required_keys: [hook, beats, caption_style, why_it_works]
 ---
 
@@ -40,10 +40,25 @@ the JSON). It contains:
   per-event confidence: the detector has known per-signature precision,
   not calibrated probabilities — cite kinds, counts, and timings; never
   invent certainty about any single event.
-- `warnings[]` — **read this first.** Every measurement that was skipped
-  or degraded is named here. A skipped measurement is not evidence of
-  absence: if transcription was skipped, empty `words` does NOT mean
-  nobody speaks.
+- `warnings[]` — **read this first, and sort it.** Three kinds of entry
+  share this list and they carry opposite implications:
+  1. **A measurement was skipped or degraded** — "transition detection
+     skipped", "loudness curve skipped: ffmpeg failed". Evidence is
+     MISSING here. A skipped measurement is not evidence of absence: if
+     transcription was skipped, empty `words` does NOT mean nobody
+     speaks.
+  2. **A measurement's resolution is stated** — "caption OCR sampled at
+     8 fps in 0-3s, 4 fps after; text between samples is unobserved".
+     Nothing went wrong. This BOUNDS how precise a claim you may make;
+     it does not weaken the measurement that was taken.
+  3. **A normalization was applied** — "source codec 'av1' is not
+     reliable for frame-accurate measurement here; re-encoded to H.264",
+     "normalized to constant frame rate". Something was CORRECTED so
+     measurement could proceed. Confidence went up, not down.
+  Only kind 1 is a gap in the evidence. In the frozen real-video set,
+  11 of 12 warnings are kinds 2 and 3 — so do NOT read a long
+  `warnings[]` as a broken study, and do not discount a measurement
+  because its resolution was stated honestly.
 
 If your client can read local image files, view the shot `keyframe`
 images: join each relative path against the `dir` field in the
@@ -239,6 +254,15 @@ tighter than the OCR sampling interval.
 
 ## Changelog
 
+- **0.5.0** (2026-07-20): `warnings[]` is described as what it actually
+  contains. It said "every measurement that was skipped or degraded is
+  named here" — measured against the frozen real-video set, 11 of 12
+  entries are NOT skips or degradations but stated measurement
+  resolutions and applied normalizations. Telling a judging AI to read
+  the list first and treat all of it as damage either over-discounts
+  good measurements or teaches it to ignore the list. Now sorted into
+  three kinds, with "skipped is not absence" scoped to the one kind it
+  applies to. Guidance only; contract keys unchanged.
 - **0.4.0** (2026-07-18, B-Q11): transitions vocabulary — the three
   honest states (observed / ran-none / not-run), the no-per-event-
   confidence rule, audio-aligned cuts as beat evidence; tools overview

@@ -9,6 +9,7 @@ repo prompts/, not fixtures: a broken pack is a broken product.
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 
 import pytest
@@ -234,3 +235,76 @@ def test_cli_survives_legacy_windows_console(real_pack):
     )
     assert proc.returncode == 0, proc.stderr.decode(errors="replace")
     assert b"Judging a Zing breakdown" in proc.stdout
+
+
+# -- the pack states a MEASURED fact, so the fact has to stay true -------------
+
+# Lane A's own classifier for "this warning reports a problem"
+# (tests/test_warning_registry.py). Reused deliberately: if the two lanes
+# disagree about what counts as a problem, that disagreement should show
+# up as a test failure somewhere rather than as two prose descriptions
+# drifting apart.
+_PROBLEM = re.compile(
+    r"(skipped|failed|could not|unavailable|mismatch|ignored|inconclusive|empty:)",
+    re.I,
+)
+
+
+def _measured_warning_split():
+    """(not_a_problem, total) across the frozen real-video breakdowns."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parents[1] / "tools" / "eval" / "real_videos"
+    warnings = [
+        w
+        for path in sorted(root.glob("*/breakdown.json"))
+        for w in _json.loads(path.read_text(encoding="utf-8")).get("warnings", [])
+    ]
+    assert warnings, "no frozen breakdowns found — this gate would pass vacuously"
+    return sum(1 for w in warnings if not _PROBLEM.search(w)), len(warnings)
+
+
+@pytest.mark.parametrize("prompt_name", ["study", "direct"])
+def test_the_warning_ratio_the_pack_cites_is_still_true(prompt_name):
+    """study.md 0.5.0 and direct.md 1.2.0 tell judging AIs that most
+    `warnings[]` entries are stated resolutions or applied normalizations,
+    and cite "11 of 12" from the frozen set as evidence.
+
+    A number written into a prompt is a freshness claim nobody renews. So
+    the claim is read back OUT of the prompt and checked against the
+    breakdowns: change the corpus and this fails until the prompt is
+    updated. That is the intended coupling, not brittleness — the
+    alternative is guidance that quietly becomes false.
+    """
+    body = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "prompts"
+        / f"{prompt_name}.md"
+    ).read_text(encoding="utf-8")
+
+    claimed = re.search(r"(\d+) of (\d+) warnings|(\d+) of (\d+) are", body)
+    assert claimed, f"{prompt_name}.md no longer states the ratio it is pinned on"
+    groups = [g for g in claimed.groups() if g is not None]
+    claimed_other, claimed_total = int(groups[0]), int(groups[1])
+
+    measured_other, measured_total = _measured_warning_split()
+    assert (claimed_other, claimed_total) == (measured_other, measured_total), (
+        f"{prompt_name}.md claims {claimed_other} of {claimed_total} warnings are "
+        f"not skips/degradations; the frozen set now measures "
+        f"{measured_other} of {measured_total}. Update the prompt (and its "
+        f"changelog) — a judging AI is being told a number that is no longer true."
+    )
+
+
+def test_most_warnings_are_not_problems_which_is_why_the_guidance_exists():
+    """The load-bearing claim behind the 0.5.0 rewrite, stated
+    independently of the exact count: if problems ever became the
+    MAJORITY, 'do not read a long warnings[] as a broken study' would be
+    the wrong advice and the guidance would need rethinking, not just a
+    new number."""
+    other, total = _measured_warning_split()
+    assert other > total / 2, (
+        "most warnings are now problem-reports; study.md's advice to treat a "
+        "long warnings[] as normal no longer follows from the data"
+    )
