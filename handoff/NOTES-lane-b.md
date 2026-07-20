@@ -1802,3 +1802,37 @@
   proves the chain is honest and grounded, not that the taste is
   right. S3 limit #2 (profile taste-coherence) is unchanged and still
   belongs to Ryan's reference set.
+- **2026-07-20 (Lane B): SG-4 pass (rotation) — local-MCP security
+  practice AUDITED AGAINST my surface, not surveyed.** Record:
+  research/SG4-MCP-SECURITY-2026-07-20.md. Chose the target because I
+  shipped lease consumption last cycle: zing now reads a WRITABLE file
+  to decide where it connects, which is the most attacker-controllable
+  input this lane has ever accepted. Every verdict tested against the
+  running code.
+  - **Gap found and fixed:** `read_lease` had no size cap while
+    `shot_list` caps its import at 2 MiB — and shot_list's input is
+    USER-CHOSEN, therefore less hostile than a file any local process
+    can drop. Unbounded was an inconsistency, not a decision. Capped at
+    64 KiB, refused via `stat()` before any read, reported as
+    invalid_lease.
+  - **Verified clean, and worth having tested rather than assumed:**
+    the configured token appears in NO request URL, peer envelope,
+    evidence receipt, or doctor field. The sibling product's review
+    found a token printed into a URL — same class, so I proved zing's
+    absence instead of trusting it. Both facts are now regressions.
+  - **Considered and DISPOSITIONED (recorded so it is not re-derived):**
+    OWASP wants `additionalProperties: false`; our FastMCP-generated
+    schemas omit it. Probed live — an undeclared extra argument is
+    silently DROPPED BY THE SDK before my handler runs, so there is no
+    injection path to close and the control is inert here. Trigger
+    written down: if the SDK ever starts forwarding unknown keys, it
+    becomes a real finding.
+  - **Named as posture, not pretended away:** OWASP prefers OS-native
+    credential stores; INTEGRATION-CONTRACT §3.2 MANDATES explicit
+    env-var config for peer credentials. Zing follows the contract.
+    Two defensible standards disagreeing is worth stating plainly.
+  Method note: this is the third cycle running where the useful move
+  was auditing MY OWN code against an external standard rather than
+  cataloguing the standard. A scan that ends in "we conform" is only
+  worth reading if it names what was tested.
+  Suite 980 passed / 2 skipped.
