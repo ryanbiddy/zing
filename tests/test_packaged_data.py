@@ -56,3 +56,57 @@ def test_loaders_fall_back_to_packaged_data(monkeypatch, tmp_path):
     assert any(p["name"] == "ai-tech-talking-head" for p in packs)
     meta, text = prompt_pack.load_prompt("study")
     assert meta["version"] and "Judging a Zing breakdown" in text
+
+
+# -- the MCP SDK major-version bound --------------------------------------
+
+
+def test_mcp_extra_keeps_its_upper_bound():
+    """`mcp` must stay pinned below 2, and dropping that is not a typo.
+
+    SDK v2 (beta 2.0.0b1; stable expected with the 2026-07-28 spec)
+    removes `mcp.server.fastmcp` — FastMCP became
+    `mcp.server.mcpserver.MCPServer`. Every one of zing's import sites is
+    on the v1 path, so an unbounded requirement would hand each NEW
+    `pip install "myzing[mcp]"` a server that dies at launch, on a date
+    nobody chose. The SDK's own migration guide tells library maintainers
+    to add this bound.
+
+    Raising it is a real port (rename the class, move four imports,
+    re-run the tool surface), not a dependency bump — so this gate exists
+    to make that a decision rather than an accident.
+    """
+    import re
+
+    pyproject = (
+        Path(__file__).resolve().parents[1] / "pyproject.toml"
+    ).read_text(encoding="utf-8")
+
+    pins = re.findall(r'"(mcp(?:\[[^\]]+\])?[><=!,.\d\s]*)"', pyproject)
+    assert pins, "no mcp requirement found in pyproject.toml"
+    for pin in pins:
+        assert "<2" in pin.replace(" ", ""), (
+            f'the mcp requirement {pin!r} lost its upper bound. SDK v2 moved '
+            "mcp.server.fastmcp to mcp.server.mcpserver, so this would break "
+            "every new install of the MCP extra. If v2 support is intended, "
+            "port mcp_server.py first and update mcp_sdk_defect()."
+        )
+
+
+def test_the_sdk_guard_names_the_same_pin_the_packaging_uses():
+    """A fix string that disagrees with pyproject sends users somewhere
+    the project does not actually support."""
+    from myzing import mcp_server
+
+    pyproject = (
+        Path(__file__).resolve().parents[1] / "pyproject.toml"
+    ).read_text(encoding="utf-8")
+    assert 'mcp>=1.2,<2' in pyproject
+
+    source = (
+        Path(mcp_server.__file__).read_text(encoding="utf-8")
+    )
+    assert 'mcp>=1.2,<2' in source, (
+        "mcp_sdk_defect() must recommend the same constraint pyproject "
+        "declares"
+    )

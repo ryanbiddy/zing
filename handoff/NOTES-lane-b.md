@@ -2627,3 +2627,48 @@
   review: #357 in particular rejected a regex classifier after reading
   its output (19 flagged, 3 real) and says so in the file — the same
   narrowing discipline, recorded where the next editor will see it.
+- **2026-07-20 (Lane B): SG-4 — my own watch-item had already fired, and
+  waiting for its date would have been waiting for the wrong event.**
+  I filed "MCP spec 2026-07-28 goes final; SDK support = trigger" on
+  07-19. This cycle I re-verified the PREMISE instead of waiting for the
+  date. The date held — but beta SDKs for the release candidate shipped
+  **2026-06-29**, Python included (`mcp==2.0.0b1`), three weeks before
+  the spec publishes. The date a spec is published is not the date the
+  ecosystem moves under us; the SDK release is. A watch-item keyed to a
+  calendar entry would have expired unread.
+  **What it exposed on my surface.** v2 removes `mcp.server.fastmcp`
+  (FastMCP -> `mcp.server.mcpserver.MCPServer`), and zing imports that
+  path in four places. `pyproject.toml` declared `mcp>=1.2` —
+  **unbounded** — so the day 2.0.0 leaves beta, a fresh
+  `pip install "myzing[mcp]"` resolves to v2 and the server dies at
+  launch. New users only, on a date nobody chose, for the people least
+  equipped to diagnose it.
+  And both guards tested `import mcp`, which SUCCEEDS on v2 — the
+  top-level package is still there. Simulated that exact shape: the
+  guard passes, then `build_server` raises a bare
+  `ImportError: No module named 'mcp.server.fastmcp'`. No cause, no
+  version, no fix. The guard was asking a question whose answer had
+  stopped meaning what it used to.
+  Fixed both halves: `mcp>=1.2,<2` in the `mcp` and `dev` extras (the
+  SDK's own advice to library maintainers, with the reason inline so it
+  is not read as cargo-culting), and `mcp_sdk_defect()` now separates
+  ABSENT from INCOMPATIBLE — naming the installed version, where the API
+  went, and the pin that fixes it. Telling a v2 user to "install the
+  SDK" would have been actively wrong; it IS installed.
+  Two gates: the bound cannot be dropped silently, and the fix string
+  must name the same constraint `pyproject.toml` declares — a guard
+  recommending an unsupported pin is worse than no guard. Verified both
+  fire by removing the bound and watching the failure message.
+  **Stated plainly in the research note:** I did NOT install 2.0.0b1 and
+  run the suite against it. The break is established from the migration
+  guide plus our import sites and simulated at the import layer, not
+  observed end-to-end. The bound is protection, not a prediction — no
+  stable 2.0.0 date exists beyond "with the spec".
+  Also confirmed no dependency drift: `mcp` 1.28.1 is both the latest
+  stable and what this repo runs. Full note in
+  `handoff/research/SG4-MCP-SDK-V2-2026-07-20.md`.
+  Suite 1091 -> **1095 passed / 2 skipped**. The porting work itself is
+  NOT claimed here — rename, four imports, re-verify 19 tools — and both
+  MCP posts confirm nothing breaks for existing servers on 07-28, so
+  there is no urgency to port, only urgency not to drift into it. New
+  trigger: `mcp 2.0.0` leaving beta.
