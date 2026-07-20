@@ -1448,3 +1448,32 @@
   a real caption style, and persistence cannot separate single-token
   captions from single-token noise. The dataset remains useful as a
   regression check if the overlay threshold is ever tuned.
+
+- **2026-07-20 (Lane A): built the overlay regression gate — and it
+  overturned my own resolution from last cycle.** I closed P-C2 as
+  "validated-incumbent, precision 1.0000". Writing a test that calls
+  the REAL `cluster_regions` (instead of my re-implementation of its
+  logic) split that verdict:
+  - **SAFE half HOLDS**: across all four captioned cells the shipped
+    rule diverts ZERO labeled captions. Verified by production code,
+    now pinned per cell.
+  - **The other half FAILS**: on the 430s HUD cell — 1,882 events,
+    none of them real captions, the exact failure class — it fires
+    NOTHING. Threshold is 25% of runtime (107.6s) AND event
+    clustering fragments persistent text, so the longest event is
+    **8.5s**; even the 15s short-form floor could not fire. OCR jitter
+    on the watermark ("GNN" / "GNN TV" / "TV GAMING") plus changing
+    score counters split one human-visible overlay into hundreds of
+    short events.
+  So its measured precision came partly from SILENCE. My 2,080-flagged
+  figure was an artifact of my own text-run approximation — the second
+  time this arc that running the real thing beat reasoning about it
+  (the first: recurrences misread as persistence).
+  **Revised recommendation: incumbent-is-safe, under-firing on
+  long-form.** Keep the warning; record that it under-fires. The
+  actionable defect is CLUSTERING, not the threshold — a watermark OCR
+  reads three ways never becomes one event — and fixing `_same_event`/
+  `track_regions` carries real regression risk, so it belongs in the
+  queue with this evidence, not a quiet tweak.
+  Both halves are now pinned in tests/test_overlay_rule_against_labels.py
+  so any future change must confront each. Suite green.

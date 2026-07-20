@@ -215,19 +215,41 @@ for it since S1: `cluster_regions` diverts any event lasting
 ≥ max(15s, 25% of duration) into a named warning ("persistent
 on-screen text (likely watermark/label) excluded from captions").
 
-Measured against all 15,999 labels, 7 cells, both caption styles that
-broke the candidate rules:
+**CORRECTED 2026-07-20 — running the code beat reasoning about it.**
+The figures first published here (2,080 flagged, precision 1.0000)
+came from my own re-implementation of the rule's logic over text
+runs. Writing a regression test that calls the REAL `cluster_regions`
+gave a different and more useful answer:
 
-| | value |
-|---|---|
-| lines flagged as persistent overlay | 2,080 |
-| of those, genuinely non-caption | **2,080** |
-| precision on the failure class | **1.0000** |
-| real captions lost | **0 / 577 (0.00%)** |
+| cell | overlay warnings fired | labeled captions diverted |
+|---|---|---|
+| youtube-nlgyv0bmddi | some | **0** |
+| youtube-oyaneh0joqi | some | **0** |
+| youtube-fuxm3vz-keo | some | **0** |
+| youtube-se50vifj0aq | some | **0** |
+| youtube-uc6b5owmca (430s HUD flood) | **NONE** | 0 |
 
-**P-C2's bar is met — by the incumbent.** The calibration pack's most
-valuable output is not a new signal but a MEASUREMENT of the one
-already in production, which no one had ever scored.
+So the verdict splits:
+
+- **SAFE.** Across every captioned cell the rule diverts zero labeled
+  captions. That half of P-C2's bar holds, verified by production code.
+- **UNDER-FIRING.** On the 430s cell whose 1,882 events are ALL
+  non-captions — precisely the failure class — it fires nothing. Two
+  compounding causes: the threshold is 25% of runtime (107.6s here),
+  and event clustering FRAGMENTS persistent text, so the longest event
+  is 8.5s. Even the 15s short-form floor could not fire. OCR jitter on
+  the watermark ("GNN" / "GNN TV" / "TV GAMING") plus constantly
+  changing score counters split what a human sees as one persistent
+  overlay into hundreds of short events.
+
+**Revised recommendation.** Resolve P-C2 as *incumbent-is-safe,
+under-firing on long-form*: keep the warning (it never costs a
+caption), and record that its precision partly comes from silence.
+The actionable defect is not the threshold but the CLUSTERING — a
+watermark that OCR reads three ways never becomes one event. Fixing
+that is a real change to `_same_event`/`track_regions` with its own
+regression risk, so it belongs in the queue with this evidence
+attached, not in a quiet tweak.
 
 ### The correction that made this trustworthy
 
