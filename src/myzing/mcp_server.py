@@ -239,6 +239,76 @@ def _study_api():
         return None
 
 
+def _study_kwargs(
+    study_fn: Any,
+    kept_media: str | None,
+    handoff: dict[str, Any] | None,
+    set_phase: Any,
+) -> dict[str, Any]:
+    """Assemble the engine call's kwargs for whatever engine this build has.
+
+    Every entry is opt-in because the engine is a separate lane's surface
+    and older builds legitimately lack these parameters — dispatch has
+    already verified support for the ones that matter.
+    """
+    kwargs: dict[str, Any] = {}
+    if kept_media is not None:
+        # B-S6: the bridge hands the engine a kept-media path (A-S6 seam);
+        # support was verified at dispatch, and the engine's own fallback
+        # honesty (named warnings, refetch) covers everything past here.
+        kwargs["kept_media"] = kept_media
+    if handoff is not None:
+        # Contract v1 §6.1: expected sha256/byte_length/source_ref travel
+        # to the engine, which verifies integrity BEFORE analysis and
+        # persists path-free source_handoff provenance (A-S6 conformance).
+        kwargs["handoff"] = handoff
+    try:
+        params = inspect.signature(study_fn).parameters
+        for name in ("phase_callback", "progress_callback", "on_phase"):
+            if name in params:
+                kwargs[name] = set_phase
+                break
+    except (TypeError, ValueError):
+        pass  # un-introspectable callable: run it without a phase callback
+    return kwargs
+
+
+def _earned_kept_media_receipt(breakdown: Any) -> dict[str, Any] | None:
+    """The §7 precondition, named: an engagement receipt is earned ONLY
+    when the engine's own provenance says it verified a kept file and did
+    not refetch. Five clauses, because each is a way the claim could be
+    unearned — a partial or hand-written provenance block must not mint a
+    receipt for media nobody checked.
+    """
+    source_handoff = breakdown.provenance.get("source_handoff")
+    if (
+        isinstance(source_handoff, dict)
+        and source_handoff.get("acquisition") == "kept_media"
+        and source_handoff.get("refetch") is False
+        and isinstance(source_handoff.get("source_ref"), str)
+        and isinstance(source_handoff.get("sha256"), str)
+    ):
+        return source_handoff
+    return None
+
+
+def _record_engagement_if_earned(breakdown: Any, slug: str) -> None:
+    """Contract v1 §7: record the open only after the engine independently
+    verified hash/size and accepted the kept file. The receipt is persisted
+    in the primary breakdown; an absent peer yields a durable local spool,
+    not a failure."""
+    source_handoff = _earned_kept_media_receipt(breakdown)
+    if source_handoff is None:
+        return
+    from myzing import engagement
+
+    receipt = engagement.record_opened(
+        source_handoff["source_ref"], source_handoff["sha256"]
+    )
+    breakdown.provenance["engagement"] = receipt
+    storage.save_breakdown(breakdown, slug=slug)
+
+
 def _run_study(
     study_fn: Any,
     source: str,
@@ -265,25 +335,7 @@ def _run_study(
             slug, phase=str(phase), heartbeat_at=_now(), updated_at=_now()
         )
 
-    kwargs: dict[str, Any] = {}
-    if kept_media is not None:
-        # B-S6: the bridge hands the engine a kept-media path (A-S6 seam);
-        # support was verified at dispatch, and the engine's own fallback
-        # honesty (named warnings, refetch) covers everything past here.
-        kwargs["kept_media"] = kept_media
-    if handoff is not None:
-        # Contract v1 §6.1: expected sha256/byte_length/source_ref travel
-        # to the engine, which verifies integrity BEFORE analysis and
-        # persists path-free source_handoff provenance (A-S6 conformance).
-        kwargs["handoff"] = handoff
-    try:
-        params = inspect.signature(study_fn).parameters
-        for name in ("phase_callback", "progress_callback", "on_phase"):
-            if name in params:
-                kwargs[name] = set_phase
-                break
-    except (TypeError, ValueError):
-        pass
+    kwargs = _study_kwargs(study_fn, kept_media, handoff, set_phase)
 
     stop_beating = threading.Event()
 
@@ -311,27 +363,7 @@ def _run_study(
             if breakdown is None and json_path.is_file():
                 breakdown = storage.load_breakdown(slug)
             if breakdown is not None:
-                source_handoff = breakdown.provenance.get(
-                    "source_handoff")
-                if (
-                    isinstance(source_handoff, dict)
-                    and source_handoff.get("acquisition") == "kept_media"
-                    and source_handoff.get("refetch") is False
-                    and isinstance(source_handoff.get("source_ref"), str)
-                    and isinstance(source_handoff.get("sha256"), str)
-                ):
-                    # Contract v1 §7: only after the engine independently
-                    # verified hash/size and accepted the kept file. The
-                    # receipt is persisted in the primary breakdown; an
-                    # absent peer yields a durable local spool, not failure.
-                    from myzing import engagement
-
-                    receipt = engagement.record_opened(
-                        source_handoff["source_ref"],
-                        source_handoff["sha256"],
-                    )
-                    breakdown.provenance["engagement"] = receipt
-                    storage.save_breakdown(breakdown, slug=slug)
+                _record_engagement_if_earned(breakdown, slug)
             _write_status(
                 slug, state="done", finished_at=_now(), updated_at=_now(), error=""
             )

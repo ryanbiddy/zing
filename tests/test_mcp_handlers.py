@@ -971,3 +971,90 @@ def test_pid_alive_access_denied_counts_as_alive_windows():
     otherwise a study owned by an elevated/other-session server would
     be falsely reconciled to 'failed' while genuinely running)."""
     assert mcp_server._pid_alive(4) is True
+
+
+# -- SG-3: the §7 receipt precondition, testable now that it has a name -----
+
+def _breakdown_with_handoff(**handoff):
+    b = make_breakdown()
+    if handoff:
+        b.provenance["source_handoff"] = handoff
+    return b
+
+
+EARNED = {
+    "acquisition": "kept_media",
+    "refetch": False,
+    "source_ref": "uoink://item/short-1",
+    "sha256": "ab" * 32,
+}
+
+
+def test_engagement_receipt_is_earned_only_by_a_complete_verified_handoff():
+    """Contract §7: a receipt claims 'this user opened kept media that we
+    verified'. Each clause is a way that claim could be UNEARNED, so a
+    partial or hand-written provenance block must mint nothing."""
+    assert mcp_server._earned_kept_media_receipt(
+        _breakdown_with_handoff(**EARNED)
+    ) == EARNED
+
+    unearned = [
+        {},                                              # no handoff at all
+        {**EARNED, "acquisition": "source_refetch"},     # we refetched
+        {**EARNED, "refetch": True},                     # ...and said so
+        {k: v for k, v in EARNED.items() if k != "sha256"},      # no hash
+        {k: v for k, v in EARNED.items() if k != "source_ref"},  # no ref
+        {**EARNED, "sha256": 12345},                     # wrong type
+    ]
+    for handoff in unearned:
+        assert mcp_server._earned_kept_media_receipt(
+            _breakdown_with_handoff(**handoff)
+        ) is None, handoff
+
+
+def test_engagement_receipt_not_minted_for_a_refetched_study(
+    zing_workspace, monkeypatch
+):
+    from myzing import engagement
+
+    called = []
+    monkeypatch.setattr(
+        engagement, "record_opened",
+        lambda ref, sha: called.append((ref, sha)) or {"state": "spooled"},
+    )
+    b = _breakdown_with_handoff(**{**EARNED, "refetch": True})
+    mcp_server._record_engagement_if_earned(b, SLUG)
+    assert called == []
+    assert "engagement" not in b.provenance
+
+
+def test_engagement_receipt_is_persisted_into_the_breakdown(
+    zing_workspace, monkeypatch
+):
+    from myzing import engagement
+
+    monkeypatch.setattr(
+        engagement, "record_opened", lambda ref, sha: {"state": "recorded"}
+    )
+    b = _breakdown_with_handoff(**EARNED)
+    storage.save_breakdown(b, slug=SLUG)
+    mcp_server._record_engagement_if_earned(b, SLUG)
+    assert b.provenance["engagement"] == {"state": "recorded"}
+    assert storage.load_breakdown(SLUG).provenance["engagement"] == {
+        "state": "recorded"
+    }
+
+
+def test_study_kwargs_only_passes_what_the_engine_accepts():
+    def engine(source, phase_callback=None, kept_media=None, handoff=None):
+        ...
+
+    kwargs = mcp_server._study_kwargs(engine, "/tmp/k.mp4", {"state": "available"}, print)
+    assert kwargs["kept_media"] == "/tmp/k.mp4"
+    assert kwargs["handoff"] == {"state": "available"}
+    assert kwargs["phase_callback"] is print
+
+    def minimal(source):
+        ...
+
+    assert mcp_server._study_kwargs(minimal, None, None, print) == {}
