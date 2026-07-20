@@ -103,7 +103,15 @@ are present (INTEGRATION-CONTRACT v1):
   idempotent. Zing's own measured direction stays the authority for
   what's actually usable footage.
 - **Peer health, honestly:** `zing doctor` probes uoink through the
-  suite contract. No service at the default address is calm `absent`;
+  suite contract, finding it by the contract's discovery order:
+  `UOINK_URL` if set, else a valid Uoink runtime lease (the file a
+  running Uoink writes under `RyanSuite/services.d/`, which is how a
+  non-default port is discovered without any configuration from you),
+  else the default address. A lease that is malformed, points
+  off-loopback, or names a dead process is reported — never followed.
+  Credentials are never discovered this way: `UOINK_TOKEN` stays
+  explicit.
+  No service at the default address is calm `absent`;
   a verified service without `UOINK_TOKEN` is calm `unconfigured`; a
   configured service that rejects authentication, serves the wrong
   contract, or fails health is `unhealthy` with a named code. The human

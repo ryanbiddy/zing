@@ -1700,3 +1700,40 @@
   the part that converts "zing reports drift" into "the gating causes
   it" — without it I am reporting a symptom and implying a cause.
   Suite 951 passed / 2 skipped.
+- **2026-07-20 (Lane B): B-CONF1 CLAIMED AND CLOSED — zing now
+  consumes uoink's runtime lease per the contract's discovery order.**
+  CX-4's docs QA found the real conformance gap: zing resolved only
+  `UOINK_URL` or the default address, so a uoink on a non-default port
+  required manual configuration the ratified contract says should be
+  discoverable. Implemented §3.3's order — explicit URL, then a VALID
+  runtime lease, then the default — with §3.4's exact-shape validation
+  (unknown keys invalidate; loopback-only URLs; sorted-unique
+  capabilities; ui paths must be relative, since a WRITABLE file that
+  could carry `https://evil/...` in ui.home is a browser-redirect
+  primitive; positive pid; no token/command/path fields by
+  construction).
+  §4's classification rules honored exactly, and these are the ones
+  worth naming: an invalid or hostile lease is reported as
+  `invalid_lease` and NEVER followed (a test asserts the network is
+  never touched); a shape-valid lease whose process is gone is
+  `stale_lease`, retryable, and explicitly NOT downgraded to absent;
+  and a leased address that refuses is `unhealthy`, not calm — only
+  the bare default address earns calm absence.
+  Deliberately NOT done: credentials stay explicit. A lease can never
+  supply UOINK_TOKEN and zing still never reads uoink's token file —
+  §3.2's boundary, and the reason lease-based discovery is safe at
+  all.
+  Reused rather than reimplemented: liveness delegates to
+  mcp_server._pid_alive (its Windows access-denied branch is pinned on
+  CI) instead of growing a second copy — the duplication lesson
+  applied before creating the duplicate for once.
+  Integration truth: my validator is parametrized over Lane C's nine
+  checked-in lease fixtures; their `dead_pid` case is expected-invalid
+  for LIVENESS, which my pure validator deliberately does not judge —
+  the caller does, and the test says so rather than fudging the
+  expectation. Evidence strings now name the discovery path used
+  ("via runtime lease at ..."), so "manifest verified" can never be
+  read without knowing where from. CONNECT.md documents the order.
+  Suite 967 passed / 2 skipped. Remaining B-CONF1 tail: SUITE-CONNECT's
+  caveat line lives in uoink's repo — flagged for that doc's owner,
+  since this closes the gap it documents as current.
