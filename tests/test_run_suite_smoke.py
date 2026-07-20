@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import socket
 import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -95,6 +96,56 @@ def test_generated_fixture_uses_an_exact_render_preset(
 
     assert (stream["width"], stream["height"]) == (360, 640)
     assert output_preset(stream["width"], stream["height"]) == "vertical"
+
+
+def test_fixture_seed_uses_uoink_platform_data_root(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "uoink"
+    repo.mkdir()
+    observed = tmp_path / "observed-root.txt"
+    product_data = tmp_path / "product-data"
+    (repo / "_platform.py").write_text(
+        "import os\n"
+        "from pathlib import Path\n"
+        "def user_data_dir():\n"
+        "    return Path(os.environ['UOINK_TEST_DATA_ROOT'])\n",
+        encoding="utf-8",
+    )
+    (repo / "index.py").write_text(
+        "import os\n"
+        "from pathlib import Path\n"
+        "class Index:\n"
+        "    @classmethod\n"
+        "    def open(cls, path):\n"
+        "        Path(os.environ['SUITE_SMOKE_OBSERVED_ROOT']).write_text(\n"
+        "            str(path), encoding='utf-8')\n"
+        "        return cls()\n"
+        "    def upsert_yoink(self, record, content):\n"
+        "        pass\n"
+        "    def close(self):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    fixture = tmp_path / "fixture.mp4"
+    fixture.write_bytes(b"fixture")
+    env = smoke._safe_base_env(tmp_path / "isolated")
+    env.update({
+        "UOINK_TEST_DATA_ROOT": str(product_data),
+        "SUITE_SMOKE_OBSERVED_ROOT": str(observed),
+    })
+
+    smoke._seed_uoink_fixture(
+        python=sys.executable,
+        uoink_repo=repo,
+        env=env,
+        output_root=tmp_path / "output",
+        fixture_media=fixture,
+    )
+
+    assert observed.read_text(encoding="utf-8") == str(
+        product_data / "index.db"
+    )
 
 
 def test_step_ledger_duration_matches_serialized_timestamps(
@@ -222,30 +273,6 @@ def test_runtime_registry_path_matches_the_product_contract(
     env = smoke._safe_base_env(tmp_path)
 
     assert smoke._runtime_registry_dir(
-        env,
-        platform_name=platform_name,
-    ) == tmp_path / expected
-
-
-@pytest.mark.parametrize(
-    ("platform_name", "expected"),
-    [
-        ("win32", Path("Uoink")),
-        (
-            "darwin",
-            Path("home/Library/Application Support/Uoink"),
-        ),
-        ("linux", Path("xdg-data/Uoink")),
-    ],
-)
-def test_uoink_data_path_matches_the_product_contract(
-    tmp_path: Path,
-    platform_name: str,
-    expected: Path,
-) -> None:
-    env = smoke._safe_base_env(tmp_path)
-
-    assert smoke._uoink_data_dir(
         env,
         platform_name=platform_name,
     ) == tmp_path / expected
