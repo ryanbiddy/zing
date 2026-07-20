@@ -106,10 +106,15 @@ def test_overlay_rule_under_fires_on_long_form_documented_limitation() -> None:
     reasons found by running the real code (not by reasoning about it):
 
     1. the threshold is 25% of runtime = 107.6s on this video, and
-    2. event clustering fragments persistent text — OCR jitter on the
-       watermark ("GNN" / "GNN TV" / "TV GAMING") and constantly
-       changing score counters mean the LONGEST event is 8.5s, so even
-       the 15s short-form floor would not fire.
+    2. event clustering fragments persistent text. CORRECTED cause: the
+       watermark itself reads perfectly stably ("GNN"/"TV"/"GAMING",
+       60 sightings each). What breaks it is that `track_regions`
+       MERGES that static watermark with the score counter beside it
+       into one region, whose joined text then changes every frame
+       ("TV GNN GAMING x6000042" -> "...x6000064" -> ...). That track
+       has 978 observations and 972 DISTINCT texts, so `_same_event`
+       closes an event almost every frame and the longest is 8.5s —
+       even the 15s short-form floor could not fire.
 
     So the rule is SAFE (it never eats a caption — see above) but on
     long-form it is effectively unfirable, and its measured precision

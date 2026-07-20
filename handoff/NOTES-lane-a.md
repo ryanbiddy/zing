@@ -1477,3 +1477,28 @@
   queue with this evidence, not a quiet tweak.
   Both halves are now pinned in tests/test_overlay_rule_against_labels.py
   so any future change must confront each. Suite green.
+
+- **2026-07-20 (Lane A): diagnosed the overlay under-firing precisely
+  — and my first explanation was WRONG.** I had published (in the
+  test docstring and the note) that OCR jitter on the watermark
+  fragments the event. Checking instead of assuming: the watermark
+  reads perfectly stably — "GNN", "TV", "GAMING", 60 sightings each.
+  **The real mechanism is region MERGING.** `track_regions` groups
+  the static watermark together with the score counter beside it, and
+  that region's joined text changes every frame: 'TV GNN GAMING
+  x6000042' -> 'TV GAMING GNN 00 x6000064' -> ... The track holds 978
+  observations and **972 distinct texts**, so `_same_event` closes an
+  event almost every frame and the longest is 8.5s. A neighbouring
+  track is worse — HUD label + changing number + story text in one
+  string. Word order also flickers within a region ("TV GNN GAMING"
+  vs "TV GAMING GNN").
+  Corrected in both places. That is the THIRD wrong claim I have
+  caught in this arc by checking rather than reasoning (recurrences
+  misread as persistence; approximation vs the real cluster_regions;
+  now jitter vs merging) — every one found by running the thing.
+  Filed as a QUEUE proposal with the frozen HUD cell as its
+  regression fixture, so whoever takes it starts from a red test, not
+  a description. Refutation included and it is real: the fix touches
+  the path every caption measurement flows through, the current
+  silence is SAFE (0 captions lost, measured), so this is a
+  completeness fix and post-launch by nature.

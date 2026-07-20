@@ -237,10 +237,26 @@ So the verdict splits:
   non-captions — precisely the failure class — it fires nothing. Two
   compounding causes: the threshold is 25% of runtime (107.6s here),
   and event clustering FRAGMENTS persistent text, so the longest event
-  is 8.5s. Even the 15s short-form floor could not fire. OCR jitter on
-  the watermark ("GNN" / "GNN TV" / "TV GAMING") plus constantly
-  changing score counters split what a human sees as one persistent
-  overlay into hundreds of short events.
+  is 8.5s — even the 15s short-form floor could not fire.
+
+  **CORRECTED cause (2026-07-20, second look).** I first blamed OCR
+  jitter on the watermark. Wrong: it reads perfectly stably ("GNN",
+  "TV", "GAMING" — 60 sightings each). The real mechanism is that
+  `track_regions` MERGES the static watermark with the score counter
+  sitting beside it into a single region, and that region's joined
+  text changes every frame:
+
+  ```
+  'TV GNN GAMING x6000042'
+  'TV GAMING GNN 00 x6000064'
+  'TV GNN GAMING x6 000079'
+  ```
+
+  That track holds 978 observations and **972 distinct texts** — so
+  `_same_event` closes an event almost every frame. A neighbouring
+  track is worse, merging a HUD label, a changing number and story
+  text into one string. Word order also flickers within a region
+  ("TV GNN GAMING" vs "TV GAMING GNN"), compounding it.
 
 **Revised recommendation.** Resolve P-C2 as *incumbent-is-safe,
 under-firing on long-form*: keep the warning (it never costs a
