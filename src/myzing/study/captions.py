@@ -112,7 +112,11 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
         ]
         return result
     except Exception as e:
-        result.warnings = [f"caption OCR skipped: backend failed to start: {e}"]
+        result.warnings = [
+            f"caption OCR skipped: backend failed to start: {e} — the "
+            "package is present but unusable here; run 'zing doctor' for "
+            "the environment check"
+        ]
         return result
 
     observations: list[Observation] = []

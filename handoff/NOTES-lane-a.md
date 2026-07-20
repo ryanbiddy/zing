@@ -1652,3 +1652,27 @@
   load-bearing for caption-sync judgment). Explicitly marked as an
   ergonomics refinement I would not spend a launch on. No code
   changed.
+
+- **2026-07-20 (Lane A): audited whether my warnings tell a reader
+  what to DO — found a three-module inconsistency, fixed it.**
+  Lane B's #352 sharpened why this matters: `study.md` tells judging
+  AIs "`warnings[]` — **read this first**" and "**warnings gate
+  judgments**", so warning quality is judgment quality.
+  Enumerated all 52 warning strings my lane emits: 7 name an action,
+  45 do not. **But most of the 45 correctly need none** — they are
+  measurement FINDINGS ("raw: 3 dead-air spans totaling 12s") or
+  skips whose cause is upstream and unfixable by the user. Reporting
+  "45 warnings lack actions" would have been technically true and
+  substantively misleading, so I narrowed to the class that actually
+  strands someone.
+  **The real defect, present identically in three modules:** where a
+  dependency is MISSING the warning names the fix ("pip install
+  myzing[study]"), but where the same dependency is INSTALLED AND
+  BROKEN the sibling path says only what failed. Same user-visible
+  outcome — no shots, no captions, no transcript — helpful or useless
+  purely by which branch fired. captions.py "backend failed to
+  start", transcribe.py "model could not be loaded", shots.py "shot
+  detection failed" all now name `zing doctor` and the likely cause
+  (unusable install / download-or-disk / decode stack). Three tests
+  pin the consistency, each explaining WHY rather than just asserting
+  the string. Suite 1069.

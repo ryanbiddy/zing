@@ -178,3 +178,16 @@ def test_batched_seam_overlap_is_normalized_to_monotonic_order():
     starts = [w.start for w in words]
     assert starts == sorted(starts)
     assert [w.text for w in words] == ["the", "the", "army", "military."]
+
+
+def test_model_load_failure_points_at_doctor(monkeypatch):
+    """Same consistency rule as shots: the missing-package path names
+    pip, so the installed-but-broken path must name a next step too."""
+    def load(name):
+        raise RuntimeError("connection reset while downloading")
+    monkeypatch.setattr(transcribe, "_load_model", load)
+
+    result = transcribe.transcribe(Path("m.mp4"))
+
+    (warning,) = result.warnings
+    assert "could not be loaded" in warning and "zing doctor" in warning
