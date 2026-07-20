@@ -1,7 +1,7 @@
 ---
 name: study
 description: How to judge a Zing Breakdown — hook, beats, caption style, why it works — and write the judgment back.
-version: 0.5.0
+version: 0.6.0
 required_keys: [hook, beats, caption_style, why_it_works]
 ---
 
@@ -40,7 +40,7 @@ the JSON). It contains:
   per-event confidence: the detector has known per-signature precision,
   not calibrated probabilities — cite kinds, counts, and timings; never
   invent certainty about any single event.
-- `warnings[]` — **read this first, and sort it.** Three kinds of entry
+- `warnings[]` — **read this first, and sort it.** Four kinds of entry
   share this list and they carry opposite implications:
   1. **A measurement was skipped or degraded** — "transition detection
      skipped", "loudness curve skipped: ffmpeg failed". Evidence is
@@ -55,10 +55,22 @@ the JSON). It contains:
      reliable for frame-accurate measurement here; re-encoded to H.264",
      "normalized to constant frame rate". Something was CORRECTED so
      measurement could proceed. Confidence went up, not down.
+  4. **A measurement found something** — "raw: 51 dead-air span(s)
+     totaling 197.2s", "raw: 105 filler word(s) — like×26...", "raw:
+     repeated take (similarity 0.82) — 4.0-6.0s vs 12.0-14.0s",
+     "profile coherence: source durations span 34-434s (>3x spread)",
+     "draft EDL: chosen span is not a measured keeper". The measurement
+     SUCCEEDED and what it found is the warning. The numbers are the
+     evidence and the span references are where to look. **These are the
+     entries to act on** — retake-spotting is a feature, not a fault
+     report. Do not file them as "nothing went wrong", and never as
+     missing evidence: the evidence is present and speaking.
   Only kind 1 is a gap in the evidence. In the frozen real-video set,
-  11 of 12 warnings are kinds 2 and 3 — so do NOT read a long
-  `warnings[]` as a broken study, and do not discount a measurement
-  because its resolution was stated honestly.
+  11 of 12 warnings are kinds 2-4 — so do NOT read a long `warnings[]`
+  as a broken study, and do not discount a measurement because its
+  resolution was stated honestly. Kind 4 is under-represented there (1
+  of 12) because that set is mostly finished videos; a raw-mode study of
+  someone's unedited footage is dominated by it.
 
 If your client can read local image files, view the shot `keyframe`
 images: join each relative path against the `dir` field in the
@@ -254,6 +266,17 @@ tighter than the OCR sampling interval.
 
 ## Changelog
 
+- **0.6.0** (2026-07-20): a FOURTH warning kind — a measurement that
+  RAN and found something (dead-air spans, filler counts, repeated
+  takes, profile-coherence spread, an EDL span that is not a measured
+  keeper). 0.5.0's three kinds were accurate but incomplete, and the
+  missing one is the costliest to misfile: kind 1 would tell a reader
+  the evidence is MISSING when it is present and speaking, and kind 3
+  would say confidence went UP, which is not what a repeated take
+  means. These are the entries to act on — retake-spotting is the
+  feature, not a fault report. Routed to Lane B by Lane A's SG-1 review
+  of #360 with the enumeration; verified against the emitting source
+  before adopting. Guidance only; contract keys unchanged.
 - **0.5.0** (2026-07-20): `warnings[]` is described as what it actually
   contains. It said "every measurement that was skipped or degraded is
   named here" — measured against the frozen real-video set, 11 of 12

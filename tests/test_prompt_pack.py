@@ -265,11 +265,16 @@ def _measured_warning_split():
     return sum(1 for w in warnings if not _PROBLEM.search(w)), len(warnings)
 
 
-@pytest.mark.parametrize("prompt_name", ["study", "direct"])
+@pytest.mark.parametrize("prompt_name", ["study"])
 def test_the_warning_ratio_the_pack_cites_is_still_true(prompt_name):
-    """study.md 0.5.0 and direct.md 1.2.0 tell judging AIs that most
-    `warnings[]` entries are stated resolutions or applied normalizations,
-    and cite "11 of 12" from the frozen set as evidence.
+    """study.md tells judging AIs that most `warnings[]` entries are not
+    gaps in the evidence, and cites "11 of 12" from the frozen set.
+
+    Scoped to study.md deliberately. direct.md 1.3.0 states the same idea
+    QUALITATIVELY ("on raw footage most entries are findings to act on")
+    and carries no live number, so pinning one there would have matched
+    its changelog — pinning history rather than guidance, which is the
+    appearance of a gate rather than a gate.
 
     A number written into a prompt is a freshness claim nobody renews. So
     the claim is read back OUT of the prompt and checked against the
