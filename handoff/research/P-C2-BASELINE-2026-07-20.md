@@ -120,6 +120,47 @@ circular in implementation — but it is not a fully independent
 validation either. Confirming it needs labels produced without any
 speech-timing input.
 
+## Frame audit of the labels themselves (2026-07-20)
+
+The persistence result carried a caveat: labels assigned partly by
+transcript matching might be circular. I audited them the only way
+that is independent — by looking at frames, with no reference to the
+transcript.
+
+`youtube-nlgyv0bmddi`, three frames inspected. One is decisive: at
+t≈1s the video shows TWO texts at once — a green graphic label
+**"ANTARCTICA"** at y≈0.52 and the white speech caption **"YOU'RE
+NEVER ALLOWED TO"** at y≈0.79. If a narrator says "Antarctica" while
+that graphic is on screen, naive transcript matching would label the
+GRAPHIC as a caption.
+
+**It did not.** All 33 graphic lines (y 0.5–0.6) are
+`incidental_text`; only the 11 lines in the y≈0.79 band are
+`likely_caption`. So the labels are correct here, verified by eye.
+
+**Why it worked, and the blind spot that follows.** The labeling rule
+required ≥2 tokens to call something a caption. "ANTARCTICA" is one
+token, so it never matched. That safeguard is sound — but it is also
+a systematic exclusion:
+
+| | count |
+|---|---|
+| single-token lines labeled caption | **0** |
+| single-token lines labeled non-caption | 14,022 |
+| multi-token captions | 473 |
+
+**Not one single-word caption exists in this dataset — by
+construction, not by observation.** Word-by-word karaoke captioning
+is a real and common style; under this labeling method its captions
+would all be labeled non-caption. Any recall figure here therefore
+excludes that entire style, and the ≥2-token term that appears in
+BOTH candidate rules is partly fitting the labeling method rather
+than the phenomenon.
+
+Closing that needs a cell labeled without a token-count floor —
+smaller than a fresh freeze, and now the highest-value next step for
+this dataset.
+
 ## What this does NOT establish (the part that matters)
 
 **Every captioned cell in this dataset uses lower-third captions.**
