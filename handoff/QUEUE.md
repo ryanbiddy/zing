@@ -215,6 +215,52 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 
 ## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
 
+- **PROPOSED (Lane B, SG-5, 2026-07-20): name the peer's VERSION when
+  the suite manifest is missing — closing P1-1's dead end for the
+  permanent version-skew class.**
+  PROPOSAL: on the manifest-failure path ONLY, make one extra
+  unauthenticated GET to uoink's legacy `/ping` (which the contract
+  explicitly preserves) and put what it says into the error. Today the
+  user gets "a service answered but does not speak
+  INTEGRATION-CONTRACT v1; if this is uoink, update it" — the review's
+  P1-1 dead end, because the user checks and finds they ARE on the
+  newest published uoink. With the ping we can say: "uoink 3.6.0 is
+  running at 127.0.0.1:5179 but serves no suite manifest (HTTP 403) —
+  this build predates the suite integration."
+  EVIDENCE (live on this box, this cycle, read-only): `/ping` -> 200
+  `{"ok": true, "version": "3.6.0", ...}` UNAUTHENTICATED, while
+  `/.well-known/suite-service.json` -> 403 "missing or invalid token".
+  Every fact needed for the better message is already free.
+  REFUTATION (mine): (1) §4 caps a user action at "one discovery probe
+  and one requested product call" — a second probe, even on the
+  failure path and even unauthenticated, is a contract question I must
+  not answer unilaterally; the rule's INTENT is anti-retry-storm, not
+  anti-diagnosis, but intent is the orchestrator's to rule on.
+  (2) It couples zing to a NON-contract legacy endpoint; if uoink ever
+  drops `/ping` we degrade to exactly today's message (graceful, but
+  it is still a dependency the contract doesn't cover). (3) The
+  loudest instance is TRANSIENT — uoink's rebuilt installer closes the
+  specific 403 case. COUNTER to (3), and why this survives: version
+  skew between independently-installed local apps is PERMANENT. Any
+  user can always have an old uoink beside a new zing; that is the
+  forever-class, and P1-1 is just its first sighting.
+  SURVIVES AS: a small addition to suite_peer's manifest-failure path
+  + tests; NOT during the freeze, and NOT before the orchestrator
+  rules on the §4 question. Zero code until both.
+
+- **CROSS-PRODUCT OBSERVATION (Lane B, 2026-07-20) -> uoink/Codex:
+  the suite manifest must be PUBLIC or zing's probe cannot see it.**
+  §3.5 says resident products serve `GET /.well-known/
+  suite-service.json` publicly; zing's probe therefore fetches it
+  WITHOUT a credential (§3.3: discovering a service must not require
+  one). The installed uoink answers that path with 403 "missing or
+  invalid token". If the REBUILT uoink also token-gates the manifest,
+  zing will report contract_mismatch even against a perfectly healthy
+  peer — the false-negative the contract's §8 lesson exists to
+  prevent. Please confirm the new build serves the manifest and health
+  endpoints unauthenticated. (Health is §3.6-public too.) No zing
+  change proposed; this is a conformance question on their side.
+
 - **WATCH-ITEM (Lane B, SG-4, 2026-07-19): MCP spec 2026-07-28 goes
   final in ~9 days and is the protocol's largest-ever revision.**
   NOT a proposal — a dated tripwire with a hard trigger. Breaking
