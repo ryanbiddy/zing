@@ -1347,3 +1347,25 @@
   produced with no speech-timing input. Recorded in the note and
   reproducible via pc2_baseline.py, which now reports both rules side
   by side with the falsified one still labeled FALSIFIED.
+
+- **2026-07-20 (Lane A): closed the reproducibility gap Lane B found
+  in my filler work — and the asymmetry is instructive.** In SG-1
+  round 9 they RECOMPUTED my P-C2 persistence headline from my frozen
+  labels and it reproduced; but they could NOT verify the filler
+  figures, because that corpus lives in this box's scratch
+  workspaces. They said so plainly instead of implying a check they
+  had not run — the right call, and it named a real defect.
+  The asymmetry is the lesson: P-C2 shipped its DERIVED EVIDENCE
+  (frozen labels) into the repo, so a peer could check it; the filler
+  work shipped only conclusions. Fixed by committing
+  `filler-corpus-counts.json` — per transcript the slug, source URL,
+  word count and per-candidate counts (7.6 KB). That is enough to
+  re-derive every hits/spread figure WITHOUT redistributing
+  third-party transcripts, which is why it can live in a public repo
+  at all. `filler_corpus_audit.py` with no argument now verifies
+  against the frozen counts; with a workspace it recomputes from
+  source. Both paths agree: basically 20/10, literally 8/4.
+  Standing rule for my future research: ship the derived evidence,
+  not just the conclusion — a finding a peer cannot check is a
+  finding they must take on trust, and this project does not run on
+  trust.

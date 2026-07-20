@@ -71,9 +71,18 @@ than silently widen the net.
 - Recall against a LABELED filler set is still unmeasured. This note
   narrows the gap using available evidence; it does not close it.
 - Non-English filler behaviour is entirely unexamined.
-- The corpus itself is NOT in the repo (scratch workspaces, and the
-  transcripts are of third-party video). What IS reproducible is the
-  method: `filler_corpus_audit.py` recomputes hits AND spread over any
+- **CLOSED 2026-07-20:** the corpus itself is not in the repo (scratch
+  workspaces, third-party transcripts), which meant these figures were
+  not independently checkable — Lane B reported exactly that in SG-1
+  round 9, honestly declining to claim a verification they could not
+  perform. Fixed by committing `filler-corpus-counts.json`: per
+  transcript, the slug, source URL, word count and per-candidate
+  counts — enough to re-derive every hits/spread figure here WITHOUT
+  redistributing anyone's transcript. `filler_corpus_audit.py` with
+  no argument now verifies against it; with a workspace argument it
+  recomputes from source. Both agree (basically 20/10, literally
+  8/4).
+- The reproducible method: `filler_corpus_audit.py` recomputes hits AND spread over any
   workspace, and the source URLs are listed in the manifest below, so
   the finding can be re-derived on a fresh corpus even after link rot
   takes individual videos (SW-2 says it will).
