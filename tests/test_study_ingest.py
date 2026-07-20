@@ -794,3 +794,27 @@ def test_normalize_exit_zero_no_file_is_an_error(zing_workspace, tmp_path, monke
 
     with pytest.raises(ingest.MediaError, match="produced no normalized file"):
         ingest.ingest(str(local))
+
+
+def test_oversized_info_json_is_skipped_not_read(zing_workspace, monkeypatch):
+    """The yt-dlp sidecar is optional metadata; a pathological one is
+    skipped (title/author fall back to empty) rather than read unbounded."""
+    fake = FakeTools()
+    real = fake.__call__
+
+    def huge_info(cmd, timeout=None):
+        if cmd[0] == "yt-dlp":
+            dest = Path(cmd[cmd.index("-P") + 1])
+            (dest / "media.mp4").write_bytes(b"fake-video")
+            (dest / "media.info.json").write_bytes(
+                b"x" * (ingest.INFO_JSON_SIZE_LIMIT + 1)
+            )
+            fake.calls.append(cmd)
+            return ok(cmd)
+        return real(cmd, timeout)
+    use(monkeypatch, huge_info)
+
+    result = ingest.ingest("https://www.tiktok.com/@cleo/video/7239871234")
+
+    assert result.meta.author == "" and result.meta.title == ""
+    assert result.media_path.is_file()      # the study still completes

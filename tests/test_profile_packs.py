@@ -181,3 +181,12 @@ def test_cli_pack_subcommand(zing_workspace, tmp_path, monkeypatch, capsys):
     assert rc == 0
     assert "pack pack-ai-tech-talking-head" in out
     assert "1 reused" in out
+
+
+def test_oversized_manifest_is_refused_by_name(tmp_path):
+    """A curator-chosen file, capped like shot_list's import: refuse with
+    a name rather than reading whatever is handed over."""
+    p = tmp_path / "huge.json"
+    p.write_bytes(b"{" + b" " * (packs.MANIFEST_SIZE_LIMIT + 1) + b"}")
+    with pytest.raises(PackError, match="over the .*-byte limit"):
+        load_manifest(p)

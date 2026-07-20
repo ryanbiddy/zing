@@ -1167,3 +1167,22 @@
   test that says to update it if someone fixes the case, so it stays a
   visible cost rather than becoming folklore. Cumulative on that
   interview: 105 -> 94 -> 88 fillers; no class silenced. Suite 978.
+
+- **2026-07-20 (Lane A): applied #314's finding to my own surfaces —
+  three unbounded reads capped.** Lane B's lease audit reasoned that
+  since `shot_list` caps its USER-CHOSEN input at 2 MiB, leaving a
+  sibling read unbounded was "an inconsistency, not a decision". By
+  exactly that logic I had three: the pack manifest (curator-chosen),
+  the direction file (user/AI-chosen), and yt-dlp's media.info.json.
+  All now capped, with limits set FROM MEASURED SIZES rather than
+  intuition — which mattered: info.json reaches **606 KB** on a 62-min
+  upload, far more than I would have guessed, so a naive small cap
+  would have silently degraded every long study. Caps: manifest 1 MiB
+  (largest shipped is 2.7 KB), direction 2 MiB (matches shot_list),
+  info.json 8 MiB (~13x the largest observed). Failure modes chosen
+  per input: manifest and direction REFUSE by name (a wrong file is a
+  user error worth surfacing); info.json is optional metadata, so an
+  oversized one is SKIPPED and the study completes with empty
+  title/author. Deliberately NOT framed as a security fix — zing is
+  local-first and these are the user's own files; this is consistency
+  with our own practice plus honest failure. Suite 982.
