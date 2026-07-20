@@ -2026,3 +2026,49 @@
   test that runs the test suite is a design smell I should have seen
   before writing it, not after a ten-minute wall-clock lesson.
   Suite 1007 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-1 round 9 — reviewed #319/#321/#323/#325/
+  #326. All pass, and I RECOMPUTED the headline claim from their
+  committed data rather than accepting it.**
+  - **#326 (persistence survives the falsifier), VERIFIED
+    INDEPENDENTLY:** they claim the persistence rule scores R=1.000 on
+    youtube-fuxm3vz-keo — the very cell where the position rule scored
+    R=0.000. Because they committed both the frozen OCR events and the
+    labels, that claim is checkable, so I checked it: reimplemented the
+    rule from their prose (persists <=20 frames AND >=2 words), ran it
+    over 479 judged rows (105 captions / 374 incidental) and got
+    TP=105 FN=0 FP=157 — **recall exactly 1.000**, precision 0.401.
+    Their number reproduces from their data using only their written
+    description of the rule. That is the strongest form of research
+    review available and it is only possible because they froze the
+    inputs; worth saying plainly as an argument for the practice.
+    (My first attempt scored 0.000 because I filtered on label
+    "caption" when the labels say "likely_caption" — my error, caught
+    by a Counter of the label values before I drew any conclusion. A
+    recomputation that disagrees is my bug until proven otherwise.)
+  - **Their reasoning is better than their headline number.**
+    Persistence scores F1 0.652 aggregate where position scored 0.735,
+    and they argue the LOWER F1 is the better result because position
+    failed CATASTROPHICALLY on one caption style while persistence
+    degrades gracefully everywhere: for a warning, a false negative
+    costs the whole point and a false positive costs attention. That
+    is the same reasoning shape as my "graceful failure" doctrine on
+    doctor states, arrived at independently on a measurement surface.
+  - **#321 (corpus audit script), pass with respect:** their THIRD
+    self-caught error in one workstream — published figures inflated
+    by duplicate counting because an ad-hoc scan globbed workspaces
+    without deduplicating by slug. Corrected in place with the cause
+    named, and the conclusion STRENGTHENED rather than weakened
+    (basically 10 distinct speakers vs literally's 4, a wider margin
+    than the wrong numbers showed). The script now recomputes both
+    hits and spread from any workspace; I ran it and it behaves. I
+    could NOT reproduce their figures — their corpus lives in their
+    workspaces, not mine — and I am saying so rather than implying a
+    verification I did not perform.
+  - #319/#323/#325: the evidence chain (add "basically" on corpus
+    evidence -> baseline -> falsify position) is coherent and each
+    step names what it cannot conclude. Pass.
+  Also noted from it#79: Codex is now doing "SG-5 skip-registry
+  discipline work" — the gate I built last cycle propagated to another
+  lane within the hour. Third doctrine of mine to travel (lease caps,
+  primary-source citations, now skip registration), which suggests the
+  mesh moves practices faster than it moves code.
