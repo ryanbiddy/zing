@@ -985,3 +985,13 @@
   wrong. Lane A's other research (sweep record, P-C2 labels) is
   self-verifying by construction: frozen artifacts with regeneration
   commands, auditable without trusting me.
+
+- **2026-07-19 (Lane A, SG-2): raw.py 98% -> 100%, mutation-verified.**
+  Both gaps were creator-facing honesty payloads: the repeated-take
+  warning must carry similarity AND both span times; the keeper
+  summary's six-span cap must announce "+N more" (no-silent-caps).
+  Renaming the remainder wording fails the test, so it is genuinely
+  pinned. transitions.py deliberately stays at 95%: its uncovered
+  lines are in the detector whose own provenance calls real-video
+  recall unmeasured — pinning that would convert honest uncertainty
+  into false certainty; the SHOT evaluation is the precursor.

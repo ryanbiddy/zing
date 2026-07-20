@@ -235,3 +235,55 @@ def test_study_wires_raw_mode(zing_workspace, monkeypatch):
 
     b2 = api.study(SOURCE)
     assert "raw_mode" not in b2.provenance   # strictly opt-in
+
+
+def test_repeated_take_reaches_warnings_with_both_spans():
+    """The retake-spotting payload a creator acts on: similarity plus BOTH
+    span times, not just a count."""
+    spec = [
+        ("so", 0.0, 0.3), ("the", 0.4, 0.6), ("point", 0.7, 1.1),
+        ("is", 1.2, 1.4), ("simple", 1.5, 2.0),
+        ("so", 4.0, 4.3), ("the", 4.4, 4.6), ("point", 4.7, 5.1),
+        ("is", 5.2, 5.4), ("simple", 5.5, 6.0),
+    ]
+    words = words_from(spec)
+
+    result = raw.measure_raw(words, [(0.0, 2.0), (4.0, 6.0)], duration=6.0)
+
+    take_warnings = [w for w in result.warnings if "repeated take" in w]
+    assert take_warnings, "a detected retake must be named in warnings"
+    (warning,) = take_warnings
+    assert "similarity" in warning
+    assert "0.0-2.0s" in warning and "4.0-6.0s" in warning
+
+
+def test_keeper_summary_truncates_with_an_honest_remainder_count():
+    """More keepers than the summary prints must never look like all of
+    them: the cap is stated as '+N more', never silent."""
+    words: list[Word] = []
+    segments: list[tuple[float, float]] = []
+    # Ten clean stretches separated by dead air long enough to split them.
+    for i in range(10):
+        base = i * 10.0
+        for j in range(6):
+            t = base + j * 0.4
+            words.append(Word(f"word{j}", t, t + 0.3, 0.9))
+        segments.append((base, base + 2.4))
+
+    result = raw.measure_raw(words, segments, duration=100.0)
+
+    keeper_warnings = [w for w in result.warnings if "keeper segment" in w]
+    (warning,) = keeper_warnings
+    assert len(result.keepers) > 6
+    assert f"{len(result.keepers)} keeper segment(s)" in warning
+    assert f"+{len(result.keepers) - 6} more" in warning
+    assert warning.count("-") >= 6          # six spans actually listed
+
+
+def test_keeper_summary_without_truncation_has_no_remainder():
+    words = [Word(f"w{j}", j * 0.4, j * 0.4 + 0.3, 0.9) for j in range(6)]
+
+    result = raw.measure_raw(words, [(0.0, 2.4)], duration=2.4)
+
+    (warning,) = [w for w in result.warnings if "keeper segment" in w]
+    assert "more" not in warning
