@@ -1419,3 +1419,32 @@
   POSITION (frame-verified band), so it must NOT be used to evaluate
   position rules — circular. Valid for the floor and persistence,
   which are position-independent. Dataset now 7 cells / 15,999 labels.
+
+- **2026-07-20 (Lane A): P-C2 RESOLVED — its bar is met by the
+  mechanism already shipping, and the pack's real value was measuring
+  it.** P-C2 wanted a signal separating a failure class "without
+  reducing recall on real captions". Every candidate I tested chased
+  CAPTIONS; the failure class is the opposite — watermarks/HUD
+  reported as captions — and Zing has shipped a detector for it since
+  S1 (`cluster_regions` diverts events lasting >= max(15s, 25% of
+  duration) into a named warning). Nobody had ever scored it.
+  **Measured on all 15,999 labels / 7 cells / both caption styles
+  that broke the candidate rules: 2,080 lines flagged, ALL 2,080
+  genuinely non-caption — precision 1.0000, captions lost 0/577
+  (0.00%).** The bar is met by the incumbent.
+  **The correction that makes this trustworthy:** my first pass said
+  precision 0.9975 with 22 captions lost. Examining those 22 showed
+  they were RECURRENCES, not persistence — "IN ANTARCTICA," at t=0.0
+  and again at t=33.2 (31.8s gap), "Paris" at 1.8 and 18.0. Phrases
+  said twice, not text held on screen. The flaw was mine: I measured
+  span as last-minus-first sighting, while the shipped rule clusters
+  into events and closes one after MAX_FLICKER_GAP_S (0.5s), so a
+  recurrence is a separate event and never counts as persistent.
+  Had I published the first number I would have reported a 3.8%
+  caption cost that does not exist and impugned correct code.
+  **Recommendation: resolve P-C2 as VALIDATED-INCUMBENT** — keep the
+  overlay warning as-is with this measurement as its evidence, and add
+  NO caption-side filter: position and the token floor each destroyed
+  a real caption style, and persistence cannot separate single-token
+  captions from single-token noise. The dataset remains useful as a
+  regression check if the overlay threshold is ever tuned.
