@@ -9,6 +9,7 @@ through Lane C's own contract validator.
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 from pathlib import Path
 
@@ -342,7 +343,10 @@ def test_unconfigured_verdict_names_what_the_manifest_said(monkeypatch):
     check = doctor.check_uoink()
     assert check.mark == "unconfig"
     assert "manifest read: uoink 3.6.0" in check.detail
-    assert check.data["evidence"].startswith("manifest read: uoink 3.6.0")
+    # B-CONF1: evidence now also names WHICH discovery path was used, so
+    # "manifest verified" can never be read without knowing where from.
+    assert "manifest read: uoink 3.6.0" in check.data["evidence"]
+    assert check.data["evidence"].startswith("via default address")
     # P3-3: the fix names the installed-app token location, not server.py
     # internals only.
     from myzing.uoink_bridge import TOKEN_LOCATION
@@ -544,3 +548,182 @@ def test_public_manifest_peer_is_available_with_the_same_token(monkeypatch):
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", FakeUoink())
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "available"
+
+
+# -- B-CONF1: runtime-lease consumption (§3.3 discovery order, §3.4) ---------
+
+def valid_lease(**overrides):
+    lease = {
+        "contract": "ryan.suite.runtime-lease",
+        "version": 1,
+        "service_id": "uoink",
+        "service_version": "3.6.0",
+        "api_version": 1,
+        "base_url": "http://127.0.0.1:5999",
+        "health_url": "http://127.0.0.1:5999/api/suite/v1/health",
+        "manifest_url": "http://127.0.0.1:5999/.well-known/suite-service.json",
+        "capabilities": [
+            "uoink.corpus.read/1",
+            "uoink.engagement.ingest/1",
+            "uoink.media.handoff/1",
+        ],
+        "ui": {"home": "/dashboard", "routes": {"library": "/dashboard#library"}},
+        # Must be alive on EVERY platform: the test process itself. The
+        # first draft used pid 4 (Windows' System process) — alive there,
+        # absent on macOS/Linux, so the lease read as stale and two tests
+        # failed on two platforms. Cross-platform tests need a
+        # cross-platform liveness fact.
+        "pid": os.getpid(),
+        "started_at": "2026-07-19T12:00:00Z",
+    }
+    lease.update(overrides)
+    return lease
+
+
+@pytest.fixture
+def lease_dir(tmp_path, monkeypatch):
+    """Point every platform lease location at a temp dir so the suite can
+    never read (or be fooled by) a real one on the host."""
+    d = tmp_path / "services.d"
+    d.mkdir(parents=True)
+    monkeypatch.setattr(
+        suite_peer, "lease_paths", lambda sid: [d / f"{sid}.json"]
+    )
+    return d
+
+
+def write_lease(lease_dir, payload, service_id="uoink"):
+    (lease_dir / f"{service_id}.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
+
+
+@pytest.mark.parametrize(
+    "case", fixture_cases("runtime-lease.json"), ids=lambda c: c["id"]
+)
+def test_lease_validation_agrees_with_lane_c(case):
+    """Integration truth: my validator against Lane C's checked-in
+    conformance fixtures. dead_pid is expected-invalid for LIVENESS,
+    which lease_defect deliberately does not judge — the caller does."""
+    payload = case["payload"]
+    service_id = payload.get("service_id") if isinstance(payload, dict) else "uoink"
+    expected = service_id if case["id"] != "wrong_identity" else "uoink"
+    defect = suite_peer.lease_defect(payload, expected)
+    if case["expected_valid"]:
+        assert defect is None, defect
+    elif case["id"] == "dead_pid":
+        assert defect is None  # shape is fine; liveness is the caller's job
+    else:
+        assert defect is not None
+
+
+def test_lease_supplies_the_base_url_when_no_env_var(lease_dir, monkeypatch):
+    write_lease(lease_dir, valid_lease())
+    seen = {}
+
+    class LeaseServer(FakeUoink):
+        def __call__(self, request, timeout=0):
+            seen["url"] = request.full_url if hasattr(request, "full_url") else request
+            return super().__call__(request, timeout)
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", LeaseServer())
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["state"] == "unconfigured"  # no token, but discovered fine
+    assert "127.0.0.1:5999" in seen["url"]  # the LEASED port, not the default
+    assert "runtime lease at" in evidence
+
+
+def test_explicit_url_beats_the_lease(lease_dir, monkeypatch):
+    """§3.3 order: explicit configuration wins outright."""
+    write_lease(lease_dir, valid_lease())
+    monkeypatch.setenv(suite_peer.UOINK_URL_ENV, "http://127.0.0.1:5179")
+    seen = {}
+
+    class Server(FakeUoink):
+        def __call__(self, request, timeout=0):
+            seen["url"] = request.full_url
+            return super().__call__(request, timeout)
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", Server())
+    peer, evidence = suite_peer.probe_uoink()
+    assert "127.0.0.1:5179" in seen["url"]
+    assert suite_peer.UOINK_URL_ENV in evidence
+
+
+def test_hostile_lease_is_never_followed(lease_dir, monkeypatch):
+    """A writable file must not be able to point zing off-loopback."""
+    write_lease(lease_dir, valid_lease(base_url="http://evil.example.com:80"))
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen",
+        lambda *a, **k: pytest.fail("a hostile lease must not be followed"),
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "invalid_lease"
+    assert peer["error"]["retryable"] is False
+    assert peer_is_valid(peer)
+
+
+@pytest.mark.parametrize("payload", [
+    valid_lease(token="secret"),                      # forbidden content
+    valid_lease(ui={"home": "https://evil.test/x", "routes": {}}),
+    valid_lease(capabilities=["b/1", "a/1"]),         # unsorted
+    valid_lease(pid=0),
+    "not an object",
+])
+def test_malformed_leases_are_invalid_lease(lease_dir, monkeypatch, payload):
+    write_lease(lease_dir, payload)
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen",
+        lambda *a, **k: pytest.fail("an invalid lease must not be followed"),
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "invalid_lease"
+
+
+def test_stale_lease_is_named_not_downgraded_to_absent(lease_dir, monkeypatch):
+    """§4: 'A stale lease is never silently downgraded to absent.'"""
+    from myzing.mcp_server import _pid_alive  # noqa: F401  (delegation target)
+
+    write_lease(lease_dir, valid_lease())
+    monkeypatch.setattr(suite_peer, "_pid_is_live", lambda pid: False)
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen",
+        lambda *a, **k: pytest.fail("a stale lease must not be followed"),
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["error"]["code"] == "stale_lease"
+    assert peer["error"]["retryable"] is True  # the service may come back
+    assert peer["state"] != "absent"
+    assert peer_is_valid(peer)
+
+
+def test_leased_peer_that_refuses_is_unhealthy_not_absent(lease_dir, monkeypatch):
+    """§4: a valid current lease is 'configured' for classification —
+    only the bare default address earns calm absence."""
+    write_lease(lease_dir, valid_lease())
+
+    def refuse(request, timeout=0):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["state"] == "unhealthy"
+    assert peer["error"]["code"] == "unavailable"
+
+
+def test_no_lease_falls_through_to_the_default(lease_dir, monkeypatch):
+    def refuse(request, timeout=0):
+        raise urllib.error.URLError("refused")
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["state"] == "absent"  # calm: nothing configured, nothing there
+
+
+def test_lease_paths_cover_all_three_platforms(monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", "C:/Users/x/AppData/Local")
+    monkeypatch.setenv("XDG_STATE_HOME", "/home/x/.state")
+    paths = [str(p).replace("\\", "/") for p in suite_peer.lease_paths("uoink")]
+    assert any("RyanSuite/services.d/uoink.json" in p for p in paths)
+    assert any("Library/Application Support/RyanSuite" in p for p in paths)
+    assert any("ryan-suite/services.d/uoink.json" in p for p in paths)

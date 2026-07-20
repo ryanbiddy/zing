@@ -26,6 +26,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -95,6 +96,125 @@ def _validate_url(url: str) -> str | None:
     except ValueError:
         return "port is not a valid number"
     return None
+
+
+_LEASE_KEYS = {
+    "contract", "version", "service_id", "service_version", "api_version",
+    "base_url", "health_url", "manifest_url", "capabilities", "ui",
+    "pid", "started_at",
+}
+
+
+def lease_paths(service_id: str) -> list[Path]:
+    """The per-user runtime-lease locations from §3.4, in platform order.
+
+    The lease is WRITABLE state: it only says where a resident process
+    claims to be. It never grants launch authority and never carries a
+    command, token, or path to user content — which is why an unknown
+    key invalidates it outright rather than being ignored.
+    """
+    name = f"{service_id}.json"
+    candidates: list[Path] = []
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        candidates.append(Path(local_appdata) / "RyanSuite" / "services.d" / name)
+    home = Path.home()
+    candidates.append(
+        home / "Library" / "Application Support" / "RyanSuite" / "services.d" / name
+    )
+    xdg_state = os.environ.get("XDG_STATE_HOME")
+    base = Path(xdg_state) if xdg_state else home / ".local" / "state"
+    candidates.append(base / "ryan-suite" / "services.d" / name)
+    return candidates
+
+
+def _pid_is_live(pid: int) -> bool:
+    """Delegates to the F-03 liveness primitive rather than growing a
+    second copy of the Windows kernel32 dance (its access-denied branch
+    is directly pinned on windows CI). Imported lazily: doctor stays
+    light until a lease actually exists."""
+    from myzing.mcp_server import _pid_alive
+
+    return _pid_alive(pid)
+
+
+def lease_defect(payload: Any, service_id: str) -> str | None:
+    """Exact-shape §3.4 validation. Returns the first defect or None.
+    Liveness is checked by the caller so this stays pure and testable
+    against Lane C's fixtures."""
+    if not isinstance(payload, dict):
+        return "lease is not a JSON object"
+    if set(payload) != _LEASE_KEYS:
+        return f"lease keys {sorted(payload)}"
+    if payload.get("contract") != "ryan.suite.runtime-lease":
+        return f"contract={payload.get('contract')!r}"
+    if payload.get("version") != 1:
+        return f"version={payload.get('version')!r}"
+    if payload.get("service_id") != service_id:
+        return (
+            f"lease claims service_id={payload.get('service_id')!r}, "
+            f"expected {service_id!r}"
+        )
+    for field_name in ("base_url", "health_url", "manifest_url"):
+        value = payload.get(field_name)
+        if not isinstance(value, str):
+            return f"{field_name} must be a string"
+        defect = _validate_url(value)
+        if defect is not None:
+            return f"{field_name}: {defect}"
+    caps = payload.get("capabilities")
+    if not isinstance(caps, list) or any(not isinstance(c, str) for c in caps):
+        return "capabilities must be a list of strings"
+    if list(caps) != sorted(set(caps)):
+        return "capabilities must be sorted and unique"
+    ui = payload.get("ui")
+    if not isinstance(ui, dict) or set(ui) != {"home", "routes"}:
+        return "ui keys"
+    routes = ui.get("routes")
+    if not isinstance(routes, dict):
+        return "ui.routes must be an object"
+    for value in [ui.get("home"), *routes.values()]:
+        # §3.4: relative paths only — never arbitrary URLs, which is how a
+        # writable file would otherwise redirect a user's browser.
+        if not isinstance(value, str) or not value.startswith("/"):
+            return f"ui path {value!r} must be a relative path beginning with /"
+    if not isinstance(payload.get("pid"), int) or payload["pid"] <= 0:
+        return "pid must be a positive integer"
+    if not isinstance(payload.get("started_at"), str):
+        return "started_at must be a string"
+    return None
+
+
+def read_lease(service_id: str) -> tuple[str | None, str | None, str]:
+    """Resolve the runtime lease for ``service_id``.
+
+    Returns (base_url, error_code, detail). ``error_code`` is None when
+    there is simply no lease (a calm, expected state), ``invalid_lease``
+    for a malformed or hostile one (§4: the caller must not follow it),
+    or ``stale_lease`` when the shape is valid but its process is gone
+    (§4: never silently downgraded to absent).
+    """
+    for path in lease_paths(service_id):
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            continue  # absent or unreadable: try the next platform location
+        try:
+            payload = json.loads(raw)
+        except ValueError:
+            return None, "invalid_lease", f"lease at {path} is not valid JSON"
+        defect = lease_defect(payload, service_id)
+        if defect is not None:
+            return None, "invalid_lease", f"lease at {path} is invalid: {defect}"
+        if not _pid_is_live(payload["pid"]):
+            return (
+                None,
+                "stale_lease",
+                f"lease at {path} names pid {payload['pid']}, which is not "
+                "running — the service exited without removing it",
+            )
+        return payload["base_url"], None, f"runtime lease at {path}"
+    return None, None, ""
 
 
 def _get_json(url: str) -> tuple[int, Any]:
@@ -189,8 +309,33 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     manifest the reviewer could not fetch — every verdict now names
     its evidence so two contradictory runs are distinguishable).
     """
+    # §3.3 discovery order: explicit URL, then a valid runtime lease,
+    # then the default address. Credential resolution stays independent
+    # and explicit — a lease never carries one, and we never read the
+    # peer's token file (B-CONF1, from CX-4's conformance QA).
     explicit = os.environ.get(UOINK_URL_ENV, "").strip()
-    base = explicit or UOINK_DEFAULT_URL
+    source = f"{UOINK_URL_ENV}={explicit}" if explicit else ""
+    base = explicit
+    if not base:
+        leased, lease_error, lease_detail = read_lease("uoink")
+        if lease_error is not None:
+            # §4: an invalid or hostile lease is NEVER followed, and a
+            # stale one is never silently downgraded to absent.
+            return (
+                _unhealthy(
+                    lease_error,
+                    lease_detail,
+                    retryable=lease_error == "stale_lease",
+                ),
+                lease_detail,
+            )
+        if leased:
+            base = leased
+            source = lease_detail
+    leased_base = bool(base) and not explicit
+    if not base:
+        base = UOINK_DEFAULT_URL
+        source = f"default address {UOINK_DEFAULT_URL}"
     defect = _validate_url(base)
     if defect is not None:
         return (
@@ -207,8 +352,9 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         status, manifest = _get_json(base + "/.well-known/suite-service.json")
     except (TimeoutError, urllib.error.URLError, OSError) as e:
         is_timeout = isinstance(e, TimeoutError) or "timed out" in str(e)
-        if explicit:
-            # A configured peer that fails transport is never calm.
+        if explicit or leased_base:
+            # §4: a configured URL *or a valid current lease* that fails
+            # transport is never calm — only the bare default address is.
             if is_timeout:
                 return (
                                     _unhealthy(
@@ -247,7 +393,10 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
             "manifest fetched but non-conformant",
         )
     service = manifest["service"]
-    evidence = f"manifest read: {service['id']} {service['service_version']}"
+    evidence = (
+        f"via {source}; manifest read: "
+        f"{service['id']} {service['service_version']}"
+    )
     if service["id"] != "uoink":
         return (
         _unhealthy(
