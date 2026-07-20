@@ -1,0 +1,424 @@
+{
+  "meta": {
+    "source_url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
+    "platform": "url",
+    "author": "Mvolz",
+    "title": "Korky Paul Introduction",
+    "duration": 19.067,
+    "width": 1080,
+    "height": 1920,
+    "fps": 30.0,
+    "media_path": ""
+  },
+  "shots": [
+    {
+      "index": 0,
+      "start": 0.0,
+      "end": 19.067,
+      "keyframe": "frames/shot_000.jpg"
+    }
+  ],
+  "words": [
+    {
+      "text": "Hello,",
+      "start": 0.34,
+      "end": 0.98,
+      "confidence": 0.63
+    },
+    {
+      "text": "my",
+      "start": 1.24,
+      "end": 1.52,
+      "confidence": 0.887
+    },
+    {
+      "text": "name",
+      "start": 1.52,
+      "end": 1.76,
+      "confidence": 0.827
+    },
+    {
+      "text": "is",
+      "start": 1.76,
+      "end": 1.92,
+      "confidence": 0.918
+    },
+    {
+      "text": "Corky",
+      "start": 1.92,
+      "end": 2.32,
+      "confidence": 0.88
+    },
+    {
+      "text": "Paul",
+      "start": 2.32,
+      "end": 2.56,
+      "confidence": 0.851
+    },
+    {
+      "text": "and",
+      "start": 2.56,
+      "end": 2.98,
+      "confidence": 0.684
+    },
+    {
+      "text": "I",
+      "start": 2.98,
+      "end": 3.12,
+      "confidence": 0.985
+    },
+    {
+      "text": "was",
+      "start": 3.12,
+      "end": 3.28,
+      "confidence": 0.896
+    },
+    {
+      "text": "born",
+      "start": 3.28,
+      "end": 3.56,
+      "confidence": 0.824
+    },
+    {
+      "text": "in",
+      "start": 3.56,
+      "end": 3.82,
+      "confidence": 0.903
+    },
+    {
+      "text": "Harare,",
+      "start": 3.82,
+      "end": 4.3,
+      "confidence": 0.84
+    },
+    {
+      "text": "Zimbabwe.",
+      "start": 4.5,
+      "end": 5.04,
+      "confidence": 0.969
+    },
+    {
+      "text": "I'm",
+      "start": 5.44,
+      "end": 5.9,
+      "confidence": 0.907
+    },
+    {
+      "text": "now",
+      "start": 5.9,
+      "end": 6.1,
+      "confidence": 0.873
+    },
+    {
+      "text": "living",
+      "start": 6.1,
+      "end": 6.3,
+      "confidence": 0.744
+    },
+    {
+      "text": "in",
+      "start": 6.3,
+      "end": 6.48,
+      "confidence": 0.905
+    },
+    {
+      "text": "Oxford",
+      "start": 6.48,
+      "end": 6.74,
+      "confidence": 0.869
+    },
+    {
+      "text": "in",
+      "start": 6.74,
+      "end": 6.96,
+      "confidence": 0.622
+    },
+    {
+      "text": "England,",
+      "start": 6.96,
+      "end": 7.22,
+      "confidence": 0.838
+    },
+    {
+      "text": "working",
+      "start": 7.64,
+      "end": 7.92,
+      "confidence": 0.722
+    },
+    {
+      "text": "as",
+      "start": 7.92,
+      "end": 8.14,
+      "confidence": 0.905
+    },
+    {
+      "text": "a",
+      "start": 8.14,
+      "end": 8.28,
+      "confidence": 0.993
+    },
+    {
+      "text": "children's",
+      "start": 8.28,
+      "end": 8.66,
+      "confidence": 0.814
+    },
+    {
+      "text": "book",
+      "start": 8.66,
+      "end": 8.86,
+      "confidence": 0.826
+    },
+    {
+      "text": "illustrator,",
+      "start": 8.86,
+      "end": 9.44,
+      "confidence": 0.902
+    },
+    {
+      "text": "with",
+      "start": 10.22,
+      "end": 10.6,
+      "confidence": 0.809
+    },
+    {
+      "text": "my",
+      "start": 10.6,
+      "end": 10.82,
+      "confidence": 0.895
+    },
+    {
+      "text": "most",
+      "start": 10.82,
+      "end": 11.08,
+      "confidence": 0.803
+    },
+    {
+      "text": "popular",
+      "start": 11.08,
+      "end": 11.56,
+      "confidence": 0.922
+    },
+    {
+      "text": "and",
+      "start": 11.56,
+      "end": 11.88,
+      "confidence": 0.879
+    },
+    {
+      "text": "biggest",
+      "start": 11.88,
+      "end": 12.16,
+      "confidence": 0.896
+    },
+    {
+      "text": "seller",
+      "start": 12.16,
+      "end": 12.42,
+      "confidence": 0.664
+    },
+    {
+      "text": "being",
+      "start": 12.42,
+      "end": 12.74,
+      "confidence": 0.865
+    },
+    {
+      "text": "Winnie",
+      "start": 12.74,
+      "end": 13.14,
+      "confidence": 0.856
+    },
+    {
+      "text": "and",
+      "start": 13.14,
+      "end": 13.32,
+      "confidence": 0.697
+    },
+    {
+      "text": "Wilbur,",
+      "start": 13.32,
+      "end": 13.66,
+      "confidence": 0.818
+    },
+    {
+      "text": "which",
+      "start": 14.14,
+      "end": 14.52,
+      "confidence": 0.918
+    },
+    {
+      "text": "is",
+      "start": 14.52,
+      "end": 14.64,
+      "confidence": 0.914
+    },
+    {
+      "text": "about",
+      "start": 14.64,
+      "end": 14.9,
+      "confidence": 0.818
+    },
+    {
+      "text": "to",
+      "start": 14.9,
+      "end": 15.12,
+      "confidence": 0.893
+    },
+    {
+      "text": "go",
+      "start": 15.12,
+      "end": 15.34,
+      "confidence": 0.902
+    },
+    {
+      "text": "into",
+      "start": 15.34,
+      "end": 15.74,
+      "confidence": 0.706
+    },
+    {
+      "text": "a",
+      "start": 15.74,
+      "end": 16.14,
+      "confidence": 0.996
+    },
+    {
+      "text": "TV",
+      "start": 16.14,
+      "end": 16.42,
+      "confidence": 0.893
+    },
+    {
+      "text": "series",
+      "start": 16.42,
+      "end": 16.82,
+      "confidence": 0.756
+    },
+    {
+      "text": "with",
+      "start": 16.82,
+      "end": 17.04,
+      "confidence": 0.816
+    },
+    {
+      "text": "Channel",
+      "start": 17.04,
+      "end": 17.3,
+      "confidence": 0.749
+    },
+    {
+      "text": "5.",
+      "start": 17.3,
+      "end": 17.74,
+      "confidence": 0.86
+    }
+  ],
+  "captions": [],
+  "audio": {
+    "has_music": false,
+    "music_confidence": 0.453,
+    "has_voiceover": true,
+    "speech_ratio": 0.771,
+    "loudness_curve": [
+      -15.5,
+      -17.0,
+      -19.7,
+      -14.2,
+      -15.6,
+      -18.1,
+      -15.0,
+      -15.8,
+      -16.8,
+      -27.2,
+      -15.3,
+      -16.8,
+      -18.7,
+      -16.3,
+      -17.0,
+      -15.0,
+      -16.0,
+      -16.6,
+      -61.1,
+      -78.0
+    ]
+  },
+  "avg_shot_duration": 19.067,
+  "cuts_per_10s": [
+    0.0,
+    0.0
+  ],
+  "transitions": [],
+  "warnings": [
+    "source codec 'vp8' is not reliable for frame-accurate measurement here; re-encoded to H.264",
+    "caption OCR sampled at 8 fps in 0-3s, 4 fps after; text between samples is unobserved",
+    "raw: 1 keeper segment(s) — 0.3-17.7s"
+  ],
+  "provenance": {
+    "shot_detector": "scenedetect-0.7 AdaptiveDetector",
+    "adaptive_threshold": 3.0,
+    "min_scene_len_s": 0.3,
+    "whisper_model": "large-v2",
+    "device": "cpu",
+    "compute_type": "int8",
+    "faster_whisper": "1.2.1",
+    "language": "en",
+    "language_probability": 0.993,
+    "vad_filter": true,
+    "condition_on_previous_text": false,
+    "pipeline": "sequential",
+    "ocr_backend": "rapidocr-3.9.1",
+    "conf_threshold": 0.75,
+    "hook_fps": 8.0,
+    "body_fps": 4.0,
+    "hook_window_s": 3.0,
+    "clustering": "region-tracked v2 (A-Q8)",
+    "loudness": "ffmpeg astats mean RMS dBFS, 1s buckets @48kHz",
+    "vad": "silero (faster-whisper bundled), upstream-style params",
+    "vad_params": {
+      "threshold": 0.5,
+      "min_speech_duration_ms": 250,
+      "min_silence_duration_ms": 100,
+      "speech_pad_ms": 30
+    },
+    "has_music": "gap-floor heuristic v1",
+    "raw_mode": {
+      "dead_air_min_s": 1.5,
+      "take_similarity": 0.75,
+      "dead_air_count": 0,
+      "filler_total": 0,
+      "repeated_take_count": 0,
+      "keeper_count": 1,
+      "keepers": [
+        {
+          "start": 0.34,
+          "end": 17.74,
+          "words": 49,
+          "evidence": [
+            "one uninterrupted take (17.4s)",
+            "no filler words",
+            "no interior dead air",
+            "loudness within 12 dB of speech level throughout"
+          ]
+        }
+      ]
+    },
+    "zing_version": "0.1.0",
+    "measured_at": "2026-07-20T03:57:33+00:00",
+    "regression_fixture": {
+      "fixture_id": "raw-talking-head-korky-paul",
+      "video_id": "commons-92974199",
+      "role": "raw-talking-head",
+      "study_options": {
+        "raw_mode": true
+      },
+      "human_truth": {
+        "available": true,
+        "path": "handoff/research/RAW-MODE-SOURCE.md",
+        "section": "Human truth for the regression"
+      }
+    }
+  },
+  "judgment": {},
+  "schema_version": 1
+}

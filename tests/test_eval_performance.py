@@ -214,3 +214,46 @@ def test_benchmark_adapter_can_preserve_study_artifacts(tmp_path: Path) -> None:
     assert adapter.artifact_directory_for(media) == (
         workspace / "breakdowns" / storage.slug_for(str(media))
     )
+
+
+def test_benchmark_adapter_passes_raw_mode_only_when_requested(
+    tmp_path: Path,
+) -> None:
+    media = tmp_path / "raw.webm"
+    media.write_bytes(b"fixture")
+    calls = []
+
+    def fake_study(source, workspace, phase_callback, **kwargs):
+        calls.append(kwargs)
+        phase_callback("ingest")
+        return Breakdown(
+            meta=VideoMeta(
+                source_url=source,
+                platform="file",
+                duration=3.0,
+            )
+        )
+
+    adapter = StudyBenchmarkAdapter(
+        study_fn=fake_study,
+        render_fn=lambda *args: None,
+        clock=FakeClock(
+            [
+                0.0,
+                1.0,
+                2.0,
+                3.0,
+                4.0,
+                5.0,
+                6.0,
+                7.0,
+                8.0,
+                9.0,
+            ]
+        ),
+    )
+
+    adapter(media)
+    adapter(media, raw_mode=True)
+
+    assert calls == [{}, {"raw_mode": True}]

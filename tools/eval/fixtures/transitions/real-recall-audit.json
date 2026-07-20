@@ -7,7 +7,8 @@
       "id": "frozen-real-video-set",
       "source_documents": [
         "tools/eval/real_videos/manifest.json",
-        "tools/eval/real_videos/manifest-cq13.json"
+        "tools/eval/real_videos/manifest-cq13.json",
+        "tools/eval/real_videos/manifest-raw-mode.json"
       ],
       "sources": [
         {
@@ -63,6 +64,17 @@
             "status": "unjudged",
             "exhaustive_transition_events": false,
             "reason": "No independent human annotation was commissioned for this source."
+          }
+        },
+        {
+          "fixture_id": "raw-talking-head-korky-paul",
+          "source_url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
+          "media_sha256": "8243758381ebca3f4ab75c714ecca8e02f60dee67037b3508301d89aa17da574",
+          "evidence": "handoff/research/RAW-MODE-SOURCE.md",
+          "annotation": {
+            "status": "coarse-only",
+            "exhaustive_transition_events": false,
+            "reason": "Full-duration contact-sheet inspection and a one-shot Zing study support the zero-visible-cut verdict, but no independent frame-level transition annotation was commissioned."
           }
         }
       ]

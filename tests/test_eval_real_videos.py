@@ -24,6 +24,7 @@ from tools.eval.freeze_real_videos import (
 
 CHECKED_IN = ROOT / "tools" / "eval" / "real_videos"
 CQ13_MANIFEST = CHECKED_IN / "manifest-cq13.json"
+RAW_MODE_MANIFEST = CHECKED_IN / "manifest-raw-mode.json"
 
 
 def _sha256(path: Path) -> str:
@@ -82,6 +83,36 @@ class FakeBenchmarkAdapter:
             "available": True,
             "stages": {"ingest": 1.0, "render": 2.0},
         }
+
+
+class RawModeBenchmarkAdapter(FakeBenchmarkAdapter):
+    def __init__(self, root: Path) -> None:
+        super().__init__(root)
+        self.study_options: dict[str, object] | None = None
+
+    def __call__(
+        self,
+        media_path: Path,
+        *,
+        raw_mode: bool,
+    ) -> Breakdown:
+        self.study_options = {"raw_mode": raw_mode}
+        breakdown = super().__call__(media_path)
+        breakdown.provenance["raw_mode"] = {
+            "dead_air_count": 1,
+            "filler_total": 0,
+            "repeated_take_count": 0,
+            "keeper_count": 1,
+            "keepers": [
+                {
+                    "start": 1.0,
+                    "end": 4.0,
+                    "words": 8,
+                    "evidence": ["synthetic regression evidence"],
+                }
+            ],
+        }
+        return breakdown
 
 
 def test_portable_breakdown_derives_platform_from_canonical_source() -> None:
@@ -313,6 +344,97 @@ def test_freeze_supports_measurement_only_cases_with_rights_provenance(
     assert provenance["source_media"]["acquisition"]["selected_format_ids"] == [
         "480p"
     ]
+
+
+def test_freeze_raw_mode_case_runs_raw_study_and_pins_regeneration(
+    tmp_path: Path,
+) -> None:
+    media_root = tmp_path / "media"
+    media_root.mkdir()
+    media = media_root / "raw.webm"
+    media.write_bytes(b"raw talking head")
+    source_document = tmp_path / "RAW-SOURCE.md"
+    source_document.write_text(
+        "# Raw source\n\n## Verified truth\n",
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "manifest.json"
+    regeneration = {
+        "fetch_command": "curl.exe -L --fail -o <media-root>/raw.webm https://example.test/raw.webm",
+        "freeze_command": (
+            "python -m tools.eval.freeze_real_videos --media-root <media-root> "
+            "--manifest tools/eval/real_videos/manifest-raw-mode.json"
+        ),
+        "frames_command": (
+            "python -m tools.eval.backfill_frames --media-root <media-root> "
+            "--manifest tools/eval/real_videos/manifest-raw-mode.json"
+        ),
+    }
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "source_document": str(source_document),
+                "media_policy": {
+                    "committed": False,
+                    "derived_frames_committed": True,
+                },
+                "source_acquisition": {
+                    "tool": "curl",
+                    "version": "8.16.0",
+                    "no_playlist": True,
+                },
+                "regeneration": regeneration,
+                "cases": [
+                    {
+                        "fixture_id": "raw-mode",
+                        "role": "raw-talking-head",
+                        "video_id": "raw-mode",
+                        "selected_format_ids": ["original"],
+                        "media_filename": media.name,
+                        "source_url": "https://example.test/raw",
+                        "title": "Raw talking head",
+                        "creator": "Example creator",
+                        "human_truth": {
+                            "available": True,
+                            "path": str(source_document),
+                            "section": "Verified truth",
+                        },
+                        "rights": {
+                            "label": "CC0 1.0 Universal",
+                            "spdx": "CC0-1.0",
+                            "evidence_url": "https://example.test/raw",
+                            "attribution": "Example creator",
+                        },
+                        "study_options": {"raw_mode": True},
+                    }
+                ],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    adapter = RawModeBenchmarkAdapter(tmp_path / "study")
+
+    (directory,) = freeze_real_videos(
+        media_root,
+        tmp_path / "frozen",
+        manifest_path,
+        adapter=adapter,
+        ffmpeg="not-installed-ffmpeg",
+    )
+
+    breakdown = json.loads(
+        (directory / "breakdown.json").read_text(encoding="utf-8")
+    )
+    provenance = json.loads(
+        (directory / "provenance.json").read_text(encoding="utf-8")
+    )
+    assert adapter.study_options == {"raw_mode": True}
+    assert breakdown["provenance"]["raw_mode"]["keeper_count"] == 1
+    assert provenance["study_options"] == {"raw_mode": True}
+    assert provenance["regeneration"] == regeneration
 
 
 def test_backfill_supports_measurement_only_fixture(
@@ -675,3 +797,67 @@ def test_checked_in_cq13_snapshots_are_self_consistent() -> None:
                     hashlib.sha256(artifact.read_bytes()).hexdigest()
                     == expected_hash
                 )
+
+
+def test_checked_in_raw_mode_snapshot_is_full_fidelity() -> None:
+    manifest = json.loads(RAW_MODE_MANIFEST.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == 2
+    assert len(manifest["cases"]) == 1
+    (case,) = manifest["cases"]
+    assert case["study_options"] == {"raw_mode": True}
+    assert case["rights"]["spdx"] == "CC0-1.0"
+
+    case_directory = CHECKED_IN / case["fixture_id"]
+    breakdown_path = case_directory / "breakdown.json"
+    provenance_path = case_directory / "provenance.json"
+    breakdown = Breakdown.from_json(
+        breakdown_path.read_text(encoding="utf-8")
+    )
+    provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+
+    assert breakdown.meta.duration == pytest.approx(
+        case["expected_media"]["duration_seconds"],
+        abs=0.02,
+    )
+    assert breakdown.meta.width == case["expected_media"]["width"]
+    assert breakdown.meta.height == case["expected_media"]["height"]
+    assert len(breakdown.shots) == 1
+    assert breakdown.captions == []
+    assert breakdown.shots[0].keyframe == "frames/shot_000.jpg"
+
+    raw_mode = breakdown.provenance["raw_mode"]
+    assert raw_mode["keeper_count"] >= 1
+    assert raw_mode["keepers"]
+    assert all(keeper["evidence"] for keeper in raw_mode["keepers"])
+    assert provenance["measurement"]["raw_mode"] == raw_mode
+    assert provenance["study_options"] == {"raw_mode": True}
+    assert provenance["rights"] == case["rights"]
+    assert provenance["source_media"]["sha256"] == (
+        case["expected_media"]["sha256"]
+    )
+    assert provenance["source_media"]["acquisition"][
+        "source_media_url"
+    ] == case["acquisition"]["source_media_url"]
+    assert provenance["regeneration"] == manifest["regeneration"]
+    assert provenance["manifest"]["sha256"] == _sha256(RAW_MODE_MANIFEST)
+
+    source_document = ROOT / manifest["source_document"]
+    assert provenance["source_document"] == {
+        "path": manifest["source_document"],
+        "sha256": _sha256(source_document),
+    }
+    assert provenance["human_truth"]["sha256"] == _sha256(source_document)
+    assert provenance["derived_frames"]["committed"] is True
+    assert not any(
+        path.suffix.lower() in {".mp4", ".mov", ".webm", ".ogv"}
+        for path in case_directory.rglob("*")
+    )
+    for relative, expected_hash in provenance["artifacts"].items():
+        artifact = case_directory / relative
+        assert artifact.is_file()
+        if artifact.suffix.lower() in {".json", ".md", ".txt"}:
+            assert _sha256(artifact) == expected_hash
+        else:
+            assert hashlib.sha256(artifact.read_bytes()).hexdigest() == (
+                expected_hash
+            )
