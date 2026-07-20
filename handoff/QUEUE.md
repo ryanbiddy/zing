@@ -549,3 +549,9 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 - **C-S6:** suite-smoke eval half — cross-product flow assertions + contract conformance fixtures.
 - **S5 defects:** D-11 (doctor/ingest yt-dlp resolution mismatch — B), D-12 (PackError discards per-ref causes — A), D-13 (doctor re-prescribes applied config — B), O-3 observation (caption-style-from-sparse-OCR — C eval note).
 - **FIX SPRINT (Lanes B+D, TOP PRIORITY):** suite-split FINAL-REVIEW\FINAL-FIXLIST.md — Lane B: FF-2 (docs honest re pre-launch), FF-8 zing boundary, FF-9 zing-surface P2s. Lane D: FF-6 (suite CONNECT one-pager, reassigned from AG) + FF-2 doc support. P1/P2 clear before the Decision Week packet.
+
+## LANE D RETIRED (Ryan, 2026-07-19) — all remaining Lane D work moves to Lane C (Codex)
+AG delivered its early research but went silent on three committed items (FR-AG collateral lens, S6-AG docs QA, FF-6 one-pager — the latter written by the orchestrator). Lane D is dormant; do not wait on it.
+- **C-D12 (was D-Q12):** REFERENCE-CANDIDATES.md re-verification — 2 of 3 sampled entries were stale/misattributed; re-verify all rows by live fetch, fix or replace, note method.
+- **C-CD1 (was CD-Q1 Lane D half):** source ONE genuinely unedited talking-head clip (verify by eye + document license/provenance) to replace the F-16 stand-in, then complete the refreeze with raw_mode provenance and hand Lane B the full-fidelity direction rerun.
+- **C-D-any:** any remaining Lane D slices in the FF-9 tail or standing-generator rotation — absorb them.
