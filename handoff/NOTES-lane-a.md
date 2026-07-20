@@ -1016,3 +1016,25 @@
     fix stand. Two causes, one symptom, different remedies
     (quota -> local-gate mode; missing trigger -> force-push). Do not
     conflate them when triaging a stuck PR.
+
+- **2026-07-19 (Lane A): audited our own min_scene_len against SHOT's
+  primary annotations — the tuning is now MEASURED, and it carries a
+  cost we had never stated.** Full note:
+  handoff/research/SHOT-THRESHOLD-AUDIT-2026-07-19.md. The videos are
+  Drive-hosted (so the real detector precision/recall evaluation
+  stays OPEN), but the frame-level annotations are public, which is
+  enough to audit the threshold. On 344 usable videos / 6,245 shots:
+  the 0.6s-equivalent default would merge **13.5%** of real
+  short-form shots — validating the lowered floor with a number — but
+  our 0.3s floor STILL merges **4.7%**, meaning Zing's cut rate is a
+  slight UNDER-count on fast-montage content BY CONSTRUCTION. That
+  residual was invisible before; shots.py's docstring now states it
+  and cites the measurement instead of asserting the rationale.
+  Honest accounting of the source file (it is messier than its
+  headline): 738 headers / 648 unique names / 304 with no frame count
+  (excluded) / 1 malformed line. It is a SUBSET, not the 853-video
+  corpus — the README figure my citation audit verified describes the
+  full Drive dataset; both are true and they are different things.
+  Also on the record: my first pass reported "5 headers without
+  counts" — that was an artifact of slicing my own debug list to 5,
+  not the data. Caught it because the totals would not reconcile.

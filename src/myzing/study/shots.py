@@ -2,11 +2,15 @@
 
 Detector choice (R1-A, evidence over defaults): PySceneDetect
 AdaptiveDetector — best PySceneDetect F1 on the only short-form benchmark
-(AutoShot SHOT: 73.86 vs 69.26 ContentDetector) — with `min_scene_len`
-lowered to ~0.3s because the 0.6s-equivalent default silently merges real
-montage cuts (SHOT avg shot length is 2.59s). Known blind spots, recorded
-rather than hidden: gradual transitions under-detected, flash/strobe edits
-can over-cut. S2 upgrade path is transnetv2-pytorch behind this same
+(AutoShot SHOT: 73.86 vs 69.26 ContentDetector; the paper reports SHOT's
+average shot length as 2.59s) — with `min_scene_len` lowered to ~0.3s.
+That floor is now MEASURED against SHOT's published annotations rather
+than asserted (handoff/research/SHOT-THRESHOLD-AUDIT-2026-07-19.md, 344
+videos / 6,245 shots): the 0.6s-equivalent default would merge 13.5% of
+real short-form shots, and our 0.3s floor still merges 4.7% — so Zing's
+cut rate is a slight UNDER-count on fast-montage content, by construction.
+Other blind spots, recorded rather than hidden: gradual transitions
+under-detected, flash/strobe edits can over-cut. S2 upgrade path is transnetv2-pytorch behind this same
 function.
 
 scenedetect is an optional [study] dependency and is imported lazily; when
