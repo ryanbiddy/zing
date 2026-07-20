@@ -2098,3 +2098,26 @@
   figures were unverifiable by anyone but them; now any lane can check
   them in ten seconds. That is the review loop doing what it is for.
   Suite 1025 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-3 pass — `_run_study` 107→69 lines, and
+  naming one condition made it testable.** The worker-thread body held
+  three unrelated concerns: engine-kwargs assembly, the heartbeat
+  lifecycle, and contract §7's engagement receipt. Extracted
+  `_study_kwargs` and `_record_engagement_if_earned`, plus — the piece
+  that mattered — `_earned_kept_media_receipt`, which gives a NAME to a
+  five-clause guard that was previously an anonymous `if` buried in a
+  background thread.
+  Why that clause deserves a name: a §7 receipt asserts "this user
+  opened kept media that we verified". Each of the five conditions is a
+  distinct way that claim could be UNEARNED — refetched instead of
+  kept, refetch flag set, missing hash, missing source_ref, wrong
+  type. Anonymous inside a worker, it was effectively untestable; named,
+  it took six lines of test to prove that a partial or hand-written
+  provenance block mints NOTHING. An engagement event is a claim about
+  a user made to another product; minting one from unverified
+  provenance would be the quiet dishonesty this whole codebase exists
+  to avoid.
+  Zero behaviour change: 1025 passed with no test edited, then 1030
+  with the new ones. Third extraction this session where the payoff was
+  testability rather than length (probe_uoink, resolve_kept_media, now
+  this) — the pattern is that a condition worth a comment is usually a
+  condition worth a function.
