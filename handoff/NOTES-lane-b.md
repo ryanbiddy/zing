@@ -1998,3 +1998,31 @@
   Not changed: the <3.14 ceiling is upstream's. Zing supporting 3.10+
   while an OPTIONAL provider supports 3.10-3.13 is legitimate — honest
   degradation is the entire point of the optional tier. Suite 1005.
+- **2026-07-20 (Lane B): SG-5 pass (rotation) — BUILT rather than
+  proposed, because the evidence was a defect that already shipped.**
+  Last cycle's false-ready traced to a constraint that lived ONLY in a
+  test skip reason. The generalization was too cheap to leave on the
+  shelf: `tests/test_skip_registry.py` now requires every authored skip
+  to be REGISTERED with (a) why it is legitimate and (b) WHERE the
+  product surfaces the same fact — or an explicit note that it needs
+  none. Two gates: unregistered skips fail, and stale registry entries
+  fail too (a registry that outlives its skips is its own kind of lie).
+  It found more than I knew about immediately: I had enumerated 2 skips
+  from the suite's -rs output, but the STATIC scan found 5 authored
+  reasons plus 5 importorskip modules — the runtime report only shows
+  skips that actually fired on THIS host, so the ones that fire
+  elsewhere (ffmpeg-unavailable, the Windows branch, faster_whisper)
+  were invisible to me. That gap is the same shape as the bug it came
+  from: the visible surface under-reported the real set.
+  Filling the registry was itself the exercise working — writing
+  "PRODUCT SURFACE:" for each one forced the question. All five have an
+  honest answer (doctor's required-ffmpeg check, the render-extras
+  envelope, serve-mcp's exit-2, the new kokoro importability check, and
+  one platform detail that legitimately needs no surface).
+  Self-inflicted, caught by the timeout: my first draft shelled out to
+  pytest to read real SKIPPED lines — which RECURSED, because the suite
+  runs this file which ran the suite, and hung for ten minutes. Static
+  AST reading is both correct for authored skips and vastly cheaper. A
+  test that runs the test suite is a design smell I should have seen
+  before writing it, not after a ten-minute wall-clock lesson.
+  Suite 1007 passed / 2 skipped.
