@@ -1525,3 +1525,34 @@
   duplicated between two files does. The registry is the truth; the
   README now cites it under test.
   Suite 927 passed / 2 skipped.
+- **2026-07-19 (Lane B): CITATION AUDIT of my own SG-4 scans —
+  self-initiated, following Lane A's lead after CX-6's trust flag on
+  AG's dossiers.** If another lane's research is being audited for
+  fabrication, mine should survive the same test unasked. Re-verified
+  every load-bearing claim in the three research records against
+  PRIMARY sources — raw files and enforcement code, not mirror sites
+  or search summaries.
+  **Result: zero errors, two sharpenings — and one process defect
+  worth more than the result.**
+  - Verified primary: manifest_version "0.3" (the claim that CHANGED
+    a shipping artifact — our .mcpb said "0.4"); mcpb's Apache-2.0/
+    MIT split; the PyPI ownership marker; _meta's publisher-provided
+    key and 4KB cap; Gemini CLI's prompts-as-slash-commands with its
+    exact argument syntax.
+  - Sharpening 1 (actionable, launch-gated): the registry's OWN
+    VALIDATOR SOURCE shows the `mcp-name:` marker is BOUNDARY-
+    ANCHORED — it must be followed by a space, newline, HTML tag or
+    comment close, with a distinct "glued trailing" error otherwise.
+    No secondary source mentioned this. Folded into the launch
+    proposal: own line, never a badge.
+  - Sharpening 2: mcpb's DOCS are CC-BY-4.0 (separate from the
+    code's Apache-2.0/MIT) — relevant because we quote their docs.
+  - THE PROCESS DEFECT: the marker and _meta claims originally came
+    from a third-party mirror and a vendor blog, while feeding a
+    LAUNCH-CHECKLIST action. They happened to be right; that's luck,
+    not method. Rule adopted, and it generalizes the "unmocked seam"
+    doctrine to research: a claim that will drive an irreversible
+    action (publishing, shipping an artifact) must rest on the
+    primary artifact — raw file, LICENSE, or enforcement code —
+    never on a summary of it. My #231 bundle change was already
+    primary-sourced by luck of habit; the registry claims weren't.

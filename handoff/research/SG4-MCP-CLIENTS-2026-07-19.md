@@ -23,6 +23,9 @@ against primary sources this cycle (live).
 
 ## Sources
 
-- https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html
+- gemini-cli `docs/tools/mcp-server.md` (raw, re-fetched at the
+  2026-07-19 citation audit — the prompts-as-slash-commands claim was
+  originally taken from a SEARCH SUMMARY; the repo's own doc confirms it
+  verbatim, including the `/cmd --arg="value"` and positional forms)
 - https://github.com/google-gemini/gemini-cli/pull/4828
 - https://learn.chatgpt.com/docs/extend/mcp?surface=cli
