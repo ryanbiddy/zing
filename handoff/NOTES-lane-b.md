@@ -1556,3 +1556,34 @@
     primary artifact — raw file, LICENSE, or enforcement code —
     never on a summary of it. My #231 bundle change was already
     primary-sourced by luck of habit; the registry claims weren't.
+- **2026-07-20 (Lane B): SG-5 pass (rotation; freeze — handoff-only,
+  zero code).** Probed the live uoink on this box read-only and got
+  better evidence than any doc: `/ping` answers 200 UNAUTHENTICATED
+  with `{"version": "3.6.0"}`, while `/.well-known/suite-service.json`
+  — which contract §3.5 says is PUBLIC — answers **403 missing or
+  invalid token**. Two things filed from one probe:
+  - PROPOSAL (with refutation): on the manifest-failure path only,
+    read the legacy `/ping` and name the peer's VERSION in the error,
+    turning P1-1's dead end ("update it" told to someone already on
+    the newest release) into "uoink 3.6.0 is running but serves no
+    suite manifest — this build predates the suite integration". The
+    refutation is real and I did not talk myself out of it: §4 caps a
+    user action at one discovery probe, and whether a failure-path
+    diagnostic counts is the ORCHESTRATOR's ruling, not mine. What
+    makes it survive anyway: the loud instance is transient (uoink's
+    rebuild closes it) but version skew between independently
+    installed local apps is PERMANENT — P1-1 is the first sighting of
+    a forever-class. Zero code until the freeze lifts AND the §4
+    question is ruled.
+  - CROSS-PRODUCT OBSERVATION to uoink/Codex: if the REBUILT uoink
+    also token-gates the manifest, zing will report contract_mismatch
+    against a perfectly healthy peer — precisely the false-negative
+    §8 exists to prevent. My probe fetches the manifest without a
+    credential BECAUSE §3.3 forbids requiring one for discovery.
+    Asked them to confirm the new build serves manifest + health
+    unauthenticated. No zing change proposed; theirs to answer.
+  Method note: this is the primary-source rule from last cycle's
+  citation audit applied to a PEER — I probed the running service
+  instead of reasoning from the review's description of it, and the
+  403-not-404 detail (which changes the diagnosis) only exists
+  because of that.
