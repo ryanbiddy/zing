@@ -368,7 +368,9 @@ def test_thin_caption_style_basis_warns(media):
 
     assert result.edl.captions
     assert any(
-        "caption style measured from only 13" in w and "guess" in w
+        "13 on-screen text event(s)" in w
+        and "thin basis" in w
+        and "guess" in w
         for w in result.warnings
     )
 
@@ -447,7 +449,7 @@ def test_long_form_caption_style_basis_warns(media):
 
     assert any(
         "overlay exclusion is measured to under-fire" in w
-        and "verify the style against a frame" in w
+        and "verify it against a frame" in w
         for w in result.warnings
     )
 
@@ -467,3 +469,25 @@ def test_short_form_caption_style_does_not_get_the_long_form_warning(media):
     ]), media)
 
     assert not any("under-fire" in w for w in result.warnings)
+
+
+def test_both_caption_style_risks_produce_one_warning_naming_both(media):
+    """They were two warnings until both fired on one draft with
+    overlapping text — redundant noise in the list judging AIs read
+    first. One warning now, naming every risk that applies."""
+    from myzing.schemas import CaptionEvent, Word
+
+    b = make_breakdown(duration=430.0)          # long-form AND
+    b.words = [Word("hi", 5.0, 5.3, 0.9), Word("there", 5.4, 5.7, 0.9)]
+    b.captions = [                              # thin basis
+        CaptionEvent(f"x{i}", i * 1.0, i * 1.0 + 0.5, "center", True, 1, 0.9)
+        for i in range(8)
+    ]
+
+    result = draft_edl(b, direction_with([
+        {"start": 4.5, "end": 8.0, "why": "x"},
+    ]), media)
+
+    style = [w for w in result.warnings if "caption style" in w]
+    assert len(style) == 1, f"expected one merged warning, got {style}"
+    assert "under-fire" in style[0] and "thin basis" in style[0]

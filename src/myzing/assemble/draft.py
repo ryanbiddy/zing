@@ -129,35 +129,13 @@ def draft_edl(
     if output_warning:
         warnings.append(output_warning)
     captions = _caption_specs(breakdown, clips)
-    # O-3 (S5 gate): style measured from a handful of on-screen text
-    # events (which may be overlays/junk, not speech captions) styled
-    # every derived caption — defensible, but a thin basis deserves a
-    # warning the way thin profile stats get one.
-    # Long-form counterpart to the thin-basis warning below. MEASURED,
-    # not inferred: on recordings past the short-form boundary the
-    # overlay exclusion in captions.py effectively cannot fire (see its
-    # MEASURED LIMIT note), so `captions[]` may carry watermarks, HUD
-    # and score counters — a 430s cell yielded 1,882 entries with ZERO
-    # real captions. The prompt layer now tells a directing AI to check
-    # this with its eyes; `zing assemble` runs with no AI in the loop,
-    # so the warning has to come from here too.
-    if captions and breakdown.captions and (
-        breakdown.meta.duration > formats.SHORT_FORM_MAX_S
-    ):
+    style_risks = _caption_style_risks(breakdown)
+    if captions and style_risks:
         warnings.append(
-            "draft EDL: caption style derived from "
-            f"{len(breakdown.captions)} on-screen text event(s) on a "
-            f"{breakdown.meta.duration:.0f}s recording — past "
-            f"{formats.SHORT_FORM_MAX_S:.0f}s the overlay exclusion is "
-            "measured to under-fire, so this basis may include "
-            "watermarks or HUD text; verify the style against a frame"
-        )
-    if captions and 0 < len(breakdown.captions) < THIN_STYLE_BASIS_EVENTS:
-        warnings.append(
-            f"draft EDL: caption style measured from only "
-            f"{len(breakdown.captions)} on-screen text event(s) — possibly "
-            f"non-caption text — and applied to {len(captions)} derived "
-            "caption(s); treat style as a guess, not a measurement"
+            f"draft EDL: caption style came from {len(breakdown.captions)} "
+            f"on-screen text event(s) and was applied to {len(captions)} "
+            f"derived caption(s) — {'; '.join(style_risks)}. Treat the "
+            "style as a guess and verify it against a frame"
         )
     if not captions and breakdown.words:
         warnings.append(
@@ -236,6 +214,40 @@ def _output_dimensions(
         "in the breakdown"
     )
     return width, height, warning
+
+
+
+def _caption_style_risks(breakdown: Breakdown) -> list[str]:
+    """Reasons the measured caption style may not describe real captions.
+
+    These were two separate warnings until both fired on one draft with
+    overlapping text — redundant noise in the list judging AIs are told
+    to read FIRST, which trains exactly the skimming the list exists to
+    prevent. One warning, naming whichever risks apply.
+    """
+    risks: list[str] = []
+    count = len(breakdown.captions)
+    if not count:
+        return risks
+    if breakdown.meta.duration > formats.SHORT_FORM_MAX_S:
+        # MEASURED, not inferred: past the short-form boundary the overlay
+        # exclusion in captions.py effectively cannot fire (see its MEASURED
+        # LIMIT note), so captions[] may carry watermarks, HUD and score
+        # counters — a 430s cell yielded 1,882 entries with ZERO real
+        # captions.
+        risks.append(
+            f"past {formats.SHORT_FORM_MAX_S:.0f}s the overlay exclusion is "
+            "measured to under-fire, so this basis may include watermarks "
+            "or HUD text"
+        )
+    if count < THIN_STYLE_BASIS_EVENTS:
+        # O-3 (S5 gate): a handful of events, which may be overlays rather
+        # than speech captions, styling every derived caption.
+        risks.append(
+            f"only {count} event(s) is a thin basis, possibly non-caption "
+            "text"
+        )
+    return risks
 
 
 def _caption_style(breakdown: Breakdown) -> tuple[str, bool, bool]:
