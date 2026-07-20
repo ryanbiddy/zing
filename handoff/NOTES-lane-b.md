@@ -2299,3 +2299,36 @@
   rather than think. It now derives the expected stamp from the
   shipped prompt.
   Suite 1053 passed / 2 skipped; wheel mirror re-synced (drift gate).
+- **2026-07-20 (Lane B): SG-4 — verified every install command zing
+  PRINTS, and found that one of them was mine and could never work.**
+  Record: research/SG4-INSTALL-COMMANDS-2026-07-20.md. Prompted by
+  CX-8's fabricated macOS guide: doctor's whole promise is "every
+  failing line prints the exact command that fixes it", so a wrong
+  command there is worse than none — the user trusts it and stops
+  looking.
+  Verified live on this box: `winget install Gyan.FFmpeg` resolves
+  (FFmpeg 8.1.2) and `winget install DenoLand.Deno` resolves (Deno
+  2.9.3). The pip extras check out against pyproject. The brew/apt
+  lines are unverifiable from Windows and the record SAYS so rather
+  than claiming them.
+  **THE DEFECT IS MINE, shipped last cycle in #324:** I told users to
+  run `pip install "myzing[render]"` to make kokoro-onnx importable.
+  `[render]` is pysubs2 alone, and **kokoro appears zero times in
+  pyproject** — the command cannot work. I wrote a fix that cannot be
+  followed while fixing a fix that could not be followed.
+  The correct facts existed ONE MODULE AWAY, in Lane C's provider
+  error: deliberately excluded because its runtime pulls
+  espeakng-loader; install separately on Python 3.10-3.13. I wrote a
+  parallel version instead of reading theirs — identical to the
+  TOKEN_LOCATION incompleteness, where another lane's text was more
+  correct than my code. **Rule I keep relearning and will now write
+  down: before composing advice about a subsystem, read what that
+  subsystem already says when it fails.**
+  Corrected, with two pins: doctor's advice must agree with the
+  provider's own error (package name + Python range), and no extra may
+  declare kokoro (so any future message prescribing one fails).
+  And my own test from #324 was pinning the broken command — sixth
+  pinned-message instance this session and the FIRST I authored. A pin
+  I write in the same commit as the message it pins proves only that I
+  was internally consistent, not that I was right.
+  Suite 1057 passed / 2 skipped.

@@ -283,5 +283,55 @@ def test_doctor_prescribes_the_runtime_not_the_download(monkeypatch, tmp_path):
     monkeypatch.delenv(tts_providers.ELEVENLABS_KEY_ENV, raising=False)
     check = doctor.check_tts()
     assert check.ok is False
-    assert 'myzing[render]' in check.fix
+    # I wrote this assertion one cycle ago pinning `myzing[render]` — a
+    # command that cannot install kokoro-onnx, because no extra contains
+    # it. The pin protected my own wrong advice for exactly one cycle.
+    # Sixth instance of the pinned-message trap this session.
+    assert "pip install kokoro-onnx" in check.fix
     assert "download the kokoro model files" not in check.fix
+
+
+def test_kokoro_advice_matches_the_providers_own_error(monkeypatch, tmp_path):
+    """SG-4: doctor prescribed `myzing[render]` to make kokoro-onnx
+    importable — but [render] is only pysubs2, so that command could
+    NEVER work. The correct facts already existed one module away, in
+    the provider's own ImportError: kokoro-onnx is deliberately outside
+    the extras (its runtime pulls espeakng-loader) and needs Python
+    3.10-3.13. I wrote a parallel version and got it wrong.
+
+    Pin the two surfaces to agree on the package name and the Python
+    range so they cannot drift apart again."""
+    import inspect
+    from pathlib import Path as _Path
+
+    from myzing import doctor
+    from myzing.render import tts as render_tts
+
+    provider_msg = inspect.getsource(render_tts.KokoroOnnxProvider)
+    assert "kokoro-onnx is not installed" in provider_msg
+    assert "3.10-3.13" in provider_msg
+
+    _kokoro_files_present(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        tts_providers.importlib.util, "find_spec", lambda name: None
+    )
+    fix = doctor.check_tts().fix
+    assert "pip install kokoro-onnx" in fix
+    assert "3.10-3.13" in fix
+    # the command that cannot work must never come back
+    assert "myzing[render]" not in fix
+
+
+def test_no_extra_actually_provides_kokoro_onnx():
+    """The claim the broken advice rested on, checked against the source
+    of truth: no declared extra installs kokoro-onnx, so any message
+    prescribing an extra for it is wrong by construction."""
+    from pathlib import Path as _Path
+
+    pyproject = (
+        _Path(__file__).resolve().parents[1] / "pyproject.toml"
+    ).read_text(encoding="utf-8")
+    assert "kokoro" not in pyproject, (
+        "kokoro-onnx is now declared in pyproject — update doctor's advice, "
+        "which currently tells users to install it separately"
+    )
