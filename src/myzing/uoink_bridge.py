@@ -10,8 +10,9 @@ tool answers honestly if called.
 
 Auth: uoink's local API requires its per-install token in the
 ``X-Uoink-Token`` header. Zing reads it from the ``UOINK_TOKEN`` env var
-and tells the user exactly where uoink keeps it (``token.txt`` next to
-uoink's server.py) when it's missing or rejected.
+and tells the user exactly where uoink keeps it — see ``TOKEN_LOCATION``,
+the one place that guidance is written (final review P3-3: "next to
+server.py" alone is meaningless to someone who installed the app).
 
 The full two-way integration (reading saved shorts from the corpus,
 profiles/shot-lists back) is the S6 sprint with its own contract doc —
@@ -43,6 +44,16 @@ _HANDOFF_MEDIA_KEYS = {"path", "media_type", "byte_length", "sha256"}
 _HANDOFF_ERROR_KEYS = {"ok", "contract", "version", "operation", "error"}
 
 
+# Where uoink keeps its per-install token, said ONCE (final review
+# P3-3). Doctor learned to name the installed-app path in #220; this
+# module kept three copies of the older source-checkout-only wording,
+# which is exactly how a fixed finding survives on a second surface.
+TOKEN_LOCATION = (
+    "installed app: %LOCALAPPDATA%/Uoink/token.txt; source checkout: "
+    "token.txt next to uoink's server.py"
+)
+
+
 def helper_url() -> str:
     return os.environ.get(UOINK_URL_ENV, "").strip() or UOINK_DEFAULT_URL
 
@@ -51,16 +62,20 @@ def _token() -> str:
     return os.environ.get(UOINK_TOKEN_ENV, "").strip()
 
 
+def _err(message: str, **extra: Any) -> dict[str, Any]:
+    """The house errors-as-data envelope (uoink house pattern, same shape
+    the MCP server returns). Hand-built literals were duplicated 15
+    times here before SG-3."""
+    return {"ok": False, "error": message, **extra}
+
+
 def _nonconformant(what: str) -> dict[str, Any]:
-    return {
-        "ok": False,
-        "error": (
-            f"uoink's kept-media response is not contract-conformant: {what} "
-            "(expected uoink.media.handoff v1, exact keys). This is version "
-            "drift, not absence — update uoink or zing so both speak "
-            "INTEGRATION-CONTRACT v1."
-        ),
-    }
+    return _err(
+        f"uoink's kept-media response is not contract-conformant: {what} "
+        "(expected uoink.media.handoff v1, exact keys). This is version "
+        "drift, not absence — update uoink or zing so both speak "
+        "INTEGRATION-CONTRACT v1."
+    )
 
 
 def resolve_kept_media(item_ref: str) -> dict[str, Any]:
@@ -74,27 +89,21 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     (§3.3: no credential means unconfigured, not an auth attempt).
     """
     if not isinstance(item_ref, str) or not item_ref.startswith(_ITEM_REF_PREFIX):
-        return {
-            "ok": False,
-            "error": (
-                "item_ref must be a uoink item reference like "
-                "'uoink://item/short-123' — never a file path (stable "
-                "references only; paths travel inside the handoff)"
-            ),
-        }
+        return _err(
+            "item_ref must be a uoink item reference like "
+            "'uoink://item/short-123' — never a file path (stable "
+            "references only; paths travel inside the handoff)"
+        )
     item_id = item_ref[len(_ITEM_REF_PREFIX):]
     if not item_id:
-        return {"ok": False, "error": "item_ref has an empty item id"}
+        return _err("item_ref has an empty item id")
     token = _token()
     if not token:
-        return {
-            "ok": False,
-            "error": (
-                f"no uoink credential configured: set {UOINK_TOKEN_ENV} to "
-                "uoink's per-install token (token.txt next to uoink's "
-                "server.py). Zing never reads uoink's token file itself."
-            ),
-        }
+        return _err(
+            f"no uoink credential configured: set {UOINK_TOKEN_ENV} to "
+            f"uoink's per-install token ({TOKEN_LOCATION}). Zing never "
+            "reads uoink's token file itself."
+        )
     url = (
         helper_url().rstrip("/")
         + "/api/corpus/v1/items/"
@@ -109,28 +118,21 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            return {
-                "ok": False,
-                "error": (
-                    f"uoink rejected the credential (HTTP {e.code}) — check "
-                    f"{UOINK_TOKEN_ENV} against uoink's token.txt"
-                ),
-            }
+            return _err(
+                f"uoink rejected the credential (HTTP {e.code}) — check "
+                f"{UOINK_TOKEN_ENV} against uoink's token ({TOKEN_LOCATION})"
+            )
         try:
             body = json.loads(e.read().decode("utf-8"))
         except (ValueError, OSError):
-            return {
-                "ok": False,
-                "error": f"uoink answered HTTP {e.code} — is your uoink up to date?",
-            }
+            return _err(
+                f"uoink answered HTTP {e.code} — is your uoink up to date?"
+            )
     except (urllib.error.URLError, OSError, ValueError):
-        return {
-            "ok": False,
-            "error": (
-                f"no uoink helper at {helper_url()} — is Uoink running? "
-                "Zing works fine without it; kept-media study needs it once."
-            ),
-        }
+        return _err(
+            f"no uoink helper at {helper_url()} — is Uoink running? "
+            "Zing works fine without it; kept-media study needs it once."
+        )
 
     if not isinstance(body, dict):
         return _nonconformant("response is not a JSON object")
@@ -144,11 +146,10 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
         err = body["error"]
         code = str(err.get("code", ""))
         message = str(err.get("message", ""))
-        return {
-            "ok": False,
-            "error": f"uoink could not resolve {item_ref}: {code} — {message}",
-            "code": code,
-        }
+        return _err(
+            f"uoink could not resolve {item_ref}: {code} — {message}",
+            code=code,
+        )
     if set(body) != _HANDOFF_TOP_KEYS or body.get("operation") != "resolve":
         return _nonconformant(f"envelope keys {sorted(body)}")
     data = body["data"]
@@ -189,19 +190,13 @@ def push_breakdown(slug: str) -> dict[str, Any]:
     try:
         storage.validate_slug(slug)  # F-02: slugs are caller input, never paths
     except storage.SlugError as e:
-        return {
-            "ok": False,
-            "error": f"invalid slug: {e} — use a slug from list_breakdowns()",
-        }
+        return _err(f"invalid slug: {e} — use a slug from list_breakdowns()")
     md_path = storage.breakdown_dir(slug) / "breakdown.md"
     if not md_path.is_file():
-        return {
-            "ok": False,
-            "error": (
-                f"no breakdown.md for slug '{slug}' — study the video first "
-                "(the markdown render is written when a study completes)"
-            ),
-        }
+        return _err(
+            f"no breakdown.md for slug '{slug}' — study the video first "
+            "(the markdown render is written when a study completes)"
+        )
     text = md_path.read_text(encoding="utf-8")
 
     title = f"Zing breakdown: {slug}"
@@ -230,33 +225,25 @@ def push_breakdown(slug: str) -> dict[str, Any]:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
-            return {
-                "ok": False,
-                "error": (
-                    "uoink rejected the push (auth). Set the "
-                    f"{UOINK_TOKEN_ENV} env var to uoink's per-install "
-                    "token — it lives in token.txt next to uoink's "
-                    "server.py — and restart zing serve-mcp."
-                ),
-            }
-        return {
-            "ok": False,
-            "error": f"uoink answered HTTP {e.code} — is your uoink up to date?",
-        }
+            return _err(
+                f"uoink rejected the push (auth). Set the {UOINK_TOKEN_ENV} "
+                f"env var to uoink's per-install token ({TOKEN_LOCATION}) "
+                "and restart zing serve-mcp."
+            )
+        return _err(
+            f"uoink answered HTTP {e.code} — is your uoink up to date?"
+        )
     except (urllib.error.URLError, OSError, ValueError):
-        return {
-            "ok": False,
-            "error": (
-                f"no uoink helper at {helper_url()} — is Uoink running? "
-                "Zing works fine without it; this push is optional."
-            ),
-        }
+        return _err(
+            f"no uoink helper at {helper_url()} — is Uoink running? "
+            "Zing works fine without it; this push is optional."
+        )
 
     if not isinstance(body, dict) or not body.get("ok"):
         error = "unknown error"
         if isinstance(body, dict):
             error = str(body.get("error") or error)
-        return {"ok": False, "error": f"uoink declined the note: {error}"}
+        return _err(f"uoink declined the note: {error}")
     return {
         "ok": True,
         "pushed": slug,

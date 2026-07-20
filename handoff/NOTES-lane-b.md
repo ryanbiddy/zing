@@ -1446,3 +1446,23 @@
   still call run_checks against the real environment (shape-only
   assertions, so benign today — same hermeticity class if they ever
   assert per-check values).
+- **2026-07-19 (Lane B): SG-3 pass (rotation; freeze) — and the
+  simplification uncovered a live P3-3 residue.** uoink_bridge held
+  15 hand-built `{"ok": False, "error": ...}` literals (the house
+  envelope the MCP server encapsulates in `_err`). Consolidating them
+  exposed why duplication matters beyond tidiness: THREE of those
+  literals still told users the token lives "next to uoink's
+  server.py" — the exact wording the final review's P3-3 called
+  meaningless to installed-app users. I fixed P3-3 in doctor.py at
+  #238 and believed it closed; it survived on two more user-reachable
+  surfaces (kept-media no-credential, push auth rejection) because
+  the guidance was copied, not shared. Now one TOKEN_LOCATION
+  constant serves every message, verified live, with three
+  regressions pinning the installed-app path on each surface plus an
+  envelope-shape contract test (ok False, non-empty single-line
+  error) that asserts the guarantee instead of trusting literals.
+  Observation, sharper than the usual dedup lesson: a duplicated
+  STRING is a duplicated PROMISE — fixing one copy closes the finding
+  only where you looked. When a review finding is about wording,
+  grep the whole lane for the wording, not just the cited file.
+  Bridge stays 100% covered; suite 920 passed / 2 skipped.
