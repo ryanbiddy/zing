@@ -426,3 +426,44 @@ def test_keeper_missing_start_key_is_an_error(media):
         draft_edl(make_breakdown(), direction_with([
             {"end": 9.0, "why": "no start"},
         ]), media)
+
+
+def test_long_form_caption_style_basis_warns(media):
+    """Counterpart to the thin-basis warning: past the short-form
+    boundary the overlay exclusion is MEASURED to under-fire, so a big
+    caption basis may be watermarks and HUD. zing assemble runs with no
+    AI in the loop, so the warning must come from the engine."""
+    from myzing.schemas import CaptionEvent, Word
+
+    b = make_breakdown(duration=430.0)
+    b.words = [Word("hi", 5.0, 5.3, 0.9), Word("there", 5.4, 5.7, 0.9)]
+    b.captions = [
+        CaptionEvent(f"TOP RUN {i}", i * 1.0, i * 1.0 + 0.5, "center", True, 2, 0.9)
+        for i in range(40)
+    ]
+    result = draft_edl(b, direction_with([
+        {"start": 4.5, "end": 8.0, "why": "x"},
+    ]), media)
+
+    assert any(
+        "overlay exclusion is measured to under-fire" in w
+        and "verify the style against a frame" in w
+        for w in result.warnings
+    )
+
+
+def test_short_form_caption_style_does_not_get_the_long_form_warning(media):
+    from myzing.schemas import CaptionEvent, Word
+
+    b = make_breakdown(duration=45.0)
+    b.words = [Word("hi", 5.0, 5.3, 0.9)]
+    b.captions = [
+        CaptionEvent(f"WORD {i}", i * 1.0, i * 1.0 + 0.5, "lower", False, 1, 0.9)
+        for i in range(40)
+    ]
+
+    result = draft_edl(b, direction_with([
+        {"start": 4.5, "end": 8.0, "why": "x"},
+    ]), media)
+
+    assert not any("under-fire" in w for w in result.warnings)

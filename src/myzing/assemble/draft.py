@@ -22,6 +22,7 @@ from typing import Any
 
 from myzing import storage
 from myzing.schemas import Breakdown, CaptionSpec, Clip, EDL, Word
+from myzing.study import formats
 
 MIN_CLIP_S = 0.2
 KEEPER_MATCH_TOLERANCE_S = 0.35
@@ -132,6 +133,25 @@ def draft_edl(
     # events (which may be overlays/junk, not speech captions) styled
     # every derived caption — defensible, but a thin basis deserves a
     # warning the way thin profile stats get one.
+    # Long-form counterpart to the thin-basis warning below. MEASURED,
+    # not inferred: on recordings past the short-form boundary the
+    # overlay exclusion in captions.py effectively cannot fire (see its
+    # MEASURED LIMIT note), so `captions[]` may carry watermarks, HUD
+    # and score counters — a 430s cell yielded 1,882 entries with ZERO
+    # real captions. The prompt layer now tells a directing AI to check
+    # this with its eyes; `zing assemble` runs with no AI in the loop,
+    # so the warning has to come from here too.
+    if captions and breakdown.captions and (
+        breakdown.meta.duration > formats.SHORT_FORM_MAX_S
+    ):
+        warnings.append(
+            "draft EDL: caption style derived from "
+            f"{len(breakdown.captions)} on-screen text event(s) on a "
+            f"{breakdown.meta.duration:.0f}s recording — past "
+            f"{formats.SHORT_FORM_MAX_S:.0f}s the overlay exclusion is "
+            "measured to under-fire, so this basis may include "
+            "watermarks or HUD text; verify the style against a frame"
+        )
     if captions and 0 < len(breakdown.captions) < THIN_STYLE_BASIS_EVENTS:
         warnings.append(
             f"draft EDL: caption style measured from only "
