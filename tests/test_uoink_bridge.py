@@ -466,3 +466,41 @@ def test_doctor_and_bridge_share_one_token_location(monkeypatch):
     check = doctor.check_uoink()
     doctor._peer_cache.clear()
     assert uoink_bridge.TOKEN_LOCATION in check.fix
+
+
+# -- SG-3: the contract rules, exercised directly ----------------------------
+
+@pytest.mark.parametrize("mutate,expect", [
+    (lambda b: b.__setitem__("contract", "wrong"), "contract="),
+    (lambda b: b.__setitem__("version", 2), "version="),
+    (lambda b: b.__setitem__("operation", "read"), "envelope keys"),
+    (lambda b: b.__setitem__("extra", 1), "envelope keys"),
+    (lambda b: b["data"].pop("provenance"), "data keys"),
+    (lambda b: b["data"].__setitem__("state", "sideways"), "unknown state"),
+    (lambda b: b["data"].__setitem__("source_url", "file:///c/x.mp4"), "source_url"),
+    (lambda b: b["data"]["media"].pop("sha256"), "media keys"),
+], ids=["contract", "version", "operation", "extra-key", "data-keys",
+        "state", "file-url", "media-keys"])
+def test_handoff_defect_names_each_contract_violation(mutate, expect):
+    """The extraction's whole point: §6.1's rules are now exercisable
+    WITHOUT a fake HTTP layer standing between the test and the rule."""
+    body = handoff_body()
+    mutate(body)
+    defect = uoink_bridge.handoff_defect(body)
+    assert defect is not None and expect in defect
+
+
+def test_handoff_defect_accepts_every_legal_state():
+    assert uoink_bridge.handoff_defect(handoff_body()) is None
+    for state in ("not_kept", "missing"):
+        assert uoink_bridge.handoff_defect(
+            handoff_body(state=state, media=None)
+        ) is None
+    assert uoink_bridge.handoff_defect(
+        handoff_body(state="not_kept", media=None, source_url=None)
+    ) is None
+
+
+def test_handoff_defect_rejects_non_objects():
+    for bad in (None, [], "text", 7):
+        assert uoink_bridge.handoff_defect(bad) is not None

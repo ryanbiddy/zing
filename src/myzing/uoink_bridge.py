@@ -84,6 +84,56 @@ def _nonconformant(what: str) -> dict[str, Any]:
     )
 
 
+def handoff_error_defect(body: Any) -> str | None:
+    """Exact-shape check for a `uoink.media.handoff` v1 ERROR envelope."""
+    if set(body) != _HANDOFF_ERROR_KEYS or not isinstance(body.get("error"), dict):
+        return f"error envelope keys {sorted(body)}"
+    return None
+
+
+def handoff_defect(body: Any) -> str | None:
+    """Exact-shape §6.1 validation of a SUCCESS handoff envelope.
+
+    Pure: returns the first defect or None, mirroring the validator
+    pattern `suite_peer` already uses (`lease_defect`,
+    `_manifest_defect`, `_health_defect`). Keeping validation separate
+    from transport means the contract rules can be exercised directly,
+    without a fake HTTP layer standing between the test and the rule.
+    """
+    if not isinstance(body, dict):
+        return "response is not a JSON object"
+    if body.get("contract") != "uoink.media.handoff" or body.get("version") != 1:
+        return (
+            f"contract={body.get('contract')!r} version={body.get('version')!r}"
+        )
+    if set(body) != _HANDOFF_TOP_KEYS or body.get("operation") != "resolve":
+        return f"envelope keys {sorted(body)}"
+    data = body["data"]
+    if not isinstance(data, dict) or set(data) != _HANDOFF_DATA_KEYS:
+        return "data keys " + str(
+            sorted(data) if isinstance(data, dict) else type(data).__name__
+        )
+    state = data.get("state")
+    if state not in ("available", "not_kept", "missing"):
+        return f"unknown state {state!r}"
+    source_url = data.get("source_url")
+    # FF-8 (final review, contract §5): a cross-product source_url is
+    # null or HTTP(S) — a file:// or filesystem-shaped value here would
+    # turn "refetch from the source" into a local file read.
+    if source_url is not None and (
+        not isinstance(source_url, str)
+        or not source_url.lower().startswith(("http://", "https://"))
+    ):
+        return f"source_url must be null or an HTTP(S) URL, got {source_url!r}"
+    media = data.get("media")
+    if state == "available":
+        if not isinstance(media, dict) or set(media) != _HANDOFF_MEDIA_KEYS:
+            return "media keys for state=available"
+    elif media is not None:
+        return f"state={state} with non-null media"
+    return None
+
+
 def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     """Resolve a uoink item reference to its kept-media handoff.
 
@@ -140,15 +190,12 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
             "Zing works fine without it; kept-media study needs it once."
         )
 
-    if not isinstance(body, dict):
-        return _nonconformant("response is not a JSON object")
-    if body.get("contract") != "uoink.media.handoff" or body.get("version") != 1:
-        return _nonconformant(
-            f"contract={body.get('contract')!r} version={body.get('version')!r}"
-        )
-    if body.get("ok") is False:
-        if set(body) != _HANDOFF_ERROR_KEYS or not isinstance(body.get("error"), dict):
-            return _nonconformant(f"error envelope keys {sorted(body)}")
+    if isinstance(body, dict) and body.get("ok") is False:
+        # A conformant ERROR envelope is a legitimate answer, not drift —
+        # it carries uoink's own stable code, which the caller deserves.
+        defect = handoff_error_defect(body)
+        if defect is not None:
+            return _nonconformant(defect)
         err = body["error"]
         code = str(err.get("code", ""))
         message = str(err.get("message", ""))
@@ -156,35 +203,10 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
             f"uoink could not resolve {item_ref}: {code} — {message}",
             code=code,
         )
-    if set(body) != _HANDOFF_TOP_KEYS or body.get("operation") != "resolve":
-        return _nonconformant(f"envelope keys {sorted(body)}")
-    data = body["data"]
-    if not isinstance(data, dict) or set(data) != _HANDOFF_DATA_KEYS:
-        return _nonconformant(
-            "data keys "
-            + str(sorted(data) if isinstance(data, dict) else type(data).__name__)
-        )
-    state = data.get("state")
-    if state not in ("available", "not_kept", "missing"):
-        return _nonconformant(f"unknown state {state!r}")
-    source_url = data.get("source_url")
-    # FF-8 (final review, contract §5): a cross-product source_url is
-    # null or HTTP(S) — a file:// or filesystem-shaped value here would
-    # turn "refetch from the source" into a local file read.
-    if source_url is not None and (
-        not isinstance(source_url, str)
-        or not source_url.lower().startswith(("http://", "https://"))
-    ):
-        return _nonconformant(
-            f"source_url must be null or an HTTP(S) URL, got {source_url!r}"
-        )
-    media = data.get("media")
-    if state == "available":
-        if not isinstance(media, dict) or set(media) != _HANDOFF_MEDIA_KEYS:
-            return _nonconformant("media keys for state=available")
-    elif media is not None:
-        return _nonconformant(f"state={state} with non-null media")
-    return {"ok": True, "data": data}
+    defect = handoff_defect(body)
+    if defect is not None:
+        return _nonconformant(defect)
+    return {"ok": True, "data": body["data"]}
 
 
 def push_breakdown(slug: str) -> dict[str, Any]:

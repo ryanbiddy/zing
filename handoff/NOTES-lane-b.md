@@ -1944,3 +1944,30 @@
   from memory of a module instead of from the module.
   Remaining 8 misses are that unreachable defence-in-depth branch and
   Windows PermissionError retry timing. Suite 992 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-3 pass (rotation) — the bridge's contract
+  validation extracted into pure validators, matching suite_peer's
+  pattern.** Measured every function in the lane first rather than
+  guessing: `resolve_kept_media` was 102 lines mixing TRANSPORT with
+  §6.1 VALIDATION, while suite_peer had already settled on pure
+  `*_defect(payload) -> str | None` validators (lease_defect,
+  _manifest_defect, _health_defect). Same concern, two styles, one
+  module apart. Extracted `handoff_defect` and
+  `handoff_error_defect`; resolve_kept_media is now 74 lines of
+  transport that asks a validator.
+  The payoff is testability, not line count: 11 new tests exercise
+  §6.1's rules DIRECTLY — wrong contract, wrong version, wrong
+  operation, extra key, missing data key, unknown state, a file:// in
+  source_url (FF-8's rule), missing media key — with no fake HTTP
+  layer standing between the test and the rule. Previously every one
+  of those required staging a fake response.
+  Self-inflicted bug, caught by tests in seconds and worth recording:
+  my extraction script deduplicated `data = body["data"]` and removed
+  the one the RETURN needed, because the new block's last line and the
+  old tail's first line were identical and adjacent. A textual dedup
+  cannot see which of two identical lines is load-bearing — that is
+  what the AST-identity check I used for the indentation cleanup
+  would have caught, and I did not use it here because this change
+  DOES alter the AST. The honest lesson: for behaviour-changing
+  refactors the safety net is the test suite, so run it before
+  believing the diff.
+  Suite 1002 passed / 2 skipped (first four-figure count).
