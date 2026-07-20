@@ -19,8 +19,14 @@ headline suggests:
 - 738 header lines, **648 unique** video names (90 names repeat).
 - **304 headers carry no frame count**; without a video length the
   final shot cannot be bounded, so those are EXCLUDED.
-- 1 malformed annotation line (`568,,569` — a double-comma typo),
-  parsed tolerantly.
+- **5 malformed annotation lines** (CORRECTED 2026-07-20: the note
+  first said 1, having stopped at the first example. Writing the
+  regeneration script surfaced the real count — exactly what a
+  regeneration command is for). They are two double-comma typos
+  (`568,,569`, `1375,,1376`) and three trailing-comma lines
+  (`178,179,`, `232,233,`, `1952,1953,`). All five carry two
+  unambiguous frame numbers, so they are parsed tolerantly rather
+  than dropped; none of the reported figures change.
 - Usable subset: **344 videos, 6,245 derived shots.**
 
 So this measures a third of the corpus, not all 853 videos. The
@@ -28,6 +34,10 @@ README's "853 complete short videos and 11,606 shot annotations"
 describes the full dataset behind the Drive link; the repo file is a
 subset. Both are true — they are different things, and the earlier
 citation audit's verification of the README figure stands.
+
+Regeneration: `python handoff/research/shot_threshold_audit.py
+[path/to/kuaishou_v2.txt]` (stdlib only; fetches the annotation file
+if no path is given). Every figure below is reproduced by that script.
 
 ## Result (frames — assumption-free)
 
