@@ -495,3 +495,41 @@ def test_both_caption_style_risks_produce_one_warning_naming_both(media):
     style = [w for w in result.warnings if "caption style" in w]
     assert len(style) == 1, f"expected one merged warning, got {style}"
     assert "under-fire" in style[0] and "thin basis" in style[0]
+
+
+def test_word_timed_is_corrupted_by_non_caption_text_documented(media):
+    """DOCUMENTED DEFECT, pinned so it stays visible (queued fix:
+    region-merge item). Single-token NON-caption text — product labels,
+    HUD, price tags — dominates the words_visible mode and flips
+    word_timed to True even when the real captions are phrases.
+
+    Measured on youtube-fuxm3vz-keo (38s, frame-verified phrase
+    captions, 42 single-token product-image events): style comes back
+    word_timed=True, and NEITHER guard fires because the basis is large
+    and the video is short. Filtering to speech-overlapping events was
+    tested and does NOT fix it (84/86 events survive).
+
+    If a future change fixes this, update this test to assert
+    word_timed is False for the mixed case.
+    """
+    from myzing.schemas import CaptionEvent, Word
+
+    b = make_breakdown(duration=38.0)
+    b.words = [Word("samsung", 1.0, 1.4, 0.9), Word("debate", 1.5, 1.9, 0.9)]
+    b.captions = (
+        # the real captions: phrases
+        [CaptionEvent(f"PHRASE {i} HERE", i * 2.0, i * 2.0 + 1.0, "center", True, 3, 0.9)
+         for i in range(10)]
+        # product-image text: single tokens, more numerous
+        + [CaptionEvent(f"Pro{i}", i * 0.5, i * 0.5 + 0.3, "top", False, 1, 0.9)
+           for i in range(20)]
+    )
+
+    result = draft_edl(b, direction_with([
+        {"start": 0.5, "end": 8.0, "why": "x"},
+    ]), media)
+
+    assert result.edl.captions[0].word_timed is True   # the documented defect
+    assert not any("caption style" in w for w in result.warnings), (
+        "neither guard fires here — that absence is the point of this test"
+    )

@@ -126,6 +126,28 @@ the bottom but never claim outside their lane.
   regression fixture — the failure is already reproducible offline,
   so whoever takes it starts with a red test rather than a
   description. NOT to be attempted as a quiet tweak.
+  IMPACT WIDENED (2026-07-20, second trace): the corruption is NOT
+  long-form-only, and it hits a second style field. On
+  `youtube-fuxm3vz-keo` — a **38s** short — `_caption_style` returns
+  word_timed=TRUE while the video's captions are phrases
+  ("SAMSUNG DEBATE IS", frame-verified). Its 42 single-token OCR
+  events are product-image text ("Pro", "6500mAh", "HONOR") that the
+  P-C2 labels mark incidental; they dominate the words_visible mode
+  and flip the style. **Neither existing guard fires**: 86 events is
+  above the thin-basis floor and 38s is below the long-form
+  threshold. So a draft from this video gets word-by-word captions
+  when the source uses phrases.
+  REFUTED FIX (measured, do not retry blind): filtering caption
+  events to those overlapping measured speech does NOT help — 84 of
+  86 events survive the filter because the product images are on
+  screen WHILE the creator talks, and the style does not change.
+  TENSION worth naming for whoever takes this: widening the
+  caption-style warning to cover this case means firing it whenever
+  style is derived at all, which is the always-fires pattern my own
+  PROPOSED item above argues against. The clean fix is upstream
+  (better caption/non-caption separation), which is what this item
+  is; there is no honest downstream patch.
+
   IMPACT TRACED (2026-07-20, raises this above cosmetic): the polluted
   caption stream reaches USER-VISIBLE OUTPUT. `_caption_style` in
   assemble/draft.py derives a draft's caption position/caps/word-timing
