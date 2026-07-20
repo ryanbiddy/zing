@@ -1645,3 +1645,34 @@
   part of the test, not bookkeeping.
   Remaining 5 misses are the packaged-data fallback branch and
   argparse plumbing. Suite 944 passed / 2 skipped.
+- **2026-07-20 (Lane B): SG-1 round 7 — reviewed Codex's CX-4 (#299),
+  which EDITED docs/CONNECT.md on my surface, and their doc was more
+  correct than my code.** Their rewrites check out against my
+  behavior: refetch-only-from-the-handoff-URL and fail-rather-than-
+  guess (verified in h_study_uoink_item), "never puts the token in a
+  URL" (header only), and the unconfig/unconfigured display-vs-data
+  distinction (mark vs peer state). Their new
+  test_integration_docs_contract passes here: 3/3.
+  **THE FINDING, and it is mine:** their doc names all three token
+  locations from contract §3.2 — Windows, macOS, source checkout —
+  while my TOKEN_LOCATION constant named only Windows and checkout. I
+  created that constant in #280 as "the one place this guidance is
+  written", and consolidating three duplicated copies made the
+  guidance CONSISTENT without making it COMPLETE: every macOS user
+  would have been handed a Windows path, uniformly. Fixed (all three
+  locations, Windows path now in Windows form), and doctor's fix text
+  now IMPORTS the constant instead of keeping its own copy — the
+  #280 lesson enforced across both surfaces rather than asserted once.
+  Two tests pin it: the constant covers all three contract locations,
+  and doctor's fix contains the constant verbatim.
+  Deduplication lesson, third refinement: consolidating copies fixes
+  DRIFT, not INCOMPLETENESS. A single source of truth is only as true
+  as the day it was written — check it against the SPEC, not against
+  the copies it replaced.
+  Process confession: I reached for a heredoc patch script with
+  Windows-path literals AGAIN (third time), and the ast.parse guard
+  caught it before writing. Then I stopped using the pattern and used
+  the Edit tool — and the better fix fell out: assert
+  `TOKEN_LOCATION in error` instead of retyping the path, so the
+  tests carry zero path literals and cannot drift from the constant.
+  Suite 949 passed / 2 skipped.

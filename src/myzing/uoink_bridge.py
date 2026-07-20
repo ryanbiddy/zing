@@ -48,9 +48,15 @@ _HANDOFF_ERROR_KEYS = {"ok", "contract", "version", "operation", "error"}
 # P3-3). Doctor learned to name the installed-app path in #220; this
 # module kept three copies of the older source-checkout-only wording,
 # which is exactly how a fixed finding survives on a second surface.
+#
+# All THREE locations come from INTEGRATION-CONTRACT §3.2. The first
+# version of this constant listed only Windows + source checkout —
+# consolidating duplicated wording made it consistent without making
+# it complete, and a macOS user would have been handed a Windows path.
 TOKEN_LOCATION = (
-    "installed app: %LOCALAPPDATA%/Uoink/token.txt; source checkout: "
-    "token.txt next to uoink's server.py"
+    "installed app: %LOCALAPPDATA%\\Uoink\\token.txt on Windows, "
+    "~/Library/Application Support/Uoink/token.txt on macOS; "
+    "source checkout: token.txt next to uoink's server.py"
 )
 
 

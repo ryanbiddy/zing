@@ -345,7 +345,9 @@ def test_unconfigured_verdict_names_what_the_manifest_said(monkeypatch):
     assert check.data["evidence"].startswith("manifest read: uoink 3.6.0")
     # P3-3: the fix names the installed-app token location, not server.py
     # internals only.
-    assert "%LOCALAPPDATA%/Uoink/token.txt" in check.fix
+    from myzing.uoink_bridge import TOKEN_LOCATION
+
+    assert TOKEN_LOCATION in check.fix
 
 
 def test_unhealthy_verdict_names_probe_evidence(monkeypatch):
