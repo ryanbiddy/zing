@@ -49,14 +49,42 @@ serves more clients than when we built it.
   and REJECTED enumerating our 19 tools there — it duplicates
   EXPECTED_TOOLS as a second drift surface with no install benefit.
 
-## Sources
+## CITATION AUDIT (2026-07-19, self-initiated after CX-6's trust flag)
 
-- https://modelcontextprotocol.io/registry/about (registry overview)
-- https://modelcontextprotocol.info/tools/registry/publishing/ (PyPI
-  marker + server.json + mcp-publisher flow)
-- https://glama.ai/blog/2026-01-24-official-mcp-registry-serverjson-requirements
-  (validation, _meta rules)
-- https://github.com/modelcontextprotocol/mcpb + raw MANIFEST.md
-  (manifest_version 0.3, uv rules, licenses, cross-client)
-- https://www.anthropic.com/engineering/desktop-extensions (dxt→mcpb
-  history)
+Every load-bearing claim above re-verified against PRIMARY sources —
+raw files and enforcement code, not mirror sites or search summaries.
+**Zero errors found; two sharpenings.** Honest process note: the marker
+and _meta claims were ORIGINALLY taken from a third-party mirror
+(modelcontextprotocol.info) and a vendor blog (glama.ai) while feeding
+a launch-checklist action. They happened to be right. Sourcing a launch
+action from a secondary summary is the process defect, independent of
+the outcome.
+
+- `manifest_version: "0.3"` — CONFIRMED verbatim in raw MANIFEST.md.
+  This is the claim that CHANGED a shipping artifact (our bundle said
+  "0.4"); it now rests on primary evidence, as it should have from the
+  start. uv rules and `tools`-is-optional confirmed in the same fetch.
+- mcpb license — CONFIRMED from the raw LICENSE: Apache-2.0 for new
+  contributions, MIT legacy. **Sharpening:** their DOCUMENTATION is
+  CC-BY-4.0, which matters because we quote their docs in records.
+- PyPI ownership marker — CONFIRMED from the registry's own validator
+  SOURCE (`internal/validators/registries/pypi.go`), which reads PyPI's
+  `info.description` (the README) for `mcp-name: <server-name>`.
+  **Sharpening no secondary source mentioned:** the token is
+  BOUNDARY-ANCHORED — it must be followed by a space, newline, HTML tag,
+  or comment close, and the validator emits a distinct "glued trailing"
+  error otherwise. Launch action: put the marker on its OWN LINE, never
+  inside a badge or mid-sentence.
+- `_meta` rules — CONFIRMED verbatim in `docs/reference/server-json/
+  official-registry-requirements.md`: only
+  `io.modelcontextprotocol.registry/publisher-provided` is preserved
+  (others "silently dropped"), limited to 4KB (4096 bytes).
+
+## Sources (primary, re-fetched at the audit)
+
+- raw MANIFEST.md and raw LICENSE, modelcontextprotocol/mcpb
+- modelcontextprotocol/registry: `internal/validators/registries/pypi.go`
+  (enforcement code) and
+  `docs/reference/server-json/official-registry-requirements.md`
+- https://www.anthropic.com/engineering/desktop-extensions (dxt-to-mcpb
+  history; background only, nothing load-bearing rests on it)

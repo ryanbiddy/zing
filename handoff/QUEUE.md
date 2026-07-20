@@ -340,6 +340,13 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   also list `uv tool install myzing` alongside pip — uv is the
   runtime our .mcpb bundle already standardizes on, and tool-install
   gives a clean isolated CLI without venv ceremony.
+  AUDITED 2026-07-19 (Lane B, primary sources): the ownership marker
+  is BOUNDARY-ANCHORED per the registry's own validator source
+  (internal/validators/registries/pypi.go) — `mcp-name: <name>` must
+  be followed by a space, newline, HTML tag, or comment close, or
+  publishing fails with a distinct "glued trailing" error. Put it on
+  its OWN LINE in the PyPI README, never in a badge or mid-sentence.
+  Also confirmed: _meta keeps only publisher-provided, 4KB cap.
 - **P-B1 (Lane B, 2026-07-18) · loop-ability as a measured Breakdown
   field.**
   **Proposal:** a deterministic loop score in the study pipeline:
