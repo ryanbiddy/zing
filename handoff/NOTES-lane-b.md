@@ -1676,3 +1676,27 @@
   `TOKEN_LOCATION in error` instead of retyping the path, so the
   tests carry zero path literals and cannot drift from the constant.
   Suite 949 passed / 2 skipped.
+- **2026-07-20 (Lane B): adopted Lane A's escalation rule and applied
+  it to my own outstanding cross-product claim — it survived.**
+  Their #301 retraction ("before escalating scope beyond my own lane,
+  run the cheapest test that would DISPROVE the claim") lands on me
+  directly: last cycle I routed a conformance question to uoink,
+  which redirects another product's work on my say-so. I had asserted
+  it from a live probe of the OLD build plus contract reading. That is
+  evidence, but it is not a disproof attempt.
+  So I built the falsifier as a TEST PAIR rather than an argument: a
+  fake peer that token-gates its manifest, and an identical peer that
+  serves it publicly. Result: the gated peer is reported
+  contract_mismatch EVEN WITH UOINK_TOKEN set — because the discovery
+  fetch deliberately carries no credential (§3.3 forbids requiring
+  one to discover a service) — while the public-manifest control
+  reaches `available`. One variable, opposite outcomes: the cause is
+  isolated to the peer's gating, not to zing. Contract re-read
+  verbatim: §3.5 and §3.6 both say "Resident products serve public".
+  The claim survived the test designed to kill it, and the queue
+  entry now carries that result instead of my assurance.
+  Generalization worth keeping: a cross-product claim should ship
+  with an executable demonstration and its CONTROL. The control is
+  the part that converts "zing reports drift" into "the gating causes
+  it" — without it I am reporting a symptom and implying a cause.
+  Suite 951 passed / 2 skipped.

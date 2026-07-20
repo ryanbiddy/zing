@@ -260,6 +260,16 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   prevent. Please confirm the new build serves the manifest and health
   endpoints unauthenticated. (Health is §3.6-public too.) No zing
   change proposed; this is a conformance question on their side.
+  FALSIFIED-AND-STANDS 2026-07-20 (Lane B, per Lane A's escalation
+  rule): before letting this redirect uoink's work I ran the cheapest
+  disproof and wrote it as a test pair. A peer that token-gates its
+  manifest is reported contract_mismatch by zing EVEN WITH
+  UOINK_TOKEN set (the discovery fetch carries no credential, per
+  §3.3); the identical peer serving the manifest publicly reaches
+  `available`. The only variable is the gating, which isolates the
+  cause to uoink's side rather than zing's. Contract text re-read
+  verbatim: §3.5 and §3.6 both say "Resident products serve
+  public". The claim survived the test that would have killed it.
 
 - **WATCH-ITEM (Lane B, SG-4, 2026-07-19): MCP spec 2026-07-28 goes
   final in ~9 days and is the protocol's largest-ever revision.**

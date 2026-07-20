@@ -494,3 +494,53 @@ def test_conformance_read_wrong_shape_is_drift(monkeypatch):
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "contract_mismatch"
     assert "handoff" in peer["error"]["message"]
+
+
+# -- cross-product claim, made falsifiable (2026-07-20) -----------------------
+
+class TokenGatingUoink(FakeUoink):
+    """A peer that requires a credential for the manifest — i.e. one that
+    does NOT serve it 'public' as §3.5 requires. Would accept the token
+    if we sent one; we do not, because §3.3 forbids requiring a
+    credential to DISCOVER a service."""
+
+    def __call__(self, request, timeout=0):
+        import io
+
+        url = request if isinstance(request, str) else request.full_url
+        if "/.well-known/suite-service.json" in url:
+            if not request.get_header("X-uoink-token"):
+                raise urllib.error.HTTPError(
+                    url, 403, "forbidden", {},
+                    io.BytesIO(b'{"ok": false, "error": "missing or invalid token"}'),
+                )
+        return super().__call__(request, timeout)
+
+
+def test_token_gated_manifest_is_reported_as_drift_even_with_a_token(monkeypatch):
+    """Demonstrates the cross-product observation routed to uoink instead
+    of merely asserting it: a peer that token-gates its manifest is
+    reported contract_mismatch by zing EVEN WHEN UOINK_TOKEN is set,
+    because the discovery fetch deliberately carries no credential. If
+    the rebuilt uoink token-gates the manifest, this is the false
+    negative its users would see — the peer is healthy, zing says drift.
+    Failing this test would disprove the claim; it does not."""
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "a-perfectly-good-token")
+    monkeypatch.setattr(
+        suite_peer.urllib.request, "urlopen", TokenGatingUoink()
+    )
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["state"] == "unhealthy"
+    assert peer["error"]["code"] == "contract_mismatch"
+    assert "manifest fetch: HTTP 403" in evidence
+    assert peer_is_valid(peer)
+
+
+def test_public_manifest_peer_is_available_with_the_same_token(monkeypatch):
+    """The control: identical peer, manifest served publicly per §3.5 —
+    zing reaches 'available'. The ONLY difference is the gating, which
+    isolates the cause to uoink's side, not zing's."""
+    monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "a-perfectly-good-token")
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", FakeUoink())
+    peer, evidence = suite_peer.probe_uoink()
+    assert peer["state"] == "available"
