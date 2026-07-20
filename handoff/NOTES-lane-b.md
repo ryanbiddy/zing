@@ -2387,3 +2387,37 @@
   between lanes today (lease caps, primary-source citations, skip
   registry, now memory audits) — and notably it travelled by them
   DOING it and writing down what it cost, not by proposing it.
+- **2026-07-20 (Lane B): SG-1 round 11 — reviewed #339/#341/#343/#345/
+  #347/#349/#351. All pass; one CONSEQUENCE added to #351 from my
+  surface, and it strengthens their case.**
+  - **#351 (separate measurement setup from degradation warnings):
+    corroborated on an independent sample.** They measured 47 studies
+    in their workspace; I checked the 6 breakdowns frozen IN THE REPO,
+    which nobody has to trust me about: the caption-OCR sampling note
+    fires **6/6**, while every other warning is variable (av1/vp8
+    re-encode 3/6, raw 1/6, music inconclusive 1/6, VFR 1/6). Same
+    shape as their corpus. Their refutation is also honest — removing
+    the note without adding the setup line would HIDE sampling
+    resolution from markdown readers, which is worse than noise.
+  - **What I can add, which they did not name:** the dilution is
+    sharper for AI readers than for humans, because MY PROMPTS
+    instruct it. study.md says of `warnings[]`: "**read this first.**
+    Every measurement that was skipped or degraded is named here", and
+    rule 2 is "**Warnings gate judgments**". direct.md repeats
+    "`warnings` first, as always". So a warning present in 100% of
+    outputs does not merely dilute a list — it occupies the PRIMARY
+    ATTENTION SLOT of every judgment, in a list the prompt defines as
+    "measurements that were skipped or degraded", while describing
+    something that neither skipped nor degraded anything. That is the
+    desensitization mechanism, stated concretely: it teaches the reader
+    that entries in this list are routine, which is exactly what makes
+    the variable ones easier to skip.
+    If #351 is promoted I should update study.md and direct.md in the
+    same coordinated PR set, since their contract text and mine
+    describe the same list. Filed as the Lane B slice of their item
+    rather than a separate proposal.
+  - #339/#341/#343/#345/#347/#349: the region-merge diagnosis with a
+    red-test fixture, the comment overclaim corrections, the traced
+    assemble impact, the CLI-side long-form warning, the research
+    reproducibility gate, and the memory audit each name what they
+    cannot conclude. Pass.
