@@ -1915,3 +1915,32 @@
     (cite a frame sha256 that must match) raises faking cost from
     zero to "read the file" — still not proof of looking, and they
     said so. Accepted into the queue entry's reasoning.
+- **2026-07-20 (Lane B): SG-2 tenth pass (rotation) — storage.py
+  93%→97%, the foundation's failure paths.** Picked storage because
+  its failures are the silent kind: a slug that escapes its root, a
+  temp file left behind, a corrupt prior file taking a good rebuild
+  down with it. 8 tests over exactly those: non-string and blank
+  names refused honestly (a non-str reaching Path() would raise an
+  internal TypeError instead of SlugError); find_media on absent and
+  empty dirs; resolve_relpath's absolute-passthrough and
+  relative-join (the rule that lets a breakdown folder survive being
+  moved); the atomic write CLEANING UP its temp file when os.replace
+  fails; read_status giving up honestly on a permanently corrupt
+  file; a rebuild over a corrupt prior breakdown still succeeding
+  (nothing to preserve is not a reason to fail on someone else's bad
+  bytes) while keeping the corrupt file as .bak; and both listings
+  reporting foreign/incomplete directories AS DATA rather than
+  crashing or hiding them.
+  Two of my tests were wrong and the code was right — recorded
+  because the correction is the useful part. I asserted `..` would
+  hit the "resolves outside its workspace" branch; it is caught
+  earlier by the CHARACTER filter, so that branch is defence-in-depth
+  normal inputs cannot reach. I rewrote the test to assert what
+  actually happens and said so in its docstring, rather than
+  contriving a symlink to force the deeper path — a test that
+  documents a route that does not exist is worse than no test. The
+  other was simply the wrong function name (resolve_relpath, not
+  resolve_media_path), which is what happens when you write tests
+  from memory of a module instead of from the module.
+  Remaining 8 misses are that unreachable defence-in-depth branch and
+  Windows PermissionError retry timing. Suite 992 passed / 2 skipped.
