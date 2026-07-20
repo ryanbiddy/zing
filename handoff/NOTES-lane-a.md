@@ -1032,3 +1032,25 @@
   (verified). Three silent-landing modes now documented: pipe-masked
   exit codes, unguarded imports, and these trigger/mergeability
   stalls — which is why verifying the landing is non-negotiable.
+
+- **2026-07-20 (Lane A, URGENT to orchestrator): GitHub Actions has
+  STOPPED CREATING RUNS for zing repo-wide since ~02:33Z — every
+  lane's merges are blocked, not just mine.** Evidence: last run of
+  any kind repo-wide is `main push 02:33:29Z`; nine minutes and many
+  events later, `actions/runs` total for new branches is 0, with
+  queued=0 and waiting=0 — runs are NOT queued, they are never
+  created. Actions is `enabled=true` at repo level. Reproduced across
+  FOUR trigger types on TWO branches (one brand-new): branch push,
+  empty-commit synchronize, PR create, PR close/reopen. This is not
+  my earlier missing-trigger stall (that always cleared on a
+  force-push) and not a branch wedge (a fresh branch behaves
+  identically). Most probable cause: an ACCOUNT-level
+  Actions/spending condition — it#68 already found the writer repo
+  quota-blocked with the same "never started" signature under the
+  same owner; zing is public so free minutes should exempt it, which
+  is why this needs Ryan's billing view (I lack the `user` scope).
+  Impact: any PR opened now sits BLOCKED forever on required checks
+  that never arrive — including my #295 (min_scene_len audit).
+  Recommend treating as fleet-wide, considering the writer's
+  LOCAL-GATE ruling for zing until runs resume, and NOT reading stuck
+  PRs as lane failures.
