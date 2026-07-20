@@ -396,7 +396,7 @@ def test_no_credential_error_names_the_installed_app_token_path(monkeypatch):
     way a closed finding lives on. One TOKEN_LOCATION constant now."""
     monkeypatch.delenv(uoink_bridge.UOINK_TOKEN_ENV, raising=False)
     error = uoink_bridge.resolve_kept_media(REF)["error"]
-    assert "%LOCALAPPDATA%/Uoink/token.txt" in error
+    assert uoink_bridge.TOKEN_LOCATION in error
     assert "source checkout" in error
 
 
@@ -408,7 +408,7 @@ def test_rejected_credential_error_names_the_installed_app_token_path(monkeypatc
 
     monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
     error = uoink_bridge.resolve_kept_media(REF)["error"]
-    assert "%LOCALAPPDATA%/Uoink/token.txt" in error
+    assert uoink_bridge.TOKEN_LOCATION in error
 
 
 def test_push_auth_error_names_the_installed_app_token_path(studied, monkeypatch):
@@ -417,7 +417,7 @@ def test_push_auth_error_names_the_installed_app_token_path(studied, monkeypatch
 
     monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
     error = uoink_bridge.push_breakdown(SLUG)["error"]
-    assert "%LOCALAPPDATA%/Uoink/token.txt" in error
+    assert uoink_bridge.TOKEN_LOCATION in error
     assert uoink_bridge.UOINK_TOKEN_ENV in error
 
 
@@ -436,3 +436,33 @@ def test_every_failure_envelope_has_the_house_shape(monkeypatch, zing_workspace)
         assert envelope["ok"] is False
         assert isinstance(envelope["error"], str) and envelope["error"]
         assert "\n" not in envelope["error"]  # one actionable line, not a dump
+
+
+def test_token_location_names_all_three_contract_locations():
+    """INTEGRATION-CONTRACT §3.2 lists Windows, macOS, and development
+    locations. The first version of this constant listed only Windows +
+    checkout — consolidating duplicated wording (#280) made the guidance
+    CONSISTENT without making it COMPLETE, and a macOS user would have
+    been handed a Windows path. Found by reviewing Codex's CX-4 edit to
+    CONNECT.md, whose doc text was more complete than my code."""
+    loc = uoink_bridge.TOKEN_LOCATION
+    assert "%LOCALAPPDATA%" in loc and "Windows" in loc
+    assert "~/Library/Application Support/Uoink/token.txt" in loc
+    assert "server.py" in loc
+
+
+def test_doctor_and_bridge_share_one_token_location(monkeypatch):
+    """Two surfaces, one string — the #280 lesson enforced rather than
+    trusted."""
+    from myzing import doctor, suite_peer
+
+    doctor._peer_cache.clear()
+    monkeypatch.setattr(
+        suite_peer, "probe_uoink",
+        lambda: ({"ok": True, "contract": "ryan.suite.peer", "version": 1,
+                  "peer": "uoink", "state": "unconfigured", "capabilities": []},
+                 "manifest read: uoink 3.6.0"),
+    )
+    check = doctor.check_uoink()
+    doctor._peer_cache.clear()
+    assert uoink_bridge.TOKEN_LOCATION in check.fix

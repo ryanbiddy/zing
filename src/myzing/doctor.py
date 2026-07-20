@@ -517,6 +517,15 @@ def _probe_uoink_cached() -> tuple[dict, str]:
     return result
 
 
+def _token_location() -> str:
+    """One source of truth for the token-location guidance, shared with
+    the bridge (which owns the constant). Imported lazily: doctor must
+    stay importable before optional modules load."""
+    from myzing.uoink_bridge import TOKEN_LOCATION
+
+    return TOKEN_LOCATION
+
+
 def check_uoink() -> Check:
     """INTEGRATION-CONTRACT v1 §8 probe, replacing the pre-contract
     ambiguity the contract itself cites (any-status-below-500 counted as
@@ -547,9 +556,8 @@ def check_uoink() -> Check:
                 "is configured"
             ),
             fix=(
-                "set UOINK_TOKEN to uoink's per-install token — installed "
-                "app: %LOCALAPPDATA%/Uoink/token.txt; source checkout: "
-                "token.txt next to server.py"
+                "set UOINK_TOKEN to uoink's per-install token — "
+                + _token_location()
             ),
             data={"url": url, "peer": peer, "evidence": evidence},
         )
