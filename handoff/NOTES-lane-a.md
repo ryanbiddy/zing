@@ -1320,3 +1320,30 @@
   Dataset now 6 cells / 15,721 labels, and pc2_baseline.py's stale
   "every captioned cell is lower-third" line is corrected — a script
   that asserts a fact must not outlive the fact.
+
+- **2026-07-20 (Lane A): found the candidate that SURVIVES the
+  falsifier — temporal persistence.** Position failed because it
+  encodes a style; the next signal P-C2 named is position-agnostic:
+  count how many sampled frames carry the same text. Watermarks and
+  HUD counters sit still, captions move with speech. Medians per
+  cell: captions 4-6 frames vs non-captions 9-10, and **513** in the
+  HUD-flood cell.
+  As a rule (persists <=20 frames AND >=2 words): aggregate P=0.484
+  **R=1.000** F1=0.652, and crucially **R=1.000 on ALL THREE captioned
+  cells including youtube-fuxm3vz-keo**, the y~0.38 cell where the
+  position rule scored R=0.000. Tightening to <=8 frames lifts F1 to
+  0.731 but drops recall to 0.932 — it starts eating held captions.
+  **Why the lower headline F1 is the better result:** position scored
+  0.735 aggregate while scoring ZERO recall on one caption style;
+  persistence scores 0.652 while never failing catastrophically on
+  any style measured. For a WARNING, a false negative costs the whole
+  point and a false positive costs attention — graceful failure
+  everywhere beats total failure somewhere.
+  **Caveat kept prominent:** my labels came partly from
+  transcript-window matching, and persistence keys on the same
+  underlying phenomenon (caption text tracks speech). It never reads
+  the transcript, so it is not circular in implementation — but it is
+  NOT fully independent validation either. Settling that needs labels
+  produced with no speech-timing input. Recorded in the note and
+  reproducible via pc2_baseline.py, which now reports both rules side
+  by side with the falsified one still labeled FALSIFIED.
