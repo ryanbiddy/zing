@@ -215,6 +215,31 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
 
 ## PROPOSED (SG-5 — proposal + refutation required, orchestrator disposes)
 
+- **WATCH-ITEM (Lane B, SG-4, 2026-07-19): MCP spec 2026-07-28 goes
+  final in ~9 days and is the protocol's largest-ever revision.**
+  NOT a proposal — a dated tripwire with a hard trigger. Breaking
+  changes in the RC (locked 2026-05-21): the initialize/initialized
+  handshake is REMOVED (client info + capabilities move to `_meta` on
+  every request), protocol-level sessions are gone, Roots/Sampling/
+  Logging are deprecated, and missing-resource errors move from
+  -32002 to -32602. stdio itself survives.
+  ZING'S EXPOSURE TODAY IS LOW AND MEASURED: we ship stdio-only, use
+  no Roots/Sampling/Logging, hold no protocol-level session state
+  (job handles are already ordinary slug arguments the model passes
+  back — exactly the pattern the RC prescribes), and our negotiation
+  is spec-correct in all three directions (verified live: old client
+  echoed, current matched, FUTURE version answered with our latest
+  rather than an echo or a failed handshake — now pinned by tests).
+  TRIGGER: when the mcp Python SDK ships 2026-07-28 support (their
+  stated window is ~10 weeks from RC lock, i.e. roughly now), bump
+  the pin and re-run the stdio gate; the handshake removal is the
+  only change that touches our surface, and it lands in the SDK, not
+  in our handlers. DO NOT pre-migrate against an RC.
+  LAUNCH NOTE: this collides with the registry-publication proposal —
+  publish AFTER confirming which spec revision our shipped SDK floor
+  negotiates, so the registry entry doesn't advertise a server that
+  clients on the new revision handshake-fail against.
+
 - **PROPOSED (Lane B, SG-5, 2026-07-19 #3, PROCESS): unmocked-seam
   rule for SG-2 coverage passes.**
   PROPOSAL: amend the SG-2 standing generator with one rule — a

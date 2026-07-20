@@ -1466,3 +1466,31 @@
   only where you looked. When a review finding is about wording,
   grep the whole lane for the wording, not just the cited file.
   Bridge stays 100% covered; suite 920 passed / 2 skipped.
+- **2026-07-19 (Lane B): SG-4 pass (rotation; freeze) — the MCP SPEC
+  scan we'd never done, and it was overdue by nine days.** Record:
+  research/SG4-MCP-SPEC-2026-07-19.md. Prior SG-4s scanned clients,
+  packaging, and deps; nobody had scanned the protocol our flagship
+  surface implements. Finding: **the 2026-07-28 revision — the
+  largest since launch — goes FINAL in ~9 days**, removing the
+  initialize handshake, removing protocol sessions, deprecating
+  Roots/Sampling/Logging. stdio survives.
+  Zing's exposure is LOW and now MEASURED rather than assumed: we
+  hold no protocol session state because B#2's job design already
+  hands the model a slug to pass back — the exact pattern the RC
+  prescribes (a constraint we adopted for Claude Desktop's 60s cap
+  turns out to be spec-forward by accident, worth remembering when
+  weighing "honest constraint" designs). Roots/Sampling/Logging
+  unused; the error-code change touches resources we don't serve.
+  Verified LIVE (not inferred) against the real server binary: our
+  SDK's latest is 2025-11-25 while the stdio gate pinned 2024-11-05,
+  and negotiation is spec-correct in all three directions — old
+  echoed, current matched, FUTURE (2026-07-28) answered with our
+  latest instead of echoing an unsupported version or failing the
+  handshake. All three now parametrized and pinned, so an SDK bump
+  can't silently change it. NO migration: the handshake change lands
+  in the SDK, and pre-migrating against an RC is the churn the freeze
+  forbids. Watch-item filed with a hard trigger (SDK ships
+  2026-07-28 support) plus a launch-ORDER note — confirm the shipped
+  SDK floor's negotiated revision BEFORE registry publication, or the
+  registry advertises a server that new-revision clients fail to
+  handshake with. Suite 925 passed / 2 skipped.
