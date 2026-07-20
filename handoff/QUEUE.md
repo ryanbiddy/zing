@@ -246,6 +246,14 @@ Orchestrator synthesizes the cross-platform comparison after all four land.
   If the eval harness ever gains a way to observe that frames were
   actually read, that is the trigger that makes this worth more than
   its cost.
+  REINFORCED 2026-07-20 by Lane A (#317, keyframe owner): `Shot.keyframe`
+  paths already exist in every breakdown, so the field could be filled
+  VERBATIM FROM THE BREAKDOWN without opening an image — trivially
+  satisfiable by copying, which makes the self-report objection
+  stronger, not weaker. Their honest strengthening if it ever ships:
+  content-addressing (frame sha256 in the breakdown; a cited hash must
+  match), which raises the cost of faking from zero to 'read the file'
+  and still does not prove LOOKING.
 
 - **PROPOSED (Lane B, SG-5, 2026-07-20): name the peer's VERSION when
   the suite manifest is missing — closing P1-1's dead end for the
