@@ -1394,3 +1394,28 @@
   than the phenomenon.
   Recorded in the baseline note. Next step for this dataset is now
   clear and cheap: label one cell with NO token-count floor.
+
+- **2026-07-20 (Lane A): tested the token-floor prediction — it held,
+  and the fix is worse than the flaw.** Last cycle's label audit
+  predicted the ">=2 words" term in both candidate rules was partly
+  fitting my labeling method rather than captions. Testable, so
+  tested: found a word-by-word captioned video already in the corpus
+  (`youtube-se50vifj0aq`, frame-verified — "$100" in green as a
+  SINGLE-TOKEN caption), froze it, labeled it with NO token floor.
+  Dataset went from **0 single-token captions to 68**.
+  On that cell the floor costs two thirds of the style: persistence
+  with the floor R=0.346, without it R=1.000. **Prediction confirmed.**
+  But removing it globally is worse: aggregate precision collapses
+  0.477 -> 0.085, because the single-token world is HUD glyphs,
+  keyboard keys, shop prices and banknote serial numbers.
+  **The honest conclusion is a named unsolved problem, not a rule:**
+  the token floor is not a caption property, it is a proxy that
+  trades one caption style away for precision. Separating single-token
+  CAPTIONS from single-token NOISE needs something neither candidate
+  has — persistence cannot do it, since a one-word caption and a
+  flickering HUD digit both change fast. Stating that is worth more
+  than another headline F1.
+  Validity note recorded in the cell's own header: it was labeled BY
+  POSITION (frame-verified band), so it must NOT be used to evaluate
+  position rules — circular. Valid for the floor and persistence,
+  which are position-independent. Dataset now 7 cells / 15,999 labels.
