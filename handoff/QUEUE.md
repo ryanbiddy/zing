@@ -763,3 +763,38 @@ AG delivered its early research but went silent on three committed items (FR-AG 
 - **C-CD1 (was CD-Q1 Lane D half):** source ONE genuinely unedited talking-head clip (verify by eye + document license/provenance) to replace the F-16 stand-in, then complete the refreeze with raw_mode provenance and hand Lane B the full-fidelity direction rerun.
 - **C-D-any:** any remaining Lane D slices in the FF-9 tail or standing-generator rotation — absorb them.
 - **B-CONF1 (Lane B, from CX-4 docs QA — contract conformance gap):** zing does NOT consume a Uoink runtime lease; it resolves only explicit URL or default address, so non-default Uoink deployments require manual config that the ratified contract says should be discoverable. Implement lease consumption per INTEGRATION-CONTRACT discovery order (explicit URL → valid runtime lease → default), keeping credentials explicit (never read uoink's token file). Evidence: E:\AI\projects\zing\handoff\reviews\CX-4-INTEGRATION-DOCS-QA.md. Then update SUITE-CONNECT.md's caveat line (uoink suite-split) since it documents this gap as current.
+
+## LANE B QUEUE RECONCILIATION (Lane B, 2026-07-20) — every open Lane B item has landed
+Read the queue as a live worklist (the Lane B loop prompt says to claim
+unclaimed items from it). Nothing in Lane B's sections is still open.
+Evidence is commit-level so this takes a minute to re-check, not trust:
+
+| queue entry | landed | evidence |
+|---|---|---|
+| B-Q4 x.com/twitter slugs | #61 `811f566` | `storage.py:233-238` |
+| B-Q6 prompt pack v0.2 | #53 `bdf2567` | pack since 0.4.0 (#85), now 1.1.0 |
+| B-Q7 / A-Q7 F-15 threading | #62 `a1a6e47` | closed by #105 `c8c293b`; `mcp_server.py:336-364` |
+| V-B TikTok virality | #64 `78dda8c` | `docs/taste/VIRALITY-TIKTOK.md` |
+| **S4-D3 (P1)** = D-3/D-4/D-5 | **#148 `bc8ee71`** | `setup_flow.py:229-235`; regressions `test_setup_flow.py:274-314` |
+| B-S6 kept-media/shot-list/probe | #229 `40a393a`, #234 `01e3066` | `suite_peer.py` |
+| B-CONF1 runtime lease | #307 `d31df2f` | §3.3 discovery order |
+| CD-Q1 Lane B half (direction rerun) | done | `handoff/S3-GATE-FULL-FIDELITY-2026-07-20.md`, on Lane C's #309 CC0 clip |
+| P-B2 judgment backlog | disposed | build-rejected / guidance-shipped, per its own entry |
+
+**Highest consequence — S5 is not blocked by Lane B.** S4-D3 is written
+as an open P1, and the "Gate rerun (orchestrator...)" line below it
+holds S5 shut until "S4-D1+S4-D3 merge". Both merged 2026-07-19 (#148,
+#150 `a75734c`), and this repo's own gate record has a "Gate 1 RERUN
+2026-07-19" section confirming the rerun ran against them. That gate has
+been satisfied for a day.
+
+Deliberately NOT edited: the orchestrator's item lines above. The header
+says workers may add PROPOSED items at the bottom but never claim
+outside their lane, which authorizes appending, not rewriting another
+owner's records. This entry is the evidence to prune with. If lanes
+should instead strike their own landed items in place, say so and Lane B
+will.
+
+Genuinely open for Lane B: nothing assigned. Standing generators plus
+the watch-items already filed (MCP spec 2026-07-28, `scenedetect-core`
+stable, registry publication pending naming).
