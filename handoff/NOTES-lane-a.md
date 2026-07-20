@@ -1799,3 +1799,29 @@
   a suggested framing: *the measurement succeeded and found something
   you should look at; the numbers are the evidence, and the span
   references are where to look.* No prompt edited by me.
+
+- **2026-07-20 (Lane A): validated `word_timed` against frame-verified
+  truth — it is WRONG on one of four cells, and the failure is not
+  long-form.** I had never checked this style field, which decides
+  whether a draft gets word-by-word or phrase captions. Tested all
+  four cells whose caption style I have verified by eye:
+  three correct, and `youtube-fuxm3vz-keo` returns **word_timed=True
+  when its captions are phrases** ("SAMSUNG DEBATE IS"). Cause: its
+  42 single-token OCR events are product-image text ("Pro",
+  "6500mAh", "HONOR") — labelled incidental in P-C2 — which dominate
+  the words_visible mode and flip the style.
+  **The important part: it is a 38s video, so NEITHER guard fires.**
+  86 events is above the thin-basis floor; 38s is below the long-form
+  threshold. Caption-style corruption is therefore NOT a long-form
+  phenomenon, which is what my earlier warning assumed.
+  **Refuted fix, measured before proposing:** filtering caption events
+  to those overlapping measured speech does not help — 84 of 86
+  survive, because the product images are on screen WHILE the creator
+  talks. Recorded so nobody retries it.
+  **Tension named rather than resolved badly:** widening the warning
+  to catch this means firing whenever style is derived at all — the
+  always-fires pattern my own QUEUE proposal argues against. There is
+  no honest downstream patch; the clean fix is upstream separation,
+  which is the queued region-merge item, now widened with this trace.
+  Defect pinned by a test that asserts BOTH the wrong style and the
+  absence of any warning, with instructions to invert it when fixed.
