@@ -934,3 +934,21 @@
   venv state can no longer leak into verdicts. The doctor-test thread
   (stale gotcha -> reconciliation -> hermetic fix) is fully resolved
   across both lanes in three PRs.
+
+- **2026-07-19 (Lane A): family-scenario regression protection, Lane A
+  half — OFFLINE.** CX-3 named the gap ("family scenario has no
+  regression protection"); the suite-smoke-into-CI half is Codex's,
+  but MY hop needed cover too: the only study-level kept-media test
+  faked ingest and hardcoded the provenance it claimed to verify.
+  Added two composed tests (real ingest, only subprocess + measurement
+  stages stubbed): (1) the happy hop — kept file + handoff produces a
+  persisted breakdown with ZERO fetch and the exact contract record
+  the gate asserts, stable reference still URL-derived; (2) the
+  negative — tampered bytes are NOT measured; integrity fails, study
+  refetches, provenance says source_refetch/integrity_mismatch.
+  **Mutation-verified, and the first attempt FAILED that check**: my
+  tamper case differed in size as well as hash, so a sha-check
+  regression slipped through. Rewritten as same-length-different-bytes
+  (the realistic tamper, catchable only by hash); disabling the sha
+  comparison now fails the test. A test that cannot fail is not
+  protection.
