@@ -26,6 +26,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -301,6 +302,67 @@ def _health_defect(body: Any) -> str | None:
     return None
 
 
+@dataclass
+class _Discovery:
+    """Where the probe decided to look, and why — or the verdict that
+    ended it before any request (§3.3/§4)."""
+
+    base: str = ""
+    source: str = ""          # human-readable receipt of WHICH path won
+    configured: bool = False  # explicit URL or valid lease: never calm-absent
+    failure: tuple[dict[str, Any], str] | None = None
+
+
+def _discover_base() -> _Discovery:
+    """§3.3 discovery order: explicit URL, then a valid runtime lease,
+    then the default address.
+
+    Credential resolution stays independent and explicit — a lease never
+    carries one and we never read the peer's token file (§3.2). A lease
+    that is invalid, hostile, or stale ENDS the probe with its own named
+    code rather than falling through to the default: §4 forbids
+    following it and forbids silently downgrading it to absent.
+    """
+    explicit = os.environ.get(UOINK_URL_ENV, "").strip()
+    if explicit:
+        defect = _validate_url(explicit)
+        if defect is not None:
+            return _Discovery(failure=(
+                _unhealthy(
+                    "invalid_configuration",
+                    f"{UOINK_URL_ENV} is invalid: {defect}",
+                    retryable=False,
+                ),
+                "no probe attempted (invalid explicit URL)",
+            ))
+        return _Discovery(
+            base=explicit.rstrip("/"),
+            source=f"{UOINK_URL_ENV}={explicit}",
+            configured=True,
+        )
+
+    leased, lease_error, lease_detail = read_lease("uoink")
+    if lease_error is not None:
+        return _Discovery(failure=(
+            _unhealthy(
+                lease_error,
+                lease_detail,
+                retryable=lease_error == "stale_lease",
+            ),
+            lease_detail,
+        ))
+    if leased:
+        return _Discovery(
+            base=leased.rstrip("/"), source=lease_detail, configured=True
+        )
+
+    return _Discovery(
+        base=UOINK_DEFAULT_URL.rstrip("/"),
+        source=f"default address {UOINK_DEFAULT_URL}",
+        configured=False,
+    )
+
+
 def probe_uoink() -> tuple[dict[str, Any], str]:
     """Run the §8 probe. Returns (ryan.suite.peer v1 envelope, evidence).
 
@@ -309,57 +371,23 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     manifest the reviewer could not fetch — every verdict now names
     its evidence so two contradictory runs are distinguishable).
     """
-    # §3.3 discovery order: explicit URL, then a valid runtime lease,
-    # then the default address. Credential resolution stays independent
-    # and explicit — a lease never carries one, and we never read the
-    # peer's token file (B-CONF1, from CX-4's conformance QA).
-    explicit = os.environ.get(UOINK_URL_ENV, "").strip()
-    source = f"{UOINK_URL_ENV}={explicit}" if explicit else ""
-    base = explicit
-    if not base:
-        leased, lease_error, lease_detail = read_lease("uoink")
-        if lease_error is not None:
-            # §4: an invalid or hostile lease is NEVER followed, and a
-            # stale one is never silently downgraded to absent.
-            return (
-                _unhealthy(
-                    lease_error,
-                    lease_detail,
-                    retryable=lease_error == "stale_lease",
-                ),
-                lease_detail,
-            )
-        if leased:
-            base = leased
-            source = lease_detail
-    leased_base = bool(base) and not explicit
-    if not base:
-        base = UOINK_DEFAULT_URL
-        source = f"default address {UOINK_DEFAULT_URL}"
-    defect = _validate_url(base)
-    if defect is not None:
-        return (
-        _unhealthy(
-                "invalid_configuration",
-                f"{UOINK_URL_ENV} is invalid: {defect}",
-                retryable=False,
-            ),
-            "no probe attempted (invalid explicit URL)",
-        )
-    base = base.rstrip("/")
+    discovered = _discover_base()
+    if discovered.failure is not None:
+        return discovered.failure
+    base, source, configured = discovered.base, discovered.source, discovered.configured
 
     try:
         status, manifest = _get_json(base + "/.well-known/suite-service.json")
     except (TimeoutError, urllib.error.URLError, OSError) as e:
         is_timeout = isinstance(e, TimeoutError) or "timed out" in str(e)
-        if explicit or leased_base:
+        if configured:
             # §4: a configured URL *or a valid current lease* that fails
             # transport is never calm — only the bare default address is.
             if is_timeout:
                 return (
-                                    _unhealthy(
-                        "timeout", f"uoink at {base} timed out", retryable=True
-                    ),
+                _unhealthy(
+                    "timeout", f"uoink at {base} timed out", retryable=True
+                ),
                     "manifest fetch timed out",
                 )
             return (
@@ -375,7 +403,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         return _peer("absent"), f"nothing answered at the default {base}"
     if status != 200 or manifest is None:
         return (
-        _unhealthy(
+            _unhealthy(
                 "contract_mismatch",
                 f"no suite manifest at {base} (HTTP {status}) — a service "
                 "answered but does not speak INTEGRATION-CONTRACT v1; if this "
@@ -387,7 +415,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     defect = _manifest_defect(manifest)
     if defect is not None:
         return (
-        _unhealthy(
+            _unhealthy(
                 "contract_mismatch", f"manifest drift: {defect}", retryable=False
             ),
             "manifest fetched but non-conformant",
@@ -399,7 +427,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     )
     if service["id"] != "uoink":
         return (
-        _unhealthy(
+            _unhealthy(
                 "wrong_service",
                 f"the endpoint at {base} identifies as "
                 f"{service['id']!r}, not uoink",
@@ -410,7 +438,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     capabilities = service["capabilities"]
     if _REQUIRED_CAPABILITY not in capabilities:
         return (
-        _unhealthy(
+            _unhealthy(
                 "contract_mismatch",
                 f"uoink does not offer {_REQUIRED_CAPABILITY} — update uoink",
                 retryable=False,
@@ -422,7 +450,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         status, health = _get_json(base + service["health"]["href"])
     except (TimeoutError, urllib.error.URLError, OSError):
         return (
-        _unhealthy(
+            _unhealthy(
                 "unavailable",
                 "uoink served its manifest but its health endpoint did not answer",
                 retryable=True,
@@ -431,7 +459,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         )
     if status != 200 or health is None:
         return (
-        _unhealthy(
+            _unhealthy(
                 "contract_mismatch",
                 f"health endpoint answered HTTP {status} without a valid body",
                 retryable=False,
@@ -441,14 +469,14 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     defect = _health_defect(health)
     if defect is not None:
         return (
-        _unhealthy(
+            _unhealthy(
                 "contract_mismatch", f"health drift: {defect}", retryable=False
             ),
             evidence + "; health non-conformant",
         )
     if health["service_id"] != "uoink":
         return (
-        _unhealthy(
+            _unhealthy(
                 "wrong_service",
                 f"health identifies as {health['service_id']!r}, not uoink",
                 retryable=False,
@@ -461,7 +489,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
             if c["required"] and c["status"] == "failed"
         ]
         return (
-        _unhealthy(
+            _unhealthy(
                 "peer_unhealthy",
                 "uoink reports required checks failed: "
                 + ", ".join(failed) + " — open uoink's own doctor for the fix",
@@ -475,10 +503,20 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         # §3.3: a verified manifest without a credential is unconfigured
         # — never an auth attempt with an empty token.
         return _peer("unconfigured"), evidence + "; health ok"
+    return _conformance_read(base, token, capabilities, evidence)
 
-    # §8 step 5: cheapest read-only conformance call with the credential.
-    # A nonexistent item id exercises auth + the media.handoff contract:
-    # any well-formed handoff answer (including not_found) proves both.
+
+def _conformance_read(
+    base: str, token: str, capabilities: list[str], evidence: str
+) -> tuple[dict[str, Any], str]:
+    """§8 step 5: the cheapest read-only credentialed call.
+
+    A nonexistent item id exercises auth AND the media.handoff contract
+    at once — any well-formed handoff answer, INCLUDING a not_found
+    error envelope, proves both (the contract says internal failures
+    carry the same contract metadata, so a 500 with a valid envelope is
+    still a conformant peer).
+    """
     request = urllib.request.Request(
         base + "/api/corpus/v1/items/zing-doctor-probe/kept-media",
         headers={"X-Uoink-Token": token},
@@ -512,7 +550,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
             )
     except (TimeoutError, urllib.error.URLError, OSError):
         return (
-        _unhealthy(
+            _unhealthy(
                 "unavailable",
                 "uoink stopped answering during the conformance read",
                 retryable=True,
@@ -525,7 +563,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         or body.get("version") != 1
     ):
         return (
-        _unhealthy(
+            _unhealthy(
                 "contract_mismatch",
                 "the kept-media conformance read did not return a "
                 "uoink.media.handoff v1 envelope",

@@ -1749,3 +1749,27 @@
   failure on this PR was a CANCELLED pip install (infrastructure),
   the second was a REAL two-platform test failure. Same red X, two
   causes — I read the log both times instead of re-running blind.
+- **2026-07-20 (Lane B): SG-3 pass (rotation) — probe_uoink 236 → 142
+  lines, and the target was code I wrote LAST CYCLE.** B-CONF1's lease
+  block went into the largest function in my lane and made it larger:
+  exactly the accretion-by-feature smell I named for check_ytdlp in
+  #210, committed by me, one cycle after naming it. Extracted two
+  named phases: `_discover_base()` returning a small `_Discovery`
+  dataclass (base, source, configured, or a terminal verdict) and
+  `_conformance_read()` (§8 step 5). The `explicit or leased_base`
+  flag pair collapsed into one honest field — `configured` — which is
+  what §4 actually keys on: explicit URL or valid lease means never
+  calm-absent, and now the code says that in one word instead of
+  reconstructing it from two variables.
+  Also repaid real debt of my own making: nine ragged
+  `return (\n        _unhealthy(` blocks left by earlier patch scripts
+  are normalised. That cleanup ran through a scratchpad script that
+  asserts `ast.dump(before) == ast.dump(after)` BEFORE writing — a
+  cosmetic change that can prove it changed nothing is worth more
+  than one I merely believe is cosmetic.
+  Zero behavior change: all 64 suite_peer tests and the full 969
+  passed untouched, no test edited. Observation: I now have two
+  data points that a feature landing in a big function makes it
+  bigger and nobody notices in review — the fix is to extract in the
+  SAME PR as the feature, not one cycle later hoping rotation catches
+  it.
