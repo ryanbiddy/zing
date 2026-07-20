@@ -49,6 +49,33 @@ Held out across the two captioned cells (train on one, test on the
 other): P=0.701/R=1.000 and P=0.922/R=1.000. The rule does not depend
 on tuning against the cell it is scored on.
 
+## FALSIFIED — the prediction was tested and came true (2026-07-20)
+
+The section below warned that the position rule might be fitting two
+videos that happen to share one caption style, and named the test: a
+top- or centre-captioned video should score recall 0. **That cell was
+sourced, frozen, labeled, and it does.**
+
+`youtube-fuxm3vz-keo` — a phone-comparison short whose burned-in
+karaoke captions sit at **y ≈ 0.38** (frame-verified at t=1:
+"SAMSUNG DEBATE IS" with the active word highlighted), above centre,
+with pasted product images above and price text below.
+
+| | before | after adding the cell |
+|---|---|---|
+| lower-third AND ≥2 words | P=0.697 R=1.000 F1=0.821 | P=0.697 **R=0.778** F1=0.735 |
+| hold-out on the new cell | — | **P=0.000 R=0.000** |
+
+The rule catches **zero of its 105 captions**. Aggregate recall falls
+because 105 real captions are now invisible to it.
+
+**Conclusion: caption position is a style, not an invariant.** Any
+promoted signal must either be position-agnostic or measure the
+video's own caption band before using it — which Zing already does
+(`_caption_style` derives position from the source's measured
+captions). Finding 1 is unaffected and still holds on the enlarged
+set (captions 0.988 vs others 1.000 median confidence).
+
 ## What this does NOT establish (the part that matters)
 
 **Every captioned cell in this dataset uses lower-third captions.**
