@@ -116,7 +116,11 @@ def study(
                     ing.media_path
                 )
             except transitions_mod.TransitionProbeError as exc:
-                warnings.append(f"transition detection skipped: {exc}")
+                warnings.append(
+                    f"transition detection skipped: {exc} — transitions[] "
+                    "is NOT-MEASURED, not measured-empty; the detector is "
+                    "recorded in provenance"
+                )
                 provenance.update(transitions_mod.detector_provenance())
             else:
                 transitions = transitions_r.transitions

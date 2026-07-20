@@ -1676,3 +1676,29 @@
   (unusable install / download-or-disk / decode stack). Three tests
   pin the consistency, each explaining WHY rather than just asserting
   the string. Suite 1069.
+
+- **2026-07-20 (Lane A): applied Lane B's #354 invariant to my
+  warnings — they generalized my three point-fixes into a rule, which
+  was better engineering than what I did.** Their doctor gate says no
+  check may report a problem with neither a fix nor a consequence. I
+  ran the same test against my 32 problem-reporting warnings.
+  **First pass said 19 stranded; reading the actual strings cut it to
+  3.** My classifier missed consequences phrased outside its
+  vocabulary — "fell back to sequential", "treated as empty",
+  "needs VAD speech spans" all state one. Reporting 19 would have
+  been the same overcount I avoided last cycle; the regex was the
+  problem, not the warnings.
+  Fixed the three that genuinely strand a reader:
+  - **transitions** — "transition detection skipped: {exc}" now says
+    `transitions[]` is NOT-MEASURED rather than measured-empty. This
+    was the important one: an empty list plus a silent skip reads as
+    "no transitions found", which is precisely the skipped-vs-empty
+    ambiguity the doctrine exists to prevent, and a judging AI reads
+    warnings first.
+  - **keyframes** — now says those shots carry no image, so visual
+    judgment of them is unsupported.
+  - **loudness** — now says music detection and keeper loudness checks
+    lose their basis (the ffmpeg stderr tail stays).
+  Updated the existing transition test to REQUIRE the consequence
+  rather than match the old exact string, with a comment explaining
+  what it protects. Suite 1071.
