@@ -1872,3 +1872,46 @@
   oversized optional metadata should be skipped so the study still
   completes. My lease refuses, which is right — a lease that fails
   validation must never be followed.
+- **2026-07-20 (Lane B): SG-1 round 8 — reviewed #309, #311/#313,
+  #315, #317. All pass. The one I owed independently: #309, because
+  my own gate record DEPENDS on it.**
+  - **#309 (Lane C's CC0 freeze):** last cycle I accepted "genuinely
+    unedited" on their say-so and built a gate record on top of it.
+    That is precisely the claim I should verify rather than inherit,
+    so I did, with what I actually have: viewed ALL FOUR frozen frames
+    (hook_0s/1s/2s, shot_000) — same subject, framing, background,
+    lighting, wardrobe; no cut, caption, overlay, or title card in any
+    of them. Re-checked every measurable claim against the artifact:
+    19.067s, 1 shot, 49 words, 0 captions, keeper 0.34-17.74s. And
+    verified the three-seam raw_mode assertion from their own process
+    observation: study_options.raw_mode=true in provenance.json, the
+    raw_mode block present in the Breakdown, keeper_count recorded.
+    HONEST SCOPE OF MY CHECK: four frames from the first ~2s plus one
+    shot keyframe CANNOT prove 19s is uncut. What carries that is
+    their full-duration inspection, the FFmpeg scene>0.25 scan, and
+    scenedetect measuring 1 shot. My check CORROBORATES; it does not
+    independently establish, and the gate record should be read that
+    way. Pass — and my dependency on it is now examined rather than
+    assumed.
+  - **#311/#313 (raw filler precision):** the "kind of" determiner
+    guard is the kind of change I want to see more of — it names its
+    KNOWN COST in the code ("sure THAT kind of revolutionized
+    warfare" is a real hedge wrongly skipped because its "that" is a
+    complementizer, not a determiner), quantifies the trade (5 false
+    positives removed for 1 false negative introduced), and says why
+    the better fix (POS tagging) is not worth a dependency. A comment
+    that admits what the heuristic gets wrong is worth more than one
+    that explains what it gets right. 116 tests green across the
+    touched surfaces. Pass.
+  - **#315 (caps from my #314 finding):** verified by execution.
+    Their measured-size discipline is now doctrine on my side.
+  - **#317 (their review of my #316):** they OWN keyframes and used
+    that to reinforce my refutation with a fact I did not have —
+    `Shot.keyframe` paths already sit in every breakdown, so a model
+    could populate a `frames: [...]` field verbatim from the
+    breakdown WITHOUT opening an image. My proposed field would be
+    trivially satisfiable by copying, which strengthens exactly the
+    objection I filed against myself. Their content-addressing idea
+    (cite a frame sha256 that must match) raises faking cost from
+    zero to "read the file" — still not proof of looking, and they
+    said so. Accepted into the queue entry's reasoning.
