@@ -1575,3 +1575,26 @@
   Now both guards exist and neither pretends to be the other: thin
   basis (<15 events) and long-form basis (measured under-firing).
   Suite green.
+
+- **2026-07-20 (Lane A): tested the research scripts — the
+  reproducibility promise now has enforcement.** Every note I have
+  published says "regenerate with X", but none of the four scripts
+  had a test. If one broke, the promise would be hollow and nobody
+  would notice until a reader tried it and failed — which is the
+  worst possible moment.
+  Two run END TO END from committed data (`pc2_baseline.py`,
+  `filler_corpus_audit.py` in frozen mode) precisely because I
+  shipped their derived evidence into the repo; those are now
+  executed in CI. Beyond running, they assert the LOAD-BEARING claim
+  of each note: that confidence stays anti-correlated with
+  caption-ness, and that "basically" still spans more speakers than
+  "literally". If a relabel or a new cell ever flips either, the test
+  fails and names the note to rewrite rather than letting the note
+  quietly go stale.
+  The other two cannot run offline honestly — `freeze.py` needs real
+  media, `shot_threshold_audit.py` needs the AutoShot annotation file
+  — so instead of a pretend integration test, the latter's PARSER is
+  exercised on the exact anomalies the note documents (count-less
+  headers, duplicate names, double-comma and trailing-comma lines).
+  Mutation-verified: disabling the duplicate counter fails the test.
+  Suite green.
