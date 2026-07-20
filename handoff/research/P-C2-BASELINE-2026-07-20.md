@@ -76,6 +76,50 @@ video's own caption band before using it — which Zing already does
 captions). Finding 1 is unaffected and still holds on the enlarged
 set (captions 0.988 vs others 1.000 median confidence).
 
+## The candidate that SURVIVES the falsifier: temporal persistence
+
+Position failed because it encodes a style. The next signal P-C2
+named — persistence — is position-agnostic: count how many sampled
+frames contain the same text. Watermarks and HUD counters sit still;
+captions move with speech.
+
+Measured per class (median frames a text persists):
+
+| cell | captions | non-captions |
+|---|---|---|
+| youtube-fuxm3vz-keo (y≈0.38 captions) | 4 | 9 |
+| youtube-nlgyv0bmddi | 6 | 9 |
+| youtube-oyaneh0joqi | 4 | 10 |
+| youtube-uc6b5owmca (HUD flood) | — | **513** |
+
+As a rule (`persists ≤20 frames AND ≥2 words`):
+
+| | precision | recall | F1 |
+|---|---|---|---|
+| aggregate | 0.484 | **1.000** | 0.652 |
+| youtube-fuxm3vz-keo | 0.401 | **1.000** | 0.572 |
+| youtube-nlgyv0bmddi | 0.843 | **1.000** | 0.915 |
+| youtube-oyaneh0joqi | 0.502 | **1.000** | 0.669 |
+
+Tightening to ≤8 frames raises aggregate F1 to 0.731 but drops recall
+to 0.932 — it starts eating captions that are held on screen.
+
+**Why this beats the position rule despite a lower headline F1:**
+position scored 0.735 aggregate while scoring **0.000 recall** on one
+caption style. Persistence scores 0.652 with **recall 1.000 on every
+captioned cell measured**. A signal that fails gracefully everywhere
+is worth more than one that fails totally somewhere — especially for
+a warning, where a false positive costs attention and a false
+negative costs the whole point.
+
+**The caveat that keeps this honest:** my labels were assigned partly
+by transcript-window matching, and persistence keys on the same
+underlying phenomenon (caption text tracks speech, watermarks do
+not). Persistence does not read the transcript, so it is not
+circular in implementation — but it is not a fully independent
+validation either. Confirming it needs labels produced without any
+speech-timing input.
+
 ## What this does NOT establish (the part that matters)
 
 **Every captioned cell in this dataset uses lower-third captions.**

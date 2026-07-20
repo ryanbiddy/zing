@@ -44,12 +44,34 @@ def score(rows: list[dict], predicate) -> tuple[float, float, float]:
 
 
 def rule(row: dict) -> bool:
-    """The candidate: lower-third position AND at least two tokens."""
+    """FALSIFIED candidate, kept so the failure stays reproducible:
+    lower-third position AND at least two tokens."""
     return row["y_center"] >= 0.55 and len(row["text"].split()) >= 2
+
+
+def persistence_rule(row: dict) -> bool:
+    """The surviving candidate: text that does NOT sit still. Watermarks
+    and HUD counters persist; captions move with speech. Position-agnostic,
+    so it survives the style that killed the rule above."""
+    return row.get("frames", 0) <= 20 and len(row["text"].split()) >= 2
+
+
+def annotate_persistence(rows: list[dict]) -> None:
+    """Attach, per row, how many sampled frames carry the same text in
+    that cell. Uses only the frozen text and timestamps — never the
+    transcript."""
+    per: dict[str, dict[str, set]] = collections.defaultdict(
+        lambda: collections.defaultdict(set)
+    )
+    for r in rows:
+        per[r["slug"]][" ".join(r["text"].upper().split())].add(r["t"])
+    for r in rows:
+        r["frames"] = len(per[r["slug"]][" ".join(r["text"].upper().split())])
 
 
 def main() -> int:
     rows = load()
+    annotate_persistence(rows)
     if not rows:
         print(f"no labels found under {LABELS_DIR}")
         return 1
@@ -77,7 +99,8 @@ def main() -> int:
     for name, pred in (
         ("confidence >= 0.75 (ships today)", lambda r: r["score"] >= 0.75),
         ("lower-third (y >= 0.55)", lambda r: r["y_center"] >= 0.55),
-        ("lower-third AND >=2 words", rule),
+        ("lower-third AND >=2 words (FALSIFIED)", rule),
+        ("persists <=20 frames AND >=2 words", persistence_rule),
     ):
         p, r, f = score(rows, pred)
         print(f"  {name:34} P={p:.3f} R={r:.3f} F1={f:.3f}")
