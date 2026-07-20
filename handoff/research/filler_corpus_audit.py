@@ -7,7 +7,15 @@ can re-derive — the same gap `shot_threshold_audit.py` closed for the
 threshold work, and the one P-C2's freeze.py was built to avoid.
 
 Usage:
+    python filler_corpus_audit.py                  # verify from frozen counts
     python filler_corpus_audit.py <workspace-root> [--word <w> ...]
+
+With NO argument it reads `filler-corpus-counts.json` — derived counts
+committed beside this script so the published figures are checkable by
+anyone, without redistributing third-party transcripts. Lane B correctly
+reported (SG-1 round 9) that they could not verify the recall figures
+because the corpus lived only in this box's scratch workspaces; that is
+what the frozen counts fix.
 
 <workspace-root> is any directory containing `*/breakdowns/*/
 breakdown.json` (a zing workspace, or a parent of several). Reports
@@ -60,10 +68,35 @@ def transcripts(root: Path) -> list[tuple[str, str, list[str]]]:
     return out
 
 
+def from_frozen() -> int:
+    """Verify the published figures from the committed derived counts."""
+    path = Path(__file__).resolve().parent / "filler-corpus-counts.json"
+    if not path.is_file():
+        print(f"missing {path}")
+        return 1
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    hits: dict[str, int] = collections.Counter()
+    spread: dict[str, int] = collections.Counter()
+    for entry in doc["corpus"]:
+        for word, n in entry["counts"].items():
+            hits[word] += n
+            spread[word] += 1
+    print(f"frozen counts: {doc['transcripts']} transcripts, "
+          f"{doc['total_words']} words")
+    print("")
+    print(f"{'word':12} {'hits':>6} {'transcripts':>12}")
+    for word in sorted(hits, key=lambda w: -spread[w]):
+        print(f"{word:12} {hits[word]:6} {spread[word]:12}")
+    print("")
+    print("the recall note's claim: 'basically' reaches more speakers than 'literally'")
+    print(f"  basically {hits['basically']:3} hits / {spread['basically']:2} transcripts")
+    print(f"  literally {hits['literally']:3} hits / {spread['literally']:2} transcripts")
+    return 0
+
+
 def main() -> int:
     if len(sys.argv) < 2:
-        print(__doc__)
-        return 2
+        return from_frozen()
     root = Path(sys.argv[1])
     extra = [
         sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--word"
