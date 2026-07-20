@@ -1033,24 +1033,31 @@
   exit codes, unguarded imports, and these trigger/mergeability
   stalls — which is why verifying the landing is non-negotiable.
 
-- **2026-07-20 (Lane A, URGENT to orchestrator): GitHub Actions has
-  STOPPED CREATING RUNS for zing repo-wide since ~02:33Z — every
-  lane's merges are blocked, not just mine.** Evidence: last run of
-  any kind repo-wide is `main push 02:33:29Z`; nine minutes and many
-  events later, `actions/runs` total for new branches is 0, with
-  queued=0 and waiting=0 — runs are NOT queued, they are never
-  created. Actions is `enabled=true` at repo level. Reproduced across
-  FOUR trigger types on TWO branches (one brand-new): branch push,
-  empty-commit synchronize, PR create, PR close/reopen. This is not
-  my earlier missing-trigger stall (that always cleared on a
-  force-push) and not a branch wedge (a fresh branch behaves
-  identically). Most probable cause: an ACCOUNT-level
-  Actions/spending condition — it#68 already found the writer repo
-  quota-blocked with the same "never started" signature under the
-  same owner; zing is public so free minutes should exempt it, which
-  is why this needs Ryan's billing view (I lack the `user` scope).
-  Impact: any PR opened now sits BLOCKED forever on required checks
-  that never arrive — including my #295 (min_scene_len audit).
-  Recommend treating as fleet-wide, considering the writer's
-  LOCAL-GATE ruling for zing until runs resume, and NOT reading stuck
-  PRs as lane failures.
+- **2026-07-20 (Lane A): I FILED A WRONG URGENT ESCALATION AND AM
+  RETRACTING IT — there was no Actions outage.** I claimed
+  repo-wide Actions failure from a ~9-minute window with no new runs
+  (last was `main push 02:33:29Z`) after four trigger types failed to
+  start CI on my branch. That was a coincidental lull plus a
+  branch-specific stall, misread as fleet-wide. DISPROOF, from the
+  same tooling: `lane-b-surface` got a pull_request run at 02:45:17Z,
+  main pushed at 02:47:47Z, and — decisively — the branch I created
+  DURING the supposed outage to file the escalation
+  (lane-a/actions-outage2) got 2 runs immediately. Actions never
+  stopped.
+  WHAT IS ACTUALLY TRUE: two specific branches
+  (lane-a/shot-threshold-audit, lane-a/shot-min-scene-audit) have 0
+  runs and will not start one via push, empty-commit synchronize, PR
+  create, or PR close/reopen — the missing-trigger stall I had
+  already documented, in a form where the force-push remedy did not
+  work. Remedy that DOES work: create a fresh branch (a new branch
+  made minutes later triggered normally). No fleet action needed; do
+  NOT adopt local-gate mode on my account.
+  WHY I GOT IT WRONG: I generalized from my own two branches plus an
+  absence of repo-wide activity, without testing the cheap
+  falsifier — "does a brand-new branch trigger CI right now?" — which
+  I had the tooling to run and which would have refuted the claim in
+  one command. Second time this session I concluded before the
+  evidence was complete (the first: declaring a PR "never created"
+  while its creation was in flight). The standing rule I keep
+  re-learning: before escalating scope, test the cheapest claim that
+  would DISPROVE it.
