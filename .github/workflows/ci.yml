@@ -14,8 +14,8 @@ jobs:
     env:
       ZING_REQUIRE_OTIO: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - run: pip install -e .[dev] "OpenTimelineIO>=0.18,<0.19"
@@ -34,8 +34,8 @@ jobs:
     env:
       ZING_REQUIRE_FFMPEG: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
@@ -63,7 +63,7 @@ jobs:
         run: pytest -q -m ffmpeg --expected-ffmpeg-tests 22
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: eval-report-ubuntu
           path: tools/eval/eval-report.json
@@ -77,8 +77,8 @@ jobs:
     env:
       ZING_REQUIRE_FFMPEG: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (chocolatey)
@@ -109,8 +109,8 @@ jobs:
     env:
       ZING_REQUIRE_FFMPEG: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (Homebrew)
@@ -133,8 +133,8 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
@@ -152,7 +152,7 @@ jobs:
         run: python packaging/clean_host_check.py --require-study --report clean-host-${{ matrix.os }}.json
       - name: Upload gate record
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: clean-host-${{ matrix.os }}
           path: clean-host-*.json
