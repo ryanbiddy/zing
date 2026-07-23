@@ -39,12 +39,14 @@ def test_ci_jobs_and_package_installs_have_explicit_timeouts() -> None:
     assert text.count("    timeout-minutes: 30") == 5
 
     install_blocks = re.findall(
-        r"(?ms)^      - name: Install ffmpeg \([^)]+\)\n"
+        r"(?ms)^      - name: Install ffmpeg \(([^)]+)\)\n"
         r"(.*?)(?=^      - |\Z)",
         text,
     )
     assert len(install_blocks) == 6
-    assert all("timeout-minutes: 10" in block for block in install_blocks)
+    for platform, block in install_blocks:
+        expected = 15 if platform == "apt" else 10
+        assert f"timeout-minutes: {expected}" in block
 
     family_text = WORKFLOW.read_text(encoding="utf-8")
     family_install = re.search(
@@ -52,7 +54,7 @@ def test_ci_jobs_and_package_installs_have_explicit_timeouts() -> None:
         family_text,
     )
     assert family_install is not None
-    assert "timeout-minutes: 10" in family_install.group(1)
+    assert "timeout-minutes: 15" in family_install.group(1)
 
 
 def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
