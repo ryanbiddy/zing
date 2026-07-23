@@ -11,7 +11,7 @@ Scope: Design audit of CLI, markdown report, and MCP ergonomics, branding system
 - **Progress Visibility**: Currently, running `zing study <url>` on the CLI blocks synchronously without visual progress indicators. The user stands in the dark while the engine downloads, transcribes, and runs OCR.
   - *Fix*: Implement a visual terminal step indicator (e.g., using `STUDY_PHASES` from `mcp_server.py`): `[1/6] ingest -> [2/6] shots...` to eliminate dead terminal states.
 - **Doctor Autocorrect**: `zing doctor` identifies problems (like missing `ffmpeg`) but does not offer copy-paste setup commands.
-  - *Fix*: Output OS-specific installs (e.g., `winget install Gnu.FFmpeg` for Windows, `brew install ffmpeg` for macOS).
+  - *Fix*: Output OS-specific installs (e.g., `winget install Gyan.FFmpeg` for Windows, `brew install ffmpeg` for macOS).
 - **Prompt Pack Discoverability**: `zing prompt` requires a positional name argument. If run with no argument or an invalid one, it fails instead of showing a list.
   - *Fix*: Interactively list available templates when the name is omitted.
 

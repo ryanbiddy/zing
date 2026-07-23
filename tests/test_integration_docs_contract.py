@@ -63,3 +63,10 @@ def test_future_dashboard_is_not_documented_as_current_integration() -> None:
         "Uoink does not push into Zing",
     ):
         assert required_claim in text
+
+
+def test_ux_research_uses_the_verified_windows_ffmpeg_package_id() -> None:
+    text = UX_SKETCH.read_text(encoding="utf-8")
+
+    assert "Gnu.FFmpeg" not in text
+    assert "winget install Gyan.FFmpeg" in text
