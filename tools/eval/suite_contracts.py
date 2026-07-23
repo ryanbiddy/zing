@@ -320,14 +320,29 @@ def _ui_issues(
     ui = _exact_mapping(value, path, ("home", "routes"), issues)
     if ui is None:
         return
+
+    def service_path(candidate: Any) -> bool:
+        if (
+            not isinstance(candidate, str)
+            or not candidate.startswith("/")
+            or candidate.startswith("//")
+            or "\\" in candidate
+        ):
+            return False
+        try:
+            parsed = urlsplit(candidate)
+        except ValueError:
+            return False
+        return not parsed.scheme and not parsed.netloc
+
     home = ui.get("home")
-    if not isinstance(home, str) or not home.startswith("/"):
+    if not service_path(home):
         _issue(issues, f"{path}.home", "invalid_relative_path")
     routes = ui.get("routes")
     if not isinstance(routes, Mapping) or any(
         not isinstance(key, str)
         or not isinstance(route, str)
-        or not route.startswith("/")
+        or not service_path(route)
         for key, route in (
             routes.items() if isinstance(routes, Mapping) else ()
         )

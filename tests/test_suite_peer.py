@@ -12,12 +12,16 @@ import json
 import os
 import urllib.error
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 import pytest
 
 from conftest import FakeHTTPResponse
 from myzing import doctor, suite_peer
-from tools.eval.suite_contracts import validate_contract_payload
+from tools.eval.suite_contracts import (
+    load_fixture_case,
+    validate_contract_payload,
+)
 
 FIXDIR = Path(__file__).resolve().parents[1] / "tools" / "eval" / "fixtures" / "suite_v1"
 
@@ -615,6 +619,61 @@ def test_lease_validation_agrees_with_lane_c(case):
         assert defect is None  # shape is fine; liveness is the caller's job
     else:
         assert defect is not None
+
+
+@pytest.mark.parametrize(
+    "case_id",
+    [
+        "valid_service_local_ui_paths",
+        "network_path_home",
+        "backslash_home",
+        "absolute_url_home",
+        "network_path_route",
+        "backslash_route",
+        "absolute_url_route",
+    ],
+)
+def test_ui_paths_match_the_shared_runtime_lease_fixture(case_id):
+    case = load_fixture_case(f"runtime_lease_{case_id}")
+
+    defect = suite_peer.lease_defect(case["payload"], "uoink")
+
+    assert (defect is None) is case["expected_valid"]
+
+
+@pytest.mark.parametrize(
+    "case_id",
+    [
+        "valid_service_local_ui_paths",
+        "network_path_home",
+        "backslash_home",
+        "absolute_url_home",
+        "network_path_route",
+        "backslash_route",
+        "absolute_url_route",
+    ],
+)
+def test_manifest_ui_paths_match_the_shared_runtime_lease_fixture(case_id):
+    case = load_fixture_case(f"runtime_lease_{case_id}")
+    manifest = make_manifest(ui=case["payload"]["ui"])
+
+    defect = suite_peer._manifest_defect(manifest)
+
+    assert (defect is None) is case["expected_valid"]
+
+
+def test_accepted_ui_paths_resolve_on_the_discovered_origin():
+    case = load_fixture_case("runtime_lease_valid_service_local_ui_paths")
+    base = case["payload"]["base_url"]
+    expected = urlsplit(base)
+    ui = case["payload"]["ui"]
+
+    for path in [ui["home"], *ui["routes"].values()]:
+        resolved = urlsplit(urljoin(base, path))
+        assert (resolved.scheme, resolved.netloc) == (
+            expected.scheme,
+            expected.netloc,
+        )
 
 
 def test_lease_supplies_the_base_url_when_no_env_var(lease_dir, monkeypatch):

@@ -45,7 +45,6 @@ _SERVICE_INNER_KEYS = {
 }
 _HEALTH_REF_KEYS = {"contract", "version", "href"}
 _MCP_KEYS = {"name", "transport"}
-_UI_KEYS = {"home", "routes"}
 _HEALTH_KEYS = {
     "ok", "contract", "version", "service_id", "service_version",
     "state", "checks",
@@ -158,6 +157,39 @@ def _pid_is_live(pid: int) -> bool:
     return _pid_alive(pid)
 
 
+def _is_service_ui_path(value: Any) -> bool:
+    """True for one-origin service paths, never URL references."""
+    if (
+        not isinstance(value, str)
+        or not value.startswith("/")
+        or value.startswith("//")
+        or "\\" in value
+    ):
+        return False
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return False
+    return not parsed.scheme and not parsed.netloc
+
+
+def _ui_defect(value: Any) -> str | None:
+    if not isinstance(value, dict) or set(value) != {"home", "routes"}:
+        return "ui keys"
+    routes = value.get("routes")
+    if not isinstance(routes, dict):
+        return "ui.routes must be an object"
+    if any(not isinstance(name, str) for name in routes):
+        return "ui.routes keys must be strings"
+    for path in [value.get("home"), *routes.values()]:
+        if not _is_service_ui_path(path):
+            return (
+                f"ui path {path!r} must begin with exactly one / and stay "
+                "on the service origin"
+            )
+    return None
+
+
 def lease_defect(payload: Any, service_id: str) -> str | None:
     """Exact-shape §3.4 validation. Returns the first defect or None.
     Liveness is checked by the caller so this stays pure and testable
@@ -187,17 +219,9 @@ def lease_defect(payload: Any, service_id: str) -> str | None:
         return "capabilities must be a list of strings"
     if list(caps) != sorted(set(caps)):
         return "capabilities must be sorted and unique"
-    ui = payload.get("ui")
-    if not isinstance(ui, dict) or set(ui) != {"home", "routes"}:
-        return "ui keys"
-    routes = ui.get("routes")
-    if not isinstance(routes, dict):
-        return "ui.routes must be an object"
-    for value in [ui.get("home"), *routes.values()]:
-        # §3.4: relative paths only — never arbitrary URLs, which is how a
-        # writable file would otherwise redirect a user's browser.
-        if not isinstance(value, str) or not value.startswith("/"):
-            return f"ui path {value!r} must be a relative path beginning with /"
+    ui_defect = _ui_defect(payload.get("ui"))
+    if ui_defect is not None:
+        return ui_defect
     if not isinstance(payload.get("pid"), int) or payload["pid"] <= 0:
         return "pid must be a positive integer"
     if not isinstance(payload.get("started_at"), str):
@@ -288,8 +312,9 @@ def _manifest_defect(body: Any) -> str | None:
         return "service.health.href must be an absolute path"
     if not isinstance(service.get("mcp"), dict) or set(service["mcp"]) != _MCP_KEYS:
         return "service.mcp keys (a manifest must publish no launcher)"
-    if not isinstance(service.get("ui"), dict) or set(service["ui"]) != _UI_KEYS:
-        return "service.ui keys"
+    ui_defect = _ui_defect(service.get("ui"))
+    if ui_defect is not None:
+        return f"service.{ui_defect}"
     caps = service.get("capabilities")
     if not isinstance(caps, list) or any(not isinstance(c, str) for c in caps):
         return "service.capabilities must be a list of strings"
