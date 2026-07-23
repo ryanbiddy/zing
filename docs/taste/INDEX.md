@@ -3,7 +3,8 @@
 This master index lists every criterion ID, definition, confidence tier, and source document across the Zing taste and virality specifications. It serves as a unified lookup reference for automated judgment prompts and human reviews.
 
 > [!NOTE]
-> This index is automatically generated. To regenerate, run `python scratch/compile_index.py` from the project workspace.
+> This is a checked-in review index. No generator ships in this repository;
+> update this table with the source taste documents it summarizes.
 
 | ID | Claim | Tier | Source Doc | Link |
 |---|---|---|---|---|
