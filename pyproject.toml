@@ -7,7 +7,7 @@ name = "myzing"
 version = "0.1.0"
 description = "Zing: the video director. Reverse-engineers the editing style of short videos you admire, directs your raw footage with gap reports and shot prompts, and assembles the edit locally."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
 requires-python = ">=3.10"
 dependencies = []
 
