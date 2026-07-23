@@ -1,0 +1,3 @@
+# Cross-repository conformance fixtures are hashed byte-for-byte by consumers.
+# Keep the canonical provider bytes identical on every platform.
+tools/eval/fixtures/suite_v1/source-url.json text eol=lf
