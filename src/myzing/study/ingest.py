@@ -38,6 +38,7 @@ from urllib.parse import urlparse
 
 from myzing import doctor, storage
 from myzing.schemas import VideoMeta
+from myzing.urls import has_http_scheme, is_http_url
 
 from . import proc
 from .proc import MediaError
@@ -78,7 +79,7 @@ class IngestResult:
 
 
 def is_url(source: str) -> bool:
-    return source.lower().startswith(("http://", "https://"))
+    return is_http_url(source)
 
 
 def detect_platform(source: str) -> str:
@@ -120,6 +121,11 @@ def ingest(
     """
     warnings: list[str] = []
     provenance: dict[str, Any] = {}
+    if has_http_scheme(source) and not is_url(source):
+        raise MediaError(
+            f"invalid source URL {source!r}: expected an absolute HTTP(S) "
+            "URL with a host, valid port, no whitespace, and no backslash"
+        )
     slug = storage.slug_for(source)
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)

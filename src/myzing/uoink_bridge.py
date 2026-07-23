@@ -1,12 +1,12 @@
 """The uoink bridge: push a breakdown back into the user's corpus.
 
 Optional by design — Zing is fully standalone. When the uoink helper
-answers on localhost (default ``http://127.0.0.1:5179``, override via
-``UOINK_URL``), the ``push_to_uoink`` MCP tool sends ``breakdown.md`` to
-uoink's ``POST /notes`` intake, where it lands as a first-class note in
-the corpus (searchable, queryable over uoink's own MCP). When uoink is
-absent, nothing nags: doctor reports it as a calm optional item and the
-tool answers honestly if called.
+answers on localhost (explicit ``UOINK_URL``, then its valid runtime lease,
+then default ``http://127.0.0.1:5179``), the ``push_to_uoink`` MCP tool
+sends ``breakdown.md`` to uoink's ``POST /notes`` intake, where it lands
+as a first-class note in the corpus (searchable, queryable over uoink's
+own MCP). When uoink is absent, nothing nags: doctor reports it as a calm
+optional item and the tool answers honestly if called.
 
 Auth: uoink's local API requires its per-install token in the
 ``X-Uoink-Token`` header. Zing reads it from the ``UOINK_TOKEN`` env var
@@ -28,8 +28,11 @@ import urllib.parse
 import urllib.request
 from typing import Any
 
-from myzing import storage
-from myzing.doctor import UOINK_DEFAULT_URL, UOINK_URL_ENV
+from myzing import storage, suite_peer
+from myzing.urls import is_http_url
+
+UOINK_DEFAULT_URL = suite_peer.UOINK_DEFAULT_URL
+UOINK_URL_ENV = suite_peer.UOINK_URL_ENV
 
 UOINK_TOKEN_ENV = "UOINK_TOKEN"
 _TIMEOUT = 5.0
@@ -61,7 +64,7 @@ TOKEN_LOCATION = (
 
 
 def helper_url() -> str:
-    return os.environ.get(UOINK_URL_ENV, "").strip() or UOINK_DEFAULT_URL
+    return suite_peer.resolve_uoink_base().base
 
 
 def _token() -> str:
@@ -121,8 +124,7 @@ def handoff_defect(body: Any) -> str | None:
     # null or HTTP(S) — a file:// or filesystem-shaped value here would
     # turn "refetch from the source" into a local file read.
     if source_url is not None and (
-        not isinstance(source_url, str)
-        or not source_url.lower().startswith(("http://", "https://"))
+        not is_http_url(source_url)
     ):
         return f"source_url must be null or an HTTP(S) URL, got {source_url!r}"
     media = data.get("media")
@@ -160,8 +162,15 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
             f"uoink's per-install token ({TOKEN_LOCATION}). Zing never "
             "reads uoink's token file itself."
         )
+    try:
+        base = helper_url()
+    except suite_peer.UoinkResolutionError as error:
+        return _err(
+            f"uoink discovery failed: {error.code} — {error}",
+            code=error.code,
+        )
     url = (
-        helper_url().rstrip("/")
+        base.rstrip("/")
         + "/api/corpus/v1/items/"
         + urllib.parse.quote(item_id, safe="")
         + "/kept-media"
@@ -186,7 +195,7 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
             )
     except (urllib.error.URLError, OSError, ValueError):
         return _err(
-            f"no uoink helper at {helper_url()} — is Uoink running? "
+            f"no uoink helper at {base} — is Uoink running? "
             "Zing works fine without it; kept-media study needs it once."
         )
 
@@ -235,7 +244,14 @@ def push_breakdown(slug: str) -> dict[str, Any]:
     except (FileNotFoundError, ValueError, KeyError, TypeError):
         pass  # markdown alone is still worth pushing; slug title suffices
 
-    url = helper_url().rstrip("/") + "/notes"
+    try:
+        base = helper_url()
+    except suite_peer.UoinkResolutionError as error:
+        return _err(
+            f"uoink discovery failed: {error.code} — {error}",
+            code=error.code,
+        )
+    url = base.rstrip("/") + "/notes"
     payload = json.dumps(
         {"text": text, "title": title, "author": "Zing"}
     ).encode("utf-8")
@@ -263,7 +279,7 @@ def push_breakdown(slug: str) -> dict[str, Any]:
         )
     except (urllib.error.URLError, OSError, ValueError):
         return _err(
-            f"no uoink helper at {helper_url()} — is Uoink running? "
+            f"no uoink helper at {base} — is Uoink running? "
             "Zing works fine without it; this push is optional."
         )
 

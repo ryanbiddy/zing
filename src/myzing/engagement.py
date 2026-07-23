@@ -255,16 +255,14 @@ def _validate_response(
 
 
 def _post(event: dict[str, Any]) -> dict[str, Any]:
-    base = os.environ.get(
-        suite_peer.UOINK_URL_ENV, "").strip()
-    base = base or suite_peer.UOINK_DEFAULT_URL
-    defect = suite_peer._validate_url(base)
-    if defect is not None:
+    try:
+        base = suite_peer.resolve_uoink_base().base
+    except suite_peer.UoinkResolutionError as error:
         raise _DeliveryError(
-            "invalid_configuration",
-            "The configured Uoink URL is not a valid loopback endpoint",
-            retryable=False,
-        )
+            error.code,
+            str(error),
+            retryable=error.retryable,
+        ) from error
     token = os.environ.get(
         suite_peer.UOINK_TOKEN_ENV, "").strip()
     if not token:
