@@ -85,6 +85,95 @@
       ]
     },
     {
+      "id": "valid_service_local_ui_paths",
+      "base": "valid_uoink",
+      "expected_valid": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["ui", "home"],
+          "value": "/library"
+        },
+        {
+          "op": "set",
+          "path": ["ui", "routes", "library"],
+          "value": "/library"
+        }
+      ]
+    },
+    {
+      "id": "network_path_home",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["ui", "home"],
+          "value": "//attacker.example/x"
+        }
+      ]
+    },
+    {
+      "id": "backslash_home",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["ui", "home"],
+          "value": "/\\host"
+        }
+      ]
+    },
+    {
+      "id": "absolute_url_home",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["ui", "home"],
+          "value": "https://attacker.example/x"
+        }
+      ]
+    },
+    {
+      "id": "network_path_route",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["ui", "routes", "library"],
+          "value": "//attacker.example/x"
+        }
+      ]
+    },
+    {
+      "id": "backslash_route",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["ui", "routes", "library"],
+          "value": "/\\host"
+        }
+      ]
+    },
+    {
+      "id": "absolute_url_route",
+      "base": "valid_uoink",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["ui", "routes", "library"],
+          "value": "https://attacker.example/x"
+        }
+      ]
+    },
+    {
       "id": "token_field",
       "base": "valid_uoink",
       "expected_valid": false,
