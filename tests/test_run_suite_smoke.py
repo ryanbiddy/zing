@@ -170,6 +170,49 @@ def test_step_ledger_duration_matches_serialized_timestamps(
     }]
 
 
+def test_mcp_initialize_preserves_product_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    responses = {
+        "initialize": {
+            "serverInfo": {"name": "zing", "version": "0.1.0"},
+        },
+        "tools/list": {"tools": [{"name": "zing_status"}]},
+    }
+
+    def request(
+        _client,
+        method: str,
+        _params: dict | None = None,
+        *,
+        notification: bool = False,
+        timeout: float = smoke.MCP_TIMEOUT,
+    ) -> dict | None:
+        del timeout
+        if notification:
+            assert method == "notifications/initialized"
+            return None
+        return responses[method]
+
+    client = object.__new__(smoke.StdioMCPClient)
+    monkeypatch.setattr(smoke.StdioMCPClient, "request", request)
+
+    assert client.initialize() == ("zing", "0.1.0", ["zing_status"])
+
+
+def test_mcp_initialize_rejects_sdk_version_drift() -> None:
+    with pytest.raises(smoke.SmokeError) as failure:
+        smoke._validate_mcp_initialize(
+            "writer",
+            expected_version="0.1.0",
+            identity="writer",
+            version="1.28.1",
+            tool_names=["writer_status"],
+        )
+
+    assert failure.value.code == "mcp_version_drift"
+
+
 def test_zing_engagement_requires_a_product_owned_receipt() -> None:
     with pytest.raises(
         smoke.SmokeError,

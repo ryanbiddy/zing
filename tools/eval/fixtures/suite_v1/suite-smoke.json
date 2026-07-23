@@ -125,6 +125,11 @@
           "writer",
           "zing"
         ],
+        "mcp_versions": {
+          "uoink": "3.6.0",
+          "writer": "0.1.0",
+          "zing": "0.1.0"
+        },
         "references": {
           "uoink_item": "uoink://item/short-123",
           "writer_script": "writer://script/17",

@@ -202,6 +202,7 @@ def test_checked_in_suite_smoke_record_passes_every_independent_assertion() -> N
 
     assert report["passed"] is True
     assert report["failed_assertions"] == []
+    assert len(SUITE_SMOKE_ASSERTION_IDS) == 18
     assert set(report["assertions"]) == set(SUITE_SMOKE_ASSERTION_IDS)
     assert all(
         assertion["passed"] for assertion in report["assertions"].values()
@@ -270,6 +271,10 @@ def test_checked_in_suite_smoke_record_passes_every_independent_assertion() -> N
         (
             _set(("mcp_identities", 2), "suite-proxy"),
             "direct_mcp_identity",
+        ),
+        (
+            _set(("mcp_versions", "writer"), "1.28.1"),
+            "direct_mcp_versions",
         ),
         (
             _append(

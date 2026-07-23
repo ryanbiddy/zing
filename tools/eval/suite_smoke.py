@@ -19,6 +19,7 @@ SUITE_SMOKE_ASSERTION_IDS = (
     "record_metadata",
     "step_timing",
     "direct_mcp_identity",
+    "direct_mcp_versions",
     "resident_contracts",
     "stable_references",
     "kept_media_zero_refetch",
@@ -71,6 +72,7 @@ _TOP_LEVEL_KEYS = {
     "contracts",
     "peer_states",
     "mcp_identities",
+    "mcp_versions",
     "references",
     "artifacts",
     "handoff",
@@ -289,6 +291,41 @@ def _mcp_issues(record: Any) -> list[dict[str, Any]]:
             )
         ]
     return []
+
+
+def _mcp_version_issues(record: Any) -> list[dict[str, Any]]:
+    versions = _get(record, ("mcp_versions",))
+    products = ("uoink", "writer", "zing")
+    if not isinstance(versions, Mapping) or set(versions) != set(products):
+        return [
+            _problem(
+                "$.mcp_versions",
+                "invalid_product_versions",
+                expected=list(products),
+                actual=versions,
+            )
+        ]
+    issues: list[dict[str, Any]] = []
+    for product in products:
+        expected = _get(
+            record,
+            ("sources", product, "installed_version"),
+        )
+        actual = versions.get(product)
+        if (
+            not isinstance(actual, str)
+            or not actual
+            or actual != expected
+        ):
+            issues.append(
+                _problem(
+                    f"$.mcp_versions.{product}",
+                    "does_not_match_installed_product",
+                    expected=expected,
+                    actual=actual,
+                )
+            )
+    return issues
 
 
 def _resident_contract_issues(record: Any) -> list[dict[str, Any]]:
@@ -825,6 +862,7 @@ _ASSERTION_CHECKS: Mapping[str, Callable[[Any], list[dict[str, Any]]]] = {
     "record_metadata": _metadata_issues,
     "step_timing": _timing_issues,
     "direct_mcp_identity": _mcp_issues,
+    "direct_mcp_versions": _mcp_version_issues,
     "resident_contracts": _resident_contract_issues,
     "stable_references": _reference_issues,
     "kept_media_zero_refetch": _handoff_issues,
