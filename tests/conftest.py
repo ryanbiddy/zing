@@ -7,8 +7,9 @@ read or write the real ~/.zing and pass offline on any machine.
 ffmpeg-gated tests are marked ``@pytest.mark.ffmpeg``. On a machine
 without ffmpeg/ffprobe they skip with an honest reason — EXCEPT when
 ``ZING_REQUIRE_FFMPEG=1`` is set (the dedicated CI ffmpeg jobs set it),
-which turns the missing-tool skip into a hard failure so the real gates
-can never silently degrade to mocked-only coverage (F-01 / C#8).
+which turns every skip or xfail into a hard failure. The jobs also pass
+``--expected-ffmpeg-tests`` so silently deselecting a real gate is fatal
+(F-01 / C#8).
 """
 
 from __future__ import annotations
@@ -35,6 +36,49 @@ def pytest_configure(config: pytest.Config) -> None:
     )
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    group = parser.getgroup("ffmpeg gate")
+    group.addoption(
+        "--expected-ffmpeg-tests",
+        type=int,
+        default=None,
+        metavar="COUNT",
+        help="fail collection unless exactly COUNT tests remain selected",
+    )
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    expected = session.config.getoption("--expected-ffmpeg-tests")
+    if expected is None:
+        return
+    actual = len(session.items)
+    if actual != expected:
+        raise pytest.UsageError(
+            "ffmpeg gate expected exactly "
+            f"{expected} selected tests, but collected {actual}"
+        )
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    if (
+        os.environ.get(REQUIRE_ENV_VAR) != "1"
+        or session.config.getoption("--expected-ffmpeg-tests") is None
+    ):
+        return
+    reporter = session.config.pluginmanager.get_plugin("terminalreporter")
+    skipped = list(reporter.stats.get("skipped", ())) if reporter else []
+    xfailed = list(reporter.stats.get("xfailed", ())) if reporter else []
+    if not skipped and not xfailed:
+        return
+    if reporter:
+        reporter.write_sep(
+            "=",
+            "required ffmpeg gate recorded "
+            f"{len(skipped)} skip(s) and {len(xfailed)} xfail(s)",
+        )
+    session.exitstatus = pytest.ExitCode.TESTS_FAILED
+
+
 def pytest_runtest_setup(item: pytest.Item) -> None:
     if item.get_closest_marker("ffmpeg") is None:
         return
@@ -49,6 +93,32 @@ def pytest_runtest_setup(item: pytest.Item) -> None:
             pytrace=False,
         )
     pytest.skip(message)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(
+    item: pytest.Item, call: pytest.CallInfo[None]
+):
+    outcome = yield
+    report = outcome.get_result()
+    if (
+        os.environ.get(REQUIRE_ENV_VAR) != "1"
+        or item.get_closest_marker("ffmpeg") is None
+    ):
+        return
+    was_xfail = hasattr(report, "wasxfail")
+    if not report.skipped and not was_xfail:
+        return
+    kind = "xfail" if was_xfail else "skip"
+    reason = getattr(report, "wasxfail", None) or str(report.longrepr)
+    if was_xfail:
+        del report.wasxfail
+    report.outcome = "failed"
+    report.longrepr = (
+        f"{REQUIRE_ENV_VAR}=1 forbids skipping or xfail in ffmpeg-gated tests: "
+        f"{kind} from "
+        f"{item.nodeid} ({reason})"
+    )
 
 
 @pytest.fixture

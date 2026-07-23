@@ -14,9 +14,12 @@ import sys
 
 import pytest
 
-faster_whisper = pytest.importorskip("faster_whisper")
+from myzing.study import transcribe
 
-from myzing.study import transcribe  # noqa: E402
+
+@pytest.fixture(scope="module", autouse=True)
+def real_transcription_dependency():
+    pytest.importorskip("faster_whisper")
 
 
 @pytest.fixture(scope="module")

@@ -10,15 +10,20 @@ from __future__ import annotations
 
 import pytest
 
-np = pytest.importorskip("numpy")
-cv2 = pytest.importorskip("cv2")
-
 from myzing.study import captions
 
 
 @pytest.fixture(scope="module")
-def tiny_clip(tmp_path_factory):
+def real_cv2_dependencies():
+    np = pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    return np, cv2
+
+
+@pytest.fixture(scope="module")
+def tiny_clip(tmp_path_factory, real_cv2_dependencies):
     """1.0s @ 30fps, 64x48: frame index painted as a brightness ramp."""
+    np, cv2 = real_cv2_dependencies
     path = tmp_path_factory.mktemp("clip") / "tiny.avi"
     writer = cv2.VideoWriter(
         str(path), cv2.VideoWriter_fourcc(*"MJPG"), 30.0, (64, 48)
@@ -47,12 +52,13 @@ def test_iter_frames_stops_at_stream_end_without_error(tiny_clip):
     assert 0 < len(got) < len(captions.sample_schedule(3.0))
 
 
-def test_iter_frames_unopenable_path_raises(tmp_path):
+def test_iter_frames_unopenable_path_raises(tmp_path, real_cv2_dependencies):
     with pytest.raises(RuntimeError, match="could not open"):
         list(captions._iter_frames(tmp_path / "missing.mp4", duration=1.0))
 
 
-def test_changed_gate_on_real_arrays():
+def test_changed_gate_on_real_arrays(real_cv2_dependencies):
+    np, _ = real_cv2_dependencies
     base = np.zeros((480, 270, 3), dtype=np.uint8)
     same = base.copy()
     moved = base.copy()
