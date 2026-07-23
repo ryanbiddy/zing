@@ -165,6 +165,7 @@ def test_refusal_at_explicit_url_is_unhealthy_not_absent(monkeypatch):
     ("http://user:pw@127.0.0.1:5179", "userinfo"),
     ("http://127.0.0.1:5179/x?q=1", "query"),
     ("ftp://127.0.0.1:5179", "scheme"),
+    ("http://[::1:5179", "URL"),
 ])
 def test_invalid_explicit_url_never_falls_through(monkeypatch, url, why):
     monkeypatch.setenv(suite_peer.UOINK_URL_ENV, url)
@@ -175,6 +176,7 @@ def test_invalid_explicit_url_never_falls_through(monkeypatch, url, why):
     )
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "invalid_configuration"
+    assert why in peer["error"]["message"]
     assert calls["n"] == 0  # §3.3: no silent fall-through to a default
     assert peer_is_valid(peer)
 
@@ -726,6 +728,7 @@ def test_hostile_lease_is_never_followed(lease_dir, monkeypatch):
     valid_lease(token="secret"),                      # forbidden content
     valid_lease(ui={"home": "https://evil.test/x", "routes": {}}),
     valid_lease(capabilities=["b/1", "a/1"]),         # unsorted
+    valid_lease(base_url="http://[::1:5179"),
     valid_lease(pid=0),
     "not an object",
 ])

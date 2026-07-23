@@ -93,7 +93,10 @@ def _bad(
 def _validate_url(url: str) -> str | None:
     """§3.3: loopback only, explicit port, no userinfo/query/fragment.
     Returns a defect description or None."""
-    parts = urlsplit(url)
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "URL is malformed"
     if parts.scheme not in ("http", "https"):
         return f"scheme must be http(s), got {parts.scheme!r}"
     if parts.username or parts.password:
