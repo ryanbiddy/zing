@@ -41,7 +41,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
@@ -147,7 +147,7 @@ jobs:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
         if: runner.os == 'Linux'
-        timeout-minutes: 10
+        timeout-minutes: 15
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
