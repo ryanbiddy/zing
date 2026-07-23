@@ -149,7 +149,7 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ffmpeg
       - name: Clean-host gate
-        run: python packaging/clean_host_check.py --report clean-host-${{ matrix.os }}.json
+        run: python packaging/clean_host_check.py --require-study --report clean-host-${{ matrix.os }}.json
       - name: Upload gate record
         if: always()
         uses: actions/upload-artifact@v4

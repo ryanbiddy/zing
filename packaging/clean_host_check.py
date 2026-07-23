@@ -1,8 +1,9 @@
-"""S5 fresh-host install gate: wheel → bare venv → first-run truth.
+"""S5 fresh-host install gate: wheel -> bare venv -> first-run truth.
 
 Simulates a brand-new user with NO repo checkout in the test path:
 
-    python packaging/clean_host_check.py [--skip-study] [--report out.json]
+    python packaging/clean_host_check.py
+        [--skip-study | --require-study] [--report out.json]
 
 1. Builds the wheel (``pip wheel . --no-deps``).
 2. Creates a pristine venv in a temp dir and installs the wheel
@@ -43,8 +44,14 @@ def run(cmd: list[str], cwd: Path, env: dict, timeout: int = 600):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--skip-study", action="store_true",
-                        help="skip the cached-media study step")
+    study_mode = parser.add_mutually_exclusive_group()
+    study_mode.add_argument("--skip-study", action="store_true",
+                            help="skip the cached-media study step")
+    study_mode.add_argument(
+        "--require-study",
+        action="store_true",
+        help="fail unless the cached-media study step passes",
+    )
     parser.add_argument("--report", type=Path, default=None,
                         help="write the JSON gate record here")
     args = parser.parse_args(argv)
@@ -71,7 +78,9 @@ def main(argv: list[str] | None = None) -> int:
         if build.returncode != 0 or not wheels:
             record("build-wheel", "FAIL", "pip wheel failed",
                    build.stdout + build.stderr)
-            return _finish(steps, args.report)
+            return _finish(
+                steps, args.report, require_study=args.require_study
+            )
         wheel = wheels[0]
         record("build-wheel", "PASS", wheel.name)
 
@@ -88,7 +97,9 @@ def main(argv: list[str] | None = None) -> int:
         if install.returncode != 0:
             record("install-wheel", "FAIL", "pip install failed",
                    install.stdout + install.stderr)
-            return _finish(steps, args.report)
+            return _finish(
+                steps, args.report, require_study=args.require_study
+            )
         record("install-wheel", "PASS", "wheel + [mcp] extra installed")
 
         # The new-user environment: neutral cwd, isolated workspace, and
@@ -135,7 +146,16 @@ def main(argv: list[str] | None = None) -> int:
         if args.skip_study:
             record("study-cached-media", "SKIP", "--skip-study")
         elif not shutil.which("ffmpeg"):
-            record("study-cached-media", "SKIP", "no ffmpeg on this host")
+            if args.require_study:
+                record(
+                    "study-cached-media",
+                    "FAIL",
+                    "ffmpeg is required by --require-study but is not on PATH",
+                )
+            else:
+                record(
+                    "study-cached-media", "SKIP", "no ffmpeg on this host"
+                )
         else:
             clip = workdir / "clip.mp4"
             gen = run(
@@ -156,10 +176,32 @@ def main(argv: list[str] | None = None) -> int:
                 record("study-cached-media", "PASS" if ok else "FAIL",
                        f"exit {r.returncode}", r.stdout + r.stderr)
 
-    return _finish(steps, args.report)
+    return _finish(
+        steps, args.report, require_study=args.require_study
+    )
 
 
-def _finish(steps: list[dict], report: Path | None) -> int:
+def _finish(
+    steps: list[dict],
+    report: Path | None,
+    *,
+    require_study: bool = False,
+) -> int:
+    if require_study:
+        study = next(
+            (step for step in steps if step["step"] == "study-cached-media"),
+            None,
+        )
+        if study is None:
+            steps.append({
+                "step": "study-cached-media",
+                "status": "FAIL",
+                "detail": "required study step was not reached",
+                "output_tail": "",
+            })
+        elif study["status"] == "SKIP":
+            study["status"] = "FAIL"
+            study["detail"] = f"required study was skipped: {study['detail']}"
     failed = [s for s in steps if s["status"] == "FAIL"]
     summary = {
         "platform": sys.platform,
