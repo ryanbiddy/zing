@@ -28,13 +28,13 @@ jobs:
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
     steps:
       - name: Check out Zing
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: zing
           persist-credentials: false
 
       - name: Check out Uoink main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ryanbiddy/uoink
           ref: main
@@ -42,14 +42,14 @@ jobs:
           persist-credentials: false
 
       - name: Check out Writer main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ryanbiddy/writer
           ref: main
           path: writer
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -58,6 +58,7 @@ jobs:
             writer/pyproject.toml
 
       - name: Install FFmpeg
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
@@ -104,7 +105,7 @@ jobs:
 
       - name: Upload the path-free family record
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: suite-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/suite-smoke/suite-smoke*.json

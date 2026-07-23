@@ -7,6 +7,7 @@ jobs:
   # Fast mocked-unit matrix. The ffmpeg-marked subset is excluded here
   # explicitly and enforced (skips impossible) in the dedicated jobs below.
   test:
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -14,8 +15,8 @@ jobs:
     env:
       ZING_REQUIRE_OTIO: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - run: pip install -e .[dev] "OpenTimelineIO>=0.18,<0.19"
@@ -30,15 +31,17 @@ jobs:
   # to mocked-only coverage. (run.py --study needs the
   # heavy [study] extras and stays out of the PR gate per S1-REVIEW-lane-b.)
   ffmpeg-gates-ubuntu:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
@@ -63,7 +66,7 @@ jobs:
         run: pytest -q -m ffmpeg --expected-ffmpeg-tests 22
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: eval-report-ubuntu
           path: tools/eval/eval-report.json
@@ -73,15 +76,17 @@ jobs:
   # path-handling / ASS / render-smoke subset (hostile-path golden
   # generation + the full render integration oracle). Same no-skip rule.
   ffmpeg-smoke-windows:
+    timeout-minutes: 30
     runs-on: windows-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (chocolatey)
+        timeout-minutes: 10
         run: choco install ffmpeg -y --no-progress
       - name: Verify ffmpeg version and required filters (C#8)
         shell: bash
@@ -105,15 +110,17 @@ jobs:
   # frames from it. The required-mode env makes a missing ffmpeg/ffprobe a
   # hard failure instead of an honest local-development skip.
   ffmpeg-smoke-macos:
+    timeout-minutes: 30
     runs-on: macos-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (Homebrew)
+        timeout-minutes: 10
         run: brew install ffmpeg
       - name: Verify ffmpeg and ffprobe
         run: |
@@ -127,32 +134,36 @@ jobs:
   # surface, NO repo checkout on the tested path (packaged data must
   # carry everything). The gate record uploads as an artifact per OS.
   clean-install:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Install ffmpeg (chocolatey)
         if: runner.os == 'Windows'
+        timeout-minutes: 10
         run: choco install ffmpeg -y --no-progress
       - name: Install ffmpeg (brew)
         if: runner.os == 'macOS'
+        timeout-minutes: 10
         run: brew install ffmpeg
       - name: Clean-host gate
         run: python packaging/clean_host_check.py --require-study --report clean-host-${{ matrix.os }}.json
       - name: Upload gate record
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: clean-host-${{ matrix.os }}
           path: clean-host-*.json

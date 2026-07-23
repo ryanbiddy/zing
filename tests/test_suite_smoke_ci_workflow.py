@@ -9,6 +9,50 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github" / "workflows" / "suite-smoke.yml"
 DOC = ROOT / "docs" / "SUITE-SMOKE-CI.md"
+NODE24_ACTION_MAJORS = {
+    "actions/checkout": 5,
+    "actions/setup-python": 6,
+    "actions/upload-artifact": 6,
+}
+
+
+def test_ci_workflows_use_node24_action_runtimes() -> None:
+    seen: set[str] = set()
+    for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
+        text = workflow.read_text(encoding="utf-8")
+        for action, major_text in re.findall(
+            r"uses:\s+(actions/(?:checkout|setup-python|upload-artifact))@v(\d+)",
+            text,
+        ):
+            seen.add(action)
+            assert int(major_text) >= NODE24_ACTION_MAJORS[action], (
+                f"{workflow.name} uses Node 20 action {action}@v{major_text}"
+            )
+
+    assert seen == set(NODE24_ACTION_MAJORS)
+
+
+def test_ci_jobs_and_package_installs_have_explicit_timeouts() -> None:
+    text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8",
+    )
+    assert text.count("    timeout-minutes: 30") == 5
+
+    install_blocks = re.findall(
+        r"(?ms)^      - name: Install ffmpeg \([^)]+\)\n"
+        r"(.*?)(?=^      - |\Z)",
+        text,
+    )
+    assert len(install_blocks) == 6
+    assert all("timeout-minutes: 10" in block for block in install_blocks)
+
+    family_text = WORKFLOW.read_text(encoding="utf-8")
+    family_install = re.search(
+        r"(?ms)^      - name: Install FFmpeg\n(.*?)(?=^      - |\Z)",
+        family_text,
+    )
+    assert family_install is not None
+    assert "timeout-minutes: 10" in family_install.group(1)
 
 
 def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
@@ -38,7 +82,7 @@ def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
         "python -m tools.eval.suite_smoke",
         "suite-smoke.json",
         "suite-smoke-eval.json",
-        "actions/upload-artifact@v4",
+        "actions/upload-artifact@v6",
         "if: always()",
         "if-no-files-found: error",
         "retention-days:",
