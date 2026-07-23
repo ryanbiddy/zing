@@ -131,10 +131,9 @@ def test_real_voiceover_probe_mutations_fail_only_target_dimension(
     assert inaudible_render["render"]["passed"] is False
 
 
-@pytest.mark.ffmpeg
 @pytest.mark.skipif(
     os.environ.get("ZING_REQUIRE_KOKORO") != "1",
-    reason="set ZING_REQUIRE_KOKORO=1 in the isolated Python 3.10-3.13 gate",
+    reason="set ZING_REQUIRE_KOKORO=1 for the optional real Kokoro check",
 )
 def test_real_kokoro_voiceover_survives_assembled_render(
     tmp_path: Path,

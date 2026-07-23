@@ -25,9 +25,9 @@ jobs:
   # ffmpeg installed explicitly, version + required filters verified up
   # front, golden generation + eval scorer + the ffmpeg-marked tests run
   # for real. ZING_REQUIRE_FFMPEG=1 makes tests/conftest.py FAIL (never
-  # skip) ffmpeg-marked tests if ffmpeg is missing, and pytest exits
-  # nonzero if the marked subset collects nothing — this job cannot
-  # silently degrade to mocked-only coverage. (run.py --study needs the
+  # skip or xfail) every selected test, while the exact count pin makes
+  # any accidental deselection fatal — this job cannot silently degrade
+  # to mocked-only coverage. (run.py --study needs the
   # heavy [study] extras and stays out of the PR gate per S1-REVIEW-lane-b.)
   ffmpeg-gates-ubuntu:
     runs-on: ubuntu-latest
@@ -60,7 +60,7 @@ jobs:
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 22
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -98,7 +98,7 @@ jobs:
           done
       - run: pip install -e .[dev]
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 22
 
   # First macOS gate: keep the broad mocked/unit suite in the matrix above,
   # then prove Homebrew ffmpeg can generate media and Zing can extract real

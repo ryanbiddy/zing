@@ -28,10 +28,10 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
-    "isolated Python 3.10-3.13 gate": (
-        "kokoro-onnx caps at Python <3.14. PRODUCT SURFACE: tts_status() "
-        "checks kokoro_onnx importability and doctor names the running "
-        "Python — added after this very skip hid the constraint (#324)."
+    "optional real Kokoro check": (
+        "the real synthesis check needs the optional kokoro-onnx runtime and "
+        "model assets. PRODUCT SURFACE: tts_status() checks runtime and asset "
+        "availability; doctor names the running Python and install action."
     ),
     "OpenTimelineIO optional runtime is not installed": (
         "OTIO is an optional extra. PRODUCT SURFACE: h_export_otio returns "

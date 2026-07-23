@@ -21,6 +21,41 @@ import pytest
 def test_needs_real_ffmpeg():
     pass
 """
+SKIPPING_MARKED_TEST = """
+import pytest
+
+
+@pytest.mark.ffmpeg
+def test_skips_despite_available_tools():
+    pytest.skip("mutation")
+"""
+XFAILING_MARKED_TEST = """
+import pytest
+
+
+@pytest.mark.ffmpeg
+@pytest.mark.xfail(reason="mutation")
+def test_expected_failure():
+    assert False
+"""
+TWO_MARKED_TESTS = """
+import pytest
+
+
+@pytest.mark.ffmpeg
+def test_first():
+    pass
+
+
+@pytest.mark.ffmpeg
+def test_second():
+    pass
+"""
+COLLECTION_SKIPPING_MODULE = """
+import pytest
+
+pytest.skip("mutation", allow_module_level=True)
+"""
 
 
 def _run_marked_test_without_ffmpeg(
@@ -59,3 +94,89 @@ def test_missing_ffmpeg_fails_loudly_when_required(
     assert outcomes.get("passed", 0) == 0
     assert result.ret != 0
     result.stdout.fnmatch_lines(["*ZING_REQUIRE_FFMPEG=1 forbids skipping*"])
+
+
+def test_generic_skip_fails_loudly_when_ffmpeg_is_required(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytester.makeconftest(CONFTEST)
+    pytester.makepyfile(SKIPPING_MARKED_TEST)
+    monkeypatch.setattr("shutil.which", lambda *args, **kwargs: "available")
+    monkeypatch.setenv("ZING_REQUIRE_FFMPEG", "1")
+
+    result = pytester.runpytest_inprocess("-q")
+
+    outcomes = result.parseoutcomes()
+    assert outcomes.get("skipped", 0) == 0
+    assert outcomes.get("passed", 0) == 0
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(["*ZING_REQUIRE_FFMPEG=1 forbids skipping*"])
+
+
+def test_xfail_fails_loudly_when_ffmpeg_is_required(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytester.makeconftest(CONFTEST)
+    pytester.makepyfile(XFAILING_MARKED_TEST)
+    monkeypatch.setattr("shutil.which", lambda *args, **kwargs: "available")
+    monkeypatch.setenv("ZING_REQUIRE_FFMPEG", "1")
+
+    result = pytester.runpytest_inprocess("-q")
+
+    result.assert_outcomes(failed=1)
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(
+        ["*ZING_REQUIRE_FFMPEG=1 forbids skipping or xfail*"]
+    )
+
+
+def test_expected_ffmpeg_count_accepts_exact_collection(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytester.makeconftest(CONFTEST)
+    pytester.makepyfile(TWO_MARKED_TESTS)
+    monkeypatch.setattr("shutil.which", lambda *args, **kwargs: "available")
+    monkeypatch.setenv("ZING_REQUIRE_FFMPEG", "1")
+
+    result = pytester.runpytest_inprocess(
+        "-q", "-m", "ffmpeg", "--expected-ffmpeg-tests", "2"
+    )
+
+    result.assert_outcomes(passed=2)
+    assert result.ret == 0
+
+
+def test_expected_ffmpeg_count_rejects_deselection(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytester.makeconftest(CONFTEST)
+    pytester.makepyfile(TWO_MARKED_TESTS)
+    monkeypatch.setattr("shutil.which", lambda *args, **kwargs: "available")
+    monkeypatch.setenv("ZING_REQUIRE_FFMPEG", "1")
+
+    result = pytester.runpytest_inprocess(
+        "-q", "-m", "ffmpeg", "--expected-ffmpeg-tests", "3"
+    )
+
+    assert result.ret != 0
+    result.stderr.fnmatch_lines(
+        ["*expected exactly 3 selected tests, but collected 2*"]
+    )
+
+
+def test_collection_skip_fails_counted_ffmpeg_gate(
+    pytester: pytest.Pytester, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytester.makeconftest(CONFTEST)
+    pytester.makepyfile(COLLECTION_SKIPPING_MODULE)
+    monkeypatch.setattr("shutil.which", lambda *args, **kwargs: "available")
+    monkeypatch.setenv("ZING_REQUIRE_FFMPEG", "1")
+
+    result = pytester.runpytest_inprocess(
+        "-q", "-m", "ffmpeg", "--expected-ffmpeg-tests", "0"
+    )
+
+    assert result.ret != 0
+    result.stdout.fnmatch_lines(
+        ["*required ffmpeg gate recorded 1 skip(s) and 0 xfail(s)*"]
+    )

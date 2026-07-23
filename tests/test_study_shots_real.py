@@ -7,16 +7,21 @@ from __future__ import annotations
 
 import pytest
 
-np = pytest.importorskip("numpy")
-cv2 = pytest.importorskip("cv2")
-pytest.importorskip("scenedetect")
-
 from myzing.study import shots
 
 
 @pytest.fixture(scope="module")
-def two_scene_clip(tmp_path_factory):
+def real_detector_dependencies():
+    np = pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    pytest.importorskip("scenedetect")
+    return np, cv2
+
+
+@pytest.fixture(scope="module")
+def two_scene_clip(tmp_path_factory, real_detector_dependencies):
     """2s @ 30fps: 1s black, then 1s white — one hard cut at t=1.0."""
+    np, cv2 = real_detector_dependencies
     path = tmp_path_factory.mktemp("clip") / "cut.avi"
     writer = cv2.VideoWriter(
         str(path), cv2.VideoWriter_fourcc(*"MJPG"), 30.0, (320, 240)
