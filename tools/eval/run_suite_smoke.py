@@ -450,7 +450,7 @@ class StdioMCPClient:
             f"{self.name} MCP did not answer {method} in time",
         )
 
-    def initialize(self) -> tuple[str, list[str]]:
+    def initialize(self) -> tuple[str, str, list[str]]:
         result = self.request("initialize", {
             "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": {},
@@ -462,6 +462,7 @@ class StdioMCPClient:
         assert result is not None
         info = result.get("serverInfo")
         identity = str(info.get("name") if isinstance(info, dict) else "")
+        version = str(info.get("version") if isinstance(info, dict) else "")
         self.request(
             "notifications/initialized",
             {},
@@ -475,7 +476,7 @@ class StdioMCPClient:
             for tool in tools or []
             if isinstance(tool, dict)
         ]
-        return identity, names
+        return identity, version, names
 
     def call(
         self,
@@ -528,6 +529,33 @@ class StdioMCPClient:
         except subprocess.TimeoutExpired:
             self.process.kill()
             self.process.wait(timeout=10)
+
+
+def _validate_mcp_initialize(
+    product: str,
+    *,
+    expected_version: str,
+    identity: str,
+    version: str,
+    tool_names: list[str],
+) -> None:
+    if identity != product:
+        raise SmokeError(
+            "mcp_identity_drift",
+            f"{product} MCP identified itself as {identity!r}",
+        )
+    if version != expected_version:
+        raise SmokeError(
+            "mcp_version_drift",
+            f"{product} MCP reported version {version!r}; "
+            f"installed product version is {expected_version!r}",
+        )
+    missing = REQUIRED_MCP_TOOLS[product] - set(tool_names)
+    if missing or not tool_names:
+        raise SmokeError(
+            "mcp_surface_drift",
+            f"{product} MCP is missing required direct tools",
+        )
 
 
 def _json_request(
@@ -1362,6 +1390,8 @@ def run_suite_smoke(
     ledger = StepLedger()
     residents: list[ManagedProcess] = []
     clients: dict[str, StdioMCPClient] = {}
+    identities: list[str] = []
+    mcp_versions: dict[str, str] = {}
     uoink_process: ManagedProcess | None = None
     writer_process: ManagedProcess | None = None
     uoink_token = ""
@@ -1514,21 +1544,17 @@ def run_suite_smoke(
                     health,
                     expected_service=product,
                 )
-            identities: list[str] = []
             for product in ("uoink", "writer", "zing"):
-                identity, names = clients[product].initialize()
-                if identity != product:
-                    raise SmokeError(
-                        "mcp_identity_drift",
-                        f"{product} MCP identified itself as {identity!r}",
-                    )
-                missing = REQUIRED_MCP_TOOLS[product] - set(names)
-                if missing or not names:
-                    raise SmokeError(
-                        "mcp_surface_drift",
-                        f"{product} MCP is missing required direct tools",
-                    )
+                identity, version, names = clients[product].initialize()
+                _validate_mcp_initialize(
+                    product,
+                    expected_version=versions[product],
+                    identity=identity,
+                    version=version,
+                    tool_names=names,
+                )
                 identities.append(identity)
+                mcp_versions[product] = version
             if identities != ["uoink", "writer", "zing"]:
                 raise SmokeError(
                     "mcp_not_direct",
@@ -2054,7 +2080,8 @@ def run_suite_smoke(
             "uoink": "available",
             "writer": "available",
         },
-        "mcp_identities": ["uoink", "writer", "zing"],
+        "mcp_identities": identities,
+        "mcp_versions": mcp_versions,
         "references": {
             "uoink_item": item_ref,
             "writer_script": writer_script_ref,
