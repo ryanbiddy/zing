@@ -235,6 +235,59 @@ def test_trim_edge_words_captioned_with_clamped_times(media):
     assert all(0.0 <= w.start <= w.end <= 5.0 for w in words)
 
 
+def test_trim_inside_measured_words_warns_without_changing_edl(media):
+    from myzing.schemas import Word
+
+    b = make_breakdown()
+    b.words = [
+        Word("opening", 4.8, 5.2, 0.9),
+        Word("middle", 6.0, 6.4, 0.9),
+        Word("closing", 9.8, 10.2, 0.9),
+    ]
+    result = draft_edl(b, direction_with([
+        {"start": 5.0, "end": 10.0, "why": "the take"},
+    ]), media)
+
+    boundary = [
+        warning for warning in result.warnings
+        if "context-boundary risk" in warning
+    ]
+    assert boundary == [
+        "draft EDL: context-boundary risk — keeper 0 starts at 5.000s "
+        "inside measured word 'opening' (4.800-5.200s, confidence 0.90); "
+        "adjust the trim or verify the audible cut",
+        "draft EDL: context-boundary risk — keeper 0 ends at 10.000s "
+        "inside measured word 'closing' (9.800-10.200s, confidence 0.90); "
+        "adjust the trim or verify the audible cut",
+    ]
+    assert [
+        (clip.src_in, clip.src_out, clip.timeline_start)
+        for clip in result.edl.clips
+    ] == [(5.0, 10.0, 0.0)]
+
+
+def test_exact_word_edges_and_missing_transcript_do_not_warn(media):
+    from myzing.schemas import Word
+
+    exact = make_breakdown()
+    exact.words = [
+        Word("before", 4.5, 5.0, 0.9),
+        Word("inside", 5.0, 6.0, 0.9),
+        Word("after", 10.0, 10.4, 0.9),
+    ]
+    exact_result = draft_edl(exact, direction_with([
+        {"start": 5.0, "end": 10.0, "why": "exact boundaries"},
+    ]), media)
+    missing_result = draft_edl(make_breakdown(), direction_with([
+        {"start": 5.0, "end": 10.0, "why": "no transcript"},
+    ]), media)
+
+    assert not any(
+        "context-boundary risk" in warning
+        for warning in exact_result.warnings + missing_result.warnings
+    )
+
+
 def test_caption_style_measured_from_source(media):
     from myzing.schemas import CaptionEvent, Word
 
