@@ -46,6 +46,14 @@ def test_ci_jobs_and_package_installs_have_explicit_timeouts() -> None:
     assert len(install_blocks) == 6
     assert all("timeout-minutes: 10" in block for block in install_blocks)
 
+    family_text = WORKFLOW.read_text(encoding="utf-8")
+    family_install = re.search(
+        r"(?ms)^      - name: Install FFmpeg\n(.*?)(?=^      - |\Z)",
+        family_text,
+    )
+    assert family_install is not None
+    assert "timeout-minutes: 10" in family_install.group(1)
+
 
 def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
     assert WORKFLOW.is_file()
