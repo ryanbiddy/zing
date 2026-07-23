@@ -11,8 +11,8 @@ Simulates a brand-new user with NO repo checkout in the test path:
 3. From a NEUTRAL working directory with an isolated ZING_HOME, runs the
    first-run surface exactly as a new user would:
    ``zing doctor``, ``zing doctor --json``, ``zing prompt study``,
-   ``zing setup --list``, and (when ffmpeg exists) a cached-media
-   ``zing study`` of a tiny generated clip.
+   ``zing setup --list``, a real MCP initialize/list/call exchange, and (when
+   ffmpeg exists) a cached-media ``zing study`` of a tiny generated clip.
 4. Emits a per-step gate record (JSON + console): PASS/FAIL/SKIP with
    the observed output. Every rough edge in first-run output is a
    defect by sprint definition — the record is the evidence.
@@ -79,7 +79,10 @@ def main(argv: list[str] | None = None) -> int:
             record("build-wheel", "FAIL", "pip wheel failed",
                    build.stdout + build.stderr)
             return _finish(
-                steps, args.report, require_study=args.require_study
+                steps,
+                args.report,
+                require_study=args.require_study,
+                require_mcp=True,
             )
         wheel = wheels[0]
         record("build-wheel", "PASS", wheel.name)
@@ -98,7 +101,10 @@ def main(argv: list[str] | None = None) -> int:
             record("install-wheel", "FAIL", "pip install failed",
                    install.stdout + install.stderr)
             return _finish(
-                steps, args.report, require_study=args.require_study
+                steps,
+                args.report,
+                require_study=args.require_study,
+                require_mcp=True,
             )
         record("install-wheel", "PASS", "wheel + [mcp] extra installed")
 
@@ -143,6 +149,40 @@ def main(argv: list[str] | None = None) -> int:
                "packaged packs listed" if ok else f"exit {r.returncode}",
                r.stdout + r.stderr)
 
+        mcp = run(
+            [
+                str(vpy),
+                "-P",
+                str(REPO / "packaging" / "mcp_stdio_smoke.py"),
+            ],
+            workdir,
+            env,
+            timeout=180,
+        )
+        try:
+            mcp_payload = json.loads(mcp.stdout)
+            mcp_ok = (
+                mcp.returncode == 0
+                and mcp_payload["ok"] is True
+                and mcp_payload["server"]["name"] == "zing"
+                and mcp_payload["tool_count"] == 19
+                and mcp_payload["called"] == "zing_status"
+            )
+        except (KeyError, TypeError, json.JSONDecodeError):
+            mcp_ok = False
+            mcp_payload = {}
+        record(
+            "mcp-stdio",
+            "PASS" if mcp_ok else "FAIL",
+            (
+                "installed product initialized, listed 19 tools, and called "
+                "zing_status"
+                if mcp_ok else
+                f"installed MCP smoke failed: {mcp_payload}"
+            ),
+            mcp.stdout + mcp.stderr,
+        )
+
         if args.skip_study:
             record("study-cached-media", "SKIP", "--skip-study")
         elif not shutil.which("ffmpeg"):
@@ -177,7 +217,10 @@ def main(argv: list[str] | None = None) -> int:
                        f"exit {r.returncode}", r.stdout + r.stderr)
 
     return _finish(
-        steps, args.report, require_study=args.require_study
+        steps,
+        args.report,
+        require_study=args.require_study,
+        require_mcp=True,
     )
 
 
@@ -186,6 +229,7 @@ def _finish(
     report: Path | None,
     *,
     require_study: bool = False,
+    require_mcp: bool = False,
 ) -> int:
     if require_study:
         study = next(
@@ -202,6 +246,21 @@ def _finish(
         elif study["status"] == "SKIP":
             study["status"] = "FAIL"
             study["detail"] = f"required study was skipped: {study['detail']}"
+    if require_mcp:
+        mcp = next(
+            (step for step in steps if step["step"] == "mcp-stdio"),
+            None,
+        )
+        if mcp is None:
+            steps.append({
+                "step": "mcp-stdio",
+                "status": "FAIL",
+                "detail": "required MCP step was not reached",
+                "output_tail": "",
+            })
+        elif mcp["status"] == "SKIP":
+            mcp["status"] = "FAIL"
+            mcp["detail"] = f"required MCP was skipped: {mcp['detail']}"
     failed = [s for s in steps if s["status"] == "FAIL"]
     summary = {
         "platform": sys.platform,
