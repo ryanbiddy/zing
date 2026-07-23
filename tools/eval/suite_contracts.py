@@ -14,6 +14,8 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 from urllib.parse import quote, unquote, urlsplit
 
+from myzing.urls import is_http_url
+
 
 CONTRACT_FIXTURE_VERSION = 1
 HERE = Path(__file__).resolve().parent
@@ -224,18 +226,7 @@ def _valid_zing_ref(value: Any) -> bool:
 
 
 def _valid_http_url(value: Any) -> bool:
-    if not isinstance(value, str):
-        return False
-    try:
-        parsed = urlsplit(value)
-    except ValueError:
-        return False
-    return (
-        parsed.scheme in {"http", "https"}
-        and bool(parsed.hostname)
-        and parsed.username is None
-        and parsed.password is None
-    )
+    return is_http_url(value)
 
 
 def _loopback_url(
