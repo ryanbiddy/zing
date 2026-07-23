@@ -27,6 +27,15 @@ def _study(status: str) -> list[dict]:
     }]
 
 
+def _mcp(status: str) -> list[dict]:
+    return [{
+        "step": "mcp-stdio",
+        "status": status,
+        "detail": "mutation",
+        "output_tail": "",
+    }]
+
+
 def test_require_study_turns_a_skip_into_a_failure(tmp_path) -> None:
     report = tmp_path / "report.json"
     steps = _study("SKIP")
@@ -67,6 +76,34 @@ def test_optional_study_can_still_be_skipped() -> None:
     assert steps[0]["status"] == "SKIP"
 
 
+def test_required_mcp_turns_a_skip_into_a_failure() -> None:
+    steps = _mcp("SKIP")
+
+    result = clean_host_check._finish(
+        steps, None, require_mcp=True
+    )
+
+    assert result == 1
+    assert steps[0]["status"] == "FAIL"
+    assert "required MCP was skipped" in steps[0]["detail"]
+
+
+def test_required_mcp_fails_when_the_step_was_not_reached() -> None:
+    steps = _study("PASS")
+
+    result = clean_host_check._finish(
+        steps, None, require_mcp=True
+    )
+
+    assert result == 1
+    assert steps[-1] == {
+        "step": "mcp-stdio",
+        "status": "FAIL",
+        "detail": "required MCP step was not reached",
+        "output_tail": "",
+    }
+
+
 def test_ci_invokes_the_required_mode() -> None:
     workflow = (
         clean_host_check.REPO / ".github" / "workflows" / "ci.yml"
@@ -76,3 +113,11 @@ def test_ci_invokes_the_required_mode() -> None:
         "python packaging/clean_host_check.py --require-study --report"
         in workflow
     )
+
+
+def test_clean_host_gate_launches_installed_mcp_smoke() -> None:
+    source = MODULE_PATH.read_text(encoding="utf-8")
+
+    assert 'REPO / "packaging" / "mcp_stdio_smoke.py"' in source
+    assert 'mcp_payload["tool_count"] == 19' in source
+    assert "require_mcp=True" in source
