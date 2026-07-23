@@ -26,6 +26,7 @@ from myzing.study import formats
 
 MIN_CLIP_S = 0.2
 KEEPER_MATCH_TOLERANCE_S = 0.35
+WORD_BOUNDARY_TOLERANCE_S = 0.02
 CAPTION_GAP_S = 0.6           # word gap that closes a caption window
 CAPTION_MAX_WORDS = 5
 OUTPUT_ASPECT_TOLERANCE = 0.02
@@ -92,6 +93,14 @@ def draft_edl(
                 f"than {MIN_CLIP_S}s — dropped"
             )
             continue
+        warnings.extend(
+            _trim_boundary_warnings(
+                breakdown.words,
+                start=start,
+                end=end,
+                keeper_index=index,
+            )
+        )
         if measured is not None and not _matches_measured(start, end, measured):
             warnings.append(
                 f"draft EDL: chosen span {start:.2f}-{end:.2f}s is not a "
@@ -377,6 +386,41 @@ def _span_of(keeper: dict[str, Any], index: int) -> tuple[float, float]:
             f"({start}-{end})"
         )
     return start, end
+
+
+def _trim_boundary_warnings(
+    words: list[Word],
+    *,
+    start: float,
+    end: float,
+    keeper_index: int,
+) -> list[str]:
+    """Name the objective subset of context breaks: cutting through a word."""
+    warnings: list[str] = []
+    for label, boundary in (("starts", start), ("ends", end)):
+        matches = [
+            word for word in words
+            if (
+                word.start + WORD_BOUNDARY_TOLERANCE_S
+                < boundary
+                < word.end - WORD_BOUNDARY_TOLERANCE_S
+            )
+        ]
+        if not matches:
+            continue
+        if label == "starts":
+            word = max(matches, key=lambda item: item.end - boundary)
+        else:
+            word = max(matches, key=lambda item: boundary - item.start)
+        text = " ".join(str(word.text).split())[:40].replace("'", "’")
+        warnings.append(
+            "draft EDL: context-boundary risk — "
+            f"keeper {keeper_index} {label} at {boundary:.3f}s inside "
+            f"measured word '{text}' ({word.start:.3f}-{word.end:.3f}s, "
+            f"confidence {word.confidence:.2f}); "
+            "adjust the trim or verify the audible cut"
+        )
+    return warnings
 
 
 def _measured_keeper_spans(
