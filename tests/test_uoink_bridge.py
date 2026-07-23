@@ -8,7 +8,7 @@ import urllib.error
 
 import pytest
 
-from myzing import storage, uoink_bridge
+from myzing import engagement, storage, suite_peer, uoink_bridge
 from myzing.schemas import Breakdown, VideoMeta
 
 SLUG = "tiktok-42"
@@ -110,6 +110,147 @@ def test_push_rejects_traversal_slug_as_data(zing_workspace, bad, monkeypatch):
 def test_url_override(monkeypatch):
     monkeypatch.setenv(uoink_bridge.UOINK_URL_ENV, "http://127.0.0.1:9999")
     assert uoink_bridge.helper_url() == "http://127.0.0.1:9999"
+
+
+def test_helper_url_uses_the_runtime_lease(monkeypatch):
+    monkeypatch.delenv(uoink_bridge.UOINK_URL_ENV, raising=False)
+    monkeypatch.setattr(
+        uoink_bridge.suite_peer,
+        "read_lease",
+        lambda _service_id: (
+            "http://127.0.0.1:61234",
+            None,
+            "test runtime lease",
+        ),
+    )
+
+    assert uoink_bridge.helper_url() == "http://127.0.0.1:61234"
+
+
+def test_helper_url_uses_default_when_nothing_is_configured(monkeypatch):
+    monkeypatch.delenv(uoink_bridge.UOINK_URL_ENV, raising=False)
+    monkeypatch.setattr(
+        uoink_bridge.suite_peer,
+        "read_lease",
+        lambda _service_id: (None, None, ""),
+    )
+
+    assert uoink_bridge.helper_url() == uoink_bridge.UOINK_DEFAULT_URL
+
+
+def test_bridge_rejects_off_loopback_explicit_url_before_sending_token(
+    studied, monkeypatch
+):
+    monkeypatch.setenv(
+        uoink_bridge.UOINK_URL_ENV, "http://evil.example.test:80"
+    )
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "must-not-leak")
+    monkeypatch.setattr(
+        suite_peer.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid explicit URL must never receive the Uoink token"
+        ),
+    )
+
+    resolved = uoink_bridge.resolve_kept_media(REF)
+    pushed = uoink_bridge.push_breakdown(SLUG)
+
+    assert resolved["code"] == "invalid_configuration"
+    assert pushed["code"] == "invalid_configuration"
+
+
+@pytest.mark.parametrize(
+    "lease_error,engagement_state",
+    [
+        ("invalid_lease", "rejected"),
+        ("stale_lease", "spooled"),
+    ],
+)
+def test_operations_stop_on_invalid_or_stale_lease(
+    studied, monkeypatch, lease_error, engagement_state
+):
+    monkeypatch.delenv(uoink_bridge.UOINK_URL_ENV, raising=False)
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "suite-token")
+    monkeypatch.setattr(
+        suite_peer,
+        "read_lease",
+        lambda _service_id: (
+            None,
+            lease_error,
+            f"{lease_error} test detail",
+        ),
+    )
+    monkeypatch.setattr(
+        suite_peer.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid or stale lease must never fall through to port 5179"
+        ),
+    )
+
+    resolved = uoink_bridge.resolve_kept_media(REF)
+    pushed = uoink_bridge.push_breakdown(SLUG)
+    receipt = engagement.record_opened(
+        f"uoink://item/{lease_error}", "ab" * 32
+    )
+
+    assert resolved["code"] == lease_error
+    assert pushed["code"] == lease_error
+    assert receipt["state"] == engagement_state
+
+
+def test_one_lease_drives_resolver_kept_media_note_and_engagement(
+    studied, monkeypatch
+):
+    leased_base = "http://127.0.0.1:61234"
+    seen_urls = []
+    monkeypatch.delenv(uoink_bridge.UOINK_URL_ENV, raising=False)
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "suite-token")
+    monkeypatch.setattr(
+        suite_peer,
+        "read_lease",
+        lambda _service_id: (leased_base, None, "test runtime lease"),
+    )
+
+    def leased_server(request, timeout=0):
+        url = request.full_url if hasattr(request, "full_url") else request
+        seen_urls.append(url)
+        if url.endswith("/api/engagement/v1/events"):
+            body = {
+                "ok": True,
+                "contract": "uoink.engagement.ingest",
+                "version": 1,
+                "data": {
+                    "submitted": 1,
+                    "accepted": 1,
+                    "duplicates": 0,
+                    "rejected": [],
+                },
+            }
+        elif url.endswith("/notes"):
+            body = {"ok": True, "video_id": "v1", "slug": "note-zing"}
+        elif "/kept-media" in url:
+            body = handoff_body()
+        else:
+            raise AssertionError(f"unexpected leased Uoink URL: {url}")
+        return FakeResponse(json.dumps(body).encode("utf-8"))
+
+    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", leased_server)
+
+    resolution = suite_peer.resolve_uoink_base()
+    resolved = uoink_bridge.resolve_kept_media(REF)
+    pushed = uoink_bridge.push_breakdown(SLUG)
+    receipt = engagement.record_opened(REF, "ab" * 32)
+
+    assert resolution.base == leased_base
+    assert resolution.source == "test runtime lease"
+    assert resolved["ok"] is True
+    assert pushed["ok"] is True
+    assert receipt["state"] == "accepted"
+    assert seen_urls
+    assert all(url.startswith(leased_base) for url in seen_urls)
+    assert all(":5179" not in url for url in seen_urls)
 
 
 # -- resolve_kept_media (INTEGRATION-CONTRACT v1 §6.1) ------------------------
@@ -281,7 +422,15 @@ def test_resolve_helper_down_is_calm(monkeypatch):
 
 
 @pytest.mark.parametrize("bad", [
-    "file:///C:/x.mp4", "C:/kept/video.mp4", "/tmp/x.mp4", "ftp://h/x",
+    "file:///C:/x.mp4",
+    "C:/kept/video.mp4",
+    "/tmp/x.mp4",
+    "ftp://h/x",
+    "http://",
+    "https:// host.example/x",
+    "http://host.example\\..\\secret",
+    "https:///missing-host",
+    "https://host.example:abc/x",
 ])
 def test_resolve_rejects_non_http_source_url(monkeypatch, bad):
     """FF-8 (final review, contract §5): source_url is null-or-HTTP(S) —

@@ -53,6 +53,29 @@ def pts_csv(deltas: list[float], start: float = 0.0) -> str:
 CFR_30 = pts_csv([1 / 30] * 240)  # a clean constant-frame-rate packet scan
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "http://",
+        "https:// host.example/x",
+        "http://host.example\\..\\secret",
+        "https:///missing-host",
+        "https://host.example:abc/x",
+    ],
+)
+def test_malformed_http_url_fails_before_workspace_or_staging(
+    source, monkeypatch
+):
+    monkeypatch.setattr(
+        storage,
+        "slug_for",
+        lambda *_: pytest.fail("invalid URL reached workspace routing"),
+    )
+
+    with pytest.raises(MediaError, match="invalid source URL"):
+        ingest.ingest(source)
+
+
 class FakeTools:
     """Dispatches proc.run calls per tool; records every command."""
 

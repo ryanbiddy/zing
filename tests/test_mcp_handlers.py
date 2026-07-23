@@ -27,6 +27,57 @@ def make_breakdown(url: str = SRC_URL) -> Breakdown:
     return Breakdown(meta=VideoMeta(source_url=url, platform="tiktok", duration=9.0))
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "http://",
+        "https:// host.example/x",
+        "http://host.example\\..\\secret",
+        "https:///missing-host",
+        "https://host.example:abc/x",
+    ],
+)
+def test_study_video_rejects_malformed_http_url_before_dispatch(
+    source, monkeypatch
+):
+    monkeypatch.setattr(
+        mcp_server.shutil,
+        "which",
+        lambda *_: pytest.fail("invalid URL reached dependency probing"),
+    )
+
+    result = mcp_server.h_study_video(source)
+
+    assert result["ok"] is False
+    assert "invalid source URL" in result["error"]
+
+
+def test_study_uoink_item_rechecks_source_url_before_dispatch(
+    fake_engine, monkeypatch
+):
+    from myzing import uoink_bridge
+
+    monkeypatch.setattr(
+        uoink_bridge,
+        "resolve_kept_media",
+        lambda _item_ref: {
+            "ok": True,
+            "data": {
+                "item_ref": "uoink://item/hostile",
+                "state": "not_kept",
+                "source_url": "http://",
+                "media": None,
+            },
+        },
+    )
+
+    result = mcp_server.h_study_uoink_item("uoink://item/hostile")
+
+    assert result["ok"] is False
+    assert "invalid source_url" in result["error"]
+    assert fake_engine.calls == []
+
+
 @pytest.fixture
 def prompts_dir(tmp_path, monkeypatch):
     d = tmp_path / "prompts"

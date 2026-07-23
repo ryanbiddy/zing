@@ -340,6 +340,32 @@ class _Discovery:
     failure: tuple[dict[str, Any], str] | None = None
 
 
+@dataclass(frozen=True)
+class UoinkBaseResolution:
+    """Validated, network-free result of the suite discovery order."""
+
+    base: str
+    source: str
+    configured: bool
+
+
+class UoinkResolutionError(RuntimeError):
+    """Named contract failure that must stop discovery without fallback."""
+
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        *,
+        retryable: bool,
+        evidence: str,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+        self.evidence = evidence
+
+
 def _discover_base() -> _Discovery:
     """§3.3 discovery order: explicit URL, then a valid runtime lease,
     then the default address.
@@ -390,6 +416,25 @@ def _discover_base() -> _Discovery:
     )
 
 
+def resolve_uoink_base() -> UoinkBaseResolution:
+    """Resolve explicit URL → valid lease → default without network I/O."""
+    discovered = _discover_base()
+    if discovered.failure is not None:
+        peer, evidence = discovered.failure
+        error = peer["error"]
+        raise UoinkResolutionError(
+            str(error["code"]),
+            str(error["message"]),
+            retryable=bool(error["retryable"]),
+            evidence=evidence,
+        )
+    return UoinkBaseResolution(
+        base=discovered.base,
+        source=discovered.source,
+        configured=discovered.configured,
+    )
+
+
 def probe_uoink() -> tuple[dict[str, Any], str]:
     """Run the §8 probe. Returns (ryan.suite.peer v1 envelope, evidence).
 
@@ -398,9 +443,17 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     manifest the reviewer could not fetch — every verdict now names
     its evidence so two contradictory runs are distinguishable).
     """
-    discovered = _discover_base()
-    if discovered.failure is not None:
-        return discovered.failure
+    try:
+        discovered = resolve_uoink_base()
+    except UoinkResolutionError as error:
+        return (
+            _unhealthy(
+                error.code,
+                str(error),
+                retryable=error.retryable,
+            ),
+            error.evidence,
+        )
     base, source, configured = discovered.base, discovered.source, discovered.configured
 
     try:

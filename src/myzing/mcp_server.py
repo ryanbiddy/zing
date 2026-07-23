@@ -45,6 +45,7 @@ from myzing.prompt_pack import (
     load_prompt,
     prompts_dir,
 )
+from myzing.urls import has_http_scheme, is_http_url
 
 # Study phases in pipeline order (B#2 ruling). The engine reports the
 # phase it is entering via callback when its seam supports one.
@@ -421,13 +422,17 @@ def h_study_video(
         kept = str(Path(kept_media.strip()).expanduser())
 
     # Cheap validation first — failures must return in under a second.
+    if has_http_scheme(source) and not is_http_url(source):
+        return _err(
+            "invalid source URL: expected an absolute HTTP(S) URL with a "
+            "host, valid port, no whitespace, and no backslash"
+        )
     if not shutil.which("ffmpeg"):
         return _err(
             "ffmpeg not found on PATH — Zing cannot measure anything without "
             "it. Run `zing doctor` for the install command."
         )
-    is_url = source.lower().startswith(("http://", "https://"))
-    if not is_url:
+    if not is_http_url(source):
         # F-11: expand once, up front, and use the SAME string everywhere —
         # validation, slug, status, and dispatch. Validating the expanded
         # path but dispatching the raw one meant ok/started followed by an
@@ -580,6 +585,11 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
             f"uoink has no source_url for {item_ref} (state={state}) — "
             "zing derives a study's identity from the source URL. If you "
             "have the file, study it directly as a local path instead."
+        )
+    if not is_http_url(source_url):
+        return _err(
+            f"uoink returned an invalid source_url for {item_ref}; refusing "
+            "to dispatch it to the study engine"
         )
     handoff = {
         "source_ref": data["item_ref"],
