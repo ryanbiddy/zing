@@ -32,6 +32,21 @@ def test_ci_workflows_use_node24_action_runtimes() -> None:
     assert seen == set(NODE24_ACTION_MAJORS)
 
 
+def test_ci_jobs_and_package_installs_have_explicit_timeouts() -> None:
+    text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8",
+    )
+    assert text.count("    timeout-minutes: 30") == 5
+
+    install_blocks = re.findall(
+        r"(?ms)^      - name: Install ffmpeg \([^)]+\)\n"
+        r"(.*?)(?=^      - |\Z)",
+        text,
+    )
+    assert len(install_blocks) == 6
+    assert all("timeout-minutes: 10" in block for block in install_blocks)
+
+
 def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
     assert WORKFLOW.is_file()
     text = WORKFLOW.read_text(encoding="utf-8")

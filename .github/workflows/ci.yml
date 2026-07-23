@@ -7,6 +7,7 @@ jobs:
   # Fast mocked-unit matrix. The ffmpeg-marked subset is excluded here
   # explicitly and enforced (skips impossible) in the dedicated jobs below.
   test:
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -30,6 +31,7 @@ jobs:
   # to mocked-only coverage. (run.py --study needs the
   # heavy [study] extras and stays out of the PR gate per S1-REVIEW-lane-b.)
   ffmpeg-gates-ubuntu:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
@@ -39,6 +41,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
@@ -73,6 +76,7 @@ jobs:
   # path-handling / ASS / render-smoke subset (hostile-path golden
   # generation + the full render integration oracle). Same no-skip rule.
   ffmpeg-smoke-windows:
+    timeout-minutes: 30
     runs-on: windows-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
@@ -82,6 +86,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install ffmpeg (chocolatey)
+        timeout-minutes: 10
         run: choco install ffmpeg -y --no-progress
       - name: Verify ffmpeg version and required filters (C#8)
         shell: bash
@@ -105,6 +110,7 @@ jobs:
   # frames from it. The required-mode env makes a missing ffmpeg/ffprobe a
   # hard failure instead of an honest local-development skip.
   ffmpeg-smoke-macos:
+    timeout-minutes: 30
     runs-on: macos-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
@@ -114,6 +120,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install ffmpeg (Homebrew)
+        timeout-minutes: 10
         run: brew install ffmpeg
       - name: Verify ffmpeg and ffprobe
         run: |
@@ -127,6 +134,7 @@ jobs:
   # surface, NO repo checkout on the tested path (packaged data must
   # carry everything). The gate record uploads as an artifact per OS.
   clean-install:
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -139,14 +147,17 @@ jobs:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Install ffmpeg (chocolatey)
         if: runner.os == 'Windows'
+        timeout-minutes: 10
         run: choco install ffmpeg -y --no-progress
       - name: Install ffmpeg (brew)
         if: runner.os == 'macOS'
+        timeout-minutes: 10
         run: brew install ffmpeg
       - name: Clean-host gate
         run: python packaging/clean_host_check.py --require-study --report clean-host-${{ matrix.os }}.json
