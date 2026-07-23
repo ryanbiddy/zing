@@ -23,3 +23,12 @@ def test_documented_python_script_commands_point_to_shipped_files() -> None:
     assert not missing, "documented Python commands reference missing files: " + ", ".join(
         missing
     )
+
+
+def test_readme_names_optional_loopback_network_calls() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+
+    assert "the only network calls it makes are" not in readme
+    assert "external network calls" in readme
+    assert "loopback http" in readme
+    assert "uoink" in readme

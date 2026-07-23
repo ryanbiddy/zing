@@ -9,11 +9,13 @@ machine, all open source.
 Zing does the deterministic measurement and rendering. The judgment (what
 makes a hook work, what your cut is missing) is done by your own AI over
 MCP, guided by the prompt pack in `prompts/`. Zing itself needs no API key
-and runs no service of its own; the only network calls it makes are the
-ones you ask for — fetching a video from the URL you give it, and, if you
-opt in, an external voiceover provider (ElevenLabs, via
-`ELEVENLABS_API_KEY`; the default voice engine is local). Your AI client is
-yours to choose, cloud or local.
+and opens no listening network service. Its external network calls are
+limited to fetching a video URL you supply and, if you opt in, using
+ElevenLabs for voiceover (`ELEVENLABS_API_KEY`; the default voice engine is
+local). Suite-aware commands may also make loopback HTTP calls to a local
+Uoink helper for peer health, retained media, corpus notes, and engagement;
+Zing never puts the Uoink token in a URL. Your AI client is yours to choose,
+cloud or local.
 
 Works standalone (`zing study <url>`), and works hand-in-hand with
 [Uoink](https://github.com/ryanbiddy/uoink) — the local context layer where
