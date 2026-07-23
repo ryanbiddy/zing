@@ -2,35 +2,35 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from myzing import urls
 
-HOSTILE_SOURCE_URLS = [
-    "",
-    "http://",
-    "https:// host.example/x",
-    "http://host.example\\..\\secret",
-    "https:///missing-host",
-    "https://host.example:abc/x",
-    "file:///tmp/video.mp4",
-    "ftp://host.example/video.mp4",
-    "C:/video.mp4",
-]
-
-VALID_SOURCE_URLS = [
-    "http://host.example/video",
-    "https://host.example/video?q=1#part",
-    "http://host.example:8080/video",
-    "http://[::1]:61234/video",
-]
+FIXTURE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "tools"
+    / "eval"
+    / "fixtures"
+    / "suite_v1"
+    / "source-url.json"
+)
+FIXTURE = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize("value", HOSTILE_SOURCE_URLS)
-def test_hostile_source_urls_are_rejected(value: str) -> None:
-    assert urls.is_http_url(value) is False
+def _fixture_cases() -> list[dict[str, object]]:
+    return FIXTURE["cases"]
 
 
-@pytest.mark.parametrize("value", VALID_SOURCE_URLS)
-def test_absolute_http_source_urls_are_accepted(value: str) -> None:
-    assert urls.is_http_url(value) is True
+def test_source_url_fixture_identity_is_pinned() -> None:
+    assert FIXTURE["fixture"] == "ryan.suite.source-url-conformance"
+    assert FIXTURE["version"] == 1
+    assert len(FIXTURE["cases"]) == 16
+
+
+@pytest.mark.parametrize("case", _fixture_cases(), ids=lambda case: case["id"])
+def test_source_urls_match_the_shared_conformance_fixture(
+        case: dict[str, object]) -> None:
+    assert urls.is_http_url(case["value"]) is case["expected_valid"]

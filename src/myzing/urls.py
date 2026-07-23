@@ -25,6 +25,8 @@ def is_http_url(value: Any) -> bool:
         parsed.scheme.lower() in {"http", "https"}
         and bool(parsed.netloc)
         and parsed.hostname is not None
+        and parsed.username is None
+        and parsed.password is None
     )
 
 
