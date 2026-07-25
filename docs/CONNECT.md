@@ -21,17 +21,23 @@ if it drifts, CI fails.)
 zing serve-mcp --print-config
 ```
 
-Prerequisites — install Zing from source (PyPI publication happens at
-launch; until then `pip install myzing` finds nothing):
+Prerequisites — Zing is not on PyPI. Either download the wheel from the
+[public v0.1.0 pre-release](https://github.com/ryanbiddy/zing/releases/tag/v0.1.0)
+and install it with the MCP extra:
+
+```
+python -m pip install "./myzing-0.1.0-py3-none-any.whl[mcp]"
+```
+
+Or install from source:
 
 ```
 git clone https://github.com/ryanbiddy/zing && cd zing
 python -m pip install -e ".[mcp]"
 ```
 
-(At launch this becomes `python -m pip install "myzing[mcp]"`.) Then run
-`zing doctor` once — `study_video` refuses to start without ffmpeg and
-says why.
+Then run `zing doctor` once — `study_video` refuses to start without ffmpeg
+and says why.
 
 ## Claude Desktop
 
