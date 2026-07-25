@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.metadata
 import sys
 
 # One registry drives routing AND the help text (final review P2-6
@@ -32,6 +33,19 @@ _COMMANDS: dict[str, tuple[str, str]] = {
 }
 
 
+def _version() -> str:
+    """Report the installed distribution version, the same way mcp_server
+    does, so `zing --version` and the version the MCP server advertises to a
+    client can never disagree. Falls back to the source constant when running
+    from a checkout with no installed metadata."""
+    try:
+        return importlib.metadata.version("myzing")
+    except importlib.metadata.PackageNotFoundError:
+        from myzing import __version__
+
+        return __version__
+
+
 def _usage() -> str:
     width = max(map(len, _COMMANDS)) + 3
     rows = "\n".join(
@@ -41,7 +55,7 @@ def _usage() -> str:
     return (
         "zing — study short videos, build a taste profile, direct and "
         "render your own\n\n"
-        "usage: zing <command> [args]\n\n"
+        "usage: zing [--version] <command> [args]\n\n"
         f"commands:\n{rows}\n\n"
         "Most commands accept --help. To connect an AI client, start with:\n"
         "  zing serve-mcp --print-config\n"
@@ -66,6 +80,9 @@ def main(argv: list[str] | None = None) -> int:
             except (ValueError, OSError):
                 pass
     argv = list(sys.argv[1:] if argv is None else argv)
+    if argv == ["--version"]:
+        print(_version())
+        return 0
     if not argv or argv[0] in ("-h", "--help"):
         print(_usage())
         return 0
