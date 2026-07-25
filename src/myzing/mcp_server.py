@@ -1717,20 +1717,33 @@ def _print_connect_config(target: str) -> int:
     return 0
 
 
+_USAGE = "usage: zing serve-mcp [--print-config [desktop|code]]"
+
+
 def run(argv: list[str]) -> int:
-    if any(a in ("-h", "--help") for a in argv):
+    if argv in (["-h"], ["--help"]):
         print(
-            "usage: zing serve-mcp [--print-config [desktop|code]]\n\n"
-            + (__doc__ or "")
+            _USAGE + "\n\n" + (__doc__ or "")
         )
         return 0
-    if "--print-config" in argv:
-        i = argv.index("--print-config")
-        target = argv[i + 1] if i + 1 < len(argv) else ""
+    if argv[:1] == ["--print-config"]:
+        if len(argv) > 2:
+            print(
+                f"unknown argument {argv[2]!r}\n{_USAGE}",
+                file=sys.stderr,
+            )
+            return 2
+        target = argv[1] if len(argv) == 2 else ""
         if target not in ("", "desktop", "code"):
             print(f"unknown --print-config target '{target}' (use: desktop, code)")
             return 2
         return _print_connect_config(target)
+    if argv:
+        print(
+            f"unknown argument {argv[0]!r}\n{_USAGE}",
+            file=sys.stderr,
+        )
+        return 2
     defect = mcp_sdk_defect()
     if defect is not None:
         print(

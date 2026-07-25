@@ -198,6 +198,34 @@ def test_print_config_unknown_target(capsys):
     assert "desktop, code" in capsys.readouterr().out
 
 
+def test_mcp_cli_rejects_unknown_or_trailing_flags_without_starting(
+    monkeypatch, capsys
+):
+    monkeypatch.setattr(mcp_server, "mcp_sdk_defect", lambda: None)
+
+    def unexpected_server():
+        pytest.fail("an invalid flag must not start blocking stdio")
+
+    monkeypatch.setattr(mcp_server, "build_server", unexpected_server)
+
+    assert mcp_server.run(["--help"]) == 0
+    help_output = capsys.readouterr()
+    assert "usage: zing serve-mcp [--print-config [desktop|code]]" in help_output.out
+    assert help_output.err == ""
+
+    assert mcp_server.run(["--unknown"]) == 2
+    unknown = capsys.readouterr()
+    assert "unknown argument '--unknown'" in unknown.err
+
+    assert mcp_server.run(["--unknown", "--help"]) == 2
+    mixed = capsys.readouterr()
+    assert "unknown argument '--unknown'" in mixed.err
+
+    assert mcp_server.run(["--print-config", "desktop", "--unknown"]) == 2
+    trailing = capsys.readouterr()
+    assert "unknown argument '--unknown'" in trailing.err
+
+
 # -- generate_thumbnails -----------------------------------------------------
 
 def test_generate_thumbnails_returns_frames_and_prompts(
