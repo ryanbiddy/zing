@@ -27,6 +27,22 @@ def test_zing_connect_uses_ratified_credential_and_peer_language() -> None:
         assert required_claim in text
 
 
+def test_zing_connect_names_the_public_prerelease_and_mcp_extra() -> None:
+    text = CONNECT.read_text(encoding="utf-8")
+
+    assert "PyPI publication happens at launch" not in text
+    assert "At launch this becomes" not in text
+    assert "Zing is not on PyPI" in text
+    assert (
+        "https://github.com/ryanbiddy/zing/releases/tag/v0.1.0"
+        in text
+    )
+    assert (
+        'python -m pip install "./myzing-0.1.0-py3-none-any.whl[mcp]"'
+        in text
+    )
+
+
 def test_cx4_audit_covers_every_ratified_integration_boundary() -> None:
     text = AUDIT.read_text(encoding="utf-8")
 
