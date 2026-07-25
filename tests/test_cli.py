@@ -67,3 +67,23 @@ def test_every_registered_command_appears_in_help(capsys):
     out = capsys.readouterr().out
     for name, (_, help_line) in cli._COMMANDS.items():
         assert name in out and help_line in out
+
+
+def test_version_flag_reports_the_installed_version(capsys):
+    """Every product in the suite answers `--version`. Writer already did;
+    zing used to reject it as an unknown command, which made the two CLIs
+    disagree about a flag any user tries first."""
+    assert cli.main(["--version"]) == 0
+    out = capsys.readouterr().out.strip()
+    assert out
+    assert "unknown command" not in out
+    # A version, not the usage block.
+    assert out[0].isdigit()
+
+
+def test_version_matches_what_the_mcp_server_advertises():
+    """The CLI and the MCP server must never report different versions for
+    the same install, so they resolve it the same way."""
+    from myzing import mcp_server
+
+    assert cli._version() == mcp_server._version()
