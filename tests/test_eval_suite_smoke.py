@@ -68,8 +68,13 @@ REQUIRED_CONFORMANCE_CASES = {
     },
     "uoink.media.handoff/1": {
         "available",
+        "available_mpeg",
         "not_kept",
         "missing",
+        "empty_sha256",
+        "boolean_byte_length",
+        "relative_media_path",
+        "unsupported_media_type",
         "traversal",
         "outside_folder_symlink",
         "hash_mismatch",

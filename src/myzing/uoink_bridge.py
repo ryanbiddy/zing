@@ -23,9 +23,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
 from myzing import storage, suite_peer
@@ -44,7 +46,16 @@ _ITEM_REF_PREFIX = "uoink://item/"
 _HANDOFF_TOP_KEYS = {"ok", "contract", "version", "operation", "data"}
 _HANDOFF_DATA_KEYS = {"item_ref", "state", "source_url", "media", "provenance"}
 _HANDOFF_MEDIA_KEYS = {"path", "media_type", "byte_length", "sha256"}
+_HANDOFF_PROVENANCE_KEYS = {"kind", "sidecar_schema_version", "field"}
 _HANDOFF_ERROR_KEYS = {"ok", "contract", "version", "operation", "error"}
+_HANDOFF_MEDIA_TYPES = frozenset({
+    "video/mp4",
+    "video/mpeg",
+    "video/quicktime",
+    "video/webm",
+    "video/x-matroska",
+})
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 # Where uoink keeps its per-install token, said ONCE (final review
@@ -119,6 +130,13 @@ def handoff_defect(body: Any) -> str | None:
     state = data.get("state")
     if state not in ("available", "not_kept", "missing"):
         return f"unknown state {state!r}"
+    item_ref = data.get("item_ref")
+    if (
+        not isinstance(item_ref, str)
+        or not item_ref.startswith(_ITEM_REF_PREFIX)
+        or not item_ref[len(_ITEM_REF_PREFIX):]
+    ):
+        return f"invalid item_ref {item_ref!r}"
     source_url = data.get("source_url")
     # FF-8 (final review, contract §5): a cross-product source_url is
     # null or HTTP(S) — a file:// or filesystem-shaped value here would
@@ -131,8 +149,40 @@ def handoff_defect(body: Any) -> str | None:
     if state == "available":
         if not isinstance(media, dict) or set(media) != _HANDOFF_MEDIA_KEYS:
             return "media keys for state=available"
+        media_path = media.get("path")
+        if not isinstance(media_path, str) or not (
+            PureWindowsPath(media_path).is_absolute()
+            or PurePosixPath(media_path).is_absolute()
+        ):
+            return f"media.path must be absolute, got {media_path!r}"
+        media_type = media.get("media_type")
+        if media_type not in _HANDOFF_MEDIA_TYPES:
+            return f"unsupported media_type {media_type!r}"
+        byte_length = media.get("byte_length")
+        if (
+            isinstance(byte_length, bool)
+            or not isinstance(byte_length, int)
+            or byte_length < 0
+        ):
+            return f"invalid byte_length {byte_length!r}"
+        sha256 = media.get("sha256")
+        if not isinstance(sha256, str) or not _SHA256_RE.fullmatch(sha256):
+            return f"invalid sha256 {sha256!r}"
     elif media is not None:
         return f"state={state} with non-null media"
+    provenance = data.get("provenance")
+    if (
+        not isinstance(provenance, dict)
+        or set(provenance) != _HANDOFF_PROVENANCE_KEYS
+    ):
+        return "provenance keys"
+    if (
+        provenance.get("kind") != "uoink_sidecar"
+        or isinstance(provenance.get("sidecar_schema_version"), bool)
+        or not isinstance(provenance.get("sidecar_schema_version"), int)
+        or provenance.get("field") != "media_file"
+    ):
+        return "invalid provenance values"
     return None
 
 
@@ -215,6 +265,9 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     defect = handoff_defect(body)
     if defect is not None:
         return _nonconformant(defect)
+    if body["data"]["item_ref"] != item_ref:
+        return _nonconformant(
+            "item_ref does not match the requested item")
     return {"ok": True, "data": body["data"]}
 
 

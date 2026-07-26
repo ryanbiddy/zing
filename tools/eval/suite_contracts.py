@@ -85,6 +85,7 @@ _IMPORT_ERROR_CODES = frozenset(
 _MEDIA_TYPES = frozenset(
     {
         "video/mp4",
+        "video/mpeg",
         "video/quicktime",
         "video/webm",
         "video/x-matroska",

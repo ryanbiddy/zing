@@ -50,7 +50,9 @@ _WORKSPACE_OVERRIDE: contextvars.ContextVar[str | None] = contextvars.ContextVar
 )
 
 _SLUG_MAX = 80
-_MEDIA_EXTS = (".mp4", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".ts")
+_MEDIA_EXTS = (
+    ".mp4", ".mpeg", ".mpg", ".webm", ".mov", ".mkv", ".avi", ".m4v", ".ts",
+)
 
 # The slug contract (everything slug_for() produces): lowercase ascii
 # letters/digits/hyphens, starting with a letter or digit. slug_for()'s
