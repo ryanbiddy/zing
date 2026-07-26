@@ -24,7 +24,7 @@ The workflow uploads `suite-smoke.json` and `suite-smoke-eval.json` for 14
 days. The first file records the three source revisions, installed versions,
 step timings, contract versions, stable references, artifact hashes,
 engagement receipts, peer states, and cleanup result. The second file
-recomputes 17 assertions from that record instead of trusting its claimed
+recomputes 18 assertions from that record instead of trusting its claimed
 result. If the launcher fails before it can write the record, the artifact
 contains `suite-smoke-failure.json` with the structured launcher error. A
 missing record or failure artifact is itself an artifact-step error, so an

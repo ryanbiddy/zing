@@ -115,6 +115,7 @@ def test_suite_smoke_ci_doc_states_what_the_runner_does_not_prove() -> None:
         "Uoink",
         "Writer",
         "Zing",
+        "recomputes 18 assertions",
         "does not prove",
         "download an AI model",
         "publish",
