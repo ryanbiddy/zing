@@ -53,6 +53,12 @@ REGISTERED_SKIPS = {
         "PRODUCT SURFACE: none needed — a platform detail, not a "
         "user-visible capability."
     ),
+    "Windows PowerShell mutation": (
+        "the hermetic Chocolatey retry mutation creates Windows command "
+        "shims. windows-latest CI executes both cases; the workflow-shape "
+        "assertion still runs on every OS. PRODUCT SURFACE: none needed — "
+        "this tests a Windows CI dependency installer, not a user capability."
+    ),
 }
 
 # importorskip() names an optional MODULE rather than a constraint; the
