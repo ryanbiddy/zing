@@ -87,7 +87,7 @@ jobs:
           python-version: "3.11"
       - name: Install ffmpeg (chocolatey)
         timeout-minutes: 10
-        run: choco install ffmpeg -y --no-progress
+        run: pwsh -NoProfile -File packaging/install_ffmpeg_windows.ps1
       - name: Verify ffmpeg version and required filters (C#8)
         shell: bash
         run: |
@@ -154,7 +154,7 @@ jobs:
       - name: Install ffmpeg (chocolatey)
         if: runner.os == 'Windows'
         timeout-minutes: 10
-        run: choco install ffmpeg -y --no-progress
+        run: pwsh -NoProfile -File packaging/install_ffmpeg_windows.ps1
       - name: Install ffmpeg (brew)
         if: runner.os == 'macOS'
         timeout-minutes: 10
