@@ -210,10 +210,16 @@ def _valid_uoink_ref(value: Any) -> bool:
     if not isinstance(value, str) or not value.startswith("uoink://item/"):
         return False
     segment = value.removeprefix("uoink://item/")
+    try:
+        item_id = unquote(segment, errors="strict")
+    except (TypeError, UnicodeDecodeError):
+        return False
     return (
-        bool(segment)
-        and "/" not in segment
-        and quote(unquote(segment), safe="-._~") == segment
+        bool(item_id)
+        and len(item_id) <= 200
+        and "/" not in item_id
+        and "\\" not in item_id
+        and quote(item_id, safe="-._~") == segment
     )
 
 

@@ -340,12 +340,45 @@ def test_resolve_available_returns_contract_data(monkeypatch):
     assert captured["token"] == "tok"
 
 
-def test_resolve_percent_encodes_the_item_id(monkeypatch):
+def test_resolve_uses_the_canonical_item_ref_segment_once(monkeypatch):
     monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
     captured = {}
-    serve(monkeypatch, handoff_body(), captured)
-    uoink_bridge.resolve_kept_media("uoink://item/a b/c")
-    assert "/items/a%20b%2Fc/kept-media" in captured["url"]
+    body = handoff_body()
+    body["data"]["item_ref"] = "uoink://item/a%20b"
+    serve(monkeypatch, body, captured)
+
+    uoink_bridge.resolve_kept_media("uoink://item/a%20b")
+
+    assert "/items/a%20b/kept-media" in captured["url"]
+    assert "%2520" not in captured["url"]
+
+
+@pytest.mark.parametrize(
+    "item_ref",
+    (
+        "uoink://item/a b",
+        "uoink://item/a/b",
+        "uoink://item/a%2Fb",
+        "uoink://item/a%5Cb",
+        "uoink://item/bad%ZZ",
+        "uoink://item/a?query=b",
+        "uoink://item/" + "a" * 201,
+    ),
+)
+def test_resolve_rejects_noncanonical_item_refs_without_network(
+        monkeypatch, item_ref):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    monkeypatch.setattr(
+        uoink_bridge.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid item_ref reached the network"),
+    )
+
+    result = uoink_bridge.resolve_kept_media(item_ref)
+
+    assert result["ok"] is False
+    assert "identify one corpus item" in result["error"]
 
 
 def test_resolve_not_kept_has_null_media(monkeypatch):
