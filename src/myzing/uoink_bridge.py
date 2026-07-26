@@ -82,6 +82,34 @@ def _token() -> str:
     return os.environ.get(UOINK_TOKEN_ENV, "").strip()
 
 
+def _item_id_from_ref(item_ref: Any) -> str | None:
+    """Return one canonical Uoink item id, or ``None``.
+
+    Uoink emits an already-percent-encoded path segment. Decode it exactly
+    once so the HTTP request can re-encode the underlying opaque id exactly
+    once; accepting a raw slash or an encoded slash would identify more than
+    one path segment.
+    """
+    if not isinstance(item_ref, str) or not item_ref.startswith(
+        _ITEM_REF_PREFIX
+    ):
+        return None
+    encoded = item_ref[len(_ITEM_REF_PREFIX):]
+    try:
+        item_id = urllib.parse.unquote(encoded, errors="strict")
+    except (TypeError, UnicodeDecodeError):
+        return None
+    if (
+        not item_id
+        or len(item_id) > 200
+        or "/" in item_id
+        or "\\" in item_id
+        or urllib.parse.quote(item_id, safe="") != encoded
+    ):
+        return None
+    return item_id
+
+
 def _err(message: str, **extra: Any) -> dict[str, Any]:
     """The house errors-as-data envelope (uoink house pattern, same shape
     the MCP server returns). Hand-built literals were duplicated 15
@@ -196,15 +224,13 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     actionable error. Never touches the network without a credential
     (§3.3: no credential means unconfigured, not an auth attempt).
     """
-    if not isinstance(item_ref, str) or not item_ref.startswith(_ITEM_REF_PREFIX):
+    item_id = _item_id_from_ref(item_ref)
+    if item_id is None:
         return _err(
-            "item_ref must be a uoink item reference like "
-            "'uoink://item/short-123' — never a file path (stable "
-            "references only; paths travel inside the handoff)"
+            "item_ref must identify one corpus item like "
+            "'uoink://item/short-123' using Uoink's canonical reference "
+            "encoding — never a file path"
         )
-    item_id = item_ref[len(_ITEM_REF_PREFIX):]
-    if not item_id:
-        return _err("item_ref has an empty item id")
     token = _token()
     if not token:
         return _err(
