@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import io
 import json
 import urllib.error
@@ -340,6 +341,18 @@ def test_resolve_available_returns_contract_data(monkeypatch):
     assert captured["token"] == "tok"
 
 
+def test_resolve_rejects_a_different_returned_item(monkeypatch):
+    monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
+    body = handoff_body()
+    body["data"]["item_ref"] = "uoink://item/a-different-item"
+    serve(monkeypatch, body)
+
+    result = uoink_bridge.resolve_kept_media(REF)
+
+    assert result["ok"] is False
+    assert "does not match the requested item" in result["error"]
+
+
 def test_resolve_percent_encodes_the_item_id(monkeypatch):
     monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
     captured = {}
@@ -626,10 +639,24 @@ def test_doctor_and_bridge_share_one_token_location(monkeypatch):
     (lambda b: b.__setitem__("extra", 1), "envelope keys"),
     (lambda b: b["data"].pop("provenance"), "data keys"),
     (lambda b: b["data"].__setitem__("state", "sideways"), "unknown state"),
+    (lambda b: b["data"].__setitem__("item_ref", "file:///tmp/x"), "item_ref"),
     (lambda b: b["data"].__setitem__("source_url", "file:///c/x.mp4"), "source_url"),
     (lambda b: b["data"]["media"].pop("sha256"), "media keys"),
+    (lambda b: b["data"]["media"].__setitem__("path", "video.mp4"), "absolute"),
+    (lambda b: b["data"]["media"].__setitem__("path", 7), "absolute"),
+    (lambda b: b["data"]["media"].__setitem__("media_type", "text/plain"),
+     "media_type"),
+    (lambda b: b["data"]["media"].__setitem__("byte_length", True),
+     "byte_length"),
+    (lambda b: b["data"]["media"].__setitem__("byte_length", "123"),
+     "byte_length"),
+    (lambda b: b["data"]["media"].__setitem__("sha256", ""), "sha256"),
+    (lambda b: b["data"]["media"].__setitem__("sha256", "z" * 64), "sha256"),
+    (lambda b: b["data"].__setitem__("provenance", {}), "provenance"),
 ], ids=["contract", "version", "operation", "extra-key", "data-keys",
-        "state", "file-url", "media-keys"])
+        "state", "item-ref", "file-url", "media-keys", "relative-path",
+        "path-type", "media-type", "length-bool", "length-string",
+        "empty-sha", "nonhex-sha", "provenance"])
 def test_handoff_defect_names_each_contract_violation(mutate, expect):
     """The extraction's whole point: §6.1's rules are now exercisable
     WITHOUT a fake HTTP layer standing between the test and the rule."""
@@ -637,6 +664,52 @@ def test_handoff_defect_names_each_contract_violation(mutate, expect):
     mutate(body)
     defect = uoink_bridge.handoff_defect(body)
     assert defect is not None and expect in defect
+
+
+@pytest.mark.parametrize(
+    ("media_type", "suffix"),
+    [
+        ("video/mp4", ".mp4"),
+        ("video/mpeg", ".mpeg"),
+        ("video/quicktime", ".mov"),
+        ("video/webm", ".webm"),
+        ("video/x-matroska", ".mkv"),
+    ],
+)
+def test_handoff_defect_accepts_every_provider_media_type(
+        media_type, suffix):
+    body = handoff_body()
+    body["data"]["media"]["path"] = f"C:/Uoink/video{suffix}"
+    body["data"]["media"]["media_type"] = media_type
+
+    assert uoink_bridge.handoff_defect(body) is None
+
+
+def test_product_media_value_rules_match_the_independent_suite_validator():
+    from tools.eval.suite_contracts import validate_contract_payload
+
+    bodies = [handoff_body()]
+    for field, value in (
+        ("path", "relative.mp4"),
+        ("media_type", "text/plain"),
+        ("byte_length", True),
+        ("sha256", ""),
+    ):
+        body = copy.deepcopy(bodies[0])
+        body["data"]["media"][field] = value
+        bodies.append(body)
+    mpeg = copy.deepcopy(bodies[0])
+    mpeg["data"]["media"].update({
+        "path": "C:/Uoink/video.mpeg",
+        "media_type": "video/mpeg",
+    })
+    bodies.append(mpeg)
+
+    for body in bodies:
+        independent = validate_contract_payload(
+            "uoink.media.handoff/1", body)
+        assert (uoink_bridge.handoff_defect(body) is None) is (
+            independent["passed"])
 
 
 def test_handoff_defect_accepts_every_legal_state():

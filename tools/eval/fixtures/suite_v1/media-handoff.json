@@ -28,6 +28,23 @@
       }
     },
     {
+      "id": "available_mpeg",
+      "base": "available",
+      "expected_valid": true,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "media", "path"],
+          "value": "C:\\SuiteFixture\\short-123\\video.mpeg"
+        },
+        {
+          "op": "set",
+          "path": ["data", "media", "media_type"],
+          "value": "video/mpeg"
+        }
+      ]
+    },
+    {
       "id": "not_kept",
       "base": "available",
       "expected_valid": true,
@@ -58,6 +75,54 @@
           "op": "set",
           "path": ["data", "media"],
           "value": null
+        }
+      ]
+    },
+    {
+      "id": "empty_sha256",
+      "base": "available",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "media", "sha256"],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "id": "boolean_byte_length",
+      "base": "available",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "media", "byte_length"],
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "relative_media_path",
+      "base": "available",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "media", "path"],
+          "value": "video.mp4"
+        }
+      ]
+    },
+    {
+      "id": "unsupported_media_type",
+      "base": "available",
+      "expected_valid": false,
+      "mutations": [
+        {
+          "op": "set",
+          "path": ["data", "media", "media_type"],
+          "value": "text/plain"
         }
       ]
     },
