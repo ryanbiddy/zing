@@ -616,6 +616,34 @@ def test_handoff_integrity_mismatch_refetches_with_reason(
     assert sh["reason"] == "integrity_mismatch"
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("sha256", ""),
+        ("byte_length", "14"),
+        ("byte_length", True),
+    ],
+)
+def test_malformed_handoff_integrity_values_refetch_with_reason(
+    zing_workspace, tmp_path, monkeypatch, field, value
+):
+    fake = FakeTools()
+    use(monkeypatch, fake)
+    kept = tmp_path / "video.mp4"
+    kept.write_bytes(b"kept-by-uoink")
+    url = "https://www.tiktok.com/@cleo/video/7239871234"
+    handoff = handoff_for(b"kept-by-uoink")
+    handoff[field] = value
+
+    result = ingest.ingest(url, kept_media=kept, handoff=handoff)
+
+    assert len(fake.commands("yt-dlp")) == 1
+    assert any("integrity mismatch" in warning for warning in result.warnings)
+    source = result.provenance["source_handoff"]
+    assert source["acquisition"] == "source_refetch"
+    assert source["reason"] == "integrity_mismatch"
+
+
 def test_handoff_not_kept_state_records_refetch_reason(
     zing_workspace, monkeypatch
 ):

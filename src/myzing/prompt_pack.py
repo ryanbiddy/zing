@@ -1,23 +1,24 @@
 """The Zing prompt pack: loading, and the ``zing prompt`` CLI.
 
 The pack is markdown files with minimal YAML frontmatter
-(``name``/``description``/``version``/``required_keys``) living in the
-repo-root ``prompts/`` directory (``ZING_PROMPTS_DIR`` overrides — used by
-tests and nonstandard installs). It is served three ways: MCP prompts
-capability, the ``get_prompt`` MCP tool, and ``zing prompt <name>`` here.
+(``name``/``description``/``version``/``required_keys``). In a repository
+checkout, the canonical files live in the root ``prompts/`` directory.
+Installed wheels fall back to the packaged ``_data/prompts`` mirror. The
+``.mcpb`` bundle stages the canonical pack and pins ``ZING_PROMPTS_DIR`` to
+it; the environment variable can also override the location for tests and
+nonstandard installs. The pack is served three ways: MCP prompts capability,
+the ``get_prompt`` MCP tool, and ``zing prompt <name>`` here.
 
 ``required_keys`` in a prompt's frontmatter is a contract: the MCP
 ``save_judgment`` tool rejects judgments for that section that lack any of
 those keys. Version bumps follow semver — major = output-contract break.
-
-Wheel/.mcpb packaging of the pack is queued (B-Q2); this loader's repo-
-relative fallback is the S1 checkout reality.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -79,13 +80,28 @@ def available_prompts() -> list[str]:
     return sorted(p.stem for p in d.glob("*.md"))
 
 
+_USAGE = "usage: zing prompt <name>"
+
+
 def run(argv: list[str]) -> int:
     """``zing prompt <name>`` — print a pack prompt for the paste flow."""
-    if not argv or argv[0] in ("-h", "--help"):
+    if not argv:
         names = available_prompts()
         listing = ", ".join(names) if names else "(none found)"
-        print(f"usage: zing prompt <name>\n\navailable prompts: {listing}")
-        return 0 if argv else 2
+        print(f"{_USAGE}\n\navailable prompts: {listing}")
+        return 2
+    if argv in (["-h"], ["--help"]):
+        names = available_prompts()
+        listing = ", ".join(names) if names else "(none found)"
+        print(f"{_USAGE}\n\navailable prompts: {listing}")
+        return 0
+    if len(argv) != 1 or argv[0].startswith("-"):
+        unknown = argv[1] if len(argv) > 1 else argv[0]
+        print(
+            f"unknown argument {unknown!r}\n{_USAGE}",
+            file=sys.stderr,
+        )
+        return 2
     name = argv[0]
     loaded = load_prompt(name)
     if loaded is None:

@@ -104,6 +104,8 @@ def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
 
 
 def test_suite_smoke_ci_doc_states_what_the_runner_does_not_prove() -> None:
+    from tools.eval.suite_smoke import SUITE_SMOKE_ASSERTION_IDS
+
     assert DOC.is_file()
     text = DOC.read_text(encoding="utf-8")
 
@@ -122,3 +124,4 @@ def test_suite_smoke_ci_doc_states_what_the_runner_does_not_prove() -> None:
         "spend",
     ):
         assert required in text
+    assert f"recomputes {len(SUITE_SMOKE_ASSERTION_IDS)} assertions" in text

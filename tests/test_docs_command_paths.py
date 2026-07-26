@@ -25,10 +25,19 @@ def test_documented_python_script_commands_point_to_shipped_files() -> None:
     )
 
 
-def test_readme_names_optional_loopback_network_calls() -> None:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8").lower()
+def test_readme_discloses_whisper_model_download_and_peer_calls() -> None:
+    from myzing.study import transcribe
 
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    lowered = readme.lower()
+
+    assert "a video URL only when you" in readme
+    assert "Hugging Face" in readme
+    assert "first `zing study`" in readme
+    assert transcribe.DEFAULT_MODEL in readme
+    assert transcribe.ENV_MODEL in readme
+    assert "ElevenLabs" in readme
+    assert "loopback HTTP" in readme
+    assert "Uoink" in readme
     assert "the only network calls it makes are" not in readme
-    assert "external network calls" in readme
-    assert "loopback http" in readme
-    assert "uoink" in readme
+    assert "external network calls are limited" not in lowered

@@ -7,6 +7,19 @@ on:
   schedule:
     - cron: "23 6 * * *"
   workflow_dispatch:
+    inputs:
+      uoink_ref:
+        description: >-
+          Git ref of ryanbiddy/uoink to test against (branch, tag, or SHA).
+          Leave at main for the ordinary single-branch gate.
+        required: false
+        default: main
+      writer_ref:
+        description: >-
+          Git ref of ryanbiddy/writer to test against (branch, tag, or SHA).
+          Leave at main for the ordinary single-branch gate.
+        required: false
+        default: main
 
 permissions:
   contents: read
@@ -21,6 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      # workflow_dispatch inputs are absent on push, pull_request, and
+      # schedule, so fall back to main there and leave those runs unchanged.
+      UOINK_REF: ${{ github.event.inputs.uoink_ref || 'main' }}
+      WRITER_REF: ${{ github.event.inputs.writer_ref || 'main' }}
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       HF_HUB_DISABLE_TELEMETRY: "1"
@@ -33,21 +50,58 @@ jobs:
           path: zing
           persist-credentials: false
 
-      - name: Check out Uoink main
+      # The ref expression is repeated here rather than read from the job env
+      # on purpose: an empty `ref:` silently checks out the default branch,
+      # which is the exact main-looks-like-a-branch confusion this input pair
+      # exists to remove. `'' || 'main'` is 'main' in expression syntax, so
+      # these can never resolve to the empty string. A ref that does not exist
+      # fails the checkout step loudly instead of falling back.
+      - name: Check out Uoink (${{ github.event.inputs.uoink_ref || 'main' }})
         uses: actions/checkout@v5
         with:
           repository: ryanbiddy/uoink
-          ref: main
+          ref: ${{ github.event.inputs.uoink_ref || 'main' }}
           path: uoink
           persist-credentials: false
 
-      - name: Check out Writer main
+      - name: Check out Writer (${{ github.event.inputs.writer_ref || 'main' }})
         uses: actions/checkout@v5
         with:
           repository: ryanbiddy/writer
-          ref: main
+          ref: ${{ github.event.inputs.writer_ref || 'main' }}
           path: writer
           persist-credentials: false
+
+      - name: Resolve the refs under test
+        shell: bash
+        run: |
+          set -euo pipefail
+          uoink_sha="$(git -C uoink rev-parse HEAD)"
+          writer_sha="$(git -C writer rev-parse HEAD)"
+          zing_sha="$(git -C zing rev-parse HEAD)"
+          zing_ref="${GITHUB_REF#refs/}"
+          {
+            echo "UOINK_SHA=$uoink_sha"
+            echo "WRITER_SHA=$writer_sha"
+            echo "ZING_SHA=$zing_sha"
+            echo "ZING_REF=$zing_ref"
+          } >> "$GITHUB_ENV"
+          if [ "$UOINK_REF" = "main" ] && [ "$WRITER_REF" = "main" ]; then
+            verdict='**Peers are at `main`.** This run proves the Zing tree against Uoink main and Writer main only. It does **not** prove a multi-branch combination.'
+          else
+            verdict='**Peer refs are overridden.** This run proves the three checked-out heads against one another.'
+          fi
+          {
+            echo "## suite-smoke sources"
+            echo
+            echo "$verdict"
+            echo
+            echo "| product | requested ref | resolved SHA |"
+            echo "| --- | --- | --- |"
+            echo "| uoink | \`$UOINK_REF\` | \`$uoink_sha\` |"
+            echo "| writer | \`$WRITER_REF\` | \`$writer_sha\` |"
+            echo "| zing | \`$zing_ref\` | \`$zing_sha\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-python@v6
         with:
@@ -94,6 +148,33 @@ jobs:
             2> >(tee "$SMOKE_DIR/suite-smoke-failure.json" >&2)
           rm -f "$SMOKE_DIR/suite-smoke-failure.json"
 
+      - name: Record the refs under test alongside the record
+        if: always()
+        shell: bash
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/suite-smoke
+        run: |
+          set -euo pipefail
+          mkdir -p "$SMOKE_DIR"
+          cat > "$SMOKE_DIR/suite-smoke-refs.json" <<JSON
+          {
+            "record_contract": "zing.suite-smoke.refs",
+            "version": 1,
+            "event": "$GITHUB_EVENT_NAME",
+            "run_url": "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID",
+            "requested_refs": {
+              "uoink": "${UOINK_REF:-}",
+              "writer": "${WRITER_REF:-}",
+              "zing": "${ZING_REF:-}"
+            },
+            "resolved_revisions": {
+              "uoink": "${UOINK_SHA:-}",
+              "writer": "${WRITER_SHA:-}",
+              "zing": "${ZING_SHA:-}"
+            }
+          }
+          JSON
+
       - name: Independently evaluate the family record
         working-directory: zing
         env:
@@ -102,6 +183,41 @@ jobs:
           python -m tools.eval.suite_smoke \
             "$SMOKE_DIR/suite-smoke.json" \
             --report "$SMOKE_DIR/suite-smoke-eval.json"
+
+      # A green record only means something if the trees it measured are the
+      # trees this job checked out. Without this, a wrong `ref:` would produce
+      # a perfectly green run whose sources quietly say "main".
+      - name: Verify the record measured the checked-out revisions
+        if: success()
+        shell: bash
+        env:
+          SMOKE_DIR: ${{ runner.temp }}/suite-smoke
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, sys
+
+          record = json.load(
+              open(os.path.join(os.environ["SMOKE_DIR"], "suite-smoke.json"), encoding="utf-8")
+          )
+          expected = {
+              "uoink": os.environ["UOINK_SHA"],
+              "writer": os.environ["WRITER_SHA"],
+              "zing": os.environ["ZING_SHA"],
+          }
+          sources = record.get("sources") or {}
+          bad = []
+          for product, want in expected.items():
+              got = (sources.get(product) or {}).get("revision")
+              if got != want:
+                  bad.append(f"{product}: record says {got!r}, checkout is {want!r}")
+          if bad:
+              print("record/checkout revision mismatch:", *bad, sep="\n  ")
+              sys.exit(1)
+          print("record sources match the checked-out revisions:")
+          for product, want in expected.items():
+              print(f"  {product} {want}")
+          PY
 
       - name: Upload the path-free family record
         if: always()

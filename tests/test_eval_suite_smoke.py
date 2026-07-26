@@ -68,8 +68,13 @@ REQUIRED_CONFORMANCE_CASES = {
     },
     "uoink.media.handoff/1": {
         "available",
+        "available_mpeg",
         "not_kept",
         "missing",
+        "empty_sha256",
+        "boolean_byte_length",
+        "relative_media_path",
+        "unsupported_media_type",
         "traversal",
         "outside_folder_symlink",
         "hash_mismatch",
@@ -193,6 +198,43 @@ def test_json_contracts_fail_closed_on_unknown_keys_and_higher_versions(
         and issue["path"] == "$.version"
         for issue in higher_version["issues"]
     )
+
+
+@pytest.mark.parametrize(
+    "item_ref",
+    (
+        "uoink://item/a b",
+        "uoink://item/a/b",
+        "uoink://item/a%2Fb",
+        "uoink://item/a%5Cb",
+        "uoink://item/bad%ZZ",
+        "uoink://item/a?query=b",
+        "uoink://item/" + "a" * 201,
+    ),
+)
+def test_media_handoff_oracle_rejects_noncanonical_item_refs(
+    item_ref: str,
+) -> None:
+    payload = copy.deepcopy(load_fixture_case("media_available")["payload"])
+    payload["data"]["item_ref"] = item_ref
+
+    report = validate_contract_payload("uoink.media.handoff/1", payload)
+
+    assert report["passed"] is False
+    assert any(
+        issue["kind"] == "invalid_reference"
+        and issue["path"] == "$.data.item_ref"
+        for issue in report["issues"]
+    )
+
+
+def test_media_handoff_oracle_accepts_a_canonical_encoded_item_ref() -> None:
+    payload = copy.deepcopy(load_fixture_case("media_available")["payload"])
+    payload["data"]["item_ref"] = "uoink://item/a%20b"
+
+    report = validate_contract_payload("uoink.media.handoff/1", payload)
+
+    assert report["passed"] is True
 
 
 def test_checked_in_suite_smoke_record_passes_every_independent_assertion() -> None:

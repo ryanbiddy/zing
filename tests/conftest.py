@@ -121,6 +121,22 @@ def pytest_runtest_makereport(
     )
 
 
+@pytest.fixture(autouse=True)
+def isolated_suite_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Path:
+    """Never let a test inherit a real per-user suite runtime lease."""
+    from myzing import suite_peer
+
+    root = tmp_path / "suite-services"
+    monkeypatch.setattr(
+        suite_peer,
+        "lease_paths",
+        lambda service_id: [root / f"{service_id}.json"],
+    )
+    return root
+
+
 @pytest.fixture
 def zing_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     root = tmp_path / "zing-home"

@@ -823,10 +823,24 @@ def _print_human(checks: list[Check]) -> None:
             print("\n" + step)
 
 
+_USAGE = "usage: zing doctor [--json]"
+
+
 def run(argv: list[str]) -> int:
-    if any(a in ("-h", "--help") for a in argv):
-        print("usage: zing doctor [--json]\n\n" + (__doc__ or ""))
+    if argv in (["-h"], ["--help"]):
+        print(_USAGE + "\n\n" + (__doc__ or ""))
         return 0
+    if argv not in ([], ["--json"]):
+        unknown = next(
+            (arg for arg in argv if arg != "--json"),
+            None,
+        )
+        if unknown is not None:
+            detail = f"unknown argument {unknown!r}"
+        else:
+            detail = f"unsupported argument combination: {argv!r}"
+        print(f"{detail}\n{_USAGE}", file=sys.stderr)
+        return 2
     checks = run_checks()
     summary = summarize(checks)
     if "--json" in argv:

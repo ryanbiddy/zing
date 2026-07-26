@@ -275,9 +275,19 @@ def _stage_kept(
         sha = digest.hexdigest()
         expected_sha = (handoff or {}).get("sha256")
         expected_len = (handoff or {}).get("byte_length")
-        if (expected_sha and sha != expected_sha) or (
-            expected_len is not None and size != int(expected_len)
-        ):
+        sha_matches = (
+            expected_sha is None
+            or isinstance(expected_sha, str) and sha == expected_sha
+        )
+        length_matches = (
+            expected_len is None
+            or (
+                isinstance(expected_len, int)
+                and not isinstance(expected_len, bool)
+                and size == expected_len
+            )
+        )
+        if not sha_matches or not length_matches:
             warnings.append(
                 f"kept media integrity mismatch ({name}: "
                 f"sha/size differ from handoff) — falling back to fetch"

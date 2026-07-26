@@ -305,6 +305,15 @@ def test_media_target_and_find(zing_workspace):
     assert storage.find_media("tiktok-123") == target
 
 
+@pytest.mark.parametrize("extension", ("mpeg", "mpg"))
+def test_find_media_recognizes_provider_mpeg_files(
+        zing_workspace, extension):
+    target = storage.media_target("tiktok-mpeg", extension)
+    target.write_bytes(b"mpeg")
+
+    assert storage.find_media("tiktok-mpeg") == target
+
+
 # -- index -------------------------------------------------------------------
 
 def test_list_breakdowns_empty_workspace(zing_workspace):
