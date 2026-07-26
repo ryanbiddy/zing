@@ -8,6 +8,7 @@ both (cp prompts/*.md src/myzing/_data/prompts/ etc.) or the wheel lies.
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,17 @@ MIRRORS = [
     (REPO / "presets", DATA / "presets", "*.json"),
     (REPO / "docs", DATA / "docs", "FETCH-TROUBLESHOOTING.md"),
 ]
+
+
+def test_prompt_pack_module_doc_describes_shipped_locations():
+    source = (REPO / "src" / "myzing" / "prompt_pack.py").read_text(
+        encoding="utf-8"
+    )
+    doc = ast.get_docstring(ast.parse(source)) or ""
+    assert "packaging of the pack is queued" not in doc
+    assert "Installed wheels fall back" in doc
+    assert "``_data/prompts``" in doc
+    assert "bundle stages the canonical pack" in doc
 
 
 @pytest.mark.parametrize("repo_dir,data_dir,pattern", MIRRORS)
