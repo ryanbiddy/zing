@@ -203,6 +203,28 @@ def test_cli_no_args_shows_usage(real_pack, capsys):
     assert "usage" in capsys.readouterr().out
 
 
+def test_cli_rejects_trailing_or_mixed_help_before_loading(
+    real_pack, monkeypatch, capsys
+):
+    def unexpected_load(name):
+        pytest.fail(f"unsupported prompt arguments loaded {name!r}")
+
+    monkeypatch.setattr(prompt_pack, "load_prompt", unexpected_load)
+
+    assert prompt_pack.run(["study", "--unknown"]) == 2
+    trailing = capsys.readouterr()
+    assert "unknown argument '--unknown'" in trailing.err
+
+    assert prompt_pack.run(["study", "--help"]) == 2
+    mixed = capsys.readouterr()
+    assert "unknown argument '--help'" in mixed.err
+
+    assert prompt_pack.run(["--help"]) == 0
+    help_output = capsys.readouterr()
+    assert "usage: zing prompt <name>" in help_output.out
+    assert help_output.err == ""
+
+
 def test_cli_routes_from_zing(real_pack, capsys):
     from myzing import cli
 
