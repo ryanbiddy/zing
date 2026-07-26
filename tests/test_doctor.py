@@ -160,6 +160,32 @@ def test_json_on_bare_machine_reports_required_missing(bare_machine, capsys):
     assert payload["required_missing"] == ["ffmpeg"]
 
 
+def test_cli_rejects_unknown_and_mixed_flags_before_checks(
+    monkeypatch, capsys
+):
+    def unexpected_checks():
+        pytest.fail("unsupported doctor arguments reached run_checks")
+
+    monkeypatch.setattr(doctor, "run_checks", unexpected_checks)
+
+    assert doctor.run(["--unknown"]) == 2
+    unknown = capsys.readouterr()
+    assert "unknown argument '--unknown'" in unknown.err
+
+    assert doctor.run(["--unknown", "--help"]) == 2
+    mixed = capsys.readouterr()
+    assert "unknown argument '--unknown'" in mixed.err
+
+    assert doctor.run(["--json", "--unknown"]) == 2
+    trailing = capsys.readouterr()
+    assert "unknown argument '--unknown'" in trailing.err
+
+    assert doctor.run(["--help"]) == 0
+    help_output = capsys.readouterr()
+    assert "usage: zing doctor [--json]" in help_output.out
+    assert help_output.err == ""
+
+
 # -- yt-dlp staleness --------------------------------------------------------
 
 def test_ytdlp_stale_version_warns_with_fix(monkeypatch):
