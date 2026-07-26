@@ -9,9 +9,12 @@ machine, all open source.
 Zing does the deterministic measurement and rendering. The judgment (what
 makes a hook work, what your cut is missing) is done by your own AI over
 MCP, guided by the prompt pack in `prompts/`. Zing itself needs no API key
-and opens no listening network service. Its external network calls are
-limited to fetching a video URL you supply and, if you opt in, using
-ElevenLabs for voiceover (`ELEVENLABS_API_KEY`; the default voice engine is
+and opens no listening network service. It fetches a video URL only when you
+supply one. On the first `zing study`, faster-whisper downloads the selected
+speech model from Hugging Face if it is not already cached (the default
+`large-v2` model uses about 3.1 GB; select another with
+`ZING_WHISPER_MODEL`). If you opt in to ElevenLabs voiceover, Zing sends the
+voiceover request there (`ELEVENLABS_API_KEY`; the default voice engine is
 local). Suite-aware commands may also make loopback HTTP calls to a local
 Uoink helper for peer health, retained media, corpus notes, and engagement;
 Zing never puts the Uoink token in a URL. Your AI client is yours to choose,
