@@ -32,6 +32,19 @@ def _no_ytdlp_config(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_runtime_leases(monkeypatch, tmp_path):
+    """Doctor tests must not discover a product running on the host."""
+    from myzing import suite_peer
+
+    lease_dir = tmp_path / "services.d"
+    monkeypatch.setattr(
+        suite_peer,
+        "lease_paths",
+        lambda service_id: [lease_dir / f"{service_id}.json"],
+    )
+
+
+@pytest.fixture(autouse=True)
 def _hermetic_modules(monkeypatch):
     """#276 (Lane A reconciliation): the ytdlp tests probed the REAL venv
     for the yt_dlp_ejs solver — green only where yt-dlp[default] was

@@ -24,6 +24,7 @@ from tools.eval.suite_contracts import (
 )
 
 FIXDIR = Path(__file__).resolve().parents[1] / "tools" / "eval" / "fixtures" / "suite_v1"
+REAL_LEASE_PATHS = suite_peer.lease_paths
 
 
 def fixture_cases(name):
@@ -119,9 +120,15 @@ class FakeUoink:
 
 
 @pytest.fixture(autouse=True)
-def _isolated(monkeypatch):
+def _isolated(monkeypatch, tmp_path):
     monkeypatch.delenv(suite_peer.UOINK_URL_ENV, raising=False)
     monkeypatch.delenv(suite_peer.UOINK_TOKEN_ENV, raising=False)
+    lease_dir = tmp_path / "services.d"
+    monkeypatch.setattr(
+        suite_peer,
+        "lease_paths",
+        lambda service_id: [lease_dir / f"{service_id}.json"],
+    )
     doctor._peer_cache.clear()
     yield
     doctor._peer_cache.clear()
@@ -785,7 +792,7 @@ def test_no_lease_falls_through_to_the_default(lease_dir, monkeypatch):
 def test_lease_paths_cover_all_three_platforms(monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", "C:/Users/x/AppData/Local")
     monkeypatch.setenv("XDG_STATE_HOME", "/home/x/.state")
-    paths = [str(p).replace("\\", "/") for p in suite_peer.lease_paths("uoink")]
+    paths = [str(p).replace("\\", "/") for p in REAL_LEASE_PATHS("uoink")]
     assert any("RyanSuite/services.d/uoink.json" in p for p in paths)
     assert any("Library/Application Support/RyanSuite" in p for p in paths)
     assert any("ryan-suite/services.d/uoink.json" in p for p in paths)
