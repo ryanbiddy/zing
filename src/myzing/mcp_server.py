@@ -29,6 +29,7 @@ import importlib
 import importlib.metadata
 import inspect
 import json
+import math
 import os
 import re
 import shutil
@@ -1278,15 +1279,23 @@ def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
             "timestamps required: a list of seconds, e.g. the start times "
             "of the shots you want to see (shots[].start in the breakdown)"
         )
-    try:
-        times = sorted(float(t) for t in timestamps)
-    except (TypeError, ValueError):
-        return _err("timestamps must be numbers (seconds from video start)")
-    if len(times) > FRAMES_HARD_CAP:
+    if len(timestamps) > FRAMES_HARD_CAP:
         return _err(
-            f"{len(times)} timestamps requested — the cap is "
+            f"{len(timestamps)} timestamps requested — the cap is "
             f"{FRAMES_HARD_CAP} per call ({FRAMES_RECOMMENDED} recommended "
             "for token budget). Split into a second call."
+        )
+    if any(
+        isinstance(t, bool) or not isinstance(t, (int, float))
+        for t in timestamps
+    ):
+        return _err(
+            "timestamps must be finite numbers (seconds from video start)"
+        )
+    times = sorted(float(t) for t in timestamps)
+    if any(not math.isfinite(t) for t in times):
+        return _err(
+            "timestamps must be finite numbers (seconds from video start)"
         )
     if any(t < 0 for t in times):
         return _err("timestamps must be non-negative seconds")
@@ -1418,6 +1427,7 @@ def mcp_sdk_defect() -> str | None:
 def build_server():
     from mcp.server.fastmcp import FastMCP
     from mcp.server.fastmcp.prompts import Prompt
+    from pydantic import StrictFloat
 
     mcp = FastMCP(
         "zing",
@@ -1626,6 +1636,12 @@ def build_server():
             else:
                 content.append(f"{frame['label']}: {frame['error']}")
         return content
+
+    # FastMCP's default float validator coerces JSON booleans and numeric
+    # strings before the SDK-free handler can distinguish their real types.
+    # Keep integer JSON numbers valid, but make the MCP boundary honor the
+    # advertised array-of-numbers contract.
+    get_frames.__annotations__["timestamps"] = list[StrictFloat]
 
     mcp.tool(
         name="get_frames",

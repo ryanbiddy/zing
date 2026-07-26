@@ -8,6 +8,8 @@ note's test plan.
 
 from __future__ import annotations
 
+import asyncio
+import math
 import subprocess
 import sys
 
@@ -64,6 +66,36 @@ def test_get_frames_requires_timestamps(studied):
 def test_get_frames_rejects_junk_timestamps(studied):
     assert mcp_server.h_get_frames(SLUG, ["abc"])["ok"] is False
     assert mcp_server.h_get_frames(SLUG, [-1.0])["ok"] is False
+
+
+@pytest.mark.parametrize(
+    "bad_timestamp",
+    [True, False, "1.5", None, {}, math.nan, math.inf, -math.inf],
+)
+def test_get_frames_rejects_non_numeric_or_non_finite_before_work(
+    monkeypatch, bad_timestamp
+):
+    monkeypatch.setattr(
+        mcp_server.shutil,
+        "which",
+        lambda name: pytest.fail("invalid timestamps must fail before work"),
+    )
+
+    result = mcp_server.h_get_frames(SLUG, [bad_timestamp])
+
+    assert result == {
+        "ok": False,
+        "error": "timestamps must be finite numbers "
+        "(seconds from video start)",
+    }
+
+
+@pytest.mark.parametrize("timestamp", [0, 1, 0.25])
+def test_get_frames_accepts_json_numbers(studied, fake_ffmpeg, timestamp):
+    result = mcp_server.h_get_frames(SLUG, [timestamp])
+
+    assert result["ok"] is True
+    assert result["frames"][0]["jpeg"] == FAKE_JPEG
 
 
 def test_get_frames_enforces_hard_cap(studied):
@@ -251,3 +283,37 @@ def test_wrapper_interleaves_text_and_images(studied, fake_ffmpeg):
     assert "Frame 1 @ t=1.00s" in content[0].text
     assert content[1].mimeType == "image/jpeg"
     assert "past the video's end" in content[2].text
+
+
+@pytest.mark.parametrize("bad_timestamp", [True, False, "1.5"])
+def test_mcp_wrapper_does_not_coerce_frame_timestamps(bad_timestamp):
+    pytest.importorskip("mcp")
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    server = mcp_server.build_server()
+
+    async def call():
+        return await server._tool_manager.call_tool(
+            "get_frames",
+            {"slug": SLUG, "timestamps": [bad_timestamp]},
+            convert_result=False,
+        )
+
+    with pytest.raises(ToolError, match="valid number"):
+        asyncio.run(call())
+
+
+def test_mcp_frame_timestamp_schema_stays_numeric():
+    pytest.importorskip("mcp")
+    server = mcp_server.build_server()
+
+    tools = asyncio.run(server.list_tools())
+    schema = next(
+        tool.inputSchema for tool in tools if tool.name == "get_frames"
+    )
+
+    assert schema["properties"]["timestamps"] == {
+        "items": {"type": "number"},
+        "title": "Timestamps",
+        "type": "array",
+    }
