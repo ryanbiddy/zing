@@ -23,6 +23,7 @@ from tools.eval.suite_contracts import (
     validate_contract_payload,
 )
 
+REAL_LEASE_PATHS = suite_peer.lease_paths
 FIXDIR = Path(__file__).resolve().parents[1] / "tools" / "eval" / "fixtures" / "suite_v1"
 
 
@@ -785,7 +786,7 @@ def test_no_lease_falls_through_to_the_default(lease_dir, monkeypatch):
 def test_lease_paths_cover_all_three_platforms(monkeypatch):
     monkeypatch.setenv("LOCALAPPDATA", "C:/Users/x/AppData/Local")
     monkeypatch.setenv("XDG_STATE_HOME", "/home/x/.state")
-    paths = [str(p).replace("\\", "/") for p in suite_peer.lease_paths("uoink")]
+    paths = [str(p).replace("\\", "/") for p in REAL_LEASE_PATHS("uoink")]
     assert any("RyanSuite/services.d/uoink.json" in p for p in paths)
     assert any("Library/Application Support/RyanSuite" in p for p in paths)
     assert any("ryan-suite/services.d/uoink.json" in p for p in paths)
