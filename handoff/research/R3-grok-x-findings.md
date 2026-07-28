@@ -1,9 +1,9 @@
 # Grok/X Findings — R3-D (synthesized)
 
 Researcher: Ryan (Grok prompts on X), synthesis by orchestrator. Date: 2026-07-18.
-Source material: three Grok reports (PDFs in `Grok Research/`): (1) X-native
-video mechanics + conversion, (2) winning X video creators + editing styles,
-(3) AI-video-editor sentiment on X. Grok searched X posts/threads from
+Source material: three Grok reports (retained locally, not redistributed):
+(1) X-native video mechanics + conversion, (2) winning X video creators +
+editing styles, (3) AI-video-editor sentiment on X. Grok searched X posts/threads from
 2025–mid-2026 (creator report: viral/recent posts since June 2026).
 
 **Provenance & tier ceiling.** Grok is an LLM synthesizing X search results —

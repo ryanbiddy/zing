@@ -39,5 +39,7 @@ uv run pytest
 ```
 
 MIT licensed. Core is stdlib-only; optional tools (ffmpeg, yt-dlp,
-faster-whisper, OCR) are detected by `zing doctor`.
+faster-whisper, OCR) are detected by `zing doctor`. The MIT grant covers this
+project's own software and docs; checked-in evaluation media stays under its
+original author's terms — see [NOTICE.md](NOTICE.md).
 

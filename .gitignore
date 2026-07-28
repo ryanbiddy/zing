@@ -15,3 +15,32 @@ goldens/*/media*
 *.mp3
 !tests/fixtures/**
 .coverage
+
+# Local credentials and environment. Zing reads UOINK_TOKEN and
+# ELEVENLABS_API_KEY from the environment; neither may ever be committed.
+.env
+.env.*
+!.env.example
+*.token
+.pypirc
+.netrc
+*.pem
+*.key
+id_rsa*
+
+# Local databases and logs
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+# Local git worktrees used by the build lanes
+worktrees/
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
