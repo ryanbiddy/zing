@@ -5,9 +5,12 @@
   "media_policy": {
     "committed": false,
     "reason": "The Uoink corpus deletes source media after extraction.",
-    "derived_frames_committed": true,
-    "derived_frames_reason": "A-Q6: small downscaled analysis thumbnails (<=360px JPEG) are committed so visual judgment criteria are scoreable; source media itself stays uncommitted.",
-    "recovery": "Refetch each canonical URL with yt-dlp and verify the frozen source-media SHA-256 before comparing measurements."
+    "derived_frames_committed": false,
+    "derived_frames_reason": "Neither source has a recorded redistribution basis (see each case's rights block), so no derived frames are committed for them — A-Q6's thumbnail decision is scoped to the CC-licensed fixtures. Frame SHA-256 anchors stay in each provenance.json so the frames remain identifiable to anyone holding the verified source media.",
+    "derived_frames_permitted": false,
+    "derived_frames_permitted_reason": "Hard gate for tools/eval/backfill_frames.py: it refuses to run against this manifest, so re-running the documented regeneration command cannot silently re-commit frames of these creators.",
+    "recovery": "Refetch each canonical URL with yt-dlp and verify the frozen source-media SHA-256 before comparing measurements.",
+    "text_policy": "Verbatim transcript words and on-screen caption text are not committed for these cases. Timings, confidences, and style measurements are; so are content hashes of the removed text."
   },
   "source_acquisition": {
     "tool": "yt-dlp",
@@ -29,7 +32,15 @@
       "source_url": "https://www.youtube.com/shorts/nlGYV0bmddI",
       "title": "Why You Can't Pee On Antarctica",
       "creator": "Cleo Abram",
-      "truth_section": "1. REFERENCE VIDEO"
+      "truth_section": "1. REFERENCE VIDEO",
+      "rights": {
+        "label": "All rights reserved — no redistribution licence located",
+        "spdx": null,
+        "evidence_url": "https://www.youtube.com/shorts/nlGYV0bmddI",
+        "evidence_checked_at": "2026-07-28",
+        "attribution": "Cleo Abram",
+        "limitations": "A standard YouTube upload carrying no Creative Commons or other public licence. Nothing from the work is redistributed here: no source media, no derived frames, and no verbatim transcript or on-screen caption text. Only measurements about the work and content hashes are committed. Do not commit any content from this work unless a redistribution basis is recorded in this block first."
+      }
     },
     {
       "fixture_id": "raw-editing-practice",
@@ -44,7 +55,15 @@
       "title": "Raw Footage for Editing Practice",
       "creator": "MrDenoise",
       "truth_section": "2. EXTREMELY EDITED SHOWCASE",
-      "truth_caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link."
+      "truth_caveat": "The published upload is not zero-cut raw footage: Lane A found a fast-cut montage around 20–30 seconds. The genuinely raw file is behind the video's external download link.",
+      "rights": {
+        "label": "All rights reserved — no redistribution licence located",
+        "spdx": null,
+        "evidence_url": "https://www.youtube.com/watch?v=FHMXO_VikdA",
+        "evidence_checked_at": "2026-07-28",
+        "attribution": "MrDenoise",
+        "limitations": "A standard YouTube upload carrying no Creative Commons or other public licence. Nothing from the work is redistributed here: no source media, no derived frames, and no verbatim transcript or on-screen caption text. Only measurements about the work and content hashes are committed. Do not commit any content from this work unless a redistribution basis is recorded in this block first."
+      }
     }
   ]
 }

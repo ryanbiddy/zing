@@ -32,15 +32,17 @@ discount hard. Vendor pricing pages cited for facts are T1-adjacent.
 
 This niche is drowning in manufactured sentiment. Verified this round:
 
-- **Submagic:** founder publicly described a 25%-recurring-commission
-  affiliate program generating "$1.6 million in revenue"
-  ([r/SaaS, Mar 2025](https://www.reddit.com/r/SaaS/comments/1jgd3mb/affiliate_marketing_generated_over_16_million_in/));
-  the same founder account (u/ElieInAI) posted fake-neutral praise of his own
-  product in 8+ subreddits, e.g. "Yes honestly I tried Submagic and it's
-  really easy to use, I definitely recommend it!"
-  ([r/VideoEditing](https://www.reddit.com/r/VideoEditing/comments/1apu82x/what_is_the_best_option_for_ai_auto_captioning/mj5e8kk/)),
-  plus ~47 identical spam submissions across random subreddits
-  ([example](https://www.reddit.com/r/MachineLearning/comments/1eycz0y/submagic_generate_amazing_ai_captions/)).
+- **Submagic:** the vendor publicly advertises a 25%-recurring-commission
+  affiliate program and has publicised "$1.6 million in revenue" from it
+  ([r/SaaS, Mar 2025](https://www.reddit.com/r/SaaS/comments/1jgd3mb/affiliate_marketing_generated_over_16_million_in/)).
+  Near-identical promotional submissions for the product recur across
+  unrelated subreddits. Read Submagic sentiment as incentivised by an
+  advertised commission structure rather than organic — an observation
+  about the incentive and about the posting pattern in aggregate.
+  *(Redacted 2026-07-28: an earlier revision of this bullet named an
+  individual account and characterised its conduct. That was an
+  unverifiable published claim about an identifiable person; it has been
+  removed and is not restated. Do not reintroduce it.)*
 - **Veed:** coordinated late-2024 Reddit promo wave — identical "Best AI
   video editor" posts + 50%-off referral links from paired accounts across
   4+ subreddits, plus a dedicated discount-code subreddit
