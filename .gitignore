@@ -15,3 +15,6 @@ goldens/*/media*
 *.mp3
 !tests/fixtures/**
 .coverage
+
+# Local coordination material, never for the public tree
+handoff/
