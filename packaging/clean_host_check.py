@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
             "mcp-stdio",
             "PASS" if mcp_ok else "FAIL",
             (
-                "installed product initialized, listed 23 tools, and called "
+                "installed product initialized, listed 24 tools, and called "
                 "zing_status"
                 if mcp_ok else
                 f"installed MCP smoke failed: {mcp_payload}"

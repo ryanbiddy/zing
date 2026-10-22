@@ -125,10 +125,7 @@ jobs:
         run: |
           ffmpeg -version
           ffprobe -version
-      - run: pip install -e .[dev,audio]
-      - name: Real frame extraction smoke (skips are failures)
-        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe
-      - run: pip install -e .[dev,memes]
+      - run: pip install -e .[dev,audio,memes]
       - name: Real media and inspection gates (skips are failures)
         run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py --expected-ffmpeg-tests 7
 
