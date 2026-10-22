@@ -93,6 +93,14 @@ def main(argv: list[str] | None = None) -> int:
                     stream.reconfigure(errors="replace")
             except (ValueError, OSError):
                 pass
+    # Piped answers (zing brief new < answers.txt) are UTF-8 too; without
+    # this a name like "Zoë" mis-decodes under the legacy codepage.
+    if hasattr(sys.stdin, "reconfigure"):
+        try:
+            if not sys.stdin.isatty():
+                sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv == ["--version"]:
         print(_version())

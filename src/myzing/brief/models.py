@@ -120,6 +120,12 @@ class Brief:
         if not isinstance(answers, dict):
             raise BriefError("answers: supply a JSON object; omit optional keys to use disclosed defaults.")
         allowed = {f.name for f in fields(cls)} - {"version"}
+        # `zing brief new --help` shows a full brief, version included; accept
+        # that shape back as long as the version is the one we write.
+        if "version" in answers:
+            if type(answers["version"]) is not int or answers["version"] != 1:
+                raise BriefError("answers: version must be 1 (or omitted).")
+            answers = {k: v for k, v in answers.items() if k != "version"}
         unknown = set(answers) - allowed
         if unknown:
             raise BriefError(f"Unknown answer(s): {', '.join(sorted(map(str, unknown)))}. See 'zing brief new --help'.")

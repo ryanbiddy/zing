@@ -305,3 +305,24 @@ def test_must_keep_time_shortage_counts_overlaps_once(project):
     ])
     result = recommend(project, brief_api.validate_for_project(project, brief))
     assert "require 6 s at original speed" in " ".join(result["missing"])
+
+
+def test_answers_accept_the_version_shown_in_help():
+    from myzing.brief.models import Brief, BriefError
+
+    assert Brief.from_answers({"version": 1}) == Brief.from_answers({})
+    with pytest.raises(BriefError, match="version must be 1"):
+        Brief.from_answers({"version": 2})
+
+
+def test_piped_non_ascii_answers_decode_as_utf8(tmp_path):
+    import subprocess
+    import sys
+
+    probe = ("import sys; from myzing import cli; cli.main(['--version']); "
+             "sys.stdout.write(sys.stdin.encoding)")
+    env = {k: v for k, v in __import__("os").environ.items() if k != "PYTHONUTF8"}
+    env["PYTHONIOENCODING"] = ""
+    result = subprocess.run([sys.executable, "-c", probe], input="Zoë".encode("utf-8"),
+                            capture_output=True, env=env, timeout=60)
+    assert result.stdout.decode("utf-8").strip().endswith("utf-8")
