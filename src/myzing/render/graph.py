@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from myzing.composition import Transition
 
 from .validation import ValidatedEDL
 
@@ -80,6 +84,7 @@ def build_graph(
     fonts_dir: bool = False,
     fps_rate: str | None = None,
     clip_luts: tuple[str | None, ...] = (),
+    transitions: tuple[Transition | None, ...] = (),
 ) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
@@ -88,6 +93,11 @@ def build_graph(
 
     video_labels = []
     clip_audio_labels = []
+    if transitions and len(transitions) != len(validated.clips) - 1:
+        raise ValueError("transitions must match the validated timeline boundaries")
+    rate = fps_rate or _number(edl.fps)
+    if transitions:
+        from . import transitions as effects
     if clip_luts and len(clip_luts) != len(validated.clips):
         raise ValueError("clip LUTs must match the validated timeline order")
     for input_index, resolved in enumerate(validated.clips):
@@ -109,6 +119,10 @@ def build_graph(
             "scale=in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,format=yuv420p,"
             "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709,"
         ) if any(clip_luts) else ""
+        edge = ""
+        if transitions:
+            following = transitions[input_index] if input_index < len(transitions) else None
+            edge = effects.video_edge(clip, following, edl.width, edl.height, rate)
         lines.append(
             f"[{input_index}:v:0]"
             f"trim=start={_number(clip.src_in)}:end={_number(clip.src_out)},"
@@ -119,9 +133,11 @@ def build_graph(
             "force_original_aspect_ratio=decrease:force_divisible_by=2,"
             f"pad={edl.width}:{edl.height}:(ow-iw)/2:(oh-ih)/2:color=black,"
             "setsar=1,format=yuv420p"
-            f"[{label}]"
+            + edge + f"[{label}]"
         )
-        if resolved.media.has_audio:
+        if transitions:
+            lines.append(effects.clip_audio(input_index, resolved, f"clipa{input_index}"))
+        elif resolved.media.has_audio:
             audio_label = f"clipa{input_index}"
             clip_audio_labels.append(audio_label)
             lines.append(
@@ -135,14 +151,18 @@ def build_graph(
                 )
             )
 
-    joined_video = "".join(f"[{label}]" for label in video_labels)
-    lines.append(
-        f"{joined_video}concat=n={len(video_labels)}:v=1:a=0,"
-        f"trim=duration={_number(duration)}"
-        # V2 captions must see the output CFR grid, including across cuts.
-        + (f",fps={fps_rate}" if fps_rate is not None else "")
-        + "[video_concat]"
-    )
+    if transitions:
+        effects.join_streams(lines, transitions, rate, duration)
+        clip_audio_labels = ["clip_audio"]
+    else:
+        joined_video = "".join(f"[{label}]" for label in video_labels)
+        lines.append(
+            f"{joined_video}concat=n={len(video_labels)}:v=1:a=0,"
+            f"trim=duration={_number(duration)}"
+            # V2 captions must see the output CFR grid, including across cuts.
+            + (f",fps={fps_rate}" if fps_rate is not None else "")
+            + "[video_concat]"
+        )
     if include_captions:
         if caption_filter not in {"ass", "subtitles"}:
             raise ValueError(f"unsupported caption filter: {caption_filter}")

@@ -75,3 +75,19 @@ def require_lut3d(ffmpeg: str = "ffmpeg") -> None:
             f"LUT rendering requires the lut3d filter: {executable}. "
             "Install an FFmpeg build with lut3d (on macOS use ffmpeg-full) and put it on PATH."
         )
+
+
+def require_transitions(ffmpeg: str = "ffmpeg", *, zoom: bool = False) -> None:
+    """Check filters, not major versions: xfade has existed since FFmpeg 4.3."""
+    executable = shutil.which(ffmpeg)
+    if executable is None:
+        raise FFmpegCapabilityError(f"ffmpeg executable not found: {ffmpeg}")
+    executable = str(Path(executable).resolve())
+    required = {"xfade", "acrossfade"} | ({"zoompan"} if zoom else set())
+    missing = required - _filters_for_executable(executable)
+    if missing:
+        raise FFmpegCapabilityError(
+            f"Transition rendering requires {', '.join(sorted(missing))}: {executable}. "
+            "Install an FFmpeg build with these filters (xfade requires FFmpeg >= 4.3; "
+            "on macOS use ffmpeg-full) and put it on PATH."
+        )

@@ -330,6 +330,17 @@ def test_json_schema_rejects_missing_overlap_handles():
     assert not Draft202012Validator(schemas()["composition-v2.schema.json"]).is_valid(data)
 
 
+@pytest.mark.parametrize("kind", ["dip_to_black", "dip_to_white"])
+def test_json_schema_requires_handles_for_dips(kind):
+    data = talking_head_example()[0].to_dict()
+    data["transitions"][0]["recipe"]["kind"] = kind
+    data["transitions"][0]["recipe"].pop("direction", None)
+    validator = Draft202012Validator(schemas()["composition-v2.schema.json"])
+    assert validator.is_valid(data)
+    del data["transitions"][0]["outgoing_handle"]
+    assert not validator.is_valid(data)
+
+
 def test_caption_fields_project_to_the_existing_hyperframes_plan():
     from myzing.render.hyperframes_adapter import validate_plan
 
