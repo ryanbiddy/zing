@@ -1258,9 +1258,14 @@ def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
         if output_path
         else src.with_suffix(".otio")
     )
+    from myzing.render.validation import EDLValidationError
+
     try:
         result = export_otio(edl, out, base_dir=base_dir)
     except OTIOExportError as e:
+        return _err(f"OTIO export failed: {e}")
+    except EDLValidationError as e:
+        # A missing asset is caught before ffprobe; report it in the envelope.
         return _err(f"OTIO export failed: {e}")
     return _ok(
         output=str(out),

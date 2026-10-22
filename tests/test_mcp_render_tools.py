@@ -138,3 +138,15 @@ def test_export_otio_error_is_data(zing_workspace, edl_file, monkeypatch):
     result = mcp_server.h_export_otio(str(edl_file))
     assert result["ok"] is False
     assert "clip source missing" in result["error"]
+
+def test_export_otio_missing_asset_is_data(zing_workspace, edl_file, monkeypatch):
+    from myzing.render import otio_export
+    from myzing.render.validation import EDLValidationError
+
+    def missing(edl, output_path, *, base_dir=None, **kw):
+        raise EDLValidationError("clips[0].src does not exist: gone.mp4")
+
+    monkeypatch.setattr(otio_export, "export_otio", missing)
+    result = mcp_server.h_export_otio(str(edl_file))
+    assert result["ok"] is False
+    assert "does not exist" in result["error"]
