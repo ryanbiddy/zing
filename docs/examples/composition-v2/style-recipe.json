@@ -1,20 +1,6 @@
 {
   "approximations": {
-    "font_candidates": [
-      {
-        "asset": {
-          "license": "OFL-1.1",
-          "path": "../../../src/myzing/_data/fonts/Anton-Regular.ttf",
-          "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
-          "version": 1
-        },
-        "family": "Anton",
-        "substitution_evidence": [
-          "Chosen bundled OFL font for the example; no glyph match was measured."
-        ],
-        "version": 1
-      }
-    ],
+    "font_candidates": [],
     "layout": null,
     "looks": [],
     "transitions": [
@@ -173,8 +159,8 @@
       "version": 1
     },
     {
-      "confidence": 1.0,
-      "confidence_kind": "producer-reported",
+      "confidence": null,
+      "confidence_kind": "unreported",
       "coverage": {
         "basis": "reported records; detector recall and sampled-time coverage unknown",
         "details": {},
@@ -182,7 +168,7 @@
         "samples": 1,
         "version": 1
       },
-      "name": "captions[0]",
+      "name": "text_roles",
       "provenance": {
         "crop_evidence": [],
         "details": {
@@ -194,23 +180,43 @@
         "model": null,
         "model_version": null,
         "reference": "synthetic://checked-in-scorer-sample",
-        "sample_timestamps": [
-          0.25,
-          1.75
-        ],
+        "sample_timestamps": [],
         "sha256": null,
         "timestamp_basis": "reported source intervals; exact sampling unavailable",
         "version": 1
       },
-      "unit": "seconds; position category; word count; unitless confidence",
+      "unit": "heuristic role counts and event evidence",
       "value": {
-        "all_caps": false,
-        "confidence": 1.0,
-        "end": 1.75,
-        "position": "center",
-        "start": 0.25,
-        "text": "hello zing",
-        "words_visible": 2
+        "counts": {
+          "caption": 0,
+          "credit": 0,
+          "scene_text": 0,
+          "title": 1
+        },
+        "events": [
+          {
+            "end": 1.75,
+            "event_index": 0,
+            "features": {
+              "duration_seconds": 1.5,
+              "matched_tracks": [],
+              "motion": "unmeasured",
+              "persistent": false,
+              "position": "center",
+              "recurring_anchor": false,
+              "speech_overlap": 0.0,
+              "speech_text_agreement": 0.0
+            },
+            "reason": "Sustained centered text outside speech; title heuristic.",
+            "role": "title",
+            "start": 0.25,
+            "text": "hello zing",
+            "version": 1
+          }
+        ],
+        "method": "text-role-rules-v1",
+        "scope": "Heuristic roles, not labeled ground truth; uncertain events cannot inform caption style.",
+        "version": 1
       },
       "version": 1
     },
@@ -309,6 +315,14 @@
       "reason": "No transcript words supplied; speech presence remains unmeasured.",
       "status": "unmeasured",
       "subject": "words",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "No OCR events classified as speech captions; title, credit and scene text cannot establish caption style.",
+      "status": "unmeasured",
+      "subject": "captions",
       "version": 1
     },
     {
@@ -476,17 +490,14 @@
         "model": null,
         "model_version": null,
         "reference": "synthetic://checked-in-scorer-sample",
-        "sample_timestamps": [
-          0.25,
-          1.75
-        ],
+        "sample_timestamps": [],
         "sha256": null,
         "timestamp_basis": "reported source intervals; exact sampling unavailable",
         "version": 1
       },
       "reason": "Producer did not report: sha256, detector, detector_version",
       "status": "unreported",
-      "subject": "captions[0].provenance",
+      "subject": "text_roles.provenance",
       "version": 1
     },
     {

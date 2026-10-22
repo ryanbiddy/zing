@@ -30,6 +30,15 @@ def group_disclosures(warnings: list[str], *, examples: int = 6) -> list[str]:
             context, message = f"{float(at.group(1)):g}s", at.group(2)
         elif source:
             context, message = Path(source.group(1)).name, source.group(2)
+        font = re.match(r"font candidates track ([^:]+): (.*)", message)
+        if font:
+            context = font.group(1)
+            cause = re.sub(r"^.*?weight [^:]+: (?:ValueError: )?", "", font.group(2))
+            message = "Font candidate: " + cause
+        caption = re.match(r"caption (caption-\d+): (.*)", message)
+        if caption:
+            context, message = caption.groups()
+        message = re.sub(r"caption geometry: \d+ coverage gap\(s\)", "caption geometry: sparse sampling coverage gaps", message)
         contexts = groups.setdefault(message, [])
         if context and context not in contexts:
             contexts.append(context)
@@ -105,6 +114,9 @@ def report(recipe, rendered, geometry, color, verification, plan):
     facts = {f.name: f.value for f in recipe.measured}
     durations = facts.get("shot_durations", [])
     observed_durations = [s.duration for s in rendered.shots]
+    from myzing.director.plans import REPORT_PREFIX
+    planning = next((json.loads(w[len(REPORT_PREFIX):]) for w in plan.warnings if w.startswith(REPORT_PREFIX)), {})
+    source_pacing = planning.get("pacing_evidence", {})
     target = median(durations) if durations else None
     shots_unmeasured = any("shot" in w.lower() and any(word in w.lower() for word in ("fallback", "skipped", "failed"))
                            for w in [*recipe.warnings, *rendered.warnings])
@@ -121,12 +133,30 @@ def report(recipe, rendered, geometry, color, verification, plan):
         dimensions["first_cut"].update(
             status="pass" if len(durations) == len(rendered.shots) == 1 else "miss",
             reason="Compare observed cut presence: both are continuous, or one has cuts the other lacks.")
+    source_durations = source_pacing.get("shot_durations_seconds", [])
+    if source_durations:
+        mapped = _metric(target, median(source_durations), (target or 0) * .1,
+                         "Source study cuts mapped through selected trims, including internal cuts; 10% envelope.")
+        pixel = dimensions["shot_pace"]
+        dimensions["shot_pace"] = {**mapped, "rendered_pixels": pixel,
+            "status": "miss" if "miss" in (mapped["status"], pixel["status"]) else "approximate" if "approximate" in (mapped["status"], pixel["status"]) else "pass"}
+        mapped_first = source_durations[0] if len(source_durations) > 1 else None
+        source_first = _metric(durations[0] if len(durations) > 1 else None, mapped_first,
+                               2 / rendered.meta.fps, "First source-study cut mapped to the output.")
+        dimensions["first_cut"]["source_mapped"] = source_first
+        if source_first["status"] == "miss":
+            dimensions["first_cut"]["status"] = "miss"
     captions = [v for k, v in facts.items() if k.startswith("captions[")]
+    from myzing.study.text_roles import classify_text, caption_geometry
+    output_roles = classify_text(rendered, geometry)
+    caption_indices = {e["event_index"] for e in output_roles["events"] if e["role"] == "caption"}
+    output_captions = [c for i, c in enumerate(rendered.captions) if i in caption_indices]
+    geometry = caption_geometry(geometry, output_roles)
     onset = _metric(min((c["start"] for c in captions), default=None),
-                    min((c.start for c in rendered.captions), default=None), .1,
+                    min((c.start for c in output_captions), default=None), .1,
                     "First OCR caption onset; sparse sampling cannot establish one-frame switches.", approximate=True)
     length = _metric(median(c["end"] - c["start"] for c in captions) if captions else None,
-                     median(c.end - c.start for c in rendered.captions) if rendered.captions else None, .1,
+                     median(c.end - c.start for c in output_captions) if output_captions else None, .1,
                      "Median OCR event duration; texts differ between reference and draft.", approximate=True)
     dimensions["caption_timing"] = {"status": "miss" if "miss" in (onset["status"], length["status"]) else "approximate",
                                     "onset": onset, "event_duration": length,
@@ -150,7 +180,13 @@ def report(recipe, rendered, geometry, color, verification, plan):
                            "tolerance": .15, "reason": "Unpaired scene distributions in encoded Rec.709; human review required. "
                            "This is not a paired Delta E 2000 test or recovery of an original LUT."}
     dimensions["typography"] = {"status": "approximate", "reason": "Pinned substitutes or disclosed system defaults; original font unknown."}
-    return {"version": 1, "scope": "Measurements of the rendered draft, not planned values or a release certification.",
+    continuity = planning.get("continuity", {})
+    if continuity:
+        dimensions["continuity"] = {"status": {"flagged": "miss", "pass": "pass"}.get(continuity["status"], "not_applicable"),
+                                    "reason": continuity["basis"], **{k: v for k, v in continuity.items() if k != "status"}}
+    return {"version": 1, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
+            "source_pacing": source_pacing, "text_roles": output_roles,
+            "pacing_flag": "unmet" if dimensions["shot_pace"]["status"] == "miss" else "unverified" if dimensions["shot_pace"]["status"] == "approximate" else "met",
             "render": verification, "dimensions": dimensions,
             "warnings": user_warnings([*recipe.warnings, *rendered.warnings, *plan.warnings]),
             "recipe_unknowns": [u.to_dict() for u in recipe.unknowns],
@@ -164,20 +200,33 @@ def markdown(summary):
         except ValueError:
             return Path(path).as_posix()
     lines = [f"# Match comparison", "", summary["summary"], "",
-             "Ready means rendered, fully decoded, inspected, and reported. Match grades describe measured style; they do not certify accuracy.", "",
-             "| Draft | State | Shot pace | First cut | Caption timing | Placement | Color |",
-             "|---|---|---|---|---|---|---|"]
+             "Render complete means fully decoded, inspected, and reported. Style match is separate; approximate dimensions remain unverified.", "",
+             "| Draft | Render status | Failed style dimensions | Shot pace | First cut | Caption timing | Placement | Color |",
+             "|---|---|---|---|---|---|---|---|"]
     for label, row in summary["drafts"].items():
         grades = row.get("dimensions", {})
         cells = [grades.get(k, {}).get("status", "—") for k in
                  ("shot_pace", "first_cut", "caption_timing", "caption_placement", "color")]
-        lines.append("| " + " | ".join([label, row["status"], *cells]) + " |")
+        failed = [k for k, v in grades.items() if v["status"] == "miss"]
+        state = "render complete" if row["status"] == "ready" else row["status"]
+        lines.append("| " + " | ".join([label, state, ", ".join(failed) or "none established; unverified dimensions remain", *cells]) + " |")
     for label, row in summary["drafts"].items():
         if row["status"] == "ready":
             lines += ["", f"{label}: [video](<{link(row['video'])}>) · [plan](<{link(row['plan'])}>) · "
                       f"[timeline](<{link(row['timeline'])}>) · [match report](<{link(row['report'])}>)"]
     if summary.get("director_comparison"):
         lines += ["", f"[Full planning evidence](<{link(summary['director_comparison'])}>)"]
+    if summary.get("reference_text_roles"):
+        counts = summary["reference_text_roles"]["counts"]
+        lines += ["", "Reference OCR roles (rules): " + ", ".join(f"{k}: {v}" for k, v in counts.items()) +
+                  ". Only caption-role text informs caption style; uncertain text is excluded."]
+    if summary.get("source_asr"):
+        lines += ["", "Source ASR repairs (derived estimates; raw files unchanged):", ""]
+        for item in summary["source_asr"]:
+            repairs = [f"{r['text']!r} {r['original']['start']}-{r['original']['end']}s → {r['start']:.3f}-{r['end']:.3f}s"
+                       for r in item["repairs"]]
+            lines.append(f"- {item['file']}: " + "; ".join(repairs) +
+                         f"; quarantined spans: {len(item['quarantined'])}. Full provenance is in comparison.json.")
     if summary.get("shortages"):
         lines += ["", "Director shortages:", "", "```json", json.dumps(summary["shortages"], indent=2), "```"]
     for failure in summary.get("failures", []):

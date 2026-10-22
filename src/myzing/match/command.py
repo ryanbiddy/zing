@@ -20,6 +20,8 @@ def run(argv):
     parser.add_argument("--drafts", type=int, choices=[3], default=3)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--no-repair-asr", dest="repair_asr", action="store_false",
+                        help="disable bounded ASR repair; exclude clips with invalid word timings")
     parser.add_argument("--allow-download", action="store_true", help="explicit consent to acquire the reference URL via study; never downloads models")
     parser.add_argument("--json", action="store_true", help="final summary on stdout; progress on stderr")
     args = parser.parse_args(argv)

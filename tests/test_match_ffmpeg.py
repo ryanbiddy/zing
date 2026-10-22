@@ -28,7 +28,8 @@ def test_match_three_decodable_drafts_resume_and_failed_render(tmp_path, monkeyp
         return code, json.loads(streams.out), streams.err
 
     code, result, progress = command("--answers", json.dumps(ANSWERS))
-    assert code == 0 and result["summary"] == "3 of 3 ready", result
+    assert code == 0 and result["summary"].startswith("3 of 3 render complete"), result
+    assert all(row["render_status"] == "render complete" and "style_match" in row for row in result["drafts"].values())
     assert "reference-study: starting" in progress and "report-C: done" in progress
     assert len(read(trace)["calls"]) == 7  # reference, three raw clips, three renders
     assert len(list((out / "drafts").glob("plan-*.json"))) == 3
@@ -63,11 +64,11 @@ def test_match_three_decodable_drafts_resume_and_failed_render(tmp_path, monkeyp
     Path(result["drafts"]["B"]["video"]).write_bytes(b"truncated output")
     worker.append("--fail-render")
     code, failed, _ = command("--resume")
-    assert code == 1 and failed["summary"] == "2 of 3 ready"
+    assert code == 1 and failed["summary"].startswith("2 of 3 render complete")
     assert failed["drafts"]["B"]["status"] == "failed"
     assert failed["failures"][0]["step"] == "render-B"
     assert "forced B encoder failure" in Path(failed["failures"][0]["log"]).read_text()
-    assert "2 of 3 ready" in (out / "comparison.md").read_text()
+    assert "2 of 3 render complete" in (out / "comparison.md").read_text()
     assert len(read(trace)["calls"]) == 7
     # The same measurements also expose a real director shortage unchanged.
     code, shortage, _ = command("--resume", "--answers", json.dumps({**ANSWERS, "target_length_seconds": 60}))

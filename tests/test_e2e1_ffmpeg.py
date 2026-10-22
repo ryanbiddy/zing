@@ -165,7 +165,7 @@ def test_excluded_invalid_words_reach_planning_summary(tmp_path, zing_workspace)
     b = read(path)
     b["words"][0]["end"] = b["words"][0]["start"]
     write_json(path, b)
-    result = plan_drafts(project, project / "recipe.json", project / "plans", seed=17)
+    result = plan_drafts(project, project / "recipe.json", project / "plans", seed=17, repair_asr=False)
     warnings = result["summary"]["warnings"]
     assert any("Excluded take-2.mp4" in w and "zero duration" in w for w in warnings)
     summary = {"project": str(project), "summary": "Planning review", "drafts": {}, "warnings": warnings}

@@ -47,7 +47,7 @@ def test_url_without_consent_never_acquires(tmp_path, monkeypatch, zing_workspac
     clips.mkdir()
     monkeypatch.setattr("myzing.study.ingest.ingest", lambda *a, **k: pytest.fail("acquisition without consent"))
     result = match("https://example.test/video", str(clips), str(tmp_path / "out"), answers={})
-    assert result["summary"] == "0 of 3 ready"
+    assert result["summary"] == "0 of 3 render complete"
     assert result["failures"][0]["step"] == "reference-resolve"
     assert "--allow-download" in result["failures"][0]["error"]
 

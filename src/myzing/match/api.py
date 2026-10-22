@@ -169,6 +169,9 @@ def _recipe(studied, audio, colors, path):
     from myzing.style_recipe import Coverage, FontCandidate, MeasuredFact
     b = Breakdown.from_dict(read(studied["path"]))
     geometry = read(studied["geometry"]) if studied["geometry"] else {}
+    from myzing.study.text_roles import classify_text, caption_geometry
+    roles = classify_text(b, geometry)
+    geometry = caption_geometry(geometry, roles)
     fonts = geometry.get("font_candidates", {})
     available = {r["id"]: r for r in fonts.get("available_fonts", [])}
     candidates = []
@@ -181,7 +184,7 @@ def _recipe(studied, audio, colors, path):
                                             FontAsset(row["path"], row["sha256"], row["license"])))
             break
     recipe = build_style_recipe(
-        b, reference_sha256=b.provenance["source_sha256"], font_candidates=candidates,
+        b, reference_sha256=b.provenance["source_sha256"], font_candidates=candidates, text_roles=roles,
         audio=AudioMap.from_dict(read(audio["path"])) if audio.get("path") else None,
         color=ColorRecipe.from_dict(read(next(iter(colors.values()))["path"])) if colors else None,
     )
@@ -223,6 +226,8 @@ def _prepare_plan(source, destination, colors, recipe, caps):
     unsupported = unsupported_features(plan)
     if unsupported:
         raise ValueError("Renderer does not support these planned features: " + "; ".join(unsupported))
+    from .caption_fit import fit_captions
+    fit_captions(plan, destination.parent / destination.stem)
     write(destination, plan.to_dict())
     sidecar = destination.parent / destination.stem / "layout.json"
     return {"path": str(destination), "outputs": [str(destination), *([str(sidecar)] if sidecar.is_file() else [])],
@@ -270,9 +275,11 @@ def _layout(plan, folder, recipe):
 
 
 def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
-          resume=False, allow_download=False, progress=None, run_id=None):
+          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True):
     """Synchronous worker API. CLI/MCP run this inside an owned process tree."""
     validate(reference, clips, out, brief=brief, answers=answers, drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    if type(repair_asr) is not bool:
+        raise ValueError("repair_asr must be a boolean")
     started = time.monotonic()
     root = Path(out).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -338,10 +345,11 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
         ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps],
                                      lambda: _audio(ref_study, caps["audio"]))
-        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps],
+        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
         recipe = StyleRecipe.from_dict(read(recipe_result["path"]))
         summary["recipe"] = recipe_result["path"]
+        summary["reference_text_roles"] = next((f.value for f in recipe.measured if f.name == "text_roles"), None)
         def get_brief():
             selected = load_brief(brief) if brief else Brief.from_answers(answers) if answers is not None else load_brief(root / "brief.json")
             save_brief(root, selected)
@@ -350,19 +358,20 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                    "saved": projects.hash_file(root / "brief.json") if brief is None and answers is None else None}, get_brief)
         from myzing.director.api import plan_drafts
         def direct():
-            result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed)
+            result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed, repair_asr=repair_asr)
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "inventory-disclosures-v1"], direct)
+                                                 "continuity-v4", repair_asr], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
+        summary["source_asr"] = planned["summary"].get("source_asr", [])
         summary["director_comparison"] = planned["comparison_path"]
         for label, plan_path in planned["plans"].items():
             row = {"status": "failed"}
             summary["drafts"][label] = row
             try:
-                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps],
+                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "clause-fit-v1"],
                     lambda p=plan_path, label=label: _prepare_plan(p, root / "drafts" / f"plan-{label}.json", colors, recipe, caps))
                 summary["warnings"].extend(prepared["warnings"])
                 plan = Composition.from_dict(read(prepared["path"]))
@@ -405,7 +414,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     result["warnings"] = evidence.user_warnings([*result["warnings"], *rendered_result["warnings"], *inspected["warnings"]])
                     write(report_path, result)
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"]}
-                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected], report)
+                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected, "continuity-status-v3"], report)
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"])
             except StepFailed as exc:
@@ -419,7 +428,17 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
     summary["failures"].extend(checkpoints.failures())
     summary["ready"] = sum(r["status"] == "ready" for r in summary["drafts"].values())
     summary["status"] = "ready" if summary["ready"] == drafts else "shortage" if summary["shortages"] else "partial" if summary["ready"] else "failed"
-    summary["summary"] = f"{summary['ready']} of {drafts} ready"
+    for row in summary["drafts"].values():
+        row["render_status"] = "render complete" if row["status"] == "ready" else row["status"]
+        row["failed_style_dimensions"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "miss"]
+        row["unverified_style_dimensions"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "approximate"]
+        row["style_match"] = "failed" if row["failed_style_dimensions"] else "unverified"
+    summary["summary"] = f"{summary['ready']} of {drafts} render complete"
+    details = [f"{label}: style match {r['style_match']}" +
+               (" (" + ", ".join(r["failed_style_dimensions"]) + ")" if r["failed_style_dimensions"] else "")
+               for label, r in summary["drafts"].items()]
+    if details:
+        summary["summary"] += "; " + "; ".join(details)
     summary["reused_steps"] = checkpoints.reused
     summary["seconds"] = round(time.monotonic() - started, 3)
     summary["warnings"] = evidence.user_warnings(summary["warnings"])

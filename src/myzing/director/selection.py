@@ -14,6 +14,7 @@ from myzing.style_recipe import StyleRecipe
 from myzing.timing import finite
 
 from .models import ClipStudy, shortage
+from .continuity import clauses, expand_clauses
 
 EPS = 1e-8
 BEAM = 96
@@ -147,7 +148,8 @@ def constraints(brief: Brief, manifest: ProjectManifest, studies: list[ClipStudy
                              f"{field} extends beyond {clip.asset_id}'s duration.",
                              "Film the missing moment or shorten the requested span.", clip.asset_id)
                 # Exclude whole overlapping words from forbidden ranges too.
-                out.setdefault(clip.asset_id, []).append(expand_words(span, clip.words))
+                out.setdefault(clip.asset_id, []).append(
+                    expand_clauses(span, clip.words) if field == "must_keep" else expand_words(span, clip.words))
     for out in (keep, forbidden):
         for key in out:
             out[key] = merge(out[key])
@@ -177,6 +179,7 @@ class Candidate(Record):
     keyframe: bool
     covers: int = 0
     version: int = 1
+    dangling_clauses: int = 0
 
     @property
     def duration(self):
@@ -201,10 +204,12 @@ def candidates(studies, keep, forbidden, style, target):
         if clip.status != "ready":
             continue
         kept = keep.get(clip.asset_id, [])
+        speech = clauses(clip.words)
+        quarantine = [(q["start"], q["end"]) for q in clip.asr_repair.get("quarantined", [])]
         dead = subtract([(d["start"], d["end"]) for d in clip.dead_air], kept)
         removed = merge(forbidden.get(clip.asset_id, []) + [expand_words(s, clip.words) for s in dead])
         # A must-keep wins over a dead-air heuristic, including a word-expanded edge.
-        removed = merge(forbidden.get(clip.asset_id, []) + subtract(removed, kept))
+        removed = merge(forbidden.get(clip.asset_id, []) + subtract(removed, kept) + quarantine)
         allowed = subtract([(0, clip.duration)], removed)
         available += sum(b - a for a, b in allowed)
         bits = [(1 << i, (a, b)) for i, (key, a, b) in enumerate(required) if key == clip.asset_id]
@@ -219,6 +224,11 @@ def candidates(studies, keep, forbidden, style, target):
                 return  # Do not guess the content of an unobserved shot gap.
             if any(overlaps((start, stop), interval) for interval in removed):
                 return
+            selected_clauses = [s for s in speech if overlaps((start, stop), (s.start, s.end))]
+            if any(start > s.start + EPS or stop < s.end - EPS for s in selected_clauses):
+                return
+            if any(start < a - EPS and stop > a + EPS for a, b in quarantine if a == b):
+                return
             inside = [w for w in clip.words if w.start >= start - EPS and w.end <= stop + EPS]
             shot = next((s for s in clip.shots if s.start <= start < s.end), clip.shots[-1])
             covers = sum(bit for bit, (a, b) in bits if start <= a + EPS and stop >= b - EPS)
@@ -226,7 +236,25 @@ def candidates(studies, keep, forbidden, style, target):
                                   len(inside), inside[0].start - start if inside else None,
                                   " ".join(w.text for w in inside),
                                   any(start >= k["start"] - .35 and stop <= k["end"] + .35
-                                      for k in clip.keepers), bool(shot.keyframe), covers))
+                                      for k in clip.keepers), bool(shot.keyframe), covers,
+                                  dangling_clauses=sum(not s.complete for s in selected_clauses)))
+        # Speech may cross internal visual cuts. Enumerate complete consecutive
+        # clauses with optional surrounding silence; never split for pacing.
+        for i, clause in enumerate(speech):
+            low = speech[i - 1].end if i else 0.
+            starts = {clause.start, max(low, clause.start - .12), low}
+            for j in range(i, len(speech)):
+                last = speech[j]
+                if last.end - clause.start > target + .1:
+                    break
+                high = speech[j + 1].start if j + 1 < len(speech) else clip.duration
+                for start in starts:
+                    stops = {last.end, min(high, last.end + .12), high}
+                    for length in (pace, target, style.first_cut or pace):
+                        if last.end <= start + length <= high:
+                            stops.add(start + length)
+                    for stop in stops:
+                        add(start, stop)
         # These are selection boundaries; the match report still counts the
         # original, measured visual cuts inside each chosen trim.
         boundaries = {0.0, clip.duration}
@@ -335,7 +363,7 @@ def different(a, b, target, pace):
     return changed >= max(1.0, pace, target * .2) - EPS
 
 
-def choose(pool, required, studies, style, target, fps, seed):
+def choose(pool, required, studies, style, target, fps, seed, *, allow_reordering=False):
     """Beam search, with no repeats/overlapping source use and stable tie breaks.
 
     Failure is explicitly bounded-search failure, not a proof that no possible
@@ -395,7 +423,7 @@ def choose(pool, required, studies, style, target, fps, seed):
                 error = metrics(seq)
                 return (max(0, duration + remaining_keep - target - tolerance),
                         (needed ^ (mask & needed)).bit_count(),
-                        sum(error), abs(target - duration), editorial(seq[0], mode), indices)
+                        sum(c.dangling_clauses for c in seq), sum(error), abs(target - duration), editorial(seq[0], mode), indices)
 
             live.sort(key=rank)
             counts, selected = {}, []
@@ -415,6 +443,8 @@ def choose(pool, required, studies, style, target, fps, seed):
                         continue
                     if any(c.content == pool[j].content and overlaps((c.start, c.end), (pool[j].start, pool[j].end))
                            for j in indices):
+                        continue
+                    if not allow_reordering and any(c.content == pool[j].content and c.start < pool[j].end - EPS for j in indices):
                         continue
                     # Adjacent same-shot trims would manufacture a "cut" without
                     # removing footage. Keep the complete candidate instead.
@@ -439,23 +469,28 @@ def choose(pool, required, studies, style, target, fps, seed):
         gates = (errors[0] > .1 + EPS,
                  errors[1] * max(tolerance, style.first_cut or 0) > tolerance + EPS,
                  errors[2] > 1 / fps + EPS)
-        return (sum(gates), sum(errors),
+        return (sum(c.dangling_clauses for c in seq), sum(gates), sum(errors),
                 duration if mode == "C" else abs(target - duration),
                 editorial(seq[0], mode), sum(c.word_count for c in seq) if mode == "C" else 0,
                 tuple(c.identity for c in seq))
 
     # A greedy first choice can strand two valid alternatives. Try the leading
     # A choices and require pairwise meaningful differences for the whole trio.
-    ranked = {m: sorted(complete.values(), key=lambda s: final_rank(s, m)) for m in "ABC"}
-    for a in ranked["A"][:BEAM]:
-        alternatives = sorted(ranked["B"], key=lambda s: (*final_rank(s, "B")[:2],
-                              not different([a[0]], [s[0]], target, pace), final_rank(s, "B")))
-        for b in (s for s in alternatives if different(a, s, target, pace)):
-            concise = sorted(ranked["C"], key=lambda s: (*final_rank(s, "C")[:2],
-                             not (different([a[0]], [s[0]], target, pace) and
-                                  different([b[0]], [s[0]], target, pace)), final_rank(s, "C")))
-            c = next((s for s in concise if different(a, s, target, pace) and different(b, s, target, pace)), None)
-            if c is not None:
-                return dict(zip("ABC", (a, b, c)))
+    def trio(options):
+        ranked = {m: sorted(options, key=lambda s: final_rank(s, m)) for m in "ABC"}
+        for a in ranked["A"][:BEAM]:
+            alternatives = sorted(ranked["B"], key=lambda s: (*final_rank(s, "B")[:2],
+                                  not different([a[0]], [s[0]], target, pace), final_rank(s, "B")))
+            for b in (s for s in alternatives if different(a, s, target, pace)):
+                concise = sorted(ranked["C"], key=lambda s: (*final_rank(s, "C")[:2],
+                                 not (different([a[0]], [s[0]], target, pace) and
+                                      different([b[0]], [s[0]], target, pace)), final_rank(s, "C")))
+                c = next((s for s in concise if different(a, s, target, pace) and different(b, s, target, pace)), None)
+                if c is not None:
+                    return dict(zip("ABC", (a, b, c)))
+    clean = [seq for seq in complete.values() if not any(c.dangling_clauses for c in seq)]
+    result = trio(clean) or trio(complete.values())
+    if result is not None:
+        return result
     shortage("distinct_edits", "Studied footage supports fewer than three meaningfully distinct feasible choices in this search.",
              "Film an alternate opening line and a separate visual shot near the reference pace, or relax must-keeps/forbidden spans.")

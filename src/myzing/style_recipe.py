@@ -164,6 +164,7 @@ def build_style_recipe(
     font_candidates: list[FontCandidate] | None = None,
     transition_recipes: list[TransitionRecipe] | None = None,
     provenance: dict[str, ObservationProvenance] | None = None,
+    text_roles: dict | None = None,
 ) -> StyleRecipe:
     """Collect producer evidence without promoting plans to measurements.
 
@@ -240,13 +241,21 @@ def build_style_recipe(
         unknown("word_confidence_calibration", "Word.confidence=1 can mean not reported; no aggregate confidence inferred.", "unreported")
     else:
         unknown("words", "No transcript words supplied; speech presence remains unmeasured.")
+    from myzing.study.text_roles import classify_text
+    roles = text_roles or classify_text(b)
+    if b.captions:
+        add("text_roles", roles, "heuristic role counts and event evidence", evidence("captions"), len(b.captions))
+    caption_indices = {e["event_index"] for e in roles["events"] if e["role"] == "caption"}
     for index, caption in enumerate(b.captions):
+        if index not in caption_indices:
+            continue
         prov = evidence("captions", [caption.start, caption.end], detector=metadata.get("ocr_backend"),
                         detector_version=metadata.get("ocr_version") or embedded_version(metadata.get("ocr_backend")))
         add(f"captions[{index}]", encode(caption), "seconds; position category; word count; unitless confidence",
             prov, confidence=caption.confidence)
-    if not b.captions:
-        unknown("captions", "No OCR events supplied; missing captions are not proof of absent text.")
+    if not caption_indices:
+        unknown("captions", "No OCR events classified as speech captions; title, credit and scene text cannot establish caption style.")
+        recipe.approximations.font_candidates = []
     unknown("caption_geometry", "Breakdown OCR positions are coarse categories; exact glyph geometry is unmeasured.")
     if not provenance or not any(p.crop_evidence for p in provenance.values()):
         unknown("crop_evidence", "No observation crop assets or normalized crop boxes were supplied.")

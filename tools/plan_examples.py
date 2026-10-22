@@ -29,8 +29,8 @@ def example_project(root: Path, *, media: bool = False):
     root.mkdir(parents=True, exist_ok=True)
     assets, studies = [], []
     colors = ("red", "blue", "green", "yellow")
-    sentences = (("Here", "is", "our", "hook"), ("Watch", "the", "blue", "detail"),
-                 ("Keep", "this", "clear", "ending"), ("Another", "view", "shows", "why"))
+    sentences = (("Here", "is", "our", "hook."), ("Watch", "the", "blue", "detail."),
+                 ("Keep", "this", "clear", "ending."), ("Another", "view", "shows", "why."))
     for index in range(3):
         path = root / "clips" / f"take-{index}.mp4"
         path.parent.mkdir(exist_ok=True)
@@ -78,6 +78,7 @@ def example_project(root: Path, *, media: bool = False):
     write_json(root / "brief.json", brief.to_dict())
     reference = Breakdown(VideoMeta("fixture:style", "file", duration=6, width=320, height=180, fps=30),
                           shots=[Shot(n, n * 2, n * 2 + 2) for n in range(3)],
+                          words=[Word("two words", .25 + n, .75 + n) for n in range(6)],
                           captions=[CaptionEvent("two words", .25 + n, .75 + n, "lower", n % 2 == 0, 2)
                                     for n in range(6)])
     recipe = build_style_recipe(reference)

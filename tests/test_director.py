@@ -28,8 +28,8 @@ def project(tmp_path, zing_workspace):
     return root
 
 
-def run(project, out="plans", seed=17):
-    return plan_drafts(project, project / "recipe.json", project / out, seed=seed)
+def run(project, out="plans", seed=17, **options):
+    return plan_drafts(project, project / "recipe.json", project / out, seed=seed, **options)
 
 
 def report(result):
@@ -77,7 +77,8 @@ def test_three_plans_are_deterministic_valid_distinct_and_word_safe(project):
         assert abs(evidence["match"]["median_shot_seconds"]["planned"] - 2) <= .2
         assert evidence["match"]["first_cut_seconds"]["status"] == "honored"
         assert evidence["match"]["first_caption_seconds"]["status"] == "honored"
-        assert median(len(c.words) for c in p.captions) == 2
+        assert median(len(c.words) for c in p.captions) == 4  # retain each complete clause
+        assert evidence["continuity"]["score"] == 1
         assert abs(sum(c.all_caps for c in p.captions) / len(p.captions) - .5) <= .5 / len(p.captions)
         with pytest.raises(ValueError, match="brief"):
             lower_to_v1(p)  # Strict v2 lowering never silently discards evidence.
@@ -151,7 +152,7 @@ def test_bad_studies_are_excluded_without_repair(project, issue):
         write_json(path.parent / "status.json", {"state": "running"})
     write_json(path, data)
     before = path.read_bytes()
-    result = run(project)
+    result = run(project, repair_asr=False)
     assert result["status"] == "shortage"
     assert path.read_bytes() == before
     assert "take-0" in result["summary"]["clips_needing_study"]

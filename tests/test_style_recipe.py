@@ -11,7 +11,7 @@ from myzing.color.models import Candidate, LookParameters, MatchResult, Measurem
 from myzing.composition import ColorTransform, FontAsset, TransitionRecipe
 from myzing.contracts import Record
 from myzing.layout.types import Box, FaceTrack, Keyframe, LayoutPlan
-from myzing.schemas import Breakdown, TransitionObservation
+from myzing.schemas import Breakdown, TransitionObservation, Word
 from myzing.study.transitions import TransitionEvidence, TransitionsResult
 from myzing.style_recipe import (
     Approximations, Coverage, CropEvidence, FontCandidate, MeasuredFact,
@@ -38,7 +38,9 @@ def test_recipe_construction_from_every_existing_fixture_breakdown(path, monkeyp
 
 
 def sample_breakdown():
-    return Breakdown.from_json((ROOT / "tools/eval/sample/breakdown.json").read_text(encoding="utf-8"))
+    b = Breakdown.from_json((ROOT / "tools/eval/sample/breakdown.json").read_text(encoding="utf-8"))
+    b.words = [Word("hello", .25, .75), Word("zing", .75, 1.75)]
+    return b
 
 
 def color_recipe():
