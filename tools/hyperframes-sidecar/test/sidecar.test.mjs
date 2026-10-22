@@ -4,7 +4,7 @@ import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { validatePlan } from '../plan.mjs';
+import { validatePlan, planRate } from '../plan.mjs';
 import { composition } from '../templates.mjs';
 
 const example = JSON.parse(readFileSync(new URL('../example-plan.json', import.meta.url)));
@@ -13,6 +13,17 @@ test('valid plan survives normalization without input mutation', () => {
   assert.equal(validatePlan(example, process.cwd(), false).captions.length, 2);
   assert.deepEqual(example, before);
 });
+test('exact rational fps survives the plan and HTML contract', () => {
+  const p = structuredClone(example);
+  p.fps = '30000/1001'; p.duration = 3.003;
+  assert.equal(validatePlan(p, process.cwd(), false).fps, '30000/1001');
+  assert.deepEqual(planRate(p.fps), { numerator: 30000, denominator: 1001, value: 30000 / 1001 });
+  p.duration = 3;
+  assert.throws(() => validatePlan(p, process.cwd(), false), /whole number of frames/);
+});
+for (const fps of [true, '30', '30/0', '-30/1', '30000000000/1000000001', 121]) {
+  test(`refuses invalid rate ${fps}`, () => assert.throws(() => planRate(fps), /fps/));
+}
 for (const [name, change] of [
   ['nonfinite', p => { p.duration = NaN; }],
   ['unknown shader', p => { p.shader = 'wipe'; }],

@@ -1,7 +1,7 @@
-"""Opt-in local HyperFrames spike. No CLI render routing or schema v2 changes.
+"""Local pinned HyperFrames adapter, shared by standalone and v2 renders.
 
 Times are absolute seconds, intervals are [start, end), boxes are normalized
-top-left coordinates. The PH v1 contract deliberately supports integer fps.
+top-left coordinates. FPS is an integer or an exact numerator/denominator string.
 """
 
 from __future__ import annotations
@@ -82,6 +82,22 @@ def _box(value: Any, label: str) -> None:
         raise HyperframesError(f"{label}: box must fit within the frame")
 
 
+def plan_rate(value: Any) -> Fraction:
+    """Keep rational rates exact; never guess NTSC from a decimal."""
+    if type(value) is int:
+        rate = Fraction(value)
+    elif isinstance(value, str) and re.fullmatch(r"[1-9][0-9]*/[1-9][0-9]*", value):
+        parts = list(map(int, value.split("/")))
+        if max(parts) > 2**31 - 1:
+            raise HyperframesError("fps: numerator and denominator must fit a signed 32-bit integer")
+        rate = Fraction(*parts)
+    else:
+        raise HyperframesError("fps: use an integer or an exact numerator/denominator string")
+    if not 1 <= rate <= 120:
+        raise HyperframesError("fps: expected a rate in [1, 120]")
+    return rate
+
+
 def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
     """Return a deep copy; with base_dir, resolve and require local assets.
 
@@ -96,13 +112,12 @@ def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
         _number(p.get(key), 2, 4096, key)
         if p[key] % 2:
             raise HyperframesError(f"{key}: use an even integer for H.264")
-    _number(p.get("fps"), 1, 120, "fps")
-    if p["fps"] % 1:
-        raise HyperframesError("fps: PH supports integer fps only")
-    _number(p.get("duration"), 1 / p["fps"], 600, "duration")
-    frames = p["duration"] * p["fps"]
+    rate = plan_rate(p.get("fps"))
+    p["fps"] = int(rate) if rate.denominator == 1 else str(rate)
+    _number(p.get("duration"), float(1 / rate), 600, "duration")
+    frames = Fraction(str(p["duration"])) * rate
     if abs(frames - round(frames)) > 1e-7:
-        raise HyperframesError("duration: must be a whole number of frames")
+        raise HyperframesError("duration: must be a whole number of frames; align the composition end to its rational FPS grid")
     bg = p.get("background")
     _object(bg, {"color", "video", "transparent"}, "background")
     if len(bg) != 1:
@@ -180,7 +195,7 @@ def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
 class HyperframesPlan:
     width: int
     height: int
-    fps: int
+    fps: int | str
     duration: float
     background: dict
     captions: list[dict]
@@ -209,7 +224,8 @@ def sidecar_directory() -> Path:
     return Path(configured).resolve() if configured else Path(__file__).resolve().parents[3] / "tools" / "hyperframes-sidecar"
 
 
-def check_install(*, sidecar: Path | None = None, browser: Path | None = None) -> dict:
+def check_install(*, sidecar: Path | None = None, browser: Path | None = None,
+                  ffmpeg: str | None = None, ffprobe: str | None = None) -> dict:
     """Read-only prerequisite check; never npx, install, download, or sign in."""
     node = shutil.which("node")
     if not node:
@@ -234,8 +250,9 @@ def check_install(*, sidecar: Path | None = None, browser: Path | None = None) -
     if not browser.is_file():
         raise HyperframesError(f"Missing browser; set HYPERFRAMES_BROWSER_PATH to the local chrome-headless-shell executable. {SETUP_HINT}")
     binaries = {}
-    for name in ("ffmpeg", "ffprobe"):
-        binary = os.environ.get(f"HYPERFRAMES_{name.upper()}_PATH") or shutil.which(name)
+    for name, selected in (("ffmpeg", ffmpeg), ("ffprobe", ffprobe)):
+        binary = shutil.which(selected) if selected is not None else (
+            os.environ.get(f"HYPERFRAMES_{name.upper()}_PATH") or shutil.which(name))
         if not binary or not Path(binary).is_file():
             raise HyperframesError(f"Missing {name}; install FFmpeg and add its bin directory to PATH.")
         binaries[name] = str(Path(binary).resolve())
@@ -279,13 +296,17 @@ def verify_output(path: Path, plan: HyperframesPlan | dict, ffprobe: str = "ffpr
         probe = json.loads(result.stdout)
         video = probe["streams"][0]
         duration = float(video.get("duration", probe["format"]["duration"]))
-        rate = float(Fraction(video["avg_frame_rate"]))
+        rate = plan_rate(p["fps"])
+        frames = round(Fraction(str(p["duration"])) * rate)
         valid = (
-            math.isfinite(duration) and abs(duration - p["duration"]) <= 1 / p["fps"] + 1e-6
+            math.isfinite(duration) and abs(duration - p["duration"]) <= 1e-6
             and video["width"] == p["width"] and video["height"] == p["height"]
-            and abs(rate - p["fps"]) < 1e-6
-            and int(video["nb_read_frames"]) == round(p["duration"] * p["fps"])
+            and Fraction(video["avg_frame_rate"]) == rate
+            and Fraction(video.get("r_frame_rate", video["avg_frame_rate"])) == rate
+            and int(video["nb_read_frames"]) == frames
         )
+        if "duration_ts" in video and "time_base" in video:
+            valid = valid and int(video["duration_ts"]) * Fraction(video["time_base"]) == frames / rate
         if not valid:
             raise ValueError("duration, size, fps or decoded frame count differs from plan")
         if p["background"].get("transparent") and (
@@ -301,6 +322,7 @@ def render_hyperframes(
     plan: HyperframesPlan | dict, output_path: Path, *, base_dir: Path | None = None,
     sidecar: Path | None = None, browser: Path | None = None, timeout: float = 180,
     workspace: Path | None = None, overwrite: bool = False, verify_seeks: bool = False,
+    ffmpeg: str | None = None, ffprobe: str | None = None,
 ) -> dict:
     """Publish verified MP4 or transparent ProRes MOV; clean successful jobs."""
     _number(timeout, 0.01, 86400, "timeout")
@@ -312,7 +334,7 @@ def render_hyperframes(
     work = None
     try:
         with reserve_output(output, overwrite=overwrite):
-            tools = check_install(sidecar=sidecar, browser=browser)
+            tools = check_install(sidecar=sidecar, browser=browser, ffmpeg=ffmpeg, ffprobe=ffprobe)
             jobs = resolve_workspace(workspace) / "hyperframes" / "jobs"
             jobs.mkdir(parents=True, exist_ok=True)
             work = Path(tempfile.mkdtemp(prefix="hf-job-", dir=jobs))

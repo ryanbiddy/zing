@@ -1,6 +1,7 @@
 # HyperFrames sidecar: pass PH
 
-P10a adds a [standalone Composition v2 adapter and transparent overlays](HYPERFRAMES-V2.md).
+P10b connects the [Composition v2 adapter and transparent overlays](HYPERFRAMES-V2.md)
+to `zing render`, with rational FPS and a verified cache in the render work folder.
 The historical PH measurements below describe the original opaque fixture.
 
 PH renders local, positioned word captions from a plain JSON plan on Windows.
@@ -10,8 +11,8 @@ seconds**, including the Python wrapper's render subprocess and ffprobe check.
 Setup, background generation and pixel inspection are outside that measurement.
 This is one run on this PC, not a throughput benchmark.
 
-The adapter is callable from Python and the sidecar's Node entrypoint. It is
-deliberately separate from `zing render`; `schemas.py` is unchanged. PH's
+The adapter is callable from Python and the sidecar's Node entrypoint, and P10b
+routes v2 HyperFrames captions through it in `zing render`; `schemas.py` is unchanged. PH's
 `version: 1` input is a small adapter contract for the future composition-v2
 translator, not a replacement Zing timeline.
 
@@ -113,7 +114,7 @@ The input fields have these meanings:
 | --- | --- |
 | `version` | Exactly `1`; unknown fields fail rather than silently losing effects. |
 | `width`, `height` | Even dimensions, 2–4096 pixels. |
-| `fps`, `duration` | Integer fps from 1–120; finite duration up to 600 seconds and an exact whole number of frames. These are validation bounds, not tested performance claims. |
+| `fps`, `duration` | Rate from 1–120, as an integer or exact rational string such as `"30000/1001"`; finite duration up to 600 seconds and an exact whole number of frames. These are validation bounds, not tested performance claims. |
 | `background` | Exactly one `color: "#RRGGBB"`, `video: "local path"`, or `transparent: true` (ProRes MOV). |
 | `captions[].start/end` | Absolute output seconds, half-open intervals `[start, end)`. |
 | `words[].text/start/end` | Text and absolute output times. Positive, ordered, nonoverlapping intervals inside the event; gaps are allowed. |
@@ -150,7 +151,8 @@ The wrapper enforces a timeout and terminates the render's process tree on expir
 Failed jobs keep the plan, HTML, logs and intermediate output for diagnosis;
 successful jobs are cleaned. Before publishing
 the MP4 to the requested path, ffprobe must confirm the dimensions, exact fps,
-decoded frame count and duration within one frame. The receipt records the
+decoded frame count and duration within one microsecond of probe text rounding.
+The Python verifier also checks exact rational duration ticks. The receipt records the
 measured time and probe result. There is no cloud account or API-key requirement.
 
 To reproduce the evidence, use a new proof directory:
@@ -171,7 +173,8 @@ The pixel acceptance bands assume that font and the authored fixture. Without
 `ZING_REQUIRE_HYPERFRAMES=1`, only the real-render test skips. All plan, writer,
 validation and failure-boundary tests run. When opted in, missing prerequisites
 fail; they do not turn into skips. The real HyperFrames test has its own gate and
-does not change the existing 102-test FFmpeg marker gate.
+stays outside the FFmpeg marker gate. P10b's seven generated-media tests raise
+that gate from 196 to 203 without requiring Node in CI.
 
 HyperFrames lint reports zero errors and 12 Studio-editing warnings for the
 fixture: timed elements lack `.clip` classes and highlight spans lack editable
@@ -214,10 +217,11 @@ HDR/WebGPU and long-video performance remain untested. P10a tests transparent
 ProRes output separately, as documented in the v2 adapter guide.
 
 P10a supplies the composition-v2 caption translator with verified font hashes,
-backend selection and transparent overlays. Fractional fps, pipeline audio/graded
-footage routing, packaging/install discovery beyond a source checkout, overflow,
-wrapping and multilingual acceptance cases; and a tested capability map for
-shader effects with explicit failure or disclosed fallback. Cross-machine pixel
+backend selection and transparent overlays. P10b adds rational FPS and routes
+overlays through the graded, transitioned footage graph with its existing audio.
+Packaging/install discovery beyond a source checkout, overflow, wrapping,
+multilingual acceptance cases and shader effects remain outside these passes.
+Cross-machine pixel
 identity requires pinned browser, fonts and encoder behavior beyond this one-PC
 proof. The proof harness imports one bundled 0.8.144 Chrome-argument export, so
 an upgrade must review that import and rerun both the pixel and seek tests.

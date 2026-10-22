@@ -241,6 +241,7 @@ def _render_in_directory(
     fps_rate: str | None = None,
     clip_luts: tuple[str | None, ...] = (),
     transitions: tuple[Transition | None, ...] = (),
+    caption_overlay: Path | None = None,
 ) -> RenderResult:
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -271,6 +272,7 @@ def _render_in_directory(
         fonts_dir=caption_writer is not None, fps_rate=fps_rate,
         clip_luts=clip_luts,
         transitions=transitions,
+        caption_overlay=caption_overlay,
     )
     graph_path = directory / "filter graph.txt"
     try:

@@ -1,4 +1,4 @@
-"""Standalone Composition v2 caption adapter; no pipeline routing or grading."""
+"""Composition v2 caption conversion and standalone compositing; no grading."""
 from __future__ import annotations
 
 import os
@@ -26,14 +26,12 @@ def captions_to_plan(
 
     ASS events are left to the caller's other backend. Input records are copied
     and validated; confidence, timing provenance and layout safety stay in v2.
-    Fractional FPS, untimed words and layout shrink requests are unsupported.
+    Untimed words and layout shrink requests are unsupported.
     """
     try:
         rate = rate_fraction(fps)
     except (TypeError, ValueError) as exc:
         raise HyperframesError(f"HyperFrames fps: {exc}") from exc
-    if rate.denominator != 1:
-        raise HyperframesError("HyperFrames supports integer fps only; fractional FPS is unsupported")
     events = []
     ids = set()
     for original in captions:
@@ -71,7 +69,8 @@ def captions_to_plan(
         else:
             converted["path"] = [{"time": k.time, "box": box(k.box)} for k in layout.path]
         events.append(converted)
-    data = {"version": 1, "width": width, "height": height, "fps": int(rate),
+    data = {"version": 1, "width": width, "height": height,
+            "fps": int(rate) if rate.denominator == 1 else str(rate),
             "duration": duration, "background": {"transparent": True}, "captions": events}
     return HyperframesPlan.from_dict(validate_plan(data, base_dir=(base_dir or Path.cwd()).resolve()))
 

@@ -36,7 +36,7 @@ def unsupported_features(composition: Composition) -> list[str]:
         if transition.recipe.kind not in SUPPORTED_KINDS:
             problems.append(f"transition {transition.id} ({transition.outgoing_clip} -> {transition.incoming_clip}, {transition.recipe.duration_seconds:g}s): {transition.recipe.kind}")
     for caption in composition.captions:
-        if caption.backend != "ass":
+        if caption.backend not in {"ass", "hyperframes"}:
             problems.append(f"caption {caption.id}: {caption.backend} caption backend")
     for audio in composition.audio:
         if audio.role not in {"music", "voiceover"} or audio.role != audio.kind:
@@ -47,7 +47,7 @@ def unsupported_features(composition: Composition) -> list[str]:
             problems.append(f"audio {audio.id}: duck_scope={audio.duck_scope}")
     if composition.loudness_target is not None:
         problems.append("loudness targets")
-    if composition.captions and rate_fraction(composition.fps) > 100:
+    if any(c.backend == "ass" for c in composition.captions) and rate_fraction(composition.fps) > 100:
         problems.append("ASS captions above 100 fps (centisecond event precision)")
     return problems
 
@@ -138,9 +138,10 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
                 prepare_words(caption.words, caption.end + 1e-6, repair=False)
             except TimingReviewError as exc:
                 raise EDLValidationError(f"caption {caption.id}: {exc}") from exc
-        from .positioned_captions import caption_frame_timing, caption_runs
-        caption_runs(caption)  # Reject unmatched words and control characters before IO.
-        warnings.extend(caption_frame_timing(caption, composition.fps, frame_limit)[3])
+        if caption.backend == "ass":
+            from .positioned_captions import caption_frame_timing, caption_runs
+            caption_runs(caption)  # Reject unmatched words and control characters before IO.
+            warnings.extend(caption_frame_timing(caption, composition.fps, frame_limit)[3])
     paths = {}
     for asset in composition.assets:
         paths[asset.id] = _path(asset.path, base_dir, f"asset {asset.id}")
@@ -162,8 +163,9 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
                 raise EDLValidationError(f"caption {caption.id}: could not read font {path}: {exc}") from exc
             if hashlib.sha256(data).hexdigest() != caption.font.sha256:
                 raise EDLValidationError(f"caption {caption.id} font: SHA-256 mismatch for {path}")
-            ass_em_scale(data)
-            fonts[caption.id] = private_font(data)
+            if caption.backend == "ass":
+                ass_em_scale(data)
+                fonts[caption.id] = private_font(data)
     # V1 structs are only the supported media graph's internal projection.
     # Resolve by asset_id, never by alias or basename (aliases can collide).
     def project(item, cls):
@@ -174,7 +176,7 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
 
     edl = EDL(
         clips=[project(c, Clip) for c in composition.clips],
-        captions=[project(c, CaptionSpec) for c in composition.captions],
+        captions=[project(c, CaptionSpec) for c in composition.captions if c.backend == "ass"],
         audio=[project(a, AudioTrack) for a in composition.audio],
         width=composition.width, height=composition.height, fps=float(rate_fraction(composition.fps)),
     )
@@ -195,6 +197,19 @@ def render_composition(
     output = Path(output).expanduser().resolve()
     if output in prepared.input_paths:
         raise pipeline.RenderError("output path must not overwrite an input media, font or LUT file")
+    hf_plan = None
+    if any(event.backend == "hyperframes" for event in c.captions):
+        from . import hyperframes_adapter as hf
+        from .hyperframes_v2 import captions_to_plan
+        try:
+            # Same read-only Node/pin/browser check used by zing doctor. Even a
+            # cached overlay requires the requested backend to be available.
+            hf.check_install(ffmpeg=ffmpeg, ffprobe=ffprobe)
+            hf_plan = captions_to_plan(c.captions, width=c.width, height=c.height,
+                                      fps=c.fps, duration=max(clip.timeline_end for clip in c.clips),
+                                      base_dir=base_dir)
+        except hf.HyperframesError as exc:
+            raise pipeline.RenderError(str(exc)) from exc
     if prepared.luts:
         try:
             require_lut3d(ffmpeg)
@@ -222,11 +237,20 @@ def render_composition(
         # Internal filenames must never overwrite inputs, including in --keep-work.
         reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "filter graph.txt", "rendered.mp4")}
         owned_dirs = [directory / "fonts"]
+        if hf_plan is not None:
+            owned_dirs.extend((directory / "hyperframes-overlays", directory / "hyperframes"))
         if prepared.luts:
             reserved.add(directory / "color-transforms.json")
             owned_dirs.append(directory / "luts")
         if reserved & prepared.input_paths or any(d in p.parents for p in prepared.input_paths for d in owned_dirs):
             raise pipeline.RenderError("render work directory would overwrite an input; choose a separate --keep-work directory")
+        caption_overlay = None
+        if hf_plan is not None:
+            from .hyperframes_cache import cached_overlay
+            try:
+                caption_overlay = cached_overlay(hf_plan, directory, ffmpeg=ffmpeg, ffprobe=ffprobe)
+            except hf.HyperframesError as exc:
+                raise pipeline.RenderError(str(exc)) from exc
         clip_luts = ()
         if prepared.luts:
             try:
@@ -235,10 +259,15 @@ def render_composition(
                 raise pipeline.RenderError(f"could not prepare composition LUTs: {exc}") from exc
         return pipeline._render_in_directory(
             validated, output, directory, ffmpeg, caption_filter,
-            caption_writer=(lambda d: generate_positioned_ass(c, prepared.fonts, d, ffmpeg, caption_filter)) if c.captions else None,
+            caption_writer=(lambda d: generate_positioned_ass(
+                replace(c, captions=[event for event in c.captions if event.backend == "ass"],
+                        accepted_unsafe_layouts=[event.id for event in c.captions
+                            if event.backend == "ass" and event.id in c.accepted_unsafe_layouts]),
+                prepared.fonts, d, ffmpeg, caption_filter)) if prepared.edl.captions else None,
             fps_rate=f"{c.fps.numerator}/{c.fps.denominator}",
             clip_luts=clip_luts,
             transitions=joins,
+            caption_overlay=caption_overlay,
         )
 
     if work_dir is not None:

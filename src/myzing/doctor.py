@@ -818,7 +818,7 @@ def check_color() -> Check:
 
 
 def check_hyperframes() -> Check:
-    """PH is a separately installed, optional local caption adapter."""
+    """HyperFrames is optional unless a composition selects that backend."""
     from .render.hyperframes_adapter import HyperframesError, check_install
 
     try:
@@ -826,9 +826,9 @@ def check_hyperframes() -> Check:
     except HyperframesError as exc:
         return Check(
             name="hyperframes", tier=OPTIONAL, ok=False,
-            detail="local HyperFrames spike is unavailable",
+            detail="local HyperFrames caption backend is unavailable",
             fix=str(exc),
-            degraded_mode="HyperFrames adapter unavailable; existing zing render is unaffected",
+            degraded_mode="HyperFrames captions fail preflight; ASS-only renders remain available",
         )
     return Check(
         name="hyperframes", tier=OPTIONAL, ok=True,

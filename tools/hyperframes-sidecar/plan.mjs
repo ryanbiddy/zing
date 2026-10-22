@@ -33,6 +33,17 @@ function box(value, label) {
   if (!value.width || !value.height || value.x + value.width > 1 + 1e-9 || value.y + value.height > 1 + 1e-9) throw Error(`${label}: box must fit within the frame`);
 }
 
+export function planRate(value) {
+  const parts = typeof value === 'string' && /^[1-9][0-9]*\/[1-9][0-9]*$/.test(value)
+    ? value.split('/').map(Number) : [value, 1];
+  if (!parts.every(n => Number.isSafeInteger(n) && n > 0 && n <= 2147483647)) {
+    throw Error('fps: use an integer or an exact numerator/denominator string');
+  }
+  const rate = parts[0] / parts[1];
+  number(rate, 1, 120, 'fps');
+  return { numerator: parts[0], denominator: parts[1], value: rate };
+}
+
 export function validatePlan(input, base = process.cwd(), checkFiles = true) {
   const p = structuredClone(input);
   object(p, ['version', 'width', 'height', 'fps', 'duration', 'background', 'captions'], 'plan');
@@ -41,10 +52,9 @@ export function validatePlan(input, base = process.cwd(), checkFiles = true) {
     number(p[k], 2, 4096, k);
     if (p[k] % 2) throw Error(`${k}: use an even integer for H.264`);
   }
-  number(p.fps, 1, 120, 'fps');
-  if (!Number.isInteger(p.fps)) throw Error('fps: PH supports integer fps only');
-  number(p.duration, 1 / p.fps, 600, 'duration');
-  if (Math.abs(p.duration * p.fps - Math.round(p.duration * p.fps)) > 1e-7) throw Error('duration: must be a whole number of frames');
+  const rate = planRate(p.fps).value;
+  number(p.duration, 1 / rate, 600, 'duration');
+  if (Math.abs(p.duration * rate - Math.round(p.duration * rate)) > 1e-7) throw Error('duration: must be a whole number of frames');
   object(p.background, ['color', 'video', 'transparent'], 'background');
   if (Object.keys(p.background).length !== 1) throw Error('background: choose exactly one of color, video or transparent');
   if ('transparent' in p.background) {

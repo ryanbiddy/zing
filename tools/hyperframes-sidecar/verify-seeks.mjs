@@ -3,12 +3,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
+import { planRate } from './plan.mjs';
 // Proof-only use of a bundled export: tied to the exact 0.8.144 lockfile.
 import { buildChromeArgs } from './node_modules/hyperframes/dist/src-VUJ2FUFK.js';
 const require = createRequire(new URL('./node_modules/hyperframes/package.json', import.meta.url));
 const puppeteer = require('puppeteer-core');
 const project = process.argv[2];
 const plan = JSON.parse(readFileSync(join(project, 'plan.json')));
+const fps = planRate(plan.fps).value;
 const runtime = readFileSync(new URL('./node_modules/hyperframes/dist/hyperframe-runtime.js', import.meta.url), 'utf8');
 const html = readFileSync(join(project, 'index.html'), 'utf8').replace(/<video\b[^>]*><\/video>/g, '');
 const browser = await puppeteer.launch({
@@ -35,7 +37,7 @@ try {
   const hashes = new Map();
   const samples = [];
   for (const frame of [6, 18, 30, 48, 54, 60, 72, 84, 30, 6, 84, 54, 18, 72, 48, 60]) {
-    const time = frame / plan.fps;
+    const time = frame / fps;
     const state = await page.evaluate(async t => {
       window.__player.renderSeek(t, { exact: true });
       await window.__hfWaitForSeekCompletion?.();

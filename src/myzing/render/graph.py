@@ -85,6 +85,7 @@ def build_graph(
     fps_rate: str | None = None,
     clip_luts: tuple[str | None, ...] = (),
     transitions: tuple[Transition | None, ...] = (),
+    caption_overlay: Path | None = None,
 ) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
@@ -163,16 +164,34 @@ def build_graph(
             + (f",fps={fps_rate}" if fps_rate is not None else "")
             + "[video_concat]"
         )
+    caption_base = "video_concat"
+    if caption_overlay is not None:
+        overlay_index = len(validated.clips) + len(validated.audio_tracks)
+        # PNG capture -> ProRes 4444 carries straight alpha. Convert both legs
+        # explicitly to full-range RGB; multiply alpha exactly once in overlay.
+        # Transition legs use AVTB, which truncates some rational frame times.
+        # Put both CFR streams on the exact frame clock before framesync, or an
+        # overlay boundary can select the previous frame (e.g. frame 7 at NTSC).
+        clock = f"settb=expr=1/({rate}),setpts=N"
+        lines.extend([
+            f"[video_concat]{clock},scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=rgb24[hf_cut]",
+            f"[{overlay_index}:v:0]{clock},"
+            "scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=rgba[hf_captions]",
+            "[hf_cut][hf_captions]overlay=alpha=straight:format=rgb:eof_action=pass:repeatlast=0,"
+            "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+            "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709[video_hyperframes]",
+        ])
+        caption_base = "video_hyperframes"
     if include_captions:
         if caption_filter not in {"ass", "subtitles"}:
             raise ValueError(f"unsupported caption filter: {caption_filter}")
         lines.append(
-            f"[video_concat]{caption_filter}=filename='captions.ass':"
+            f"[{caption_base}]{caption_filter}=filename='captions.ass':"
             + ("fontsdir='fonts':" if fonts_dir else "")
             + f"original_size={edl.width}x{edl.height}[video_out]"
         )
     else:
-        lines.append("[video_concat]null[video_out]")
+        lines.append(f"[{caption_base}]null[video_out]")
 
     voice_labels = []
     music: list[tuple[str, bool]] = []
@@ -259,6 +278,8 @@ def build_graph(
             "[audio_out]"
         )
 
+    if caption_overlay is not None:
+        input_paths.append(caption_overlay)
     return GraphPlan(
         graph=";\n".join(lines) + "\n",
         input_paths=tuple(input_paths),

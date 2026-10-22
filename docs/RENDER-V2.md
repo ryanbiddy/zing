@@ -29,7 +29,7 @@ unverified-identity warning. Queued MCP jobs recheck hashes when they run.
 The supported media graph includes cuts, dissolves, directional wipes, dips to
 black/white, zoom punches, source audio, voiceover/music placement,
 gain and music ducking under voiceover. Rational FPS is retained in FFmpeg's
-filters and output rate. Per-clip SDR `.cube` LUTs are supported. Speed maps, unsupported transition kinds, HyperFrames,
+filters and output rate. Per-clip SDR `.cube` LUTs and HyperFrames captions are supported. Speed maps, unsupported transition kinds,
 other audio roles, audio source trims, non-voiceover ducking scopes and loudness
 targets produce one `not yet supported in this renderer: ...` list. V2
 voiceover synthesis and OTIO export are also rejected; place an existing
@@ -48,7 +48,8 @@ concat and captions. The order is:
    and convert back to limited-range Rec.709 `yuv420p`.
 3. Scale/pad each clip to the output size, then join the clips with the planned
    cuts or transitions. Both sides of a transition have already been graded.
-4. Composite captions on the graded cut. Encode the result with the existing
+4. Overlay HyperFrames captions on the graded, transitioned cut, then draw ASS
+   captions above them. Encode the result with the existing
    H.264/AAC settings. Caption fill, highlights, outlines and plates never pass
    through the footage LUT.
 
@@ -70,11 +71,42 @@ Missing metadata produces an SDR-assumption warning; untagged LOG cannot be
 identified reliably. The color package's sRGB display-value approximation is
 retained; this renderer does not perform scene-linear grading or tone mapping.
 
-For pass 10b, HyperFrames must receive the same graded, scaled, concatenated
-footage from step 3. Render its transparent caption overlays separately and
-composite them at step 4. Do not grade the overlay or the footage again in the
-sidecar. Timing and dimensions come from the same composition. This is the
-integration boundary; the HyperFrames backend remains unwired in R13.
+P10b renders all `backend="hyperframes"` events together into one transparent
+ProRes 4444 overlay. FFmpeg places it over the graded, scaled cut from step 3;
+the sidecar receives only the caption plan. ASS is last so conventional subtitles
+remain readable when the two backends overlap. Event order within the HyperFrames
+layer remains array order. Neither caption layer is graded.
+
+HyperFrames uses the same Node 24, pinned sidecar and browser preflight as
+`zing doctor`, before media probes or work-file creation, including on cache hits.
+A missing prerequisite reports its setup remedy; there is no ASS fallback.
+See [the HyperFrames adapter contract](HYPERFRAMES-V2.md) for supported templates,
+font checks, timing constraints and local setup.
+
+`--keep-work` retains `hyperframes-overlays/<sha256>.mov`, its adapter receipt and
+a cache manifest. The key covers the caption plan, actual verified font hashes,
+output size, exact FPS, duration, sidecar pin and sidecar source hashes. Footage,
+LUT and ASS-only changes can reuse the overlay. Every hit checks the media hash
+and probes the stream again; a changed size, duration, FPS or decoded frame count
+fails before final encoding. Corrupt entries require removal and a rerender.
+Without `--keep-work`, the temporary render folder and its cache are removed.
+
+FPS is passed as an exact rational, including `30000/1001`. HyperFrames requires
+a composition end on that frame grid: 90 frames at `30000/1001` take 3.003 seconds.
+A three-second plan at that rate fails with a frame-alignment remedy. No frame
+or time is silently rounded. The overlay verifier requires exact rational FPS
+and frame count, duration within the probe's microsecond text precision, and
+exact stream duration ticks when available.
+Before compositing, both CFR streams use the exact rational frame timebase with
+frame-count timestamps. This avoids selecting the preceding overlay frame where
+the transition graph's microsecond timebase truncates a fractional frame time.
+
+The pinned PNG-capture-to-ProRes path produces straight alpha. FFmpeg's
+[`overlay` filter](https://ffmpeg.org/ffmpeg-filters.html#overlay) uses explicit
+`alpha=straight`, multiplying the foreground by alpha once. Both legs convert
+from limited Rec.709 to full-range RGB before blending and back to tagged limited
+Rec.709 afterward. Generated half-alpha edges and real antialiased glyphs test
+this assumption; interpreting these RGB values as premultiplied is incorrect.
 
 `--keep-work` retains `luts/clip-NNNN.cube` and `color-transforms.json` (version 1)
 with clip IDs, original paths/hashes, strengths, color-space assumptions,
@@ -117,8 +149,8 @@ These are chosen approximations, not recovered editor presets. The native dip
 profiles approach the chosen background during the window; they do not promise
 a fully black or white midpoint. Whip, flash and shader effects are rejected
 by name before media work. A flash observation never selects `dip_to_white`
-automatically; the recipe must explicitly request it. HyperFrames remains
-unsupported by this renderer.
+automatically; the recipe must explicitly request it. HyperFrames supplies
+captions; it does not replace the footage transition graph.
 
 The handle definition lives in [Composition v2](COMPOSITION-V2.md): source
 trims include the outgoing tail and incoming head handles. An overlap of `d`
@@ -198,7 +230,7 @@ for libass; a literal `\N` stays literal. A local libass pixel probe measures
 the actual ink and outline before encoding. Text that exceeds any layout box
 or the frame fails with the event ID and a request to add line breaks, reduce
 size or replan. It is never clipped to make a safety result appear valid.
-Captioned output above 100 fps is rejected because ASS event timestamps have
+Output with ASS captions above 100 fps is rejected because ASS event timestamps have
 centisecond precision. At supported rates, boundaries target an output frame
 and account for libass's millisecond truncation. No ASR timing is repaired or
 claimed accurate by rendering.
