@@ -72,9 +72,12 @@ def test_timed_text_pixels_in_shared_layout_boxes(tmp_path, offline, monkeypatch
         fps=10, end=2, at=[0, .8], until=[.5, 1.5], out=str(tmp_path / "timed.mp4"), **options)
     assert len(calls) == 2  # one Pillow raster per text, regardless of frame count
     assert (result["width"], result["height"]) == (320, 320)
+    # Classic boxes hug the top/bottom edges and caption beats stack at one
+    # shared size in a bar that fits the text (meme E2E fix 4), so the boxes
+    # are the text blocks, not the former fixed 23% bands / 26% bar halves.
     expected_boxes = {
-        "classic": [[13, 10, 307, 83], [13, 237, 307, 310]],
-        "caption": [[13, 6, 307, 42], [13, 42, 307, 77]],
+        "classic": [[13, 10, 307, 45], [13, 275, 307, 310]],
+        "caption": [[13, 7, 307, 38], [13, 40, 307, 71]],
         "labels": ([[80, 79, 240, 133], [80, 187, 240, 241]] if fit == "contain"
                    else [[18, 16, 302, 112], [18, 208, 302, 304]]),
     }

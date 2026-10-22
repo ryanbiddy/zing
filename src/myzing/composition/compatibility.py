@@ -97,6 +97,8 @@ def lowering_blockers(composition: Composition) -> list[str]:
             problems.append(f"clips[{index}].speed_map")
         if clip.color is not None:
             problems.append(f"clips[{index}].color")
+        if clip.framing is not None:
+            problems.append(f"clips[{index}].framing")
     if composition.transitions:
         problems.append("transitions")
     for index, caption in enumerate(composition.captions):

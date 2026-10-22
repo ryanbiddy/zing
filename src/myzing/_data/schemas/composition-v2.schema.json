@@ -41,6 +41,17 @@
         "aspect": {
           "type": "string"
         },
+        "aspects": {
+          "items": {
+            "enum": [
+              "16:9",
+              "1:1",
+              "9:16"
+            ]
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
         "audience": {
           "type": "string"
         },
@@ -59,6 +70,21 @@
             "type": "object"
           },
           "type": "array"
+        },
+        "framing": {
+          "enum": [
+            "auto",
+            "fit",
+            "fill",
+            "reframe",
+            "blurfill"
+          ],
+          "type": "string"
+        },
+        "framing_max_upscale": {
+          "maximum": 16,
+          "minimum": 1,
+          "type": "number"
         },
         "music": {
           "additionalProperties": {},
@@ -169,6 +195,157 @@
       "required": [
         "look",
         "parameters",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_framing_CropBounds": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "x": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "y": {
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_framing_CropKeyframe": {
+      "additionalProperties": false,
+      "properties": {
+        "center_x": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "center_y": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "time": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "time",
+        "center_x",
+        "center_y",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_framing_Framing": {
+      "additionalProperties": false,
+      "properties": {
+        "bounds": {
+          "$ref": "#/$defs/myzing_composition_framing_CropBounds"
+        },
+        "center_x": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "center_y": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "height": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "interpolation": {
+          "enum": [
+            "smoothstep"
+          ]
+        },
+        "keyframes": {
+          "items": {
+            "$ref": "#/$defs/myzing_composition_framing_CropKeyframe"
+          },
+          "maxItems": 256,
+          "type": "array"
+        },
+        "max_upscale": {
+          "minimum": 1,
+          "type": "number"
+        },
+        "max_velocity": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "method": {
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "fit",
+            "fill",
+            "reframe",
+            "blurfill"
+          ]
+        },
+        "source_height": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "source_width": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "width": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "source_width",
+        "source_height",
+        "bounds",
+        "width",
+        "height",
+        "center_x",
+        "center_y",
         "version"
       ],
       "type": "object"
@@ -515,6 +692,16 @@
           "anyOf": [
             {
               "$ref": "#/$defs/myzing_composition_models_ColorTransform"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "framing": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_framing_Framing"
             },
             {
               "type": "null"

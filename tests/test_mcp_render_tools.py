@@ -80,6 +80,29 @@ def test_render_job_success(zing_workspace, has_ffmpeg, edl_file, monkeypatch):
     assert "pid" not in fetched  # internal marker not leaked
 
 
+def test_render_multi_aspect_job_reports_each_output(zing_workspace, has_ffmpeg, edl_file, monkeypatch):
+    from myzing.composition.aspects import ASPECTS
+    from myzing.composition.compatibility import upgrade_edl
+    from myzing.brief.models import Brief
+    from myzing.render import deliveries
+    plan = upgrade_edl(EDL.from_json(edl_file.read_text()))
+    plan.brief = Brief(aspects=list(ASPECTS))
+    edl_file.write_text(plan.to_json(), encoding="utf-8")
+    monkeypatch.setattr(pipeline, "preflight_captions", lambda *a, **k: "ass")
+    def render(plan, output, *, aspects, inputs=(), **kwargs):
+        assert plan.schema_version == 2 and aspects == list(ASPECTS)
+        assert inputs == (edl_file.resolve(),)  # The source plan is overwrite-protected.
+        return {"report": str(output.with_suffix(".deliveries.json")),
+                "deliveries": {a: {"video": str(output.with_name("out."+a.replace(":","x")+".mp4")),
+                                    "status": "ready"} for a in aspects}}
+    monkeypatch.setattr(deliveries, "render_deliveries", render)
+    result = mcp_server.h_render_edl(str(edl_file))
+    assert result["ok"] and result["status"] == "started"
+    status = wait_render(result["render_id"])
+    assert status["state"] == "done" and len(status["outputs"]) == 3
+    assert set(status["deliveries"]) == set(ASPECTS)
+
+
 def test_render_job_failure_is_honest(zing_workspace, has_ffmpeg, edl_file, monkeypatch):
     def boom(edl, output_path, *, base_dir=None, **kw):
         raise pipeline.RenderError("clip a.mp4 overlaps clip b.mp4")

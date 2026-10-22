@@ -10,6 +10,7 @@ import pytest
 from myzing.director import plan_drafts
 from myzing.render.pipeline import render_edl
 from myzing.schemas import EDL
+from myzing.composition import Composition
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tools.plan_examples import example_project
@@ -20,6 +21,10 @@ def test_lowered_plan_renders_with_real_media(tmp_path, zing_workspace):
     project, _, _ = example_project(tmp_path / "project", media=True)
     result = plan_drafts(project, project / "recipe.json", tmp_path / "plans", seed=17)
     assert result["status"] == "ready", result
+    plan = Composition.from_json(Path(result["plans"]["A"]).read_text(encoding="utf-8"))
+    # Matching-aspect square-pixel fit and captions whose preset position was
+    # checked clear stay v1-representable; the export is the existing renderer.
+    assert all(c.framing is None for c in plan.clips) and all(c.layout is None for c in plan.captions)
     edl = EDL.from_dict(json.loads(Path(result["v1_edls"]["A"]).read_text(encoding="utf-8")))
     # Use the exact exported dimensions, captions and source trims.
     output = tmp_path / "plan-A.mp4"

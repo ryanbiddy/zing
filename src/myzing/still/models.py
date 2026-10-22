@@ -44,6 +44,9 @@ class Photo(Record):
     faces: list[dict]
     face_method: str
     warnings: list[str] = field(default_factory=list)
+    # Estimated subject box (normalized [x, y, w, h]) for crops when no
+    # prominent face is found; None for flat photos or older indexes.
+    subject: list[float] | None = None
 
 
 @dataclass
@@ -62,6 +65,9 @@ class Concept(Record):
     path: str = ""
     render: dict = field(default_factory=dict)
     outputs: list[dict] = field(default_factory=list)
+    # Resolved framing. Indexes written before framing existed used contain.
+    fit: str = "contain"
+    focus: list[float] | None = None
 
 
 @dataclass

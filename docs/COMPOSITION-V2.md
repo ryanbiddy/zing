@@ -77,6 +77,7 @@ that a stored checksum still matches bytes on disk.
 | `id`, `asset_id` | Unique clip instance ID and an existing asset ID. Repeated uses of an asset have different clip IDs. |
 | `speed_map` | Ordered `SpeedSegment` array, default `[]` for rate 1. Segments must tile the complete source trim without gaps or overlaps. |
 | `color` | `ColorTransform` or null. |
+| `framing` | Optional versioned fit/fill/reframe/blurfill geometry. Omitted means legacy fit and is omitted from serialized bytes. See [framing](FRAMING.md). |
 | `version` | `1`. |
 
 Each `SpeedSegment` contains `src_in`, `src_out`, positive `rate` (source seconds

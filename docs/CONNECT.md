@@ -13,7 +13,7 @@ pack as slash commands:
   `list_presets`
 - **Render:** `render_edl`, `get_render`, `export_otio`,
   `generate_thumbnails`
-  (`render_edl` accepts EDL v1 and Composition v2; see [V2 rendering](RENDER-V2.md))
+  (`render_edl` accepts EDL v1 and Composition v2; a v2 brief's `aspects` list rebuilds framing/captions per delivery; see [V2 rendering](RENDER-V2.md) and [framing](FRAMING.md))
 - **Suite:** `push_to_uoink`, `import_shot_list`
 - **Inspect:** `inspect_timeline` (see [Timeline inspection](INSPECT.md);
   PNG path and timing metadata, requires `myzing[memes]` and FFmpeg)

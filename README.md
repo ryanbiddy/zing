@@ -69,6 +69,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Measure a reference's captions | [Caption geometry](docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
 | Find the caption font | [Font candidates](docs/FONT-CANDIDATES.md): `zing fonts match` ranks a pinned OFL/Apache library against measured caption glyphs; low scores are labeled substitutes. |
 | Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; attach the resulting layout to a v2 caption for rendering. |
+| Fill portrait and square frames | [Framing](docs/FRAMING.md): fit, static fill, or bounded subject-following crops with captions placed inside the visible picture. |
 | Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
 | Make memes | [Memes](docs/MEMES.md): photo folder + topic to concepts, a contact sheet, and selected stills (`zing still`); template metadata, text checks, and animated memes (`zing meme render-video`). |

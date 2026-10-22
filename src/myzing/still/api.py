@@ -12,7 +12,7 @@ from pathlib import Path
 
 from myzing.memes import MemeError
 from myzing.memes.ideas import generate_ideas
-from myzing.memes.render import ASPECTS, render_meme, require_pillow, resolve_font
+from myzing.memes.render import ASPECTS, render_meme, require_pillow, resolve_font, wrap_text
 from myzing.memes.score import idea_score
 from myzing.memes.templates import get_template
 from myzing.memes.validate import check_texts
@@ -20,7 +20,7 @@ from myzing.project.api import hash_file
 from myzing.prompt_pack import load_prompt, parse_frontmatter
 from .inventory import inventory, local_path, open_photo
 from .models import Concept, Photo, StillIndex
-from .placement import LAYOUTS, place, safe_geometry
+from .placement import FIT_REQUESTS, LAYOUTS, frame, place, safe_geometry
 
 MAX_CONCEPTS = 8
 MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -65,8 +65,11 @@ def _text_key(texts: list[str]) -> str:
 
 
 def _concept_id(topic: str, digest: str, texts: list[str], aspect: str,
-                layout: str, regions: list[list[float]] | None) -> str:
-    value = _json([topic, digest, texts, aspect, layout, regions]).encode("utf-8")
+                layout: str, regions: list[list[float]] | None,
+                fit: str = "contain", focus: list[float] | None = None) -> str:
+    # Legacy contain concepts keep their original IDs.
+    framing = [] if fit == "contain" else [fit, focus]
+    value = _json([topic, digest, texts, aspect, layout, regions, *framing]).encode("utf-8")
     return "still-" + hashlib.sha256(value).hexdigest()[:16]
 
 
@@ -140,46 +143,62 @@ def writer_prompt(topic: str, photos: list[Photo], n: int) -> str:
             "plans placement, and generates literal alt text locally. No tool or upload call is needed.\n")
 
 
-def _concept(topic: str, photo: Photo, idea: dict, aspect: str, requested: str) -> Concept:
+def _concept(topic: str, photo: Photo, idea: dict, aspect: str, requested: str,
+             fit: str = "auto") -> Concept:
     template = get_template(idea["template"]) if idea.get("template") else None
     regions = idea.get("regions", template["box_layout"] if template else None)
     count = template["box_count"] if template else (len(regions) if isinstance(regions, list) else None)
     texts = _validate(idea.get("texts"), count)
     if template:
         texts += [""] * (template["box_count"] - len(texts))
-    layout, regions, notes = place(photo, texts, aspect, requested, regions)
+    layout, regions, notes = place(photo, texts, aspect, requested, regions, fit=fit)
+    fit, focus, framing_notes = frame(photo, aspect, layout, fit, texts=texts)
+    notes += framing_notes
     shown = [text.upper() if layout == "classic" else text for text in texts if text]
     alt = photo.description + " Caption text: " + " / ".join(json.dumps(t, ensure_ascii=False) for t in shown) + "."
-    return Concept(_concept_id(topic, photo.sha256, texts, aspect, layout, regions),
+    return Concept(_concept_id(topic, photo.sha256, texts, aspect, layout, regions, fit, focus),
                    photo.id, idea.get("title", "Imported idea"), texts,
                    idea.get("why", "User-supplied lines."), idea["provider"], layout, regions,
                    {"compression": idea_score(texts), "kind": "readability_heuristic", "predicts_reach": False},
-                   alt, list(photo.warnings) + notes)
+                   alt, list(photo.warnings) + notes, fit=fit, focus=focus)
 
 
 def _render(concept: Concept, photo: Photo, aspect: str, target: Path) -> dict:
     return render_meme(concept.texts, image=photo.path, layout=concept.layout,
-                       aspect=aspect, out=str(target), fit="contain", regions=concept.regions,
-                       plate=concept.layout == "labels", offline=True, overwrite=True)
+                       aspect=aspect, out=str(target), fit=concept.fit, focus=concept.focus,
+                       regions=concept.regions, plate=concept.layout == "labels",
+                       offline=True, overwrite=True)
 
 
-def _sheet(root: Path, concepts: list[Concept]) -> dict:
+def _sheet(root: Path, concepts: list[Concept], aspect: str = "1:1",
+           photos: dict[str, Photo] | None = None) -> dict:
     Image, ImageDraw, _, ImageFont, ImageOps = require_pillow()
     columns = min(3, len(concepts))
-    cell_w, cell_h = 360, 400
+    # Cells follow the aspect so labels sit under landscape thumbnails too
+    # (fixed 400 px cells left a ~150 px gap under every 16:9 thumbnail).
+    width, height = ASPECTS[aspect]
+    cell_w = 360
+    font = ImageFont.truetype(resolve_font("sans"), 15)
+    labels = []
+    for concept in concepts:
+        name = Path(photos[concept.photo].path).name if photos and concept.photo in photos else concept.photo
+        # Wrap long labels (long filenames) instead of cutting them off.
+        labels.append(wrap_text(f"{concept.layout} | {concept.fit} | {name}", font, cell_w - 24))
+    thumb_h = min(334, math.ceil((cell_w - 24) * height / width))
+    cell_h = thumb_h + 44 + 22 * max(len(lines) for lines in labels)
     sheet = Image.new("RGB", (columns * cell_w, math.ceil(len(concepts) / columns) * cell_h), "#ededed")
     draw = ImageDraw.Draw(sheet)
-    font = ImageFont.truetype(resolve_font("sans"), 15)
     entries = []
-    for i, concept in enumerate(concepts):
+    for i, (concept, lines) in enumerate(zip(concepts, labels)):
         x, y = i % columns * cell_w, i // columns * cell_h
         with Image.open(root / concept.path) as source:
-            thumb = ImageOps.contain(source, (cell_w - 24, cell_h - 66))
+            thumb = ImageOps.contain(source, (cell_w - 24, thumb_h))
             sheet.paste(thumb, (x + (cell_w - thumb.width) // 2, y + 10))
-        draw.text((x + 12, y + cell_h - 48), concept.id, font=font, fill="black")
-        draw.text((x + 12, y + cell_h - 26), f"{concept.layout} | readability {concept.score['readability']}",
-                  font=font, fill="#333333")
-        entries.append({"id": concept.id, "box": [x, y, x + cell_w, y + cell_h], "alt_text": concept.alt_text})
+        draw.text((x + 12, y + thumb_h + 18), concept.id, font=font, fill="black")
+        for row, line in enumerate(lines):
+            draw.text((x + 12, y + thumb_h + 40 + 22 * row), line, font=font, fill="#333333")
+        entries.append({"id": concept.id, "box": [x, y, x + cell_w, y + cell_h], "alt_text": concept.alt_text,
+                        "label_lines": lines})
     sheet.save(root / "contact-sheet.png")
     return {"path": "contact-sheet.png", "width": sheet.width, "height": sheet.height,
             "entries": entries, "alt_text": "Contact sheet. " + " ".join(
@@ -187,13 +206,16 @@ def _sheet(root: Path, concepts: list[Concept]) -> dict:
 
 
 def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6,
-                  aspect: str = "1:1", layout: str = "auto", lines: str | Path | None = None) -> dict:
+                  aspect: str = "1:1", layout: str = "auto", lines: str | Path | None = None,
+                  fit: str = "auto") -> dict:
     if not isinstance(topic, str) or not topic.strip() or len(topic) > 500:
         raise MemeError("topic must be a nonempty string of at most 500 characters")
     if type(n) is not int or not 1 <= n <= MAX_CONCEPTS:
         raise MemeError("n must be an integer from 1 to 8")
     if aspect not in ASPECTS or layout not in LAYOUTS:
         raise MemeError("Use aspect 1:1, 4:5, 9:16, or 16:9 and layout auto, classic, caption, or labels.")
+    if fit not in FIT_REQUESTS:
+        raise MemeError("Use fit auto, fill, blur, contain, or cover.")
     root = local_path(out)
     if root.exists() and (not root.is_dir() or any(root.iterdir())):
         raise MemeError(f"Use a new or empty output folder: {root}")
@@ -203,7 +225,7 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
     candidates = sorted(inventory_photos, key=lambda p: hashlib.sha256(
         (topic + "\0" + p.sha256).encode("utf-8")).hexdigest())
     ideas = _import_lines(lines, candidates) if lines is not None else _offline(topic, candidates, n)
-    concepts = [_concept(topic, photo, idea, aspect, layout) for photo, idea in ideas]
+    concepts = [_concept(topic, photo, idea, aspect, layout, fit) for photo, idea in ideas]
     if len({_text_key(c.texts) for c in concepts}) != len(concepts):
         raise MemeError("Duplicate caption text across ideas; provide distinct lines for each concept.")
     prompt = writer_prompt(topic, candidates, len(concepts))
@@ -221,7 +243,7 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
             concept.render = {**report, "path": concept.path, "alt_text": concept.alt_text}
             concept.score["readability"] = report["viral_lens"]["score"]
             concept.warnings.extend(report["warnings"])
-        sheet = _sheet(stage, concepts)
+        sheet = _sheet(stage, concepts, aspect, by_id)
         index = StillIndex(topic, aspect, candidates, concepts, sheet, warnings=notes)
         (stage / index.prompt_path).write_text(prompt, encoding="utf-8")
         _save_index(stage, index)
@@ -231,7 +253,8 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
             "contact_sheet": str(root / sheet["path"]), "prompt_path": str(root / index.prompt_path),
             "prompt": prompt, "count": len(concepts),
             "summary": [{"id": c.id, "photo": c.photo, "texts": c.texts, "layout": c.layout,
-                         "score": c.score, "alt_text": c.alt_text, "warnings": c.warnings} for c in concepts],
+                         "fit": c.fit, "score": c.score, "alt_text": c.alt_text,
+                         "warnings": c.warnings} for c in concepts],
             "warnings": sorted(set(notes + [w for c in concepts for w in c.warnings]))}
 
 
@@ -250,15 +273,19 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
     photo = next((p for p in index.photos if p.id == concept.photo), None)
     if photo is None:
         raise MemeError("Concept photo is missing from the index; recreate this still run.")
+    if concept.fit not in ("contain", "cover", "fill", "blur") or (
+            (concept.fit == "fill") != (concept.focus is not None)):
+        raise MemeError("Saved concept framing is invalid; recreate this still run.")
     if concept.id != _concept_id(index.topic, photo.sha256, concept.texts, index.aspect,
-                                 concept.layout, concept.regions):
+                                 concept.layout, concept.regions, concept.fit, concept.focus):
         raise MemeError("Saved concept changed; use --lines in a new run to validate and index revised copy.")
     source = local_path(photo.path)
     with open_photo(source) as decoded:
         if decoded.size != (photo.width, photo.height) or hash_file(source) != photo.sha256:
             raise MemeError("Source photo changed since inventory; create a new still run before picking.")
     _validate(concept.texts, len(concept.regions) if isinstance(concept.regions, list) else None)
-    if not safe_geometry(photo, concept.texts, index.aspect, concept.layout, concept.regions):
+    if not safe_geometry(photo, concept.texts, index.aspect, concept.layout, concept.regions,
+                         fit=concept.fit, focus=concept.focus):
         raise MemeError("Saved text placement is unsafe; recreate this still run.")
     basename = f"finished-{concept.id}"
     extensions = [".png"] + ([".mp4"] if video or gif else []) + ([".gif"] if gif else [])
@@ -283,7 +310,7 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
             # No zoom: it could move faces under fixed text. Check even H.264 geometry too.
             motion_size = tuple(axis + axis % 2 for axis in ASPECTS[index.aspect])
             if not safe_geometry(photo, concept.texts, index.aspect, concept.layout,
-                                 concept.regions, size=motion_size):
+                                 concept.regions, size=motion_size, fit=concept.fit, focus=concept.focus):
                 raise MemeError("Animated output needs a different safe layout; create a caption-bar concept.")
             # Normalize supported photo formats (including BMP/TIFF) to the
             # animated renderer's local PNG input; preserve EXIF orientation.
@@ -291,7 +318,8 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
             with open_photo(source) as decoded:
                 decoded.save(motion_source)
             motion = render_meme_video(concept.texts, image=str(motion_source), layout=concept.layout,
-                                       aspect=index.aspect, out=str(stage / (basename + ".mp4")), fit="contain",
+                                       aspect=index.aspect, out=str(stage / (basename + ".mp4")),
+                                       fit=concept.fit, focus=concept.focus,
                                        regions=concept.regions, plate=concept.layout == "labels", gif=gif,
                                        overwrite=True)
             motion_source.unlink()
