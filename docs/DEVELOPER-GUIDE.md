@@ -10,7 +10,7 @@ Zing uses [uv](https://github.com/astral-sh/uv) to manage python environments an
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/ryanbiddy/zing
 cd zing
 
 # Synchronize the environment with all development and study extras
@@ -44,10 +44,10 @@ list — update both together):
 5. **ocr — rapidocr (recommended):** burned-caption text extraction from frames.
 6. **tts (optional):** voiceover synthesis (kokoro local, or ElevenLabs with an API key).
 7. **uoink (optional):** the suite peer on port 5179, probed per INTEGRATION-CONTRACT v1 (absent is calm; unhealthy names its code).
-8. **pillow (optional):** local still meme rendering; install with `python -m pip install "myzing[memes]"`.
+8. **pillow (optional):** local still meme rendering; in a checkout, run `uv sync --extra memes`.
 9. **layout (optional):** pinned OpenCV runtime and verified local YuNet model; fetch explicitly with `zing layout fetch-model`.
-10. **color (optional):** NumPy for local SDR look matching and LUT application; install with `python -m pip install "myzing[color]"`.
-11. **hyperframes (optional):** PH sidecar prerequisites: Node 24, the pinned npm install, a configured local browser, and FFmpeg. See [HyperFrames setup](HYPERFRAMES-SIDECAR.md); this adapter is not routed through `zing render`.
+10. **color (optional):** NumPy for local SDR look matching and LUT application; in a checkout, run `uv sync --extra color`.
+11. **hyperframes (optional):** sidecar prerequisites: Node 24, the pinned npm install, a configured local browser, and FFmpeg. See [HyperFrames setup](HYPERFRAMES-SIDECAR.md); `zing render` uses the adapter for v2 HyperFrames captions.
 12. **libass (optional):** FFmpeg caption burn-in needs the `ass` or `subtitles` filter. Captioned renders check before media probing, file creation, or voiceover synthesis; the filter probe is cached per executable for the process lifetime. Restart Zing after replacing a binary at the same path. The HyperFrames caption sidecar does not need libass.
 
 On macOS, install `brew install ffmpeg-full`, then select its binaries:
@@ -65,7 +65,8 @@ Alternatively, `sudo port install ffmpeg` installs
 put `/opt/local/bin` first on PATH. Both options were checked on October 21, 2026.
 
 13. **caption_geometry (optional):** study runtime packages and verified local OCR assets. See [caption geometry](CAPTION-GEOMETRY.md) for explicit model provisioning and the sidecar contract.
-14. **fonts (optional):** Pillow/OpenCV and verified local font/license pairs. Install `myzing[fonts]`; `zing fonts fetch --all` explicitly provisions the library. See [font candidates](FONT-CANDIDATES.md).
+14. **fonts (optional):** Pillow/OpenCV and verified local font/license pairs. In a checkout, run `uv sync --extra fonts`; `zing fonts fetch --all` explicitly provisions the library. See [font candidates](FONT-CANDIDATES.md).
+15. **audio (optional):** NumPy for beat, onset, role and loudness analysis; in a checkout, run `uv sync --extra audio`.
 
 ---
 
@@ -88,7 +89,7 @@ The codebase is organized in the [src/myzing](../src/myzing) directory:
 
 * [cli.py](../src/myzing/cli.py): CLI routing entrypoint.
 * [doctor.py](../src/myzing/doctor.py): Environment checking script.
-* [schemas.py](../src/myzing/schemas.py): Pydantic data schemas defining video breakdowns, style profiles, and EDLs.
+* [schemas.py](../src/myzing/schemas.py): Stdlib dataclass schemas defining video breakdowns, style profiles, and EDLs.
 * [storage.py](../src/myzing/storage.py): Local JSON-based storage manager.
 * [study/](../src/myzing/study): Submodule containing video ingest and metadata extraction logic.
 

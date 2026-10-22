@@ -64,10 +64,11 @@ videos before choosing with `zing plan choose <project> --draft A`.
 The individual operations below remain useful for directed work and diagnosis.
 
 1. **Study the reference.** Use `zing study` on the authorized URL or local file;
-   `--transitions` opts into transition detector v5. Over MCP, `study_video`
+   `--transitions` opts into transition detector v6. Over MCP, `study_video`
    starts a job: poll `zing_status`, then read `get_breakdown` after completion.
    Use returned slugs; never guess them. Read warnings before interpreting counts.
-   Add `--caption-geometry` to measure caption boxes, size, colors and motion, and
+   For these optional measurements, use the CLI. Add `--caption-geometry` to
+   measure caption boxes, size, colors and motion, and
    `--fonts` to rank font candidates; `zing fonts match <slug>` adds candidates to
    an existing study. Font files are fetched only by `zing fonts fetch` (ask first).
    A low score is a substitute, not a detected font.
@@ -167,8 +168,8 @@ captions) use `zing meme render-video` (MCP `meme_render_video`); see
   The v2 renderer consumes layout plans and rejects unaccepted unsafe layouts.
 - Audio tempo can be none/unknown. Role scores are heuristics, not source
   separation; a sustained tone can resemble music. Inspect the final encoded mix.
-- HyperFrames has a separate local caption sidecar with explicit setup. It is
-  not connected to `zing render`; its current output is silent.
+- HyperFrames needs explicit local sidecar setup. Standalone output is silent;
+  `zing render` composites v2 HyperFrames captions with the footage and audio.
 - Uoink is optional. MCP `study_uoink_item` can reuse verified retained media,
   but an unusable handoff may trigger a URL refetch; get download consent first.
   A project `uoink:ID` reference only records intent. Never read or print tokens

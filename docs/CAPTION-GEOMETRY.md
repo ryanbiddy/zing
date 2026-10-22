@@ -60,8 +60,8 @@ watermark remains readable in those frames.
 
 ## Acceptance and limits
 
-Nine FFmpeg tests generate all media using the bundled OFL Anton and IBM Plex
-Sans files. They run real RapidOCR and compare against independently rendered
+The caption-geometry FFmpeg tests generate all media using the bundled OFL Anton
+and IBM Plex Sans files. They run real RapidOCR and compare against independently rendered
 fill-only masks: median center error at most 2% per axis, median height error
 at most 10%, median box IoU at least 0.8, and fitted path keyframe error at most
 2% of frame dimensions. Color tolerance is Delta E 76 at most 10 in Lab D65;

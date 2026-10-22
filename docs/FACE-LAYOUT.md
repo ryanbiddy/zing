@@ -14,7 +14,7 @@ paths, unsafe event IDs, and warnings. Exit 0 means planning completed; consumer
 must inspect `overlap.safe` and warnings before rendering. Invalid input, missing
 dependencies, failed decoding, or a missing/corrupt model returns exit 2.
 
-For layout alone, a fresh environment can use `python -m pip install "myzing[layout]"`.
+For layout alone, run `uv sync --extra layout` from the source checkout.
 Use `uv sync --all-extras` for the combined checkout environment. RapidOCR declares
 the GUI `opencv-python` package, which shares files with the headless wheel. The
 checkout's uv exclusion removes that duplicate; PySceneDetect and layout already
@@ -72,10 +72,10 @@ are temporary; the requested debug contact sheet remains on disk.
 
 The classes in `myzing.layout` are independent versioned dataclasses with
 `to_dict()` / `from_dict()`. Version 1 is emitted at every record level; omitted
-input versions default to 1; other versions fail. `schemas.py` and the ASS
-compiler are unchanged. A later compiler adapter must respect the full geometry,
-linear path interpolation and reduced `scale`, and must not treat a plate as
-permission to ignore an unsafe overlap. Caption-to-caption collisions are outside
+input versions default to 1; other versions fail. The [v2 ASS renderer](RENDER-V2.md)
+consumes the geometry, linear paths and reduced `scale`. Unsafe layouts need
+explicit acceptance; a plate does not make an overlap safe. HyperFrames layouts
+require final sizes with scale 1. Caption-to-caption collisions are outside
 PF; concurrent input events receive a plan warning.
 
 ## Placement and tracking
@@ -173,7 +173,7 @@ for runtime, model and fixture licensing.
 ```powershell
 uv run --frozen pytest -q tests/test_layout.py tests/test_layout_detector.py tests/test_layout_command.py
 $env:ZING_REQUIRE_FFMPEG = '1'
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 25
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 204
 
 # Explicit, optional fixture and model provisioning:
 uv run --frozen zing layout fetch-model

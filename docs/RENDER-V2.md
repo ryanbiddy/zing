@@ -181,7 +181,7 @@ Required filters are checked before probing media or writing render files.
 4.3; R15 does not impose a newer major-version gate. Script loading retains
 the FFmpeg 6/9 compatibility helper. Generated tests measure color blends,
 wipe edges, dip profiles, magnification, binary frame counters, audio RMS and
-sample discontinuities. Detector v5 is checked separately on P14 corpus
+sample discontinuities. Detector v6 is checked separately on P14 corpus
 textures, including every wipe direction.
 
 Generate individual examples, a combined timeline, inspection PNGs and the

@@ -5,17 +5,17 @@ font files for each measured text track. Results live in the optional
 `font_candidates` section of `caption-geometry.json`. The original font remains
 unknown. A candidate is a similarity result, not a recovered editor setting.
 
-Install the optional runtime with `pip install "myzing[fonts]"`, or use
-`uv sync --all-extras` in a checkout. Geometry also needs the existing study
+In a source checkout, install the optional runtime with `uv sync --extra fonts`,
+or use `uv sync --all-extras`. Geometry also needs the existing study
 runtime and explicitly provisioned OCR models described in
 [caption geometry](CAPTION-GEOMETRY.md).
 
 ```text
-zing fonts list
-zing fonts fetch bebasneue poppins bangers
-zing fonts fetch --all
-zing study reference.mp4 --caption-geometry --fonts
-zing fonts match <breakdown-slug>
+uv run --frozen zing fonts list
+uv run --frozen zing fonts fetch bebasneue poppins bangers
+uv run --frozen zing fonts fetch --all
+uv run --frozen zing study reference.mp4 --caption-geometry --fonts
+uv run --frozen zing fonts match <breakdown-slug>
 ```
 
 Each fonts command accepts `--workspace DIR` and `--json`. Fetch is the only
@@ -136,9 +136,8 @@ and known text to isolate font comparison; two additional tests run real OCR
 through the complete geometry-to-font path. This is not a claim of 98.7% OCR
 accuracy on real videos.
 
-P8's thirteen FFmpeg tests brought the gate from 90 to 103. The repair adds
-one test checking sparse seeks against sequentially decoded pixels across
-keyframes and B-frames, bringing the gate to **104**. Without an opt-in,
+The font FFmpeg tests also check sparse seeks against sequentially decoded
+pixels across keyframes and B-frames. Without an opt-in,
 tests use only the two bundled fonts. The expanded test library requires
 `ZING_TEST_FETCH_FONTS=1`, which explicitly permits the fixture to fetch pinned
 assets. CI also runs `zing fonts fetch --all` before testing. Required FFmpeg

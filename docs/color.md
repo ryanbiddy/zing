@@ -3,9 +3,9 @@
 Match a clip toward a reference's measured palette and tone:
 
 ```sh
-python -m pip install "myzing[color]"
-zing color match --reference reference.mp4 --clip clip.mp4 --out zing-workspace/look
-zing color apply --lut zing-workspace/look/look.cube --in clip.mp4 --out zing-workspace/graded.mp4
+uv sync --extra color  # from the source checkout
+uv run --frozen zing color match --reference reference.mp4 --clip clip.mp4 --out zing-workspace/look
+uv run --frozen zing color apply --lut zing-workspace/look/look.cube --in clip.mp4 --out zing-workspace/graded.mp4
 ```
 
 FFmpeg and ffprobe must be on PATH. `zing doctor` reports NumPy availability.
@@ -34,10 +34,9 @@ original LUT. Different subjects, lighting, framing, and graphics change the
 statistics even when two videos use the same grade. Review the contact sheet
 before using the result. A distribution score is not a pixel color error.
 
-This standalone pass grades footage. It does not alter the EDL schema, integrate
-with caption compositing or HyperFrames, or establish pass 13 render parity.
-Existing burned-in captions in an input video are part of its pixels and will
-be graded. New caption layers belong after grading in a later render adapter.
+The standalone command grades footage. Existing burned-in captions are part
+of its pixels and will be graded. The [v2 renderer](RENDER-V2.md) also accepts
+per-clip LUTs and applies them before ASS and HyperFrames caption layers.
 
 ## Measurement and color assumption
 
@@ -137,7 +136,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 27
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 204
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.

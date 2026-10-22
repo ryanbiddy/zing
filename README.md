@@ -61,7 +61,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 |---|---|
 | First local edit | [Quickstart](docs/QUICKSTART.md): generated clip, explicit EDL, rendered draft and review artifacts. |
 | Match a reference with your clips | [Match](docs/MATCH.md): `zing match reference.mp4 --clips ./clips --out ./project --brief brief.json`; resumable A/B/C rendering, full decode, PNGs and measured reports. |
-| Study and direct footage | [Direct flow](docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v5. |
+| Study and direct footage | [Direct flow](docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v6. |
 | Inventory a project | [Project inventory](docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
 | Reuse saved references and remember a choice | [Uoink memory](docs/UOINK-MEMORY.md): verified local media, optional peer search, and durable draft-choice receipts. |
 | Save creative intent | [Briefs](docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
@@ -72,8 +72,8 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
 | Make memes | [Memes](docs/MEMES.md): photo folder + topic to concepts, a contact sheet, and selected stills (`zing still`); template metadata, text checks, and animated memes (`zing meme render-video`). |
-| Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; silent output, not integrated with `zing render`. |
-| Render v2 caption overlays | [HyperFrames v2 adapter](docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions and an FFmpeg composite helper. |
+| Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; standalone output is silent, and v2 rendering composites its captions with footage and audio. |
+| Render v2 caption overlays | [HyperFrames v2 adapter](docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions, an FFmpeg composite helper and integration with `zing render`. |
 | Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe. |
 | Render positioned word captions | [V2 rendering](docs/RENDER-V2.md): verified assets and fonts, ASS positions/paths, word highlights and layout safety acceptance; unsupported v2 effects fail before rendering. V1 rendering stays compatible. |
 | Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans or a named shortage, with v1 EDL derivatives where supported. |
@@ -98,9 +98,10 @@ extras below. To select features, use e.g. `uv sync --extra memes --extra render
 | Extra | Enables |
 |---|---|
 | `study` | yt-dlp, scene detection, faster-whisper transcription and RapidOCR. Models and remote media may require separate downloads. |
-| `mcp` | MCP SDK v1 server for connected agents. |
+| `mcp` | MCP SDK server for connected agents. |
 | `render` | pysubs2 for ASS captions. |
 | `memes` | Pillow for still rendering and timeline inspection. |
+| `fonts` | Pillow and pinned headless OpenCV for font comparison; expanded font assets require an explicit fetch. |
 | `layout` | Pinned headless OpenCV; YuNet still needs an explicit model fetch. |
 | `color` | NumPy for SDR matching and LUT work. |
 | `audio` | NumPy for audio analysis. |

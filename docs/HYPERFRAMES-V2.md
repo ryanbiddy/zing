@@ -168,8 +168,8 @@ events, sidecar plan, `pixel-proof.json`, and `contact-sheet.png` with sampled
 frame times. The local result checks 90 frames, has zero-frame word-switch error,
 and maximum path-edge error of 0.001191 of a frame dimension (0.12%). It also
 checks unchanged colored footage outside the caption rectangle and retained
-audio. These are the historical P10a measurements. P10b adds seven generated
-FFmpeg tests, raising the CI gate from 196 to 203. Real HyperFrames tests stay
+audio. These are the historical P10a measurements. Generated-media compositor
+tests run in the mandatory FFmpeg gate. Real HyperFrames tests stay
 opt-in and outside that marker gate. The sample generator saves mixed ASS and
 kinetic captions over a graded dissolve, its composition, retained render work
 and a six-frame contact sheet.

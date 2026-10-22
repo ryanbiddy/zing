@@ -81,8 +81,9 @@ read the last committed manifest during a scan.
 
 `zing project resolve-reference` verifies kept media or a supplied file, and
 `zing project study-reference` attaches its local study in `reference.study`.
-See [Uoink memory](UOINK-MEMORY.md) for search and choice receipts. Inventory
-does not implement `zing match`. CLI and Python APIs are available; MCP scan tools are deferred
+See [Uoink memory](UOINK-MEMORY.md) for search and choice receipts.
+[`zing match`](MATCH.md) combines inventory with study, planning and rendering.
+Inventory CLI and Python APIs are available; MCP scan tools are deferred
 until scans can use the server's background-job contract.
 
 After scanning, run `zing brief new ./project` to record the creative direction.

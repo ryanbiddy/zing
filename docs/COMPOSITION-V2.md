@@ -14,10 +14,11 @@ base_dir=plan_directory)`. V1 still uses its original compiler. V2 supports
 cuts, source audio, placed voiceover/music, v1 voiceover ducking, and positioned
 ASS captions. R13 adds per-clip SDR LUT rendering before scaling, concat and
 caption compositing. R15 adds dissolve, wipe, dip and zoom-punch overlaps.
+P10b adds HyperFrames caption overlays before ASS captions.
 See [V2 rendering](RENDER-V2.md) for bounds, fonts, timing
 and color-space requirements.
 
-Speed maps, unsupported transition kinds, HyperFrames captions, other audio roles,
+Speed maps, unsupported transition kinds, other audio roles,
 audio trims, other ducking scopes and loudness targets fail before media work
 with a `not yet supported in this renderer: ...` list. Passing v2 JSON to
 `EDL.from_dict` still fails; use `load_composition` to load v2.
@@ -156,10 +157,10 @@ result and does not rerun detection or collision search.
 em pixels; `color`, `highlight`, `outline_color`, and optional `box_color` use
 `#RRGGBB`; `outline_width` is 0–20 pixels; `version` is 1. Defaults are white,
 yellow highlight, black outline, two-pixel outline and no plate color.
-HyperFrames events require layout, font, style and template. Its current PH v1
-adapter also requires integer FPS and supports a narrower output shape.
-Future compilation must check that capability boundary; selecting the backend
-in this contract does not invoke it.
+HyperFrames events require layout, font, style and template. Its adapter accepts
+exact rational FPS and requires a duration on that frame grid, supported output
+dimensions and final layout scale 1. The [v2 renderer](HYPERFRAMES-V2.md) checks
+these bounds before rendering; loading the contract alone does not invoke it.
 
 R9 adds only `CompositionCaption.alignment` and
 `Composition.accepted_unsafe_layouts`, with defaults preserving existing input.
@@ -185,8 +186,8 @@ controls into that cube. Applying those controls again would double the grade.
 The R13 renderer supports the color package's SDR Rec.709/sRGB assumption and
 rejects other declared spaces. Probed HDR/LOG sources require conversion to SDR
 with an explicit input transform before rendering, even if a creative LUT is
-present. Captions composite after the graded cut. Pass 10b's HyperFrames adapter
-must use that same cut and composite overlays afterward; see
+present. Captions composite after the graded cut. The HyperFrames adapter
+uses that same cut and composites overlays afterward; see
 [the render stage order](RENDER-V2.md).
 
 | CompositionAudio field | Contract |

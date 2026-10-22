@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from myzing import cli
 
 REPO = Path(__file__).resolve().parents[1]
@@ -88,3 +90,35 @@ def test_version_matches_what_the_mcp_server_advertises():
     from myzing import mcp_server
 
     assert cli._version() == mcp_server._version()
+
+
+@pytest.mark.parametrize("picking", [False, True])
+@pytest.mark.parametrize("position", ["before", "after", "inherited"])
+@pytest.mark.parametrize("fail", [False, True])
+def test_still_workspace_is_scoped(tmp_path, monkeypatch, capsys, picking, position, fail):
+    from myzing import storage
+    from myzing.still import command
+
+    inherited = tmp_path / "inherited"
+    explicit = tmp_path / "explicit"
+    seen = []
+
+    def operation(*args, **kwargs):
+        seen.append(storage.workspace_root())
+        if fail:
+            raise ValueError("operation failed")
+        return {"workspace": str(storage.workspace_root())}
+
+    monkeypatch.setattr(command, "create_stills", operation)
+    monkeypatch.setattr(command, "pick_still", operation)
+    argv = (["pick", "output", "--id", "concept"] if picking else
+            ["--photos", "photos", "--topic", "bugs", "--out", "output"])
+    if position == "before":
+        argv = ["--workspace", str(explicit), *argv]
+    elif position == "after":
+        argv += ["--workspace", str(explicit)]
+    with storage.use_workspace(inherited):
+        assert cli.main(["still", *argv, "--json"]) == int(fail)
+        assert seen == [inherited if position == "inherited" else explicit]
+        assert storage.workspace_root() == inherited
+    assert ('"ok": false' if fail else '"ok": true') in capsys.readouterr().out

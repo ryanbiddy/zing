@@ -1,11 +1,13 @@
 # The Direct flow over MCP (D-3)
 
-Raw footage in, honest direction out — the whole loop through the MCP
-tools, for any AI client connected per docs/CONNECT.md:
+Study raw footage through the CLI, then judge it through MCP with an AI client
+connected per [Connect](CONNECT.md):
 
-1. **Study the raw recording:** `study_video(path)` → poll
-   `zing_status()` → the breakdown gains raw-mode measurements
-   (`provenance.raw_mode`: keepers, dead air, fillers, repeated takes).
+1. **Study the raw recording:** run `zing study recording.mp4 --raw` in a
+   shell using the MCP server's workspace. This adds `provenance.raw_mode`
+   measurements (keepers, dead air, fillers and repeated takes). MCP
+   `study_video(path)` starts an ordinary study: poll `zing_status()`, then
+   read the breakdown. It does not expose the raw-mode flag.
 2. **Have (or build) the taste target:** `get_profile(name)`, or
    `build_profile(name, slugs, genre=...)` from studied references
    (or run `zing setup` for a guided build). No profile? The direct
