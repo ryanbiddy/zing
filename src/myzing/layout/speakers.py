@@ -3,6 +3,7 @@
 No diarization or identity recognition is inferred from ordinary ASR timestamps.
 """
 
+from dataclasses import replace
 from statistics import median
 
 from myzing.composition.speakers import SpeakerTurn
@@ -31,8 +32,9 @@ def speaker_turns(clip, tracks, words):
     for group in groups:
         start, end = max(clip.src_in, group[0].start), min(clip.src_out, max(w.end for w in group))
         times = [max(start, min(end, (w.start + w.end) / 2)) for w in group]
-        faces = [t for t in tracks if not t.id.startswith(("saliency-", "person-")) and
-                 t.keyframes[0].time <= start + 1e-6 and t.keyframes[-1].time >= end - 1e-6]
+        present = [t for t in tracks if not t.id.startswith(("saliency-", "person-")) and
+                   t.keyframes[0].time < end and t.keyframes[-1].time > start]
+        faces = [t for t in present if t.keyframes[0].time <= start + 1e-6 and t.keyframes[-1].time >= end - 1e-6]
         identity, confidence, method = None, 0.0, "unknown; retain two-shot"
         speaker = group[0].speaker
         supplied = {w.face_track_id for w in group}
@@ -41,7 +43,9 @@ def speaker_turns(clip, tracks, words):
                 identity = next((t.id for t in faces if t.id in supplied), None)
                 if identity:
                     confidence, method = min(w.confidence for w in group), "supplied speaker-to-face association"
-            elif supplied == {None} and faces:
+            elif supplied == {None} and faces and len(faces) == len(present):
+                # A face seen for only part of the turn is a competitor that
+                # cannot be ranked over the whole turn: never call the other "the only face".
                 ranked = sorted(((median(box_at(t.keyframes, time).width * box_at(t.keyframes, time).height
                                          for time in times), t.id) for t in faces), reverse=True)
                 # Prominence is only a weak speaker proxy, never face-detector probability.
@@ -52,4 +56,16 @@ def speaker_turns(clip, tracks, words):
     # Overlapping speakers cannot be followed by one window with word-safe moves.
     if any(a.end > b.start for a, b in zip(turns, turns[1:])):
         return [SpeakerTurn(0, clip.duration, None, None, 0, "overlapping speech; retain two-shot")]
-    return turns
+    # Size alone cannot tell speakers apart: the dominant face would otherwise be
+    # "the speaker" for everyone. A heuristic association must be one-to-one:
+    # one face per speaker label and one speaker label per face in this clip.
+    faces_of, speakers_of = {}, {}
+    for turn in turns:
+        if turn.face_track_id is not None:
+            faces_of.setdefault(turn.speaker, set()).add(turn.face_track_id)
+            speakers_of.setdefault(turn.face_track_id, set()).add(turn.speaker)
+    return [replace(turn, face_track_id=None, confidence=0,
+                    method="face-size heuristic is ambiguous across speakers/faces; retain two-shot")
+            if turn.method.startswith("face-size heuristic")
+            and (len(faces_of[turn.speaker]) > 1 or len(speakers_of[turn.face_track_id]) > 1) else turn
+            for turn in turns]

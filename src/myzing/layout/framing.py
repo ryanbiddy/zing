@@ -33,7 +33,7 @@ def centered_framing(mode, source_width, source_height, width, height):
     divisor = math.gcd(width, height)
     rw, rh = width // divisor, height // divisor
     multiple = min(source_width // rw, source_height // rh)
-    if multiple < 1 and mode not in ("fit", "blurfill"):
+    if multiple < 1 and mode not in ("fit", "blurfill", "zoomfill"):
         raise ValueError("source is too small for an integer crop at the output aspect")
     cw, ch = (source_width, source_height) if mode in ("fit", "blurfill", "zoomfill") else (rw * multiple, rh * multiple)
     cx, cy = source_width / 2, source_height / 2
@@ -285,13 +285,12 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
 def visible_content(framing, output_width, output_height):
     if framing.mode not in ("fit", "blurfill", "zoomfill"):
         return Box(0, 0, 1, 1)
-    sw, sh = ((framing.width, framing.height) if framing.mode == "zoomfill" else
-              (framing.source_width, framing.source_height))
-    scale = min(output_width / sw, output_height / sh)
-    # Same force_divisible_by=2 floor as the fit graph.
-    w = max(2, math.floor(sw * scale / 2) * 2) / output_width
-    h = max(2, math.floor(sh * scale / 2) * 2) / output_height
-    return Box((1 - w) / 2, (1 - h) / 2, w, h)
+    w, h = framing.foreground_size(output_width, output_height)
+    w, h = w / output_width, h / output_height
+    if framing.mode == "fit":
+        return Box((1 - w) / 2, (1 - h) / 2, w, h)
+    x, y = framing.foreground_origin(output_width, output_height)
+    return Box(x / output_width, y / output_height, w, h)
 
 
 def output_box(box, framing, time, output_width, output_height):
@@ -381,6 +380,48 @@ def default_caption_box(caption, width, height, ink):
     return Box(left, top, right - left, bottom - top)
 
 
+def fit_measured_ink(caption, layout, width, height, ffmpeg="ffmpeg", attempts=6):
+    """Shrink a placed default-font caption until its measured ink fits the box.
+
+    Measures exactly what generate_positioned_ass checks before drawing: libass
+    ink+outline of the wrapped text at the style times layout.scale, plus the
+    plate's 4 px-per-side padding. The box (already clear of masks and swept
+    subjects) is never moved or enlarged. Returns the fitted extent, or None
+    (style restored) if it cannot fit. Raises ValueError for a caption it cannot
+    measure (custom font, template, non-ASS backend) and RuntimeError/OSError
+    when FFmpeg/libass is missing.
+    """
+    from myzing.ffmpeg_capabilities import caption_filter
+    from myzing.render.positioned_captions import _measure, caption_runs
+
+    if caption.font is not None or caption.template is not None or caption.backend != "ass" or caption.style is None:
+        raise ValueError("measured fitting covers styled default-font ASS captions only")
+    boxes = [key.box for key in layout.as_path()]
+    box_width, box_height = min(b.width for b in boxes) * width, min(b.height for b in boxes) * height
+    renderer = caption_filter(ffmpeg)
+    original = caption.style
+    with tempfile.TemporaryDirectory(prefix="zing-caption-fit-") as temporary:
+        directory = Path(temporary)
+        (directory / "fonts").mkdir()
+        for _ in range(attempts):
+            scale = layout.scale
+            style = replace(caption.style, size=caption.style.size * scale,
+                            outline_width=caption.style.outline_width * scale)
+            ink = _measure(caption, style, "Arial", caption_runs(caption), width, height,
+                           directory, ffmpeg, renderer, 1.0)
+            padding = 4 * scale if style.box_color is not None else 0
+            ink_width, ink_height = ink[2] - ink[0], ink[3] - ink[1]
+            if ink_width + 2 * padding <= box_width + 1 and ink_height + 2 * padding <= box_height + 1:
+                return ink
+            factor = .98 * min((box_width + 1 - 2 * padding) / ink_width, (box_height + 1 - 2 * padding) / ink_height, 1)
+            if factor <= 0:
+                break
+            caption.style = replace(caption.style, size=max(1, caption.style.size * factor),
+                                    outline_width=caption.style.outline_width * factor)
+    caption.style = original
+    return None
+
+
 def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False):
     """Static caption boxes avoid swept subject envelopes on the output clock.
 
@@ -403,13 +444,18 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
     frame_limit = frame_index(max(c.timeline_end for c in plan.clips), plan.fps, rounding="nearest")
     source_dimensions = source_dimensions or {}
     layouts = []
+    vertical = plan.height > plan.width
+
+    def reserve(region):
+        # Include a small output edge inset as well as every padding bar.
+        edges = (max(inset_left, region.x), max(inset_top, region.y),
+                 min(1 - inset_right, region.right), min(1 - inset_bottom, region.bottom))
+        left, top, right, bottom = edges
+        return edges, [Mask(name, box) for name, box in
+                       [("left", Box(0, 0, left, 1)), ("right", Box(right, 0, 1 - right, 1)),
+                        ("top", Box(0, 0, 1, top)), ("bottom", Box(0, bottom, 1, 1 - bottom))]]
+
     for caption in plan.captions:
-        vertical = plan.height > plan.width
-        if vertical:
-            short = min(plan.width, plan.height)
-            style = caption.style or CaptionStyle(max(1, short / 18))
-            caption.style = replace(style, outline_width=max(style.outline_width, min(20, short / 270)),
-                                    box_color=style.box_color or "#111111")
         first, last, _, _ = caption_frame_timing(caption, plan.fps, frame_limit)
         visible_start, visible_end = float(frame_time(first, plan.fps)), float(frame_time(last, plan.fps))
         obstacles, contents = [], []
@@ -440,6 +486,25 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                                               Keyframe(caption.end, box)], track.confidence))
         content = bounds(max((b.x for b in contents), default=0), max((b.y for b in contents), default=0),
                          min((b.right for b in contents), default=1), min((b.bottom for b in contents), default=1))
+        (left, top, right, bottom), masks = reserve(content)
+        if (keep_safe_defaults and caption.layout is None and caption.style is None and caption.font is None
+                and caption.template is None and caption.backend == "ass" and caption.alignment == "center"):
+            # Decide on measured libass ink at the largest rendered size, never
+            # an estimate: neither renderer re-checks an unplaced caption. This
+            # runs before vertical restyling, so a safe 9:16 default stays v1.
+            try:
+                ink = measure_default_ink(caption, plan.width, plan.height)
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                ink = None  # Unmeasurable: place it explicitly below.
+            default = default_caption_box(caption, plan.width, plan.height, ink) if ink else None
+            if default is not None and check_overlap([Keyframe(caption.start, default), Keyframe(caption.end, default)],
+                                                     obstacles, masks).safe:
+                continue
+        if vertical:
+            short = min(plan.width, plan.height)
+            style = caption.style or CaptionStyle(max(1, short / 18))
+            caption.style = replace(style, outline_width=max(style.outline_width, min(20, short / 270)),
+                                    box_color=style.box_color or "#111111")
         placement_region = "sharp picture"
         if vertical and contents and all(b.width > .99 for b in contents):
             # Prefer a band only when the entire static caption can fit there
@@ -459,28 +524,9 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
             if blurred:
                 for band_top, band_bottom, name in bands:
                     if band_bottom - band_top >= required:
-                        content = bounds(0, band_top, 1, band_bottom)
+                        (left, top, right, bottom), masks = reserve(bounds(0, band_top, 1, band_bottom))
                         placement_region = name
                         break
-        masks = []
-        # Include a small output edge inset as well as every padding bar.
-        left, top = max(inset_left, content.x), max(inset_top, content.y)
-        right, bottom = min(1 - inset_right, content.right), min(1 - inset_bottom, content.bottom)
-        for name, box in [("left", Box(0, 0, left, 1)), ("right", Box(right, 0, 1 - right, 1)),
-                          ("top", Box(0, 0, 1, top)), ("bottom", Box(0, bottom, 1, 1 - bottom))]:
-            masks.append(Mask(name, box))
-        if (keep_safe_defaults and caption.layout is None and caption.style is None and caption.font is None
-                and caption.template is None and caption.backend == "ass" and caption.alignment == "center"):
-            # Decide on measured libass ink at the largest rendered size, never
-            # an estimate: neither renderer re-checks an unplaced caption.
-            try:
-                ink = measure_default_ink(caption, plan.width, plan.height)
-            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
-                ink = None  # Unmeasurable: place it explicitly below.
-            default = default_caption_box(caption, plan.width, plan.height, ink) if ink else None
-            if default is not None and check_overlap([Keyframe(caption.start, default), Keyframe(caption.end, default)],
-                                                     obstacles, masks).safe:
-                continue
         if caption.style is None:
             caption.style = CaptionStyle(max(1, min(plan.width, plan.height) / 18),
                                          outline_width=min(plan.width, plan.height) / 540)
@@ -541,6 +587,15 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                  "visible-content bounds; detector recall unverified")
         if not obstacles:
             scope += "; faces unmeasured in this interval"
+        if vertical:
+            # Vertical bands are tight and the plate adds padding: verify the
+            # positioned renderer's own libass measurement fits the placed box
+            # (and so its masks), shrinking the text if the estimate was short.
+            try:
+                if fit_measured_ink(caption, layout, plan.width, plan.height) is not None:
+                    scope += "; measured libass ink+plate fits the box"
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                pass  # Unmeasurable here (custom font, no FFmpeg/libass): the renderer still measures.
         layout = replace(layout, overlap=replace(layout.overlap, scope=scope))
         caption.layout = layout
         layouts.append(layout.to_dict())

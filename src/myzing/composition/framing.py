@@ -140,6 +140,28 @@ class Framing(Record):
         if self.speaker_turns and self.speaker_turns[-1].end > duration + 1e-6:
             raise ValueError("speaker turn exceeds the clip duration")
 
+    def foreground_size(self, width: int, height: int) -> tuple[int, int]:
+        """Even sharp-picture size in output pixels for fit, blurfill and zoomfill.
+
+        Blurfill and zoomfill scale their foreground to exactly this size, so
+        planning, caption bands and rendered pixels agree on every FFmpeg
+        version, and the vertical scale never exceeds the horizontal
+        enlargement. Fit keeps the legacy graph (FFmpeg can round one row
+        pair larger), so this is a conservative fit content box.
+        """
+        sw, sh = ((self.width, self.height) if self.mode == "zoomfill" else (self.source_width, self.source_height))
+        scale = min(width / sw, height / sh)
+        return max(2, math.floor(sw * scale / 2) * 2), max(2, math.floor(sh * scale / 2) * 2)
+
+    def foreground_origin(self, width: int, height: int) -> tuple[int, int]:
+        """Top-left of the blurfill/zoomfill sharp picture in output pixels.
+
+        Centered, then rounded down to even: FFmpeg's 4:2:0 overlay does that
+        to any odd position, so the graph receives this exact origin.
+        """
+        w, h = self.foreground_size(width, height)
+        return (width - w) // 2 // 2 * 2, (height - h) // 2 // 2 * 2
+
     def upscale_warning(self, width: int, height: int) -> list[str]:
         scale = (min(width / self.source_width, height / self.source_height) if self.mode in ("fit", "blurfill")
                  else width / self.width if self.mode == "zoomfill"

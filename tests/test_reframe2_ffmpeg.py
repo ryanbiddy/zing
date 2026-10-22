@@ -32,13 +32,16 @@ def plan_for(source, width, height, duration=1):
     return Composition(assets=[AssetRef('s', str(source), None)], clips=[c], width=width, height=height)
 
 
-@pytest.mark.parametrize('aspect', ['16:9', '1:1', '9:16'])
-def test_zoomfill_sharp_coverage_and_enlargement_match_rendered_pixels(tmp_path, aspect):
+@pytest.mark.parametrize('aspect,requested,expected', [('16:9', 'zoomfill', 'blurfill'), ('1:1', 'zoomfill', 'zoomfill'),
+                                                        ('9:16', 'zoomfill', 'zoomfill'), ('9:16', 'blurfill', 'blurfill')])
+def test_zoomfill_sharp_coverage_and_enlargement_match_rendered_pixels(tmp_path, aspect, requested, expected):
     source = tmp_path / 'gray.mkv'
     ffmpeg('-f', 'lavfi', '-i', 'color=c=0x999999:s=640x360:r=30:d=1', '-c:v', 'ffv1', source)
     width, height = dimensions(aspect, 180)
     plan = plan_for(source, width, height)
-    f = select_framing('zoomfill', 640, 360, width, height, plan.clips[0], [])
+    f = select_framing(requested, 640, 360, width, height, plan.clips[0], [])
+    # A same-aspect source cannot be narrowed into a taller picture.
+    assert f.mode == expected
     plan.clips[0].framing = f
     output = tmp_path / 'output.mp4'
     render_composition(plan, output)
@@ -46,10 +49,13 @@ def test_zoomfill_sharp_coverage_and_enlargement_match_rendered_pixels(tmp_path,
     assert len(frames) == 30
     content = visible_content(f, width, height)
     # Flat source makes the sharp/55%-luma background boundary measurable.
+    # The planned rows are the rendered rows: 515/427-wide zoomfill and 9:16
+    # blurfill rounded two rows taller than planned before (126 vs 124), and
+    # 4:2:0 overlay moved an odd centered origin up a row (84 vs 85).
     row_luma = frames[10].mean(axis=(1, 2))
     sharp = (row_luma > 135).nonzero()[0]
-    assert len(sharp) == pytest.approx(content.height * height, abs=2)
-    assert sharp[0] == pytest.approx(content.y * height, abs=2)
+    assert len(sharp) == round(content.height * height)
+    assert sharp[0] == round(content.y * height)
     assert f.assessments[-1].enlargement <= 2.5
 
 
@@ -144,3 +150,31 @@ def test_caption_contrast_and_ui_clearance_on_busy_generated_background(tmp_path
         # Bright glyphs and a dark plate remain distinct on a ~400 px phone.
         assert region.min(axis=2).max() > 225
         assert .06 <= box.x and box.right <= .84 and .08 <= box.y and box.bottom <= .8
+
+
+def test_wide_glyph_vertical_caption_ink_is_measured_into_its_band(tmp_path):
+    source = tmp_path / 'busy.mkv'
+    ffmpeg('-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=30:d=1', '-c:v', 'ffv1', source)
+    plan = plan_for(source, 360, 640)
+    plan.clips[0].framing = select_framing('zoomfill', 640, 360, 360, 640, plan.clips[0], [])
+    # Bold W is wider than the 0.8 em estimate: the band box was too narrow
+    # and the renderer refused "text/outline/plate exceeds its layout box".
+    cap = CompositionCaption(id='cap', text='W' * 16, start=.1, end=.9, word_timed=False)
+    plan.captions = [cap]
+    place_captions(plan, {})
+    assert cap.layout.overlap.safe and 'blur band' in cap.layout.overlap.scope
+    assert 'measured libass ink' in cap.layout.overlap.scope
+    content = visible_content(plan.clips[0].framing, 360, 640)
+    box = cap.layout.box
+    assert box.bottom <= content.y + 1e-9 or box.y >= content.bottom - 1e-9
+    assert .06 <= box.x and box.right <= .84 and .08 <= box.y and box.bottom <= .8
+    output = tmp_path / 'output.mp4'
+    render_composition(plan, output)
+    frame = pixels(output, 360, 640)[15].astype(int)
+    # White glyph pixels exist only inside the plate box.
+    white = (frame.min(axis=2) > 200)
+    white[round(content.y * 640):round(content.bottom * 640)] = False  # testsrc2 has white in the sharp picture.
+    ys, xs = white.nonzero()
+    assert len(xs) > 50
+    assert box.x * 360 - 1 <= xs.min() and xs.max() <= box.right * 360 + 1
+    assert box.y * 640 - 1 <= ys.min() and ys.max() <= box.bottom * 640 + 1

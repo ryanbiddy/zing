@@ -87,6 +87,11 @@ def framing_filter(framing, width, height, rate, label="framing"):
         if framing.mode == "zoomfill":
             x, y = (_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
             foreground_crop = f"crop=w={framing.width}:h={framing.height}:x='{x}':y='{y}':exact=1,"
+        # The planner's exact even size: force_original_aspect_ratio rounds to
+        # the nearest row pair, which put the sharp picture up to 2 rows into
+        # a caption band planned from the floor.
+        fw, fh = framing.foreground_size(width, height)
+        ox, oy = framing.foreground_origin(width, height)
         return (normal + f"split=2[{label}_fg][{label}_bg];\n"
                 f"[{label}_bg]scale={bw}:{bh}:force_original_aspect_ratio=increase,"
                 f"crop={bw}:{bh}:exact=1,gblur=sigma=12:steps=2,"
@@ -96,12 +101,12 @@ def framing_filter(framing, width, height, rate, label="framing"):
                 "format=yuv420p,"
                 "lutyuv=y='16+(val-16)*0.55':u='128+(val-128)*0.65':v='128+(val-128)*0.65',"
                 f"scale={width}:{height},setsar=1[{label}_back];\n"
-                f"[{label}_fg]{foreground_crop}scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
+                f"[{label}_fg]{foreground_crop}scale={fw}:{fh},"
                 f"setsar=1[{label}_front];\n"
                 # The main/background CFR stream owns EOF. Restore the exact
                 # clock after framesync: without it FFmpeg 6's downstream
                 # concat/fps drops the last frame despite overlay emitting it.
-                f"[{label}_back][{label}_front]overlay=x=(W-w)/2:y=(H-h)/2:eof_action=repeat:shortest=0:repeatlast=1:format=yuv420,"
+                f"[{label}_back][{label}_front]overlay=x={ox}:y={oy}:eof_action=repeat:shortest=0:repeatlast=1:format=yuv420,"
                 f"setsar=1,format=yuv420p,settb=expr=1/({rate}),setpts=N")
     x, y = (_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
     # exact=1 avoids chroma-subsampling rounding of crop size/origin. The final

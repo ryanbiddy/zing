@@ -50,10 +50,13 @@ def test_hd_intermediate_reaches_target_without_exceeding_it():
     assert f.assessments[0].reasons  # full crop's rejected source loss is retained
 
 
-@pytest.mark.parametrize('mode', ['fill', 'reframe', 'auto', 'zoomfill'])
-def test_top_at_source_edge_and_headroom_are_never_clipped(mode):
+# A centered fill crop would cut the nose, so explicit fill falls back to zoomfill.
+@pytest.mark.parametrize('mode,expected', [('fill', 'zoomfill'), ('reframe', 'reframe'),
+                                           ('auto', 'reframe'), ('zoomfill', 'zoomfill')])
+def test_top_at_source_edge_and_headroom_are_never_clipped(mode, expected):
     rocket = track('saliency-rocket', Box(.46, 0, .08, .9))
     f = select_framing(mode, 640, 360, 1080, 1920, clip(), [rocket], max_upscale=6)
+    assert f.mode == expected
     for frame in range(60):
         _, cy = f.center_at(frame / 30)
         assert cy - f.height / 2 == 0
@@ -107,8 +110,25 @@ def test_size_heuristic_is_disclosed_and_equal_faces_remain_unknown():
     equal = select_framing('auto', 640, 360, 360, 640, clip(6), tracks, speech_words=words)
     assert all(t.face_track_id is None for t in equal.speaker_turns)
     tracks[0] = track('face-left', Box(.25, .15, .2, .4), 6)
-    large = select_framing('auto', 640, 360, 360, 640, clip(6), tracks, speech_words=words)
+    # One speaker label: the dominant face is a disclosed, uncalibrated guess.
+    single = [replace(w, speaker='A') for w in words]
+    large = select_framing('auto', 640, 360, 360, 640, clip(6), tracks, speech_words=single)
+    assert [t.face_track_id for t in large.speaker_turns] == ['face-left', 'face-left']
     assert all(t.confidence == .55 and 'heuristic' in t.method for t in large.speaker_turns)
+    # Two speakers: size alone would make the big face "the speaker" for both,
+    # framing B's turn on A's face. The association must be one-to-one.
+    both = select_framing('auto', 640, 360, 360, 640, clip(6), tracks, speech_words=words)
+    assert all(t.face_track_id is None and 'ambiguous' in t.method for t in both.speaker_turns)
+    assert both.assessments[-1].subject_coverage >= .98  # every face is kept in the two-shot
+
+
+def test_partially_visible_face_blocks_the_only_face_heuristic():
+    tracks, words = dialogue()
+    words = [replace(w, face_track_id=None, speaker='A') for w in words]
+    # face-right appears only for the second half of the first turn.
+    tracks[1] = FaceTrack('face-right', [Keyframe(.5, Box(.6, .2, .1, .25)), Keyframe(6, Box(.6, .2, .1, .25))], .9)
+    f = select_framing('auto', 640, 360, 360, 640, clip(6), tracks, speech_words=words)
+    assert f.speaker_turns[0].face_track_id is None
 
 
 def test_speech_evidence_roundtrip_delivery_cut_reset_and_v1_guard():
@@ -139,3 +159,88 @@ def test_zoomfill_rejects_foreground_taller_than_output():
     f = centered_framing('zoomfill', 360, 640, 1080, 1080)
     with pytest.raises(ValueError, match='output height'):
         f.validate_output(1080, 1080, 1)
+
+
+@pytest.mark.parametrize('sw,sh,width,height,mode', [(1080, 1920, 1920, 1080, 'reframe'),
+                                                     (1080, 1920, 1080, 1080, 'reframe'),
+                                                     (1440, 1080, 1920, 1080, 'auto')])
+def test_crop_follows_a_low_subject_vertically_without_losing_headroom(sw, sh, width, height, mode):
+    # A face in the lower part of a taller source. One vertical position per
+    # shot must still contain it (REFRAME2 pinned the crop at or above center).
+    face = track('face-low', Box(.4, .74, .15, .18))
+    f = select_framing(mode, sw, sh, width, height, clip(), [face])
+    assert f.mode == 'reframe'
+    a = f.assessments[-1]
+    assert a.subject_coverage >= .98 and a.headroom_safe
+    top = f.center_at(1)[1] - f.height / 2
+    assert top <= face.keyframes[0].box.y * sh - .02 * sh and top + f.height >= face.keyframes[0].box.bottom * sh
+
+
+def test_speaker_hold_is_checked_through_the_silence_it_holds():
+    # One early word, then the only face walks across the frame in silence.
+    walk = FaceTrack('face-a', [Keyframe(i, Box(.1 + .07 * i, .2, .1, .25)) for i in range(11)], .9)
+    words = [SpeechWord('s', 'Hi', .2, .5, 'A', 'face-a')]
+    from myzing.layout.types import box_at
+    for mode in ('auto', 'reframe', 'zoomfill'):
+        f = select_framing(mode, 640, 360, 360, 640, clip(10), [walk], speech_words=words)
+        for frame in range(0, 300, 5):
+            t = frame / 30
+            box = output_box(box_at(walk.keyframes, t), f, t, 360, 640)
+            assert box is not None, (mode, t)
+        assert f.assessments[-1].subject_coverage >= .98
+        assert 'speaker hold failed' in f.speaker_turns[0].method
+
+
+def test_width_search_skips_impossible_widths_and_matches_exhaustive(monkeypatch):
+    from myzing.layout import crop_planner
+    def edge_pair(duration):
+        return [FaceTrack(name, [Keyframe(i / 2, Box(x + .005 * (i % 3), .2, .1, .2)) for i in range(int(duration * 2) + 1)], .9)
+                for name, x in (('face-a', .01), ('face-b', .88))]
+    calls = []
+    real = crop_planner._assess
+    monkeypatch.setattr(crop_planner, '_assess', lambda *a, **k: calls.append(1) or real(*a, **k))
+    f = select_framing('auto', 1920, 1080, 1080, 1920, clip(10), edge_pair(10))
+    assert f.mode == 'zoomfill' and f.assessments[-1].subject_coverage >= .98
+    assert len(calls) < 40  # REFRAME2 assessed ~1,050 widths (17 s for a 30 s clip).
+    # Pruning only removes widths that cannot pass anywhere: same choice as
+    # the exhaustive scan across positions, motion and speaker evidence.
+    cases = [([track('face', Box(.05, .2, .3, .5), 3)], ()),
+             (edge_pair(3), ()),
+             ([FaceTrack('face-m', [Keyframe(0, Box(.1, .2, .1, .2)), Keyframe(3, Box(.75, .2, .1, .2))], .9)], ()),
+             (dialogue()[0], dialogue()[1])]
+    for tracks, words in cases:
+        pruned = select_framing('auto', 640, 360, 360, 640, clip(3 if not words else 6), tracks, speech_words=words)
+        monkeypatch.setattr(crop_planner, '_zoomfill_floor', lambda *a: 0)
+        exhaustive = select_framing('auto', 640, 360, 360, 640, clip(3 if not words else 6), tracks, speech_words=words)
+        monkeypatch.undo()
+        monkeypatch.setattr(crop_planner, '_assess', real)
+        assert (pruned.mode, pruned.width, pruned.keyframes) == (exhaustive.mode, exhaustive.width, exhaustive.keyframes)
+    evidence = crop_planner.Evidence(clip(3), edge_pair(3), 30, 640, 360)
+    assert crop_planner._zoomfill_floor(evidence, [], 640) > 290  # The edge pair really prunes widths.
+    # The one-pass sampler is Framing.center_at.
+    f = select_framing('reframe', 640, 360, 360, 640, clip(3), cases[2][0])
+    times = [i / 30 for i in range(91)]
+    assert crop_planner._centers(f, times) == [f.center_at(t) for t in times]
+
+
+def test_safe_vertical_default_caption_stays_v1_and_unsafe_one_gets_the_plate(monkeypatch):
+    from myzing.layout import framing as layout_framing
+    from myzing.layout.framing import default_caption_box
+    ink = (-120, -60, 120, 60)  # Deterministic stand-in for the measured 118% default.
+    monkeypatch.setattr(layout_framing, 'measure_default_ink', lambda *a, **k: ink)
+    c = CompositionClip('s', 0, 3, 0, id='c', asset_id='s')
+    captions = [CompositionCaption(id='clear', text='HI THERE', start=.2, end=1, word_timed=False),
+                CompositionCaption(id='covered', text='HI THERE', start=1.5, end=2.5, word_timed=False)]
+    plan = Composition(assets=[AssetRef('s', 's', None)], clips=[c], captions=captions, width=1080, height=1920)
+    default = default_caption_box(captions[0], 1080, 1920, ink)
+    face = FaceTrack('face', [Keyframe(1.4, default), Keyframe(3, default)])
+    place_captions(plan, {'s': [face]}, {'s': (1080, 1920)}, keep_safe_defaults=True)
+    clear, covered = plan.captions
+    assert clear.layout is None and clear.style is None  # Unchanged: still lowers to v1.
+    assert covered.layout is not None and covered.layout.overlap.safe and covered.style.box_color == '#111111'
+
+
+def test_zoomfill_needs_no_integer_aspect_crop():
+    from myzing.layout.framing import centered_framing
+    f = centered_framing('zoomfill', 640, 12, 1080, 1920)  # 12 rows < 16: no 9:16 integer crop exists.
+    assert (f.width, f.height) == (640, 12)

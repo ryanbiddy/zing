@@ -371,7 +371,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v4", repair_asr, "aspect-auto-blurfill-people-v5", caps["layout"]], direct)
+                                                 "continuity-v4", repair_asr, "aspect-zoomfill-speakers-v6", caps["layout"]], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["source_asr"] = planned["summary"].get("source_asr", [])
@@ -417,7 +417,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     write(evidence_path, analysis)
                     return {"plans": outputs, "outputs": [*outputs.values(), str(evidence_path)]}
                 adapted = checkpoints.step("aspects-" + label, [projects.hash_file(Path(plan_path)), all_plans, delivery_aspects,
-                                                               caps, "aspect-delivery-v2"], adapt)
+                                                               caps, "aspect-delivery-v3"], adapt)
                 plans_to_render.update(adapted["plans"])
         for label, plan_path in plans_to_render.items():
             row = {"status": "failed"}

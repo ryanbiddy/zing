@@ -18,46 +18,142 @@ def _headroom(box, source_height):
     return max(0, box.y * source_height - max(.02 * source_height, .08 * box.height * source_height))
 
 
-def track_framing(framing, clip, tracks, speech_words=(), *, fps=30):
+class Evidence:
+    """Per-output-frame subject geometry of one clip, independent of the crop.
+
+    Width searches assess many windows over the same frames; the boxes, their
+    pixel edges and headroom lines are interpolated once here, not per width.
+    """
+
+    def __init__(self, clip, tracks, fps, source_width, source_height):
+        self.frames = []
+        for frame in range(max(1, math.ceil(clip.duration * fps))):
+            local = min(clip.duration - 1e-7, frame / fps)
+            source = clip.source_at(clip.timeline_start + local)
+            boxes = []
+            for track in _subjects_at(tracks, source):
+                b = box_at(track.keyframes, source)
+                boxes.append((track.id, b.x * source_width, b.y * source_height, b.right * source_width,
+                              b.bottom * source_height, b.width * source_width * b.height * source_height,
+                              _headroom(b, source_height)))
+            self.frames.append((local, boxes))
+        self.targets = {}  # (clip-local time, identity) -> raw target, shared by every width.
+        self.vertical = None
+
+
+def _hold_turn(turns, local):
+    """The turn whose subject the window holds at this time, or None while it
+    moves between different subjects (a disclosed move during silence)."""
+    current = next((t for t in turns if t.start <= local < t.end), None)
+    if current is not None:
+        return current
+    before = next((t for t in reversed(turns) if t.end <= local), None)
+    after = next((t for t in turns if t.start > local), None)
+    if before is None or after is None:
+        return before or after  # Leading/trailing silence holds the nearest turn's subject.
+    return before if before.face_track_id == after.face_track_id else None
+
+
+def _required(turns, local, boxes):
+    """Subjects that must stay visible at this frame under speaker-held framing."""
+    turn = _hold_turn(turns, local)
+    if turn is None:
+        return None
+    if turn.face_track_id is None:
+        return boxes
+    return [b for b in boxes if b[0] == turn.face_track_id] or boxes
+
+
+def _centers(framing, times):
+    """Framing.center_at for nondecreasing times, in one pass over the keys."""
+    keys = framing.keyframes
+    if not keys:
+        return [(framing.center_x, framing.center_y)] * len(times)
+    result, i = [], 0
+    for time in times:
+        while i < len(keys) - 1 and time > keys[i + 1].time:
+            i += 1
+        if i == len(keys) - 1:
+            result.append((keys[-1].center_x, keys[-1].center_y))
+            continue
+        a, b = keys[i], keys[i + 1]
+        u = max(0, min(1, (time - a.time) / (b.time - a.time)))
+        u = u * u * (3 - 2 * u)
+        result.append((a.center_x + (b.center_x - a.center_x) * u, a.center_y + (b.center_y - a.center_y) * u))
+    return result
+
+
+def _vertical(clip, tracks, source_height):
+    """Highest headroom line of any subject and the preferred subjects' vertical span."""
+    in_range = [t for t in tracks if t.keyframes[0].time <= clip.src_out and t.keyframes[-1].time >= clip.src_in]
+    people = any(not t.id.startswith("saliency-") for t in in_range)
+    boxes, preferred = [], []
+    for t in in_range:
+        for time in (max(clip.src_in, t.keyframes[0].time), min(clip.src_out, t.keyframes[-1].time),
+                     *[k.time for k in t.keyframes if clip.src_in < k.time < clip.src_out]):
+            box = box_at(t.keyframes, time)
+            boxes.append(box)
+            if not people or not t.id.startswith("saliency-"):
+                preferred.append(box)
+    line = min((_headroom(b, source_height) for b in boxes), default=0)
+    span = ((min(b.y for b in preferred) * source_height, max(b.bottom for b in preferred) * source_height)
+            if preferred else None)
+    return line, span
+
+
+def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_speakers=True, evidence=None):
+    """Bounded crop motion for reframe/zoomfill.
+
+    follow_speakers=False keeps any speaker turns for disclosure but frames
+    every subject (the two-shot), e.g. after a speaker hold failed coverage.
+    """
     if framing.mode not in ("reframe", "zoomfill"):
         return framing
+    cache = evidence.targets if evidence is not None else {}
     times = sorted({0.0, clip.duration, *[output_time(clip, k.time) for t in tracks for k in t.keyframes
                                        if clip.src_in < k.time < clip.src_out]})
     if len(times) > 256:
         times = [clip.duration * i / 255 for i in range(256)]
     confidences, methods = [], set()
-    # One vertical position protects the highest measured top over the shot.
+    # One vertical position per shot: center the subjects' vertical span, but
+    # never let the crop top fall below the highest subject's headroom line.
     # Smoothing must never average away the rocket nose/headroom bound.
-    boxes = [box_at(t.keyframes, time) for t in tracks
-             for time in (max(clip.src_in, t.keyframes[0].time),
-                          min(clip.src_out, t.keyframes[-1].time),
-                          *[k.time for k in t.keyframes if clip.src_in < k.time < clip.src_out])
-             if clip.src_in <= time <= clip.src_out and t.keyframes[0].time <= time <= t.keyframes[-1].time]
-    top = min((_headroom(b, framing.source_height) for b in boxes), default=0)
+    if evidence is not None and evidence.vertical is not None:
+        line, span = evidence.vertical
+    else:
+        line, span = _vertical(clip, tracks, framing.source_height)
+        if evidence is not None:
+            evidence.vertical = line, span
     allowed = framing.bounds
-    cy = min(framing.source_height / 2, top + framing.height / 2)
+    desired = (span[0] + span[1]) / 2 if span else framing.source_height / 2
+    cy = min(desired - framing.height / 2, line) + framing.height / 2
     cy = max(allowed.y + framing.height / 2, min(allowed.y + allowed.height - framing.height / 2, cy))
 
     def target(local, identity=None):
-        source = min(clip.src_out - 1e-7, clip.source_at(clip.timeline_start + local))
-        active = _subjects_at(tracks, source)
-        selected = [t for t in active if t.id == identity] if identity else active
-        if selected:
-            box = union([box_at(t.keyframes, source) for t in selected])
-            x = box.center[0] * framing.source_width
-            confidences.append(min(t.confidence for t in selected))
-            methods.update("saliency" if t.id.startswith("saliency-") else
-                           "people-hog" if t.id.startswith("person-") else "yunet" for t in selected)
-        else:
-            x = framing.source_width / 2
-            confidences.append(0)
-            methods.add("center/hold")
+        key = (local, identity)
+        if key not in cache:
+            source = min(clip.src_out - 1e-7, clip.source_at(clip.timeline_start + local))
+            active = _subjects_at(tracks, source)
+            selected = [t for t in active if t.id == identity] if identity else active
+            if selected:
+                box = union([box_at(t.keyframes, source) for t in selected])
+                cache[key] = (box.center[0] * framing.source_width, min(t.confidence for t in selected),
+                              {"saliency" if t.id.startswith("saliency-") else
+                               "people-hog" if t.id.startswith("person-") else "yunet" for t in selected})
+            else:
+                cache[key] = (framing.source_width / 2, 0, {"center/hold"})
+        x, confidence, found = cache[key]
+        confidences.append(confidence)
+        methods.update(found)
         return min(allowed.x + allowed.width - framing.width / 2,
                    max(allowed.x + framing.width / 2, x)), cy
 
     turns = speaker_turns(clip, tracks, speech_words)
     keys, dialogue_failed = [], False
-    if turns and any(t.face_track_id for t in turns):
+    failure = "insufficient silent gap for bounded move; retain two-shot"
+    if turns and any(t.face_track_id for t in turns) and not follow_speakers:
+        dialogue_failed, failure = True, "speaker hold failed subject checks; follow all subjects"
+    elif turns and any(t.face_track_id for t in turns):
         # Hold through spoken turns; move only in the intervening silence.
         for turn in turns:
             x, y = target((turn.start + turn.end) / 2, turn.face_track_id)
@@ -79,8 +175,8 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30):
         if not dialogue_failed and keys[-1].time < clip.duration:
             keys.append(CropKeyframe(clip.duration, keys[-1].center_x, keys[-1].center_y))
     if dialogue_failed:
-        turns = [replace(t, face_track_id=None, confidence=0,
-                         method="insufficient silent gap for bounded move; retain two-shot") for t in turns]
+        turns = [replace(t, face_track_id=None, confidence=0, method=failure) for t in turns]
+        confidences, methods = [], set()
     if not keys or dialogue_failed:
         targets = [target(t) for t in times]
         smooth = [targets[i] if i in (0, len(targets) - 1) else
@@ -106,39 +202,44 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30):
                    warnings=warnings, speaker_turns=turns)
 
 
-def _assess(candidate, width, height, clip, tracks, fps):
+def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
     from .framing import visible_content
     sw, sh = candidate.source_width, candidate.source_height
+    evidence = evidence or Evidence(clip, tracks, fps, sw, sh)
     content = visible_content(candidate, width, height)
-    scale = (min(width / sw, height / sh) if candidate.mode in ("fit", "blurfill") else
-             width / candidate.width if candidate.mode == "zoomfill" else
-             max(width / candidate.width, height / candidate.height))
+    if candidate.mode == "zoomfill":
+        fw, fh = candidate.foreground_size(width, height)
+        scale = max(fw / candidate.width, fh / candidate.height)
+    else:
+        scale = (min(width / sw, height / sh) if candidate.mode in ("fit", "blurfill") else
+                 max(width / candidate.width, height / candidate.height))
     area = candidate.width * candidate.height / (sw * sh)
     coverage, missing, headroom = 1.0, False, True
     full_picture = candidate.mode in ("fit", "blurfill")
-    for frame in range(max(1, math.ceil(clip.duration * fps))):
-        local = min(clip.duration - 1e-7, frame / fps)
-        source = clip.source_at(clip.timeline_start + local)
-        active = _subjects_at(tracks, source)
-        turn = next((t for t in candidate.speaker_turns if t.start <= local < t.end), None)
-        if turn and turn.face_track_id:
-            active = [t for t in active if t.id == turn.face_track_id]
-        elif candidate.speaker_turns and any(t.face_track_id for t in candidate.speaker_turns) and turn is None:
-            # A disclosed speaker move during silence may omit the other face.
-            continue
-        if not active:
+    turns = candidate.speaker_turns
+    identified = any(t.face_track_id for t in turns)
+    centers = ([None] * len(evidence.frames) if full_picture else
+               _centers(candidate, [local for local, _ in evidence.frames]))
+    for (local, boxes), center in zip(evidence.frames, centers):
+        if identified:
+            # Speaker-held framing must keep the held subject during turns and
+            # during the silences it holds through; only a move between two
+            # different subjects is exempt (disclosed).
+            boxes = _required(turns, local, boxes)
+            if boxes is None:
+                continue
+        if not boxes:
             missing = True
         if full_picture:
             continue
-        cx, cy = candidate.center_at(local)
+        cx, cy = center
         left, top = math.floor(cx - candidate.width / 2), math.floor(cy - candidate.height / 2)
         right, bottom = left + candidate.width, top + candidate.height
-        for track in active:
-            box = box_at(track.keyframes, source)
-            iw = max(0, min(right, box.right * sw) - max(left, box.x * sw))
-            ih = max(0, min(bottom, box.bottom * sh) - max(top, box.y * sh))
-            coverage = min(coverage, iw * ih / (box.width * sw * box.height * sh))
-            headroom &= top <= _headroom(box, sh) + 1e-6
+        for _, x0, y0, x1, y1, box_area, line in boxes:
+            iw = max(0, min(right, x1) - max(left, x0))
+            ih = max(0, min(bottom, y1) - max(top, y0))
+            coverage = min(coverage, iw * ih / box_area)
+            headroom &= top <= line + 1e-6
     reasons = []
     if scale > candidate.max_upscale + 1e-9:
         reasons.append(f"crop enlargement {scale:.3f}x exceeds {candidate.max_upscale:g}x")
@@ -158,10 +259,36 @@ def _assess(candidate, width, height, clip, tracks, fps):
                           scale, area, min(1.0, coverage), headroom, missing, reasons)
 
 
+def _zoomfill_floor(evidence, turns, source_width):
+    """Narrowest full-height window that could pass coverage/evidence checks.
+
+    Uses the least demanding subject set (speaker-held turns); the two-shot
+    fallback only adds subjects. 98% box coverage needs the window to reach
+    each box's inner 98%, whatever its position, so narrower widths fail.
+    """
+    identified = any(t.face_track_id for t in turns)
+    need, missing = 0.0, False
+    for local, boxes in evidence.frames:
+        if identified:
+            boxes = _required(turns, local, boxes)
+            if boxes is None:
+                continue
+        if not boxes:
+            missing = True
+            continue
+        need = max(need, max(x1 - .02 * (x1 - x0) for _, x0, _, x1, *_ in boxes)
+                   - min(x0 + .02 * (x1 - x0) for _, x0, _, x1, *_ in boxes))
+    floor = max(math.floor(need) - 1, math.ceil(.30 * source_width) - 1)
+    if missing:
+        floor = max(floor, math.ceil(source_width * 2 / 3) - 1)
+    return floor
+
+
 def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscale=2.5, fps=30, speech_words=()):
     """Largest admissible sharp picture: full crop, <=70%-height zoomfill, full fit."""
     from .framing import centered_framing, framing_mode
     assessments = []
+    evidence = Evidence(clip, tracks, fps, sw, sh)
 
     def finish(candidate, assessment, reason):
         notes = [*candidate.warnings, reason,
@@ -175,23 +302,34 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
             notes.append("The 50-70% sharp-height target is infeasible under the enlargement/subject limits; retained the largest admissible intermediate crop.")
         return replace(candidate, assessments=[*assessments, assessment], warnings=notes)
 
+    def plan(candidate, acceptable):
+        """Speaker-held framing first; if it fails, the same window following all subjects."""
+        f = track_framing(candidate, clip, tracks, speech_words, fps=fps, evidence=evidence)
+        a = _assess(f, width, height, clip, tracks, fps, evidence)
+        if not acceptable(f, a) and any(t.face_track_id for t in f.speaker_turns):
+            g = track_framing(candidate, clip, tracks, speech_words, fps=fps, follow_speakers=False, evidence=evidence)
+            b = _assess(g, width, height, clip, tracks, fps, evidence)
+            if acceptable(g, b):
+                return g, b
+        return f, a
+
     mode = framing_mode(requested, sw, sh, width, height)
     if mode in ("fit", "blurfill"):
         f = replace(centered_framing(mode, sw, sh, width, height), max_upscale=max_upscale,
                     method="aspect-match" if requested == "auto" else "user-specified", warnings=[])
-        return finish(f, _assess(f, width, height, clip, tracks, fps), "Entire source picture retained.")
+        return finish(f, _assess(f, width, height, clip, tracks, fps, evidence), "Entire source picture retained.")
     if requested != "zoomfill":
-        try:
-            f = track_framing(replace(centered_framing(mode, sw, sh, width, height), max_upscale=max_upscale),
-                              clip, tracks, speech_words, fps=fps)
-            a = _assess(f, width, height, clip, tracks, fps)
+        def explicit_ok(f, a):
             # Explicit crops override quality/context checks, but not headroom.
             dialogue_safe = not f.speaker_turns or a.subject_coverage >= .98
             # Reframe promises subject following. With no subject evidence it
             # must not force a large blind crop (the diagonal rocket's nose can
             # leave through a side edge, even when every source row survives).
             evidence_safe = requested != "reframe" or not a.evidence_gaps or a.retained_area >= .90
-            if (requested != "auto" and a.headroom_safe and dialogue_safe and evidence_safe) or not a.reasons:
+            return (requested != "auto" and a.headroom_safe and dialogue_safe and evidence_safe) or not a.reasons
+        try:
+            f, a = plan(replace(centered_framing(mode, sw, sh, width, height), max_upscale=max_upscale), explicit_ok)
+            if explicit_ok(f, a):
                 return finish(f, a, f"Selected {mode} ({requested}).")
             assessments.append(a)
         except ValueError as exc:
@@ -204,25 +342,28 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
         minimum = max(minimum, math.ceil(sw * 2 / 3))
     if sw / sh > width / height and minimum < sw:
         base = centered_framing("zoomfill", sw, sh, width, height)
+        rejected = None
 
         def evaluate(cw):
             f = replace(base, width=cw, center_x=sw / 2, max_velocity=min(cw, sh) * .5,
                         keyframes=[CropKeyframe(0, sw / 2, sh / 2)], max_upscale=max_upscale)
-            f = track_framing(f, clip, tracks, speech_words, fps=fps)
-            return f, _assess(f, width, height, clip, tracks, fps)
+            return plan(f, lambda f, a: not a.reasons)
 
         # Test widths in sharp-picture-size order. Coverage under a velocity
         # limited moving window need not be monotone, so binary search could
-        # skip a larger admissible picture. Keep only the first rejected
-        # intermediate assessment plus the accepted one in the saved plan.
-        for cw in range(minimum, sw):
+        # skip a larger admissible picture. Widths below the coverage/evidence
+        # floor cannot pass at any position and are not evaluated. Keep only
+        # the first rejected intermediate assessment plus the accepted one.
+        start = max(minimum, _zoomfill_floor(evidence, speaker_turns(clip, tracks, speech_words), sw))
+        for cw in [minimum, *range(max(minimum + 1, start), sw)]:
             f, a = evaluate(cw)
             if not a.reasons:
                 return finish(f, a, "Selected zoomfill: largest admissible intermediate picture, target 70% height; "
                               + "; ".join(r for prior in assessments for r in prior.reasons))
-            if cw == minimum:
+            if rejected is None:
+                rejected = a
                 assessments.append(a)
     f = replace(centered_framing("blurfill", sw, sh, width, height), max_upscale=max_upscale,
                 method="auto-blurfill" if requested == "auto" else "subject-safe-fallback", warnings=[])
-    return finish(f, _assess(f, width, height, clip, tracks, fps),
+    return finish(f, _assess(f, width, height, clip, tracks, fps, evidence),
                   "Selected blurfill: " + "; ".join(r for a in assessments for r in a.reasons))

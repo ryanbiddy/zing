@@ -12,6 +12,9 @@ darkened copy of the same frames. Its background is blurred at quarter delivery
 resolution, converted to 8-bit 4:2:0, darkened to 55% luma above black, and
 desaturated to 65%. The conversion keeps 10-bit, RGB and full-range sources
 neutral. Source-baked mattes can remain; framing does not reconstruct detail.
+Blurfill and zoomfill scale the sharp picture to an explicit even size (the
+planned size, never rounded up) at an even origin, so caption bands, coverage
+reports and rendered rows agree exactly on FFmpeg 6.1.1 and 8.1.2.
 
 Set brief `framing` to `auto` (default), `fit`, `fill`, `reframe`, `zoomfill`, or `blurfill`:
 
@@ -60,6 +63,9 @@ Auto evaluates display-oriented, square-pixel geometry in this order:
    Width starts at `ceil(max(output_width / max_upscale,
    output_width * source_height / (0.70 * output_height)))`. Widen the window
    until it retains the required subjects. Source height is never cropped.
+   Widths narrower than the subjects' inner 98% spans (or two thirds of the
+   source when evidence has gaps) cannot pass at any position and are skipped,
+   so a two-shot search assesses tens of widths, not every pixel width.
 4. Use full-picture blurfill if no intermediate crop passes, or if the source
    is narrower than the output. Fit remains available as an explicit choice.
 
@@ -121,8 +127,11 @@ seconds. Keys start at zero, increase, and stay within clip duration; at most
 velocity and peak speed 1.5 times distance divided by elapsed time.
 Validation enforces Euclidean `max_velocity`; the planner uses half the smaller
 crop dimension per second, averages neighboring targets and limits steps.
-The vertical center protects the highest measured top in the shot; smoothing
-cannot average that constraint away. Zoomfill keeps the full source height,
+The vertical position is one value per shot: it centers the vertical span of the
+shot's faces and people (objects when there are none), then moves up only as far
+as the highest measured top's headroom line requires, so a low subject in a
+portrait or 4:3 source stays in a 16:9 crop. With no evidence the crop is
+top-aligned. Smoothing cannot average the headroom away. Zoomfill keeps the full source height,
 which also preserves a rocket nose at the top edge when detection fails.
 Fast subjects can outrun horizontal tracking. Acceleration is not separately limited.
 
@@ -135,11 +144,19 @@ them; ordinary ASR words contain no speaker identity and do not invent one.
 For a named speaker, use the supplied face-track association when that track
 covers the turn. Without a supplied association, the face-size heuristic chooses
 the only face, or a face with at least 1.5 times the next-largest median box area
-during the words. Its confidence is **0.55**, explicitly uncalibrated; size does
-not establish identity. An ambiguous, missing or overlapping speaker retains
-all visible people. Nearby words from one speaker form a turn (gap at most 0.8s).
+during the words, when no other face appears during the turn. Its confidence is
+**0.55**, explicitly uncalibrated; size does not establish identity. The
+heuristic must be one-to-one within a clip: if it would give one face to two
+speaker labels (the bigger face "speaking" for everyone) or two faces to one
+label, those turns retain the two-shot. An ambiguous, missing or overlapping
+speaker retains all visible people. Nearby words from one speaker form a turn (gap at most 0.8s).
 The window holds during that turn. It moves with smoothstep only between turns,
 after the preceding word's ceiling frame and before the next word's floor frame.
+Coverage is checked for the held subject during turns and during the silences
+the window holds through (before the first turn, after the last, and between
+turns of one subject); only a move between two different subjects is exempt.
+If the held plan fails, the same window follows all subjects instead, and the
+turns record "speaker hold failed subject checks".
 If the silence is too short for the velocity limit, retain the two-shot for the
 clip. Source-shot splits permit hard re-centering on a cut. `speaker_turns`
 records clip-local times, association, method and confidence in the framing plan.
@@ -185,6 +202,11 @@ Caption planning uses the sharp picture and generic output-frame reserves.
 For vertical blurfill/zoomfill, prefer the lower blur band if the complete caption
 fits there throughout its event; otherwise try the upper band, then the sharp
 picture. The band must fit the estimated wrapped text with its outline and plate.
+Every placed vertical caption is then measured with the positioned renderer's
+own libass probe (text and outline at the layout scale plus the plate padding);
+if the 0.8 em estimate was short, as with bold W, the text shrinks until the
+measured ink fits the placed box, which never moves or grows. The scope records
+"measured libass ink+plate fits the box"; a custom font is measured at render.
 Fit's black padding is not caption content. A caption's overlap scope records
 which region was used. No text crosses a sharp/blur boundary.
 
@@ -204,7 +226,8 @@ infeasible results stay unsafe.
 
 Default font size is the output short side divided by 18. Vertical captions use
 at least a short-side/270 black stroke (4 px at 1080) and a dark `#111111` plate
-when no plate was supplied. This also strengthens thin reference fonts on busy
+when no plate was supplied, but only once a caption is placed: the measured
+safe-default check below runs first, so a safe 9:16 default stays v1. This also strengthens thin reference fonts on busy
 footage. Square and landscape retain their existing style defaults. Explicit sizes and
 outlines scale by the short-side ratio during adaptation, clamped to the
 caption contract (1–512 px size, 0–20 px outline). Preliminary wrapping
