@@ -457,7 +457,11 @@ def draft_for_slug(slug: str, direction: dict[str, Any]) -> DraftResult:
         raise AssembleError(
             f"no stored media for '{slug}' — re-run 'zing study' first"
         )
-    result = draft_edl(breakdown, direction, media)
     target = storage.breakdown_dir(slug) / "draft-edl.json"
+    result = draft_edl(breakdown, direction, media)
+    # The saved EDL travels with its media. Never serialize a workspace-
+    # relative path: render interprets every relative src from the EDL.
+    for clip in result.edl.clips:
+        clip.src = media.relative_to(target.parent).as_posix()
     target.write_text(result.edl.to_json(indent=2) + "\n", encoding="utf-8")
     return result

@@ -89,9 +89,47 @@ def _resolve_media(raw_path: str, base_dir: Path, field: str) -> Path:
     if not path.is_absolute():
         path = base_dir / path
     path = path.resolve()
-    if not path.is_file():
-        raise EDLValidationError(f"{field} does not exist: {path}")
+    _require_media(path, field)
     return path
+
+
+def _require_media(path: Path, field: str) -> None:
+    if not path.is_file():
+        raise EDLValidationError(
+            f"{field} does not exist: {path}. Restore the file at this path "
+            "or update the EDL src to its new location (relative to the EDL "
+            "file, or absolute). Move the EDL and its assets together."
+        )
+
+
+def resolve_assets(
+    edl: EDL, base_dir: Path, *,
+    resolved_assets: dict[str, Path] | None = None,
+) -> dict[str, Path]:
+    """Resolve and check ALL asset references before any media work.
+
+    Relative src values belong to the EDL directory; legacy absolute
+    paths remain supported. The returned map can cross a worker boundary
+    or a synthesis stage without resolving the same references again.
+    """
+    paths: dict[str, Path] = {}
+    for kind, specs in (("clips", edl.clips), ("audio", edl.audio)):
+        for index, spec in enumerate(specs):
+            if isinstance(spec.src, str) and spec.src in paths:
+                continue
+            label = f"{kind}[{index}].src"
+            if (
+                isinstance(spec.src, str)
+                and resolved_assets is not None
+                and spec.src in resolved_assets
+            ):
+                path = resolved_assets[spec.src]
+                # A queued job's assets can disappear before its worker runs.
+                _require_media(path, label)
+            else:
+                path = _resolve_media(spec.src, base_dir, label)
+            paths[spec.src] = path
+    return paths
 
 
 def _validate_caption(
@@ -168,7 +206,10 @@ def _validate_caption(
         previous_end = word_end
 
 
-def validate_edl(edl: EDL, base_dir: Path, probe: Probe) -> ValidatedEDL:
+def validate_edl(
+    edl: EDL, base_dir: Path, probe: Probe, *,
+    resolved_assets: dict[str, Path] | None = None,
+) -> ValidatedEDL:
     """Resolve media and reject every malformed Sprint 1 timeline."""
     if edl.schema_version != 1:
         raise EDLValidationError(
@@ -192,7 +233,7 @@ def validate_edl(edl: EDL, base_dir: Path, probe: Probe) -> ValidatedEDL:
     if fps <= 0:
         raise EDLValidationError("fps must be greater than zero")
 
-    base_dir = base_dir.resolve()
+    paths = resolve_assets(edl, base_dir, resolved_assets=resolved_assets)
     cache: dict[Path, MediaInfo] = {}
 
     def inspect(path: Path) -> MediaInfo:
@@ -226,7 +267,7 @@ def validate_edl(edl: EDL, base_dir: Path, probe: Probe) -> ValidatedEDL:
                 f"to {timeline_start:.3f}s"
             )
 
-        path = _resolve_media(clip.src, base_dir, f"{label}.src")
+        path = paths[clip.src]
         media = inspect(path)
         if not media.has_video:
             raise EDLValidationError(f"{label}.src has no video stream: {path}")
@@ -267,7 +308,7 @@ def validate_edl(edl: EDL, base_dir: Path, probe: Probe) -> ValidatedEDL:
                 f"{label}.duck_under_speech is only valid for music tracks"
             )
 
-        path = _resolve_media(track.src, base_dir, f"{label}.src")
+        path = paths[track.src]
         media = inspect(path)
         if not media.has_audio:
             raise EDLValidationError(f"{label}.src has no audio stream: {path}")

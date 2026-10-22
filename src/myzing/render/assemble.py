@@ -11,6 +11,7 @@ from myzing.schemas import AudioTrack, EDL
 
 from .otio_export import OTIOExportResult, export_otio
 from .pipeline import RenderResult, render_edl
+from .validation import resolve_assets
 from .tts import (
     DEFAULT_LANGUAGE,
     DEFAULT_VOICE,
@@ -74,7 +75,8 @@ def render_assembled_edl(
 ) -> AssembleResult:
     """Synthesize scripts, render the augmented EDL, then export its timeline."""
     output_path = output_path.expanduser().resolve()
-    base_dir = (base_dir or Path.cwd()).resolve()
+    base_dir = base_dir or Path.cwd()
+    resolved_assets = resolve_assets(edl, base_dir)
     scripts = tuple(scripts)
     if scripts and provider is None:
         provider = default_tts_provider()
@@ -138,6 +140,7 @@ def render_assembled_edl(
         work_dir=work_dir,
         ffmpeg=ffmpeg,
         ffprobe=ffprobe,
+        resolved_assets=resolved_assets,
     )
     otio_result = None
     if otio_path is not None:

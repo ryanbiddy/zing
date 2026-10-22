@@ -47,13 +47,15 @@ def run(argv: list[str]) -> int:
     from myzing.profile.api import ProfileError, build_profile
     from myzing.profile.packs import PackError, build_pack
 
+    root = storage.resolve_workspace(args.workspace)
     try:
         if args.action == "pack":
-            result = build_pack(
-                args.manifest,
-                workspace=args.workspace,
-                study_missing=not args.no_study,
-            )
+            with storage.use_workspace(root):
+                result = build_pack(
+                    args.manifest,
+                    workspace=root,
+                    study_missing=not args.no_study,
+                )
             if args.json:
                 print(result.profile.to_json(indent=2))
                 return 0
@@ -70,17 +72,12 @@ def run(argv: list[str]) -> int:
             profile = build_profile(
                 args.name,
                 args.slugs,
-                workspace=args.workspace,
+                workspace=root,
                 genre=args.genre,
                 platform=args.platform,
             )
         else:
-            context = (
-                storage.use_workspace(args.workspace)
-                if args.workspace is not None
-                else storage.use_workspace(storage.workspace_root())
-            )
-            with context:
+            with storage.use_workspace(root):
                 profile = storage.load_profile(args.name)
     except (ProfileError, PackError, storage.SlugError) as exc:
         print(f"zing profile: {exc}")

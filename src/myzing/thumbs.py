@@ -916,13 +916,9 @@ def run(argv: list[str]) -> int:
         help="print the complete machine-readable package",
     )
     args = parser.parse_args(argv)
-    context = (
-        storage.use_workspace(args.workspace)
-        if args.workspace is not None
-        else storage.use_workspace(storage.workspace_root())
-    )
+    root = storage.resolve_workspace(args.workspace)
     try:
-        with context:
+        with storage.use_workspace(root):
             package = generate_thumbnails(
                 _slug_from_argument(args.video),
                 ffmpeg=args.ffmpeg,

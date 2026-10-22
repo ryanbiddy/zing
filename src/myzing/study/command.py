@@ -44,8 +44,9 @@ def run(argv: list[str]) -> int:
     from myzing.study.api import study
     from myzing.study.proc import MediaError
 
+    root = storage.resolve_workspace(args.workspace)
     try:
-        study_kwargs = {"workspace": args.workspace}
+        study_kwargs = {"workspace": root}
         if args.transitions:
             study_kwargs["detect_transitions"] = True
         if args.raw:
@@ -62,12 +63,7 @@ def run(argv: list[str]) -> int:
         return 0
 
     slug = storage.slug_for(args.source)
-    context = (
-        storage.use_workspace(args.workspace)
-        if args.workspace is not None
-        else storage.use_workspace(storage.workspace_root())
-    )
-    with context:
+    with storage.use_workspace(root):
         folder = storage.breakdown_dir(slug)
     m = breakdown.meta
     print(f"studied: {m.title or m.source_url}")

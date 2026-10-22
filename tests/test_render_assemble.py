@@ -107,6 +107,7 @@ def test_failed_tts_setup_removes_new_empty_asset_directory(tmp_path: Path) -> N
 
     output = tmp_path / "draft-vo.mp4"
     asset_dir = tmp_path / "draft-vo-assets"
+    (tmp_path / "source.mp4").write_bytes(b"video")
     edl = EDL(clips=[Clip(str(tmp_path / "source.mp4"), 0.0, 2.0, 0.0)])
 
     with pytest.raises(TTSGenerationError, match="model assets are missing"):
