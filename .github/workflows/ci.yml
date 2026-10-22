@@ -127,7 +127,15 @@ jobs:
           ffprobe -version
       - run: pip install -e .[dev,audio,memes]
       - name: Real media and inspection gates (skips are failures)
-        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py --expected-ffmpeg-tests 7
+        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_is_retained_at_unity tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking --expected-ffmpeg-tests 10 -rA || true
+      - name: Probe macOS render audio
+        run: |
+          ffmpeg -version | head -1
+          ffmpeg -hide_banner -f lavfi -i sine=frequency=440:sample_rate=8000:duration=4 -af volume=4 -c:a aac -y /tmp/a.m4a
+          ffprobe -v error -show_entries stream=codec_name,sample_rate,channels,duration -of compact /tmp/a.m4a
+          ffmpeg -hide_banner -i /tmp/a.m4a -af volumedetect -f null - 2>&1 | grep -E 'n_samples|mean_volume'
+          ffmpeg -hide_banner -ss 1 -i /tmp/a.m4a -t 2 -af volumedetect -f null - 2>&1 | grep -E 'n_samples|mean_volume'
+
 
   # S5 Lane B: fresh-host install gate — wheel -> bare venv -> first-run
   # surface, NO repo checkout on the tested path (packaged data must
