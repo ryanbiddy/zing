@@ -55,3 +55,16 @@ This saves a procedural LUT, measured recipe, and before/reference/after preview
 The result is a matched approximation. See [color matching](docs/color.md) for
 SDR assumptions, LUT application, confidence, and the acceptance test.
 
+To inventory a reference and a folder of clips:
+
+```bash
+uv run zing project init --reference uoink:123 --clips ./clips --out ./my-project
+uv run zing project scan ./my-project
+uv run zing project status ./my-project --json
+```
+
+This creates a resumable `project.json` with hashes, media metadata, source
+records, and stable asset IDs. The reference is recorded for a later study.
+See [Project inventory](docs/PROJECT-INVENTORY.md) for paths, change detection,
+and interrupted-scan recovery.
+
