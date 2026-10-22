@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import errno
+import functools
 import json
 import math
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -104,6 +106,33 @@ def probe_media(path: Path, ffprobe: str = "ffprobe") -> MediaInfo:
     )
 
 
+@functools.lru_cache(maxsize=8)
+def ffmpeg_major_version(ffmpeg: str) -> int | None:
+    """FFmpeg's major version, or None for git builds and unreadable output."""
+    try:
+        result = subprocess.run(
+            [ffmpeg, "-hide_banner", "-version"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=30, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.match(r"ffmpeg version n?(\d+)\.", result.stdout)
+    return int(match.group(1)) if match else None
+
+
+def filter_script_args(ffmpeg: str, script: Path) -> list[str]:
+    """Arguments that load a filtergraph from a file on this FFmpeg.
+
+    FFmpeg 7 added ``-/filter_complex <file>`` and FFmpeg 9 removed
+    ``-filter_complex_script``. Git builds are treated as current.
+    """
+    major = ffmpeg_major_version(ffmpeg)
+    if major is not None and major < 7:
+        return ["-filter_complex_script", str(script)]
+    return ["-/filter_complex", str(script)]
+
+
 def _ffmpeg_command(
     ffmpeg: str,
     plan: GraphPlan,
@@ -114,10 +143,9 @@ def _ffmpeg_command(
     command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
     for path in plan.input_paths:
         command.extend(["-i", str(path)])
+    command.extend(filter_script_args(ffmpeg, graph_path))
     command.extend(
         [
-            "-filter_complex_script",
-            str(graph_path),
             "-map",
             f"[{plan.video_label}]",
             "-map",

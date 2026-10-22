@@ -259,7 +259,7 @@ def test_golden_edl_renders_with_content_probes_and_ducking(
     ass_text = (work / "captions.ass").read_text(encoding="utf-8-sig")
     assert r"\kf50" in ass_text
     assert r"\t(" in ass_text
-    assert "-filter_complex_script" in result.command
+    assert ("-filter_complex_script" in result.command) != ("-/filter_complex" in result.command)
 
     music_without_voice = mean_volume(output, 0.1, 0.3, band_hz=120)
     music_under_voice = mean_volume(output, 0.8, 0.3, band_hz=120)
