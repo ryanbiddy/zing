@@ -1,0 +1,974 @@
+{
+  "$defs": {
+    "myzing_color_models_LookParameters": {
+      "additionalProperties": false,
+      "properties": {
+        "contrast": {
+          "type": "number"
+        },
+        "gain": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "gamma": {
+          "type": "number"
+        },
+        "highlights": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "lift": {
+          "type": "number"
+        },
+        "saturation": {
+          "type": "number"
+        },
+        "shadows": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_color_models_Transform": {
+      "additionalProperties": false,
+      "properties": {
+        "exposure_ev": {
+          "type": "number"
+        },
+        "look": {
+          "type": "string"
+        },
+        "parameters": {
+          "$ref": "#/$defs/myzing_color_models_LookParameters"
+        },
+        "strength": {
+          "type": "number"
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "tint": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "look",
+        "parameters",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_ColorTransform": {
+      "additionalProperties": false,
+      "properties": {
+        "baked_transform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_color_models_Transform"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "color_space": {
+          "type": "string"
+        },
+        "lut_path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "before_captions"
+          ]
+        },
+        "strength": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lut_path",
+        "sha256",
+        "strength",
+        "color_space",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_FontAsset": {
+      "additionalProperties": false,
+      "properties": {
+        "license": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "license",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_TransitionRecipe": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "left",
+                "right",
+                "up",
+                "down"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_seconds": {
+          "type": "number"
+        },
+        "kind": {
+          "enum": [
+            "hard_cut",
+            "dissolve",
+            "wipe",
+            "zoom_punch"
+          ]
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_study_transitions_TransitionEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "duration_seconds",
+        "reason",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_Box": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_EventLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_layout_types_Box"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end": {
+          "type": "number"
+        },
+        "fallback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "overlap": {
+          "$ref": "#/$defs/myzing_layout_types_OverlapCheck"
+        },
+        "path": {
+          "items": {
+            "$ref": "#/$defs/myzing_layout_types_Keyframe"
+          },
+          "type": "array"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "start": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "start",
+        "end",
+        "reason",
+        "overlap"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_FaceTrack": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "keyframes": {
+          "items": {
+            "$ref": "#/$defs/myzing_layout_types_Keyframe"
+          },
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "keyframes"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_Keyframe": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "$ref": "#/$defs/myzing_layout_types_Box"
+        },
+        "time": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "time",
+        "box"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_LayoutPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/myzing_layout_types_EventLayout"
+          },
+          "type": "array"
+        },
+        "masks": {
+          "items": {
+            "$ref": "#/$defs/myzing_layout_types_Mask"
+          },
+          "type": "array"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "provenance": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "tracks": {
+          "items": {
+            "$ref": "#/$defs/myzing_layout_types_FaceTrack"
+          },
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "version",
+        "events",
+        "tracks",
+        "masks"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_Mask": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "$ref": "#/$defs/myzing_layout_types_Box"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "name",
+        "box"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_OverlapCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "face_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mask_names": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "method": {
+          "type": "string"
+        },
+        "safe": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "safe"
+      ],
+      "type": "object"
+    },
+    "myzing_study_transitions_TransitionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "detector_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "enum": [
+            null,
+            "left",
+            "right",
+            "up",
+            "down"
+          ]
+        },
+        "end_seconds": {
+          "type": "number"
+        },
+        "evidence_end_seconds": {
+          "type": "number"
+        },
+        "evidence_start_seconds": {
+          "type": "number"
+        },
+        "observation_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "signature": {
+          "enum": [
+            "hard_cut",
+            "dissolve",
+            "wipe",
+            "zoom_punch",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "start_seconds": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "signature",
+        "start_seconds",
+        "end_seconds",
+        "evidence_start_seconds",
+        "evidence_end_seconds",
+        "confidence",
+        "detector_version",
+        "reason",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_Approximations": {
+      "additionalProperties": false,
+      "properties": {
+        "font_candidates": {
+          "items": {
+            "$ref": "#/$defs/myzing_style_recipe_FontCandidate"
+          },
+          "type": "array"
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_layout_types_LayoutPlan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "looks": {
+          "items": {
+            "$ref": "#/$defs/myzing_style_recipe_LookApproximation"
+          },
+          "type": "array"
+        },
+        "transitions": {
+          "items": {
+            "$ref": "#/$defs/myzing_composition_models_TransitionRecipe"
+          },
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "fraction": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "maximum": 1,
+          "minimum": 0
+        },
+        "samples": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "samples",
+        "fraction",
+        "basis",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_CropEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "$ref": "#/$defs/myzing_layout_types_Box"
+        },
+        "note": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timestamp": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "timestamp",
+        "box",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_FontCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_models_FontAsset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "family": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "substitution_evidence": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "family",
+        "substitution_evidence",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_LookApproximation": {
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "$ref": "#/$defs/myzing_composition_models_ColorTransform"
+        },
+        "evidence": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "color",
+        "evidence",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_MeasuredFact": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "maximum": 1,
+          "minimum": 0
+        },
+        "confidence_kind": {
+          "enum": [
+            "unreported",
+            "producer-reported",
+            "heuristic"
+          ]
+        },
+        "coverage": {
+          "$ref": "#/$defs/myzing_style_recipe_Coverage"
+        },
+        "name": {
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/myzing_style_recipe_ObservationProvenance"
+        },
+        "unit": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "value": {},
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "unit",
+        "coverage",
+        "confidence",
+        "provenance",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_ObservationProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "crop_evidence": {
+          "items": {
+            "$ref": "#/$defs/myzing_style_recipe_CropEvidence"
+          },
+          "type": "array"
+        },
+        "details": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "detector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detector_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reference": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sample_timestamps": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timestamp_basis": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reference",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_style_recipe_Unknown": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_style_recipe_ObservationProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "unsupported",
+            "unmeasured",
+            "unreported"
+          ]
+        },
+        "subject": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "subject",
+        "reason",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:myzing:style-recipe:1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Structural contract. Apply Python validation for cross-field time, geometry and reference constraints.",
+  "properties": {
+    "approximations": {
+      "$ref": "#/$defs/myzing_style_recipe_Approximations"
+    },
+    "measured": {
+      "items": {
+        "$ref": "#/$defs/myzing_style_recipe_MeasuredFact"
+      },
+      "type": "array"
+    },
+    "reference": {
+      "$ref": "#/$defs/myzing_style_recipe_ObservationProvenance"
+    },
+    "unknowns": {
+      "items": {
+        "$ref": "#/$defs/myzing_style_recipe_Unknown"
+      },
+      "type": "array"
+    },
+    "version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "reference",
+    "version"
+  ],
+  "title": "StyleRecipe",
+  "type": "object"
+}

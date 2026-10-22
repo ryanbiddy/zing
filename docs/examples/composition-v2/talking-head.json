@@ -1,0 +1,576 @@
+{
+  "assets": [
+    {
+      "aliases": [],
+      "duration": 12,
+      "id": "asset-take-1",
+      "path": "media/take-1.mp4",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "version": 1
+    },
+    {
+      "aliases": [],
+      "duration": 12,
+      "id": "asset-take-2",
+      "path": "media/take-2.mp4",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "version": 1
+    },
+    {
+      "aliases": [],
+      "duration": 12,
+      "id": "asset-take-3",
+      "path": "media/take-3.mp4",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "version": 1
+    },
+    {
+      "aliases": [],
+      "duration": 12,
+      "id": "asset-music",
+      "path": "media/music.wav",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "version": 1
+    }
+  ],
+  "audio": [
+    {
+      "asset_id": "asset-music",
+      "duck_scope": "all_speech",
+      "duck_under_speech": true,
+      "gain_db": -14,
+      "id": "music-1",
+      "kind": "music",
+      "role": "music",
+      "role_evidence": null,
+      "src": "media/music.wav",
+      "src_in": 0.0,
+      "src_out": null,
+      "timeline_start": 0.0,
+      "version": 1
+    }
+  ],
+  "brief": null,
+  "captions": [
+    {
+      "all_caps": true,
+      "backend": "ass",
+      "end": 1.5,
+      "font": {
+        "license": "OFL-1.1",
+        "path": "../../../src/myzing/_data/fonts/Anton-Regular.ttf",
+        "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+        "version": 1
+      },
+      "id": "caption-1",
+      "layout": {
+        "box": {
+          "height": 0.12,
+          "version": 1,
+          "width": 0.6,
+          "x": 0.2,
+          "y": 0.5866666666666667
+        },
+        "end": 1.5,
+        "fallback": null,
+        "id": "caption-1",
+        "overlap": {
+          "face_ids": [],
+          "mask_names": [],
+          "method": "continuous-piecewise-linear",
+          "safe": true,
+          "scope": "supplied face tracks and masks; not proof of detector recall",
+          "version": 1
+        },
+        "path": [],
+        "reason": "nearest-free-zone",
+        "scale": 1.0,
+        "start": 0.3,
+        "version": 1,
+        "warnings": []
+      },
+      "position": "lower",
+      "start": 0.3,
+      "style": {
+        "box_color": null,
+        "color": "#FFFFFF",
+        "highlight": "#FFFF00",
+        "outline_color": "#000000",
+        "outline_width": 2.0,
+        "size": 64,
+        "version": 1
+      },
+      "template": null,
+      "text": "Keep your focus",
+      "version": 1,
+      "word_timed": true,
+      "words": [
+        {
+          "confidence": 1.0,
+          "end": 0.7,
+          "start": 0.3,
+          "text": "Keep",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-1",
+                "from": {
+                  "end": 1.7,
+                  "start": 1.3
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 0.7,
+                  "start": 0.3
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 1.7,
+              "start": 1.3
+            },
+            "status": "measured",
+            "version": 1
+          }
+        },
+        {
+          "confidence": 1.0,
+          "end": 1.0999999999999999,
+          "start": 0.7,
+          "text": "your",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-1",
+                "from": {
+                  "end": 2.0999999999999996,
+                  "start": 1.7
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 1.0999999999999999,
+                  "start": 0.7
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 2.0999999999999996,
+              "start": 1.7
+            },
+            "status": "measured",
+            "version": 1
+          }
+        },
+        {
+          "confidence": 1.0,
+          "end": 1.5,
+          "start": 1.0999999999999999,
+          "text": "focus",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-1",
+                "from": {
+                  "end": 2.5,
+                  "start": 2.0999999999999996
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 1.5,
+                  "start": 1.0999999999999999
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 2.5,
+              "start": 2.0999999999999996
+            },
+            "status": "measured",
+            "version": 1
+          }
+        }
+      ]
+    },
+    {
+      "all_caps": true,
+      "backend": "hyperframes",
+      "end": 4.3,
+      "font": {
+        "license": "OFL-1.1",
+        "path": "../../../src/myzing/_data/fonts/Anton-Regular.ttf",
+        "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+        "version": 1
+      },
+      "id": "caption-2",
+      "layout": {
+        "box": null,
+        "end": 4.3,
+        "fallback": null,
+        "id": "caption-2",
+        "overlap": {
+          "face_ids": [],
+          "mask_names": [],
+          "method": "continuous-piecewise-linear",
+          "safe": true,
+          "scope": "supplied face tracks and masks; not proof of detector recall",
+          "version": 1
+        },
+        "path": [
+          {
+            "box": {
+              "height": 0.12,
+              "version": 1,
+              "width": 0.6,
+              "x": 0.15,
+              "y": 0.68
+            },
+            "time": 3.2,
+            "version": 1
+          },
+          {
+            "box": {
+              "height": 0.12,
+              "version": 1,
+              "width": 0.6,
+              "x": 0.25,
+              "y": 0.72
+            },
+            "time": 4.3,
+            "version": 1
+          }
+        ],
+        "reason": "explicit-path",
+        "scale": 1.0,
+        "start": 3.2,
+        "version": 1,
+        "warnings": []
+      },
+      "position": "lower",
+      "start": 3.2,
+      "style": {
+        "box_color": null,
+        "color": "#FFFFFF",
+        "highlight": "#FFFF00",
+        "outline_color": "#000000",
+        "outline_width": 2.0,
+        "size": 64,
+        "version": 1
+      },
+      "template": "kinetic",
+      "text": "Make it clear",
+      "version": 1,
+      "word_timed": true,
+      "words": [
+        {
+          "confidence": 1.0,
+          "end": 3.566666666666667,
+          "start": 3.2,
+          "text": "Make",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-2",
+                "from": {
+                  "end": 3.066666666666667,
+                  "start": 2.7
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 3.566666666666667,
+                  "start": 3.2
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 3.066666666666667,
+              "start": 2.7
+            },
+            "status": "measured",
+            "version": 1
+          }
+        },
+        {
+          "confidence": 1.0,
+          "end": 3.933333333333333,
+          "start": 3.566666666666667,
+          "text": "it",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-2",
+                "from": {
+                  "end": 3.433333333333333,
+                  "start": 3.066666666666667
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 3.933333333333333,
+                  "start": 3.566666666666667
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 3.433333333333333,
+              "start": 3.066666666666667
+            },
+            "status": "measured",
+            "version": 1
+          }
+        },
+        {
+          "confidence": 1.0,
+          "end": 4.3,
+          "start": 3.933333333333333,
+          "text": "clear",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-2",
+                "from": {
+                  "end": 3.8,
+                  "start": 3.433333333333333
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 4.3,
+                  "start": 3.933333333333333
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 3.8,
+              "start": 3.433333333333333
+            },
+            "status": "measured",
+            "version": 1
+          }
+        }
+      ]
+    },
+    {
+      "all_caps": true,
+      "backend": "ass",
+      "end": 7.5,
+      "font": {
+        "license": "OFL-1.1",
+        "path": "../../../src/myzing/_data/fonts/Anton-Regular.ttf",
+        "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+        "version": 1
+      },
+      "id": "caption-3",
+      "layout": {
+        "box": {
+          "height": 0.12,
+          "version": 1,
+          "width": 0.6,
+          "x": 0.2,
+          "y": 0.6066666666666667
+        },
+        "end": 7.5,
+        "fallback": null,
+        "id": "caption-3",
+        "overlap": {
+          "face_ids": [],
+          "mask_names": [],
+          "method": "continuous-piecewise-linear",
+          "safe": true,
+          "scope": "supplied face tracks and masks; not proof of detector recall",
+          "version": 1
+        },
+        "path": [],
+        "reason": "preferred-anchor",
+        "scale": 1.0,
+        "start": 6,
+        "version": 1,
+        "warnings": []
+      },
+      "position": "lower",
+      "start": 6,
+      "style": {
+        "box_color": null,
+        "color": "#FFFFFF",
+        "highlight": "#FFFF00",
+        "outline_color": "#000000",
+        "outline_width": 2.0,
+        "size": 64,
+        "version": 1
+      },
+      "template": null,
+      "text": "Then cut",
+      "version": 1,
+      "word_timed": true,
+      "words": [
+        {
+          "confidence": 1.0,
+          "end": 6.75,
+          "start": 6.0,
+          "text": "Then",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-3",
+                "from": {
+                  "end": 1.25,
+                  "start": 0.5
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 6.75,
+                  "start": 6.0
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 1.25,
+              "start": 0.5
+            },
+            "status": "measured",
+            "version": 1
+          }
+        },
+        {
+          "confidence": 1.0,
+          "end": 7.5,
+          "start": 6.75,
+          "text": "cut",
+          "timing": {
+            "adjustments": [
+              {
+                "clip_id": "clip-3",
+                "from": {
+                  "end": 2.0,
+                  "start": 1.25
+                },
+                "method": "timeline_map",
+                "to": {
+                  "end": 7.5,
+                  "start": 6.75
+                }
+              }
+            ],
+            "method": "synthetic_fixture",
+            "original": {
+              "end": 2.0,
+              "start": 1.25
+            },
+            "status": "measured",
+            "version": 1
+          }
+        }
+      ]
+    }
+  ],
+  "clips": [
+    {
+      "asset_id": "asset-take-1",
+      "color": {
+        "baked_transform": null,
+        "color_space": "SDR Rec.709 display-referred RGB",
+        "lut_path": "looks/teal-orange.cube",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "stage": "before_captions",
+        "strength": 0.7,
+        "version": 1
+      },
+      "id": "clip-1",
+      "speed_map": [],
+      "src": "media/take-1.mp4",
+      "src_in": 1,
+      "src_out": 4,
+      "timeline_start": 0,
+      "version": 1
+    },
+    {
+      "asset_id": "asset-take-2",
+      "color": {
+        "baked_transform": null,
+        "color_space": "SDR Rec.709 display-referred RGB",
+        "lut_path": "looks/teal-orange.cube",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "stage": "before_captions",
+        "strength": 0.7,
+        "version": 1
+      },
+      "id": "clip-2",
+      "speed_map": [],
+      "src": "media/take-2.mp4",
+      "src_in": 2,
+      "src_out": 5,
+      "timeline_start": 2.5,
+      "version": 1
+    },
+    {
+      "asset_id": "asset-take-3",
+      "color": {
+        "baked_transform": null,
+        "color_space": "SDR Rec.709 display-referred RGB",
+        "lut_path": "looks/teal-orange.cube",
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "stage": "before_captions",
+        "strength": 0.7,
+        "version": 1
+      },
+      "id": "clip-3",
+      "speed_map": [],
+      "src": "media/take-3.mp4",
+      "src_in": 0,
+      "src_out": 2.5,
+      "timeline_start": 5.5,
+      "version": 1
+    }
+  ],
+  "fps": {
+    "denominator": 1,
+    "numerator": 30,
+    "version": 1
+  },
+  "height": 1920,
+  "legacy_fps": null,
+  "legacy_timing_order": {},
+  "loudness_target": {
+    "integrated_lufs": -16,
+    "loudness_range_lu": 11.0,
+    "true_peak_dbtp": -1,
+    "version": 1
+  },
+  "schema_version": 2,
+  "transitions": [
+    {
+      "end": 3,
+      "id": "dissolve-1",
+      "incoming_clip": "clip-2",
+      "incoming_handle": {
+        "src_in": 2,
+        "src_out": 2.5,
+        "version": 1
+      },
+      "outgoing_clip": "clip-1",
+      "outgoing_handle": {
+        "src_in": 3.5,
+        "src_out": 4,
+        "version": 1
+      },
+      "recipe": {
+        "direction": null,
+        "duration_seconds": 0.5,
+        "kind": "dissolve",
+        "observation": null,
+        "reason": "Chosen half-second dissolve; original preset unknown.",
+        "version": 1
+      },
+      "start": 2.5,
+      "version": 1
+    }
+  ],
+  "warnings": [
+    "Synthetic contract example: replace placeholder media/LUT hashes with inventory checksums."
+  ],
+  "width": 1080
+}

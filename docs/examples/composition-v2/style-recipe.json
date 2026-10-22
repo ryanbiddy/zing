@@ -1,0 +1,545 @@
+{
+  "approximations": {
+    "font_candidates": [
+      {
+        "asset": {
+          "license": "OFL-1.1",
+          "path": "../../../src/myzing/_data/fonts/Anton-Regular.ttf",
+          "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+          "version": 1
+        },
+        "family": "Anton",
+        "substitution_evidence": [
+          "Chosen bundled OFL font for the example; no glyph match was measured."
+        ],
+        "version": 1
+      }
+    ],
+    "layout": null,
+    "looks": [],
+    "transitions": [
+      {
+        "direction": null,
+        "duration_seconds": 0.5,
+        "kind": "dissolve",
+        "observation": null,
+        "reason": "Chosen half-second dissolve; original preset unknown.",
+        "version": 1
+      }
+    ],
+    "version": 1
+  },
+  "measured": [
+    {
+      "confidence": null,
+      "confidence_kind": "unreported",
+      "coverage": {
+        "basis": "reported records; detector recall and sampled-time coverage unknown",
+        "details": {},
+        "fraction": null,
+        "samples": 1,
+        "version": 1
+      },
+      "name": "duration",
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "unit": "seconds",
+      "value": 3.0,
+      "version": 1
+    },
+    {
+      "confidence": null,
+      "confidence_kind": "unreported",
+      "coverage": {
+        "basis": "reported records; detector recall and sampled-time coverage unknown",
+        "details": {},
+        "fraction": null,
+        "samples": 3,
+        "version": 1
+      },
+      "name": "shot_durations",
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.0,
+          1.0,
+          2.0
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "unit": "seconds",
+      "value": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "version": 1
+    },
+    {
+      "confidence": null,
+      "confidence_kind": "unreported",
+      "coverage": {
+        "basis": "reported records; detector recall and sampled-time coverage unknown",
+        "details": {},
+        "fraction": null,
+        "samples": 3,
+        "version": 1
+      },
+      "name": "average_shot_duration",
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.0,
+          1.0,
+          2.0
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "unit": "seconds",
+      "value": 1.0,
+      "version": 1
+    },
+    {
+      "confidence": null,
+      "confidence_kind": "unreported",
+      "coverage": {
+        "basis": "reported records; detector recall and sampled-time coverage unknown",
+        "details": {},
+        "fraction": null,
+        "samples": 1,
+        "version": 1
+      },
+      "name": "cuts_per_10s",
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.0,
+          1.0,
+          2.0
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "unit": "cuts/window (10 seconds; trailing window is raw)",
+      "value": [
+        2.0
+      ],
+      "version": 1
+    },
+    {
+      "confidence": 1.0,
+      "confidence_kind": "producer-reported",
+      "coverage": {
+        "basis": "reported records; detector recall and sampled-time coverage unknown",
+        "details": {},
+        "fraction": null,
+        "samples": 1,
+        "version": 1
+      },
+      "name": "captions[0]",
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.25,
+          1.75
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "unit": "seconds; position category; word count; unitless confidence",
+      "value": {
+        "all_caps": false,
+        "confidence": 1.0,
+        "end": 1.75,
+        "position": "center",
+        "start": 0.25,
+        "text": "hello zing",
+        "words_visible": 2
+      },
+      "version": 1
+    },
+    {
+      "confidence": null,
+      "confidence_kind": "unreported",
+      "coverage": {
+        "basis": "reported records; detector recall and sampled-time coverage unknown",
+        "details": {},
+        "fraction": null,
+        "samples": 3,
+        "version": 1
+      },
+      "name": "audio.rms_curve",
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0,
+          1,
+          2
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "unit": "dBFS (one-second buckets)",
+      "value": [
+        -18.0,
+        -80.0,
+        -18.0
+      ],
+      "version": 1
+    }
+  ],
+  "reference": {
+    "crop_evidence": [],
+    "details": {
+      "fixture": "checked-in",
+      "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+    },
+    "detector": null,
+    "detector_version": null,
+    "model": null,
+    "model_version": null,
+    "reference": "synthetic://checked-in-scorer-sample",
+    "sample_timestamps": [],
+    "sha256": null,
+    "timestamp_basis": "reported source intervals; exact sampling unavailable",
+    "version": 1
+  },
+  "unknowns": [
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "Cannot uniquely recover this from a studied reference.",
+      "status": "unsupported",
+      "subject": "original_font",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "Cannot uniquely recover this from a studied reference.",
+      "status": "unsupported",
+      "subject": "original_LUT",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "Cannot uniquely recover this from a studied reference.",
+      "status": "unsupported",
+      "subject": "original_preset",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "Cannot uniquely recover this from a studied reference.",
+      "status": "unsupported",
+      "subject": "original_project",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "No transcript words supplied; speech presence remains unmeasured.",
+      "status": "unmeasured",
+      "subject": "words",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "Breakdown OCR positions are coarse categories; exact glyph geometry is unmeasured.",
+      "status": "unmeasured",
+      "subject": "caption_geometry",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "No observation crop assets or normalized crop boxes were supplied.",
+      "status": "unmeasured",
+      "subject": "crop_evidence",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "No measured color recipe supplied.",
+      "status": "unmeasured",
+      "subject": "color",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "No fine audio analysis supplied; tempo, onsets and roles remain unmeasured.",
+      "status": "unmeasured",
+      "subject": "audio_map",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "No face tracks, placement or safety result supplied.",
+      "status": "unmeasured",
+      "subject": "layout",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": null,
+      "reason": "No observations supplied; no transition type is inferred.",
+      "status": "unmeasured",
+      "subject": "transitions",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "reason": "Producer did not report: sha256, detector, detector_version",
+      "status": "unreported",
+      "subject": "duration.provenance",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.0,
+          1.0,
+          2.0
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "reason": "Producer did not report: sha256, detector, detector_version",
+      "status": "unreported",
+      "subject": "shot_durations.provenance",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.0,
+          1.0,
+          2.0
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "reason": "Producer did not report: sha256, detector, detector_version",
+      "status": "unreported",
+      "subject": "average_shot_duration.provenance",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.0,
+          1.0,
+          2.0
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "reason": "Producer did not report: sha256, detector, detector_version",
+      "status": "unreported",
+      "subject": "cuts_per_10s.provenance",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0.25,
+          1.75
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "reason": "Producer did not report: sha256, detector, detector_version",
+      "status": "unreported",
+      "subject": "captions[0].provenance",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [
+          0,
+          1,
+          2
+        ],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "reason": "Producer did not report: sha256, detector, detector_version",
+      "status": "unreported",
+      "subject": "audio.rms_curve.provenance",
+      "version": 1
+    },
+    {
+      "evidence": {},
+      "provenance": {
+        "crop_evidence": [],
+        "details": {
+          "fixture": "checked-in",
+          "speech_fixture": "tools/eval/fixtures/speech/ripe-figs-spoken.wav"
+        },
+        "detector": null,
+        "detector_version": null,
+        "model": null,
+        "model_version": null,
+        "reference": "synthetic://checked-in-scorer-sample",
+        "sample_timestamps": [],
+        "sha256": null,
+        "timestamp_basis": "reported source intervals; exact sampling unavailable",
+        "version": 1
+      },
+      "reason": "No content hash supplied; pure construction cannot hash a file.",
+      "status": "unreported",
+      "subject": "reference.sha256",
+      "version": 1
+    }
+  ],
+  "version": 1,
+  "warnings": []
+}
