@@ -325,6 +325,9 @@ def search_references(query: str) -> dict[str, Any]:
     token = _token()
     if not token:
         return _err("Reference search unavailable: configure UOINK_TOKEN, or supply a local file.", code="unconfigured")
+    if redact(query) != query:
+        # GET search puts the query in the URL; never send a pasted credential.
+        return _err("Remove the Uoink credential from the search query.", code="invalid_query")
     try:
         base = credential_safe_url(helper_url())
         status, manifest = suite_peer._get_json(base + "/.well-known/suite-service.json")
@@ -338,8 +341,8 @@ def search_references(query: str) -> dict[str, Any]:
         # Omit mode, match and search_details: use the peer's default matching
         # and its unchanged v1 shape (forgiving keyword search on Uoink 3.11).
         request = urllib.request.Request(
-            base + "/api/corpus/v1/search?" + urllib.parse.urlencode(
-                {"q": query.strip(), "limit": 20}),
+            credential_safe_url(base + "/api/corpus/v1/search?" + urllib.parse.urlencode(
+                {"q": query.strip(), "limit": 20})),
             method="GET",
         )
         request.add_unredirected_header("X-Uoink-Token", token)

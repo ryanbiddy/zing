@@ -261,6 +261,16 @@ def test_search_unconfigured_never_contacts_peer(project, monkeypatch):
     assert uoink_bridge.search_references("cuts")["code"] == "unconfigured"
 
 
+def test_search_never_puts_a_pasted_credential_in_the_url(project, monkeypatch):
+    calls = []
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen",
+                        lambda req, **kwargs: calls.append(req))
+    result = uoink_bridge.search_references("soft cuts " + TOKEN)
+    assert result["code"] == "invalid_query"
+    assert TOKEN not in json.dumps(result)
+    assert calls == []
+
+
 def test_choice_local_then_opt_in_and_retry_same_event(project, monkeypatch, caplog, capsys, zing_workspace):
     caplog.set_level(logging.INFO)
     assert cli.main(["plan", "choose", str(project), "--draft", "A", "--note", "Better opening", "--json"]) == 0
