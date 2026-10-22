@@ -179,7 +179,8 @@ def recommend(project: str | Path, brief: Brief) -> dict:
             path = resolve_path(asset.path if asset else selector, root)
             try:
                 advice = rate(analyze(path), length=brief.target_length_seconds, speech=talking(brief),
-                              pace=pace, purpose=brief.purpose)
+                              pace=pace, purpose=brief.purpose,
+                              source_duration=asset.probe.duration if asset and asset.probe else None)
                 music_advice.append(advice.to_dict())
                 basis.append(f"Music {path.name}: {advice.rating} ({advice.score}/100). " + advice.licensing)
             except (AudioError, ValueError, OSError) as exc:

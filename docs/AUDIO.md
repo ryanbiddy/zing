@@ -133,7 +133,14 @@ real-world speech recognition, music classification, or listening quality.
 
 The `structure` record adds bars, metric phrase candidates at 4/8/16 bars,
 energy sections, a 250 ms curve (RMS dBFS, positive flux, energy below 180 Hz,
-onsets/second), and timestamped drops/hits/section changes. Four-beat meter
+onset candidates/second and salient attacks/second), and timestamped
+drops/hits/section changes. A salient attack is a band (40–344 Hz, then
+octaves to 11 kHz) rising at least 6 dB above its level 20–80 ms earlier,
+holding at least 0.5% of the loudest frame energy of the past second, in a
+frame above −60 dBFS. Steady pads, drones and noise beds give none, and the
+floor does not depend on the track's loudest attack, so one loud pickup does
+not hide the quieter kicks after it. Attack densities in drops and advice use
+salient attacks; `onsets_per_second` keeps every onset candidate for audit. Four-beat meter
 requires at least four repetitions, median accent strength 1.55 times the
 next phase, and 80% consistent accents. Equal accents give unknown meter.
 Phrase candidates inherit the first supported accent as their metric origin;
@@ -145,10 +152,14 @@ support in 70% of 16-pulse windows within 40 ms. It requires a 4 dB level
 spread to exclude steady beating tones. Missing pulses are never filled in.
 When the whole excerpt lacks a stable tempo, non-overlapping 16-second
 windows can supply local `rhythm_regions`; their beats stay separate from
-the unknown global tempo. The director can use those observed local beats.
+the unknown global tempo. The director can use those observed local beats,
+and track advice combines regions that agree within 2% to support pace.
 
 Drops require at least a 5 dB RMS increase sustained over four seconds after
-a build or break, with prior audible activity. Loudness alone gives `swell`.
+a build or break, with prior audible activity. A break is a dip at least 7 dB
+under the 85th-percentile level, a 3 dB fall from the preceding section, or a
+section at least 5 dB under that level with fewer than one attack per second
+(for example a pad-only bar). Loudness alone gives `swell`.
 A drop also needs a bass return (at least 6 dB low-end increase, 3 dB rise in
 bass share, post-change bass/RMS at least −18 dB, and 1.5 attacks/s) or an
 onset-density jump (at least 2 attacks/s, 1.75 times before, and 1 extra
@@ -157,7 +168,9 @@ following one-second windows, so a piano run followed by sustained ringing
 does not count as a rhythm return. Slow, sparse drops may remain unknown.
 Windows are 250 ms; the bin containing the observed onset belongs to the
 post-change side. Bass return also needs a 6 dB jump at the onset itself;
-the onset-density route needs a 3 dB RMS jump there (20–200 ms on each side).
+the onset-density route needs a 3 dB RMS jump there (median of the 10–80 ms
+after the onset against the 20–200 ms before, so short decaying stabs count).
+Drop candidates outrank swells when nearby moments are deduplicated.
 The first half-second must reach within 3 dB of the following four-second
 median. These checks keep an earlier build attack from borrowing energy
 from a later drop. Swells may use coarse bins when no attack is observed.

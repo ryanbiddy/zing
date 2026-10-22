@@ -88,7 +88,7 @@ def analyze(
         source=str(path), duration_seconds=duration, sample_rate=SAMPLE_RATE,
         max_seconds=max_seconds, truncated=truncated, tempo=tempo, beats=beats,
         onsets=onsets, segments=segments, loudness=loudness, warnings=warnings,
-        tool_versions={"zing": __version__, "audio_algorithm": "2.1", "numpy": numpy().__version__, "ffmpeg": ffmpeg_version()},
+        tool_versions={"zing": __version__, "audio_algorithm": "2.2", "numpy": numpy().__version__, "ffmpeg": ffmpeg_version()},
         breakdown_source=breakdown_source,
         structure=structure,
     )

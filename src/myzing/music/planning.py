@@ -12,7 +12,7 @@ from myzing.director.selection import overlaps
 from myzing.director.models import shortage
 from myzing.project.api import hash_file, resolve_path
 from .advice import rate
-from .models import MusicPlan
+from .models import MusicPlan, timeline_of
 
 
 def speech_spans(sequence, studies):
@@ -136,7 +136,8 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
         if a.sha256 not in cache:
             cache[a.sha256] = analyze(path)
         m = cache[a.sha256]
-        advice = rate(m, length=duration, speech=bool(spans), pace=pace, purpose=brief.purpose)
+        advice = rate(m, length=duration, speech=bool(spans), pace=pace, purpose=brief.purpose,
+                      source_duration=a.probe.duration)
         choices.append((advice.score, a, path, m, advice))
     _, asset, path, m, advice = max(choices, key=lambda x: (x[0], x[1].id))
     offset = advice.measurements["scoring"]["source_offset"] if spans else 0.0
@@ -151,7 +152,13 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
         locked = max(range(len(changes)), key=lambda i: changes[i])
         target = sum(c.duration for c in sequence[:locked + 1])
         eligible = [v for v in m.structure.moments if v.kind != "swell" and 0 <= v.time - target <= m.duration_seconds - duration]
-        if eligible:
+        if changes[locked] <= 1e-9:
+            # Unreadable or identical join frames are not evidence of a reveal.
+            evidence.decisions.append({"kind": "moment_alignment_skipped", "output_time": None, "evidence_time": None,
+                "reason": "No measurable pixel change at any selected join (frames identical or unreadable); "
+                          "no song moment was aligned to a cut."})
+            locked = None
+        elif eligible:
             moment = max(eligible, key=lambda v: (v.kind == "drop", v.strength * v.confidence))
             offset = moment.time - target
             evidence.decisions.append({"kind": "drop_alignment" if moment.kind == "drop" else "moment_alignment",
@@ -168,20 +175,31 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
         "moment_locked": sum(d["kind"] == "cut_locked" for d in decisions),
         "kept": sum(d["kind"] == "cut_kept" for d in decisions)}
     evidence.speech_spans = speech_spans(sequence, studies)
+    evidence.timeline = timeline_of(sequence)
     # End the bed on a supported metric phrase when close enough; video and
     # complete speech remain at the requested length. Never extend beyond media.
+    short = m.duration_seconds < offset + duration - 1e-6
     end = min(m.duration_seconds, offset + duration)
     candidates = [t for t in phrases if max(offset + .5, end - 2) <= t <= end]
     if candidates:
         end = max(candidates)
     fade = min(1.0, (end - offset) / 4)
+    if short:
+        missing = duration - (end - offset)
+        evidence.warnings.append(
+            f"Music {Path(path).name} supplies {end - offset:.2f}s for a {duration:.2f}s edit; the last {missing:.2f}s has no "
+            "music. Supply a longer track or edit a loop yourself; Zing does not loop music.")
     evidence.decisions.append({"kind": "music_end", "output_time": end - offset, "evidence_time": end,
-        "fade_seconds": fade, "reason": "Supported metric phrase with fade." if candidates else "No nearby supported phrase; fade at available edit end."})
-    # Use gated source LUFS when available. The key produces ~15 dB reduction;
-    # a gap bed 6 LU below speech targets 21 LU below it during known phrases.
+        "fade_seconds": fade, "reason": (
+            ("Supported metric phrase with fade before the track runs out." if candidates else
+             "The track ends before the edit; fade at the track end.") if short else
+            "Supported metric phrase with fade." if candidates else "No nearby supported phrase; fade at the edit end.")})
+    # Known-speech ducking lowers the bed by duck_depth_db inside speech
+    # passages, so the pause bed sits (21 - depth) LU under gated speech.
     from .measurement import source_speech_lufs, window_loudness
     speech_lufs = source_speech_lufs(sequence, studies) if spans else None
-    target_lufs = speech_lufs - 6 if speech_lufs is not None else -30 if spans else -16
+    pause_under = evidence.speech_to_music_lu - evidence.duck_depth_db
+    target_lufs = speech_lufs - pause_under if speech_lufs is not None else -23 - pause_under if spans else -16
     music_windows = [[max(offset, offset + a), min(end, offset + b)] for a, b in evidence.speech_spans
                      if max(offset, offset + a) < min(end, offset + b)] if spans else [[offset, end]]
     excerpt_lufs = window_loudness(path, music_windows, end)
@@ -189,8 +207,14 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
     evidence.decisions.append({"kind": "music_level", "output_time": 0.0, "evidence_time": offset,
         "gain_db": gain, "speech_lufs": speech_lufs, "gap_target_lufs": target_lufs,
         "music_window_lufs": excerpt_lufs,
-        "speech_to_music_target_lu": 21 if spans else None,
-        "reason": "Speech spans key the music compressor; 20ms attack, 250ms recovery. Target needs output measurement." if spans else "No known speech: music remains at a -16 LUFS planning target."})
+        "speech_to_music_target_lu": evidence.speech_to_music_lu if spans else None,
+        "pause_bed_under_speech_lu": pause_under if spans else None,
+        "duck": evidence.duck() if spans else None,
+        "reason": (f"Known speech passages duck the bed {evidence.duck_depth_db:g} dB: "
+                   f"{evidence.duck_attack_seconds:g}s pre-duck before the first word, held through clause gaps under "
+                   f"{evidence.duck_hold_seconds:g}s, {evidence.duck_release_seconds:g}s recovery in longer pauses. "
+                   "Target needs output measurement.") if spans else
+                  "No known speech: music remains at a -16 LUFS planning target."})
     evidence.tracks = [{"id": "music-1", "asset_id": asset.id, "path": str(path), "sha256": asset.sha256,
         "source_offset": offset, "source_end": end, "fade_in": min(.15, fade), "fade_out": fade,
         "advice": advice.to_dict(), "candidates": [c[4].to_dict() for c in choices],

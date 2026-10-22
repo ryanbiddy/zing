@@ -37,6 +37,38 @@ def _percentile(values, fraction):
     return sorted(values)[round((len(values) - 1) * fraction)] if values else None
 
 
+def _attacks(entry):
+    # Map 2.2 counts salient attacks; 2.1 maps only stored every onset.
+    return entry.get("attacks_per_second", entry.get("onsets_per_second", 0.0))
+
+
+REGION_TOLERANCE = .02
+SPEECH_SPREAD_DB, SPEECH_ATTACKS = 6.0, 1.5
+MONTAGE_RISE_DB, MONTAGE_ATTACKS = 3.0, 1.5
+
+
+def _regional_pulse(regions, start, end):
+    """One pulse from local 16 s regions that agree and cover the excerpt.
+
+    Regions must agree within 2% of their overlap-weighted median BPM (half or
+    double time disagrees) and together cover at least 80% of the excerpt.
+    """
+    overlaps = [(r, min(end, r["end"]) - max(start, r["start"])) for r in regions]
+    overlaps = [(r, o) for r, o in overlaps if o > 0]
+    if not overlaps or sum(o for _, o in overlaps) < .8 * (end - start):
+        return None
+    half, acc, reference = sum(o for _, o in overlaps) / 2, 0.0, None
+    for r, o in sorted(overlaps, key=lambda x: x[0]["bpm"]):
+        acc += o
+        if acc >= half:
+            reference = r["bpm"]
+            break
+    if any(abs(r["bpm"] - reference) > REGION_TOLERANCE * reference for r, _ in overlaps):
+        return None
+    bpm = sum(r["bpm"] * o for r, o in overlaps) / sum(o for _, o in overlaps)
+    return (round(bpm, 3), min(r["start"] for r, _ in overlaps), f"{len(overlaps)} agreeing local rhythm regions")
+
+
 def _window(audio, start, length, pace):
     """Evidence for a complete usable excerpt, not the whole song's extrema."""
     s = audio.structure
@@ -46,15 +78,15 @@ def _window(audio, start, length, pace):
     quarter = max(1, len(levels) // 4)
     rise = median(levels[-quarter:]) - median(levels[:quarter]) if levels else None
     spread = _percentile(levels, .9) - _percentile(levels, .1) if levels else None
-    density = sum(e["onsets_per_second"] for e in energy) / len(energy) if energy else None
+    density = sum(_attacks(e) for e in energy) / len(energy) if energy else None
     moments = [m for m in s.moments if start < m.time < end and m.kind in {"drop", "hit", "section_change"}] if s else []
     moment = max(moments, key=lambda m: (m.kind == "drop", m.strength * m.confidence), default=None)
-    bpms = [(audio.tempo.bpm, start)] if audio.tempo.bpm else []
+    bpms = [(audio.tempo.bpm, start, "global")] if audio.tempo.bpm else []
     if s and not bpms:
-        bpms = [(r["bpm"], r["start"]) for r in s.rhythm_regions
-                if min(end, r["end"]) - max(start, r["start"]) >= .8 * (end - start)]
-    fits = [(min(abs(pace - 60 / bpm * n) / pace for n in (1, 2, 3, 4, 6, 8, 12, 16)), bpm, time)
-            for bpm, time in bpms] if pace else []
+        regional = _regional_pulse(s.rhythm_regions, start, end)
+        bpms = [regional] if regional else []
+    fits = [(min(abs(pace - 60 / bpm * n) / pace for n in (1, 2, 3, 4, 6, 8, 12, 16)), bpm, time, basis)
+            for bpm, time, basis in bpms] if pace else []
     fit = min(fits, default=None)
     intro = None
     if levels:
@@ -70,17 +102,17 @@ def _points(window, mode, vocal_status):
     fit = window["pace_fit"]
     pace = (1 if fit[0] <= .1 else .7 if fit[0] <= .2 else .4 if fit[0] <= .35 else 0) if fit else 0
     rise, spread, density = (window[k] for k in ("rise_db", "spread_db", "density"))
-    active = window["has_pulse"] or (density is not None and density >= 1.5)
+    active = window["has_pulse"] or (density is not None and density >= MONTAGE_ATTACKS)
     intro = window["intro_seconds"]
     short = min(3., (window["end"] - window["start"]) * .35)
     intro_points = 0 if intro is None else 1 if intro <= short else .5 if intro <= max(short, 6) else 0
     if mode == "speech-led":
         return {"vocals": 1 if vocal_status == "not_detected" else .7 if vocal_status == "unknown" else 0,
-                "energy": (1 if spread <= 6 and density <= 1.5 else .5 if spread <= 10 else 0) if spread is not None else 0,
+                "energy": (1 if spread <= SPEECH_SPREAD_DB and density <= SPEECH_ATTACKS else .5 if spread <= 10 else 0) if spread is not None else 0,
                 "moment": 0 if window["drops"] else 1, "intro": intro_points}
     moment = window["moment"]
     return {"pace": pace, "moment": 1 if moment and moment.kind == "drop" else .5 if moment else 0,
-            "energy": (1 if rise >= 3 and active else .4 if active else 0) if rise is not None else 0,
+            "energy": (1 if rise >= MONTAGE_RISE_DB and active else .4 if active else 0) if rise is not None else 0,
             "intro": intro_points}
 
 
@@ -98,7 +130,7 @@ def _excerpt(audio, length, pace, mode):
     return max(windows, key=lambda w: (sum(WEIGHTS[mode][k] * v for k, v in _points(w, mode, status).items()), -w["start"]))
 
 
-def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_record=None):
+def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_record=None, source_duration=None):
     if not math.isfinite(length) or not 0 < length <= 600:
         raise ValueError("target length must be 0 < seconds <= 600")
     if pace is not None and (not math.isfinite(pace) or pace <= 0):
@@ -120,11 +152,19 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
     start, end = window["start"], window["end"]
     add("excerpt", f"Try source {start:.3f}–{end:.3f}s for this {mode} brief; compare this excerpt before choosing the track.", time=start)
     if window["pace_fit"]:
-        error, bpm, time = window["pace_fit"]
-        add("pace", f"Use the supported {bpm:g} BPM pulse: the nearest 1/2/3/4/6/8/12/16-beat cut differs from {pace:g}s reference shots by {error:.0%}. "
+        error, bpm, time, basis = window["pace_fit"]
+        add("pace", f"Use the supported {bpm:g} BPM pulse ({'whole-track tempo' if basis == 'global' else basis}): "
+            f"the nearest 1/2/3/4/6/8/12/16-beat cut differs from {pace:g}s reference shots by {error:.0%}. "
             + ("Keep that cut cadence." if error <= .1 else "Adjust the shot pace or choose a closer-tempo track."), time=time, points=points.get("pace"))
+    elif pace is None:
+        add("pace", "No reference pace was supplied, so cut lengths were not compared with the music. "
+            + ("Let speech clauses set the cuts." if speech else
+               "Supply --pace (seconds per cut) or a brief with a studied reference to compare cut lengths."
+               if window["has_pulse"] else "This excerpt also has no supported pulse for beat cuts."))
     else:
-        add("pace", "No pace match is established in this excerpt. " + ("Let speech clauses set the cuts." if speech else "Supply a reference pace or choose an excerpt with a supported pulse before relying on beat cuts."))
+        add("pace", f"No supported pulse covers this excerpt, so the {pace:g}s reference pace cannot be matched to beats. "
+            + ("Let speech clauses set the cuts." if speech else
+               "Choose an excerpt or track with a steady beat before relying on beat cuts."))
     moment = window["moment"]
     if speech:
         drops = window["drops"]
@@ -139,13 +179,18 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
     if rise is None:
         energy_reason = "Energy evidence is missing; analyze the track again before matching its arc to the edit."
     elif speech:
-        energy_reason = f"Excerpt level spread is {spread:.1f} dB with {density:.2f} attacks/s. " + (
-            "Keep this restrained bed low under speech." if points["energy"] == weights["energy"] else
-            "Choose a steadier excerpt or reduce the bed further to avoid distracting from speech.")
+        # Each sentence names the rule that actually failed (docs/MUSIC.md).
+        swings, busy = spread > SPEECH_SPREAD_DB, density > SPEECH_ATTACKS
+        energy_reason = f"Excerpt level spread is {spread:.1f} dB with {density:.2f} salient attacks/s. " + (
+            "Keep this restrained bed low under speech." if not swings and not busy else
+            f"The level swings more than {SPEECH_SPREAD_DB:g} dB; choose a steadier excerpt or automate the bed. " * swings
+            + f"More than {SPEECH_ATTACKS:g} attacks/s can compete with speech; choose a sparser excerpt or lower the bed further." * busy).strip()
     else:
-        energy_reason = f"Excerpt rises {rise:+.1f} dB from its first to last quarter, with {density:.2f} attacks/s. " + (
-            "Use that build to support the visual reveal." if points["energy"] == weights["energy"] else
-            "For a driving montage, choose a stronger rising arc; this excerpt is flatter or calmer.")
+        active = window["has_pulse"] or density >= MONTAGE_ATTACKS
+        energy_reason = f"Excerpt rises {rise:+.1f} dB from its first to last quarter, with {density:.2f} salient attacks/s. " + (
+            "Use that build to support the visual reveal." if rise >= MONTAGE_RISE_DB and active else
+            f"It rises less than {MONTAGE_RISE_DB:g} dB; for a reveal, choose an excerpt that builds into the moment." if active else
+            f"It has no supported pulse and fewer than {MONTAGE_ATTACKS:g} attacks/s; for a driving montage choose a more active excerpt.")
     add("energy", energy_reason, time=start, points=points["energy"])
     add("vocals", f"Vocals {vocal_status}. " + ("Prefer an instrumental alternative under speech; listen to confirm because harmonic instruments can trigger this warning." if speech and vocal_status == "possible" else
         "Listen for masked vocals before placing dialogue over this track; the heuristic cannot rule them out." if speech else
@@ -153,7 +198,12 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
     intro = window["intro_seconds"]
     add("intro", f"Energy arrives {intro:.2f}s into the suggested excerpt. " + ("Keep this start for a quick hook." if points["intro"] == weights["intro"] else "Trim the lead-in or reserve it for an intentional build.") if intro is not None else
         "Energy arrival is unknown; audition a start point before building the hook.", time=start + intro if intro is not None else None, points=points["intro"])
-    add("duration", f"{audio.duration_seconds:.2f}s available for {length:g}s: " + ("use one continuous excerpt; no loop is needed." if audio.duration_seconds >= length else "choose a longer track or arrange a loop/edit, which is not automatic."), 28 if audio.duration_seconds < length else 0)
+    available = source_duration if audio.truncated and source_duration else audio.duration_seconds
+    length_text = (f"{available:.2f}s available" if source_duration or not audio.truncated else
+                   f"More than {audio.duration_seconds:.0f}s available")
+    if audio.truncated:
+        length_text += f" (analysis covers the first {audio.duration_seconds:.0f}s)"
+    add("duration", f"{length_text} for {length:g}s: " + ("use one continuous excerpt; no loop is needed." if available >= length else "choose a longer track or arrange a loop/edit, which is not automatic."), 28 if available < length else 0)
     l = audio.loudness
     add("loudness", f"Track measures {l.integrated_lufs} LUFS and {l.true_peak_dbtp} dBTP; set excerpt gain " + ("for a 21 LU speech-to-music difference, then measure the render." if speech else "near the -16 LUFS music-led target, then check the encoded peak."), 14 if l.integrated_lufs is None or l.integrated_lufs > -7 else 0)
     add("dynamics", "Automate or compress the large loudness swings before mixing this track." if l.loudness_range_lu is not None and l.loudness_range_lu > 15 else "Keep the measured dynamics unless listening reveals masking; short tracks make LRA less informative.", 10 if l.loudness_range_lu is not None and l.loudness_range_lu > 15 else 0)
@@ -173,6 +223,23 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
                                "rule": "base + weighted excerpt suitability - quality penalties; good >=80, usable >=55"}})
 
 
+def probe_duration(path):
+    """Container duration for tracks longer than the analysis cap, else None."""
+    import shutil
+    import subprocess
+    probe = shutil.which("ffprobe")
+    if not probe:
+        return None
+    try:
+        out = subprocess.run([probe, "-v", "error", "-protocol_whitelist", "file,pipe", "-show_entries",
+                              "format=duration", "-of", "default=nokey=1:noprint_wrappers=1", str(path)],
+                             capture_output=True, text=True, timeout=30, check=False).stdout.strip()
+        value = float(out)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return value if math.isfinite(value) and value > 0 else None
+
+
 def check_tracks(tracks, *, brief=None, plan=None, length=None, pace=None, speech=None, license_record=None):
     from myzing.brief.models import Brief
     from myzing.composition import Composition
@@ -190,8 +257,12 @@ def check_tracks(tracks, *, brief=None, plan=None, length=None, pace=None, speec
         pace = pace or median(c.duration for c in p.clips)
     length = length or (b.target_length_seconds if b else 30)
     speech = talking(b) if speech is None else speech
-    results = [rate(analyze(t), length=length, speech=speech, pace=pace,
-                    purpose=b.purpose if b else "", license_record=license_record).to_dict() for t in tracks]
+    results = []
+    for t in tracks:
+        audio = analyze(t)
+        results.append(rate(audio, length=length, speech=speech, pace=pace, purpose=b.purpose if b else "",
+                            license_record=license_record,
+                            source_duration=probe_duration(t) if audio.truncated else None).to_dict())
     return {"version": 1, "context": {"length": length, "speech": speech, "pace": pace},
             "tracks": sorted(results, key=lambda a: (-a["score"], a["track"])),
             "scope": "Local rules and DSP; no downloads, uploads, song identification or licensing claims."}

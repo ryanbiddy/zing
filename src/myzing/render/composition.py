@@ -197,19 +197,34 @@ def render_composition(
     c = prepared.composition
     if any(a.duck_under_speech and a.duck_scope == "source_speech" and a.kind != "music" for a in c.audio):
         raise EDLValidationError("source_speech ducking applies to music tracks only")
-    if any(a.kind == "music" for a in c.audio):
-        from myzing.audio.media import AudioError, numpy
-        try:
-            numpy()
-        except AudioError as exc:
-            raise pipeline.RenderError(str(exc)) from exc
-    from myzing.music.models import extract
+    from myzing.music.models import extract, stale_timeline
     music_evidence = extract(c)
-    if any(a.duck_under_speech and a.duck_scope == "source_speech" for a in c.audio) and not music_evidence.speech_spans:
+    scoped = any(a.duck_under_speech and a.duck_scope == "source_speech" for a in c.audio)
+    if scoped and not music_evidence.speech_spans:
         raise EDLValidationError("source_speech ducking needs MUSIC1 speech spans from the director; run zing plan drafts with studied speech")
     duration = max(clip.timeline_end for clip in c.clips)
     if any(b > duration + 1e-6 for a, b in music_evidence.speech_spans):
         raise EDLValidationError("MUSIC1 speech span exceeds the composition")
+    if scoped:
+        # Spans are output times for the planned hard-cut timeline.
+        stale = stale_timeline(music_evidence, c.clips)
+        if stale:
+            raise EDLValidationError(stale)
+        if any(t.end > t.start for t in c.transitions):
+            raise EDLValidationError("source_speech ducking spans assume hard cuts; overlapping transitions move "
+                                     "speech in output time. Re-plan, or duck under voiceover instead")
+    # A plain music bed renders on a [render]-only install. Measurement needs
+    # NumPy and runs only for director music evidence or speech ducking.
+    measure_music = any(a.kind == "music" for a in c.audio) and (bool(music_evidence.tracks) or scoped)
+    measurement_warnings: tuple[str, ...] = ()
+    if measure_music:
+        from myzing.audio.media import AudioError, numpy
+        try:
+            numpy()
+        except AudioError:
+            measure_music = False
+            measurement_warnings = ("Music mix measurement skipped: NumPy is unavailable, so no .music.json "
+                                    'sidecar was written; install "myzing[audio]" to measure the rendered bed.',)
     joins = timeline_joins(c)
     output = Path(output).expanduser().resolve()
     if output in prepared.input_paths:
@@ -277,7 +292,7 @@ def render_composition(
 
         # Internal filenames must never overwrite inputs, including in --keep-work.
         reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "filter graph.txt", "rendered.mp4")}
-        reserved.update(directory / name for name in ("music-stem.wav", "source-stem.wav"))
+        reserved.update(directory / name for name in ("music-stem.wav", "source-stem.wav", "music-duck.wav"))
         reserved.add(directory / "music-measurements.json")
         owned_dirs = [directory / "fonts"]
         if hf_plan is not None:
@@ -318,6 +333,8 @@ def render_composition(
                                     "fade_out": min(1., (a.src_out - a.src_in) / 4)}
                          for t in music_evidence.tracks for a in c.audio if a.id == t["id"] and a.src_out is not None},
             music_metadata=music_evidence.to_dict(),
+            duck=music_evidence.duck(),
+            measure_music=measure_music,
         )
 
     if work_dir is not None:

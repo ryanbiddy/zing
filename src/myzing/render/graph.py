@@ -97,9 +97,9 @@ def build_graph(
     caption_overlay: Path | None = None,
     clip_framings: tuple = (),
     composition_audio: tuple = (),
-    speech_spans: tuple = (),
     music_fades: dict | None = None,
     measure_stems: bool = False,
+    duck_envelope: Path | None = None,
 ) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
@@ -235,31 +235,30 @@ def build_graph(
     else:
         lines.append(f"[{caption_base}]null[video_out]")
 
-    # One source bus feeds the audible mix, the measured stem, and speech keys.
-    source_key = None
+    # Stems exist only for a music mix that will be measured.
+    measure_stems = measure_stems and any(t.spec.kind == "music" for t in validated.audio_tracks)
     source_measure = None
-    scoped = [a for a in composition_audio if a.duck_under_speech and a.duck_scope == "source_speech"]
-    if clip_audio_labels and (scoped or measure_stems):
+    if clip_audio_labels and measure_stems:
         joined = "".join(f"[{label}]" for label in clip_audio_labels)
         lines.append(joined + (f"amix=inputs={len(clip_audio_labels)}:normalize=0:duration=longest" if len(clip_audio_labels) > 1 else "anull") + "[source_bus]")
-        labels = ["source_audible"]
-        if measure_stems:
-            labels.append("source_measure")
-            source_measure = "source_measure"
-        if scoped:
-            labels.append("source_key")
-            source_key = "source_key"
-        lines.append(f"[source_bus]asplit={len(labels)}" + "".join(f"[{label}]" for label in labels))
+        lines.append("[source_bus]asplit=2[source_audible][source_measure]")
+        source_measure = "source_measure"
         clip_audio_labels = ["source_audible"]
-    if source_key and speech_spans:
-        gate = "+".join(f"between(t,{_number(a)},{_number(b)})" for a, b in speech_spans)
-        # The key comes from actual source audio, but only where supplied speech
-        # spans say it is speech. Constant key level gives a predictable depth;
-        # the compressor provides smooth attack and recovery between phrases.
-        lines.append(f"[source_key]aeval=exprs='if(gt(abs(val(0))+abs(val(1)),0)*({gate}),1,0)':c=stereo[speech_gate]")
-        lines.append(f"[speech_gate]asplit={len(scoped)}" + "".join(f"[source_sidechain{i}]" for i in range(len(scoped))))
-    elif source_key:
-        lines.append("[source_key]anullsink")
+    scoped = [a for a in composition_audio if a.duck_under_speech and a.duck_scope == "source_speech"]
+    if scoped:
+        if duck_envelope is None:
+            raise ValueError("source_speech ducking needs a known-speech gain envelope")
+        # Director speech passages drive a precomputed gain envelope (1 kHz
+        # control rate, raised-cosine ramps). It holds through clause gaps
+        # and has no per-sample expression, so it scales with span count.
+        envelope_index = len(validated.clips) + len(validated.audio_tracks) + (caption_overlay is not None)
+        envelope = (f"[{envelope_index}:a:0]aresample=48000,pan=stereo|c0=c0|c1=c0,"
+                    "aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB,"
+                    f"apad=whole_dur={_number(duration)},atrim=duration={_number(duration)}")
+        if len(scoped) == 1:
+            lines.append(envelope + "[duck_env0]")
+        else:
+            lines.append(envelope + f",asplit={len(scoped)}" + "".join(f"[duck_env{i}]" for i in range(len(scoped))))
     voice_labels = []
     music: list[tuple[str, bool]] = []
     first_track_input = len(validated.clips)
@@ -285,9 +284,9 @@ def build_graph(
             voice_labels.append(label)
         else:
             music.append((label, resolved.spec.duck_under_speech and (not spec or spec.duck_scope == "voiceover")))
-            if spec and spec.duck_under_speech and spec.duck_scope == "source_speech" and source_key and speech_spans:
-                index = sum(a.duck_under_speech and a.duck_scope == "source_speech" for a in composition_audio[:track_offset])
-                lines.append(f"[{label}][source_sidechain{index}]sidechaincompress=threshold=0.1:ratio=4:attack=20:release=250:knee=1:detection=rms:link=maximum:makeup=1:mix=1[{label}_source_ducked]")
+            index = next((i for i, a in enumerate(scoped) if a is spec), None)
+            if index is not None:
+                lines.append(f"[{label}][duck_env{index}]amultiply[{label}_source_ducked]")
                 music[-1] = (label + "_source_ducked", False)
 
     final_audio_labels = list(clip_audio_labels)
@@ -368,6 +367,8 @@ def build_graph(
 
     if caption_overlay is not None:
         input_paths.append(caption_overlay)
+    if scoped:
+        input_paths.append(duck_envelope)
     if fps_rate is not None and final_audio_labels:
         # Reserve AAC headroom without lifting quiet material or adding latency.
         # Oversampling also catches peaks between the original 48 kHz samples.

@@ -280,6 +280,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
              "30 fps CFR and full-HD aspect dimensions are delivery defaults; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
+    if music_tracks:
+        notes.extend(music_evidence.warnings)
     continuity = score(sequence, studies, allow_reordering="[allow source reordering]" in brief.purpose.casefold())
     if continuity["status"] == "flagged":
         notes.append("Continuity flagged: no better complete-clause trio found within the bounded search; review dangling source speech.")

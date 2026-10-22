@@ -40,12 +40,57 @@ class Structure(Record):
         return super().from_dict(data)
 
 
+ATTACK_RISE_DB = 6.0
+ATTACK_SHARE = .005
+ATTACK_FLOOR_RMS = 10 ** (-60 / 20)
+
+
+def salient_attacks(features):
+    """Times where a band rises >=6 dB above its level 20-80 ms earlier.
+
+    The band must hold at least 0.5% of the loudest frame energy in the past
+    second, so tails and clicks after a loud hit do not count, and the frame
+    must be above -60 dBFS. Steady tones and noise beds produce none, and the
+    floor does not depend on the loudest attack in the track, so a loud
+    pickup cannot hide the quieter kicks after it.
+    """
+    np = numpy()
+    bands = features["bands"]
+    n = len(bands)
+    if n < 12:
+        return []
+    window = np.lib.stride_tricks.sliding_window_view
+    smooth = (bands + np.vstack([bands[1:], bands[-1:]])) / 2
+    reference = window(np.pad(smooth, ((8, 0), (0, 0)), mode="edge"), 6, axis=0)[:n].mean(axis=-1)
+    rise = 10 * np.log10((smooth + 1e-16) / (reference + 1e-16))
+    total = smooth.sum(axis=1)
+    recent = window(np.pad(total, (100, 0), mode="edge"), 101).max(axis=1)[:n]
+    score = np.where(smooth / np.maximum(recent, 1e-16)[:, None] >= ATTACK_SHARE, rise, 0.0).max(axis=1)
+    score[:3] = 0.0
+    score[features["rms"] < ATTACK_FLOOR_RMS] = 0.0
+    peaks = np.flatnonzero((score >= ATTACK_RISE_DB) & (score >= np.r_[0, score[:-1]]) & (score > np.r_[score[1:], 0]))
+    chosen: list[int] = []
+    for index in peaks:
+        if chosen and (index - chosen[-1]) * HOP / SAMPLE_RATE < .08:
+            if score[index] > score[chosen[-1]]:
+                chosen[-1] = int(index)
+        else:
+            chosen.append(int(index))
+    return [round(i * HOP / SAMPLE_RATE, 6) for i in chosen]
+
+
 def analyze_structure(features, tempo, beats, onsets, duration):
     np = numpy()
     result = Structure()
     times = np.arange(len(features["rms"])) * HOP / SAMPLE_RATE
+    attacks = salient_attacks(features) if "bands" in features else [o.time for o in onsets]
+    bins = np.arange(0, duration + .25, .25)
+    onset_counts = np.histogram([o.time for o in onsets], bins=bins)[0] if len(bins) > 1 else []
+    attack_counts = np.histogram(attacks, bins=bins)[0] if len(bins) > 1 else []
     # Quarter-second energy observations; loudness here is RMS dBFS, not LUFS.
-    for t in np.arange(0, duration, .25):
+    # Density counts salient attacks: a band rising >=6 dB over its recent
+    # level. Every onset candidate is kept as onsets_per_second for audit.
+    for k, t in enumerate(np.arange(0, duration, .25)):
         mask = (times >= t) & (times < t + .25)
         if not mask.any():
             continue
@@ -54,10 +99,11 @@ def analyze_structure(features, tempo, beats, onsets, duration):
         result.energy.append({"time": round(float(t), 6), "rms_dbfs": round(20 * float(np.log10(max(rms, 1e-8))), 3),
                               "low_db": round(20 * float(np.log10(max(low, 1e-8))), 3),
                               "flux": float(np.mean(features["flux"][mask])),
-                              "onsets_per_second": float(sum(t <= o.time < t + .25 for o in onsets) * 4.0)})
+                              "onsets_per_second": float(onset_counts[k] * 4.0) if k < len(onset_counts) else 0.0,
+                              "attacks_per_second": float(attack_counts[k] * 4.0) if k < len(attack_counts) else 0.0})
     levels = np.array([e["rms_dbfs"] for e in result.energy])
     lows = np.array([e["low_db"] for e in result.energy])
-    densities = np.array([e["onsets_per_second"] for e in result.energy])
+    densities = np.array([e["attacks_per_second"] for e in result.energy])
     if len(levels) >= 8 and levels.max() > -50:
         ceiling = float(np.percentile(levels, 85))
         result.intro_seconds = next((i * .25 for i in range(len(levels) - 3)
@@ -84,17 +130,22 @@ def analyze_structure(features, tempo, beats, onsets, duration):
             density_after = float(np.mean(densities[i:i + 16]))
             recurring_attacks = sum(float(np.mean(densities[j:j + 4])) >= 1.5 for j in range(i, i + 16, 4)) >= 3
             frame = round(event_time * SAMPLE_RATE / HOP)
-            def attack_jump(band):
+            def attack_jump(band, first=2, last=20):
                 left = float(np.median(features[band][max(0, frame - 20):frame - 2]))
-                right = float(np.median(features[band][frame + 2:frame + 20]))
+                right = float(np.median(features[band][frame + first:frame + last]))
                 return 20 * float(np.log10(max(right, 1e-8) / max(left, 1e-8)))
-            bass_attack, rms_attack = attack_jump("low"), attack_jump("rms")
+            # Short decaying stabs carry their arrival in the first 10-80 ms;
+            # a 200 ms median would hide it under the preceding pad.
+            bass_attack, rms_attack = attack_jump("low"), attack_jump("rms", 1, 8)
             arrived = observed_attack and float(np.median(levels[i:i + 2])) >= after - 3
             bass_return = arrived and bass >= 6 and share_jump >= 3 and bass_share >= -18 and density_after >= 1.5 and recurring_attacks and bass_attack >= 6
             attack_return = arrived and density_after >= max(2., density_before * 1.75, density_before + 1.) and recurring_attacks and rms_attack >= 3
             earlier = levels[max(0, i - 24):i - 8]
             build = len(earlier) >= 4 and before - float(np.median(earlier)) >= 3
-            brk = before < ceiling - 7 or (len(earlier) >= 4 and float(np.median(earlier)) - before >= 3)
+            # A break is a quieter dip, or a quieter section with sparse attacks
+            # (a pad-only bar before a midrange drop).
+            brk = (before < ceiling - 7 or (len(earlier) >= 4 and float(np.median(earlier)) - before >= 3)
+                   or (before <= ceiling - 5 and density_before < 1.0))
             prior_activity = np.count_nonzero(levels[:i - 4] > -50) >= 4
             if jump >= 5 and (build or brk) and prior_activity and np.mean(levels[i:i + 16] >= before + 4) >= .8:
                 kind = "drop" if bass_return or attack_return else "swell"
