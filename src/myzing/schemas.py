@@ -47,6 +47,20 @@ class Shot:
         return self.end - self.start
 
 
+def _without_absent_timing(value: Any) -> Any:
+    """Keep v1 JSON byte-identical: Word.timing is written only when set.
+
+    Consumers such as Uoink validate these documents strictly, so a
+    new optional field must not appear as null on every word.
+    """
+    if isinstance(value, dict):
+        return {k: _without_absent_timing(v) for k, v in value.items()
+                if not (k == "timing" and v is None)}
+    if isinstance(value, list):
+        return [_without_absent_timing(v) for v in value]
+    return value
+
+
 @dataclass
 class Word:
     """One transcript word with timing (faster-whisper word timestamps)."""
@@ -54,6 +68,8 @@ class Word:
     start: float
     end: float
     confidence: float = 1.0   # ASR per-word probability; 1.0 = not reported
+    # Optional P2 provenance; absent in v1 inputs. Defined by myzing.timing.
+    timing: dict[str, Any] | None = None
 
 
 @dataclass
@@ -161,7 +177,7 @@ class Breakdown:
     schema_version: int = 1
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _without_absent_timing(asdict(self))
 
     def to_json(self, **kw: Any) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, **kw)
@@ -244,7 +260,7 @@ class StyleProfile:
     schema_version: int = 1
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _without_absent_timing(asdict(self))
 
     def to_json(self, **kw: Any) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, **kw)
@@ -345,7 +361,7 @@ class EDL:
     schema_version: int = 1
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return _without_absent_timing(asdict(self))
 
     def to_json(self, **kw: Any) -> str:
         return json.dumps(self.to_dict(), ensure_ascii=False, **kw)

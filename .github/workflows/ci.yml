@@ -63,7 +63,7 @@ jobs:
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 44
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 45
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -103,7 +103,7 @@ jobs:
           done
       - run: pip install -e .[dev,layout,color]
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 44
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 45
 
   # First macOS gate: keep the broad mocked/unit suite in the matrix above,
   # then prove Homebrew ffmpeg can generate media and Zing can extract real

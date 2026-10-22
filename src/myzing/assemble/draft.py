@@ -16,13 +16,14 @@ Failures are loud: an EDL that cannot be honest does not get produced.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
 from myzing import storage
 from myzing.schemas import Breakdown, CaptionSpec, Clip, EDL, Word
 from myzing.study import formats
+from myzing.timing import TimingReviewError, WordRetry, finite, prepare_words, transform_word
 
 MIN_CLIP_S = 0.2
 KEEPER_MATCH_TOLERANCE_S = 0.35
@@ -52,6 +53,7 @@ def draft_edl(
     breakdown: Breakdown,
     direction: dict[str, Any],
     media_path: Path,
+    *, retry_word_timing: WordRetry | None = None,
 ) -> DraftResult:
     """Build a draft EDL from a direction's keeper choices.
 
@@ -69,7 +71,12 @@ def draft_edl(
         raise AssembleError(f"source media missing: {media_path}")
 
     duration = breakdown.meta.duration
-    warnings: list[str] = []
+    try:
+        words, warnings = prepare_words(breakdown.words, duration, retry=retry_word_timing)
+    except TimingReviewError as exc:
+        raise AssembleError(str(exc)) from exc
+    # Keep the stored measurements intact; captions use this validated copy.
+    breakdown = replace(breakdown, words=words)
     measured = _measured_keeper_spans(breakdown)
     if measured is None:
         warnings.append(
@@ -163,6 +170,14 @@ def draft_edl(
         height=output_height,
         fps=breakdown.meta.fps,
     )
+    # Clamping and millisecond timeline mapping can collapse a tiny interval.
+    # Re-check the actual output, without further repairs, before any save.
+    try:
+        prepare_words([w for c in captions for w in c.words],
+                      round(clips[-1].timeline_start + clips[-1].src_out - clips[-1].src_in, 3),
+                      repair=False)
+    except TimingReviewError as exc:
+        raise AssembleError(str(exc)) from exc
     return DraftResult(edl=edl, warnings=warnings)
 
 
@@ -310,6 +325,18 @@ def _caption_specs(
     specs: list[CaptionSpec] = []
     for clip in clips:
         offset = clip.timeline_start - clip.src_in
+        for word in breakdown.words:
+            original = (word.timing or {}).get("original", {})
+            at = original.get("start")
+            if (finite(at) and at == original.get("end")
+                    and clip.src_in <= at < clip.src_out
+                    and not clip.src_in <= (word.start + word.end) / 2 < clip.src_out):
+                raise AssembleError(
+                    f"timing review required: word {word.text!r} at {at:.3f}s "
+                    f"was corrected to {word.start:.3f}-{word.end:.3f}s outside "
+                    "the chosen trim; extend the keeper to include the corrected "
+                    "word or review its timing before assembling"
+                )
         # D-10: a word straddling a trim edge is mostly audible in the
         # render when its midpoint lies inside the span — caption it with
         # start/end clamped to the trim instead of dropping it.
@@ -350,11 +377,11 @@ def _spec(
         all_caps=all_caps,
         word_timed=word_timed,
         words=[
-            Word(
+            replace(transform_word(
+                w, round(w.start + offset, 3), round(w.end + offset, 3),
+                "timeline_mapping", corrected=False, offset=offset,
+            ),
                 text=w.text.strip().upper() if all_caps else w.text.strip(),
-                start=round(w.start + offset, 3),
-                end=round(w.end + offset, 3),
-                confidence=w.confidence,
             )
             for w in window
         ],
@@ -364,12 +391,8 @@ def _spec(
 def _clamped(word: Word, src_in: float, src_out: float) -> Word:
     if word.start >= src_in and word.end <= src_out:
         return word
-    return Word(
-        text=word.text,
-        start=max(word.start, src_in),
-        end=min(word.end, src_out),
-        confidence=word.confidence,
-    )
+    return transform_word(word, max(word.start, src_in), min(word.end, src_out),
+                          "trim_clamp")
 
 
 def _span_of(keeper: dict[str, Any], index: int) -> tuple[float, float]:
@@ -380,7 +403,7 @@ def _span_of(keeper: dict[str, Any], index: int) -> tuple[float, float]:
         raise AssembleError(
             f"direction keeper {index} lacks numeric start/end"
         ) from exc
-    if end <= start or start < 0:
+    if not finite(start) or not finite(end) or end <= start or start < 0:
         raise AssembleError(
             f"direction keeper {index} has an impossible span "
             f"({start}-{end})"
@@ -416,7 +439,8 @@ def _trim_boundary_warnings(
         warnings.append(
             "draft EDL: context-boundary risk — "
             f"keeper {keeper_index} {label} at {boundary:.3f}s inside "
-            f"measured word '{text}' ({word.start:.3f}-{word.end:.3f}s, "
+            f"{(word.timing or {}).get('status', 'measured')} word '{text}' "
+            f"({word.start:.3f}-{word.end:.3f}s, "
             f"confidence {word.confidence:.2f}); "
             "adjust the trim or verify the audible cut"
         )
@@ -448,7 +472,8 @@ def _matches_measured(
     )
 
 
-def draft_for_slug(slug: str, direction: dict[str, Any]) -> DraftResult:
+def draft_for_slug(slug: str, direction: dict[str, Any], *,
+                   retry_word_timing: WordRetry | None = None) -> DraftResult:
     """Storage-integrated entry: load the breakdown + media for ``slug``
     and write draft-edl.json next to them."""
     breakdown = storage.load_breakdown(slug)
@@ -458,7 +483,7 @@ def draft_for_slug(slug: str, direction: dict[str, Any]) -> DraftResult:
             f"no stored media for '{slug}' — re-run 'zing study' first"
         )
     target = storage.breakdown_dir(slug) / "draft-edl.json"
-    result = draft_edl(breakdown, direction, media)
+    result = draft_edl(breakdown, direction, media, retry_word_timing=retry_word_timing)
     # The saved EDL travels with its media. Never serialize a workspace-
     # relative path: render interprets every relative src from the EDL.
     for clip in result.edl.clips:
