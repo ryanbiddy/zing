@@ -34,7 +34,7 @@ def unsupported_features(composition: Composition) -> list[str]:
             problems.append(f"clip {clip.id}: speed maps")
     for transition in composition.transitions:
         if transition.recipe.kind not in SUPPORTED_KINDS:
-            problems.append(f"transition {transition.id}: {transition.recipe.kind}")
+            problems.append(f"transition {transition.id} ({transition.outgoing_clip} -> {transition.incoming_clip}, {transition.recipe.duration_seconds:g}s): {transition.recipe.kind}")
     for caption in composition.captions:
         if caption.backend != "ass":
             problems.append(f"caption {caption.id}: {caption.backend} caption backend")

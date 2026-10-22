@@ -94,7 +94,7 @@ def export_schema(root: type) -> dict:
                 if annotation.__name__ == "Transition":
                     handle = properties["outgoing_handle"]["anyOf"][0]
                     definitions[key]["allOf"] = [{
-                        "if": {"properties": {"recipe": {"properties": {"kind": {"enum": ["dissolve", "wipe", "zoom_punch"]}},
+                        "if": {"properties": {"recipe": {"properties": {"kind": {"enum": ["dissolve", "wipe", "zoom_punch", "dip_to_black", "dip_to_white"]}},
                                                          "required": ["kind"]}}, "required": ["recipe"]},
                         "then": {"required": ["outgoing_handle", "incoming_handle"],
                                  "properties": {"outgoing_handle": handle, "incoming_handle": handle}},
