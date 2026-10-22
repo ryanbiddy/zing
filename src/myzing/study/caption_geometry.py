@@ -24,12 +24,13 @@ FILENAME = "caption-geometry.json"
 
 
 class JsonRecord:
+    versions = (1,)
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]):
-        if value.get("version", 1) != 1:
+        if value.get("version", 1) not in cls.versions:
             raise ValueError(f"unsupported {cls.__name__} version: {value['version']}")
         return cls(**value)
 
@@ -42,6 +43,7 @@ class Detection(JsonRecord):
     box: list[float]
     appearance: dict[str, Any] = field(default_factory=dict)
     version: int = 1
+    validation: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -55,6 +57,7 @@ class FrameSample(JsonRecord):
     detections: list[Detection] = field(default_factory=list)
     status: str = "ok"
     version: int = 1
+    face_boxes: list[list[float]] | None = None
 
     @classmethod
     def from_dict(cls, value):
@@ -80,13 +83,14 @@ class CaptionTrack(JsonRecord):
 
 @dataclass
 class CaptionGeometry(JsonRecord):
+    versions = (1, 2)
     duration: float
     frames: list[FrameSample] = field(default_factory=list)
     tracks: list[CaptionTrack] = field(default_factory=list)
     coverage: dict[str, Any] = field(default_factory=dict)
     provenance: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
-    version: int = 1
+    version: int = 2
     font_candidates: dict[str, Any] | None = None
 
     def to_dict(self):
@@ -206,7 +210,7 @@ def iter_frames(path: Path, duration: float) -> Iterator[tuple[float, float, flo
 def read_geometry(path: Path, duration: float) -> CaptionGeometry:
     result = CaptionGeometry(duration if math.isfinite(duration) and duration > 0 else 0.)
     result.provenance = {
-        "method": "caption-geometry-v1", "coordinate_space": "normalized display-frame edges",
+        "method": "caption-geometry-v2", "coordinate_space": "normalized display-frame edges",
         "text_height": "visible fill ink / frame height (not font em size)",
         "colors": "CIE Lab D65 component medians; sRGB estimates from decoded BGR",
         "confidence": "heuristic quality scores, not calibrated probabilities",
@@ -233,17 +237,36 @@ def read_geometry(path: Path, duration: float) -> CaptionGeometry:
         result.provenance["ocr_backend"] = backend
         import numpy as np
         from .caption_pixels import measure
+        from .caption_regions import THRESHOLDS
+        from myzing.layout.detector import YuNetDetector, model_path, verified_model
+        result.provenance["region_thresholds"] = dict(THRESHOLDS)
+        faces = None
+        result.provenance["face_evidence"] = "unavailable; no verified local YuNet model"
+        if verified_model(model_path()):
+            try:
+                faces = YuNetDetector()
+                result.provenance["face_evidence"] = "local YuNet; same decoded OCR samples"
+            except Exception as exc:
+                result.provenance["face_evidence"] = f"unavailable: {exc}"
         previous, previous_detections = None, []
         for t, target, step, index, frame in iter_frames(path, duration):
             sample = FrameSample(t, target, step, index, frame.shape[1], frame.shape[0])
             try:
                 if previous is not None and np.array_equal(previous, frame):
-                    sample.detections = previous_detections
+                    # Validation is sample-specific even for identical pixels.
+                    import copy
+                    sample.detections = copy.deepcopy(previous_detections)
                 else:
                     sample.detections = parse_ocr(engine(frame), frame)
                     for detection in sample.detections:
-                        if _confident(detection):
-                            detection.appearance = measure(frame, detection.polygon)
+                        if detection.text and (detection.confidence or 0) >= THRESHOLDS["corroborated_ocr"]:
+                            detection.appearance = measure(frame, detection.polygon, detection.text)
+                if faces is not None and sample.detections:
+                    try:
+                        sample.face_boxes = [[d.box.x, d.box.y, d.box.right, d.box.bottom]
+                                             for d in faces.detect(frame)]
+                    except Exception as exc:
+                        result.warnings.append(f"face evidence unavailable at {t:.6f}s: {exc}")
                 if not sample.detections:
                     sample.status = "no_text_detected"
                 elif any(not _confident(d) for d in sample.detections):
@@ -258,6 +281,9 @@ def read_geometry(path: Path, duration: float) -> CaptionGeometry:
         result.warnings.append("caption geometry not measured: install myzing[study] (rapidocr/onnxruntime/OpenCV)")
     except Exception as exc:
         result.warnings.append(f"caption geometry incomplete: {exc}; run 'zing doctor' for runtime checks")
+    if result.frames:
+        from .caption_regions import assess
+        assess(result.frames)
     result.tracks = track_frames(result.frames, duration)
     result.coverage = _coverage(result, schedule)
     if result.coverage["gaps"]:
@@ -266,6 +292,8 @@ def read_geometry(path: Path, duration: float) -> CaptionGeometry:
 
 
 def _confident(d):
+    if d.validation:
+        return d.validation.get("accepted") is True
     return bool(d.text and d.confidence is not None and d.confidence >= captions.CONF_THRESHOLD)
 
 
@@ -279,6 +307,10 @@ def _coverage(result, schedule):
         if f.status != "ok":
             gaps.append({"t": f.t, "reason": f.status,
                          "scope": "uncertain detections" if f.status == "low_confidence" else "frame"})
+        for index, d in enumerate(f.detections):
+            if d.validation and not d.validation["accepted"]:
+                gaps.append({"t": f.t, "reason": "rejected_text_region", "scope": "detection",
+                             "detection_index": index, "reasons": d.validation["reasons"]})
     # A watermark can still be recognized while a caption is occluded. Frame
     # status alone would hide that loss, so name missing observations within
     # each linked track as well. We do not infer unseen starts or ends.

@@ -195,10 +195,13 @@ def captions_score(clips, labels, observations, thresholds):
             ):
                 unavailable.append([id, frame["t"]])
                 continue
-            # All OCR evidence is retained in JSON. Score the shipped 0.75 gate,
-            # not low-confidence diagnostics as if they were accepted claims.
+            # CG2 retains rejected OCR proposals as diagnostics. They never
+            # count as caption claims; old sidecars keep the original gate.
             predictions = [
-                p for p in sample["detections"] if (p.get("confidence") or 0) >= 0.75
+                p for p in sample["detections"] if (
+                    p.get("validation", {}).get("accepted") is True
+                    if geometry.get("version", 1) >= 2 else (p.get("confidence") or 0) >= 0.75
+                )
             ]
             truths = frame["lines"]
             matches = assign(
@@ -213,7 +216,7 @@ def captions_score(clips, labels, observations, thresholds):
             details = []
             for i, j in matches:
                 t, p = truths[i], predictions[j]
-                ink = p.get("appearance", {}).get("ink_box", p["box"])
+                ink = p.get("appearance", {}).get("ink_box") or p["box"]
                 a, b = normalize(t["text"]), normalize(p["text"])
                 errors.append(iou(t["box"], ink))
                 height_errors.append(

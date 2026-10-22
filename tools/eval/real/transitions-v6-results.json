@@ -1,0 +1,1989 @@
+{
+  "version": 1,
+  "detector_version": 6,
+  "matches_current_detector": true,
+  "decision_freeze": {
+    "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+    "source_sha256": {
+      "transitions.py": "970911e52657fa554d2ca8680cab9f6a1173b82da79dee0261b3d61345ade611",
+      "transition_models.py": "be66b0b0ce200fa3b6953913271f64f780c5af3e7137183fc8862a555ee1062b"
+    },
+    "detector_version": 6,
+    "inputs": {
+      "manifest.json": "09bf18567fdefc27a1335f3aaed253542d42c678a71101051b3741144a6fb369",
+      "labels.json": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+      "transition-split.json": "55031c95ccccd22bbc27d463565f56da2e98ba922c820a08eb8ed8b3aa67ace8",
+      "scoring.py": "135b5213135f25da9506ebd8e09cdd42f0fdb960cdb340033cb3f2ebf3ad4de3",
+      "run_transition_eval.py": "86e7350fca9502b1bce1f0a6628042dd3b905f174f6ed6071d70a576dd1f26d3"
+    },
+    "frozen_utc": "2026-10-22T07:41:25.757886+00:00"
+  },
+  "published_detector": {
+    "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+    "source_sha256": {
+      "transitions.py": "1560f095470bfab489b94edf86920f20f2d6a2731d9d5f5dabf1190eb7bf4d21",
+      "transition_models.py": "8e324011f24883823fae63db690ade0ea88b929d58c3199447c2578ea6ae2c2b"
+    },
+    "detector_version": 6
+  },
+  "split": {
+    "version": 1,
+    "name": "T6 real-video clip holdout",
+    "frozen_before_tuning": true,
+    "calibration": [
+      "korky",
+      "tos-lab",
+      "tos-credits",
+      "duck-classroom",
+      "nasa-opening"
+    ],
+    "held_out": [
+      "tos-dialogue",
+      "tos-memory",
+      "duck-titles",
+      "duck-street",
+      "nasa-montage"
+    ],
+    "selection": "Fixed by clip before any detector changes: one dissolve per partition, modern and archival footage in each. No event from a held-out clip is used for tuning. Calibration includes the no-cut monologue and rapid NASA montage.",
+    "limitations": "The V1 report and aggregate failures were supplied before this split. This is a tuning holdout, not a blind or source-work-disjoint benchmark. Labels are provisional single-annotator visual judgments, exhaustive only inside their declared windows.",
+    "protocol": "Tune only calibration clips and synthetic regression cases. Freeze detector source hashes before running v6 on held_out. Report that first held-out result without changing decision rules in response. Keep labels and scoring tolerances unchanged."
+  },
+  "media_verification": "All ten clip hashes and four source hashes match manifest; source worktree read only; no downloads.",
+  "scoring": {
+    "confidence": 0.8,
+    "cut_tolerance_frames": 2,
+    "interval_iou": 0.5,
+    "unknown": "Per class: missed truth intersected by an explicit unknown; total: unknown events intersecting reviewed windows. Unmatched labels remain FN.",
+    "scope": "Exhaustive labels only for hard cuts/dissolves in 45.75 reviewed seconds. Other classes have no labeled positives; undefined recall, not zero accuracy."
+  },
+  "real": {
+    "calibration": {
+      "v5": {
+        "detector_version": 5,
+        "matches_current_detector": false,
+        "clips": [
+          "korky",
+          "tos-lab",
+          "tos-credits",
+          "duck-classroom",
+          "nasa-opening"
+        ],
+        "reviewed_seconds": 23.75,
+        "unknown_count": 52,
+        "signatures": {
+          "hard_cut": {
+            "tp": 10,
+            "fp": 0,
+            "fn": 5,
+            "truth_count": 15,
+            "precision": 1.0,
+            "recall": 0.6666666666666666,
+            "unknown": 5,
+            "boundary_mae_seconds": 0.0033333999999999976
+          },
+          "dissolve": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "truth_count": 1,
+            "precision": null,
+            "recall": 0.0,
+            "unknown": 1,
+            "boundary_mae_seconds": null
+          },
+          "wipe": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "zoom_punch": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "audio_aligned_cut": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "whip_pan": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "flash": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          }
+        },
+        "per_clip": {
+          "hard_cut": [
+            {
+              "clip": "korky",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 18,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-lab",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 1,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-credits",
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": null,
+              "recall": 0.0,
+              "boundary_errors_seconds": [],
+              "missed": [
+                {
+                  "signature": "hard_cut",
+                  "start_seconds": 18,
+                  "end_seconds": 18,
+                  "uncertainty_seconds": 0.041667,
+                  "png": "zing-workspace/t6/v5-calibration/tos-credits-hard_cut-0-18.000.png"
+                }
+              ],
+              "false_positives": [],
+              "abstentions": 1,
+              "unknown": 1
+            },
+            {
+              "clip": "duck-classroom",
+              "tp": 1,
+              "fp": 0,
+              "fn": 1,
+              "precision": 1.0,
+              "recall": 0.5,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "missed": [
+                {
+                  "signature": "hard_cut",
+                  "start_seconds": 9.933333,
+                  "end_seconds": 9.933333,
+                  "uncertainty_seconds": 0.066667,
+                  "png": "zing-workspace/t6/v5-calibration/duck-classroom-hard_cut-0-9.933.png"
+                }
+              ],
+              "false_positives": [],
+              "abstentions": 15,
+              "unknown": 1
+            },
+            {
+              "clip": "nasa-opening",
+              "tp": 7,
+              "fp": 0,
+              "fn": 3,
+              "precision": 1.0,
+              "recall": 0.7,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.033333999999999975,
+                0.0
+              ],
+              "missed": [
+                {
+                  "signature": "hard_cut",
+                  "start_seconds": 6.833333,
+                  "end_seconds": 6.833333,
+                  "uncertainty_seconds": 0.033333,
+                  "png": "zing-workspace/t6/v5-calibration/nasa-opening-hard_cut-0-6.833.png"
+                },
+                {
+                  "signature": "hard_cut",
+                  "start_seconds": 7.166667,
+                  "end_seconds": 7.166667,
+                  "uncertainty_seconds": 0.033333,
+                  "png": "zing-workspace/t6/v5-calibration/nasa-opening-hard_cut-1-7.167.png"
+                },
+                {
+                  "signature": "hard_cut",
+                  "start_seconds": 7.533333,
+                  "end_seconds": 7.533333,
+                  "uncertainty_seconds": 0.033333,
+                  "png": "zing-workspace/t6/v5-calibration/nasa-opening-hard_cut-2-7.533.png"
+                }
+              ],
+              "false_positives": [],
+              "abstentions": 12,
+              "unknown": 3
+            }
+          ],
+          "dissolve": [
+            {
+              "clip": "korky",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 18,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-lab",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 1,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-credits",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 1,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-classroom",
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": null,
+              "recall": 0.0,
+              "boundary_errors_seconds": [],
+              "missed": [
+                {
+                  "signature": "dissolve",
+                  "start_seconds": 6.833333,
+                  "end_seconds": 7.633333,
+                  "uncertainty_seconds": 0.1,
+                  "png": "zing-workspace/t6/v5-calibration/duck-classroom-dissolve-0-6.833.png"
+                }
+              ],
+              "false_positives": [],
+              "abstentions": 15,
+              "unknown": 1
+            },
+            {
+              "clip": "nasa-opening",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 12,
+              "unknown": 0
+            }
+          ]
+        },
+        "artifact": "zing-workspace/t6/v5-calibration/metrics.json",
+        "artifact_sha256": "1e03385dd5b893a08470d82a8f7e6ff8a8d5cf8a605691d9e8b32aeba755900e",
+        "observations_sha256": "f538da85e54338e060ea0169ecf906a2460824a6d7fbc5f05cd322e1f7ca39c6",
+        "provenance": {
+          "observations_sha256": "39cc532bff6abc1c8e58107060792d9c784eaabcdfda403a6b6fca46913922ad",
+          "inputs": {
+            "manifest.json": "09bf18567fdefc27a1335f3aaed253542d42c678a71101051b3741144a6fb369",
+            "labels.json": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+            "transition-split.json": "55031c95ccccd22bbc27d463565f56da2e98ba922c820a08eb8ed8b3aa67ace8",
+            "scoring.py": "135b5213135f25da9506ebd8e09cdd42f0fdb960cdb340033cb3f2ebf3ad4de3"
+          }
+        }
+      },
+      "v6": {
+        "detector_version": 6,
+        "matches_current_detector": true,
+        "clips": [
+          "korky",
+          "tos-lab",
+          "tos-credits",
+          "duck-classroom",
+          "nasa-opening"
+        ],
+        "reviewed_seconds": 23.75,
+        "unknown_count": 62,
+        "signatures": {
+          "hard_cut": {
+            "tp": 15,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 15,
+            "precision": 1.0,
+            "recall": 1.0,
+            "unknown": 0,
+            "boundary_mae_seconds": 0.002222266666666665
+          },
+          "dissolve": {
+            "tp": 1,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 1,
+            "precision": 1.0,
+            "recall": 1.0,
+            "unknown": 0,
+            "boundary_mae_seconds": 0.16666700000000034
+          },
+          "wipe": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "zoom_punch": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "audio_aligned_cut": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "whip_pan": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "flash": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          }
+        },
+        "per_clip": {
+          "hard_cut": [
+            {
+              "clip": "korky",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 18,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-lab",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 2,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-credits",
+              "tp": 1,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 0,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-classroom",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 17,
+              "unknown": 0
+            },
+            {
+              "clip": "nasa-opening",
+              "tp": 10,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.033333999999999975,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 19,
+              "unknown": 0
+            }
+          ],
+          "dissolve": [
+            {
+              "clip": "korky",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 18,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-lab",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 2,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-credits",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 0,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-classroom",
+              "tp": 1,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.16666700000000034
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 17,
+              "unknown": 0
+            },
+            {
+              "clip": "nasa-opening",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 19,
+              "unknown": 0
+            }
+          ]
+        },
+        "artifact": "zing-workspace/t6/v6-calibration/metrics.json",
+        "artifact_sha256": "eedeee3f3ca7c65a19e8019a2522ffed728ba4e845e72570f3db775f157ef7b1",
+        "observations_sha256": "34d22428bbc4a400d9ca4d149f0609061cc42571add05e5a4a22ef49570becc9",
+        "provenance": {
+          "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+          "source_sha256": {
+            "transitions.py": "970911e52657fa554d2ca8680cab9f6a1173b82da79dee0261b3d61345ade611",
+            "transition_models.py": "be66b0b0ce200fa3b6953913271f64f780c5af3e7137183fc8862a555ee1062b"
+          },
+          "detector_version": 6,
+          "inputs": {
+            "manifest.json": "09bf18567fdefc27a1335f3aaed253542d42c678a71101051b3741144a6fb369",
+            "labels.json": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+            "transition-split.json": "55031c95ccccd22bbc27d463565f56da2e98ba922c820a08eb8ed8b3aa67ace8",
+            "scoring.py": "135b5213135f25da9506ebd8e09cdd42f0fdb960cdb340033cb3f2ebf3ad4de3",
+            "run_transition_eval.py": "86e7350fca9502b1bce1f0a6628042dd3b905f174f6ed6071d70a576dd1f26d3"
+          }
+        }
+      }
+    },
+    "held_out": {
+      "v5": {
+        "detector_version": 5,
+        "matches_current_detector": false,
+        "clips": [
+          "tos-dialogue",
+          "tos-memory",
+          "duck-titles",
+          "duck-street",
+          "nasa-montage"
+        ],
+        "reviewed_seconds": 22,
+        "unknown_count": 118,
+        "signatures": {
+          "hard_cut": {
+            "tp": 5,
+            "fp": 0,
+            "fn": 2,
+            "truth_count": 7,
+            "precision": 1.0,
+            "recall": 0.7142857142857143,
+            "unknown": 2,
+            "boundary_mae_seconds": 0.0
+          },
+          "dissolve": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "truth_count": 1,
+            "precision": null,
+            "recall": 0.0,
+            "unknown": 1,
+            "boundary_mae_seconds": null
+          },
+          "wipe": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "zoom_punch": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "audio_aligned_cut": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "whip_pan": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "flash": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          }
+        },
+        "per_clip": {
+          "hard_cut": [
+            {
+              "clip": "tos-dialogue",
+              "tp": 1,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 14,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-memory",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 4,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-titles",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 21,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-street",
+              "tp": 0,
+              "fp": 0,
+              "fn": 2,
+              "precision": null,
+              "recall": 0.0,
+              "boundary_errors_seconds": [],
+              "missed": [
+                {
+                  "signature": "hard_cut",
+                  "start_seconds": 5.6,
+                  "end_seconds": 5.6,
+                  "uncertainty_seconds": 0.066667,
+                  "png": "zing-workspace/t6/v5-held-out/duck-street-hard_cut-0-5.600.png"
+                },
+                {
+                  "signature": "hard_cut",
+                  "start_seconds": 6.866667,
+                  "end_seconds": 6.866667,
+                  "uncertainty_seconds": 0.066667,
+                  "png": "zing-workspace/t6/v5-held-out/duck-street-hard_cut-1-6.867.png"
+                }
+              ],
+              "false_positives": [],
+              "abstentions": 60,
+              "unknown": 2
+            },
+            {
+              "clip": "nasa-montage",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 16,
+              "unknown": 0
+            }
+          ],
+          "dissolve": [
+            {
+              "clip": "tos-dialogue",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 14,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-memory",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 4,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-titles",
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": null,
+              "recall": 0.0,
+              "boundary_errors_seconds": [],
+              "missed": [
+                {
+                  "signature": "dissolve",
+                  "start_seconds": 12.233333,
+                  "end_seconds": 12.766667,
+                  "uncertainty_seconds": 0.1,
+                  "png": "zing-workspace/t6/v5-held-out/duck-titles-dissolve-0-12.233.png"
+                }
+              ],
+              "false_positives": [],
+              "abstentions": 21,
+              "unknown": 1
+            },
+            {
+              "clip": "duck-street",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 60,
+              "unknown": 0
+            },
+            {
+              "clip": "nasa-montage",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 16,
+              "unknown": 0
+            }
+          ]
+        },
+        "artifact": "zing-workspace/t6/v5-held-out/metrics.json",
+        "artifact_sha256": "967fa67f0e188aa3ba4f7c80dffb3b990af7f876611af539dd6e752974bdcb7a",
+        "observations_sha256": "bfed1c19ae02344c9c7f4d9adf5912146f5bb0413a52b02bf0ac8f572f4e02cc",
+        "provenance": {
+          "observations_sha256": "39cc532bff6abc1c8e58107060792d9c784eaabcdfda403a6b6fca46913922ad",
+          "inputs": {
+            "manifest.json": "09bf18567fdefc27a1335f3aaed253542d42c678a71101051b3741144a6fb369",
+            "labels.json": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+            "transition-split.json": "55031c95ccccd22bbc27d463565f56da2e98ba922c820a08eb8ed8b3aa67ace8",
+            "scoring.py": "135b5213135f25da9506ebd8e09cdd42f0fdb960cdb340033cb3f2ebf3ad4de3",
+            "run_transition_eval.py": "86e7350fca9502b1bce1f0a6628042dd3b905f174f6ed6071d70a576dd1f26d3"
+          }
+        }
+      },
+      "v6": {
+        "detector_version": 6,
+        "matches_current_detector": true,
+        "clips": [
+          "tos-dialogue",
+          "tos-memory",
+          "duck-titles",
+          "duck-street",
+          "nasa-montage"
+        ],
+        "reviewed_seconds": 22,
+        "unknown_count": 123,
+        "signatures": {
+          "hard_cut": {
+            "tp": 7,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 7,
+            "precision": 1.0,
+            "recall": 1.0,
+            "unknown": 0,
+            "boundary_mae_seconds": 0.009523857142857115
+          },
+          "dissolve": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 1,
+            "truth_count": 1,
+            "precision": null,
+            "recall": 0.0,
+            "unknown": 1,
+            "boundary_mae_seconds": null
+          },
+          "wipe": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "zoom_punch": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "audio_aligned_cut": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "whip_pan": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          },
+          "flash": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "truth_count": 0,
+            "precision": null,
+            "recall": null,
+            "unknown": 0,
+            "boundary_mae_seconds": null
+          }
+        },
+        "per_clip": {
+          "hard_cut": [
+            {
+              "clip": "tos-dialogue",
+              "tp": 1,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 15,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-memory",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 7,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-titles",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 21,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-street",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.06666699999999981,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 58,
+              "unknown": 0
+            },
+            {
+              "clip": "nasa-montage",
+              "tp": 2,
+              "fp": 0,
+              "fn": 0,
+              "precision": 1.0,
+              "recall": 1.0,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 19,
+              "unknown": 0
+            }
+          ],
+          "dissolve": [
+            {
+              "clip": "tos-dialogue",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 15,
+              "unknown": 0
+            },
+            {
+              "clip": "tos-memory",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 7,
+              "unknown": 0
+            },
+            {
+              "clip": "duck-titles",
+              "tp": 0,
+              "fp": 0,
+              "fn": 1,
+              "precision": null,
+              "recall": 0.0,
+              "boundary_errors_seconds": [],
+              "missed": [
+                {
+                  "signature": "dissolve",
+                  "start_seconds": 12.233333,
+                  "end_seconds": 12.766667,
+                  "uncertainty_seconds": 0.1,
+                  "png": "zing-workspace/t6/v6-held-out/duck-titles-dissolve-0-12.233.png"
+                }
+              ],
+              "false_positives": [],
+              "abstentions": 21,
+              "unknown": 1
+            },
+            {
+              "clip": "duck-street",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 58,
+              "unknown": 0
+            },
+            {
+              "clip": "nasa-montage",
+              "tp": 0,
+              "fp": 0,
+              "fn": 0,
+              "precision": null,
+              "recall": null,
+              "boundary_errors_seconds": [],
+              "missed": [],
+              "false_positives": [],
+              "abstentions": 19,
+              "unknown": 0
+            }
+          ]
+        },
+        "artifact": "zing-workspace/t6/v6-held-out/metrics.json",
+        "artifact_sha256": "848c977737d1997a78e14a5d37e10373be86f5e29e1e486d69db8a22a752009e",
+        "observations_sha256": "202e1d2d689f8369b51ee128dd02e23c42aebdff53cb73a74ef4eb846fbaa249",
+        "provenance": {
+          "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+          "source_sha256": {
+            "transitions.py": "970911e52657fa554d2ca8680cab9f6a1173b82da79dee0261b3d61345ade611",
+            "transition_models.py": "be66b0b0ce200fa3b6953913271f64f780c5af3e7137183fc8862a555ee1062b"
+          },
+          "detector_version": 6,
+          "inputs": {
+            "manifest.json": "09bf18567fdefc27a1335f3aaed253542d42c678a71101051b3741144a6fb369",
+            "labels.json": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+            "transition-split.json": "55031c95ccccd22bbc27d463565f56da2e98ba922c820a08eb8ed8b3aa67ace8",
+            "scoring.py": "135b5213135f25da9506ebd8e09cdd42f0fdb960cdb340033cb3f2ebf3ad4de3",
+            "run_transition_eval.py": "86e7350fca9502b1bce1f0a6628042dd3b905f174f6ed6071d70a576dd1f26d3"
+          }
+        }
+      }
+    }
+  },
+  "synthetic": {
+    "v5": {
+      "detector_version": 5,
+      "case_count": 48,
+      "thresholds": {
+        "confidence": 0.8,
+        "precision": 0.95,
+        "recall": 0.85,
+        "negative_confident_effects": 0
+      },
+      "aggregate": {
+        "signatures": {
+          "hard_cut": {
+            "true_positives": 6,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 6,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "dissolve": {
+            "true_positives": 6,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 6,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "wipe": {
+            "true_positives": 8,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 8,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "zoom_punch": {
+            "true_positives": 4,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 4,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "audio_aligned_cut": {
+            "true_positives": 2,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 2,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "whip_pan": {
+            "true_positives": 0,
+            "false_positives": 0,
+            "false_negatives": 4,
+            "unknown": 4,
+            "truth_count": 4,
+            "boundary_errors_seconds": [],
+            "precision": null,
+            "recall": 0.0
+          },
+          "flash": {
+            "true_positives": 0,
+            "false_positives": 0,
+            "false_negatives": 4,
+            "unknown": 4,
+            "truth_count": 4,
+            "boundary_errors_seconds": [],
+            "precision": null,
+            "recall": 0.0
+          }
+        },
+        "unknown_count": 82,
+        "negative_confident_effects": 0,
+        "negative_case_count": 16
+      },
+      "splits": {
+        "calibration": {
+          "signatures": {
+            "hard_cut": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "dissolve": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "wipe": {
+              "true_positives": 4,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 4,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "zoom_punch": {
+              "true_positives": 2,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 2,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "audio_aligned_cut": {
+              "true_positives": 1,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 1,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "whip_pan": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            },
+            "flash": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            }
+          },
+          "unknown_count": 39,
+          "negative_confident_effects": 0,
+          "negative_case_count": 8
+        },
+        "held_out": {
+          "signatures": {
+            "hard_cut": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "dissolve": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "wipe": {
+              "true_positives": 4,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 4,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "zoom_punch": {
+              "true_positives": 2,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 2,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "audio_aligned_cut": {
+              "true_positives": 1,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 1,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "whip_pan": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            },
+            "flash": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            }
+          },
+          "unknown_count": 43,
+          "negative_confident_effects": 0,
+          "negative_case_count": 8
+        }
+      },
+      "acceptance": {
+        "passed": true,
+        "failures": []
+      },
+      "matches_current_detector": false,
+      "artifact": "zing-workspace/t6/synthetic-v5.json",
+      "artifact_sha256": "32db48f8e439a0491e40541c703fd721c2014236cbf1cb73f39f8861142d1df4"
+    },
+    "v6": {
+      "detector_version": 6,
+      "case_count": 48,
+      "thresholds": {
+        "confidence": 0.8,
+        "precision": 0.95,
+        "recall": 0.85,
+        "negative_confident_effects": 0
+      },
+      "aggregate": {
+        "signatures": {
+          "hard_cut": {
+            "true_positives": 6,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 6,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "dissolve": {
+            "true_positives": 6,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 6,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "wipe": {
+            "true_positives": 8,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 8,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "zoom_punch": {
+            "true_positives": 4,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 4,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "audio_aligned_cut": {
+            "true_positives": 2,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "unknown": 0,
+            "truth_count": 2,
+            "boundary_errors_seconds": [
+              0.0,
+              0.0
+            ],
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "whip_pan": {
+            "true_positives": 0,
+            "false_positives": 0,
+            "false_negatives": 4,
+            "unknown": 4,
+            "truth_count": 4,
+            "boundary_errors_seconds": [],
+            "precision": null,
+            "recall": 0.0
+          },
+          "flash": {
+            "true_positives": 0,
+            "false_positives": 0,
+            "false_negatives": 4,
+            "unknown": 4,
+            "truth_count": 4,
+            "boundary_errors_seconds": [],
+            "precision": null,
+            "recall": 0.0
+          }
+        },
+        "unknown_count": 83,
+        "negative_confident_effects": 0,
+        "negative_case_count": 16
+      },
+      "splits": {
+        "calibration": {
+          "signatures": {
+            "hard_cut": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "dissolve": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "wipe": {
+              "true_positives": 4,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 4,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "zoom_punch": {
+              "true_positives": 2,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 2,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "audio_aligned_cut": {
+              "true_positives": 1,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 1,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "whip_pan": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            },
+            "flash": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            }
+          },
+          "unknown_count": 39,
+          "negative_confident_effects": 0,
+          "negative_case_count": 8
+        },
+        "held_out": {
+          "signatures": {
+            "hard_cut": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "dissolve": {
+              "true_positives": 3,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 3,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "wipe": {
+              "true_positives": 4,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 4,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "zoom_punch": {
+              "true_positives": 2,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 2,
+              "boundary_errors_seconds": [
+                0.0,
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "audio_aligned_cut": {
+              "true_positives": 1,
+              "false_positives": 0,
+              "false_negatives": 0,
+              "unknown": 0,
+              "truth_count": 1,
+              "boundary_errors_seconds": [
+                0.0
+              ],
+              "precision": 1.0,
+              "recall": 1.0
+            },
+            "whip_pan": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            },
+            "flash": {
+              "true_positives": 0,
+              "false_positives": 0,
+              "false_negatives": 2,
+              "unknown": 2,
+              "truth_count": 2,
+              "boundary_errors_seconds": [],
+              "precision": null,
+              "recall": 0.0
+            }
+          },
+          "unknown_count": 44,
+          "negative_confident_effects": 0,
+          "negative_case_count": 8
+        }
+      },
+      "acceptance": {
+        "passed": true,
+        "failures": []
+      },
+      "matches_current_detector": true,
+      "artifact": "zing-workspace/t6/synthetic-v6.json",
+      "artifact_sha256": "ec83b762f10ddac1ce3b3d6903b41fac9a45b02aac122958eca52dc91d812d31"
+    }
+  },
+  "remaining_misses": [
+    {
+      "split": "held_out",
+      "clip": "duck-titles",
+      "signature": "dissolve",
+      "start_seconds": 12.233333,
+      "end_seconds": 12.766667,
+      "uncertainty_seconds": 0.1,
+      "png": "zing-workspace/t6/v6-held-out/duck-titles-dissolve-0-12.233.png",
+      "context_png": "zing-workspace/t6/v6-held-out/duck-titles-miss-strip.png"
+    }
+  ],
+  "limitations": [
+    "The prior V1 failure report was known before splitting; holdout is for tuning, not blind evaluation.",
+    "Clips share source works across partitions; small denominators and one annotator do not establish broad real-video accuracy.",
+    "The held-out title dissolve still fails; no decision rule was changed after the first held-out run.",
+    "Published validation metadata was updated after evaluation; decision AST hash excludes only VALIDATION_STATUS and EXPERIMENTAL_RECALL_WARNING.",
+    "CFR derivatives, grayscale spatial features, transitions under 1.5 s; VFR timing, chroma-only cuts and long/off-center effects remain unvalidated."
+  ],
+  "ffmpeg_6_1_1_crosscheck": {
+    "calibration": {
+      "ffmpeg": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers",
+      "signatures": {
+        "hard_cut": {
+          "tp": 15,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "unknown": 0,
+          "boundary_mae_seconds": 0.002222266666666665
+        },
+        "dissolve": {
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "unknown": 0,
+          "boundary_mae_seconds": 0.16666700000000034
+        },
+        "wipe": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "zoom_punch": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "audio_aligned_cut": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "whip_pan": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "flash": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        }
+      },
+      "unknown_count": 62,
+      "matches_8_1_2_metrics": true,
+      "artifact": "zing-workspace/t6/v6-calibration-6.1.1/metrics.json",
+      "artifact_sha256": "3bc08874b19c7f7755150a0b700f0fe73a33c9ad6ff31b432844797bbaa13486"
+    },
+    "held_out": {
+      "ffmpeg": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers",
+      "signatures": {
+        "hard_cut": {
+          "tp": 7,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "unknown": 0,
+          "boundary_mae_seconds": 0.009523857142857115
+        },
+        "dissolve": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0,
+          "unknown": 1,
+          "boundary_mae_seconds": null
+        },
+        "wipe": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "zoom_punch": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "audio_aligned_cut": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "whip_pan": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        },
+        "flash": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "unknown": 0,
+          "boundary_mae_seconds": null
+        }
+      },
+      "unknown_count": 123,
+      "matches_8_1_2_metrics": true,
+      "artifact": "zing-workspace/t6/v6-held-out-6.1.1/metrics.json",
+      "artifact_sha256": "5ddb93b895d5a6647b3e4ae7f726ada81dd46711bcf22bb1518da48a2aa8fe02"
+    }
+  },
+  "validation_commands": {
+    "full_suite": {
+      "command": "uv run --frozen pytest -ra",
+      "8.1.2": {
+        "passed": 2509,
+        "skipped": 7,
+        "seconds": 345.02,
+        "log": "zing-workspace/t6/pytest-final-8.1.2.log"
+      },
+      "6.1.1": {
+        "passed": 2509,
+        "skipped": 7,
+        "seconds": 363.66,
+        "log": "zing-workspace/t6/pytest-final-6.1.1.log"
+      }
+    },
+    "ffmpeg_gate": {
+      "command": "ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 204",
+      "expected_count_source": ".github/workflows/ci.yml",
+      "8.1.2": {
+        "passed": 204,
+        "skipped": 0,
+        "seconds": 371.98,
+        "log": "zing-workspace/t6/ffmpeg-8.1.2.log"
+      },
+      "6.1.1": {
+        "passed": 204,
+        "skipped": 0,
+        "seconds": 253.21,
+        "log": "zing-workspace/t6/ffmpeg-6.1.1.log"
+      }
+    },
+    "real_clip": {
+      "command": "ZING_REAL_TRANSITIONS=1 ZING_REAL_EVAL_ROOT=<pinned root> uv run --frozen pytest -q tests/test_transition_v6.py -m real_media",
+      "8.1.2": {
+        "passed": 1,
+        "seconds": 6.4,
+        "log": "zing-workspace/t6/real-test-8.1.2.log"
+      },
+      "6.1.1": {
+        "passed": 1,
+        "seconds": 5.38,
+        "log": "zing-workspace/t6/real-test-6.1.1.log"
+      }
+    },
+    "python": "3.11.14",
+    "note": "Six pre-existing optional runtime skips plus the separately exercised local real-media test. Runtime measurements include concurrent checks; not a speed benchmark."
+  }
+}

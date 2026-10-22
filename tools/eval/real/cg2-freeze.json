@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "frozen_utc": "2026-10-22T07:38:23.807420+00:00",
+  "stage": "After calibration and expanded synthetic acceptance; before CG2 held-out replay",
+  "thresholds": {
+    "ocr": 0.75,
+    "corroborated_ocr": 0.65,
+    "neighbor_seconds": 0.5,
+    "edge_density_min": 0.015,
+    "ink_density_min": 0.015,
+    "ink_density_max": 0.8,
+    "stroke_fraction_max": 0.5,
+    "full_frame_area": 0.6,
+    "single_character_height_max": 0.35,
+    "line_height_max": 0.6,
+    "aspect_per_character_min": 0.08,
+    "aspect_per_character_max": 2.0,
+    "face_overlap": 0.35
+  },
+  "files": {
+    "src/myzing/study/caption_geometry.py": "4b4d2a169b5a9f29e89d448bfe0ecfff1fcb35c70d7a774ef54c3780e2446cc1",
+    "src/myzing/study/caption_pixels.py": "bc4f47a0d369b816d6099c2dc3b09d0b36797399145fffaab168716da54ff35e",
+    "src/myzing/study/caption_regions.py": "7ecc55caa599acb8192d338b14b69843a059ce1f8d7344e6fc338eb2b3809198",
+    "src/myzing/study/font_match.py": "797807e1cddb3d480c2f99f580931dba04d0c572d3e281e83443b8d23f100e27",
+    "tools/eval/real/cg2-split.json": "b21e5018955faf59f66bda23e0620a786dedd73662d3d96b92546e71ea5cae35",
+    "tools/eval/real/labels.json": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+    "tools/eval/real/cg2_eval.py": "70c00843cbef61c619fa1a0af679e4be1d325115d35ccf151d225b76dded6d84"
+  },
+  "line_ending_normalization": {
+    "note": "After held-out evaluation, mixed CRLF/LF was normalized to LF for portable hash checks. No code tokens or thresholds changed. Original evaluation freeze retained in zing-workspace/cg2/cg2-freeze-at-evaluation.json.",
+    "evaluation_freeze_sha256": "29aedad7f74c0f3307ce24f3af5219f92f0a2b6340638222da0882d1948e0bda",
+    "files": {
+      "src/myzing/study/caption_geometry.py": {
+        "evaluated_bytes_sha256": "270935bc5ccc04652400880d9a63c52548748924d0304d197b154a297634213e",
+        "lf_sha256": "4b4d2a169b5a9f29e89d448bfe0ecfff1fcb35c70d7a774ef54c3780e2446cc1"
+      },
+      "src/myzing/study/caption_pixels.py": {
+        "evaluated_bytes_sha256": "926cd612336ac82205e9294b40e499fac866a80a1bc01c6ad0fa68537a321c14",
+        "lf_sha256": "bc4f47a0d369b816d6099c2dc3b09d0b36797399145fffaab168716da54ff35e"
+      },
+      "src/myzing/study/font_match.py": {
+        "evaluated_bytes_sha256": "0086a8e94d09213417a20cbae4565737657340b44c55fa58323a3656687399e9",
+        "lf_sha256": "797807e1cddb3d480c2f99f580931dba04d0c572d3e281e83443b8d23f100e27"
+      }
+    }
+  }
+}

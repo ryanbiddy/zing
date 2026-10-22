@@ -51,7 +51,7 @@ def crop_ink(frame, detection):
     """Segment the estimated fill, excluding the outline/plate and polygon exterior."""
     import cv2
     import numpy as np
-    from .caption_pixels import measure
+    from .caption_pixels import measure, segment
 
     height, width = frame.shape[:2]
     points = np.asarray(detection.polygon, dtype=float) * [width, height]
@@ -99,6 +99,15 @@ def crop_ink(frame, detection):
             mask = (light <= threshold) & inside
         method = "polygon-clipped Otsu minority luminance; P7 fill overlaps backdrop"
     mask = mask.astype(np.uint8)
+    if appearance.get("segmentation") == "component-filtered Lab modes v2":
+        # Reuse CG2's glyph components. Permit one antialias pixel around each
+        # core, but never reintroduce distant scenery of the same fill color.
+        _, core, origin = segment(frame, detection.polygon, detection.text)
+        if core is None:
+            return None, "CG2 glyph segmentation unavailable"
+        local = core[top - origin[1]:bottom - origin[1], left - origin[0]:right - origin[0]]
+        mask &= cv2.dilate(local.astype(np.uint8), np.ones((3, 3), np.uint8))
+        method += "; CG2 component support"
     count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
     keep = [i for i in range(1, count) if stats[i, cv2.CC_STAT_AREA] >= 2]
     mask = _trim(np.isin(labels, keep))

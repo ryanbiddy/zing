@@ -28,7 +28,7 @@ def test_sidecar_roundtrip_and_version_rejection(tmp_path):
     assert isinstance(restored.frames[0].detections[0], cg.Detection)
     for record in (cg.CaptionGeometry, cg.CaptionTrack, cg.FrameSample, cg.Detection):
         with pytest.raises(ValueError, match="version"):
-            record.from_dict({"version": 2})
+            record.from_dict({"version": 3})
 
 
 def test_raw_polygons_retained_even_without_confidence():

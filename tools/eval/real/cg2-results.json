@@ -1,0 +1,1192 @@
+{
+  "version": 1,
+  "calibration": {
+    "version": 1,
+    "split": "calibration",
+    "split_sha256": "b21e5018955faf59f66bda23e0620a786dedd73662d3d96b92546e71ea5cae35",
+    "labels_sha256": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+    "baseline_sha256": "39cc532bff6abc1c8e58107060792d9c784eaabcdfda403a6b6fca46913922ad",
+    "scoring": "Final ink box IoU >= .5, one-to-one; missing observations count as misses. False tracks only at reviewed frames; no whole-clip false-track claim.",
+    "fill_note": "V1 has no numeric fill labels. Colors are diagnostic estimates; error remains null.",
+    "clips": {
+      "korky": {
+        "media_sha256": "f11726ac7085f55a9d4f2a8a4c5ecb07c237a9639505ea0caae0802f4189a8d7",
+        "before": [
+          {
+            "t": 1.0,
+            "png": "zing-workspace\\cg2\\calibration-final\\korky-1-before.png",
+            "tracks": []
+          },
+          {
+            "t": 2.4,
+            "png": "zing-workspace\\cg2\\calibration-final\\korky-2.4-before.png",
+            "tracks": [
+              {
+                "text": "福",
+                "status": "unmeasured",
+                "top_three": [],
+                "gaps": []
+              }
+            ]
+          }
+        ],
+        "after": [
+          {
+            "t": 1.0,
+            "png": "zing-workspace\\cg2\\calibration-final\\korky-1-after.png",
+            "tracks": []
+          },
+          {
+            "t": 2.4,
+            "png": "zing-workspace\\cg2\\calibration-final\\korky-2.4-after.png",
+            "tracks": []
+          }
+        ]
+      },
+      "tos-dialogue": {
+        "media_sha256": "852add1c626b0c2b4f5365a22eecd7b2e2558adad9fb933a54cd7d063f7251ad",
+        "before": [
+          {
+            "t": 0.5,
+            "png": "zing-workspace\\cg2\\calibration-final\\tos-dialogue-0.5-before.png",
+            "tracks": [
+              {
+                "text": "This film is supported by",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "poppins",
+                    "weight": null,
+                    "score": 0.394481
+                  },
+                  {
+                    "font_id": "anton",
+                    "weight": null,
+                    "score": 0.381288
+                  },
+                  {
+                    "font_id": "opensans",
+                    "weight": 800,
+                    "score": 0.379447
+                  }
+                ],
+                "gaps": []
+              },
+              {
+                "text": "the Netherlands Film Fund",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "bangers",
+                    "weight": null,
+                    "score": 0.492974
+                  },
+                  {
+                    "font_id": "anton",
+                    "weight": null,
+                    "score": 0.484096
+                  },
+                  {
+                    "font_id": "oswald",
+                    "weight": 400,
+                    "score": 0.44631
+                  }
+                ],
+                "gaps": []
+              }
+            ]
+          }
+        ],
+        "after": [
+          {
+            "t": 0.5,
+            "png": "zing-workspace\\cg2\\calibration-final\\tos-dialogue-0.5-after.png",
+            "tracks": [
+              {
+                "text": "This film is supported by",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "ibmplexsans",
+                    "weight": 600,
+                    "score": 0.592528
+                  },
+                  {
+                    "font_id": "inter",
+                    "weight": 400,
+                    "score": 0.556434
+                  },
+                  {
+                    "font_id": "opensans",
+                    "weight": 400,
+                    "score": 0.546146
+                  }
+                ],
+                "gaps": []
+              },
+              {
+                "text": "the Netherlands Film Fund",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "opensans",
+                    "weight": 700,
+                    "score": 0.705427
+                  },
+                  {
+                    "font_id": "inter",
+                    "weight": 700,
+                    "score": 0.652054
+                  },
+                  {
+                    "font_id": "montserrat",
+                    "weight": 700,
+                    "score": 0.648063
+                  }
+                ],
+                "gaps": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "metrics": {
+      "before": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "frames_scored": 2,
+        "false_caption_tracks_at_labeled_frames": 0,
+        "median_height_relative_error": 0.3580584535860669,
+        "median_ink_iou": 0.7179685860786342,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": [
+          {
+            "clip": "korky",
+            "t": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "matches": [],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": []
+          },
+          {
+            "clip": "tos-dialogue",
+            "t": 0.5,
+            "tp": 2,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "matches": [
+              {
+                "truth": "This film is supported by",
+                "predicted": "This film is supported by",
+                "ink_iou": 0.6827868696505693,
+                "height_relative_error": 0.41177134951223304,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    43.762,
+                    -1.281,
+                    4.547
+                  ],
+                  "rgb": [
+                    105,
+                    104,
+                    96
+                  ],
+                  "confidence": 0.591
+                }
+              },
+              {
+                "truth": "the Netherlands Film Fund",
+                "predicted": "the Netherlands Film Fund",
+                "ink_iou": 0.753150302506699,
+                "height_relative_error": 0.3043455576599008,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    47.424,
+                    -2.344,
+                    5.359
+                  ],
+                  "rgb": [
+                    112,
+                    113,
+                    103
+                  ],
+                  "confidence": 0.593
+                }
+              }
+            ],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": []
+          }
+        ]
+      },
+      "after": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "frames_scored": 2,
+        "false_caption_tracks_at_labeled_frames": 0,
+        "median_height_relative_error": 0.1304377782819453,
+        "median_ink_iou": 0.7922640243244395,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": [
+          {
+            "clip": "korky",
+            "t": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "matches": [],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": [
+              {
+                "text": "0",
+                "accepted": false,
+                "reasons": [
+                  "ocr_text_uncertain",
+                  "full_frame_region",
+                  "size_or_aspect_inconsistent_with_string",
+                  "insufficient_text_strokes",
+                  "isolated_region_over_face",
+                  "recognition_not_corroborated"
+                ],
+                "confidence": 0.0,
+                "textlike": false,
+                "aspect_per_character": 0.6084745762711864,
+                "neighbor_samples": 0,
+                "temporal_stability": false,
+                "face_overlap": 1.0,
+                "script": null,
+                "dominant_script": null,
+                "script_consistent": null
+              }
+            ]
+          },
+          {
+            "clip": "tos-dialogue",
+            "t": 0.5,
+            "tp": 2,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "matches": [
+              {
+                "truth": "This film is supported by",
+                "predicted": "This film is supported by",
+                "ink_iou": 0.8583665529814238,
+                "height_relative_error": 4.705904499857638e-06,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    92.102,
+                    -0.875,
+                    2.156
+                  ],
+                  "rgb": [
+                    232,
+                    233,
+                    228
+                  ],
+                  "confidence": 0.651
+                }
+              },
+              {
+                "truth": "the Netherlands Film Fund",
+                "predicted": "the Netherlands Film Fund",
+                "ink_iou": 0.7261614956674552,
+                "height_relative_error": 0.26087085065939075,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    98.45,
+                    -1.734,
+                    0.0
+                  ],
+                  "rgb": [
+                    247,
+                    252,
+                    250
+                  ],
+                  "confidence": 0.72
+                }
+              }
+            ],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": []
+          }
+        ]
+      }
+    },
+    "post_hoc_diagnostics": {
+      "before": {
+        "tp": 0,
+        "fp": 1,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null,
+        "frames_scored": 1,
+        "false_caption_tracks_at_labeled_frames": 1,
+        "median_height_relative_error": null,
+        "median_ink_iou": null,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": [
+          {
+            "clip": "korky",
+            "t": 2.4,
+            "tp": 0,
+            "fp": 1,
+            "fn": 0,
+            "precision": 0.0,
+            "recall": null,
+            "matches": [],
+            "false_caption_tracks": [
+              "text-0001"
+            ],
+            "missed": [],
+            "rejections": []
+          }
+        ]
+      },
+      "after": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "frames_scored": 1,
+        "false_caption_tracks_at_labeled_frames": 0,
+        "median_height_relative_error": null,
+        "median_ink_iou": null,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": [
+          {
+            "clip": "korky",
+            "t": 2.4,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "matches": [],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": [
+              {
+                "text": "福",
+                "accepted": false,
+                "reasons": [
+                  "full_frame_region",
+                  "size_or_aspect_inconsistent_with_string",
+                  "isolated_region_over_face"
+                ],
+                "confidence": 0.0,
+                "textlike": true,
+                "aspect_per_character": 0.5943708609271523,
+                "neighbor_samples": 0,
+                "temporal_stability": false,
+                "face_overlap": 1.0,
+                "script": "CJK",
+                "dominant_script": null,
+                "script_consistent": null
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "held_out": {
+    "version": 1,
+    "split": "held_out",
+    "split_sha256": "b21e5018955faf59f66bda23e0620a786dedd73662d3d96b92546e71ea5cae35",
+    "labels_sha256": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+    "baseline_sha256": "39cc532bff6abc1c8e58107060792d9c784eaabcdfda403a6b6fca46913922ad",
+    "scoring": "Final ink box IoU >= .5, one-to-one; missing observations count as misses. False tracks only at reviewed frames; no whole-clip false-track claim.",
+    "fill_note": "V1 has no numeric fill labels. Colors are diagnostic estimates; error remains null.",
+    "clips": {
+      "duck-titles": {
+        "media_sha256": "9e859de69eec8f03c25877c0a6caf558e6772e62f26dd24345f9e8ca67874070",
+        "before": [
+          {
+            "t": 11.0,
+            "png": "zing-workspace\\cg2\\held-out\\duck-titles-11-before.png",
+            "tracks": [
+              {
+                "text": "CoveR\"",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "inter",
+                    "weight": 900,
+                    "score": 0.288625
+                  },
+                  {
+                    "font_id": "montserrat",
+                    "weight": 900,
+                    "score": 0.285909
+                  },
+                  {
+                    "font_id": "poppins",
+                    "weight": null,
+                    "score": 0.285577
+                  }
+                ],
+                "gaps": []
+              }
+            ]
+          },
+          {
+            "t": 13.5,
+            "png": "zing-workspace\\cg2\\held-out\\duck-titles-13.5-before.png",
+            "tracks": [
+              {
+                "text": "THIS I5AN FFIAL CIVL DEFENSEFLM PRODUCED IN CO-OPERATION WITH THE FEDERAL CIVIL DEFENSE ADMINISTRATION AND IN CONSULTATION WITH THE SAFETY COMSSION OFTHENATIONALEDUCATION ASSOCIATION.",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "luckiestguy",
+                    "weight": null,
+                    "score": 0.338672
+                  },
+                  {
+                    "font_id": "bangers",
+                    "weight": null,
+                    "score": 0.331429
+                  },
+                  {
+                    "font_id": "anton",
+                    "weight": null,
+                    "score": 0.329726
+                  }
+                ],
+                "gaps": []
+              }
+            ]
+          }
+        ],
+        "after": [
+          {
+            "t": 11.0,
+            "png": "zing-workspace\\cg2\\held-out\\duck-titles-11-after.png",
+            "tracks": [
+              {
+                "text": "DucK",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "anton",
+                    "weight": null,
+                    "score": 0.358057
+                  },
+                  {
+                    "font_id": "luckiestguy",
+                    "weight": null,
+                    "score": 0.344292
+                  },
+                  {
+                    "font_id": "oswald",
+                    "weight": 700,
+                    "score": 0.338086
+                  }
+                ],
+                "gaps": []
+              },
+              {
+                "text": "CoveR\"",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "poppins",
+                    "weight": null,
+                    "score": 0.290541
+                  },
+                  {
+                    "font_id": "oswald",
+                    "weight": 400,
+                    "score": 0.263918
+                  },
+                  {
+                    "font_id": "roboto",
+                    "weight": 700,
+                    "score": 0.263877
+                  }
+                ],
+                "gaps": []
+              }
+            ]
+          },
+          {
+            "t": 13.5,
+            "png": "zing-workspace\\cg2\\held-out\\duck-titles-13.5-after.png",
+            "tracks": [
+              {
+                "text": "THIS I5AN FFIAL CIVL DEFENSEFLM PRODUCED IN CO-OPERATION WITH THE FEDERAL CIVIL DEFENSE ADMINISTRATION AND IN CONSULTATION WITH THE SAFETY COMSSION OFTHENATIONALEDUCATION ASSOCIATION.",
+                "status": "best substitute",
+                "top_three": [
+                  {
+                    "font_id": "bangers",
+                    "weight": null,
+                    "score": 0.200463
+                  },
+                  {
+                    "font_id": "luckiestguy",
+                    "weight": null,
+                    "score": 0.195875
+                  },
+                  {
+                    "font_id": "anton",
+                    "weight": null,
+                    "score": 0.194824
+                  }
+                ],
+                "gaps": []
+              }
+            ]
+          }
+        ]
+      },
+      "nasa-opening": {
+        "media_sha256": "3d9cf44cec35ddf9e4a1ade7cfb04d02e9de759adf07aa9c5cde4ffe4337e50c",
+        "before": [
+          {
+            "t": 1.0,
+            "png": "zing-workspace\\cg2\\held-out\\nasa-opening-1-before.png",
+            "tracks": []
+          }
+        ],
+        "after": [
+          {
+            "t": 1.0,
+            "png": "zing-workspace\\cg2\\held-out\\nasa-opening-1-after.png",
+            "tracks": []
+          }
+        ]
+      }
+    },
+    "runtime": {
+      "rapidocr": "3.9.1",
+      "onnxruntime": "1.27.0",
+      "opencv-python-headless": "4.13.0.92",
+      "numpy": "2.4.6",
+      "Pillow": "12.3.0"
+    },
+    "freeze_sha256": "29aedad7f74c0f3307ce24f3af5219f92f0a2b6340638222da0882d1948e0bda",
+    "metrics": {
+      "before": {
+        "tp": 7,
+        "fp": 0,
+        "fn": 2,
+        "precision": 1.0,
+        "recall": 0.7777777777777778,
+        "frames_scored": 3,
+        "false_caption_tracks_at_labeled_frames": 0,
+        "median_height_relative_error": 0.22467132993315242,
+        "median_ink_iou": 0.7552666167385879,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": [
+          {
+            "clip": "duck-titles",
+            "t": 11.0,
+            "tp": 1,
+            "fp": 0,
+            "fn": 2,
+            "precision": 1.0,
+            "recall": 0.3333333333333333,
+            "matches": [
+              {
+                "truth": "Cover",
+                "predicted": "CoveR\"",
+                "ink_iou": 0.7340233924049853,
+                "height_relative_error": 0.22467132993315242,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    66.949,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    163,
+                    163,
+                    163
+                  ],
+                  "confidence": 0.689
+                }
+              }
+            ],
+            "false_caption_tracks": [],
+            "missed": [
+              "Duck",
+              "and"
+            ],
+            "rejections": []
+          },
+          {
+            "clip": "duck-titles",
+            "t": 13.5,
+            "tp": 6,
+            "fp": 0,
+            "fn": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "matches": [
+              {
+                "truth": "THIS IS AN OFFICIAL CIVIL DEFENSE FILM",
+                "predicted": "THIS I5AN FFIAL CIVL DEFENSEFLM",
+                "ink_iou": 0.8051076891393204,
+                "height_relative_error": 1.684238892485368e-05,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    39.355,
+                    0.031,
+                    0.016
+                  ],
+                  "rgb": [
+                    93,
+                    93,
+                    93
+                  ],
+                  "confidence": 0.723
+                }
+              },
+              {
+                "truth": "PRODUCED IN CO-OPERATION WITH THE",
+                "predicted": "PRODUCED IN CO-OPERATION WITH THE",
+                "ink_iou": 0.8477311713279856,
+                "height_relative_error": 0.05263157894736814,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    33.478,
+                    0.031,
+                    0.016
+                  ],
+                  "rgb": [
+                    79,
+                    79,
+                    79
+                  ],
+                  "confidence": 0.739
+                }
+              },
+              {
+                "truth": "FEDERAL CIVIL DEFENSE ADMINISTRATION",
+                "predicted": "FEDERAL CIVIL DEFENSE ADMINISTRATION",
+                "ink_iou": 0.7594031818741833,
+                "height_relative_error": 0.29728607752581704,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    59.766,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    144,
+                    144,
+                    144
+                  ],
+                  "confidence": 0.64
+                }
+              },
+              {
+                "truth": "AND IN CONSULTATION WITH THE SAFETY",
+                "predicted": "AND IN CONSULTATION WITH THE SAFETY",
+                "ink_iou": 0.7552666167385879,
+                "height_relative_error": 0.2307591322327618,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    57.471,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    138,
+                    138,
+                    138
+                  ],
+                  "confidence": 0.709
+                }
+              },
+              {
+                "truth": "COMMISSION OF THE NATIONAL EDUCATION",
+                "predicted": "COMSSION OFTHENATIONALEDUCATION",
+                "ink_iou": 0.6961490388405559,
+                "height_relative_error": 0.17947750172306431,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    60.15,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    145,
+                    145,
+                    145
+                  ],
+                  "confidence": 0.722
+                }
+              },
+              {
+                "truth": "ASSOCIATION.",
+                "predicted": "ASSOCIATION.",
+                "ink_iou": 0.7449654033603472,
+                "height_relative_error": 0.28947368421052877,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    27.429,
+                    0.047,
+                    0.016
+                  ],
+                  "rgb": [
+                    65,
+                    65,
+                    65
+                  ],
+                  "confidence": 0.719
+                }
+              }
+            ],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": []
+          },
+          {
+            "clip": "nasa-opening",
+            "t": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "matches": [],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": []
+          }
+        ]
+      },
+      "after": {
+        "tp": 7,
+        "fp": 1,
+        "fn": 2,
+        "precision": 0.875,
+        "recall": 0.7777777777777778,
+        "frames_scored": 3,
+        "false_caption_tracks_at_labeled_frames": 1,
+        "median_height_relative_error": 0.22467132993315242,
+        "median_ink_iou": 0.7449654033603472,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": [
+          {
+            "clip": "duck-titles",
+            "t": 11.0,
+            "tp": 2,
+            "fp": 0,
+            "fn": 1,
+            "precision": 1.0,
+            "recall": 0.6666666666666666,
+            "matches": [
+              {
+                "truth": "Duck",
+                "predicted": "DucK",
+                "ink_iou": 0.69017008052279,
+                "height_relative_error": 0.18978102189781043,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    60.449,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    146,
+                    146,
+                    146
+                  ],
+                  "confidence": 0.562
+                }
+              },
+              {
+                "truth": "Cover",
+                "predicted": "CoveR\"",
+                "ink_iou": 0.7340233924049853,
+                "height_relative_error": 0.22467132993315242,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    66.949,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    163,
+                    163,
+                    163
+                  ],
+                  "confidence": 0.689
+                }
+              }
+            ],
+            "false_caption_tracks": [],
+            "missed": [
+              "and"
+            ],
+            "rejections": []
+          },
+          {
+            "clip": "duck-titles",
+            "t": 13.5,
+            "tp": 5,
+            "fp": 1,
+            "fn": 1,
+            "precision": 0.8333333333333334,
+            "recall": 0.8333333333333334,
+            "matches": [
+              {
+                "truth": "THIS IS AN OFFICIAL CIVIL DEFENSE FILM",
+                "predicted": "THIS I5AN FFIAL CIVL DEFENSEFLM",
+                "ink_iou": 0.8051076891393204,
+                "height_relative_error": 1.684238892485368e-05,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    39.764,
+                    0.031,
+                    0.016
+                  ],
+                  "rgb": [
+                    94,
+                    94,
+                    94
+                  ],
+                  "confidence": 0.723
+                }
+              },
+              {
+                "truth": "FEDERAL CIVIL DEFENSE ADMINISTRATION",
+                "predicted": "FEDERAL CIVIL DEFENSE ADMINISTRATION",
+                "ink_iou": 0.7594031818741833,
+                "height_relative_error": 0.29728607752581704,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    59.766,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    144,
+                    144,
+                    144
+                  ],
+                  "confidence": 0.64
+                }
+              },
+              {
+                "truth": "AND IN CONSULTATION WITH THE SAFETY",
+                "predicted": "AND IN CONSULTATION WITH THE SAFETY",
+                "ink_iou": 0.7552666167385879,
+                "height_relative_error": 0.2307591322327618,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    57.471,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    138,
+                    138,
+                    138
+                  ],
+                  "confidence": 0.709
+                }
+              },
+              {
+                "truth": "COMMISSION OF THE NATIONAL EDUCATION",
+                "predicted": "COMSSION OFTHENATIONALEDUCATION",
+                "ink_iou": 0.6961490388405559,
+                "height_relative_error": 0.17947750172306431,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    60.15,
+                    0.016,
+                    0.0
+                  ],
+                  "rgb": [
+                    145,
+                    145,
+                    145
+                  ],
+                  "confidence": 0.722
+                }
+              },
+              {
+                "truth": "ASSOCIATION.",
+                "predicted": "ASSOCIATION.",
+                "ink_iou": 0.7449654033603472,
+                "height_relative_error": 0.28947368421052877,
+                "fill_delta_e76": null,
+                "fill": {
+                  "lab": [
+                    27.429,
+                    0.047,
+                    0.016
+                  ],
+                  "rgb": [
+                    65,
+                    65,
+                    65
+                  ],
+                  "confidence": 0.719
+                }
+              }
+            ],
+            "false_caption_tracks": [
+              "text-0006"
+            ],
+            "missed": [
+              "PRODUCED IN CO-OPERATION WITH THE"
+            ],
+            "rejections": []
+          },
+          {
+            "clip": "nasa-opening",
+            "t": 1.0,
+            "tp": 0,
+            "fp": 0,
+            "fn": 0,
+            "precision": null,
+            "recall": null,
+            "matches": [],
+            "false_caption_tracks": [],
+            "missed": [],
+            "rejections": []
+          }
+        ]
+      }
+    },
+    "post_hoc_diagnostics": {
+      "before": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "frames_scored": 0,
+        "false_caption_tracks_at_labeled_frames": 0,
+        "median_height_relative_error": null,
+        "median_ink_iou": null,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": []
+      },
+      "after": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "frames_scored": 0,
+        "false_caption_tracks_at_labeled_frames": 0,
+        "median_height_relative_error": null,
+        "median_ink_iou": null,
+        "median_fill_delta_e76": null,
+        "fill_labeled_matches": 0,
+        "per_frame": []
+      }
+    }
+  },
+  "synthetic": {
+    "before": [
+      {
+        "test": "test_static_center_height_and_iou[640-360-40-Anton-Regular.ttf-120-220]",
+        "median_center_error_0": 0.0,
+        "median_center_error_1": 0.001388888888888884,
+        "height_relative_error": 0.02857142857142847,
+        "median_ink_iou": 0.961516034985423
+      },
+      {
+        "test": "test_static_center_height_and_iou[360-640-32-Anton-Regular.ttf-30-420]",
+        "median_center_error_0": 0.0,
+        "median_center_error_1": 0.0,
+        "height_relative_error": 0.0,
+        "median_ink_iou": 0.9872611464968155
+      },
+      {
+        "test": "test_static_center_height_and_iou[640-360-46-IBMPlexSans.ttf-80-100]",
+        "median_center_error_0": 5.551115123125783e-17,
+        "median_center_error_1": 0.0013888888888889395,
+        "height_relative_error": 0.03030303030303083,
+        "median_ink_iou": 0.9634002361275081
+      },
+      {
+        "test": "test_moving_fitted_path_tracks_drawn_centers",
+        "max_path_error": 0.0011994949494948948
+      },
+      {
+        "test": "test_fill_outline_colors_and_width",
+        "median_fill_delta_e76": 1.105008526055426,
+        "median_outline_delta_e76": 0.00012500000000059686,
+        "median_stroke_width_px": 3.597
+      }
+    ],
+    "after": [
+      {
+        "test": "test_static_center_height_and_iou[640-360-40-Anton-Regular.ttf-120-220]",
+        "median_center_error_0": 0.0,
+        "median_center_error_1": 0.001388888888888884,
+        "height_relative_error": 0.02857142857142847,
+        "median_ink_iou": 0.961516034985423
+      },
+      {
+        "test": "test_static_center_height_and_iou[360-640-32-Anton-Regular.ttf-30-420]",
+        "median_center_error_0": 0.0,
+        "median_center_error_1": 0.0,
+        "height_relative_error": 0.0,
+        "median_ink_iou": 0.9872611464968155
+      },
+      {
+        "test": "test_static_center_height_and_iou[640-360-46-IBMPlexSans.ttf-80-100]",
+        "median_center_error_0": 5.551115123125783e-17,
+        "median_center_error_1": 0.0013888888888889395,
+        "height_relative_error": 0.03030303030303083,
+        "median_ink_iou": 0.9634002361275081
+      },
+      {
+        "test": "test_moving_fitted_path_tracks_drawn_centers",
+        "max_path_error": 0.002083333333333326
+      },
+      {
+        "test": "test_fill_outline_colors_and_width",
+        "median_fill_delta_e76": 1.105008526055426,
+        "median_outline_delta_e76": 0.00012500000000059686,
+        "median_stroke_width_px": 3.597
+      }
+    ],
+    "font_top_three": {
+      "before": {
+        "hits": 77,
+        "cases": 78
+      },
+      "after": {
+        "hits": 77,
+        "cases": 78
+      }
+    }
+  },
+  "validation": [
+    {
+      "kind": "full",
+      "ffmpeg": "8.1.2",
+      "binary": "E:\\AI\\tools\\ffmpeg-8.1.2-essentials\\bin\\ffmpeg.exe",
+      "version_output": "ffmpeg version 8.1.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+      "command": "uv run --frozen pytest -ra -o junit_family=legacy --junitxml=zing-workspace/cg2/full-8.1.2.xml",
+      "environment": {
+        "ZING_TEST_FETCH_FONTS": "1 (all assets already hash-verified in local cache)",
+        "HF_HUB_OFFLINE": "1"
+      },
+      "tests": 2512,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7,
+      "passed": 2505,
+      "seconds": 620.287,
+      "xml": "zing-workspace\\cg2\\full-8.1.2.xml",
+      "xml_sha256": "a7f8d5f3dd801d4eb17d7aee63ce46aacf2c7a1ca533ec54f9ebdd5295a4d86e",
+      "log": "zing-workspace\\cg2\\full-8.1.2.log"
+    },
+    {
+      "kind": "gate",
+      "ffmpeg": "8.1.2",
+      "binary": "E:\\AI\\tools\\ffmpeg-8.1.2-essentials\\bin\\ffmpeg.exe",
+      "version_output": "ffmpeg version 8.1.2-essentials_build-www.gyan.dev Copyright (c) 2000-2026 the FFmpeg developers",
+      "command": "uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 204 -o junit_family=legacy --junitxml=zing-workspace/cg2/gate-8.1.2.xml",
+      "environment": {
+        "ZING_TEST_FETCH_FONTS": "1 (all assets already hash-verified in local cache)",
+        "ZING_REQUIRE_FFMPEG": "1"
+      },
+      "tests": 204,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 204,
+      "seconds": 333.811,
+      "xml": "zing-workspace\\cg2\\gate-8.1.2.xml",
+      "xml_sha256": "06016221974495f54f32a42952a6e52656803c685f0cc4a0275a03cbdaf4d73f",
+      "log": "zing-workspace\\cg2\\gate-8.1.2.log"
+    },
+    {
+      "kind": "full",
+      "ffmpeg": "6.1.1",
+      "binary": "E:\\AI\\tools\\ffmpeg-6.1.1-dl\\ffmpeg-6.1.1-essentials_build\\bin\\ffmpeg.exe",
+      "version_output": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers",
+      "command": "uv run --frozen pytest -ra -o junit_family=legacy --junitxml=zing-workspace/cg2/full-6.1.1.xml",
+      "environment": {
+        "ZING_TEST_FETCH_FONTS": "1 (all assets already hash-verified in local cache)",
+        "HF_HUB_OFFLINE": "1"
+      },
+      "tests": 2512,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 7,
+      "passed": 2505,
+      "seconds": 408.627,
+      "xml": "zing-workspace\\cg2\\full-6.1.1.xml",
+      "xml_sha256": "4ee84078fa7687c77ecb2946c7fe6413508a8bb0044af49861e9ff5760c597c8",
+      "log": "zing-workspace\\cg2\\full-6.1.1.log"
+    },
+    {
+      "kind": "gate",
+      "ffmpeg": "6.1.1",
+      "binary": "E:\\AI\\tools\\ffmpeg-6.1.1-dl\\ffmpeg-6.1.1-essentials_build\\bin\\ffmpeg.exe",
+      "version_output": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers",
+      "command": "uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 204 -o junit_family=legacy --junitxml=zing-workspace/cg2/gate-6.1.1.xml",
+      "environment": {
+        "ZING_TEST_FETCH_FONTS": "1 (all assets already hash-verified in local cache)",
+        "ZING_REQUIRE_FFMPEG": "1"
+      },
+      "tests": 204,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 204,
+      "seconds": 397.808,
+      "xml": "zing-workspace\\cg2\\gate-6.1.1.xml",
+      "xml_sha256": "5133ab5656452896981eae7a873358c51abb4486fbf87fb0a2c7800bfb3bcaaf",
+      "log": "zing-workspace\\cg2\\gate-6.1.1.log"
+    }
+  ]
+}

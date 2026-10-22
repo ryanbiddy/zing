@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "name": "T6 real-video clip holdout",
+  "frozen_before_tuning": true,
+  "calibration": ["korky", "tos-lab", "tos-credits", "duck-classroom", "nasa-opening"],
+  "held_out": ["tos-dialogue", "tos-memory", "duck-titles", "duck-street", "nasa-montage"],
+  "selection": "Fixed by clip before any detector changes: one dissolve per partition, modern and archival footage in each. No event from a held-out clip is used for tuning. Calibration includes the no-cut monologue and rapid NASA montage.",
+  "limitations": "The V1 report and aggregate failures were supplied before this split. This is a tuning holdout, not a blind or source-work-disjoint benchmark. Labels are provisional single-annotator visual judgments, exhaustive only inside their declared windows.",
+  "protocol": "Tune only calibration clips and synthetic regression cases. Freeze detector source hashes before running v6 on held_out. Report that first held-out result without changing decision rules in response. Keep labels and scoring tolerances unchanged."
+}

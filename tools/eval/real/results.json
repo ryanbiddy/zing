@@ -1,5 +1,8 @@
 {
   "version": 1,
+  "transition_detector_version": 5,
+  "matches_current_detector": false,
+  "transition_record_status": "Frozen V1 audit; T6 detector v6 is measured separately in transitions-v6-results.json",
   "clip_count": 10,
   "source_work_count": 4,
   "reviewed_transition_seconds": 45.75,

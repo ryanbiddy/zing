@@ -236,14 +236,15 @@ def test_production_detector_returns_typed_audio_aligned_observation(
     assert result.transitions[0].audio_aligned is True
     assert result.transitions[0].audio_onset_delta == -0.02
     assert result.transitions[1].audio_aligned is False
-    assert result.provenance["transition_detector_version"] == 5
+    assert result.provenance["transition_detector_version"] == 6
     assert result.provenance["transition_feature_summary"]["frame_count"] == 90
     assert result.provenance["transition_audio_probe_ok"] is True
     assert result.provenance["transition_validation"] == study_transitions.VALIDATION_STATUS
     assert result.provenance["transition_evidence"][0]["observation_index"] == 0
     assert result.provenance["transition_evidence"][1]["confidence"] == 0.9
     assert len(result.warnings) == 1
-    assert "real-video recall is unavailable" in result.warnings[0]
+    assert "real-video recall measured on 8 held-out events" in result.warnings[0]
+    assert "dissolves 0/1" in result.warnings[0]
 
 
 def test_non_monotonic_gradual_motion_is_not_a_dissolve(

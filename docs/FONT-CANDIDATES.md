@@ -55,7 +55,8 @@ the result does not imply that all weights, widths or italic styles were tested.
 
 ## Evidence and scores
 
-The geometry envelope stays version 1. Its optional `font_candidates` section
+The geometry envelope is version 2 in CG2 (version 1 remains readable).
+Its optional `font_candidates` section
 is independently versioned at 1 and round-trips through the P7 dataclass.
 
 | Field | Meaning |
@@ -97,6 +98,14 @@ uses the same expression without the factor 3. Metrics are averaged across
 observations, with a single weight chosen per family for the whole track.
 Stroke and candidate x/cap-height metrics are evidence, not extra score terms.
 Observed x/cap heights are not inferred from arbitrary OCR lines.
+
+CG2 excludes rejected OCR regions and confines font masks to the measured glyph
+components plus their antialiased edges. At the labeled Tears of Steel frame
+(0.500 s), this changes the leading substitutes from Poppins to IBM Plex Sans
+for the small line, and from Bangers to Open Sans for the larger line. All remain
+below 0.90. Duck's held-out credit crops still fail, and their rankings deteriorate;
+see [CG2 results](../tools/eval/real/CG2-REPORT.md). No source font identities are
+labeled, so ranking changes are diagnostic evidence rather than accuracy gains.
 
 ## Calibration and acceptance
 

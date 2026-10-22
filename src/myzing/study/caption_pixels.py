@@ -11,7 +11,16 @@ from __future__ import annotations
 import math
 
 
-def measure(frame, polygon: list[list[float]]) -> dict:
+def measure(frame, polygon: list[list[float]], text: str = "") -> dict:
+    return segment(frame, polygon, text)[0]
+
+
+def segment(frame, polygon: list[list[float]], text: str = ""):
+    """Return JSON measurements and a polygon-clipped fill mask for font crops.
+
+    Mask/origin are ephemeral; the sidecar records the method and measurements.
+    No recognition or font-library assumptions enter the segmentation.
+    """
     import cv2
     import numpy as np
 
@@ -26,9 +35,12 @@ def measure(frame, polygon: list[list[float]]) -> dict:
     unknown = {"fill": None, "outline": None, "stroke_width_px": None,
                "stroke_width_fraction": None, "stroke_confidence": 0.0,
                "plate_present": None, "plate_color": None, "plate_confidence": 0.0,
-               "ink_box": None, "text_height": None, "geometry_confidence": 0.0}
+               "ink_box": None, "text_height": None, "geometry_confidence": 0.0,
+               "segmentation": "component-filtered Lab modes v2",
+               "cap_height": None, "x_height": None,
+               "ink_evidence": {"component_count": 0, "edge_density": 0., "ink_density": 0.}}
     if crop.size == 0 or y1 <= y0 or x1 <= x0:
-        return unknown
+        return unknown, None, (left, top)
     lab = cv2.cvtColor(crop.astype(np.float32) / 255, cv2.COLOR_BGR2LAB)
     mask = np.zeros(crop.shape[:2], dtype=np.uint8)
     cv2.fillPoly(mask, [np.rint(points - [left, top]).astype(np.int32)], 1)
@@ -37,12 +49,12 @@ def measure(frame, polygon: list[list[float]]) -> dict:
     expanded = cv2.dilate(mask, np.ones((2 * margin + 1,) * 2, np.uint8)).astype(bool)
     ring = expanded & ~inside
     if ring.sum() < 10:
-        return unknown
+        return unknown, None, (left, top)
     backdrop = np.median(lab[ring], axis=0)
     ring_spread = float(np.median(np.linalg.norm(lab[ring] - backdrop, axis=1)))
     foreground = (np.linalg.norm(lab - backdrop, axis=2) > 14) & inside
     if foreground.sum() < 12:
-        return unknown
+        return unknown, None, (left, top)
 
     # Quantized Lab modes seed deterministic color groups; no random k-means.
     pixels = lab[foreground]
@@ -54,35 +66,63 @@ def measure(frame, polygon: list[list[float]]) -> dict:
             seeds.append(candidate)
         if len(seeds) == 4:
             break
+    # Small white glyphs on detailed footage need not be a frequent color mode.
+    # Include both luminance tails so scenery cannot crowd them out of the seeds.
+    for quantile, bright in ((.9, True), (.1, False)):
+        threshold = np.quantile(pixels[:, 0], quantile)
+        tail = pixels[pixels[:, 0] >= threshold] if bright else pixels[pixels[:, 0] <= threshold]
+        candidate = np.median(tail, axis=0)
+        if min(np.linalg.norm(candidate - s) for s in seeds) > 14:
+            seeds.append(candidate)
     centers = np.array(seeds)
     for _ in range(3):
         labels = np.argmin(np.linalg.norm(pixels[:, None] - centers, axis=2), axis=1)
         centers = np.array([np.median(pixels[labels == i], axis=0)
                             if np.any(labels == i) else centers[i] for i in range(len(centers))])
     depth = cv2.distanceTransform(foreground.astype(np.uint8), cv2.DIST_L2, 5)[foreground]
-    candidates = [i for i in range(len(centers)) if (labels == i).sum() >= max(8, len(labels) * .06)]
+    candidates = [i for i in range(len(centers)) if (labels == i).sum() >= max(8, len(labels) * .015)]
     if not candidates:
-        return unknown
+        return unknown, None, (left, top)
+
+    def components_for(candidate):
+        count, components, regions, _ = cv2.connectedComponentsWithStats(candidate.astype(np.uint8), 8)
+        keep = [i for i in range(1, count) if regions[i, cv2.CC_STAT_AREA] >= 3
+                and regions[i, cv2.CC_STAT_HEIGHT] >= max(2, (y1 - y0) * .15)
+                and regions[i, cv2.CC_STAT_WIDTH] <= 3 * regions[i, cv2.CC_STAT_HEIGHT]
+                and not (regions[i, cv2.CC_STAT_WIDTH] > .8 * (x1 - x0)
+                         and regions[i, cv2.CC_STAT_HEIGHT] > .7 * (y1 - y0))]
+        return np.isin(components, keep), regions[keep]
+
     def glyph_support(i):
-        candidate = ((np.linalg.norm(lab - centers[i], axis=2) < 13) & inside).astype(np.uint8)
-        count, _, regions, _ = cv2.connectedComponentsWithStats(candidate, 8)
-        area = sum(int(r[cv2.CC_STAT_AREA]) for r in regions[1:count]
-                   if r[cv2.CC_STAT_HEIGHT] >= max(2, (y1 - y0) * .15)
-                   and not (r[cv2.CC_STAT_WIDTH] > .8 * (x1 - x0)
-                            and r[cv2.CC_STAT_HEIGHT] > .7 * (y1 - y0)))
+        candidate = (np.linalg.norm(lab - centers[i], axis=2) < 13) & inside
+        coherent, regions = components_for(candidate)
+        area = int(coherent.sum())
         # Anti-alias mixtures can have high depth but no coherent glyph cores.
-        return float(np.median(depth[labels == i])) * min(1., area / max(10, (labels == i).sum()))
+        support = float(np.median(depth[labels == i])) * min(1., area / max(10, (labels == i).sum()))
+        if ring_spread > 5 and len(regions):
+            # Favor repeated, aligned glyph-sized components over scenery blobs.
+            heights = regions[:, cv2.CC_STAT_HEIGHT]
+            centers_y = regions[:, cv2.CC_STAT_TOP] + heights / 2
+            alignment = 1 / (1 + float(np.std(centers_y)) / max(1, float(np.median(heights))))
+            contrast = min(2., float(np.linalg.norm(centers[i] - backdrop)) / 30)
+            support *= min(1., len(regions) / 4) * alignment * contrast
+        return support
 
     fill_index = max(candidates, key=glyph_support)
     fill_lab = centers[fill_index]
     fill = (np.linalg.norm(lab - fill_lab, axis=2) < 13) & inside
-    n, components, stats, _ = cv2.connectedComponentsWithStats(fill.astype(np.uint8), 8)
-    keep = [i for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] >= 3
-            and stats[i, cv2.CC_STAT_HEIGHT] >= max(2, (y1 - y0) * .15)]
-    fill = np.isin(components, keep)
+    fill, regions = components_for(fill)
     if fill.sum() < 10:
-        return unknown
-    ys, xs = np.nonzero(fill)
+        return unknown, None, (left, top)
+    # Geometry includes antialiased half-coverage pixels adjacent to the solid
+    # core. Color estimates below still use only core pixels. This avoids
+    # shrinking thin white lettering to its few brightest interior pixels.
+    competing = [backdrop, *(c for i, c in enumerate(centers) if i != fill_index
+                            and np.linalg.norm(c - fill_lab) > 18)]
+    background_distance = np.minimum.reduce([np.linalg.norm(lab - c, axis=2) for c in competing])
+    extent = ((np.linalg.norm(lab - fill_lab, axis=2) < background_distance) & inside
+              & cv2.dilate(fill.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)) | fill
+    ys, xs = np.nonzero(extent)
     ink_box = [(left + int(xs.min())) / width, (top + int(ys.min())) / height,
                (left + int(xs.max()) + 1) / width, (top + int(ys.max()) + 1) / height]
     spread = float(np.median(np.linalg.norm(lab[fill] - fill_lab, axis=1)))
@@ -97,6 +137,24 @@ def measure(frame, polygon: list[list[float]]) -> dict:
 
     result = dict(unknown, ink_box=ink_box, text_height=ink_box[3] - ink_box[1],
                   geometry_confidence=round(confidence, 3), fill=color(fill, confidence))
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 40, 120) != 0
+    distance = cv2.distanceTransform(fill.astype(np.uint8), cv2.DIST_L2, 5)[fill]
+    result["ink_evidence"] = {
+        "component_count": len(regions),
+        "edge_density": round(float(edges[inside].mean()), 6),
+        "ink_density": round(float(fill.sum() / inside.sum()), 6),
+        "stroke_fraction": round(float(np.quantile(distance, .75) * 2 / max(1, y1 - y0)), 6),
+    }
+    # Only homogeneous case runs support an observed cap/x-height estimate.
+    # Mixed-case lines and joined/occluded glyphs keep these fields unknown.
+    letters = [c for c in text if c.isalpha()]
+    if len(regions) >= 3 and letters:
+        component_height = float(np.median(regions[:, cv2.CC_STAT_HEIGHT])) / height
+        if all("A" <= c <= "Z" for c in letters):
+            result["cap_height"] = {"value": component_height, "confidence": round(confidence * .8, 3)}
+        elif all(c in "acemnorsuvwxz" for c in letters):
+            result["x_height"] = {"value": component_height, "confidence": round(confidence * .7, 3)}
     # An outline must contact most of the fill boundary and be a distinct mode.
     edge = cv2.dilate(fill.astype(np.uint8), np.ones((7, 7), np.uint8)).astype(bool) & ~fill
     other = [i for i in candidates if i != fill_index]
@@ -144,4 +202,4 @@ def measure(frame, polygon: list[list[float]]) -> dict:
                           plate_confidence=.7 if present else .6)
             if present and result["outline"] and np.linalg.norm(np.array(result["outline"]["lab"]) - backdrop) < 14:
                 result.update(outline=None, stroke_width_px=None, stroke_width_fraction=None, stroke_confidence=0.)
-    return result
+    return result, fill, (left, top)

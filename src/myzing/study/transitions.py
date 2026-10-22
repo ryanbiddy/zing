@@ -10,11 +10,12 @@ from array import array
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 from myzing.schemas import TransitionObservation
-from . import transition_models as models
 
+from . import transition_models as models
 
 SIGNATURES = (
     "hard_cut",
@@ -24,21 +25,34 @@ SIGNATURES = (
     "audio_aligned_cut",
 )
 DETECTOR_NAME = "zing-transition-signatures"
-DETECTOR_VERSION = 5
+DETECTOR_VERSION = 6
 SUPPORTED_SIGNATURES = SIGNATURES
 VALIDATION_STATUS = {
     "status": "experimental",
     "synthetic_recall_available": True,
-    "real_video_recall_available": False,
+    "real_video_recall_available": True,
+    "real_video_precision_available": True,
     "synthetic_precision_available": True,
-    "validation_scope": "P14 generated textures; disjoint calibration/held-out parameters",
+    "validation_scope": "P14 generated textures and T6 pinned real clips; clip-level tuning holdout, provisional labels in reviewed windows only",
+    "real_video_held_out": {
+        "report": "tools/eval/real/transitions-v6-results.json",
+        "split": "tools/eval/real/transition-split.json",
+        "clip_count": 5,
+        "reviewed_seconds": 22.0,
+        "event_count": 8,
+        "hard_cut": {"tp": 7, "fp": 0, "fn": 0, "precision": 1.0, "recall": 1.0, "unknown": 0},
+        "dissolve": {"tp": 0, "fp": 0, "fn": 1, "precision": None, "recall": 0.0, "unknown": 1},
+        "other_classes": "no labeled positives; real recall unavailable",
+        "limitations": "one annotator; prior v5 failures disclosed; shared source works; not a blind or representative benchmark",
+    },
     "unsupported_signatures": ["whip_pan", "flash"],
     "confidence_kind": "heuristic evidence score; not a calibrated probability",
 }
 EXPERIMENTAL_RECALL_WARNING = (
-    "transition types are experimental: real-video recall is unavailable "
-    "because the audited corpora have no exhaustive frame-level transition "
-    "labels"
+    "transition types are experimental: real-video recall measured on 8 held-out "
+    "events in 5 clips (22 reviewed seconds): hard cuts 7/7, precision 7/7; "
+    "dissolves 0/1, precision undefined (no accepted predictions). Other classes "
+    "lack labeled positives. Provisional labels and shared source works limit generalization."
 )
 FRAME_WIDTH = 96
 FRAME_HEIGHT = 96
@@ -59,6 +73,9 @@ EXPOSURE_MAX_RESIDUAL = 0.18
 MAX_GRADUAL_SECONDS = 1.5
 MAX_ZOOM_SECONDS = 0.6
 QUIET_HANDLE_SECONDS = 0.12
+ADAPTIVE_MOTION_SECONDS = 0.20
+OPTICAL_MAX_ERROR = 0.28
+OPTICAL_MIN_DIFFERENCE = 10.0
 
 DETECTOR_THRESHOLDS = {
     "analysis_frame": {
@@ -72,9 +89,28 @@ DETECTOR_THRESHOLDS = {
         "mean_absolute_difference": HARD_CUT_DIFFERENCE,
         "local_difference_ratio": 5.0,
         "return_to_scene_max_difference": 3.0,
+        "adaptive_motion_seconds": ADAPTIVE_MOTION_SECONDS,
+        "adaptive_min_difference": 8.0,
+        "adaptive_difference_ratio": 3.0,
+        "adaptive_histogram_distance": 0.08,
+        "adaptive_histogram_ratio": 4.0,
+        "adaptive_structure_change": 0.15,
+        "adjacent_blend_suppression_frames": 2,
+        "fast_translation_span_seconds": 0.10,
+        "fast_translation_min_difference": 6.0,
+        "fast_translation_max_residual": 0.20,
+        "black_endpoint_max_luma": 20.0,
     },
     "gradual": {
         "min_frame_pairs": GRADUAL_MIN_PAIRS,
+        "optical_max_normalized_error": OPTICAL_MAX_ERROR,
+        "optical_min_endpoint_difference": OPTICAL_MIN_DIFFERENCE,
+        "optical_window_seconds": [0.4, 0.6, 0.8, 1.0, 1.2, 1.5],
+        "optical_min_structure_change": 0.18,
+        "optical_min_edge_change": 0.10,
+        "optical_min_each_change_polarity_fraction": 0.12,
+        "optical_max_handle_drift_ratio": 0.30,
+        "optical_min_translation_residual": 0.55,
     },
     "audio_alignment": {
         "sample_rate": AUDIO_SAMPLE_RATE,
@@ -144,6 +180,8 @@ class PairFeatures:
     mean_absolute_difference: float
     histogram_distance: float
     changed_fraction: float
+    structure_change: float = 0.0
+    edge_change: float = 0.0
 
 
 
@@ -252,15 +290,21 @@ def _pair_features(
     fps: float,
     width: int,
     height: int,
+    pooled_left: list[float] | None = None,
+    pooled_right: list[float] | None = None,
 ) -> PairFeatures:
     differences = [abs(a - b) for a, b in zip(left, right)]
     mean_difference = sum(differences) / len(differences)
     changed = [value >= 8 for value in differences]
+    a = pooled_left if pooled_left is not None else models.pool(left, width, height)
+    b = pooled_right if pooled_right is not None else models.pool(right, width, height)
     return PairFeatures(
         time_seconds=round((pair_index + 1) / fps, 6),
         mean_absolute_difference=round(mean_difference, 6),
         histogram_distance=round(_histogram_distance(left, right), 6),
         changed_fraction=round(sum(changed) / len(changed), 6),
+        structure_change=round(models.structure_change(a, b, width // 4), 6),
+        edge_change=round(models.edge_change(a, b, width // 4), 6),
     )
 
 
@@ -276,6 +320,115 @@ def _active_runs(features: list[PairFeatures]) -> list[list[PairFeatures]]:
     if current:
         runs.append(current)
     return runs
+
+
+def _hard_cuts(features: list[PairFeatures], frames: list[list[float]], fps: float) -> list[int]:
+    """Isolated scene changes, allowing a short blended boundary in noisy footage."""
+    handles = max(2, math.ceil(QUIET_HANDLE_SECONDS * fps))
+    radius = max(3, round(ADAPTIVE_MOTION_SECONDS * fps))
+    candidates = []
+    for i, feature in enumerate(features):
+        if feature.mean_absolute_difference < 8:
+            continue
+        neighbors = features[max(0, i - radius):max(0, i - 1)] + features[i + 2:i + radius + 1]
+        motion = max(1, median(f.mean_absolute_difference for f in neighbors)) if neighbors else 1
+        histogram = max(0.01, median(f.histogram_distance for f in neighbors)) if neighbors else 0.01
+        nearby = features[max(0, i - handles):i] + features[i + 1:i + handles + 1]
+        background = max((f.mean_absolute_difference for f in nearby), default=0)
+        legacy = (feature.mean_absolute_difference >= HARD_CUT_DIFFERENCE
+                  and feature.mean_absolute_difference >= 5 * max(1, background))
+        adaptive = (feature.mean_absolute_difference >= 3 * motion
+                    and feature.histogram_distance >= max(0.08, 4 * histogram)
+                    and feature.structure_change >= 0.15)
+        if not (legacy or adaptive):
+            continue
+        a, b = frames[i:i + 2]
+        # A textured scene disappearing into persistent black cannot retain
+        # structure under an affine exposure fit; explicitly test that endpoint.
+        black = (max(b) <= 20 and max(b) - min(b) < 2 and sum(a) / len(a) > sum(b) / len(b) + 12
+                 and feature.structure_change > 0.25 and feature.edge_change > 0.8
+                 and i + handles + 1 < len(frames)
+                 and all(max(f) <= 20 and max(f) - min(f) < 2 for f in frames[i + 1:i + handles + 2]))
+        if not black and models.exposure_residual(a, b) <= EXPOSURE_MAX_RESIDUAL:
+            continue
+        span = max(2, round(0.10 * fps))
+        if i >= span and i + span + 1 < len(frames):
+            sides = [(frames[i - span], a), (b, frames[i + span + 1])]
+            if all(models.distance(x, y) > 6 and models.translation_error(x, y, FRAME_WIDTH // 4) < 0.20
+                   for x, y in sides):
+                # A rapid translated scene on BOTH sides is compatible with
+                # an unsupported whip. A discontinuity alone cannot type it.
+                continue
+        returns = any(models.distance(a, frames[after]) < 3
+                      for after in range(i + 2, min(len(frames), i + handles + 2)))
+        returns = returns or any(models.distance(b, frames[before]) < 3
+                                 for before in range(max(0, i - handles), i))
+        if not returns:
+            candidates.append(i)
+    # An archival blend may produce two peaks. Keep one boundary, never two
+    # events for the same change. Two-frame label tolerance still applies.
+    selected = []
+    for i in sorted(candidates, key=lambda j: features[j].mean_absolute_difference, reverse=True):
+        if all(abs(i - j) > 2 for j in selected):
+            selected.append(i)
+    return sorted(selected)
+
+
+def _optical_dissolves(frames: list[list[float]], features: list[PairFeatures],
+                       fps: float, occupied: list[tuple[int, int]]) -> list[tuple[int, int, float, int, int]]:
+    """Scan independent windows: grain and ongoing motion need not become quiet.
+
+    A candidate must reconstruct throughout as a monotone optical blend, change
+    structure across both brightening and darkening regions, and fit worse as a
+    translated scene. Handles may move relative to the endpoint separation.
+    """
+    handles = max(2, math.ceil(QUIET_HANDLE_SECONDS * fps))
+    step = max(1, round(fps / 15))
+    candidates = []
+    for length in sorted({round(t * fps) for t in (0.4, 0.6, 0.8, 1.0, 1.2, 1.5)}):
+        for first in range(handles, len(frames) - length - handles, step):
+            last = first + length
+            if any(first < end and last > start for start, end in occupied):
+                continue
+            a, b = frames[first], frames[last]
+            separation = models.distance(a, b)
+            if separation < OPTICAL_MIN_DIFFERENCE:
+                continue
+            activity = [f.mean_absolute_difference for f in features[first:last]]
+            if max(activity) > 0.28 * sum(activity):
+                continue
+            drift = max(models.distance(frames[first - handles], a),
+                        models.distance(b, frames[last + handles])) / separation
+            if drift > 0.30:
+                continue
+            delta = [y - x for x, y in zip(a, b)]
+            if min(sum(d > 5 for d in delta), sum(d < -5 for d in delta)) < 0.12 * len(delta):
+                continue
+            # Cheap sparse fit before spatial and dense temporal checks.
+            interior = [frames[first + round(length * j / 8)] for j in range(1, 8)]
+            error, alpha = models.blend_fit(a, b, interior)
+            if (error > OPTICAL_MAX_ERROR or any(y < x - 0.04 for x, y in zip(alpha, alpha[1:]))
+                    or max(y - x for x, y in zip([0.0] + alpha, alpha + [1.0])) > 0.35):
+                continue
+            if (models.structure_change(a, b, FRAME_WIDTH // 4) < 0.18
+                    or models.edge_change(a, b, FRAME_WIDTH // 4) < 0.10
+                    or models.exposure_residual(a, b) < 0.5
+                    or models.translation_error(a, b, FRAME_WIDTH // 4) < 0.55):
+                continue
+            error, alpha = models.blend_fit(a, b, frames[first + 1:last])
+            if error > OPTICAL_MAX_ERROR or any(y < x - 0.04 for x, y in zip(alpha, alpha[1:])):
+                continue
+            # Exclude endpoint plateaus; retain a frame of uncertainty at each
+            # end, rather than pretending optical boundaries are exact.
+            progress = [0.0] + alpha + [1.0]
+            start = first + max(0, next(i for i, v in enumerate(progress) if v >= 0.08) - 1)
+            end = first + min(length, next(i for i, v in enumerate(progress) if v >= 0.92) + 1)
+            candidates.append((error + 0.15 * drift, start, end, error, first, last))
+    selected = []
+    for _, first, last, error, anchor_a, anchor_b in sorted(candidates):
+        if all(last < a - handles or first > b + handles for a, b, *_ in selected):
+            selected.append((first, last, error, anchor_a, anchor_b))
+    return sorted(selected)
 
 
 def _audio_onsets(
@@ -334,8 +487,9 @@ def detect_transition_signatures(
     frames = _read_gray_frames(media_path, ffmpeg, width, height)
     if len(frames) < 2:
         raise TransitionProbeError("transition probe needs at least two frames")
+    pooled = [models.pool(frame, width, height) for frame in frames]
     features = [
-        _pair_features(left, right, index, fps, width, height)
+        _pair_features(left, right, index, fps, width, height, pooled[index], pooled[index + 1])
         for index, (left, right) in enumerate(zip(frames, frames[1:]))
     ]
     runs = _active_runs(features)
@@ -349,14 +503,18 @@ def detect_transition_signatures(
     sampled = [models.sample(frame, width, height) for frame in frames]
 
     def emit(signature: str, first: int, last: int, reason: str,
-             error: float = 1.0, direction: str | None = None) -> None:
+             error: float = 1.0, direction: str | None = None,
+             anchor_first: int | None = None, anchor_last: int | None = None) -> None:
         # first/last are frame indices, including the pre-change anchor.
         start = last / fps if signature == "hard_cut" else first / fps
         end = last / fps
+        radius = max(handles, round(ADAPTIVE_MOTION_SECONDS * fps)) if signature == "hard_cut" else handles
+        evidence_first = first if anchor_first is None else anchor_first
+        evidence_last = last if anchor_last is None else anchor_last
         evidence = TransitionEvidence(
             signature=signature, start_seconds=round(start, 6), end_seconds=round(end, 6),
-            evidence_start_seconds=round(max(0, first - handles) / fps, 6),
-            evidence_end_seconds=round(min(len(frames) - 1, last + handles) / fps, 6),
+            evidence_start_seconds=round(max(0, evidence_first - radius) / fps, 6),
+            evidence_end_seconds=round(min(len(frames) - 1, evidence_last + radius) / fps, 6),
             confidence=round(max(CONFIDENT_EFFECT, min(0.98, 1 - error)), 4)
             if signature != "unknown" else 0.0,
             detector_version=DETECTOR_VERSION, reason=reason, direction=direction,
@@ -367,25 +525,18 @@ def detect_transition_signatures(
         if signature == "hard_cut":
             hard_cut_times.append(round(start, 6))
 
+    cut_indices = _hard_cuts(features, pooled, fps)
+    for index in cut_indices:
+        f = features[index]
+        emit("hard_cut", index, index + 1,
+             f"structural discontinuity relative to local motion; MAD={f.mean_absolute_difference:.2f}, "
+             f"histogram={f.histogram_distance:.3f}, block_structure={f.structure_change:.3f}, edge_change={f.edge_change:.3f}", 0.1)
+
     for run in runs:
         first = feature_indices[id(run[0])]
         last = feature_indices[id(run[-1])] + 1
-        abrupt = []
-        for index in range(first, last):
-            feature = features[index]
-            neighbors = features[max(0, index - handles):index] + features[index + 1:index + 1 + handles]
-            background = max((item.mean_absolute_difference for item in neighbors), default=0)
-            if (feature.mean_absolute_difference >= HARD_CUT_DIFFERENCE
-                    and feature.mean_absolute_difference >= 5 * max(1, background)
-                    and models.exposure_residual(sampled[index], sampled[index + 1]) > EXPOSURE_MAX_RESIDUAL):
-                # Reject isolated flashes returning to the same scene in the handles.
-                returns = any(models.distance(sampled[index], sampled[after]) < 3
-                              for after in range(index + 2, min(len(frames), index + handles + 2)))
-                if not returns:
-                    abrupt.append(index)
-        if abrupt:
-            for index in abrupt:
-                emit("hard_cut", index, index + 1, "isolated structural discontinuity", 0.1)
+        if any(first <= index < last for index in cut_indices):
+            emit("unknown", first, last, "motion surrounding isolated cuts; remaining edit type unknown")
             continue
 
         dissolve_candidate_count += 1
@@ -427,6 +578,32 @@ def detect_transition_signatures(
             suppressed_dissolve_candidates += 1
         emit(signature, first, last, reason, error, direction)
 
+    occupied = [(round(e["start_seconds"] * fps) - (e["signature"] == "hard_cut"),
+                 round(e["end_seconds"] * fps)) for e in events if e["signature"] != "unknown"]
+    optical = _optical_dissolves(pooled, features, fps, occupied)
+    for first, last, error, anchor_first, anchor_last in optical:
+        emit("dissolve", first, last,
+             f"windowed optical blend with moving handles; normalized residual={error:.3f}; "
+             "distributed structural replacement; endpoints approximate", error,
+             anchor_first=anchor_first, anchor_last=anchor_last)
+
+    # Split abstentions around accepted intervals so continuous footage keeps
+    # unknown evidence without covering accepted events with contradictory runs.
+    known = [e for e in events if e["signature"] != "unknown"]
+    unknown = [e for e in events if e["signature"] == "unknown"]
+    occupied = [(round(e["start_seconds"] * fps) - (e["signature"] == "hard_cut"),
+                 round(e["end_seconds"] * fps)) for e in known]
+    events = known
+    for event in unknown:
+        pieces = [(round(event["start_seconds"] * fps), round(event["end_seconds"] * fps))]
+        for a, b in occupied:
+            pieces = [(x, y) for start, end in pieces for x, y in
+                      ([(start, end)] if b <= start or a >= end else [(start, min(a, end)), (max(b, start), end)])
+                      if y > x]
+        for first, last in pieces:
+            emit("unknown", first, last, event["reason"])
+    events.sort(key=lambda e: (e["start_seconds"], e["end_seconds"], e["signature"]))
+
     audio_onsets, audio_probe_ok = _audio_onsets(media_path, ffmpeg)
     aligned = [
         {
@@ -455,6 +632,7 @@ def detect_transition_signatures(
                 feature.mean_absolute_difference for feature in features
             ),
             "flow_measured": False,
+            "optical_dissolve_count": len(optical),
             "unknown_count": sum(event["signature"] == "unknown" for event in events),
         },
         "pair_features": [asdict(feature) for feature in features],
