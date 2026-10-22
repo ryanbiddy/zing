@@ -110,6 +110,7 @@ jobs:
           cache-dependency-path: |
             zing/pyproject.toml
             writer/pyproject.toml
+            uoink/requirements.txt
 
       - name: Install FFmpeg
         timeout-minutes: 15
@@ -119,7 +120,7 @@ jobs:
           ffmpeg -version
           ffprobe -version
 
-      - name: Install the three product runtimes
+      - name: Install Zing and Writer runtimes
         run: |
           python -m pip install \
             -e "./zing[all,dev]" \
@@ -127,6 +128,27 @@ jobs:
             "mcp==1.27.1" \
             "Pillow==10.4.0" \
             "keyring==25.7.0"
+
+      - name: Install Uoink's own server and MCP runtime
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/uoink-venv"
+          python - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          # Avoid desktop/ASR dependencies: the gate uses the server, MCP and
+          # seeded media. Keep the selected checkout's pins, including SDK 2.
+          names = {"mcp", "mcp-types", "httpx2", "httpcore2", "truststore", "pillow", "keyring"}
+          pins = {}
+          for line in Path("uoink/requirements.txt").read_text().splitlines():
+              match = re.fullmatch(r"([A-Za-z0-9_-]+)==([^\s#]+)", line.strip())
+              if match and match[1].lower() in names:
+                  pins[match[1].lower()] = line.strip()
+          assert {"mcp", "pillow", "keyring"} <= pins.keys(), "Uoink runtime pins missing"
+          Path(os.environ["RUNNER_TEMP"], "uoink-runtime.txt").write_text("\n".join(pins.values()) + "\n")
+          PY
+          "$RUNNER_TEMP/uoink-venv/bin/python" -m pip install -r "$RUNNER_TEMP/uoink-runtime.txt"
 
       - name: Run the deterministic family scenario
         shell: bash
@@ -141,6 +163,7 @@ jobs:
           python -m tools.eval.run_suite_smoke \
             --mode deterministic_ci \
             --uoink-repo "$GITHUB_WORKSPACE/uoink" \
+            --uoink-python "$RUNNER_TEMP/uoink-venv/bin/python" \
             --writer-repo "$GITHUB_WORKSPACE/writer" \
             --zing-repo "$GITHUB_WORKSPACE/zing" \
             --work-dir "$SMOKE_WORK_DIR" \

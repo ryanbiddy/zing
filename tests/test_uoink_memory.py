@@ -16,6 +16,7 @@ from myzing.project.choices import choose_draft
 from myzing.project.models import ProjectError
 from myzing.project.references import resolve_reference, study_reference
 from myzing.schemas import Breakdown, VideoMeta
+from test_uoink_search_contract import search_body
 from test_suite_peer import make_manifest
 
 TOKEN = "p19-test-credential-only"
@@ -204,11 +205,14 @@ def test_search_lists_never_selects(project, monkeypatch, capsys, caplog):
         logging.info("request %s", req.full_url)
         if req.full_url.endswith("suite-service.json"):
             return response(manifest)
-        assert req.method == "POST"
-        assert json.loads(req.data)["query"] == "soft cuts"
+        assert req.method == "GET" and req.data is None
+        assert req.full_url == "http://127.0.0.1:61983/api/corpus/v1/search?q=soft+cuts&limit=20"
         assert req.get_header("X-uoink-token") == TOKEN
-        return response({"ok": True, "contract": "uoink.corpus.search", "version": 1,
-                         "data": {"results": candidates}})
+        body = search_body()
+        for item, candidate in zip(body["data"]["items"], candidates):
+            item.update(id=candidate["item_ref"].rsplit("/", 1)[-1],
+                        title=candidate["title"], source_url=candidate["source_url"])
+        return response(body)
 
     monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", answer)
     assert cli.main(["project", "find-reference", "soft cuts"]) == 0
@@ -221,7 +225,7 @@ def test_search_lists_never_selects(project, monkeypatch, capsys, caplog):
 
 def test_search_missing_capability_does_not_guess_endpoint(project, monkeypatch, capsys):
     calls = []
-    serve(monkeypatch, make_manifest(), calls)
+    serve(monkeypatch, make_manifest(capabilities=["uoink.media.handoff/1"]), calls)
     assert cli.main(["project", "find-reference", "query"]) == 1
     assert "does not advertise" in capsys.readouterr().out
     assert len(calls) == 1 and calls[0].full_url.endswith("suite-service.json")
@@ -229,16 +233,15 @@ def test_search_missing_capability_does_not_guess_endpoint(project, monkeypatch,
 
 @pytest.mark.parametrize("failure", ["404", "shape", "version", "item", "token"])
 def test_search_refuses_unsupported_or_invalid_responses(project, monkeypatch, failure):
-    body = {"ok": True, "contract": "uoink.corpus.search", "version": 1,
-            "data": {"results": [{"item_ref": "uoink://item/a", "title": "A", "source_url": None}]}}
+    body = search_body()
     if failure == "shape":
         body["data"]["selected"] = "a"
     elif failure == "version":
         body["version"] = 2
     elif failure == "item":
-        body["data"]["results"][0]["item_ref"] = "file:///private"
+        body["data"]["items"][0]["id"] = "../private"
     elif failure == "token":
-        body["data"]["results"][0]["title"] = TOKEN
+        body["data"]["items"][0]["title"] = TOKEN
 
     def answer(req, **kwargs):
         if req.full_url.endswith("suite-service.json"):
@@ -256,6 +259,16 @@ def test_search_refuses_unsupported_or_invalid_responses(project, monkeypatch, f
 def test_search_unconfigured_never_contacts_peer(project, monkeypatch):
     monkeypatch.delenv("UOINK_TOKEN")
     assert uoink_bridge.search_references("cuts")["code"] == "unconfigured"
+
+
+def test_search_never_puts_a_pasted_credential_in_the_url(project, monkeypatch):
+    calls = []
+    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen",
+                        lambda req, **kwargs: calls.append(req))
+    result = uoink_bridge.search_references("soft cuts " + TOKEN)
+    assert result["code"] == "invalid_query"
+    assert TOKEN not in json.dumps(result)
+    assert calls == []
 
 
 def test_choice_local_then_opt_in_and_retry_same_event(project, monkeypatch, caplog, capsys, zing_workspace):

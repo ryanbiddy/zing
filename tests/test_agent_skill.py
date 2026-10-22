@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from myzing.mcp_server import build_server
 ROOT = Path(__file__).resolve().parents[1]
 SKILL = ROOT / "skills" / "zing"
 DOCS = [SKILL / "SKILL.md", *sorted((SKILL / "references").glob("*.md"))]
+SUITE_SKILL = ROOT / "skills" / "uoink-zing"
 
 
 def test_skill_frontmatter_and_portable_references():
@@ -60,6 +62,44 @@ def test_every_skill_mcp_tool_exists_in_server():
     assert mentioned == registered
     for doc in (ROOT / "README.md", SKILL / "references" / "mcp.md"):
         assert re.search(rf"\b{len(registered)}(?: MCP)? tools\b", doc.read_text(encoding="utf-8"))
+
+
+def test_suite_skill_commands_tools_and_portable_references():
+    pytest.importorskip("mcp")
+    text = (SUITE_SKILL / "SKILL.md").read_text(encoding="utf-8")
+    assert text.startswith("---\nname: uoink-zing\ndescription: ")
+    assert len(text.splitlines()) < 200
+    body = text.split("---", 2)[2]
+    names = set(re.findall(r"\bzing\s+([a-z][a-z0-9-]*)", body))
+    assert names <= _COMMANDS.keys()
+    registry = json.loads((SUITE_SKILL / "references" / "uoink-tools.json").read_text(encoding="utf-8"))
+    assert re.fullmatch(r"[0-9a-f]{40}", registry["commit"])
+    assert re.fullmatch(r"[0-9a-f]{64}", registry["source_sha256"])
+    assert registry["source_path"] == "uoink_mcp_tools.py:TOOL_REGISTRY"
+    uoink_names = set(registry["tools"])
+    zing_names = {tool.name for tool in asyncio.run(build_server().list_tools())}
+    tools = set(re.findall(r"`([a-z][a-z0-9]*_[a-z0-9_]+)(?:`|\()", body))
+    assert tools <= zing_names | uoink_names
+    assert {"search_uoinks", "list_recent_uoinks", "get_library_item"} <= tools & uoink_names
+    assert {"push_to_uoink", "match_start", "get_breakdown"} <= tools & zing_names
+    for target in re.findall(r"\]\(([^)]+)\)", body):
+        if "://" not in target:
+            path = (SUITE_SKILL / target).resolve()
+            assert path.is_relative_to(SUITE_SKILL.resolve()) and path.is_file()
+
+
+@pytest.mark.parametrize("command", [
+    ["project", "init"], ["project", "find-reference"],
+    ["project", "resolve-reference"], ["project", "study-reference"],
+    ["plan", "choose"], ["inspect", "timeline"],
+])
+def test_suite_skill_subcommands_exist(command, capsys):
+    from myzing.cli import main
+
+    with pytest.raises(SystemExit) as exit_info:
+        main([*command, "--help"])
+    assert exit_info.value.code == 0
+    assert "usage:" in capsys.readouterr().out
 
 
 def test_readme_links_every_top_level_doc():

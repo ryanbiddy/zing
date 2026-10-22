@@ -38,6 +38,7 @@ def test_redirected_output_is_utf8_not_mojibake():
     env = dict(os.environ)
     env.pop("PYTHONIOENCODING", None)
     env["PYTHONPATH"] = str(REPO / "src")
+    env["UOINK_URL"] = "http://127.0.0.1:1"
     result = subprocess.run(
         [sys.executable, "-m", "myzing.cli", "serve-mcp", "--print-config"],
         capture_output=True,

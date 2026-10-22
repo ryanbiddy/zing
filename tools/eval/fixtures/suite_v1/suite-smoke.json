@@ -49,6 +49,13 @@
             "passed": true
           },
           {
+            "id": "search_references",
+            "started_at": "2026-07-19T12:00:03Z",
+            "ended_at": "2026-07-19T12:00:03Z",
+            "duration_seconds": 0.0,
+            "passed": true
+          },
+          {
             "id": "study_kept_media",
             "started_at": "2026-07-19T12:00:03Z",
             "ended_at": "2026-07-19T12:00:04Z",
@@ -304,12 +311,151 @@
           {
             "id": "peer_stop_fail_calm",
             "passed": true
+          },
+          {
+            "id": "search_contract_v1",
+            "passed": true
+          },
+          {
+            "id": "search_details_not_requested",
+            "passed": true
           }
         ],
         "failure_code": null,
         "cleanup": {
           "passed": true,
           "residual_processes": 0
+        },
+        "search": {
+          "capabilities": [
+            "uoink.corpus.read/1",
+            "uoink.engagement.ingest/1",
+            "uoink.media.handoff/1"
+          ],
+          "status": "checked",
+          "queries": [
+            {
+              "case": "exact_title",
+              "request": {
+                "method": "GET",
+                "params": {
+                  "q": [
+                    "Suite smoke fixture"
+                  ],
+                  "limit": [
+                    "20"
+                  ]
+                },
+                "body": null
+              },
+              "response": {
+                "ok": true,
+                "contract": "uoink.corpus.read",
+                "version": 1,
+                "operation": "search",
+                "data": {
+                  "items": [
+                    {
+                      "id": "suite-smoke-fixture",
+                      "title": "Suite smoke fixture",
+                      "author": "Fixture Creator",
+                      "source_type": "youtube",
+                      "platform": "youtube",
+                      "source_url": "https://example.test/video-contract",
+                      "captured_at": "2030-01-02T03:04:05Z",
+                      "duration_seconds": 42,
+                      "credit": {
+                        "creator": "Fixture Creator",
+                        "handle": "@FixtureCreator",
+                        "source_url": "https://example.test/video-contract"
+                      },
+                      "facets": {
+                        "topic": "Local AI",
+                        "hook_type": "curiosity_gap",
+                        "format": "talking_head",
+                        "performance_tier": "over",
+                        "length_bucket": "short"
+                      },
+                      "preview": null
+                    }
+                  ],
+                  "page": {
+                    "state": "matches",
+                    "total": 1,
+                    "corpus_total": 1,
+                    "limit": 20,
+                    "offset": 0
+                  }
+                }
+              },
+              "hit_count": 1
+            },
+            {
+              "case": "forgiving",
+              "request": {
+                "method": "GET",
+                "params": {
+                  "q": [
+                    "the suite smoke fixture"
+                  ],
+                  "limit": [
+                    "20"
+                  ]
+                },
+                "body": null
+              },
+              "response": {
+                "ok": true,
+                "contract": "uoink.corpus.read",
+                "version": 1,
+                "operation": "search",
+                "data": {
+                  "items": [],
+                  "page": {
+                    "state": "no_matches",
+                    "total": 0,
+                    "corpus_total": 1,
+                    "limit": 20,
+                    "offset": 0
+                  }
+                }
+              },
+              "hit_count": 0
+            },
+            {
+              "case": "no_match",
+              "request": {
+                "method": "GET",
+                "params": {
+                  "q": [
+                    "zzzxqnonexistent"
+                  ],
+                  "limit": [
+                    "20"
+                  ]
+                },
+                "body": null
+              },
+              "response": {
+                "ok": true,
+                "contract": "uoink.corpus.read",
+                "version": 1,
+                "operation": "search",
+                "data": {
+                  "items": [],
+                  "page": {
+                    "state": "no_matches",
+                    "total": 0,
+                    "corpus_total": 1,
+                    "limit": 20,
+                    "offset": 0
+                  }
+                }
+              },
+              "hit_count": 0
+            }
+          ],
+          "matching_behavior": "forgiving_query_no_matches"
         }
       }
     }

@@ -34,11 +34,14 @@ SUITE_SMOKE_ASSERTION_IDS = (
     "recorded_assertions",
     "cleanup",
     "record_privacy",
+    "search_contract_v1",
+    "search_details_not_requested",
 )
 _REQUIRED_STEP_IDS = (
     "launch_products",
     "validate_discovery",
     "capture_kept_media",
+    "search_references",
     "study_kept_media",
     "create_zing_direction",
     "writer_create",
@@ -61,6 +64,8 @@ _REQUIRED_RECORDED_ASSERTIONS = (
     "measured_spans_only",
     "engagement_visible",
     "peer_stop_fail_calm",
+    "search_contract_v1",
+    "search_details_not_requested",
 )
 _TOP_LEVEL_KEYS = {
     "record_contract",
@@ -76,6 +81,7 @@ _TOP_LEVEL_KEYS = {
     "references",
     "artifacts",
     "handoff",
+    "search",
     "writer_flow",
     "zing_flow",
     "engagement",
@@ -184,10 +190,12 @@ def _metadata_issues(record: Any) -> list[dict[str, Any]]:
         issues.append(_problem("$.sources", "invalid_product_set"))
     else:
         for product, value in sources.items():
-            if not isinstance(value, Mapping) or set(value) != {
-                "revision",
-                "installed_version",
-            }:
+            allowed = {"revision", "installed_version"}
+            if product == "zing" and isinstance(value, Mapping) and "working_tree_sha256" in value:
+                allowed.add("working_tree_sha256")
+                if not _valid_hash(value["working_tree_sha256"]):
+                    issues.append(_problem("$.sources.zing.working_tree_sha256", "invalid_hash"))
+            if not isinstance(value, Mapping) or set(value) != allowed:
                 issues.append(
                     _problem(f"$.sources.{product}", "invalid_shape")
                 )
@@ -858,6 +866,61 @@ def _privacy_issues(record: Any) -> list[dict[str, Any]]:
     return issues
 
 
+def _search_contract_issues(record: Any) -> list[dict[str, Any]]:
+    from myzing.uoink_bridge import SEARCH_CAPABILITY, parse_search_response
+    from tools.eval.suite_search import SEARCH_CASES
+
+    evidence = record.get("search") if isinstance(record, Mapping) else None
+    if not isinstance(evidence, dict) or not isinstance(evidence.get("capabilities"), list):
+        return [_problem("$.search", "invalid_shape")]
+    if (SEARCH_CAPABILITY not in evidence["capabilities"]
+            or set(evidence) != {"capabilities", "status", "queries", "matching_behavior"}
+            or evidence["status"] != "checked"):
+        return [_problem("$.search", "missing_search_proof")]
+    queries = evidence["queries"]
+    if not isinstance(queries, list) or len(queries) != len(SEARCH_CASES):
+        return [_problem("$.search.queries", "missing_queries")]
+    issues = []
+    for observation, (case, query) in zip(queries, SEARCH_CASES):
+        if not isinstance(observation, dict) or set(observation) != {"case", "request", "response", "hit_count"}:
+            issues.append(_problem("$.search.queries", "invalid_shape"))
+            continue
+        expected = {"method": "GET", "params": {"q": [query], "limit": ["20"]}, "body": None}
+        if observation["case"] != case or observation["request"] != expected:
+            issues.append(_problem("$.search.queries", "unexpected_request"))
+        parsed = parse_search_response(observation["response"])
+        if not parsed["ok"]:
+            issues.append(_problem("$.search.queries", "contract_mismatch"))
+            continue
+        refs = {item["item_ref"] for item in parsed["results"]}
+        hits = len(parsed["results"])
+        if type(observation["hit_count"]) is not int or observation["hit_count"] != hits:
+            issues.append(_problem("$.search.queries", "incorrect_hit_count"))
+        if case == "no_match":
+            valid = not refs
+        elif case == "exact_title":
+            valid = "uoink://item/suite-smoke-fixture" in refs
+        else:
+            behavior = "forgiving_query_matched" if hits else "forgiving_query_no_matches"
+            valid = evidence["matching_behavior"] == behavior
+        if not valid:
+            issues.append(_problem("$.search.queries", "unexpected_matches", case=case))
+    return issues
+
+
+def _search_details_issues(record: Any) -> list[dict[str, Any]]:
+    evidence = record.get("search") if isinstance(record, Mapping) else None
+    if (not isinstance(evidence, dict) or not isinstance(evidence.get("queries"), list)
+            or not evidence["queries"]):
+        return [_problem("$.search", "missing_request_evidence")]
+    for query in evidence["queries"]:
+        request = query.get("request") if isinstance(query, dict) else None
+        if (not isinstance(request, dict) or not isinstance(request.get("params"), dict)
+                or "search_details" in request["params"] or request.get("body") is not None):
+            return [_problem("$.search.queries", "search_details_requested")]
+    return []
+
+
 _ASSERTION_CHECKS: Mapping[str, Callable[[Any], list[dict[str, Any]]]] = {
     "record_metadata": _metadata_issues,
     "step_timing": _timing_issues,
@@ -877,6 +940,8 @@ _ASSERTION_CHECKS: Mapping[str, Callable[[Any], list[dict[str, Any]]]] = {
     "recorded_assertions": _recorded_assertion_issues,
     "cleanup": _cleanup_issues,
     "record_privacy": _privacy_issues,
+    "search_contract_v1": _search_contract_issues,
+    "search_details_not_requested": _search_details_issues,
 }
 
 

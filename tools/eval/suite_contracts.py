@@ -300,7 +300,7 @@ def _capability_issues(
     invalid = [item for item in value if not _CAPABILITY_RE.fullmatch(item)]
     if invalid:
         _issue(issues, path, "invalid_capabilities", values=invalid)
-    if expected is not None and tuple(value) != tuple(expected):
+    if expected is not None and value != list(expected):
         _issue(
             issues,
             path,
@@ -457,6 +457,7 @@ def _validate_service(
     payload: Any,
     *,
     expected_service: str | None,
+    expected_port: int | None = None,
 ) -> list[dict[str, Any]]:
     issues: list[dict[str, Any]] = []
     envelope = _exact_mapping(
@@ -514,7 +515,7 @@ def _validate_service(
     _expect_value(service.get("resident"), True, "$.service.resident", issues)
     _expect_value(
         service.get("default_port"),
-        spec["default_port"],
+        spec["default_port"] if expected_port is None else expected_port,
         "$.service.default_port",
         issues,
     )
@@ -1321,6 +1322,7 @@ def validate_contract_payload(
     expected_peer: str | None = None,
     live_pids: Sequence[int] | None = None,
     pid_is_live: Callable[[int], bool] | None = None,
+    expected_port: int | None = None,
 ) -> dict[str, Any]:
     """Validate one raw payload without calling a product or opening its data."""
     if contract == "ryan.suite.runtime-lease/1":
@@ -1334,6 +1336,7 @@ def validate_contract_payload(
         issues = _validate_service(
             payload,
             expected_service=expected_service,
+            expected_port=expected_port,
         )
     elif contract == "ryan.suite.health/1":
         issues = _validate_health(

@@ -82,7 +82,7 @@ run `zing project resolve-reference ./project`, then
 `zing project resolve-reference ./project --file reference.mp4`.
 
 `zing project find-reference "soft cuts"` lists candidates only when the peer
-advertises the optional search contract. Choose an existing draft with
+advertises `uoink.corpus.read/1`. Choose an existing draft with
 `zing plan choose ./project --draft A --draft-file draft-edl.json`.
 Without an explicit file, the command reads ./project/drafts/A.json (or B/C).
 Add --share-choice only when the user asks to share the reference citation;

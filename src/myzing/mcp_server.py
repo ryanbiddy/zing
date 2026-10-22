@@ -2084,7 +2084,8 @@ def build_server():
 def _print_connect_config(target: str) -> int:
     """``zing serve-mcp --print-config [desktop|code]`` — the exact,
     copy-pasteable client config with this environment's real paths.
-    Works without the SDK installed (it only prints), but says so."""
+    Works without the SDK installed. Probes the optional Uoink helper;
+    never starts either server."""
     python = sys.executable
     desktop = json.dumps(
         {
@@ -2111,6 +2112,12 @@ def _print_connect_config(target: str) -> int:
             "\n# Do this before connecting a client, or the server will exit"
             " at launch."
         )
+    from myzing.doctor import check_uoink, uoink_suite_hint
+
+    check = check_uoink()
+    print("\n# " + uoink_suite_hint(check.data["peer"]["state"]))
+    if check.fix:
+        print("# " + check.fix)
     return 0
 
 

@@ -244,11 +244,25 @@ def test_checked_in_suite_smoke_record_passes_every_independent_assertion() -> N
 
     assert report["passed"] is True
     assert report["failed_assertions"] == []
-    assert len(SUITE_SMOKE_ASSERTION_IDS) == 18
+    assert len(SUITE_SMOKE_ASSERTION_IDS) == 20
     assert set(report["assertions"]) == set(SUITE_SMOKE_ASSERTION_IDS)
     assert all(
         assertion["passed"] for assertion in report["assertions"].values()
     )
+
+
+def test_smoke_manifest_accepts_only_explicit_isolated_port():
+    payload = copy.deepcopy(load_fixture_case("service_valid_uoink")["payload"])
+    payload["service"]["default_port"] = 15179
+    context = {"expected_service": "uoink", "expected_port": 15179}
+    assert not validate_contract_payload("ryan.suite.service/1", payload, expected_service="uoink")["passed"]
+    assert validate_contract_payload("ryan.suite.service/1", payload, **context)["passed"]
+    payload["service"]["default_port"] = 15180
+    assert not validate_contract_payload("ryan.suite.service/1", payload, **context)["passed"]
+    payload["service"]["default_port"] = 15179
+    payload["service"]["capabilities"].append("unexpected.capability/1")
+    payload["service"]["capabilities"].sort()
+    assert not validate_contract_payload("ryan.suite.service/1", payload, **context)["passed"]
 
 
 @pytest.mark.parametrize(

@@ -15,7 +15,8 @@ and drives the same contract clients and assertions as the local family gate:
 1. validate leases, manifests, health responses, peer states, and direct MCP
    identities;
 2. seed one isolated Uoink item with retained fixture media;
-3. make Zing verify and study that kept file without refetching it;
+3. check corpus search with Zing's real client, then verify and study the
+   kept file without refetching it;
 4. make Writer retrieve the same corpus item, save and critique a script, run
    its local Voice DNA scan, and export a versioned shot-list file;
 5. import that file into Zing, assemble and render a measured draft, account
@@ -26,7 +27,7 @@ The workflow uploads `suite-smoke.json` and `suite-smoke-eval.json` for 14
 days. The first file records the three source revisions, installed versions,
 step timings, contract versions, stable references, artifact hashes,
 engagement receipts, peer states, and cleanup result. The second file
-recomputes 18 assertions from that record instead of trusting its claimed
+recomputes 20 assertions from that record instead of trusting its claimed
 result. If the launcher fails before it can write the record, the artifact
 contains `suite-smoke-failure.json` with the structured launcher error. A
 missing record or failure artifact is itself an artifact-step error, so an
@@ -84,13 +85,26 @@ and stops every process it starts.
 
 ## Run it locally
 
-All three repositories must be clean Git checkouts, and ports 5179 and 5181
-must be free:
+By default, both modes use the shipped ports 5179/5181, as CI does. The runner
+refuses occupied ports before contacting either service. CI uses temporary
+HOME, LOCALAPPDATA and XDG directories, scrubs inherited Uoink/Writer settings
+and credentials, and seeds its own corpus.
+
+On a developer machine with a live helper, use `--isolated-ports` explicitly:
+it selects 15179/15181 and Uoink's isolated-profile mode. Never use a user's
+live helper or library for tests. Uoink must support explicit isolation, and
+the alternate ports must be free. **Known local limitation:** Writer requires
+Uoink's manifest `default_port` to be 5179 and rejects the alternate port.
+That expected rejection is not a passing family smoke; CI supplies the real
+verdict on shipped ports. All three repositories must be clean Git checkouts
+unless the local Zing exception below is enabled.
 
 ```bash
 python -m tools.eval.run_suite_smoke \
   --mode deterministic_ci \
+  --isolated-ports \
   --uoink-repo <uoink-checkout> \
+  --uoink-python <uoink-runtime-python> \
   --writer-repo <writer-checkout> \
   --zing-repo . \
   --output suite-smoke.json
@@ -102,3 +116,52 @@ python -m tools.eval.suite_smoke \
 
 Use `real_capture` only as an explicit local gate with a supported source URL.
 It is not part of scheduled CI.
+
+For an uncommitted local Zing build, add `--allow-dirty-zing`. The report then
+includes `sources.zing.working_tree_sha256` alongside the base revision. That
+result proves the recorded local tree, not the clean commit alone. Uoink and
+Writer still require clean checkouts; CI does not enable this option.
+
+`--python` selects Zing's interpreter. `--uoink-python` and `--writer-python`
+select peer interpreters and each defaults to `--python`. Uoink's server, MCP
+and fixture seeding use its interpreter; Writer's server, MCP and doctor use
+Writer's. CI keeps the existing Zing/Writer pins, including MCP 1.27.1, and
+creates a separate Uoink venv. It installs the server/MCP subset of the selected
+Uoink checkout's `requirements.txt`, including its MCP pin and any v2 transport
+pins. This accommodates main's MCP 2.3.0 without changing Zing's SDK. Desktop
+and ASR packages are unnecessary for seeded media. Ref resolution and final
+record-to-checkout SHA verification are unchanged.
+
+On Windows, pass base interpreters and expose their required test dependencies
+on PYTHONPATH. A virtualenv's redirecting python.exe has a different PID from
+its server child; the runner refuses its own default venv launcher before
+starting residents. Report local failures without changing the peer or
+contacting the user's helper.
+
+## Search contract assertions
+
+`search_contract_v1` requires the shipped `uoink.corpus.read/1` capability and
+calls Zing's real `search_references` client. GET requests contain exactly `q`
+and `limit=20`, with no body. The exact-title query `Suite smoke fixture` must
+return the seeded item; `zzzxqnonexistent` must return none. The multi-word
+query `the suite smoke fixture` is recorded with its hit count and observed
+`matching_behavior`, without requiring a hit: main uses strict matching, while
+3.11 defaults to forgiving keyword search when mode and match are omitted.
+
+The evaluator passes every raw response through Zing's parser. The exact v1
+envelope is `uoink.corpus.read`, version 1, operation `search`; data contains
+only `items` and `page`. Page and item refs, including nested credit, facets
+and preview fields, are validated exactly. Zing returns at most 20 candidates
+to callers, mapping raw IDs to canonical `item_ref` and retaining title and
+source URL. See [the mapping](UOINK-MEMORY.md#search-handoff).
+
+`search_details_not_requested` checks captured request parameters and the
+absence of a body. Zing sends neither `search_details`, `mode` nor `match`.
+Both assertion IDs appear in the runner's recorded list. Fake-peer tests cover
+both strict and forgiving responses and reject extra keys at every wire level.
+
+The upstream fixture vendored at `tests/fixtures/uoink_corpus_v1/provider.json`
+is copied byte for byte, with its source commit and SHA-256 in the adjacent
+sidecar. At commit `14abb479d0b5ddb0106e4e62c18bb1a9f75bf675` it pins
+`uoink.corpus.read/1`. Its search responses pass Zing's parser unchanged;
+negative tests reject additions such as citations and search-mode metadata.

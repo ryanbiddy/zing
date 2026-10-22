@@ -38,30 +38,31 @@ zing project find-reference "soft cuts"
 ```
 
 Results are listed without selecting a reference, changing a project, or
-recording an engagement event. The bridge in this base has no existing search
-operation. P19 adds a client handoff that requires the service manifest to
-advertise `uoink.corpus.search/1`. This is a proposed optional capability;
-support in a running Uoink installation has not been verified. A peer without
-it returns a clear unavailable message. Zing never probes a guessed legacy
-search route or builds its own reference index.
+recording an engagement event. Zing discovers `uoink.corpus.read/1` in the
+service manifest and sends `GET /api/corpus/v1/search?q=soft+cuts&limit=20`.
+Authentication uses only the `X-Uoink-Token` header. Queries appear in the URL;
+do not put credentials in them. Zing sends no body, `mode`, `match` or
+`search_details`. Uoink 3.11 therefore uses its default forgiving keyword search;
+older peers can use strict matching.
 
-The advertised capability opts into this exact wire format:
+The v1 response envelope has exactly `ok`, `contract`, `version`, `operation`
+and `data`: contract is `uoink.corpus.read`, version is `1`, operation is
+`search`, and data has exactly `items` and `page`. Page has exactly `state`,
+`total`, `corpus_total`, `limit` and `offset`. Each item has exactly `id`,
+`title`, `author`, `source_type`, `platform`, `source_url`, `captured_at`,
+`duration_seconds`, `credit`, `facets` and `preview`; nested objects are also
+validated against the committed upstream provider fixture.
 
-```json
-{"contract":"uoink.corpus.search","version":1,"query":"soft cuts","limit":20}
-```
-
-Send that body with `POST /api/corpus/v1/search`. Authentication uses only the
-`X-Uoink-Token` header. The response has exact keys:
-
-```json
-{"ok":true,"contract":"uoink.corpus.search","version":1,"data":{"results":[{"item_ref":"uoink://item/ref-123","title":"Example reference","source_url":null}]}}
-```
-
-There may be zero to twenty results. Each has a canonical item reference, a
-string title, and a null or HTTP(S) source URL. Unknown keys, invalid references,
-or another contract version are refused. HTTP 404, 405 or 501 means search is
-unavailable even if advertised. Queries are sent in the body, never in URLs.
+Only after validation does Zing map each raw `id` to
+`uoink://item/<encoded-id>` and retain `title` and `source_url`. Its CLI and MCP
+callers still receive `{"ok":true,"results":[...],"selected":null}`, with each
+candidate containing only `item_ref`, `title` and `source_url`. Wire pagination
+and descriptive metadata are validated but omitted from this caller response.
+Zing accepts at most 20 items. Unknown keys at any level, including the details
+fields `citations`, `search_mode`, `requested_mode` and `fallback_reason`, are
+rejected. The vendored `tests/fixtures/uoink_corpus_v1/provider.json` search
+responses pass the parser unchanged; the adjacent sidecar pins their source
+commit and SHA-256. HTTP 404, 405 or 501 reports search unavailable.
 
 ## Choice receipts and the draft writer handoff
 

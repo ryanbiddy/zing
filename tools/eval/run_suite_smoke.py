@@ -13,8 +13,8 @@ Two modes share the same clients and assertions:
   supported short-video URL.
 
 The runner never posts, publishes, invokes a delivery surface, calls an AI
-provider, or permits a model download. It fails if ports 5179 or 5181 are
-already occupied; it never kills a process it did not start.
+provider, or permits a model download. It refuses occupied ports and never
+kills a process it did not start. Alternate local ports require --isolated-ports.
 """
 
 from __future__ import annotations
@@ -113,6 +113,8 @@ RECORDED_ASSERTIONS = (
     "measured_spans_only",
     "engagement_visible",
     "peer_stop_fail_calm",
+    "search_contract_v1",
+    "search_details_not_requested",
 )
 
 
@@ -141,7 +143,7 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _git_revision(repo: Path) -> str:
+def _git_revision(repo: Path, *, allow_dirty: bool = False) -> str:
     result = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         cwd=repo,
@@ -165,13 +167,13 @@ def _git_revision(repo: Path) -> str:
             capture_output=True,
             check=False,
         )
-        if clean.returncode == 1:
+        if clean.returncode == 1 and not allow_dirty:
             raise SmokeError(
                 "source_worktree_dirty",
                 f"{repo.name} has tracked changes outside revision "
                 f"{revision[:12]}",
             )
-        if clean.returncode != 0:
+        if clean.returncode not in (0, 1):
             raise SmokeError(
                 "source_revision_unavailable",
                 f"could not verify the Git tree for {repo.name}",
@@ -202,13 +204,27 @@ def _git_revision(repo: Path) -> str:
             or path in {"pyproject.toml", "VERSION"}
         )
     ]
-    if runtime_untracked:
+    if runtime_untracked and not allow_dirty:
         raise SmokeError(
             "source_worktree_dirty",
             f"{repo.name} has untracked runtime source outside revision "
             f"{revision[:12]}",
         )
     return revision
+
+
+def _working_tree_sha256(repo: Path) -> str:
+    """Identify an explicitly permitted local build without claiming HEAD proof."""
+    result = subprocess.run(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=repo, capture_output=True, check=True,
+    )
+    digest = hashlib.sha256()
+    for name in sorted(set(result.stdout.split(b"\0")) - {b""}):
+        path = repo / os.fsdecode(name)
+        digest.update(name + b"\0")
+        digest.update((_sha256(path) if path.is_file() else "deleted").encode() + b"\0")
+    return digest.hexdigest()
 
 
 def _read_version(path: Path, pattern: str) -> str:
@@ -641,6 +657,9 @@ def _source_env(base: dict[str, str], source: Path) -> dict[str, str]:
 
 def _safe_base_env(local_data: Path) -> dict[str, str]:
     env = dict(os.environ)
+    for name in list(env):
+        if name.startswith(("UOINK_", "YOINK_", "WRITER_")):
+            env.pop(name)
     for name in FORBIDDEN_PROVIDER_ENV:
         env.pop(name, None)
     env.update({
@@ -815,9 +834,11 @@ def _seed_uoink_fixture(
     )
     seed = (
         "import json, os;"
+        "import uoink_install_isolation as iso;"
+        "iso.apply_from_process();"
         "import _platform;"
         "import index;"
-        "root=_platform.user_data_dir();"
+        "root=iso.data_root(_platform.user_data_dir());"
         "idx=index.Index.open(root/'index.db');"
         "record=json.loads(os.environ['SUITE_SMOKE_ROW']);"
         "idx.upsert_yoink(record, content='deterministic suite smoke fixture');"
@@ -870,10 +891,11 @@ def _capture_real(
     *,
     source_url: str,
     token: str,
+    base_url: str = UOINK_URL,
 ) -> tuple[str, Path]:
     status, settings = _json_request(
         "POST",
-        UOINK_URL + "/settings",
+        base_url + "/settings",
         body={
             "keep_media": True,
             "asr_fallback_enabled": False,
@@ -890,7 +912,7 @@ def _capture_real(
         )
     status, captured = _json_request(
         "POST",
-        UOINK_URL + "/extract",
+        base_url + "/extract",
         body={
             "url": source_url,
             "interval": 5,
@@ -1298,11 +1320,12 @@ def _zing_engagement(
 def _stop_uoink(
     process: ManagedProcess,
     token: str,
+    base_url: str = UOINK_URL,
 ) -> None:
     try:
         _json_request(
             "POST",
-            UOINK_URL + "/helper/quit",
+            base_url + "/helper/quit",
             body={},
             headers={"X-Uoink-Token": token},
             timeout=5,
@@ -1332,14 +1355,31 @@ def run_suite_smoke(
     source_url: str = "",
     fixture_video: Path | None = None,
     python: str = sys.executable,
+    uoink_python: str | None = None,
+    writer_python: str | None = None,
+    isolated_ports: bool = False,
+    allow_dirty_zing: bool = False,
 ) -> dict[str, Any]:
     """Drive the family scenario and return its evaluated path-free record."""
+    uoink_python = uoink_python or python
+    writer_python = writer_python or python
+    uoink_port, writer_port = (15179, 15181) if isolated_ports else (5179, 5181)
+    uoink_url = f"http://127.0.0.1:{uoink_port}"
+    writer_url = f"http://127.0.0.1:{writer_port}"
     if mode not in {"deterministic_ci", "real_capture"}:
         raise SmokeError("invalid_mode", f"unsupported smoke mode: {mode}")
     if mode == "real_capture" and not source_url.strip():
         raise SmokeError(
             "source_url_required",
             "real_capture requires an explicit supported short-video URL",
+        )
+    if (os.name == "nt" and sys.prefix != sys.base_prefix
+            and any(Path(executable).resolve() == Path(sys.executable).resolve()
+                    for executable in (python, uoink_python, writer_python))):
+        raise SmokeError(
+            "windows_venv_launcher",
+            "Use --python with a base Python interpreter and make the test dependencies "
+            "available on PYTHONPATH; Windows venv launchers hide the resident PID.",
         )
     for name, repo, marker in (
         ("uoink", uoink_repo, "server.py"),
@@ -1352,7 +1392,7 @@ def run_suite_smoke(
                 f"{name} repository does not contain {marker}",
             )
     occupied = [
-        port for port in (5179, 5181) if not _port_available(port)
+        port for port in (uoink_port, writer_port) if not _port_available(port)
     ]
     if occupied:
         raise SmokeError(
@@ -1363,7 +1403,8 @@ def run_suite_smoke(
 
     work_root.mkdir(parents=True, exist_ok=True)
     local_data = work_root / "local-data"
-    uoink_output = work_root / "uoink-output"
+    uoink_profile = local_data / "uoink-profile"
+    uoink_output = uoink_profile / "output" if isolated_ports else work_root / "uoink-output"
     writer_data = work_root / "writer-data"
     zing_home = work_root / "zing-home"
     artifacts_dir = work_root / "artifacts"
@@ -1379,13 +1420,18 @@ def run_suite_smoke(
     base_env = _safe_base_env(local_data)
     uoink_env = dict(base_env)
     uoink_env["UOINK_OUTPUT_DIR"] = str(uoink_output)
+    if isolated_ports:
+        if not (uoink_repo / "uoink_install_isolation.py").is_file():
+            raise SmokeError("isolation_unavailable", "Uoink checkout must support isolated profiles")
+        uoink_env["UOINK_ISOLATED_PROFILE"] = str(uoink_profile)
+        uoink_env["UOINK_ISOLATED_PORT"] = str(uoink_port)
     writer_env = _source_env(base_env, writer_repo / "src")
     writer_env["WRITER_DATA_DIR"] = str(writer_data)
     writer_env["WRITER_TOKEN"] = secrets.token_urlsafe(32)
-    writer_env["WRITER_UOINK_URL"] = UOINK_URL
+    writer_env["WRITER_UOINK_URL"] = uoink_url
     zing_env = _source_env(base_env, zing_repo / "src")
     zing_env["ZING_HOME"] = str(zing_home)
-    zing_env["UOINK_URL"] = UOINK_URL
+    zing_env["UOINK_URL"] = uoink_url
 
     ledger = StepLedger()
     residents: list[ManagedProcess] = []
@@ -1400,9 +1446,10 @@ def run_suite_smoke(
     source_revisions = {
         "uoink": _git_revision(uoink_repo),
         "writer": _git_revision(writer_repo),
-        "zing": _git_revision(zing_repo),
+        "zing": _git_revision(zing_repo, allow_dirty=allow_dirty_zing),
     }
     versions = _product_versions(uoink_repo, writer_repo, zing_repo)
+    local_tree_hash = _working_tree_sha256(zing_repo) if allow_dirty_zing else None
 
     handoff_payload: dict[str, Any] = {}
     item_ref = ""
@@ -1422,7 +1469,7 @@ def run_suite_smoke(
     try:
         with ledger.step("launch_products"):
             uoink_command = [
-                python,
+                uoink_python,
                 "-c",
                 (
                     "import server;"
@@ -1438,8 +1485,8 @@ def run_suite_smoke(
                 env=uoink_env,
             )
             residents.append(uoink_process)
-            _wait_http(UOINK_URL + "/ping", uoink_process)
-            token_path = uoink_repo / "token.txt"
+            _wait_http(uoink_url + "/ping", uoink_process)
+            token_path = (uoink_profile if isolated_ports else uoink_repo) / "token.txt"
             deadline = time.monotonic() + PROCESS_START_TIMEOUT
             while time.monotonic() < deadline and not token_path.is_file():
                 time.sleep(0.1)
@@ -1459,12 +1506,12 @@ def run_suite_smoke(
             writer_process = ManagedProcess.start(
                 "writer",
                 [
-                    python,
+                    writer_python,
                     "-m",
                     "writer.cli",
                     "serve",
                     "--port",
-                    "5181",
+                    str(writer_port),
                     "--database",
                     str(writer_data / "writer.db"),
                 ],
@@ -1472,18 +1519,18 @@ def run_suite_smoke(
                 env=writer_env,
             )
             residents.append(writer_process)
-            _wait_http(WRITER_URL + "/ping", writer_process)
+            _wait_http(writer_url + "/ping", writer_process)
 
             clients = {
                 "uoink": StdioMCPClient(
                     "uoink",
-                    [python, "-P", str(uoink_repo / "uoink_mcp.py")],
+                    [uoink_python, "-P", str(uoink_repo / "uoink_mcp.py")],
                     cwd=uoink_repo,
                     env=uoink_env,
                 ),
                 "writer": StdioMCPClient(
                     "writer",
-                    [python, "-m", "writer.cli", "serve-mcp"],
+                    [writer_python, "-m", "writer.cli", "serve-mcp"],
                     cwd=writer_repo,
                     env=writer_env,
                 ),
@@ -1499,7 +1546,7 @@ def run_suite_smoke(
             registry = _runtime_registry_dir(base_env)
             leases = {
                 product: _read_json_file(
-                    registry / f"{product}.json",
+                    (uoink_profile / "suite-services.d" if product == "uoink" and isolated_ports else registry) / f"{product}.json",
                     code=f"{product}_lease_missing",
                 )
                 for product in ("uoink", "writer")
@@ -1518,8 +1565,8 @@ def run_suite_smoke(
                     live_pids=live_pids,
                 )
             for product, base in (
-                ("uoink", UOINK_URL),
-                ("writer", WRITER_URL),
+                ("uoink", uoink_url),
+                ("writer", writer_url),
             ):
                 manifest_status, manifest = _json_request(
                     "GET",
@@ -1538,6 +1585,7 @@ def run_suite_smoke(
                     "ryan.suite.service/1",
                     manifest,
                     expected_service=product,
+                    expected_port=uoink_port if product == "uoink" else None,
                 )
                 _validate_contract(
                     "ryan.suite.health/1",
@@ -1561,7 +1609,7 @@ def run_suite_smoke(
                     "the client did not connect to three direct product MCPs",
                 )
             initial_writer_doctor = _run_writer_doctor(
-                python, writer_repo, writer_env)
+                writer_python, writer_repo, writer_env)
             _require_initial_peer(initial_writer_doctor, "writer")
             initial_zing_status = _mcp_ok(
                 "zing",
@@ -1583,7 +1631,7 @@ def run_suite_smoke(
                     )
                 status, settings = _json_request(
                     "POST",
-                    UOINK_URL + "/settings",
+                    uoink_url + "/settings",
                     body={
                         "keep_media": True,
                         "asr_fallback_enabled": False,
@@ -1599,7 +1647,7 @@ def run_suite_smoke(
                         "Uoink did not enable isolated keep_media settings",
                     )
                 item_id = _seed_uoink_fixture(
-                    python=python,
+                    python=uoink_python,
                     uoink_repo=uoink_repo,
                     env=uoink_env,
                     output_root=uoink_output,
@@ -1609,12 +1657,13 @@ def run_suite_smoke(
                 item_id, _media = _capture_real(
                     source_url=source_url.strip(),
                     token=uoink_token,
+                    base_url=uoink_url,
                 )
             item_ref = "uoink://item/" + urllib.parse.quote(
                 item_id, safe="")
             status, handoff_payload = _json_request(
                 "GET",
-                UOINK_URL
+                uoink_url
                 + "/api/corpus/v1/items/"
                 + urllib.parse.quote(item_id, safe="")
                 + "/kept-media",
@@ -1653,6 +1702,23 @@ def run_suite_smoke(
                     "kept_media_integrity_failed",
                     "kept media did not match Uoink's hash and size",
                 )
+
+        with ledger.step("search_references"):
+            if mode == "real_capture":
+                _seed_uoink_fixture(
+                    python=uoink_python, uoink_repo=uoink_repo, env=uoink_env,
+                    output_root=uoink_output, fixture_media=kept_path,
+                )
+            search_run = subprocess.run(
+                [python, "-m", "tools.eval.suite_search"], cwd=zing_repo,
+                env=zing_env, capture_output=True, text=True, timeout=120,
+            )
+            if search_run.returncode:
+                raise SmokeError("search_contract_failed", "Zing rejected the advertised search contract")
+            try:
+                search_evidence = json.loads(search_run.stdout)
+            except ValueError as exc:
+                raise SmokeError("search_contract_failed", "Search evidence was not JSON") from exc
 
         with ledger.step("study_kept_media"):
             study_started = _mcp_ok(
@@ -1728,7 +1794,7 @@ def run_suite_smoke(
         with ledger.step("writer_create"):
             status, attached = _json_request(
                 "POST",
-                WRITER_URL + "/api/writer/v1/sources/uoink",
+                writer_url + "/api/writer/v1/sources/uoink",
                 body={"item_id": item_id},
                 headers={"X-Writer-Token": writer_env["WRITER_TOKEN"]},
             )
@@ -2007,9 +2073,9 @@ def run_suite_smoke(
 
         with ledger.step("stop_optional_peer"):
             assert uoink_process is not None
-            _stop_uoink(uoink_process, uoink_token)
+            _stop_uoink(uoink_process, uoink_token, base_url=uoink_url)
             post_writer_doctor = _run_writer_doctor(
-                python, writer_repo, writer_env)
+                writer_python, writer_repo, writer_env)
             writer_peer_after = _validate_peer_after_stop(
                 _writer_peer_from_doctor(post_writer_doctor),
                 "writer",
@@ -2100,6 +2166,7 @@ def run_suite_smoke(
             "refetch": False,
             "sha256": kept_hash,
         },
+        "search": search_evidence,
         "writer_flow": {
             "corpus_item_ref": item_ref,
             "corpus_contract": "uoink.corpus.read/1",
@@ -2177,6 +2244,8 @@ def run_suite_smoke(
         "failure_code": None,
         "cleanup": cleanup,
     }
+    if local_tree_hash is not None:
+        record["sources"]["zing"]["working_tree_sha256"] = local_tree_hash
     evaluation = evaluate_suite_record(record)
     if evaluation["passed"] is not True:
         failed = ", ".join(evaluation["failed_assertions"])
@@ -2214,6 +2283,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--writer-repo", type=Path, required=True)
     parser.add_argument("--zing-repo", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--allow-dirty-zing", action="store_true",
+                        help="Local review only: record a source-tree hash alongside Zing HEAD; CI stays clean.")
     parser.add_argument(
         "--work-dir",
         type=Path,
@@ -2235,8 +2306,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--python",
         default=sys.executable,
-        help="Python executable used for all three product processes.",
+        help="Zing Python executable and default for the peer runtimes.",
     )
+    parser.add_argument("--uoink-python", help="Uoink runtime; defaults to --python.")
+    parser.add_argument("--writer-python", help="Writer runtime; defaults to --python.")
+    parser.add_argument("--isolated-ports", action="store_true",
+                        help="Local opt-in: ports 15179/15181. Writer currently rejects Uoink's alternate port.")
     return parser
 
 
@@ -2261,6 +2336,10 @@ def main(argv: list[str] | None = None) -> int:
                 if args.fixture_video is not None else None
             ),
             python=args.python,
+            uoink_python=args.uoink_python,
+            writer_python=args.writer_python,
+            isolated_ports=args.isolated_ports,
+            allow_dirty_zing=args.allow_dirty_zing,
         )
         _write_record(args.output.resolve(), record)
     except SmokeError as error:
