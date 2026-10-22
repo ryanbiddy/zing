@@ -1,4 +1,4 @@
-"""Opt-in transition measurements promoted from the C-Q9 prototype."""
+"""Opt-in, experimental transition observations with explicit abstention."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from myzing.schemas import TransitionObservation
+from . import transition_models as models
 
 
 SIGNATURES = (
@@ -23,11 +24,16 @@ SIGNATURES = (
     "audio_aligned_cut",
 )
 DETECTOR_NAME = "zing-transition-signatures"
-DETECTOR_VERSION = 4
+DETECTOR_VERSION = 5
+SUPPORTED_SIGNATURES = SIGNATURES
 VALIDATION_STATUS = {
     "status": "experimental",
     "synthetic_recall_available": True,
     "real_video_recall_available": False,
+    "synthetic_precision_available": True,
+    "validation_scope": "P14 generated textures; disjoint calibration/held-out parameters",
+    "unsupported_signatures": ["whip_pan", "flash"],
+    "confidence_kind": "heuristic evidence score; not a calibrated probability",
 }
 EXPERIMENTAL_RECALL_WARNING = (
     "transition types are experimental: real-video recall is unavailable "
@@ -37,21 +43,22 @@ EXPERIMENTAL_RECALL_WARNING = (
 FRAME_WIDTH = 96
 FRAME_HEIGHT = 96
 ACTIVE_DIFFERENCE = 0.8
-HARD_CUT_MAX_PAIRS = 2
 HARD_CUT_DIFFERENCE = 15.0
-HARD_CUT_HISTOGRAM_DISTANCE = 0.1
 GRADUAL_MIN_PAIRS = 4
+# Frozen v4 sub-gate constants, used only by the historical eval audit.
 DISSOLVE_TEMPORAL_MONOTONICITY = 0.75
 DISSOLVE_MEAN_FRAME_DIFFERENCE = 1.0
-ZOOM_RADIAL_COHERENCE = 0.48
-ZOOM_FLOW_MAGNITUDE = 0.7
-WIPE_CENTROID_WIDTH_FRACTION = 0.3
-WIPE_MAX_CHANGED_COLUMN_FRACTION = 0.55
 AUDIO_SAMPLE_RATE = 8000
 AUDIO_WINDOWS_PER_SECOND = 50
 AUDIO_ONSET_LEVEL = 500.0
 AUDIO_PREVIOUS_MAX = 150.0
 AUDIO_ALIGNMENT_SECONDS = 0.08
+CONFIDENT_EFFECT = 0.8
+MODEL_MAX_ERROR = 0.16
+EXPOSURE_MAX_RESIDUAL = 0.18
+MAX_GRADUAL_SECONDS = 1.5
+MAX_ZOOM_SECONDS = 0.6
+QUIET_HANDLE_SECONDS = 0.12
 
 DETECTOR_THRESHOLDS = {
     "analysis_frame": {
@@ -62,24 +69,12 @@ DETECTOR_THRESHOLDS = {
         "mean_absolute_difference": ACTIVE_DIFFERENCE,
     },
     "hard_cut": {
-        "max_frame_pairs": HARD_CUT_MAX_PAIRS,
         "mean_absolute_difference": HARD_CUT_DIFFERENCE,
-        "histogram_distance": HARD_CUT_HISTOGRAM_DISTANCE,
+        "local_difference_ratio": 5.0,
+        "return_to_scene_max_difference": 3.0,
     },
     "gradual": {
         "min_frame_pairs": GRADUAL_MIN_PAIRS,
-    },
-    "dissolve": {
-        "temporal_monotonicity": DISSOLVE_TEMPORAL_MONOTONICITY,
-        "mean_frame_difference": DISSOLVE_MEAN_FRAME_DIFFERENCE,
-    },
-    "zoom_punch": {
-        "radial_flow_coherence": ZOOM_RADIAL_COHERENCE,
-        "mean_flow_magnitude": ZOOM_FLOW_MAGNITUDE,
-    },
-    "wipe": {
-        "centroid_span_width_fraction": WIPE_CENTROID_WIDTH_FRACTION,
-        "max_changed_column_fraction": WIPE_MAX_CHANGED_COLUMN_FRACTION,
     },
     "audio_alignment": {
         "sample_rate": AUDIO_SAMPLE_RATE,
@@ -87,6 +82,16 @@ DETECTOR_THRESHOLDS = {
         "onset_level": AUDIO_ONSET_LEVEL,
         "previous_max": AUDIO_PREVIOUS_MAX,
         "max_delta_seconds": AUDIO_ALIGNMENT_SECONDS,
+    },
+    "evidence_gate": {
+        "confidence_min": CONFIDENT_EFFECT,
+        "model_max_normalized_error": MODEL_MAX_ERROR,
+        "exposure_max_normalized_residual": EXPOSURE_MAX_RESIDUAL,
+        "max_gradual_seconds": MAX_GRADUAL_SECONDS,
+        "max_zoom_seconds": MAX_ZOOM_SECONDS,
+        "quiet_handle_seconds": QUIET_HANDLE_SECONDS,
+        "endpoint_min_mean_difference": 12.0,
+        "zoom_min_scale": 1.15,
     },
 }
 
@@ -103,15 +108,43 @@ class TransitionsResult:
 
 
 @dataclass(frozen=True)
+class TransitionEvidence:
+    """Versioned sidecar until pass 4 can extend TransitionObservation.
+
+    observation_index links a supported candidate to the legacy list. Unknowns
+    have no legacy observation; confidence scores support the proposed label,
+    not the probability that an edit happened.
+    """
+
+    signature: str
+    start_seconds: float
+    end_seconds: float
+    evidence_start_seconds: float
+    evidence_end_seconds: float
+    confidence: float
+    detector_version: int
+    reason: str
+    observation_index: int | None = None
+    direction: str | None = None
+    version: int = 1
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, value: dict[str, Any]) -> TransitionEvidence:
+        if value.get("version") != 1:
+            raise ValueError("unsupported transition evidence version")
+        return cls(**value)
+
+
+@dataclass(frozen=True)
 class PairFeatures:
     time_seconds: float
     mean_absolute_difference: float
     histogram_distance: float
     changed_fraction: float
-    changed_column_fraction: float
-    changed_column_centroid: float | None
-    radial_flow_coherence: float
-    mean_flow_magnitude: float
+
 
 
 def _run(command: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
@@ -212,67 +245,6 @@ def _histogram_distance(left: bytes, right: bytes) -> float:
     ) / (2 * len(left))
 
 
-def _block_flow(
-    left: bytes,
-    right: bytes,
-    width: int,
-    height: int,
-) -> tuple[float, float]:
-    block = 12
-    radius = 3
-    vectors: list[tuple[float, float, float, float]] = []
-    for y in range(block, height - block, block):
-        for x in range(block, width - block, block):
-            samples = [
-                left[row * width + column]
-                for row in range(y - block // 2, y + block // 2, 2)
-                for column in range(x - block // 2, x + block // 2, 2)
-            ]
-            if max(samples) - min(samples) < 20:
-                continue
-            best: tuple[int, int, int] | None = None
-            for dy in range(-radius, radius + 1):
-                for dx in range(-radius, radius + 1):
-                    error = 0
-                    for row in range(y - block // 2, y + block // 2, 2):
-                        left_offset = row * width
-                        right_offset = (row + dy) * width
-                        for column in range(x - block // 2, x + block // 2, 2):
-                            error += abs(
-                                left[left_offset + column]
-                                - right[right_offset + column + dx]
-                            )
-                    candidate = (error, dx, dy)
-                    if best is None or candidate < best:
-                        best = candidate
-            if best is not None:
-                _, dx, dy = best
-                magnitude = math.hypot(dx, dy)
-                vectors.append((x - width / 2, y - height / 2, dx, dy))
-
-    moving = [
-        vector
-        for vector in vectors
-        if math.hypot(vector[2], vector[3]) >= 0.5
-    ]
-    if not moving:
-        return 0.0, 0.0
-    radial_scores = []
-    magnitudes = []
-    for radial_x, radial_y, dx, dy in moving:
-        radial_length = math.hypot(radial_x, radial_y)
-        magnitude = math.hypot(dx, dy)
-        if radial_length:
-            radial_scores.append(
-                (radial_x * dx + radial_y * dy) / (radial_length * magnitude)
-            )
-        magnitudes.append(magnitude)
-    positive_coherence = sum(max(0.0, score) for score in radial_scores) / max(
-        1, len(radial_scores)
-    )
-    return positive_coherence, sum(magnitudes) / len(magnitudes)
-
-
 def _pair_features(
     left: bytes,
     right: bytes,
@@ -284,37 +256,11 @@ def _pair_features(
     differences = [abs(a - b) for a, b in zip(left, right)]
     mean_difference = sum(differences) / len(differences)
     changed = [value >= 8 for value in differences]
-    column_weights = [
-        sum(differences[row * width + column] for row in range(height))
-        for column in range(width)
-    ]
-    active_columns = [
-        index for index, value in enumerate(column_weights) if value / height >= 3
-    ]
-    total_column_weight = sum(column_weights)
-    centroid = (
-        sum(index * value for index, value in enumerate(column_weights))
-        / total_column_weight
-        if total_column_weight
-        else None
-    )
-    radial_coherence, flow_magnitude = _block_flow(
-        left,
-        right,
-        width,
-        height,
-    )
     return PairFeatures(
         time_seconds=round((pair_index + 1) / fps, 6),
         mean_absolute_difference=round(mean_difference, 6),
         histogram_distance=round(_histogram_distance(left, right), 6),
         changed_fraction=round(sum(changed) / len(changed), 6),
-        changed_column_fraction=round(len(active_columns) / width, 6),
-        changed_column_centroid=(
-            round(centroid, 6) if centroid is not None else None
-        ),
-        radial_flow_coherence=round(radial_coherence, 6),
-        mean_flow_magnitude=round(flow_magnitude, 6),
     )
 
 
@@ -330,23 +276,6 @@ def _active_runs(features: list[PairFeatures]) -> list[list[PairFeatures]]:
     if current:
         runs.append(current)
     return runs
-
-
-def _temporal_monotonicity(
-    left: bytes,
-    right: bytes,
-    run: list[PairFeatures],
-) -> float:
-    """Measure net frame change as a fraction of the run's change path."""
-    path_distance = sum(
-        feature.mean_absolute_difference for feature in run
-    )
-    if path_distance <= 0:
-        return 0.0
-    endpoint_distance = sum(
-        abs(a - b) for a, b in zip(left, right)
-    ) / len(left)
-    return min(1.0, endpoint_distance / path_distance)
 
 
 def _audio_onsets(
@@ -410,86 +339,93 @@ def detect_transition_signatures(
         for index, (left, right) in enumerate(zip(frames, frames[1:]))
     ]
     runs = _active_runs(features)
-    feature_indices = {
-        id(feature): index for index, feature in enumerate(features)
-    }
+    feature_indices = {id(feature): index for index, feature in enumerate(features)}
     predictions: set[str] = set()
     events = []
     hard_cut_times = []
     dissolve_candidate_count = 0
     suppressed_dissolve_candidates = 0
-    for run in runs:
-        max_difference = max(
-            feature.mean_absolute_difference for feature in run
+    handles = max(2, math.ceil(QUIET_HANDLE_SECONDS * fps))
+    sampled = [models.sample(frame, width, height) for frame in frames]
+
+    def emit(signature: str, first: int, last: int, reason: str,
+             error: float = 1.0, direction: str | None = None) -> None:
+        # first/last are frame indices, including the pre-change anchor.
+        start = last / fps if signature == "hard_cut" else first / fps
+        end = last / fps
+        evidence = TransitionEvidence(
+            signature=signature, start_seconds=round(start, 6), end_seconds=round(end, 6),
+            evidence_start_seconds=round(max(0, first - handles) / fps, 6),
+            evidence_end_seconds=round(min(len(frames) - 1, last + handles) / fps, 6),
+            confidence=round(max(CONFIDENT_EFFECT, min(0.98, 1 - error)), 4)
+            if signature != "unknown" else 0.0,
+            detector_version=DETECTOR_VERSION, reason=reason, direction=direction,
         )
-        max_histogram = max(feature.histogram_distance for feature in run)
-        start = run[0].time_seconds
-        end = run[-1].time_seconds
-        signature: str | None = None
-        if (
-            len(run) <= HARD_CUT_MAX_PAIRS
-            and max_difference >= HARD_CUT_DIFFERENCE
-            and max_histogram >= HARD_CUT_HISTOGRAM_DISTANCE
-        ):
-            signature = "hard_cut"
-            strongest_pair = max(
-                run,
-                key=lambda feature: feature.mean_absolute_difference,
-            )
-            hard_cut_times.append(strongest_pair.time_seconds)
-            start = strongest_pair.time_seconds
-            end = strongest_pair.time_seconds
-        elif len(run) >= GRADUAL_MIN_PAIRS:
-            radial = sum(feature.radial_flow_coherence for feature in run) / len(run)
-            flow = sum(feature.mean_flow_magnitude for feature in run) / len(run)
-            centroids = [
-                feature.changed_column_centroid
-                for feature in run
-                if feature.changed_column_centroid is not None
-            ]
-            centroid_span = max(centroids) - min(centroids) if centroids else 0.0
-            column_fraction = sum(
-                feature.changed_column_fraction for feature in run
-            ) / len(run)
-            if (
-                radial >= ZOOM_RADIAL_COHERENCE
-                and flow >= ZOOM_FLOW_MAGNITUDE
-            ):
-                signature = "zoom_punch"
-            elif (
-                centroid_span >= width * WIPE_CENTROID_WIDTH_FRACTION
-                and column_fraction <= WIPE_MAX_CHANGED_COLUMN_FRACTION
-            ):
-                signature = "wipe"
-            else:
-                dissolve_candidate_count += 1
-                start_frame = feature_indices[id(run[0])]
-                end_frame = feature_indices[id(run[-1])] + 1
-                monotonicity = _temporal_monotonicity(
-                    frames[start_frame],
-                    frames[end_frame],
-                    run,
-                )
-                mean_difference = sum(
-                    feature.mean_absolute_difference for feature in run
-                ) / len(run)
-                if (
-                    monotonicity >= DISSOLVE_TEMPORAL_MONOTONICITY
-                    and mean_difference >= DISSOLVE_MEAN_FRAME_DIFFERENCE
-                ):
-                    signature = "dissolve"
-                else:
-                    suppressed_dissolve_candidates += 1
-        if signature is not None:
+        events.append({**evidence.to_dict(), "frame_pair_count": last - first})
+        if signature != "unknown":
             predictions.add(signature)
-            events.append(
-                {
-                    "signature": signature,
-                    "start_seconds": start,
-                    "end_seconds": end,
-                    "frame_pair_count": len(run),
-                }
-            )
+        if signature == "hard_cut":
+            hard_cut_times.append(round(start, 6))
+
+    for run in runs:
+        first = feature_indices[id(run[0])]
+        last = feature_indices[id(run[-1])] + 1
+        abrupt = []
+        for index in range(first, last):
+            feature = features[index]
+            neighbors = features[max(0, index - handles):index] + features[index + 1:index + 1 + handles]
+            background = max((item.mean_absolute_difference for item in neighbors), default=0)
+            if (feature.mean_absolute_difference >= HARD_CUT_DIFFERENCE
+                    and feature.mean_absolute_difference >= 5 * max(1, background)
+                    and models.exposure_residual(sampled[index], sampled[index + 1]) > EXPOSURE_MAX_RESIDUAL):
+                # Reject isolated flashes returning to the same scene in the handles.
+                returns = any(models.distance(sampled[index], sampled[after]) < 3
+                              for after in range(index + 2, min(len(frames), index + handles + 2)))
+                if not returns:
+                    abrupt.append(index)
+        if abrupt:
+            for index in abrupt:
+                emit("hard_cut", index, index + 1, "isolated structural discontinuity", 0.1)
+            continue
+
+        dissolve_candidate_count += 1
+        a, b = sampled[first], sampled[last]
+        duration = (last - first) / fps
+        quiet = (first >= handles and last + handles < len(frames)
+                 and all(item.mean_absolute_difference < ACTIVE_DIFFERENCE
+                         for item in features[first - handles:first] + features[last:last + handles]))
+        reason = "motion or unsupported effect; insufficient reconstruction evidence"
+        signature = "unknown"
+        direction = None
+        error = 1.0
+        if (quiet and GRADUAL_MIN_PAIRS <= len(run) and duration <= MAX_GRADUAL_SECONDS
+                and models.distance(a, b) >= 12
+                and models.exposure_residual(a, b) > EXPOSURE_MAX_RESIDUAL):
+            interior = sampled[first + 1:last]
+            wipe_error, wipe_direction = models.wipe_error(a, b, interior, width // 2, height // 2)
+            candidates = [
+                (wipe_error, "wipe", "monotone spatial boundary between endpoint scenes", wipe_direction),
+                (models.dissolve_error(a, b, interior), "dissolve",
+                 "interior frames reconstruct from both endpoint scenes", None),
+            ]
+            if duration <= MAX_ZOOM_SECONDS:
+                zoom_error, zoom = models.zoom_error(list(frames[first]), list(frames[last]), width, height)
+                if zoom >= 1.15:
+                    candidates.append((zoom_error, "zoom_punch", "short centered magnification with quiet handles", None))
+            fitted_error, fitted_signature, fitted_reason, fitted_direction = min(candidates, key=lambda item: item[0])
+            # A wipe is also an endpoint pixel selection. Its moving boundary
+            # is the more specific evidence and takes precedence over dissolve.
+            if wipe_error <= MODEL_MAX_ERROR:
+                fitted_error, fitted_signature, fitted_reason, fitted_direction = candidates[0]
+            if fitted_error <= MODEL_MAX_ERROR:
+                error, signature, reason, direction = fitted_error, fitted_signature, fitted_reason, fitted_direction
+        elif not quiet or duration > MAX_GRADUAL_SECONDS:
+            reason = "continuous motion or missing quiet handles; edit type unknown"
+        elif models.exposure_residual(a, b) <= EXPOSURE_MAX_RESIDUAL:
+            reason = "luminance change preserves scene structure; edit type unknown"
+        if signature != "dissolve":
+            suppressed_dissolve_candidates += 1
+        emit(signature, first, last, reason, error, direction)
 
     audio_onsets, audio_probe_ok = _audio_onsets(media_path, ffmpeg)
     aligned = [
@@ -518,9 +454,8 @@ def detect_transition_signatures(
             "max_frame_difference": max(
                 feature.mean_absolute_difference for feature in features
             ),
-            "max_radial_flow_coherence": max(
-                feature.radial_flow_coherence for feature in features
-            ),
+            "flow_measured": False,
+            "unknown_count": sum(event["signature"] == "unknown" for event in events),
         },
         "pair_features": [asdict(feature) for feature in features],
     }
@@ -546,7 +481,7 @@ def detect_transitions(
     ffmpeg: str = "ffmpeg",
     ffprobe: str = "ffprobe",
 ) -> TransitionsResult:
-    """Return typed observations without claiming calibrated confidence."""
+    """Return legacy observations and complete, versioned evidence sidecars."""
     measurement = detect_transition_signatures(
         media_path,
         ffmpeg=ffmpeg,
@@ -560,8 +495,22 @@ def detect_transitions(
         if prior is None or abs(delta) < abs(prior):
             aligned_by_cut[cut] = delta
     observations = []
+    evidence_records = []
     for event in measurement["events"]:
         kind = event["signature"]
+        # Never promote an abstention to the legacy effect vocabulary.
+        evidence = TransitionEvidence(
+            signature=kind,
+            start_seconds=event["start_seconds"], end_seconds=event["end_seconds"],
+            evidence_start_seconds=event["evidence_start_seconds"],
+            evidence_end_seconds=event["evidence_end_seconds"],
+            confidence=event["confidence"], detector_version=event["detector_version"],
+            reason=event["reason"], direction=event.get("direction"),
+            observation_index=len(observations) if kind != "unknown" else None,
+        )
+        evidence_records.append(evidence.to_dict())
+        if kind == "unknown":
+            continue
         start = event["start_seconds"]
         audio_delta = aligned_by_cut.get(start) if kind == "hard_cut" else None
         observations.append(
@@ -581,6 +530,7 @@ def detect_transitions(
             "the audio stream"
         )
     provenance = detector_provenance(measurement["feature_summary"])
+    provenance["transition_evidence"] = evidence_records
     provenance["transition_audio_probe_ok"] = measurement["audio_probe_ok"]
     return TransitionsResult(
         transitions=observations,
