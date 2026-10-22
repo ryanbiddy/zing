@@ -33,6 +33,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import date
+from importlib import metadata
 from pathlib import Path
 
 REQUIRED = "required"
@@ -714,6 +715,36 @@ def check_pillow() -> Check:
         fix='' if present else 'python -m pip install "myzing[memes]"',
         degraded_mode="" if present else "meme rendering is unavailable; ideas, templates, and text checks still work",
     )
+def check_layout() -> Check:
+    """Offline metadata/cache probe; never import native runtimes in MCP status."""
+    from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
+
+    if not _has_module("cv2"):
+        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed", fix=INSTALL_HINT)
+    try:
+        version = metadata.version("opencv-python-headless")
+        conflicts = []
+        for name in ("opencv-python", "opencv-contrib-python", "opencv-contrib-python-headless"):
+            try:
+                metadata.version(name)
+                conflicts.append(name)
+            except metadata.PackageNotFoundError:
+                pass
+        if version != "4.13.0.92" or conflicts:
+            return Check("layout", OPTIONAL, False,
+                         f"OpenCV headless package {version}; conflicting wheels: {conflicts}",
+                         fix="Remove GUI/contrib OpenCV wheels, then reinstall opencv-python-headless==4.13.0.92; "
+                             "checkout: uv sync --all-extras --reinstall-package opencv-python-headless")
+        path = model_path()
+        valid = verified_model(path)
+    except (metadata.PackageNotFoundError, OSError) as exc:
+        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT)
+    return Check("layout", OPTIONAL, valid,
+                 f"OpenCV headless package {version}; YuNet model {'verified' if valid else 'missing or corrupt'}; "
+                 "native inference not probed",
+                 fix="" if valid else "zing layout fetch-model",
+                 data={"model": str(path), "model_verified": valid, "network_used": False,
+                       "runtime_probe": "package-metadata-only"})
 
 
 def run_checks(today: date | None = None) -> list[Check]:
@@ -725,6 +756,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_ocr(),
         check_tts(),
         check_pillow(),
+        check_layout(),
         check_uoink(),
     ]
 

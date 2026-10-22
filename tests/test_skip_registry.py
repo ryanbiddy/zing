@@ -28,6 +28,11 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "set ZING_REQUIRE_YUNET=1": (
+        "real YuNet inference requires an explicitly fetched model and public-domain "
+        "fixture. PRODUCT SURFACE: layout and doctor name the optional runtime and "
+        "fetch-model command; normal planning never downloads assets."
+    ),
     "optional real Kokoro check": (
         "the real synthesis check needs the optional kokoro-onnx runtime and "
         "model assets. PRODUCT SURFACE: tts_status() checks runtime and asset "

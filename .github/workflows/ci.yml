@@ -57,13 +57,13 @@ jobs:
               exit 1
             fi
           done
-      - run: pip install -e .[dev]
+      - run: pip install -e .[dev,layout]
       - name: Golden generation (real ffmpeg fixtures, hostile paths)
         run: python -m tools.eval.make_goldens --output "tools/eval/goldens"
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 36
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 39
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -101,9 +101,9 @@ jobs:
               exit 1
             fi
           done
-      - run: pip install -e .[dev]
+      - run: pip install -e .[dev,layout]
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 36
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 39
 
   # First macOS gate: keep the broad mocked/unit suite in the matrix above,
   # then prove Homebrew ffmpeg can generate media and Zing can extract real
