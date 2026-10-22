@@ -1,3 +1,7 @@
 # Cross-repository conformance fixtures are hashed byte-for-byte by consumers.
 # Keep the canonical provider bytes identical on every platform.
 tools/eval/fixtures/suite_v1/source-url.json text eol=lf
+
+# Bundled font files and their upstream OFL texts are hashed against the
+# upstream bytes in sources.json (the OFL.txt files ship with CRLF).
+src/myzing/_data/fonts/** -text
