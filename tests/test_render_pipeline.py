@@ -86,3 +86,30 @@ def test_publish_falls_back_for_cross_device_work_directory(
 
     assert output.read_bytes() == b"rendered"
     assert not staged.exists()
+
+
+@pytest.mark.parametrize(
+    "banner,expected",
+    [
+        ("ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023", ["-filter_complex_script", "g.txt"]),
+        ("ffmpeg version 7.0.2-static https://johnvansickle.com", ["-/filter_complex", "g.txt"]),
+        ("ffmpeg version 9.0.2-essentials_build-www.gyan.dev Copyright", ["-/filter_complex", "g.txt"]),
+        ("ffmpeg version n8.1.2 Copyright (c) 2000-2026", ["-/filter_complex", "g.txt"]),
+        ("ffmpeg version N-118000-gabcdef Copyright", ["-/filter_complex", "g.txt"]),
+        ("", ["-/filter_complex", "g.txt"]),
+    ],
+)
+def test_filter_script_args_follow_ffmpeg_major_version(monkeypatch, banner, expected):
+    import subprocess as _subprocess
+
+    from myzing.render import pipeline
+
+    pipeline.ffmpeg_major_version.cache_clear()
+    monkeypatch.setattr(
+        pipeline.subprocess, "run",
+        lambda *a, **k: _subprocess.CompletedProcess(a[0], 0, stdout=banner, stderr=""),
+    )
+    try:
+        assert pipeline.filter_script_args("ffmpeg-under-test", Path("g.txt")) == expected
+    finally:
+        pipeline.ffmpeg_major_version.cache_clear()

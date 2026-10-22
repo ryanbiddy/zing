@@ -9,6 +9,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Sequence
 
+from myzing.render.pipeline import filter_script_args
+
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = HERE / "goldens"
@@ -235,10 +237,9 @@ def _command_for(
             command.extend(
                 ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono:d=1"]
             )
+    command.extend(filter_script_args(ffmpeg, graph_path))
     command.extend(
         [
-            "-filter_complex_script",
-            str(graph_path),
             "-map",
             "[v]",
             "-map",

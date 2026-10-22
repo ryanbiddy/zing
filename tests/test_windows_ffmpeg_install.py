@@ -72,6 +72,10 @@ exit 0
         [
             str(POWERSHELL),
             "-NoProfile",
+            # Permit these local test scripts in this child process only.
+            # Windows PowerShell otherwise inherits a host's Restricted policy.
+            "-ExecutionPolicy",
+            "RemoteSigned",
             "-File",
             str(INSTALLER),
             "-Attempts",
