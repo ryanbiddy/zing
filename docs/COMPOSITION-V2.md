@@ -8,11 +8,16 @@ plan = load_composition(json.loads(saved_json))
 legacy = lower_to_v1(plan)  # Raises if any v2 instruction/evidence would be lost.
 ```
 
-P4 defines a planning contract. The renderer still takes `myzing.schemas.EDL`
-with `schema_version: 1`. It does not apply v2 transitions, grading, positioning,
-speed changes, or audio policy. Passing v2 JSON to `EDL.from_dict` fails with
-directions to load and lower it explicitly. A v2 plan that cannot be lowered
-needs a future render adapter.
+Run `zing render plan.json -o output.mp4 --keep-work render-work` for either
+EDL v1 or Composition v2. R9 adds `myzing.render.render_composition(plan, output,
+base_dir=plan_directory)`. V1 still uses its original compiler. V2 supports
+cuts, source audio, placed voiceover/music, v1 voiceover ducking, and positioned
+ASS captions. See [V2 rendering](RENDER-V2.md) for bounds, fonts and timing.
+
+LUTs, speed maps, non-cut transitions, HyperFrames captions, other audio roles,
+audio trims, other ducking scopes and loudness targets fail before media work
+with a `not yet supported in this renderer: ...` list. Passing v2 JSON to
+`EDL.from_dict` still fails; use `load_composition` to load v2.
 
 All new records have `to_dict`, `from_dict`, `to_json` and `from_json`. Nested
 records use `version: 1`; Composition uses `schema_version: 2`. V2 and recipe
@@ -37,6 +42,7 @@ contract does not round timestamps to frames.
 | `fps` | Existing inventory `Rational`: positive integer `numerator`, `denominator`, and `version: 1`. Default 30/1. |
 | `loudness_target` | `LoudnessTarget` or null. Null requests no new loudness policy. |
 | `warnings` | Ordered strings. Evidence gaps and planning limitations belong here. |
+| `accepted_unsafe_layouts` | Optional array of unique caption IDs, default `[]`. Explicitly accepts those events' unsafe/infeasible layout warnings for rendering. Other warnings never imply acceptance. |
 | `brief` | Existing `myzing.brief.models.Brief`, including its version, or null. Its answers retain the brief module's validation. |
 | `legacy_fps` | Migration-only original v1 FPS number, or null. Retains integer versus float spelling and the exact decimal value. |
 | `legacy_timing_order` | Migration-only map from JSON pointers to ordered key arrays inside v1 words' timing objects. `/caption-index/word-index/...` identifies an object. Values remain in `Word.timing`; this map stores only key order. Default `{}`. |
@@ -115,6 +121,7 @@ tolerance. Known source durations use its 50-millisecond probe tolerance.
 | `position`, `all_caps`, `word_timed` | Inherited v1 controls. `position` remains `top`, `center`, `lower` or `bottom`; default `lower`. An explicit layout supplies the geometry. |
 | `words` | Existing `Word` records, preserving text, start, end, confidence and optional `timing` verbatim. Timings must be positive, ordered, nonoverlapping and contained in the phrase. Word-timed events need words. |
 | `id` | Unique event ID, also used by its layout record. |
+| `alignment` | Optional `left`, `center` (default), or `right`; horizontal text alignment within the layout box. |
 | `layout` | Existing `layout.types.EventLayout`, or null for a legacy anchor. Its ID/start/end must equal the caption's. |
 | `font` | `FontAsset`: nonempty `path`, lowercase content `sha256`, nonempty `license`, and `version: 1`; or null for the legacy default font. |
 | `style` | `CaptionStyle`, or null for the v1 renderer defaults. |
@@ -136,13 +143,20 @@ tracks/masks; it does not prove face-detector recall. Composition preserves the
 result and does not rerun detection or collision search.
 
 `CaptionStyle` uses the sidecar's names and units: `size` is 1–512 output
-pixels; `color`, `highlight`, `outline_color`, and optional `box_color` use
+em pixels; `color`, `highlight`, `outline_color`, and optional `box_color` use
 `#RRGGBB`; `outline_width` is 0–20 pixels; `version` is 1. Defaults are white,
 yellow highlight, black outline, two-pixel outline and no plate color.
 HyperFrames events require layout, font, style and template. Its current PH v1
 adapter also requires integer FPS and supports a narrower output shape.
 Future compilation must check that capability boundary; selecting the backend
 in this contract does not invoke it.
+
+R9 adds only `CompositionCaption.alignment` and
+`Composition.accepted_unsafe_layouts`, with defaults preserving existing input.
+The planning contract had no horizontal alignment or explicit safety acceptance
+field. These additions make those render instructions typed and serializable;
+free-form warning text is not authorization. Existing v2 documents still load,
+and v1 types and serialized bytes are unchanged.
 
 | ColorTransform field | Contract |
 |---|---|

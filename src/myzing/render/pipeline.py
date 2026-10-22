@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from myzing.ffmpeg_capabilities import FFmpegCapabilityError, caption_filter
 from myzing.schemas import EDL
@@ -150,6 +151,7 @@ def _ffmpeg_command(
     graph_path: Path,
     output_path: Path,
     validated: ValidatedEDL,
+    fps_rate: str | None = None,
 ) -> list[str]:
     command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
     for path in plan.input_paths:
@@ -172,7 +174,7 @@ def _ffmpeg_command(
             "-pix_fmt",
             "yuv420p",
             "-r",
-            f"{validated.edl.fps:.6f}",
+            fps_rate or f"{validated.edl.fps:.6f}",
             "-c:a",
             "aac",
             "-b:a",
@@ -203,6 +205,9 @@ def _render_in_directory(
     directory: Path,
     ffmpeg: str,
     caption_filter_name: str = "ass",
+    *,
+    caption_writer: Callable[[Path], None] | None = None,
+    fps_rate: str | None = None,
 ) -> RenderResult:
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -212,7 +217,12 @@ def _render_in_directory(
         raise RenderError(f"ffmpeg executable not found: {ffmpeg}")
 
     include_captions = bool(validated.edl.captions)
-    if include_captions:
+    if caption_writer is not None:
+        try:
+            caption_writer(directory)
+        except OSError as exc:
+            raise RenderError(f"could not prepare composition captions: {exc}") from exc
+    elif include_captions:
         try:
             generate_ass(
                 validated.edl.captions,
@@ -225,6 +235,7 @@ def _render_in_directory(
 
     plan = build_graph(
         validated, include_captions, caption_filter=caption_filter_name,
+        fonts_dir=caption_writer is not None, fps_rate=fps_rate,
     )
     graph_path = directory / "filter graph.txt"
     try:
@@ -232,7 +243,7 @@ def _render_in_directory(
     except OSError as exc:
         raise RenderError(f"could not write FFmpeg filtergraph: {exc}") from exc
     staged_output = directory / "rendered.mp4"
-    command = _ffmpeg_command(ffmpeg, plan, graph_path, staged_output, validated)
+    command = _ffmpeg_command(ffmpeg, plan, graph_path, staged_output, validated, fps_rate)
     try:
         result = subprocess.run(
             command,

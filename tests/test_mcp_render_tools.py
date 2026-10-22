@@ -150,3 +150,57 @@ def test_export_otio_missing_asset_is_data(zing_workspace, edl_file, monkeypatch
     result = mcp_server.h_export_otio(str(edl_file))
     assert result["ok"] is False
     assert "does not exist" in result["error"]
+
+
+def test_render_v2_validation_is_synchronous_before_job_creation(zing_workspace, has_ffmpeg, tmp_path, monkeypatch):
+    from myzing.composition import LoudnessTarget
+    from test_render_composition import plan
+
+    c = plan(tmp_path)
+    file = tmp_path / "v2.json"
+    c.loudness_target = LoudnessTarget(-16, -1)
+    file.write_text(c.to_json(), encoding="utf-8")
+    def unexpected(*a, **kw):
+        pytest.fail("invalid v2 must not create a job")
+    monkeypatch.setattr(storage, "write_status_at", unexpected)
+    result = mcp_server.h_render_edl(str(file))
+    assert result["ok"] is False and "loudness targets" in result["error"]
+    c.loudness_target = None
+    c.assets[0].sha256 = "0" * 64
+    file.write_text(c.to_json(), encoding="utf-8")
+    result = mcp_server.h_render_edl(str(file))
+    assert result["ok"] is False and "SHA-256 mismatch" in result["error"]
+
+
+def test_render_v2_job_returns_paths_and_warning_metadata(zing_workspace, has_ffmpeg, tmp_path, monkeypatch):
+    from myzing.render import composition
+    from test_render_composition import plan
+
+    c = plan(tmp_path)
+    c.warnings = ["fixture warning"]
+    file = tmp_path / "v2.json"
+    file.write_text(c.to_json(), encoding="utf-8")
+    calls = []
+    def fast_render(document, output, **kwargs):
+        calls.append((document, kwargs))
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"video")
+        return pipeline.RenderResult(output, 3, tuple(document.warnings), (), "", None)
+    monkeypatch.setattr(composition, "render_composition", fast_render)
+    result = mcp_server.h_render_edl(str(file))
+    assert result["ok"] is True and result["status"] == "started"
+    status = wait_render(result["render_id"])
+    assert status["state"] == "done" and status["warnings"] == ["fixture warning"]
+    assert calls[0][0].schema_version == 2 and calls[0][1]["base_dir"] == tmp_path
+    assert isinstance(status["output"], str)
+
+
+def test_queued_v2_rechecks_changed_asset(zing_workspace, tmp_path):
+    from test_render_composition import plan
+
+    c = plan(tmp_path)
+    (tmp_path / "source.mp4").write_bytes(b"changed after enqueue")
+    mcp_server._run_render(c, tmp_path, tmp_path / "out.mp4", "queued-v2", zing_workspace, {})
+    status = storage.read_status_at(storage.render_dir("queued-v2"))
+    assert status["state"] == "failed" and "SHA-256 mismatch" in status["error"]
+    assert not (tmp_path / "out.mp4").exists()

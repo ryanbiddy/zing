@@ -66,13 +66,14 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Match a color look | [Color](docs/color.md): SDR LUT approximation, recipe and before/reference/after preview; separate apply step. |
 | Measure a reference's captions | [Caption geometry](docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
 | Find the caption font | [Font candidates](docs/FONT-CANDIDATES.md): `zing fonts match` ranks a pinned OFL/Apache library against measured caption glyphs; low scores are labeled substitutes. |
-| Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; not wired into render. |
+| Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; attach the resulting layout to a v2 caption for rendering. |
 | Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
 | Make memes | [Memes](docs/MEMES.md): local stills, template metadata, ideas and text checks; animated memes on a video, GIF or zooming still with timed captions (`zing meme render-video`). |
 | Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; silent output, not integrated with `zing render`. |
 | Render v2 caption overlays | [HyperFrames v2 adapter](docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions and an FFmpeg composite helper. |
-| Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe; v1 EDLs keep rendering, v2 render support lands in later passes. |
+| Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe. |
+| Render positioned word captions | [V2 rendering](docs/RENDER-V2.md): verified assets and fonts, ASS positions/paths, word highlights and layout safety acceptance; unsupported v2 effects fail before rendering. V1 rendering stays compatible. |
 | Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans or a named shortage, with v1 EDL derivatives where supported. |
 | Connect an AI or Uoink | [Connect](docs/CONNECT.md): 28 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
@@ -82,8 +83,8 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 
 The older profile, assemble, render and thumbnail commands remain available.
 The [skill command reference](skills/zing/references/commands.md) maps all 16
-top-level commands. Layout/color/audio outputs are separate plans and observations;
-the current renderer does not automatically consume them or a saved brief.
+top-level commands. Attach layout results explicitly to Composition v2 captions.
+Color/audio analysis and saved briefs remain separate planning inputs.
 
 ## Optional dependencies
 

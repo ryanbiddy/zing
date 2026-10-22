@@ -66,3 +66,20 @@ OFL-1.1. Luckiest Guy and Permanent Marker are Apache-2.0; see their pinned
 and [Permanent Marker license](https://github.com/google/fonts/blob/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/permanentmarker/LICENSE.txt).
 Only the existing Anton and IBM Plex Sans files remain bundled. Other fonts
 and their license texts are downloaded together on explicit `zing fonts fetch`.
+
+## R9 rendering and full-suite validation
+
+R9 adds no dependency or downloaded render asset. Its generated-media tests and
+sample reuse the bundled OFL-1.1 Anton and IBM Plex Sans fonts. Temporary font
+copies have private family names; glyph and license tables retain their bytes.
+
+The existing `tests/test_study_transcribe_real.py` populated the configured
+workspace cache with `Systran/faster-whisper-tiny` while running the full suite.
+The publisher identifies this converted Whisper model as
+[MIT licensed](https://huggingface.co/Systran/faster-whisper-tiny).
+The resolved revision was `d90ca5fe260221311c53c58e660288d3deb8d356`; `model.bin`
+SHA-256 was `dcb76c6586fc06cbdac6dd21f14cfd129cc4cdd9dce19bf4ffa62e59cbe6e6d1`.
+All four cached files, revision-specific URLs and hashes are recorded in
+`zing-workspace/r9-model-cache-receipt.json`. These were recorded after the
+existing test downloaded the model, not verified against a pin beforehand.
+The model is neither vendored nor used by the R9 renderer.

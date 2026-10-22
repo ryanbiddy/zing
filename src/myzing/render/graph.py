@@ -77,6 +77,8 @@ def build_graph(
     include_captions: bool,
     *,
     caption_filter: str = "ass",
+    fonts_dir: bool = False,
+    fps_rate: str | None = None,
 ) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
@@ -94,7 +96,7 @@ def build_graph(
             f"[{input_index}:v:0]"
             f"trim=start={_number(clip.src_in)}:end={_number(clip.src_out)},"
             "setpts=PTS-STARTPTS,"
-            f"fps={_number(edl.fps)},"
+            f"fps={fps_rate or _number(edl.fps)},"
             f"scale={edl.width}:{edl.height}:"
             "force_original_aspect_ratio=decrease:force_divisible_by=2,"
             f"pad={edl.width}:{edl.height}:(ow-iw)/2:(oh-ih)/2:color=black,"
@@ -118,14 +120,18 @@ def build_graph(
     joined_video = "".join(f"[{label}]" for label in video_labels)
     lines.append(
         f"{joined_video}concat=n={len(video_labels)}:v=1:a=0,"
-        f"trim=duration={_number(duration)}[video_concat]"
+        f"trim=duration={_number(duration)}"
+        # V2 captions must see the output CFR grid, including across cuts.
+        + (f",fps={fps_rate}" if fps_rate is not None else "")
+        + "[video_concat]"
     )
     if include_captions:
         if caption_filter not in {"ass", "subtitles"}:
             raise ValueError(f"unsupported caption filter: {caption_filter}")
         lines.append(
             f"[video_concat]{caption_filter}=filename='captions.ass':"
-            f"original_size={edl.width}x{edl.height}[video_out]"
+            + ("fontsdir='fonts':" if fonts_dir else "")
+            + f"original_size={edl.width}x{edl.height}[video_out]"
         )
     else:
         lines.append("[video_concat]null[video_out]")

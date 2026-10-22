@@ -1,4 +1,4 @@
-"""Composition v2: planning only. The render entry point still accepts EDL v1.
+"""Composition v2: shared planning contract with explicit renderer capabilities.
 
 Clip, CaptionSpec and AudioTrack retain their legacy fields. Inventory rates,
 layout boxes/paths/safety, color parameters, audio evidence and P14 transition
@@ -252,6 +252,7 @@ class Transition(Record):
 @dataclass(kw_only=True)
 class CompositionCaption(Record, CaptionSpec):
     id: str
+    alignment: Literal["left", "center", "right"] = "center"
     layout: EventLayout | None = None
     font: FontAsset | None = None
     style: CaptionStyle | None = None
@@ -337,6 +338,7 @@ class Composition(Record):
     fps: Rational = field(default_factory=lambda: Rational(30, 1))
     loudness_target: LoudnessTarget | None = None
     warnings: list[str] = field(default_factory=list)
+    accepted_unsafe_layouts: list[str] = field(default_factory=list)
     brief: Brief | None = None
     # Migration spelling, including int vs float, for byte-identical v1 lowering.
     legacy_fps: float | None = None
@@ -356,6 +358,10 @@ class Composition(Record):
             items = getattr(self, name)
             if len({item.id for item in items}) != len(items):
                 raise ValueError(f"duplicate {name} ids")
+        caption_ids = {c.id for c in self.captions}
+        if (len(set(self.accepted_unsafe_layouts)) != len(self.accepted_unsafe_layouts)
+                or any(cid not in caption_ids for cid in self.accepted_unsafe_layouts)):
+            raise ValueError("accepted_unsafe_layouts must contain unique existing caption ids")
         assets = {a.id: a for a in self.assets}
         for item in [*self.clips, *self.audio]:
             item.__post_init__()

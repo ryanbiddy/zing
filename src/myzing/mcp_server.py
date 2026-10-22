@@ -1110,7 +1110,7 @@ def h_setup_taste(
 _RENDER_JOBS: dict[str, threading.Thread] = {}
 
 
-def _load_edl(edl_path: str):
+def _load_edl(edl_path: str, *, allow_composition: bool = False):
     """(edl, base_dir, err) — parse cheaply before any job spawns."""
     from myzing.schemas import EDL
 
@@ -1120,8 +1120,13 @@ def _load_edl(edl_path: str):
             f"EDL file not found: {edl_path} — pass a path to an edl.json"
         )
     try:
-        edl = EDL.from_json(p.read_text(encoding="utf-8"))
-    except (ValueError, KeyError, TypeError) as e:
+        text = p.read_text(encoding="utf-8")
+        if allow_composition:
+            from myzing.render.composition import load_render_document
+            edl = load_render_document(json.loads(text))
+        else:
+            edl = EDL.from_json(text)
+    except (OSError, ValueError, KeyError, TypeError) as e:
         return None, None, _err(
             f"could not parse EDL {p.name}: {e} — the EDL contract is in "
             "schemas.py (clips/captions/audio)"
@@ -1147,9 +1152,14 @@ def _run_render(
     with storage.use_workspace(root):
         d = storage.render_dir(render_id)
         try:
-            result = pipeline.render_edl(
-                edl, out_path, base_dir=base_dir, resolved_assets=resolved_assets,
-            )
+            if edl.schema_version == 2:
+                from myzing.render.composition import render_composition
+                # Rehash at execution time: a queued asset may have changed.
+                result = render_composition(edl, out_path, base_dir=base_dir)
+            else:
+                result = pipeline.render_edl(
+                    edl, out_path, base_dir=base_dir, resolved_assets=resolved_assets,
+                )
             storage.write_status_at(
                 d,
                 state="done",
@@ -1157,6 +1167,7 @@ def _run_render(
                 finished_at=_now(),
                 updated_at=_now(),
                 error="",
+                **({"warnings": list(result.warnings)} if edl.schema_version == 2 else {}),
             )
         except Exception as e:  # noqa: BLE001 — boundary: honest disk state
             storage.write_status_at(
@@ -1177,14 +1188,22 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
             "ffmpeg not found on PATH — run `zing doctor` for the install "
             "command."
         )
-    edl, base_dir, bad = _load_edl(edl_path)
+    edl, base_dir, bad = _load_edl(edl_path, allow_composition=True)
     if bad:
         return bad
     from myzing.render.validation import EDLValidationError, resolve_assets
 
     try:
-        resolved_assets = resolve_assets(edl, base_dir)
-    except EDLValidationError as exc:
+        if edl.schema_version == 2:
+            from myzing.render.composition import prepare_composition
+            from myzing.render.pipeline import preflight_captions
+            prepared = prepare_composition(edl, base_dir)
+            edl = prepared.composition
+            resolved_assets = prepared.assets
+            preflight_captions(prepared.edl, "ffmpeg")
+        else:
+            resolved_assets = resolve_assets(edl, base_dir)
+    except (EDLValidationError, RuntimeError) as exc:
         return _err(str(exc))
     render_id = _render_id_for(edl_path)
     root = storage.workspace_root()
@@ -1761,8 +1780,9 @@ def build_server():
     mcp.tool(
         name="render_edl",
         description=(
-            "Render an EDL json to a video file with ffmpeg (cuts, "
-            "word-timed captions, audio mix). Validates cheaply and returns "
+            "Render EDL v1 or Composition v2 JSON to a video with ffmpeg "
+            "(cuts, positioned ASS word captions, voiceover/music mix). V2 checks "
+            "asset/font SHA-256, supported features and layout safety before dispatch. Returns "
             "a render_id immediately; rendering runs in the background "
             "(seconds to a few minutes) — poll get_render(render_id). "
             "Renders without voiceover when no TTS is available (stated)."

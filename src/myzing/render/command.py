@@ -1,4 +1,4 @@
-"""CLI for ``zing render <edl.json>``."""
+"""CLI for ``zing render <edl-or-composition.json>``."""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ import json
 import sys
 from pathlib import Path
 
-from myzing.schemas import EDL
+from myzing.composition import Composition
 
 from .assemble import VoiceoverScript, render_assembled_edl
+from .composition import load_render_document, render_composition
 from .otio_export import OTIOExportError
 from .pipeline import RenderError, render_edl
 from .tts import TTSGenerationError, TTSUnavailableError, default_tts_provider
@@ -27,7 +28,7 @@ class _Parser(argparse.ArgumentParser):
 
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="zing render")
-    parser.add_argument("edl", type=Path, help="EDL JSON file")
+    parser.add_argument("edl", type=Path, help="EDL v1 or Composition v2 JSON file")
     parser.add_argument("-o", "--output", type=Path, help="output MP4 path")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
@@ -89,7 +90,7 @@ def run(argv: list[str]) -> int:
         return 2
     try:
         payload = json.loads(edl_path.read_text(encoding="utf-8"))
-        edl = EDL.from_dict(payload)
+        edl = load_render_document(payload)
     except (OSError, TypeError, ValueError, KeyError) as exc:
         print(f"zing render: invalid EDL JSON: {exc}", file=sys.stderr)
         return 2
@@ -101,6 +102,10 @@ def run(argv: list[str]) -> int:
     )
     scripts = []
     provider = None
+    if isinstance(edl, Composition) and (args.voiceover_script is not None or args.otio is not None):
+        print("zing render: not yet supported in this renderer: v2 voiceover synthesis / OTIO export; "
+              "supply voiceover as a composition audio asset", file=sys.stderr)
+        return 1
     if args.voiceover_script is not None:
         script_path = args.voiceover_script.expanduser().resolve()
         if not script_path.is_file():
@@ -132,7 +137,13 @@ def run(argv: list[str]) -> int:
         return 2
     otio_path = args.otio.expanduser().resolve() if args.otio else None
     try:
-        if scripts or otio_path is not None:
+        if isinstance(edl, Composition):
+            assembled = None
+            result = render_composition(
+                edl, output, base_dir=edl_path.parent, work_dir=args.keep_work,
+                ffmpeg=args.ffmpeg, ffprobe=args.ffprobe,
+            )
+        elif scripts or otio_path is not None:
             assembled = render_assembled_edl(
                 edl,
                 output,
