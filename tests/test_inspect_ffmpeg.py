@@ -109,7 +109,15 @@ def test_rendered_two_cuts_and_transcript_pixels(two_cut, offline):
                               for py in range(top, top + height))]
                 assert ink
                 assert abs((min(ink) + max(ink)) / 2 - word["x_center"]) <= 3
-        assert all(r["waveform"]["peak_rms"] > .1 for r in result.rows)
+        peaks = [r["waveform"]["peak_rms"] for r in result.rows]
+        if not all(peak > .1 for peak in peaks):
+            # Diagnose platform differences (macOS CI): what FFmpeg itself measures.
+            import subprocess
+            probe = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-i", str(result.video),
+                                    "-af", "volumedetect", "-f", "null", "-"],
+                                   capture_output=True, text=True, timeout=60)
+            detected = [line for line in probe.stderr.splitlines() if "_volume" in line]
+            raise AssertionError(f"waveform peaks {peaks}; ffmpeg volumedetect {detected}")
 
 
 def test_breakdown_source_words_translate_into_rendered_output(two_cut, offline, zing_workspace):
