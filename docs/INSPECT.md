@@ -5,11 +5,11 @@ Use it to check a cut or caption without playing the edit. It runs locally with
 FFmpeg/ffprobe and Pillow from the existing `myzing[memes]` extra:
 
 ```sh
-pip install "myzing[memes]"
-zing inspect timeline edit.mp4 --start 1 --end 4 --out review.png
-zing inspect timeline edit.mp4 --around 2 --radius 0.5 --out cut.png
-zing inspect timeline edit.mp4 --edl draft-edl.json --out cuts.png --json
-zing inspect timeline source.mp4 --breakdown my-source --workspace ./zing-workspace/home --out words.png
+uv sync --extra memes  # from the source checkout
+uv run --frozen zing inspect timeline edit.mp4 --start 1 --end 4 --out review.png
+uv run --frozen zing inspect timeline edit.mp4 --around 2 --radius 0.5 --out cut.png
+uv run --frozen zing inspect timeline edit.mp4 --edl draft-edl.json --out cuts.png --json
+uv run --frozen zing inspect timeline source.mp4 --breakdown my-source --workspace ./zing-workspace/home --out words.png
 ```
 
 With an EDL, supply its **rendered output video**. Without a time range, each

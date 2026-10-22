@@ -137,7 +137,7 @@
     "fps": 30,
     "schema_version": 1
   },
-  "graph": "[0:v:0]trim=start=0:end=2,setpts=PTS-STARTPTS,fps=30000/1001,scale=640:360:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p[clipv0];\n[clipv0]concat=n=1:v=1:a=0,trim=duration=2,fps=30000/1001[video_concat];\n[video_concat]ass=filename='captions.ass':fontsdir='fonts':original_size=640x360[video_out];\nanullsrc=r=48000:cl=stereo:d=2[audio_out]\n",
+  "graph": "[0:v:0]trim=start=0:end=2,setpts=PTS-STARTPTS,fps=30000/1001,scale=640:360:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=1,trim=end_frame=60,settb=expr=1/(30000/1001),setpts=N[clipv0];\n[clipv0]concat=n=1:v=1:a=0,trim=duration=2,fps=30000/1001[video_concat];\n[video_concat]ass=filename='captions.ass':fontsdir='fonts':original_size=640x360[video_out];\nanullsrc=r=48000:cl=stereo:d=2[audio_out]\n",
   "commands": {
     "6": [
       "ffmpeg",

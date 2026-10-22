@@ -13,7 +13,7 @@ This is one run on this PC, not a throughput benchmark.
 
 The adapter is callable from Python and the sidecar's Node entrypoint, and P10b
 routes v2 HyperFrames captions through it in `zing render`; `schemas.py` is unchanged. PH's
-`version: 1` input is a small adapter contract for the future composition-v2
+`version: 1` input is the adapter contract used by the composition-v2
 translator, not a replacement Zing timeline.
 
 The published npm package is pinned to `hyperframes@0.8.144`, with its full
@@ -105,8 +105,8 @@ when omitted), writes UTF-8 JSON with absolute paths, and preserves the caller's
 data. The Node entrypoint resolves paths relative to the input JSON file.
 No asset URL, UNC share or playlist is accepted. Video backgrounds must be
 decodable local MP4/MOV/MKV/WebM files at least as long as the plan. PH rejects
-PQ/HLG video and uses a centered `object-fit: cover` crop. **The output is silent**;
-source-audio preservation and mixing belong to pass 10's composition integration.
+PQ/HLG video and uses a centered `object-fit: cover` crop. **The output is silent**.
+The v2 renderer preserves and mixes audio when compositing these captions.
 
 The input fields have these meanings:
 
@@ -173,8 +173,8 @@ The pixel acceptance bands assume that font and the authored fixture. Without
 `ZING_REQUIRE_HYPERFRAMES=1`, only the real-render test skips. All plan, writer,
 validation and failure-boundary tests run. When opted in, missing prerequisites
 fail; they do not turn into skips. The real HyperFrames test has its own gate and
-stays outside the FFmpeg marker gate. P10b's seven generated-media tests raise
-that gate from 196 to 203 without requiring Node in CI.
+stays outside the FFmpeg marker gate. Generated-media compositor tests run
+in the mandatory gate without requiring Node. See the [current gate command](DEVELOPER-GUIDE.md#6-workspace-and-media-paths).
 
 HyperFrames lint reports zero errors and 12 Studio-editing warnings for the
 fixture: timed elements lack `.clip` classes and highlight spans lack editable

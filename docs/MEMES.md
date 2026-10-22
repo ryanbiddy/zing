@@ -6,10 +6,14 @@ Make six distinct concepts from a local photo folder, then pick a concept ID
 from the contact sheet:
 
 ```sh
-python -m pip install "myzing[memes]"
-zing still --photos ./photos --topic "one quick bug fix" --out ./stills --n 6 --aspect 4:5
-zing still pick ./stills --id still-0123456789abcdef
+uv sync --extra memes  # from the source checkout
+uv run --frozen zing still --photos ./photos --topic "one quick bug fix" --out ./stills --n 6 --aspect 4:5
+uv run --frozen zing still pick ./stills --id still-0123456789abcdef
 ```
+
+Both `zing still` and `zing still pick` accept `--workspace DIR` and `--json`.
+The workspace selects cached models and assets; the explicit output folder
+stays independent of it. Workspace defaults to `ZING_HOME`, then `~/.zing`.
 
 Replace the example ID with one printed by your run. `--n` is the total
 number of concepts, from 1 to 8. Zing distributes them across candidate
@@ -69,7 +73,7 @@ Save the returned lines as a local JSON file, then render them:
 ```
 
 ```sh
-zing still --photos ./photos --topic "one quick bug fix" --lines ./lines.json --out ./rewritten --json
+uv run --frozen zing still --photos ./photos --topic "one quick bug fix" --lines ./lines.json --out ./rewritten --json
 ```
 
 Use a filename or photo ID from the index. Omit `photo` to distribute ideas
@@ -85,8 +89,8 @@ remain explicitly unknown; this is a limited literal description, not
 semantic image recognition or a claim that no undetected faces exist.
 
 ```sh
-zing still pick ./stills --id still-0123456789abcdef --video
-zing still pick ./stills --id still-0123456789abcdef --gif --json
+uv run --frozen zing still pick ./stills --id still-0123456789abcdef --video
+uv run --frozen zing still pick ./stills --id still-0123456789abcdef --gif --json
 ```
 
 These reuse the existing animated renderer: five-second MP4, with `--gif`
@@ -105,10 +109,10 @@ selection. Both return paths and metadata, never inline media bytes.
 Render your photo with text written by you or your AI:
 
 ```sh
-python -m pip install "myzing[memes]"
-zing meme ideas --topic "one quick bug fix" --n 6
-zing meme check --text "one quick fix" --text "six hours later"
-zing meme render --image desk.jpg --text "one quick fix" --text "six hours later" --out meme.png
+uv sync --extra memes  # from the source checkout
+uv run --frozen zing meme ideas --topic "one quick bug fix" --n 6
+uv run --frozen zing meme check --text "one quick fix" --text "six hours later"
+uv run --frozen zing meme render --image desk.jpg --text "one quick fix" --text "six hours later" --out meme.png
 ```
 
 Zing makes no model calls. Ideas are seeded formula substitutions; your AI
@@ -117,9 +121,9 @@ writes and judges the joke using `zing prompt meme-writer` or MCP
 dependency. Templates, ideas, and checks work without Pillow.
 
 ```sh
-zing meme templates --search drake --json
-zing meme ideas --topic "release day" --template drake --json
-zing meme render --template drake --text "one more meeting" --text "ship it" --aspect original --out drake.png
+uv run --frozen zing meme templates --search drake --json
+uv run --frozen zing meme ideas --topic "release day" --template drake --json
+uv run --frozen zing meme render --template drake --text "one more meeting" --text "ship it" --aspect original --out drake.png
 ```
 
 The catalog ships 101 classic templates as metadata only. Explicitly
@@ -178,7 +182,7 @@ Use a local video or GIF to produce an H.264 MP4. Source audio is retained
 as AAC. Add `--gif` to write a companion GIF beside the MP4:
 
 ```sh
-zing meme render-video --video reaction.mp4 --start 2 --end 6 --text "one quick fix" --text "six hours later" --at 0 --at 1.5 --gif --out reaction-meme.mp4
+uv run --frozen zing meme render-video --video reaction.mp4 --start 2 --end 6 --text "one quick fix" --text "six hours later" --at 0 --at 1.5 --gif --out reaction-meme.mp4
 ```
 
 Install `myzing[memes]` and put FFmpeg and ffprobe on PATH. Animated rendering
@@ -206,8 +210,8 @@ omitted ends default to the output duration. Each window must satisfy
 `0 <= at < until <= duration`. Changes land on the next output frame.
 
 ```sh
-zing meme render-video --video reaction.gif --text "setup" --text "payoff" --at 0 --at 1.5 --until 1 --until 3 --end 3 --out timed.mp4
-zing meme render-video --image template.png --text "still waiting" --duration 5 --zoom 0.1 --out slow-zoom.mp4
+uv run --frozen zing meme render-video --video reaction.gif --text "setup" --text "payoff" --at 0 --at 1.5 --until 1 --until 3 --end 3 --out timed.mp4
+uv run --frozen zing meme render-video --image template.png --text "still waiting" --duration 5 --zoom 0.1 --out slow-zoom.mp4
 ```
 
 Stills default to five seconds. `--zoom` adds a centered Ken Burns zoom of

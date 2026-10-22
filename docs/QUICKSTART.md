@@ -72,7 +72,8 @@ $brief = @'
 uv run --frozen zing brief new "$demo/project" --brief "$demo/brief-input.json"
 ```
 
-The brief records intent; it does not select clips or drive the renderer yet.
+The brief records intent. `zing plan drafts` and `zing match` use it to plan
+edits; this walkthrough instead supplies its own EDL.
 For a real reference, study and judge it with the
 [agent workflow](../skills/zing/SKILL.md). This generated-media exercise authors
 the edit directly, avoiding speech/OCR model downloads and invented transcripts.
@@ -140,8 +141,9 @@ uv run --frozen zing layout captions --video "$demo/draft.mp4" --events "$demo/e
 
 Open `layout-plan.contact.png` and read `events[].overlap.safe` in the JSON.
 Safety is relative to sampled face tracks and approximate UI masks. No detected
-face is not proof of no faces. The plan does **not** move the draft's captions:
-layout-to-render integration is not built in this version.
+face is not proof of no faces. This command does not change the rendered draft.
+To render its layout, attach the result to a [Composition v2 caption](RENDER-V2.md)
+and render that plan; this walkthrough uses a v1 EDL.
 
 ## Inspect the cut and audio
 
@@ -270,6 +272,6 @@ meme-motion.mp4 (1200x676)
 ```
 
 The sample does not exercise ASR/OCR study, automatic assembly, real-face recall,
-URL acquisition, cloud calls, HyperFrames, or native meme animation. The latter
-does not exist on this branch. See the skill for the study/assemble workflow;
+URL acquisition, cloud calls or HyperFrames. It does exercise native still-to-MP4
+animation. See the skill for the study/assemble workflow;
 no transcript or face-detection accuracy claim follows from this synthetic demo.

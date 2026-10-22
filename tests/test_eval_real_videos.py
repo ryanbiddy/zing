@@ -517,6 +517,11 @@ def test_backfill_supports_measurement_only_fixture(
 
     monkeypatch.setattr(backfill_frames, "grab", fake_grab)
 
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps({"media_policy": {"derived_frames_permitted": True}}),
+        encoding="utf-8",
+    )
     result = backfill_frames.backfill_case(
         case_directory,
         media,
@@ -525,6 +530,7 @@ def test_backfill_supports_measurement_only_fixture(
         None,
         None,
         None,
+        manifest_path=manifest_path,
     )
 
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -589,8 +595,8 @@ def _backfill_cli_fixture(
     )
     calls: list[tuple] = []
 
-    def fake_backfill_case(*args: object) -> dict:
-        calls.append(args)
+    def fake_backfill_case(*args: object, manifest_path: Path) -> dict:
+        calls.append((*args, manifest_path))
         return {"fixture": "sample", "frames": 2}
 
     monkeypatch.setattr(backfill_frames, "HERE", tmp_path / "tools" / "eval")
@@ -628,6 +634,7 @@ def test_backfill_main_preflights_and_processes_fixture(
     assert calls[0][1] == media_root / "sample.mp4"
     assert calls[0][2] == "fixture-ffmpeg"
     assert calls[0][6] == "Sample fixture"
+    assert calls[0][7] == manifest_path
     assert capsys.readouterr().out == "sample: 2 frames committed\n"
 
 
@@ -668,6 +675,30 @@ def test_backfill_refuses_manifests_that_forbid_committing_frames(
 
     assert manifest_path.read_bytes() == original_manifest
     assert calls == []
+
+
+def test_backfill_case_refuses_forbidden_frames_before_reading_inputs(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps({"media_policy": {"derived_frames_permitted": False}}),
+        encoding="utf-8",
+    )
+    before = manifest_path.read_bytes()
+    # No fixture or source media exists: the policy must be checked first.
+    case_dir = tmp_path / "case"
+    with pytest.raises(backfill_frames.BackfillError) as direct:
+        backfill_frames.backfill_case(
+            case_dir, tmp_path / "source.mp4", "ffmpeg",
+            "a" * 64, None, None, None, manifest_path=manifest_path,
+        )
+    with pytest.raises(backfill_frames.BackfillError) as cli_error:
+        backfill_frames.main([
+            "--manifest", str(manifest_path), "--media-root", str(tmp_path),
+        ])
+    assert str(direct.value) == str(cli_error.value)
+    assert "media_policy.derived_frames_permitted is false" in str(direct.value)
+    assert manifest_path.read_bytes() == before
+    assert not case_dir.exists()
 
 
 def test_shipped_rights_unknown_manifest_forbids_committing_frames() -> None:

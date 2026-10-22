@@ -5,10 +5,10 @@ file. It measures attacks, a supported tempo, audio-role candidates, and EBU
 R128 loudness. This standalone pass does not change study or render behavior.
 
 ```sh
-python -m pip install "myzing[audio]"
-zing doctor
-zing audio analyze clip.wav --json > audio-map.json
-zing audio analyze clip.mp4 --breakdown my-study --workspace ./zing-workspace/home --json
+uv sync --extra audio  # from the source checkout
+uv run --frozen zing doctor
+uv run --frozen zing audio analyze clip.wav --json > audio-map.json
+uv run --frozen zing audio analyze clip.mp4 --breakdown my-study --workspace ./zing-workspace/home --json
 ```
 
 FFmpeg must be on PATH. Analysis never downloads media or models, runs ASR, or
@@ -121,7 +121,7 @@ The local test binary is the pass-rules essentials build; see the pass report
 for its exact version and build license. Dependency notices for NumPy and its
 wheel components remain in the installed distribution.
 
-The 15 added FFmpeg tests use generated audio only: 120 BPM clicks at three
+The audio FFmpeg tests use generated audio only: 120 BPM clicks at three
 offsets; white/colored noise and a drone; irregular speech-like activity;
 supplied speech timings over a tonal bed; stereo EBU R128 parity; linear and
 limited gain re-measurement; silence and short input; bounded coverage; and

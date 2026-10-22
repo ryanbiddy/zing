@@ -60,8 +60,8 @@ watermark remains readable in those frames.
 
 ## Acceptance and limits
 
-Nine FFmpeg tests generate all media using the bundled OFL Anton and IBM Plex
-Sans files. They run real RapidOCR and compare against independently rendered
+The caption-geometry FFmpeg tests generate all media using the bundled OFL Anton
+and IBM Plex Sans files. They run real RapidOCR and compare against independently rendered
 fill-only masks: median center error at most 2% per axis, median height error
 at most 10%, median box IoU at least 0.8, and fitted path keyframe error at most
 2% of frame dimensions. Color tolerance is Delta E 76 at most 10 in Lab D65;
@@ -69,7 +69,7 @@ outline width tolerance is 1.5 pixels on a three-pixel stroke. The low-confidenc
 test deliberately lowers two real inference scores to exercise the gap contract.
 
 ```text
-ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 204
+ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 211
 ```
 
 The tests establish those limits for the generated cases. Real footage, gradients,
@@ -135,4 +135,4 @@ uv run --frozen pytest -q -m real_caption
 The replay verifies media/label/baseline hashes and refuses changed frozen code
 for held-out runs. It writes sidecars, exact-frame PNG overlays and per-frame font
 evidence. The opt-in test reads 2.6 seconds of Korky without seams or downloads;
-its skip is registered. It is separate from the unchanged 204-test FFmpeg gate.
+its skip is registered. It is separate from the 211-test FFmpeg gate.

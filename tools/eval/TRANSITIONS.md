@@ -53,7 +53,7 @@ uv run --frozen pytest -q tests/test_transition_v6.py -m real_media
 
 `real_media` is registered separately from the mandatory FFmpeg marker so a
 machine without these local assets reports a named skip. Corrupt media fails.
-The mandatory CI FFmpeg baseline remains **204** tests; no new mandatory
+The mandatory CI FFmpeg baseline remains **211** tests; no new mandatory
 FFmpeg test was added.
 
 ## Synthetic regression gate
@@ -134,10 +134,10 @@ limitations. No editing preset or original project is recovered from pixels.
 under `provenance.transition_evidence`: evidence start/end, confidence, detector
 version, reason and optional wipe direction. `observation_index` links accepted
 candidates to the existing observation list; unknowns have no index and never
-enter the list used by profiles. Pass 4 should adopt these fields into the shared
-contract, preserve the confidence semantics and include an explicit unknown
-state. The current schema's comment about confidence being absent describes the
-legacy object only.
+enter the list used by profiles. The [Composition v2 contract](../../docs/COMPOSITION-V2.md)
+reuses this evidence in `TransitionRecipe.observation`, preserving confidence
+and explicit unknown signatures. The current schema's comment about confidence
+being absent describes the legacy object only.
 
 The existing test changes preserve its five-golden precision/recall assertions.
 The production mock now supplies v6 evidence; the motion regression expects an

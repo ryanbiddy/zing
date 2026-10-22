@@ -83,7 +83,8 @@ Duration totals do not prove the footage contains usable or distinct moments.
 Orientation alone does not prove a safe crop. Nothing calls a model or downloads
 media, and this pass does not select or render an edit.
 
-A later study/match pass can attach `reference.study` to `project.json` as
+`zing project study-reference` and `zing match` attach `reference.study` to
+`project.json`. The brief reader accepts
 `{"breakdown_path":"reference/breakdown.json"}` (relative to the project), or
 `{"breakdown": <Breakdown.to_dict()>}`. A direct version 1 Breakdown object is
 also accepted. If a wrapper has `state`, it must be `done`. The brief flow reads

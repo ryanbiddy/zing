@@ -6,12 +6,18 @@ import argparse
 import json
 import sys
 
+from myzing import storage
 from .api import create_stills, pick_still
 
 
 def run(argv: list[str]) -> int:
+    # Accept the shared workspace option before or after `pick`, like meme.
+    workspace_parser = argparse.ArgumentParser(add_help=False)
+    workspace_parser.add_argument("--workspace", default=None)
+    workspace_args, argv = workspace_parser.parse_known_args(argv)
     picking = bool(argv and argv[0] == "pick")
     parser = argparse.ArgumentParser(prog="zing still pick" if picking else "zing still",
+                                     parents=[workspace_parser],
                                      description="Turn local photos and a topic into still meme concepts, offline.")
     parser.add_argument("--json", action="store_true")
     if picking:
@@ -27,13 +33,14 @@ def run(argv: list[str]) -> int:
         parser.add_argument("--aspect", choices=("1:1", "4:5", "9:16", "16:9"), default="1:1")
         parser.add_argument("--layout", choices=("auto", "classic", "caption", "labels"), default="auto")
         parser.add_argument("--lines", help="local JSON file of AI/user-written ideas; its length overrides --n")
-    args = parser.parse_args(argv[1:] if picking else argv)
+    args = parser.parse_args(argv[1:] if picking else argv, namespace=workspace_args)
     try:
-        if picking:
-            result = {"ok": True, **pick_still(args.out_folder, args.id, video=args.video, gif=args.gif)}
-        else:
-            result = {"ok": True, **create_stills(args.photos, args.topic, args.out, n=args.n,
-                                                 aspect=args.aspect, layout=args.layout, lines=args.lines)}
+        with storage.use_workspace(args.workspace or storage.workspace_root()):
+            if picking:
+                result = {"ok": True, **pick_still(args.out_folder, args.id, video=args.video, gif=args.gif)}
+            else:
+                result = {"ok": True, **create_stills(args.photos, args.topic, args.out, n=args.n,
+                                                     aspect=args.aspect, layout=args.layout, lines=args.lines)}
     except (OSError, ValueError) as exc:
         result = {"ok": False, "error": str(exc)}
     if args.json:

@@ -72,9 +72,9 @@ output-time cut. Omit the range to center rows on internal EDL cuts.
 Verify an image was created and inspect its pixels before claiming visual review.
 
 There are no MCP equivalents here for project scanning, assembly, color matching,
-audio analysis, layout planning or native meme animation. Use the real CLI where
-available. The HyperFrames sidecar also has no MCP tool and is not routed through
-`render_edl`.
+audio analysis, layout planning or font matching. Use the real CLI where
+available. The HyperFrames sidecar has no standalone MCP tool; `render_edl`
+accepts v2 HyperFrames captions when the local sidecar is configured.
 
 Uoink is optional. `study_uoink_item` takes an item reference such as
 `uoink://item/ID`; a project reference written as `uoink:ID` is only inventory

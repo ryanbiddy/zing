@@ -109,6 +109,23 @@ def grab(ffmpeg: str, media: Path, at: float, target: Path) -> None:
         )
 
 
+def _check_frame_rights(manifest: dict, manifest_path: Path) -> None:
+    # Rights gate, checked before anything else. Committing frames is
+    # redistributing a still of somebody's video, so a manifest is allowed
+    # to forbid it outright — the two rights-unknown fixtures in
+    # real_videos/manifest.json do, after those frames were published once
+    # by accident (security sweep Z-H2). Re-running this command must not
+    # quietly undo that.
+    if manifest["media_policy"].get("derived_frames_permitted") is False:
+        raise BackfillError(
+            f"{manifest_path.name}: media_policy.derived_frames_permitted is "
+            "false — this manifest's sources have no recorded redistribution "
+            "basis, so no derived frames may be committed for them. Record a "
+            "rights basis in each case's rights block and flip the flag "
+            "deliberately if that changes."
+        )
+
+
 def backfill_case(
     case_dir: Path,
     media: Path,
@@ -117,7 +134,12 @@ def backfill_case(
     truth_sha: str | None,
     truth_text: str | None,
     truth_section: str | None,
+    *,
+    manifest_path: Path,
 ) -> dict:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    _check_frame_rights(manifest, manifest_path)
+
     breakdown_path = case_dir / "breakdown.json"
     provenance_path = case_dir / "provenance.json"
     breakdown = json.loads(breakdown_path.read_text(encoding="utf-8"))
@@ -213,20 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest_path = args.manifest.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    # Rights gate, checked before anything else. Committing frames is
-    # redistributing a still of somebody's video, so a manifest is allowed
-    # to forbid it outright — the two rights-unknown fixtures in
-    # real_videos/manifest.json do, after those frames were published once
-    # by accident (security sweep Z-H2). Re-running this command must not
-    # quietly undo that.
-    if manifest["media_policy"].get("derived_frames_permitted") is False:
-        raise BackfillError(
-            f"{manifest_path.name}: media_policy.derived_frames_permitted is "
-            "false — this manifest's sources have no recorded redistribution "
-            "basis, so no derived frames may be committed for them. Record a "
-            "rights basis in each case's rights block and flip the flag "
-            "deliberately if that changes."
-        )
+    _check_frame_rights(manifest, manifest_path)
 
     # Resolve and validate every required input before the first write. A
     # missing later case must not leave the manifest claiming that its
@@ -280,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
         results.append(backfill_case(
             case_dir, media, args.ffmpeg,
             manifest_sha, truth_sha, truth_text, truth_section,
+            manifest_path=manifest_path,
         ))
 
     for result in results:

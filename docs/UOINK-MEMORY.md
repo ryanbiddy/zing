@@ -71,9 +71,10 @@ zing plan choose .\zing-workspace\edit --draft A --note "Better opening"
 zing plan choose .\zing-workspace\edit --draft A --share-choice
 ```
 
-The base for P19 does not include the P17/P18 A/B/C writer. The default handoff
-is an existing artifact at `<project>/drafts/A.json`, `B.json`, or `C.json`.
-A writer using another layout can pass `--draft-file <plan-or-render-file>`.
+The default handoff is an existing artifact at `<project>/drafts/A.json`,
+falling back to `plan-A.json` (likewise B/C). Both `zing plan drafts --out
+<project>/drafts` and `zing match` write the latter names. For another layout,
+pass `--draft-file <plan-or-render-file>`.
 Zing hashes that exact file; a label without a file is refused. The choice
 command does not validate render quality or claim the artifact was rendered.
 

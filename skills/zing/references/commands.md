@@ -12,7 +12,8 @@ over nested JSON in native-command arguments.
 |---|---|
 | `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
-| `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v5. |
+| `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
+| `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
 | `zing brief` | New/show; save interview answers after project init, not an automatic director. |
 | `zing plan choose` | Choose A/B/C from a local artifact; durable receipt, optional reference citation with --share-choice; never publishes. |
@@ -27,7 +28,7 @@ over nested JSON in native-command arguments.
 | `zing audio` | Analyze local audio/video → observations; does not change the mix. |
 | `zing thumbs` | Thumbnail candidates for a studied slug. |
 | `zing inspect` | Timeline PNG with aligned frames/waveform/available timed text. |
-| `zing meme` | Template metadata, formula ideas, text checks and still rendering. |
+| `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 
@@ -84,7 +85,8 @@ run `zing project resolve-reference ./project`, then
 `zing project find-reference "soft cuts"` lists candidates only when the peer
 advertises `uoink.corpus.read/1`. Choose an existing draft with
 `zing plan choose ./project --draft A --draft-file draft-edl.json`.
-Without an explicit file, the command reads ./project/drafts/A.json (or B/C).
+Without an explicit file, the command reads `./project/drafts/A.json`, falling
+back to `plan-A.json` (likewise B/C), as written by plan drafts and match.
 Add --share-choice only when the user asks to share the reference citation;
 retrying with that flag preserves the event identity. Choice details stay local.
 
@@ -154,6 +156,18 @@ establish word timestamps.
 
 ## Stills
 
+For photo-folder concepts and a saved selection:
+
+```sh
+zing still --photos ./photos --topic "release day" --out ./stills --workspace /absolute/workspace
+zing still pick ./stills --id CONCEPT_ID --workspace /absolute/workspace
+```
+
+Use an ID returned by the first command. Both forms accept `--json`; workspace
+selection controls cached models and assets, while `--out` names the output folder.
+
+For individual memes:
+
 ```sh
 zing meme templates --search drake --json
 zing meme ideas --topic "release day" --template drake --json
@@ -211,9 +225,10 @@ itself may use the network; ask first when not already authorized.
 | Extra | Enables |
 |---|---|
 | study | yt-dlp, scene detection, faster-whisper and RapidOCR; model/URL fetching is separate. |
-| mcp | MCP SDK v1 stdio server. |
+| mcp | MCP SDK stdio server. |
 | render | pysubs2 for ASS captions. |
 | memes | Pillow for stills and timeline inspection. |
+| fonts | Pillow and pinned headless OpenCV for font comparison; expanded font assets need an explicit fetch. |
 | layout | Pinned headless OpenCV; explicit MIT YuNet model fetch still required. |
 | color | NumPy for SDR look matching. |
 | audio | NumPy for audio measurements. |
@@ -226,5 +241,6 @@ The default Whisper model is large-v2 (about 3.1 GB); `ZING_WHISPER_MODEL` selec
 another model or existing local model directory. RapidOCR may acquire missing
 weights too. Do not run an uncached study as an offline operation.
 Kokoro runtime/assets, OpenTimelineIO, and the pinned HyperFrames Node/browser/font
-sidecar require separate setup and are not installed by all-extras. HyperFrames
-is not wired into the renderer. Cloud ElevenLabs is outside this local workflow.
+sidecar require separate setup and are not installed by all-extras. The v2
+renderer composites HyperFrames captions with footage and audio; standalone
+sidecar output is silent. Cloud ElevenLabs is outside this local workflow.
