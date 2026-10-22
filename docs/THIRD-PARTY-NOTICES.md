@@ -3,6 +3,35 @@
 No model, image, media binary or third-party source is vendored in this pass.
 Downloaded evidence belongs under the ignored `zing-workspace/` directory.
 
+## MCP SDK 2 (October 2026)
+
+The SDK migration changes only the optional MCP/development dependency graph.
+Every added or upgraded package/version in `uv.lock` was checked against its
+PyPI release metadata and the license text inside its wheel. Each inspected
+wheel's SHA-256 matched the lockfile. All nine changed package/version records
+have MIT, BSD-3-Clause or Apache-2.0 licenses; none is AGPL, non-commercial or
+unlicensed. No dependency source or wheel is vendored.
+
+| Package | Locked version(s) | License | Copyright / role |
+|---|---|---|---|
+| [mcp](https://pypi.org/project/mcp/2.3.0/) | 1.28.1 → 2.3.0 | MIT | Anthropic, PBC (2024); official SDK. |
+| [mcp-types](https://pypi.org/project/mcp-types/2.3.0/) | 2.3.0 (new) | MIT | Anthropic, PBC (2024); protocol models. |
+| httpx2 | [2.14.0](https://pypi.org/project/httpx2/2.14.0/), [2.16.0](https://pypi.org/project/httpx2/2.16.0/) (new) | BSD-3-Clause | Pydantic Services Inc. and contributors (2026–present); Encode OSS Ltd (2019). SDK HTTP client dependency. |
+| httpcore2 | [2.14.0](https://pypi.org/project/httpcore2/2.14.0/), [2.16.0](https://pypi.org/project/httpcore2/2.16.0/) (new) | BSD-3-Clause | Pydantic Services Inc. and contributors (2026–present); Encode OSS Ltd (2020). HTTP transport dependency. |
+| [httpx2-jsfetch](https://pypi.org/project/httpx2-jsfetch/1.0/) | 1.0 (new) | BSD-3-Clause | Pydantic Services Inc. and contributors (2026–present); Encode OSS Ltd (2019). Conditional Emscripten fetch adapter. |
+| [opentelemetry-api](https://pypi.org/project/opentelemetry-api/1.45.1/) | 1.45.1 (new) | Apache-2.0 | OpenTelemetry Authors; SDK instrumentation API, no exporter configured by Zing. |
+| [truststore](https://pypi.org/project/truststore/0.10.5/) | 0.10.5 (new) | MIT | Seth Michael Larson (2022); system certificate trust dependency. |
+
+The 2.14.0 HTTP packages serve Python 3.10; 2.16.0 serves Python 3.11+.
+`httpx2-jsfetch` is conditional on Emscripten and Python 3.12+. Its license was
+checked even though it is not installed on this Windows host. The migration
+removes `httpx-sse`, `pydantic-settings` and `python-dotenv` from the lockfile.
+Unrelated existing package versions are unchanged. License metadata, wheel
+hashes and extracted license texts for this audit are saved under
+`zing-workspace/license-audit/` in the build-pass workspace.
+
+## PF layout assets
+
 | Component | Version/source | License and use |
 |---|---|---|
 | OpenCV headless | `opencv-python-headless==4.13.0.92` (OpenCV 4.13.0) | OpenCV: Apache-2.0; Python packaging scripts: MIT. Optional CPU face detection and debug drawing. Wheel-bundled components retain their own notices. [Publisher licensing](https://pypi.org/project/opencv-python-headless/4.13.0.92/#licensing). |

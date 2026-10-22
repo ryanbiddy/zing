@@ -133,5 +133,15 @@ def test_uoink_runtime_is_separate_and_pinned_from_the_selected_checkout() -> No
     assert 'Path("uoink/requirements.txt").read_text()' in text
     assert '"$RUNNER_TEMP/uoink-venv/bin/python" -m pip install' in text
     assert '--uoink-python "$RUNNER_TEMP/uoink-venv/bin/python"' in text
-    assert '"mcp==1.27.1"' in text  # Zing and Writer keep their SDK pin.
     assert "--isolated-ports" not in text  # CI must exercise shipped ports.
+
+
+def test_writer_runtime_is_separate_from_zings_sdk2_runtime() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    zing_step = text.split("- name: Install Zing's runtime", 1)[1].split("- name:", 1)[0]
+    assert '-e "./zing[all,dev]"' in zing_step and "mcp==" not in zing_step
+    assert "./writer" not in zing_step
+    assert 'python -m venv "$RUNNER_TEMP/writer-venv"' in text
+    writer_step = text.split("- name: Install Writer's runtime", 1)[1].split("- name:", 1)[0]
+    assert '-e "./writer[dev]"' in writer_step and '"mcp==1.27.1"' in writer_step
+    assert '--writer-python "$RUNNER_TEMP/writer-venv/bin/python"' in text

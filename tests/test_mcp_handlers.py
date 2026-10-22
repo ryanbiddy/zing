@@ -1021,35 +1021,29 @@ def test_print_config_notes_missing_sdk(monkeypatch, capsys):
     assert "source checkout" in out
 
 
-def _sdk_v2_shape(monkeypatch):
-    """An environment holding SDK v2: `import mcp` succeeds, but the v1
-    FastMCP path is gone (it became mcp.server.mcpserver.MCPServer)."""
+def _sdk_v1_shape(monkeypatch):
+    """The old SDK imports successfully, but lacks the required SDK 2 API."""
     import types
 
     monkeypatch.setitem(sys.modules, "mcp", types.ModuleType("mcp"))
-    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", None)
-    monkeypatch.setattr(
-        mcp_server, "_installed_mcp_version", lambda: "2.0.0")
+    monkeypatch.setitem(sys.modules, "mcp.server.mcpserver", None)
+    monkeypatch.setattr(mcp_server, "_installed_mcp_version", lambda: "1.28.1")
 
 
-def test_sdk_v2_is_named_as_incompatible_not_reported_as_missing(
-    monkeypatch, capsys
-):
-    """The failure that arrives when SDK v2 ships.
-
-    `import mcp` SUCCEEDS on v2, so the old guard passed and the user got
-    a bare "No module named 'mcp.server.fastmcp'" traceback out of
-    build_server: no cause, no version, no fix. Telling them to install
-    the SDK would also be wrong — it IS installed.
-    """
-    _sdk_v2_shape(monkeypatch)
+def test_sdk_v1_is_named_as_incompatible_not_reported_as_missing(monkeypatch, capsys):
+    _sdk_v1_shape(monkeypatch)
     assert mcp_server.run([]) == 2
     err = capsys.readouterr().err
+    assert "1.28.1" in err
+    assert "mcp>=2.3,<3" in err
+    assert "MCPServer" in err
+    assert "not installed" not in err
 
-    assert "2.0.0" in err, "name the version actually installed"
-    assert "mcp>=1.2,<2" in err, "name the pin that fixes it"
-    assert "MCPServer" in err, "name where the API went"
-    assert "not installed" not in err, "it IS installed — do not say otherwise"
+
+@pytest.mark.parametrize("version", ["2.2.0", "3.0.0", "unknown version"])
+def test_sdk_guard_rejects_unsupported_versions(monkeypatch, version):
+    monkeypatch.setattr(mcp_server, "_installed_mcp_version", lambda: version)
+    assert "mcp>=2.3,<3" in mcp_server.mcp_sdk_defect()
 
 
 def test_healthy_sdk_reports_no_defect():

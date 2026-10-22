@@ -1,7 +1,7 @@
 """``zing serve-mcp``: the MCP stdio server — how AIs touch Zing.
 
 Tool handlers + prompt delivery, built on the official MCP Python SDK
-(FastMCP), stdio transport. Design is bound by SPRINT-1-D1 §Critique
+(MCPServer), stdio transport. Design is bound by SPRINT-1-D1 §Critique
 resolutions and the B#2 ruling (2026-07-18):
 
 - ``study_video`` is a background job: cheap validation up front, then a
@@ -782,7 +782,7 @@ def mcp_thumbnail_content(slug: str) -> list[Any]:
     payload = json.dumps(package, ensure_ascii=False)
     if not package.get("ok"):
         return [payload]
-    from mcp.server.fastmcp import Image
+    from mcp.server.mcpserver import Image
 
     return [
         payload,
@@ -1705,17 +1705,7 @@ def _installed_mcp_version() -> str:
 
 
 def mcp_sdk_defect() -> str | None:
-    """None when the SDK zing targets is usable, else what to do about it.
-
-    Distinguishes ABSENT from INCOMPATIBLE, which `import mcp` alone
-    cannot. SDK v2 keeps the top-level `mcp` package but moved the
-    FastMCP API to `mcp.server.mcpserver.MCPServer`, so the old guard
-    passed on v2 and the user got a bare
-    ``ImportError: No module named 'mcp.server.fastmcp'`` traceback out
-    of build_server — no cause, no version, no fix. pyproject pins
-    ``mcp<2`` so a normal install cannot land there, but a shared
-    environment or an ignored extra still can.
-    """
+    """None when the official SDK 2.3+ API is usable, else an install hint."""
     try:
         import mcp  # noqa: F401
     except ImportError:
@@ -1725,24 +1715,33 @@ def mcp_sdk_defect() -> str | None:
             '(from a source checkout: pip install -e ".[mcp]")'
         )
     try:
-        from mcp.server.fastmcp import FastMCP  # noqa: F401
-    except ImportError:
+        from mcp.server.mcpserver import MCPServer  # noqa: F401
+        from mcp.types.version import MODERN_PROTOCOL_VERSIONS
+
+        installed = _installed_mcp_version()
+        major, minor = (int(part) for part in installed.split(".")[:2])
+        if major != 2 or minor < 3 or "2026-07-28" not in MODERN_PROTOCOL_VERSIONS:
+            raise ImportError("unsupported MCP SDK")
+    except (ImportError, ValueError):
         return (
-            f"the installed MCP SDK ({_installed_mcp_version()}) has no "
-            "mcp.server.fastmcp. Zing targets the v1 FastMCP API, and SDK "
-            "v2 renamed it to mcp.server.mcpserver.MCPServer — install the "
-            'v1 line with python -m pip install "mcp>=1.2,<2"'
+            f"the installed MCP SDK ({_installed_mcp_version()}) is incompatible. "
+            "Zing requires the official SDK 2.3+ MCPServer API and dual-era stdio; "
+            'run python -m pip install "mcp>=2.3,<3"'
         )
     return None
 
 
 def build_server():
-    from mcp.server.fastmcp import FastMCP
-    from mcp.server.fastmcp.prompts import Prompt
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.prompts import Prompt
     from pydantic import StrictFloat
 
-    mcp = FastMCP(
+    mcp = MCPServer(
         "zing",
+        version=_version(),
+        # Zing has no subscription handlers. Keep listChanged/subscribe false
+        # in both protocol eras instead of advertising SDK 2's default bus.
+        subscriptions=False,
         instructions=(
             "Zing studies short videos: deterministic measurements (shots, "
             "word-timed transcript, caption OCR, audio) become a Breakdown "
@@ -1753,16 +1752,6 @@ def build_server():
             "-> write text -> meme_check -> meme_render. Meme tools make no model calls."
         ),
     )
-    # Final review P3-1: without this, initialize's serverInfo.version is
-    # the SDK's own version (e.g. 1.28.1) — meaningless in client logs
-    # and bug reports. FastMCP doesn't plumb a version through, so set it
-    # on the underlying lowlevel server; if the SDK reshapes internals,
-    # we degrade back to the SDK version rather than fail to serve.
-    try:
-        mcp._mcp_server.version = _version()
-    except AttributeError:
-        pass
-
     mcp.tool(
         name="brief_questions",
         description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",
@@ -1949,7 +1938,7 @@ def build_server():
         ),
     )(h_list_profiles)
 
-    from mcp.server.fastmcp.utilities.types import Image
+    from mcp.server.mcpserver.utilities.types import Image
 
     def get_frames(slug: str, timestamps: list[float]) -> list:
         result = h_get_frames(slug, timestamps)
@@ -1964,7 +1953,7 @@ def build_server():
                 content.append(f"{frame['label']}: {frame['error']}")
         return content
 
-    # FastMCP's default float validator coerces JSON booleans and numeric
+    # MCPServer's default float validator coerces JSON booleans and numeric
     # strings before the SDK-free handler can distinguish their real types.
     # Keep integer JSON numbers valid, but make the MCP boundary honor the
     # advertised array-of-numbers contract.
@@ -2156,5 +2145,5 @@ def run(argv: list[str]) -> int:
         )
         return 2
     server = build_server()
-    server.run()  # stdio; blocks until the client disconnects
+    server.run(transport="stdio")  # native SDK legacy + 2026-07-28 runner
     return 0

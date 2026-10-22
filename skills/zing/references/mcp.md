@@ -6,6 +6,12 @@ tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
 An MCP-only client cannot execute CLI-only operations without a separate shell.
 
+The server requires the official Python MCP SDK `>=2.3,<3`. Stdio supports
+legacy `initialize` (`2024-11-05` through `2025-11-25`) and stateless
+`2026-07-28` requests. Client launch commands are unchanged. Modern requests
+carry protocol version and client capabilities in `params._meta`; use the
+client's SDK to supply them. There is no HTTP MCP endpoint.
+
 | Tools | Purpose |
 |---|---|
 | `zing_status` | Doctor summary, stored breakdowns and study job status. |

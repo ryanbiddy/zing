@@ -277,26 +277,25 @@ def test_wrapper_interleaves_text_and_images(studied, fake_ffmpeg):
         )
 
     result = anyio.run(call)
-    content = result[0] if isinstance(result, tuple) else result
+    content = result.content
     kinds = [c.type for c in content]
     assert kinds == ["text", "image", "text"]  # label, jpeg, past-end notice
     assert "Frame 1 @ t=1.00s" in content[0].text
-    assert content[1].mimeType == "image/jpeg"
+    assert content[1].mime_type == "image/jpeg"
     assert "past the video's end" in content[2].text
 
 
 @pytest.mark.parametrize("bad_timestamp", [True, False, "1.5"])
 def test_mcp_wrapper_does_not_coerce_frame_timestamps(bad_timestamp):
     pytest.importorskip("mcp")
-    from mcp.server.fastmcp.exceptions import ToolError
+    from mcp.server.mcpserver.exceptions import ToolError
 
     server = mcp_server.build_server()
 
     async def call():
-        return await server._tool_manager.call_tool(
+        return await server.call_tool(
             "get_frames",
             {"slug": SLUG, "timestamps": [bad_timestamp]},
-            convert_result=False,
         )
 
     with pytest.raises(ToolError, match="valid number"):
@@ -309,7 +308,7 @@ def test_mcp_frame_timestamp_schema_stays_numeric():
 
     tools = asyncio.run(server.list_tools())
     schema = next(
-        tool.inputSchema for tool in tools if tool.name == "get_frames"
+        tool.input_schema for tool in tools if tool.name == "get_frames"
     )
 
     assert schema["properties"]["timestamps"] == {
