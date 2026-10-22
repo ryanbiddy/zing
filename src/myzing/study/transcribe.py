@@ -120,6 +120,17 @@ def _load_model(name: str, *, local_files_only: bool = False):
 
     version = getattr(faster_whisper, "__version__", "unknown")
     options = {"local_files_only": True} if local_files_only else {}
+    if local_files_only:
+        # local_files_only only covers the weights: a model directory without
+        # tokenizer.json makes faster-whisper fetch the tokenizer from the hub.
+        path = Path(name)
+        if not path.is_dir():
+            from faster_whisper.utils import download_model
+            path = Path(download_model(name, local_files_only=True))
+        if not (path / "tokenizer.json").is_file():
+            raise FileNotFoundError(
+                f"local model '{name}' has no tokenizer.json; loading it would download one")
+        name = str(path)
     try:
         model = faster_whisper.WhisperModel(
             name, device="auto", compute_type="int8_float16", **options

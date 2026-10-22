@@ -1,9 +1,9 @@
 """Real-dependency tests for the transcribe seams (SG-2 coverage lift).
 
 Every other transcription test mocks _load_model/_run_model_batched;
-these exercise the actual bodies. Skipped cleanly where faster-whisper
-(or its tiny model / ffmpeg) is unavailable — they run on dev machines
-with the [study] extra, which is where the seam regressions would bite.
+these exercise the actual bodies only with ZING_REQUIRE_REAL_ASR=1.
+They use a pre-provisioned tiny model and local_files_only=True. Default
+pytest skips before fixtures run, independently of HF offline settings.
 """
 
 from __future__ import annotations
@@ -17,19 +17,16 @@ import pytest
 from myzing.study import transcribe
 
 
-@pytest.fixture(scope="module", autouse=True)
-def real_transcription_dependency():
-    pytest.importorskip("faster_whisper")
-
-
 @pytest.fixture(scope="module")
 def loaded_model():
+    pytest.importorskip("faster_whisper")
     try:
-        return transcribe._load_model("tiny")
-    except Exception as exc:  # model download blocked (offline CI etc.)
-        pytest.skip(f"tiny model unavailable: {exc}")
+        return transcribe._load_model("tiny", local_files_only=True)
+    except Exception as exc:
+        pytest.fail(f"Explicit real-ASR test needs a pre-provisioned tiny model; tests never fetch it: {exc}")
 
 
+@pytest.mark.real_model(env="ZING_REQUIRE_REAL_ASR")
 def test_load_model_returns_working_configuration(loaded_model):
     model, device, compute_type, version = loaded_model
     assert model is not None
@@ -41,6 +38,7 @@ def test_load_model_returns_working_configuration(loaded_model):
     assert isinstance(version, str) and version
 
 
+@pytest.mark.real_model(env="ZING_REQUIRE_REAL_ASR")
 def test_batched_pipeline_runs_on_real_silence(loaded_model, tmp_path):
     if shutil.which("ffmpeg") is None:
         pytest.skip("ffmpeg unavailable")

@@ -142,7 +142,9 @@ def render_deliveries(composition, output, *, aspects=None, base_dir=None, work_
     destinations = [report_path]
     for aspect in selected:
         stem = output.stem + "." + aspect.replace(":", "x")
-        destinations.extend([output.with_name(stem + ".mp4"), output.with_name(stem + ".json")])
+        # A measured music render also writes <stem>.music.json beside its MP4.
+        destinations.extend([output.with_name(stem + ".mp4"), output.with_name(stem + ".json"),
+                             output.with_name(stem + ".music.json")])
     # Refuse before any analysis: no delivery file may replace something it reads.
     protected = {_key(p): Path(p) for p in [*input_paths(composition, base_dir), *inputs]}
     for destination in destinations:
@@ -179,6 +181,10 @@ def _render_deliveries(composition, output, work, selected, report_path, base_di
             result = render_composition(plan, video, base_dir=saved.parent, work_dir=work / aspect.replace(":", "x"),
                                         ffmpeg=ffmpeg, ffprobe=ffprobe)
             row.update(status="ready", warnings=list(result.warnings))
+            if result.audio_measurements is not None:
+                # Every aspect carries the source plan's music evidence and audio,
+                # so its mix is measured against the same speech spans.
+                row["music"] = str(video.with_suffix(".music.json"))
             _write(report_path, report)
         report["status"] = "ready"
     except Exception as exc:

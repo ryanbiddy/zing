@@ -16,7 +16,7 @@ import pytest
 
 from myzing.study import caption_geometry as cg, caption_models
 
-pytestmark = pytest.mark.ffmpeg
+pytestmark = [pytest.mark.ffmpeg, pytest.mark.real_model(env="ZING_REQUIRE_OCR")]
 FONT_ROOT = Path(__file__).resolve().parents[1] / "src/myzing/_data/fonts"
 
 

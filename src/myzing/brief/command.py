@@ -23,6 +23,11 @@ def _print_result(result: dict, *, show_answers: bool):
     print("Basis:")
     for fact in rec["basis"]:
         print(f"  - {fact}")
+    for advice in rec.get("music_advice", []):
+        print(f"Music: {advice['track']} — {advice['rating']} ({advice['score']}/100)")
+        for reason in advice["reasons"]:
+            print(f"  - {reason['reason']}")
+        print(f"  - {advice['licensing']}")
     if rec["missing"]:
         print("Still needed:")
         for gap in rec["missing"]:

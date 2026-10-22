@@ -48,6 +48,7 @@ class RenderResult:
     command: tuple[str, ...]
     filtergraph: str
     work_dir: Path | None
+    audio_measurements: dict | None = None
 
 
 def _create_directory(directory: Path, error: str) -> None:
@@ -243,6 +244,12 @@ def _render_in_directory(
     transitions: tuple[Transition | None, ...] = (),
     caption_overlay: Path | None = None,
     clip_framings: tuple = (),
+    composition_audio: tuple = (),
+    speech_spans: tuple = (),
+    music_fades: dict | None = None,
+    music_metadata: dict | None = None,
+    duck: dict | None = None,
+    measure_music: bool = False,
 ) -> RenderResult:
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -268,6 +275,19 @@ def _render_in_directory(
         except (CaptionDependencyError, OSError) as exc:
             raise RenderError(str(exc)) from exc
 
+    duck_envelope = None
+    duck_passages: list[list[float]] = []
+    if any(a.duck_under_speech and a.duck_scope == "source_speech" for a in composition_audio):
+        from myzing.music.ducking import passages, write_envelope
+        settings = duck or {}
+        duck_passages = passages(speech_spans, settings.get("hold", .8))
+        duck_envelope = directory / "music-duck.wav"
+        try:
+            write_envelope(duck_envelope, duck_passages, validated.duration,
+                           depth_db=settings.get("depth_db", 9.0), attack=settings.get("attack", .2),
+                           release=settings.get("release", .8))
+        except OSError as exc:
+            raise RenderError(f"could not write the music ducking envelope: {exc}") from exc
     plan = build_graph(
         validated, include_captions, caption_filter=caption_filter_name,
         fonts_dir=caption_writer is not None, fps_rate=fps_rate,
@@ -275,6 +295,9 @@ def _render_in_directory(
         transitions=transitions,
         caption_overlay=caption_overlay,
         clip_framings=clip_framings,
+        composition_audio=composition_audio,
+        music_fades=music_fades, measure_stems=measure_music,
+        duck_envelope=duck_envelope,
     )
     graph_path = directory / "filter graph.txt"
     try:
@@ -283,6 +306,9 @@ def _render_in_directory(
         raise RenderError(f"could not write FFmpeg filtergraph: {exc}") from exc
     staged_output = directory / "rendered.mp4"
     command = _ffmpeg_command(ffmpeg, plan, graph_path, staged_output, validated, fps_rate)
+    for label, name in ((plan.music_label, "music-stem.wav"), (plan.source_label, "source-stem.wav")):
+        if label:
+            command += ["-map", f"[{label}]", "-t", f"{validated.duration:.6f}", "-c:a", "pcm_f32le", str(directory / name)]
     try:
         result = subprocess.run(
             command,
@@ -300,7 +326,27 @@ def _render_in_directory(
     if not staged_output.is_file() or staged_output.stat().st_size == 0:
         raise RenderError("ffmpeg reported success but produced no output")
 
+    measurements = None
+    if plan.music_label:
+        from myzing.music.measurement import measure_mix
+        from myzing.audio.media import AudioError
+        from myzing.music.ducking import SpanLimitError
+        try:
+            measurements = measure_mix(staged_output, directory / "music-stem.wav",
+                directory / "source-stem.wav" if plan.source_label else None, speech_spans, validated.duration,
+                passages=duck_passages or None)
+            if duck_passages:
+                measurements["duck"] = {**(duck or {}), "passages": len(duck_passages),
+                                        "method": "known-speech gain envelope: raised-cosine pre-duck before each passage, "
+                                                  "held through clause gaps shorter than the hold, slow raised-cosine recovery"}
+        except (AudioError, SpanLimitError) as exc:
+            raise RenderError(f"could not measure music mix: {exc}") from exc
+        from myzing.project.api import hash_file
+        measurements.update(render_sha256=hash_file(staged_output), music_plan=music_metadata)
+        (directory / "music-measurements.json").write_text(json.dumps(measurements, indent=2, allow_nan=False), encoding="utf-8")
     _publish_output(staged_output, output_path)
+    if measurements is not None:
+        _publish_output(directory / "music-measurements.json", output_path.with_suffix(".music.json"))
     return RenderResult(
         output_path=output_path,
         duration=validated.duration,
@@ -308,6 +354,7 @@ def _render_in_directory(
         command=tuple(command),
         filtergraph=plan.graph,
         work_dir=directory,
+        audio_measurements=measurements,
     )
 
 

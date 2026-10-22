@@ -25,6 +25,7 @@ over nested JSON in native-command arguments.
 | `zing render` | EDL → MP4 using FFmpeg/libass; optional voiceover is separate. |
 | `zing layout` | Explicit model fetching or standalone caption geometry plan. |
 | `zing color` | Match SDR distribution → recipe/LUT/preview; apply LUT → derived video. |
+| `zing music check` | Rate supplied local music for a brief or plan. No downloads; requires the audio extra. |
 | `zing audio` | Analyze local audio/video → observations; does not change the mix. |
 | `zing thumbs` | Thumbnail candidates for a studied slug. |
 | `zing inspect` | Timeline PNG with aligned frames/waveform/available timed text. |

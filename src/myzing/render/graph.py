@@ -25,6 +25,8 @@ class GraphPlan:
     input_paths: tuple[Path, ...]
     video_label: str
     audio_label: str
+    music_label: str | None = None
+    source_label: str | None = None
 
 
 def _number(value: float) -> str:
@@ -94,6 +96,10 @@ def build_graph(
     transitions: tuple[Transition | None, ...] = (),
     caption_overlay: Path | None = None,
     clip_framings: tuple = (),
+    composition_audio: tuple = (),
+    music_fades: dict | None = None,
+    measure_stems: bool = False,
+    duck_envelope: Path | None = None,
 ) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
@@ -229,6 +235,30 @@ def build_graph(
     else:
         lines.append(f"[{caption_base}]null[video_out]")
 
+    # Stems exist only for a music mix that will be measured.
+    measure_stems = measure_stems and any(t.spec.kind == "music" for t in validated.audio_tracks)
+    source_measure = None
+    if clip_audio_labels and measure_stems:
+        joined = "".join(f"[{label}]" for label in clip_audio_labels)
+        lines.append(joined + (f"amix=inputs={len(clip_audio_labels)}:normalize=0:duration=longest" if len(clip_audio_labels) > 1 else "anull") + "[source_bus]")
+        lines.append("[source_bus]asplit=2[source_audible][source_measure]")
+        source_measure = "source_measure"
+        clip_audio_labels = ["source_audible"]
+    scoped = [a for a in composition_audio if a.duck_under_speech and a.duck_scope == "source_speech"]
+    if scoped:
+        if duck_envelope is None:
+            raise ValueError("source_speech ducking needs a known-speech gain envelope")
+        # Director speech passages drive a precomputed gain envelope (1 kHz
+        # control rate, raised-cosine ramps). It holds through clause gaps
+        # and has no per-sample expression, so it scales with span count.
+        envelope_index = len(validated.clips) + len(validated.audio_tracks) + (caption_overlay is not None)
+        envelope = (f"[{envelope_index}:a:0]aresample=48000,pan=stereo|c0=c0|c1=c0,"
+                    "aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=N/SR/TB,"
+                    f"apad=whole_dur={_number(duration)},atrim=duration={_number(duration)}")
+        if len(scoped) == 1:
+            lines.append(envelope + "[duck_env0]")
+        else:
+            lines.append(envelope + f",asplit={len(scoped)}" + "".join(f"[duck_env{i}]" for i in range(len(scoped))))
     voice_labels = []
     music: list[tuple[str, bool]] = []
     first_track_input = len(validated.clips)
@@ -236,6 +266,8 @@ def build_graph(
         input_index = first_track_input + track_offset
         input_paths.append(resolved.path)
         label = f"tracka{track_offset}"
+        spec = composition_audio[track_offset] if composition_audio else None
+        fades = (music_fades or {}).get(spec.id, {}) if spec else {}
         lines.append(
             _audio_leg(
                 input_index,
@@ -243,12 +275,19 @@ def build_graph(
                 duration,
                 label,
                 gain_db=resolved.spec.gain_db,
+                trim_start=spec.src_in if spec else None,
+                trim_end=(spec.src_out if spec.src_out is not None else resolved.media.duration) if spec else None,
+                fade_in=fades.get("fade_in", 0), fade_out=fades.get("fade_out", 0),
             )
         )
         if resolved.spec.kind == "voiceover":
             voice_labels.append(label)
         else:
-            music.append((label, resolved.spec.duck_under_speech))
+            music.append((label, resolved.spec.duck_under_speech and (not spec or spec.duck_scope == "voiceover")))
+            index = next((i for i, a in enumerate(scoped) if a is spec), None)
+            if index is not None:
+                lines.append(f"[{label}][duck_env{index}]amultiply[{label}_source_ducked]")
+                music[-1] = (label + "_source_ducked", False)
 
     final_audio_labels = list(clip_audio_labels)
     voice_audible_label: str | None = None
@@ -276,6 +315,7 @@ def build_graph(
         final_audio_labels.append(voice_audible_label)
 
     sidechain_index = 0
+    music_outputs = []
     for music_index, (label, duck) in enumerate(music):
         if duck and voice_labels:
             output_label = f"music_ducked{music_index}"
@@ -289,8 +329,19 @@ def build_graph(
             )
             sidechain_index += 1
             final_audio_labels.append(output_label)
+            music_outputs.append(output_label)
         else:
             final_audio_labels.append(label)
+            music_outputs.append(label)
+
+    music_measure = None
+    if measure_stems and music_outputs:
+        final_audio_labels = [v for v in final_audio_labels if v not in music_outputs]
+        joined = "".join(f"[{label}]" for label in music_outputs)
+        lines.append(joined + (f"amix=inputs={len(music_outputs)}:normalize=0:duration=longest" if len(music_outputs) > 1 else "anull") + "[music_bus]")
+        lines.append("[music_bus]asplit=2[music_audible][music_measure]")
+        final_audio_labels.append("music_audible")
+        music_measure = "music_measure"
 
     if not final_audio_labels:
         lines.append(
@@ -316,6 +367,8 @@ def build_graph(
 
     if caption_overlay is not None:
         input_paths.append(caption_overlay)
+    if scoped:
+        input_paths.append(duck_envelope)
     if fps_rate is not None and final_audio_labels:
         # Reserve AAC headroom without lifting quiet material or adding latency.
         # Oversampling also catches peaks between the original 48 kHz samples.
@@ -328,4 +381,6 @@ def build_graph(
         input_paths=tuple(input_paths),
         video_label="video_out",
         audio_label="audio_out",
+        music_label=music_measure,
+        source_label=source_measure,
     )

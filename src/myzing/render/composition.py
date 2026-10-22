@@ -41,9 +41,7 @@ def unsupported_features(composition: Composition) -> list[str]:
     for audio in composition.audio:
         if audio.role not in {"music", "voiceover"} or audio.role != audio.kind:
             problems.append(f"audio {audio.id}: role={audio.role}, kind={audio.kind}")
-        if audio.src_in != 0 or audio.src_out is not None:
-            problems.append(f"audio {audio.id}: source trims")
-        if audio.duck_scope != "voiceover":
+        if audio.duck_scope not in {"voiceover", "source_speech"}:
             problems.append(f"audio {audio.id}: duck_scope={audio.duck_scope}")
     if composition.loudness_target is not None:
         problems.append("loudness targets")
@@ -197,10 +195,42 @@ def render_composition(
     base_dir = (base_dir or Path.cwd()).expanduser().resolve()
     prepared = prepare_composition(composition, base_dir)
     c = prepared.composition
+    if any(a.duck_under_speech and a.duck_scope == "source_speech" and a.kind != "music" for a in c.audio):
+        raise EDLValidationError("source_speech ducking applies to music tracks only")
+    from myzing.music.models import extract, stale_timeline
+    music_evidence = extract(c)
+    scoped = any(a.duck_under_speech and a.duck_scope == "source_speech" for a in c.audio)
+    if scoped and not music_evidence.speech_spans:
+        raise EDLValidationError("source_speech ducking needs MUSIC1 speech spans from the director; run zing plan drafts with studied speech")
+    duration = max(clip.timeline_end for clip in c.clips)
+    if any(b > duration + 1e-6 for a, b in music_evidence.speech_spans):
+        raise EDLValidationError("MUSIC1 speech span exceeds the composition")
+    if scoped:
+        # Spans are output times for the planned hard-cut timeline.
+        stale = stale_timeline(music_evidence, c.clips)
+        if stale:
+            raise EDLValidationError(stale)
+        if any(t.end > t.start for t in c.transitions):
+            raise EDLValidationError("source_speech ducking spans assume hard cuts; overlapping transitions move "
+                                     "speech in output time. Re-plan, or duck under voiceover instead")
+    # A plain music bed renders on a [render]-only install. Measurement needs
+    # NumPy and runs only for director music evidence or speech ducking.
+    measure_music = any(a.kind == "music" for a in c.audio) and (bool(music_evidence.tracks) or scoped)
+    measurement_warnings: tuple[str, ...] = ()
+    if measure_music:
+        from myzing.audio.media import AudioError, numpy
+        try:
+            numpy()
+        except AudioError:
+            measure_music = False
+            measurement_warnings = ("Music mix measurement skipped: NumPy is unavailable, so no .music.json "
+                                    'sidecar was written; install "myzing[audio]" to measure the rendered bed.',)
     joins = timeline_joins(c)
     output = Path(output).expanduser().resolve()
     if output in prepared.input_paths:
         raise pipeline.RenderError("output path must not overwrite an input media, font or LUT file")
+    if c.audio and (output.with_suffix(".music.json") in prepared.input_paths or output.with_suffix(".music.json").is_symlink()):
+        raise pipeline.RenderError("music measurement output must not overwrite an input or symlink")
     hf_plan = None
     if any(event.backend == "hyperframes" for event in c.captions):
         from . import hyperframes_adapter as hf
@@ -232,8 +262,16 @@ def render_composition(
                                  clip.id + "".join(f"; transition {t.id} ({t.outgoing_clip} -> {t.incoming_clip})"
                                                    for t in c.transitions if clip.id in (t.outgoing_clip, t.incoming_clip))
                                  for clip in c.clips) if joins else ())
+    for spec, resolved in zip(c.audio, validated.audio_tracks):
+        if spec.src_in >= resolved.media.duration or (spec.src_out is not None and spec.src_out > resolved.media.duration + .05):
+            raise EDLValidationError(f"audio {spec.id}: source trim exceeds probed media duration")
+    if any(a.duck_scope == "source_speech" and a.duck_under_speech for a in c.audio):
+        if not any(r.media.has_audio for r in validated.clips):
+            raise EDLValidationError("source_speech ducking requires source clips with audio")
+        validated = replace(validated, warnings=tuple(w for w in validated.warnings if "EDL has no voiceover" not in w))
     from .color import validate_source_colors, write_luts
-    validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated))
+    validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated)
+                        + measurement_warnings)
     from .framing import probe_dimensions
     framing_warnings, dimensions = [], {}
     ordered = sorted(c.clips, key=lambda clip: clip.timeline_start)
@@ -255,6 +293,8 @@ def render_composition(
 
         # Internal filenames must never overwrite inputs, including in --keep-work.
         reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "filter graph.txt", "rendered.mp4")}
+        reserved.update(directory / name for name in ("music-stem.wav", "source-stem.wav", "music-duck.wav"))
+        reserved.add(directory / "music-measurements.json")
         owned_dirs = [directory / "fonts"]
         if hf_plan is not None:
             owned_dirs.extend((directory / "hyperframes-overlays", directory / "hyperframes"))
@@ -288,6 +328,14 @@ def render_composition(
             transitions=joins,
             caption_overlay=caption_overlay,
             clip_framings=tuple(clip.framing for clip in ordered),
+            composition_audio=tuple(c.audio),
+            speech_spans=tuple(tuple(s) for s in music_evidence.speech_spans),
+            music_fades={t["id"]: {"fade_in": min(.15, (a.src_out - a.src_in) / 4),
+                                    "fade_out": min(1., (a.src_out - a.src_in) / 4)}
+                         for t in music_evidence.tracks for a in c.audio if a.id == t["id"] and a.src_out is not None},
+            music_metadata=music_evidence.to_dict(),
+            duck=music_evidence.duck(),
+            measure_music=measure_music,
         )
 
     if work_dir is not None:

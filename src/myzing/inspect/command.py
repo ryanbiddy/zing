@@ -18,7 +18,7 @@ def run(argv: list[str]) -> int:
     timeline.add_argument("--start", type=float)
     timeline.add_argument("--end", type=float)
     timeline.add_argument("--around", type=float, help="center a row on this output time")
-    timeline.add_argument("--edl", help="v1 EDL; defaults to one centered row per cut")
+    timeline.add_argument("--edl", help="v1 EDL or v2 unity-speed hard-cut plan; defaults to one centered row per cut")
     timeline.add_argument("--breakdown", help="stored breakdown slug supplying timed transcript")
     timeline.add_argument("--out", required=True, help="destination PNG")
     timeline.add_argument("--frames", type=int, default=5, help="frames per row, 1-15; centered rows need odd >=3")

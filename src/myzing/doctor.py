@@ -431,6 +431,21 @@ def check_whisper() -> Check:
         # whether the weights are actually here, and whether there is
         # room for them. Measured: large-v2 is 3.09 GB on disk.
         model = _whisper_model_name()
+        local = Path(model)
+        if local.is_dir() or local.is_absolute():
+            required = ("model.bin", "config.json", "tokenizer.json")
+            missing = [name for name in required
+                       if not (local / name).is_file() or (local / name).stat().st_size == 0]
+            return Check(
+                name="faster-whisper", tier=RECOMMENDED, ok=not missing,
+                detail=(f"package installed; local model '{model}' files present; native loading not probed"
+                        if not missing else f"local model '{model}' is incomplete: missing or empty {', '.join(missing)}"),
+                fix=("Set ZING_WHISPER_MODEL to a complete local faster-whisper model directory."
+                     if missing else ""),
+                degraded_mode=("transcription may be unavailable; study reports model-load failures"
+                               if missing else ""),
+                data={"model": model, "cached": not missing, "local": True, "missing": missing},
+            )
         cache, cached = _whisper_cache()
         if cached:
             return Check(
