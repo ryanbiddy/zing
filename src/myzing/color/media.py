@@ -81,7 +81,7 @@ def check_color_space(metadata):
     tags = metadata.get("profile_tags", "").lower()
     unsupported = transfer not in ("bt709", "iec61966-2-1", "unknown", "unspecified")
     unsupported |= primaries not in ("bt709", "unknown", "unspecified")
-    unsupported |= matrix not in ("bt709", "gbr", "unknown", "unspecified")
+    unsupported |= matrix not in ("bt709", "bt470bg", "smpte170m", "gbr", "unknown", "unspecified")
     unsupported |= any(v in tags for v in ("s-log", "slog", "c-log", "clog", "v-log", "vlog", "logc", "log3", "log2", "hlg", "pq", "hdr"))
     if unsupported:
         raise ColorError(
@@ -95,14 +95,24 @@ def check_color_space(metadata):
         warnings.append("Color metadata is incomplete; SDR Rec.709/sRGB is assumed. Untagged LOG cannot be ruled out.")
     if transfer == "bt709":
         warnings.append("BT.709 display RGB is measured with the sRGB transfer approximation; no camera-profile recovery.")
+    if matrix in ("bt470bg", "smpte170m"):
+        warnings.append(f"Source {matrix} YUV matrix is decoded as BT.601 before the Rec.709 RGB grade; "
+                        "untagged primaries/transfer retain the disclosed SDR assumption.")
     return warnings
+
+
+def input_matrix(metadata):
+    """Respect a declared SDR YUV matrix; retain the untagged BT.709 policy."""
+    return "bt601" if metadata.get("color_space", "").lower() in ("bt470bg", "smpte170m") else "bt709"
 
 
 def frame(path, timestamp, width=160, height=90, *, lut_dir=None):
     from . import require_numpy
     np = require_numpy()
     # Default FFmpeg autorotation; probe reports display-oriented dimensions.
-    filters = f"scale={width}:{height}:flags=area:in_color_matrix=bt709,format=rgb24"
+    metadata = probe(path)[3]
+    check_color_space(metadata)
+    filters = f"scale={width}:{height}:flags=area:in_color_matrix={input_matrix(metadata)},format=rgb24"
     if lut_dir is not None:
         filters += ",lut3d=file=look.cube:interp=trilinear,format=rgb24"
     data = run_media([
@@ -142,7 +152,7 @@ def apply_video(lut: Path | str, source: Path | str, output: Path | str) -> dict
         run_media([
             "ffmpeg", "-v", "error", "-nostdin", "-n", "-protocol_whitelist", "file,pipe",
             "-i", str(source), "-map", "0:v:0", "-map", "0:a?",
-            "-vf", "scale=in_color_matrix=bt709,format=rgb24,"
+            "-vf", f"scale=in_color_matrix={input_matrix(metadata)},format=rgb24,"
             "lut3d=file=look.cube:interp=trilinear,"
             "scale=out_color_matrix=bt709:out_range=tv,format=yuv444p,"
             "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709",

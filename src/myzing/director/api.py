@@ -75,6 +75,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
     brief = load_brief(root / "brief.json")
     style_recipe = StyleRecipe.from_json(recipe_path.read_text(encoding="utf-8-sig"))
     clips, inventory_notes = inventory(root)
+    excluded = [f"Excluded {Path(c.path).name} ({c.asset_id}, {c.status}): {warning}"
+                for c in clips if c.status != "ready" for warning in c.warnings]
     report = {"version": 1, "producer": PRODUCER, "seed": seed, "status": "shortage",
               "brief": brief.to_dict(), "inventory": [c.to_dict() for c in clips],
               "inventory_warnings": inventory_notes, "plans": {}, "shortages": []}
@@ -131,6 +133,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             "v1_edls": {label: str(output / f"plan-{label}.edl.json") for label in report["plans"]
                         if report["plans"][label]["v1"]["representable"]},
             "summary": {"drafts": len(report["plans"]), "shortages": report["shortages"],
+                        "warnings": [*inventory_notes, *excluded],
                         "clips_needing_study": [c.asset_id for c in clips if c.status == "needs_study"],
                         "clips_needing_scan": [c.asset_id for c in clips if c.status == "needs_scan"],
                         "deviations": {label: p["deviations"] for label, p in report["plans"].items()}}}

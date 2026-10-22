@@ -28,7 +28,7 @@ def lut_plan(tmp_path, *, strength=1, contents=None):
     return c, path
 
 
-def test_pre_r13_v2_no_lut_commands_and_graph_are_byte_identical(monkeypatch):
+def test_e2e1_v2_no_lut_commands_and_graph_are_byte_identical(monkeypatch):
     baseline = json.loads((ROOT / "tests/fixtures/render-v2-no-lut-baseline.json").read_text(encoding="utf-8"))
     c = Composition.from_dict(baseline["composition"])
     assert all(clip.color is None for clip in c.clips)

@@ -129,6 +129,28 @@ def _audio(studied, enabled):
     return {"outputs": [str(path)], "path": str(path), "warnings": mapped.warnings}
 
 
+def _inspect(video, timeline, studied, workspace, duration):
+    from myzing.inspect import InspectionError
+    from myzing.inspect.timeline import inspect_timeline
+    from myzing.inspect.timing import validate_words
+
+    b = Breakdown.from_dict(read(studied["path"]))
+    slug, warnings = studied["slug"], []
+    try:
+        validate_words(b.words, b.meta.duration)
+    except InspectionError as exc:
+        # Re-ASR is optional review evidence, not the caption render contract.
+        # Keep the raw study intact and omit its entire transcript, explicitly.
+        slug = None
+        warnings.append(f"Rendered ASR transcript omitted from timeline: {exc} "
+                        "Raw words remain in the rendered study; speech/caption sync needs review.")
+    with storage.use_workspace(workspace):
+        result = inspect_timeline(video, timeline, breakdown=slug, start=0,
+                                  end=duration, overwrite=True)
+    result.warnings.extend(warnings)
+    return {"outputs": [str(timeline)], "inspection": result.to_dict(), "warnings": warnings}
+
+
 def _color(reference, clip, directory):
     from myzing.color.api import match_video
     # The producer refuses existing LUT outputs. Keep incomplete attempts for
@@ -310,7 +332,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             if caps["color"]:
-                colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps],
+                colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, "sdr-matrix-v1"],
                                                     lambda source=source, a=asset.id: _color(ref_study["media"], source, root / "color" / a))
         if not caps["color"]:
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
@@ -331,8 +353,10 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed)
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
-                                                 clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets]], direct)
+                                                 clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
+                                                 "inventory-disclosures-v1"], direct)
         summary["shortages"] = planned["summary"]["shortages"]
+        summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["director_comparison"] = planned["comparison_path"]
         for label, plan_path in planned["plans"].items():
             row = {"status": "failed"}
@@ -347,7 +371,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     from myzing.render.composition import render_composition
                     result = render_composition(plan, video, base_dir=root / "drafts", work_dir=root / "render-work" / label)
                     return {"outputs": [str(video)], "warnings": list(result.warnings)}
-                rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps], render)
+                rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps, "frame-clock-audio-headroom-v2"], render)
                 rendered_result = {**rendered_result, "warnings": evidence.user_warnings(rendered_result["warnings"])}
                 summary["warnings"].extend(rendered_result["warnings"])
                 def verify():
@@ -359,13 +383,9 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps],
                                                 lambda: _study(str(video), root / "verification"))
                 timeline = video.with_suffix(".png")
-                def inspect():
-                    from myzing.inspect.timeline import inspect_timeline
-                    with storage.use_workspace(root / "verification"):
-                        result = inspect_timeline(video, timeline, breakdown=output_study["slug"], start=0,
-                                                  end=verified["verification"]["duration"], overwrite=True)
-                    return {"outputs": [str(timeline)], "inspection": result.to_dict()}
-                checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study], inspect)
+                inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v1"],
+                    lambda: _inspect(video, timeline, output_study, root / "verification", verified["verification"]["duration"]))
+                summary["warnings"].extend(inspected["warnings"])
                 def measure_color():
                     if not caps["color"]:
                         return {"outputs": [], "measurement": None}
@@ -382,10 +402,10 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                              output_color["measurement"], verified["verification"], plan)
                     result.update(recipe={"path": str(root / "recipe.json"), "sha256": projects.hash_file(root / "recipe.json")},
                                   plan={"path": prepared["path"], "sha256": projects.hash_file(Path(prepared["path"]))})
-                    result["warnings"] = evidence.user_warnings([*result["warnings"], *rendered_result["warnings"]])
+                    result["warnings"] = evidence.user_warnings([*result["warnings"], *rendered_result["warnings"], *inspected["warnings"]])
                     write(report_path, result)
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"]}
-                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result], report)
+                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected], report)
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"])
             except StepFailed as exc:

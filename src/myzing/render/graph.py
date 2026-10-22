@@ -39,6 +39,8 @@ def _audio_leg(
     trim_start: float | None = None,
     trim_end: float | None = None,
     gain_db: float = 0.0,
+    fade_in: float = 0.0,
+    fade_out: float = 0.0,
 ) -> str:
     filters = []
     if trim_start is not None and trim_end is not None:
@@ -54,6 +56,10 @@ def _audio_leg(
     )
     if gain_db:
         filters.append(f"volume={_number(gain_db)}dB")
+    if fade_in:
+        filters.append(f"afade=t=in:st=0:d={_number(fade_in)}")
+    if fade_out and trim_start is not None and trim_end is not None:
+        filters.append(f"afade=t=out:st={_number(trim_end - trim_start - fade_out)}:d={_number(fade_out)}")
     # Count decoded/resampled samples, independent of decoder timestamps.
     filters.append("asetpts=N/SR/TB")
     source = f"[{input_index}:a:0]" + ",".join(filters)
@@ -107,8 +113,10 @@ def build_graph(
         label = f"clipv{input_index}"
         video_labels.append(label)
         lut = clip_luts[input_index] if clip_luts else None
+        from myzing.color.media import input_matrix
+        matrix = input_matrix(resolved.media.color_metadata)
         grade = (
-            "scale=in_color_matrix=bt709,format=rgb24,"
+            f"scale=in_color_matrix={matrix},format=rgb24,"
             f"lut3d=file='{lut}':interp=trilinear,"
             "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
             "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709,"
@@ -117,13 +125,22 @@ def build_graph(
             # explicit Rec.709 limited-range matrix and tags. FFmpeg's default
             # matrix for untagged input differs across versions (bt601 on 6.x),
             # which shifted ungraded segments by ~2.5 dE next to graded ones.
-            "scale=in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+            ("scale=in_color_matrix=bt601,format=rgb24,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+             if matrix == "bt601" else
+             "scale=in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,format=yuv420p,") +
             "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709,"
-        ) if any(clip_luts) else ""
+        ) if any(clip_luts) or (fps_rate is not None and matrix == "bt601") else ""
         edge = ""
         if transitions:
             following = transitions[input_index] if input_index < len(transitions) else None
             edge = effects.video_edge(clip, following, edl.width, edl.height, rate)
+        elif fps_rate is not None:
+            from .transitions import video_frame
+            # Round absolute timeline endpoints, not each source trim's length.
+            # Otherwise fractional trims accumulate drift against audio/captions.
+            frames = video_frame(clip.timeline_start + clip.src_out - clip.src_in, rate) - video_frame(clip.timeline_start, rate)
+            edge = (f",tpad=stop_mode=clone:stop_duration=1,trim=end_frame={frames},"
+                    f"settb=expr=1/({rate}),setpts=N")
         lines.append(
             f"[{input_index}:v:0]"
             f"trim=start={_number(clip.src_in)}:end={_number(clip.src_out)},"
@@ -141,6 +158,17 @@ def build_graph(
         elif resolved.media.has_audio:
             audio_label = f"clipa{input_index}"
             clip_audio_labels.append(audio_label)
+            fade_in = fade_out = 0.0
+            if fps_rate is not None:
+                # Five milliseconds suppresses discontinuity clicks without
+                # moving speech, changing duration or crossfading words.
+                fade = min(.005, (clip.src_out - clip.src_in) / 2)
+                previous = validated.clips[input_index - 1] if input_index else None
+                following = validated.clips[input_index + 1] if input_index + 1 < len(validated.clips) else None
+                if previous is None or previous.path != resolved.path or abs(previous.spec.src_out - clip.src_in) > 1e-8:
+                    fade_in = fade
+                if following is None or following.path != resolved.path or abs(clip.src_out - following.spec.src_in) > 1e-8:
+                    fade_out = fade
             lines.append(
                 _audio_leg(
                     input_index,
@@ -149,6 +177,8 @@ def build_graph(
                     audio_label,
                     trim_start=clip.src_in,
                     trim_end=clip.src_out,
+                    fade_in=fade_in,
+                    fade_out=fade_out,
                 )
             )
 
@@ -280,6 +310,13 @@ def build_graph(
 
     if caption_overlay is not None:
         input_paths.append(caption_overlay)
+    if fps_rate is not None and final_audio_labels:
+        # Reserve AAC headroom without lifting quiet material or adding latency.
+        # Oversampling also catches peaks between the original 48 kHz samples.
+        lines[-1] = lines[-1].removesuffix("[audio_out]") + "[audio_unlimited]"
+        lines.append("[audio_unlimited]aresample=192000,"
+                     "alimiter=limit=0.794328:level=false:latency=true,"
+                     "aresample=48000[audio_out]")
     return GraphPlan(
         graph=";\n".join(lines) + "\n",
         input_paths=tuple(input_paths),

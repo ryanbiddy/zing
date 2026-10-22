@@ -100,8 +100,7 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
     problems = unsupported_features(composition)
     if problems:
         raise EDLValidationError("not yet supported in this renderer: " + "; ".join(problems))
-    if timeline_joins(composition):
-        validate_render_windows(composition)
+    validate_render_windows(composition)
     if not composition.clips:
         raise EDLValidationError("composition must contain at least one clip")
     if composition.width % 2 or composition.height % 2:
@@ -117,6 +116,11 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
             lut_paths[clip.id] = path
             luts[clip.id] = prepare_lut(clip.color, path, clip.id)
     warnings = list(composition.warnings)
+    warnings.append("Audio peaks are limited at -2 dBFS with 4x oversampling before AAC; "
+                    "loudness is not normalized and encoded true peak still needs measurement.")
+    if not timeline_joins(composition):
+        warnings.append("Source audio uses up to 5 ms fades at discontinuous cuts and edit edges; "
+                        "adjacent source spans stay continuous.")
     frame_limit = frame_index(max(c.timeline_end for c in composition.clips), composition.fps, rounding="nearest")
     for caption in composition.captions:
         layout = caption.layout
