@@ -553,7 +553,7 @@ converting; AppSumo reviews skew positive by construction).
 - **Recency:** Reddit archive evidence is dense through ~mid-May 2025;
   2025–26 signal leans on App Store/Capterra/PH/HN + a few 2026 threads.
   A re-mine when Reddit access allows is a cheap upgrade.
-- **Astroturf-suspect:** everything in the astroturf map (§0); Trustpilot
+- **Astroturf-suspect:** sources flagged `[astroturf-flag]` above (the account-level map was removed in SEC1); Trustpilot
   both directions; AppSumo skews positive (deal buyers); Product Hunt
   launch-window reviews. Single-voice quotes are labeled and must not
   become scored criteria (T4 rule).
