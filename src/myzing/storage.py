@@ -83,6 +83,20 @@ def workspace_root() -> Path:
     return Path.home() / ".zing"
 
 
+def resolve_workspace(root: Path | None = None) -> Path:
+    """Resolve a CLI/MCP workspace once, before passing it to inner code.
+
+    Pin the result with use_workspace() or pass it to the engine's
+    workspace argument. Nested boundaries reuse an already pinned absolute
+    root. Storage accessors then use that path unchanged.
+    """
+    if root is None:
+        pinned = _WORKSPACE_OVERRIDE.get()
+        if pinned is not None and Path(pinned).is_absolute():
+            return Path(pinned)
+    return (root if root is not None else workspace_root()).expanduser().resolve()
+
+
 @contextmanager
 def use_workspace(root: Path | str) -> Iterator[Path]:
     """Pin the workspace for the current thread/context (F-15).

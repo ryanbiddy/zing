@@ -80,3 +80,60 @@ squash-merge enabled, and the full test suite must pass. The codebase is
 partitioned by subsystem (see the module map above) so that independent
 work rarely touches the same files; `src/myzing/schemas.py` is the shared
 contract and changes to it are coordinated deliberately.
+
+## 6. Workspace and media paths
+
+To move an assembled edit, move its project folder with the EDL and media
+inside it. For example, assembly writes this layout:
+
+```text
+project/workspace/breakdowns/<slug>/
+  breakdown.json
+  media.mp4
+  draft-edl.json       # clips[].src is "media.mp4"
+```
+
+After moving `project`, render the EDL from its new location:
+
+```bash
+zing render "moved project/workspace/breakdowns/<slug>/draft-edl.json"
+```
+
+A relative `clips[].src` or `audio[].src` is interpreted from the EDL
+file's directory, independent of the current working directory and
+`ZING_HOME`. References such as `../assets/music.wav` are supported. New
+assembly output uses relative paths with forward slashes. Schema version
+1 EDLs with absolute paths remain readable; those references still point
+to the original location and must be edited if their assets move. Moving
+only the EDL changes the base of its relative references, so move the
+assets with it or update `src` values.
+
+The CLI resolves `--workspace` (or the `ZING_HOME`/home default) once at
+the command boundary. MCP handlers capture the resolved workspace before
+dispatch. Inner storage and engine calls receive that path through the
+workspace argument or `storage.use_workspace()`; worker threads retain it
+even if the process changes directory or `ZING_HOME` later. Python callers
+should use `storage.resolve_workspace(root)` at their own entry point and
+pass the result inward.
+
+Render resolves asset references once, checks every video and audio file
+before probing or synthesis, and passes the resolved paths through to
+FFmpeg. MCP rejects missing assets before creating a render job and checks
+again when its worker runs. Errors name the missing file and tell the user
+to restore it or update the EDL reference. No render work directory or
+output is created for a missing asset; an existing output is preserved.
+Python callers rendering an in-memory EDL must supply its asset directory
+as `base_dir` (the default is the current directory).
+
+`tests/test_workspace_paths.py` generates its own media with FFmpeg. The
+study path runs ingest, shots, keyframes, audio measurement, and storage;
+transcription and OCR are stubbed so these path tests need no downloads.
+It covers relative/absolute/environment roots, spaces and apostrophes,
+moved projects, legacy absolute EDLs, relative audio, missing assets, and
+workspace capture before MCP dispatch. Run the full suite and required
+FFmpeg gate with:
+
+```bash
+uv run --frozen pytest -ra
+ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 36
+```

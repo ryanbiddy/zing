@@ -45,13 +45,9 @@ def run(argv: list[str]) -> int:
         print(f"zing assemble: unreadable direction file: {exc}")
         return 1
 
-    context = (
-        storage.use_workspace(args.workspace)
-        if args.workspace is not None
-        else storage.use_workspace(storage.workspace_root())
-    )
+    root = storage.resolve_workspace(args.workspace)
     try:
-        with context:
+        with storage.use_workspace(root):
             result = draft_for_slug(args.slug, direction)
             target = storage.breakdown_dir(args.slug) / "draft-edl.json"
     except (AssembleError, FileNotFoundError, storage.SlugError) as exc:

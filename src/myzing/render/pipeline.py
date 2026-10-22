@@ -255,14 +255,20 @@ def render_edl(
     work_dir: Path | None = None,
     ffmpeg: str = "ffmpeg",
     ffprobe: str = "ffprobe",
+    resolved_assets: dict[str, Path] | None = None,
 ) -> RenderResult:
-    """Execute one EDL after full validation, replacing output atomically."""
-    base_dir = (base_dir or Path.cwd()).resolve()
+    """Execute one EDL after full validation, replacing output atomically.
+
+    resolved_assets, when supplied, is the result of resolve_assets() for
+    this EDL, captured before dispatch or voiceover synthesis.
+    """
+    base_dir = base_dir or Path.cwd()
     output_path = output_path.expanduser().resolve()
     validated = validate_edl(
         edl,
         base_dir,
         lambda path: probe_media(path, ffprobe),
+        resolved_assets=resolved_assets,
     )
     input_paths = {
         resolved.path for resolved in (*validated.clips, *validated.audio_tracks)

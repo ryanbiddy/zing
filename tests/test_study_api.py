@@ -319,7 +319,7 @@ def test_command_json_output(zing_workspace, monkeypatch, capsys):
     assert parsed["meta"]["platform"] == "tiktok"
 
 
-def test_command_forwards_transition_opt_in(monkeypatch, capsys):
+def test_command_forwards_transition_opt_in(zing_workspace, monkeypatch, capsys):
     seen: dict[str, object] = {}
 
     def fake_study(source, workspace=None, detect_transitions=False):
@@ -340,7 +340,7 @@ def test_command_forwards_transition_opt_in(monkeypatch, capsys):
     assert rc == 0
     assert seen == {
         "source": "clip.mp4",
-        "workspace": None,
+        "workspace": zing_workspace,
         "detect_transitions": True,
     }
     assert json.loads(capsys.readouterr().out)["transitions"] == []

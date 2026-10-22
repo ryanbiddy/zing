@@ -36,6 +36,7 @@ import shutil
 import sys
 import threading
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +102,15 @@ def _ok(**fields: Any) -> dict[str, Any]:
 
 def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
+
+
+def _workspace_boundary(handler):
+    """Pin the absolute workspace for one tool call and its dispatched jobs."""
+    @wraps(handler)
+    def wrapped(*args, **kwargs):
+        with storage.use_workspace(storage.resolve_workspace()):
+            return handler(*args, **kwargs)
+    return wrapped
 
 
 def _check_slug(slug: Any) -> dict[str, Any] | None:
@@ -403,6 +413,7 @@ def _run_study(
             _job_cleanup(_JOBS, slug)
 
 
+@_workspace_boundary
 def h_study_video(
     url_or_path: str, kept_media: str | None = None
 ) -> dict[str, Any]:
@@ -420,7 +431,7 @@ def h_study_video(
                 "kept_media, when given, must be a file path (the locally "
                 "kept copy of this URL's media)"
             )
-        kept = str(Path(kept_media.strip()).expanduser())
+        kept = str(Path(kept_media.strip()).expanduser().resolve())
 
     # Cheap validation first — failures must return in under a second.
     if has_http_scheme(source) and not is_http_url(source):
@@ -438,7 +449,7 @@ def h_study_video(
         # validation, slug, status, and dispatch. Validating the expanded
         # path but dispatching the raw one meant ok/started followed by an
         # async "no such file: ~/...".
-        expanded = Path(source).expanduser()
+        expanded = Path(source).expanduser().resolve()
         if not expanded.is_file():
             return _err(
                 f"file not found: {source} — pass a video URL or an existing "
@@ -530,6 +541,7 @@ def _dispatch_study(
     )
 
 
+@_workspace_boundary
 def h_import_shot_list(path: str, slug: str) -> dict[str, Any]:
     """INTEGRATION-CONTRACT v1 §6.2: explicit user-chosen file import.
     The returned envelope IS the contract receipt — path-free, stable
@@ -543,6 +555,7 @@ def h_import_shot_list(path: str, slug: str) -> dict[str, Any]:
     return shot_list.import_shot_list(path.strip(), slug.strip())
 
 
+@_workspace_boundary
 def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
     """INTEGRATION-CONTRACT v1 §9: study a uoink corpus item through the
     kept-media resolver. Accepts ONE uoink reference — never a peer
@@ -647,6 +660,7 @@ def _summarize_breakdown(d: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+@_workspace_boundary
 def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
     if detail not in ("full", "summary"):
         return _err("detail must be 'full' or 'summary'")
@@ -720,11 +734,13 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
     return _ok(slug=slug, ready=True, state="done", dir=b_dir, breakdown=data)
 
 
+@_workspace_boundary
 def h_list_breakdowns() -> dict[str, Any]:
     entries = storage.list_breakdowns()
     return _ok(count=len(entries), breakdowns=entries)
 
 
+@_workspace_boundary
 def h_generate_thumbnails(slug: str) -> dict[str, Any]:
     """Plain handler: package metadata stays testable without the MCP SDK."""
     bad = _check_slug(slug)
@@ -756,6 +772,7 @@ def mcp_thumbnail_content(slug: str) -> list[Any]:
     ]
 
 
+@_workspace_boundary
 def h_save_judgment(
     slug: str,
     judgment: dict[str, Any],
@@ -826,6 +843,7 @@ def h_save_judgment(
     return _ok(**receipt)
 
 
+@_workspace_boundary
 def h_zing_status() -> dict[str, Any]:
     checks = doctor.summarize(doctor.run_checks())
     from myzing import engagement
@@ -886,6 +904,7 @@ def _profile_api():
         return None
 
 
+@_workspace_boundary
 def h_build_profile(
     name: str,
     slugs: list[str],
@@ -949,6 +968,7 @@ def h_build_profile(
     )
 
 
+@_workspace_boundary
 def h_get_profile(name: str) -> dict[str, Any]:
     try:
         storage.validate_profile_name(name)
@@ -970,6 +990,7 @@ def h_get_profile(name: str) -> dict[str, Any]:
     )
 
 
+@_workspace_boundary
 def h_list_profiles() -> dict[str, Any]:
     entries = storage.list_profiles()
     return _ok(count=len(entries), profiles=entries)
@@ -995,6 +1016,7 @@ def h_list_presets() -> dict[str, Any]:
     return _ok(count=len(packs), presets=packs)
 
 
+@_workspace_boundary
 def h_setup_taste(
     name: str,
     links: list[str] | None = None,
@@ -1095,13 +1117,18 @@ def _render_id_for(edl_path: str) -> str:
     return f"{stem}-{digest}"
 
 
-def _run_render(edl, base_dir: Path, out_path: Path, render_id: str, root: Path) -> None:
+def _run_render(
+    edl, base_dir: Path, out_path: Path, render_id: str, root: Path,
+    resolved_assets: dict[str, Path],
+) -> None:
     from myzing.render import pipeline
 
     with storage.use_workspace(root):
         d = storage.render_dir(render_id)
         try:
-            result = pipeline.render_edl(edl, out_path, base_dir=base_dir)
+            result = pipeline.render_edl(
+                edl, out_path, base_dir=base_dir, resolved_assets=resolved_assets,
+            )
             storage.write_status_at(
                 d,
                 state="done",
@@ -1122,6 +1149,7 @@ def _run_render(edl, base_dir: Path, out_path: Path, render_id: str, root: Path)
             _job_cleanup(_RENDER_JOBS, render_id)
 
 
+@_workspace_boundary
 def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
     if not shutil.which("ffmpeg"):
         return _err(
@@ -1131,6 +1159,12 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
     edl, base_dir, bad = _load_edl(edl_path)
     if bad:
         return bad
+    from myzing.render.validation import EDLValidationError, resolve_assets
+
+    try:
+        resolved_assets = resolve_assets(edl, base_dir)
+    except EDLValidationError as exc:
+        return _err(str(exc))
     render_id = _render_id_for(edl_path)
     root = storage.workspace_root()
     d = storage.render_dir(render_id)
@@ -1158,7 +1192,7 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
         )
         thread = threading.Thread(
             target=_run_render,
-            args=(edl, base_dir, out, render_id, root),
+            args=(edl, base_dir, out, render_id, root, resolved_assets),
             daemon=True,
         )
         _RENDER_JOBS[render_id] = thread
@@ -1174,6 +1208,7 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
     )
 
 
+@_workspace_boundary
 def h_get_render(render_id: str) -> dict[str, Any]:
     try:
         d = storage.render_dir(render_id)
@@ -1205,6 +1240,7 @@ def h_get_render(render_id: str) -> dict[str, Any]:
     })
 
 
+@_workspace_boundary
 def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
     edl, base_dir, bad = _load_edl(edl_path)
     if bad:
@@ -1222,9 +1258,14 @@ def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
         if output_path
         else src.with_suffix(".otio")
     )
+    from myzing.render.validation import EDLValidationError
+
     try:
         result = export_otio(edl, out, base_dir=base_dir)
     except OTIOExportError as e:
+        return _err(f"OTIO export failed: {e}")
+    except EDLValidationError as e:
+        # A missing asset is caught before ffprobe; report it in the envelope.
         return _err(f"OTIO export failed: {e}")
     return _ok(
         output=str(out),
@@ -1267,6 +1308,7 @@ def _extract_frame_jpeg(media: Path, t: float) -> bytes:
     return out.stdout
 
 
+@_workspace_boundary
 def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
     """SDK-free core: returns {ok, frames: [{label, jpeg|None, error}]}.
 
@@ -1348,6 +1390,7 @@ def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
     return _ok(slug=slug, frames=frames)
 
 
+@_workspace_boundary
 def h_push_to_uoink(slug: str) -> dict[str, Any]:
     from myzing import uoink_bridge
 
