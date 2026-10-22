@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import subprocess
 
 import pytest
@@ -86,20 +87,106 @@ def near(a, b, tolerance=24):
 
 # 1. Framing ---------------------------------------------------------------
 
+def inside(rect, box, w, h, margin=0.):
+    """The normalized source ``box`` (grown by ``margin`` of the photo) maps
+    entirely inside the w x h output through the framing ``rect``."""
+    left = rect.x + (box[0] - margin) * rect.width
+    top = rect.y + (box[1] - margin) * rect.height
+    right = rect.x + (box[0] + box[2] + margin) * rect.width
+    bottom = rect.y + (box[1] + box[3] + margin) * rect.height
+    return left >= -.5 and top >= -.5 and right <= w + .5 and bottom <= h + .5
+
+
+def portrait_face_near_top(path):
+    """Official-portrait shape with the face close to the top edge."""
+    image = Image.new("RGB", (600, 900), (40, 70, 120))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((120, 200, 480, 900), fill=(30, 60, 160))
+    draw.ellipse((240, 30, 360, 150), fill=SKIN)
+    image.save(path)
+    return path
+
+
+FACE_TOP = (.4, 30 / 900, .2, 120 / 900)
+
+
+def subject_photo(path):
+    """No face; one distinct off-center subject on a plain field."""
+    image = Image.new("RGB", (800, 600), (85, 119, 85))
+    ImageDraw.Draw(image).rectangle((420, 180, 560, 320), fill=(255, 140, 20))
+    image.save(path)
+    return path
+
+
+SUBJECT = (420 / 800, 180 / 600, 140 / 800, 140 / 600)
+
+
 @pytest.mark.parametrize("aspect", list(ASPECTS))
-def test_auto_fill_keeps_the_face_and_fills_every_aspect(tmp_path, monkeypatch, aspect):
+def test_evidence_based_crop_keeps_detected_faces_with_margin(tmp_path, monkeypatch, aspect):
     faces_at(monkeypatch, [FACE])
     source = portrait(tmp_path / "portrait.png")
     result = render_meme(["top"], image=str(source), aspect=aspect, out=str(tmp_path / "out.png"))
     assert result["fit"] == "fill" and result["focus_basis"] == "faces"
     w, h = ASPECTS[aspect]
     rect = fit_rect((600, 900), Rect(0, 0, w, h), "fill", result["focus"])
+    assert inside(rect, framing.head_box(list(FACE)), w, h, framing.MARGIN - 1e-9)
     center = (rect.x + .5 * rect.width, rect.y + (FACE[1] + FACE[3] / 2) * rect.height)
-    assert 0 <= center[0] < w and 0 <= center[1] < h
     with Image.open(result["path"]) as image:
         assert near(image.getpixel((round(center[0]), round(center[1]))), SKIN)
         for corner in ((1, 1), (w - 2, h - 2)):
             assert image.getpixel(corner) != LETTERBOX
+
+
+@pytest.mark.parametrize("detector", [False, True])
+@pytest.mark.parametrize("aspect", list(ASPECTS))
+def test_face_near_the_top_is_never_cut(tmp_path, monkeypatch, aspect, detector):
+    # With the detector the face is evidence; without it only a measured
+    # subject may steer a crop, and the face must still survive whole.
+    if detector:
+        faces_at(monkeypatch, [FACE_TOP])
+    source = portrait_face_near_top(tmp_path / "portrait.png")
+    result = render_meme(["top"], image=str(source), aspect=aspect, out=str(tmp_path / "out.png"))
+    w, h = ASPECTS[aspect]
+    rect = fit_rect((600, 900), Rect(0, 0, w, h), result["fit"], result["focus"])
+    assert inside(rect, FACE_TOP, w, h)
+    if result["fit"] == "fill":
+        assert result["focus_basis"] == ("faces" if detector else "subject")
+    else:
+        assert result["fit"] == "blur" and any("instead of cropping" in n for n in result["warnings"])
+    if not detector:
+        assert any("No local face detector" in n for n in result["warnings"])
+
+
+def test_no_detector_and_no_subject_never_crops(tmp_path):
+    path = tmp_path / "flat.png"
+    Image.new("RGB", (640, 480), (63, 97, 122)).save(path)
+    for aspect in ASPECTS:
+        result = render_meme(["a"], image=str(path), aspect=aspect, out=str(tmp_path / (aspect.replace(":", "x") + ".png")))
+        assert result["fit"] == "blur" and result["focus"] is None and result["focus_basis"] == "none"
+        assert framing.BLUR_NO_EVIDENCE in result["warnings"]
+        assert any("No local face detector" in n for n in result["warnings"])
+    # The face-blind centered crop is only ever an explicit request.
+    cover = render_meme(["a"], image=str(path), fit="cover", out=str(tmp_path / "cover.png"))
+    assert cover["fit"] == "cover" and cover["warnings"] == []
+
+
+def test_detector_with_no_faces_crops_only_on_a_measured_subject(tmp_path, monkeypatch):
+    faces_at(monkeypatch, [])
+    flat = tmp_path / "flat.png"
+    Image.new("RGB", (640, 480), (63, 97, 122)).save(flat)
+    blurred = render_meme(["a"], image=str(flat), out=str(tmp_path / "flat-out.png"))
+    assert blurred["fit"] == "blur" and blurred["warnings"] == [framing.BLUR_NO_EVIDENCE]
+    source = subject_photo(tmp_path / "subject.png")
+    filled = render_meme(["a"], image=str(source), aspect="1:1", out=str(tmp_path / "subject-out.png"))
+    assert filled["fit"] == "fill" and filled["focus_basis"] == "subject"
+    rect = fit_rect((800, 600), Rect(0, 0, 1080, 1080), "fill", filled["focus"])
+    assert inside(rect, SUBJECT, 1080, 1080, framing.MARGIN - 1e-9)
+    # A 9:16 crop would drop more than 45% of the photo: blur, and say why.
+    tall = render_meme(["a"], image=str(source), aspect="9:16", out=str(tmp_path / "tall.png"))
+    assert tall["fit"] == "blur" and any("45%" in n for n in tall["warnings"])
+    # An explicit fill without evidence is centered and says so.
+    explicit = render_meme(["a"], image=str(flat), fit="fill", out=str(tmp_path / "explicit.png"))
+    assert explicit["fit"] == "cover" and "centered crop" in explicit["warnings"][0]
 
 
 def test_legacy_center_crop_cut_the_face_that_fill_keeps(tmp_path, monkeypatch):
@@ -130,20 +217,6 @@ def test_auto_blur_fills_when_a_crop_would_cut_faces_and_contain_remains(tmp_pat
             assert image.getpixel(point) == letterboxed.getpixel(point)
 
 
-def test_centered_focus_is_byte_identical_to_cover(tmp_path):
-    assert fit_rect((640, 480), Rect(0, 0, 1080, 1080), "fill", [.2, .2, .6, .6]) == \
-        fit_rect((640, 480), Rect(0, 0, 1080, 1080), "cover")
-    path = tmp_path / "flat.png"
-    Image.new("RGB", (640, 480), (63, 97, 122)).save(path)
-    auto = render_meme(["a"], image=str(path), out=str(tmp_path / "auto.png"))
-    cover = render_meme(["a"], image=str(path), fit="cover", out=str(tmp_path / "cover.png"))
-    # No detector: the documented central-60% region is the focus; it is
-    # centered, so the fill is exactly the legacy centered cover.
-    assert auto["fit"] == "fill" and auto["focus_basis"] == "center_heuristic"
-    assert any("fetch-model" in w for w in auto["warnings"])
-    assert (tmp_path / "auto.png").read_bytes() == (tmp_path / "cover.png").read_bytes()
-
-
 def test_saliency_finds_an_off_center_subject_and_ignores_flat_photos():
     image = Image.new("RGB", (400, 300), (85, 119, 85))
     ImageDraw.Draw(image).rectangle((260, 60, 340, 140), fill=(255, 140, 20))
@@ -155,7 +228,8 @@ def test_saliency_finds_an_off_center_subject_and_ignores_flat_photos():
 def test_background_faces_do_not_steer_the_crop():
     tiny = [.01, .7, .01, .02]
     assert framing.prominent_faces([[.4, .1, .2, .2], tiny]) == [[.4, .1, .2, .2]]
-    assert framing.focus_box([tiny], "yunet", [.3, .3, .2, .2]) == ([.3, .3, .2, .2], "subject")
+    box, basis = framing.focus_box([tiny], "yunet", [.3, .3, .2, .2])
+    assert basis == "subject" and box == pytest.approx([.27, .27, .26, .26])  # grown 15% per side
 
 
 @pytest.mark.parametrize("aspect", ["16:9", "9:16"])
@@ -210,8 +284,18 @@ def test_animated_export_uses_the_still_framing(tmp_path, fit):
     still = render_meme(["top"], image=str(source), aspect="16:9", fit=fit, focus=focus,
                         out=str(tmp_path / "still.png"))
     motion = render_meme_video(["top"], image=str(source), aspect="16:9", fit=fit, focus=focus,
-                               duration=1, fps=10, out=str(tmp_path / "motion.mp4"))
+                               duration=1, fps=10, gif=True, out=str(tmp_path / "motion.mp4"))
     assert motion["fit"] == still["fit"] == fit
+    with Image.open(motion["gif"]["path"]) as gif:
+        assert gif.is_animated
+        gif.seek(gif.n_frames // 2)
+        frame_gif = gif.convert("RGB")
+        k = frame_gif.width / 1200
+        rect = fit_rect((600, 900), Rect(0, 0, 1200, 675), fit, focus)
+        face = (rect.x + .5 * rect.width, rect.y + (FACE[1] + FACE[3] / 2) * rect.height)
+        assert near(frame_gif.getpixel((round(face[0] * k), round(face[1] * k))), SKIN, 40)
+        corner = frame_gif.getpixel((round(10 * k), round(600 * k)))
+        assert corner != LETTERBOX and max(corner) > 30  # the GIF keeps the framing too
     frame = subprocess.run(["ffmpeg", "-v", "error", "-ss", "0.5", "-i", motion["path"], "-frames:v", "1",
                             "-f", "image2pipe", "-c:v", "png", "-"], capture_output=True, check=True,
                            timeout=60).stdout
@@ -237,6 +321,84 @@ def test_situation_topics_read_as_sentences():
         assert not any(broken in text for text in texts), broken
     assert ["when the build finally passes"] in [idea["texts"] for idea in ideas]
     assert len({idea["texts"][0] for idea in ideas}) >= 4  # varied setups, not one setup x8
+
+
+# (topic as typed, expected shape, expected topic text inside the lines)
+TOPICS = [
+    # situations: the subject is kept after "when"
+    ("when you commit", "situation", "you commit"),
+    ("when the build finally passes", "situation", "the build finally passes"),
+    ("me when prod goes down", "situation", "prod goes down"),
+    ("that feeling when the tests pass", "situation", "the tests pass"),
+    ("pov: you open the legacy code", "situation", "you open the legacy code"),
+    ("when Kevin replied all", "situation", "Kevin replied all"),
+    # past tense, present tense, acronyms
+    ("the deploy failed", "situation", "the deploy failed"),
+    ("prod went down again", "situation", "prod went down again"),
+    ("the intern pushed to main", "situation", "the intern pushed to main"),
+    ("the tests pass", "situation", "the tests pass"),
+    ("AWS goes down", "situation", "AWS goes down"),
+    ("CI is red", "situation", "CI is red"),
+    # wh-clauses are nouns, never prefixed with "when"
+    ("how it works", "wh", "how it works"),
+    ("when how it works", "wh", "how it works"),
+    ("why the build broke", "wh", "why the build broke"),
+    ("what the PM actually wants", "wh", "what the PM actually wants"),
+    # verb phrases and "how to" become correctly spelled gerunds
+    ("how to exit vim", "thing", "exiting vim"),
+    ("trying to commit before the deadline", "thing", "committing before the deadline"),
+    ("fix the flaky test", "thing", "fixing the flaky test"),
+    ("format the codebase", "thing", "formatting the codebase"),
+    ("ship it on a friday", "thing", "shipping it on a friday"),
+    ("be on call", "thing", "being on call"),
+    ("write the docs", "thing", "writing the docs"),
+    ("debug in production", "thing", "debugging in production"),
+    ("submit the PR", "thing", "submitting the PR"),
+    ("run the migrations", "thing", "running the migrations"),
+    ("fix bugs", "thing", "fixing bugs"),
+    # noun phrases (and nouns that look like verbs) stay as typed
+    ("monday standup energy", "thing", "monday standup energy"),
+    ("release day", "thing", "release day"),
+    ("merge conflicts", "thing", "merge conflicts"),
+    ("Kevin from accounting", "thing", "Kevin from accounting"),
+    ("PR reviews", "thing", "PR reviews"),
+    ("a failed deploy", "thing", "a failed deploy"),
+    ("the meeting that ran long", "thing", "the meeting that ran long"),
+    ("deploying on a friday", "thing", "deploying on a friday"),
+]
+BARE_VERBS = {"commit", "fix", "format", "ship", "be", "write", "debug", "submit", "run", "exit",
+              "open", "push", "merge", "deploy", "test", "make", "go", "do", "get"}
+MISSPELT = {"commiting", "formating", "bing", "submiting", "shiping", "runing", "debuging",
+            "exitting", "beeing", "writeing", "makeing", "planing", "forgeting", "begining"}
+
+
+@pytest.mark.parametrize("topic,shape,text", TOPICS, ids=[t[0] for t in TOPICS])
+def test_topic_table_lines_are_grammatical(topic, shape, text):
+    from myzing.memes.ideas import _topic
+
+    assert _topic(topic) == (shape, text)
+    ideas = generate_ideas(topic, n=8)
+    assert len({tuple(idea["texts"]) for idea in ideas}) == 8
+    for idea in ideas:
+        assert idea["validation"]["valid"], idea
+        for line in idea["texts"]:
+            lowered = line.casefold()
+            words = re.findall(r"[a-z']+", lowered)
+            assert "…" not in line
+            assert not re.search(r"\bwhen (when|how|why|what|where|who|which)\b", lowered), line
+            assert not re.search(r"\bwhy (how|why|what|where|who)\b", lowered), line
+            # a bare verb right after "when", "why", "of", "how's" or "can" means a
+            # dropped subject (a typed noun like "merge conflicts" is not one)
+            for lead in ("when", "why", "of", "how's", "can"):
+                for match in re.finditer(rf"\b{re.escape(lead)} (\w+)", lowered):
+                    noun = shape == "thing" and lowered[match.start(1):].startswith(text.casefold())
+                    assert noun or match.group(1) not in BARE_VERBS, (line, lead)
+            assert not set(words) & MISSPELT, line
+            # capitals only where the user typed them (names, acronyms); no Title Case
+            for word in re.findall(r"\b\w*[A-Z]\w*\b", line):
+                assert word in topic, (line, word)
+        if shape != "thing":
+            assert any(text in line for line in idea["texts"]) or len(text) > 40
 
 
 def test_long_topics_are_cut_at_a_clause_without_an_ellipsis():
@@ -319,3 +481,18 @@ def test_landscape_contact_sheet_has_no_gap_and_names_the_framing(tmp_path):
     with Image.open(result["contact_sheet"]) as image:
         label_band = image.crop((0, 189 + 10, image.width, image.height))
         assert label_band.getbbox()  # IDs sit right under the thumbnails
+    assert all(entry["label_lines"] == ["caption | blur | desk.png"] or "desk.png" in entry["label_lines"][-1]
+               for entry in sheet["entries"])
+
+
+def test_contact_sheet_labels_wrap_instead_of_truncating(tmp_path):
+    folder = tmp_path / "photos"
+    folder.mkdir()
+    name = "a-very-long-photo-filename-from-the-camera-roll-2026-10-22-0001.png"
+    Image.new("RGB", (640, 480), (63, 97, 122)).save(folder / name)
+    api.create_stills(folder, "release day", tmp_path / "out", n=1)
+    sheet = json.loads((tmp_path / "out" / "index.json").read_text(encoding="utf-8"))["contact_sheet"]
+    lines = sheet["entries"][0]["label_lines"]
+    assert len(lines) >= 2 and "…" not in "".join(lines)
+    assert "".join(lines).replace(" ", "").endswith(name)  # the whole filename is shown
+    assert sheet["height"] == 334 + 44 + 22 * len(lines)  # the band grows with the lines

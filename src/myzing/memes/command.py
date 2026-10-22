@@ -47,8 +47,9 @@ def run(argv: list[str]) -> int:
         command.add_argument("--out", default="")
         command.add_argument("--fit", choices=(("auto", "fill", "blur", "cover", "contain") if command is render
                                                else ("cover", "contain", "blur")), default="",
-                             help=("photo framing (default auto: face/subject-aware fill, or blur-fill "
-                                   "when a crop would cut faces); templates default to contain"
+                             help=("photo framing (default auto: crop only when detected faces or a "
+                                   "measured subject fit with margin, else blur-fill with a warning); "
+                                   "templates default to contain"
                                    if command is render else "video framing (default cover; blur keeps the "
                                    "whole frame over a blurred copy)"))
         command.add_argument("--font", default="", help="anton, sans, system font name, or font file path")

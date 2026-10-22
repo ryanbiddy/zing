@@ -12,7 +12,7 @@ from pathlib import Path
 
 from myzing.memes import MemeError
 from myzing.memes.ideas import generate_ideas
-from myzing.memes.render import ASPECTS, render_meme, require_pillow, resolve_font
+from myzing.memes.render import ASPECTS, render_meme, require_pillow, resolve_font, wrap_text
 from myzing.memes.score import idea_score
 from myzing.memes.templates import get_template
 from myzing.memes.validate import check_texts
@@ -178,23 +178,27 @@ def _sheet(root: Path, concepts: list[Concept], aspect: str = "1:1",
     # (fixed 400 px cells left a ~150 px gap under every 16:9 thumbnail).
     width, height = ASPECTS[aspect]
     cell_w = 360
-    cell_h = min(334, math.ceil((cell_w - 24) * height / width)) + 66
+    font = ImageFont.truetype(resolve_font("sans"), 15)
+    labels = []
+    for concept in concepts:
+        name = Path(photos[concept.photo].path).name if photos and concept.photo in photos else concept.photo
+        # Wrap long labels (long filenames) instead of cutting them off.
+        labels.append(wrap_text(f"{concept.layout} | {concept.fit} | {name}", font, cell_w - 24))
+    thumb_h = min(334, math.ceil((cell_w - 24) * height / width))
+    cell_h = thumb_h + 44 + 22 * max(len(lines) for lines in labels)
     sheet = Image.new("RGB", (columns * cell_w, math.ceil(len(concepts) / columns) * cell_h), "#ededed")
     draw = ImageDraw.Draw(sheet)
-    font = ImageFont.truetype(resolve_font("sans"), 15)
     entries = []
-    for i, concept in enumerate(concepts):
+    for i, (concept, lines) in enumerate(zip(concepts, labels)):
         x, y = i % columns * cell_w, i // columns * cell_h
         with Image.open(root / concept.path) as source:
-            thumb = ImageOps.contain(source, (cell_w - 24, cell_h - 66))
+            thumb = ImageOps.contain(source, (cell_w - 24, thumb_h))
             sheet.paste(thumb, (x + (cell_w - thumb.width) // 2, y + 10))
-        draw.text((x + 12, y + cell_h - 48), concept.id, font=font, fill="black")
-        name = Path(photos[concept.photo].path).name if photos and concept.photo in photos else concept.photo
-        label = f"{concept.layout} | {concept.fit} | {name}"
-        while len(label) > 12 and font.getlength(label) > cell_w - 24:
-            label = label[:-2] + "…"
-        draw.text((x + 12, y + cell_h - 26), label, font=font, fill="#333333")
-        entries.append({"id": concept.id, "box": [x, y, x + cell_w, y + cell_h], "alt_text": concept.alt_text})
+        draw.text((x + 12, y + thumb_h + 18), concept.id, font=font, fill="black")
+        for row, line in enumerate(lines):
+            draw.text((x + 12, y + thumb_h + 40 + 22 * row), line, font=font, fill="#333333")
+        entries.append({"id": concept.id, "box": [x, y, x + cell_w, y + cell_h], "alt_text": concept.alt_text,
+                        "label_lines": lines})
     sheet.save(root / "contact-sheet.png")
     return {"path": "contact-sheet.png", "width": sheet.width, "height": sheet.height,
             "entries": entries, "alt_text": "Contact sheet. " + " ".join(

@@ -462,6 +462,8 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
         raise MemeError("fit must be auto, fill, blur, cover, or contain")
     if focus is not None:
         normalized_regions([focus])
+        if fit != "fill":
+            raise MemeError("focus applies only to fit fill (a precomputed subject-aware crop).")
     if isinstance(rotation, bool) or not isinstance(rotation, (int, float)) or not math.isfinite(rotation) or abs(rotation) > 180:
         raise MemeError("rotation must be between -180 and 180 degrees")
     for name, value in (("plate", plate), ("shadow", shadow), ("offline", offline),
@@ -497,12 +499,15 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                 source = ImageOps.exif_transpose(opened).convert("RGBA")
         size = output_size(aspect, source.size)
         w, h = size
-        requested, notes, basis = fit, [], "explicit" if focus is not None else "none"
-        if fit in ("auto", "fill") and focus is None:
-            focus, basis, notes = photo_focus(source)
-        bar = caption_bar(texts, size, font) if layout == "caption" else 0
-        fit, focus, more = resolve(fit, source.size, (w, h - bar), focus, basis)
-        notes += more
+        requested, notes, basis = fit, [], "none"
+        if focus is not None:
+            basis = "explicit"  # a resolved fill (still workflow): use it exactly as planned
+        else:
+            if fit in ("auto", "fill"):
+                focus, basis, notes = photo_focus(source)
+            bar = caption_bar(texts, size, font) if layout == "caption" else 0
+            fit, focus, more = resolve(fit, source.size, (w, h - bar), focus, basis)
+            notes += more
         viewport, layers = text_layers(texts, source_size=source.size, size=size, layout=layout,
                                       fit=fit, font=font, regions=regions, plate=plate,
                                       shadow=shadow, rotation=rotation, focus=focus)

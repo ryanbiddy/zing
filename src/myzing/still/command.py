@@ -33,8 +33,9 @@ def run(argv: list[str]) -> int:
         parser.add_argument("--aspect", choices=("1:1", "4:5", "9:16", "16:9"), default="1:1")
         parser.add_argument("--layout", choices=("auto", "classic", "caption", "labels"), default="auto")
         parser.add_argument("--fit", choices=("auto", "fill", "blur", "contain", "cover"), default="auto",
-                            help="photo framing: auto (default) fills the frame when a crop keeps every "
-                                 "prominent face, else blur-fills; contain letterboxes")
+                            help="photo framing: auto (default) crops to fill only when detected faces "
+                                 "or a measured subject fit with margin, else blur-fills and warns why; "
+                                 "contain letterboxes")
         parser.add_argument("--lines", help="local JSON file of AI/user-written ideas; its length overrides --n")
     args = parser.parse_args(argv[1:] if picking else argv, namespace=workspace_args)
     try:

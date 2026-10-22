@@ -35,10 +35,12 @@ have been modified. Source photos stay where they are; keep them available.
 `9:16` = 1080×1920, `16:9` = 1200×675. `--fit` frames any photo for that
 aspect:
 
-- `auto` (default): `fill` when a crop can keep every prominent face whole
-  (head boxes, with room for hair and chin), else `blur`. With no prominent
-  face, the crop keeps an estimated subject and at least 55% of the photo,
-  else `blur`.
+- `auto` (default): crops (`fill`) only on positive evidence of where the
+  subject is, and only when the crop keeps all of it plus a 3% margin:
+  detected prominent faces (head boxes, with room for hair and chin), or,
+  with no face, a measured subject box when the crop also keeps at least 55%
+  of the photo. Otherwise `blur`, with a warning that says why (no evidence,
+  or it does not fit). A missing detector is never a reason to crop.
 - `fill`: a full-bleed crop positioned on the faces or subject (faces sit a
   little above center). It can cut part of a subject that does not fit; the
   concept then carries a warning.
@@ -48,7 +50,8 @@ aspect:
 - `cover`: a centered crop that ignores faces.
 
 The index records each concept's resolved `fit` and `focus` box, and the
-contact sheet labels each cell with layout, framing, and photo filename.
+contact sheet labels each cell with layout, framing, and photo filename
+(wrapped onto more lines when long, never cut off).
 `--layout auto` chooses a separate caption bar when sampled
 edge density is high, classic top/bottom text when those bands are clear,
 or labels when supplied regions/template metadata call for them. You can
@@ -63,12 +66,14 @@ boxes locally and pads them by 2.5% on each side. Faces smaller than a
 quarter of the largest face (or 2.5% of the photo height) are background:
 they never steer a crop, but text still avoids them when they stay in frame.
 Without a prominent face, a local color-distinctness estimate (not
-recognition) supplies the subject box. It never downloads the
+recognition) supplies the subject box; a flat or uniformly busy photo has
+none. It never downloads the
 model while generating concepts. To provision it explicitly, run
 `zing layout fetch-model`. Without the runtime/model, or if detection
-fails, Zing reports an unknown face count and reserves the central 60% of
-the source image as a subject heuristic, for both text and crops. This can
-miss faces elsewhere. Text avoids faces only; pets and objects are not
+fails, Zing reports an unknown face count and keeps text off the central 60%
+of the source image as a heuristic. That heuristic never steers a crop: only
+a measured subject can, otherwise the photo is blur-filled. This can miss
+faces elsewhere. Text avoids faces only; pets and objects are not
 protected. Inspect placement before sharing, even when detection is available.
 
 The photo inventory reads one folder, without recursion or links. It accepts
@@ -142,10 +147,13 @@ uv run --frozen zing meme render --image desk.jpg --text "one quick fix" --text 
 Zing makes no model calls. Ideas are seeded formula substitutions; your AI
 writes and judges the joke using `zing prompt meme-writer` or MCP
 `get_prompt("meme-writer")`. A topic phrased as a situation ("when the build
-finally passes", "me when prod goes down") gets situation formulas: the photo
-is the reaction, so lines read "when the build finally passes" or "pov: the
-build finally passes / nobody move". Other topics are treated as a thing;
-tasks become gerunds ("fix the flaky test" reads "fixing the flaky test").
+finally passes", "when you commit", "the deploy failed") gets situation
+formulas: the photo is the reaction, so lines read "when you commit" or "pov:
+the build finally passes / nobody move"; the subject after "when" is kept. A
+wh-clause ("how it works", "why the build broke") is used as a noun: "me
+explaining how it works". Other topics are treated as a thing; tasks and "how
+to ..." become gerunds with standard spelling ("fix the flaky test" reads
+"fixing the flaky test", "commit" "committing", "be on call" "being on call").
 Topics longer than 40 characters are shortened at a clause break or a word,
 never mid-word and never with an ellipsis. `zing doctor` reports the optional `pillow`
 dependency. Templates, ideas, and checks work without Pillow.
@@ -192,9 +200,9 @@ of animated inputs; use `render-video` to keep motion.
 Photos default to `--fit auto` (see "Photos and a topic": `fill`, `blur`,
 `contain`, or `cover`); templates default to `contain` to retain all panels.
 For `auto` and `fill`, `meme render` uses the cached YuNet model when
-installed (never a download); without it the central 60% of the photo stays
-in frame and the result carries a warning. JSON reports the resolved `fit`,
-`focus`, and `focus_basis`. Labels follow the source through crop and scaling. `--plate`,
+installed (never a download); without it only a measured subject box can
+steer a crop, and the result carries a warning. JSON reports the resolved
+`fit`, `focus` (the kept box, margin included), and `focus_basis`. Labels follow the source through crop and scaling. `--plate`,
 `--shadow`, and `--rotation 8` add a dark rounded plate, shadow, and rotation.
 Text wraps and shrinks to fit; it is never silently dropped. `--font anton`
 and `--font sans` use bundled OFL fonts with licenses in `_data/fonts/`.

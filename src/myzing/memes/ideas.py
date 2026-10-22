@@ -20,32 +20,128 @@ from .validate import check_texts
 
 
 TOPIC_LIMIT = 40  # the longest formula adds 30 characters: 40 + 30 = the 70 cap
-SITUATION = re.compile(r"^(?:me\s+when|that\s+feeling\s+when|the\s+moment\s+when|when\s+you|when|"
-                       r"pov\s*:|pov|the\s+moment)\s+", re.I)
-TRYING = re.compile(r"^(?:trying\s+to|time\s+to|how\s+to)\s+", re.I)
+# "when ..." prefixes always mean a situation; the subject after them is kept
+# ("when you commit" stays "you commit").
+WHEN = re.compile(r"^(?:me\s+when|that\s+feeling\s+when|the\s+moment\s+when|when)\s+", re.I)
+POV = re.compile(r"^(?:pov\s*:?|the\s+moment)\s+", re.I)
+TRYING = re.compile(r"^(?:trying\s+to|time\s+to|how\s+to|learning\s+to)\s+", re.I)
+WH = {"how", "why", "what", "where", "who", "which", "whether"}
 # Words that make a topic a situation (a clause), not a thing.
 FINITE = {"is", "are", "was", "were", "am", "has", "have", "had", "does", "did", "won't", "can't",
           "doesn't", "don't", "isn't", "aren't", "didn't", "wasn't", "finally", "passes", "works",
           "breaks", "fails", "crashes", "goes", "gets", "compiles", "ships", "lands", "dies",
           "starts", "stops", "says", "asks", "tries", "wants", "needs", "thinks", "knows", "hits",
-          "merges", "deploys", "loads", "runs", "returns", "happens", "comes", "leaves", "replies"}
-PRONOUNS = {"i", "you", "we", "they", "he", "she", "it", "someone", "everyone", "nobody", "somebody"}
+          "merges", "deploys", "loads", "runs", "returns", "happens", "comes", "leaves", "replies",
+          "will", "would", "could", "should", "can", "never", "still"}
+IRREGULAR_PAST = {"went", "broke", "came", "got", "took", "made", "said", "ran", "fell", "left", "forgot",
+                  "lost", "sent", "wrote", "saw", "found", "built", "began", "drank", "ate", "froze",
+                  "threw", "knew", "told", "thought", "brought", "bought", "caught", "taught", "felt",
+                  "kept", "slept", "won", "shut", "quit", "hit", "spent", "stood", "understood"}
+# Base verbs that finish a clause after "the/my/... <noun>" ("the tests pass").
+BASE_VERBS = {"pass", "fail", "break", "work", "crash", "go", "get", "run", "compile", "load", "ship",
+              "land", "die", "start", "stop", "merge", "deploy", "return", "happen", "come", "leave",
+              "win", "lose", "time", "hang", "freeze"}
+DETERMINERS = {"the", "my", "our", "your", "their", "his", "her", "its", "this", "these", "those", "all"}
+PRONOUNS = {"i", "you", "we", "they", "he", "she", "it", "someone", "everyone", "nobody", "somebody",
+            "everybody", "anyone"}
+RELATIVE = {"that", "who", "which", "whose", "whom"}
+# What can follow a verb (object or particle), as opposed to a noun in a compound.
+OBJECT_STARTERS = {"the", "a", "an", "my", "our", "your", "their", "his", "her", "its", "this", "that",
+                   "these", "those", "it", "them", "me", "us", "him", "everything", "something",
+                   "nothing", "all", "some", "on", "in", "to", "up", "down", "out", "off", "with",
+                   "for", "again", "at", "from", "into", "before", "after", "without", "every",
+                   "each", "one", "two", "prod", "production", "main", "back", "over", "away"}
 VERBS = {"fix", "ship", "deploy", "write", "debug", "merge", "review", "finish", "start", "make", "run",
          "test", "push", "update", "refactor", "rewrite", "migrate", "clean", "plan", "launch", "learn",
          "read", "try", "explain", "find", "delete", "install", "upgrade", "answer", "organize", "cancel",
-         "book", "pay", "file", "move", "sort", "cook", "do", "get", "go", "touch", "train", "name"}
+         "book", "pay", "file", "move", "sort", "cook", "do", "get", "go", "touch", "train", "name",
+         "commit", "submit", "format", "rebase", "be", "see", "close", "open", "rename", "revert",
+         "ask", "call", "check", "join", "leave", "quit", "stop", "begin", "forget", "edit", "exit",
+         "center", "use", "argue", "panic", "sync", "build", "release", "reply", "approve"}
+# Verb + bare plural noun reads as a task only for these ("fix bugs", not "merge conflicts").
+OBJECT_VERBS = {"fix", "ship", "write", "delete", "rename", "answer", "cook", "find", "read",
+                "migrate", "refactor", "rewrite", "install", "upgrade", "approve"}
+# Two-syllable verbs stressed on the last syllable double their consonant.
+DOUBLES = {"commit", "submit", "admit", "permit", "omit", "emit", "transmit", "forget", "begin",
+           "refer", "prefer", "occur", "incur", "recur", "deter", "control", "patrol", "compel",
+           "expel", "propel", "rebel", "regret", "upset", "equip", "debug", "unplug", "format",
+           "program", "kidnap", "acquit", "abet", "allot", "defer", "confer", "infer", "transfer",
+           "quit", "rerun", "outrun", "overrun"}
+GERUNDS = {"be": "being", "see": "seeing", "flee": "fleeing", "agree": "agreeing", "free": "freeing",
+           "dye": "dyeing", "eye": "eyeing", "toe": "toeing", "hoe": "hoeing", "singe": "singeing"}
 DANGLING_END = {"a", "an", "the", "of", "to", "for", "in", "on", "at", "and", "or", "with", "my", "your", "after"}
+VOWELS = "aeiou"
+
+
+def _syllables(word: str) -> int:
+    groups, previous = 0, False
+    for i, char in enumerate(word):
+        vowel = char in VOWELS or (char == "y" and i > 0)
+        groups += vowel and not previous
+        previous = vowel
+    if word.endswith("e") and groups > 1 and not word.endswith(("le", "ee")):
+        groups -= 1  # silent final e
+    return max(1, groups)
 
 
 def _gerund(verb: str) -> str:
+    """Spelling rules: be/see -> being/seeing, drop a silent final e, ie -> ying,
+    -ic -> -icking, and double the consonant only after a stressed CVC
+    ending (ship -> shipping, commit -> committing, visit -> visiting)."""
+    verb = verb.casefold()
+    if verb in GERUNDS:
+        return GERUNDS[verb]
     if verb.endswith("ie"):
         return verb[:-2] + "ying"
-    if verb.endswith("e") and not verb.endswith(("ee", "ye", "oe")):
+    if verb.endswith(("ee", "ye", "oe")):
+        return verb + "ing"
+    if verb.endswith("e") and len(verb) > 2:
         return verb[:-1] + "ing"
-    if (len(verb) >= 3 and verb[-1] not in "aeiouwxy" and verb[-2] in "aeiou"
-            and verb[-3] not in "aeiou" and (len(verb) <= 4 or verb in ("debug", "refer"))):
+    if verb.endswith("ic"):
+        return verb + "king"
+    plain = verb.replace("qu", "q")
+    cvc = (len(plain) >= 3 and plain[-1] not in VOWELS + "wxy" and plain[-2] in VOWELS
+           and plain[-3] not in VOWELS)
+    if verb in DOUBLES or (cvc and _syllables(verb) == 1):
         return verb + verb[-1] + "ing"
     return verb + "ing"
+
+
+def _bare(word: str) -> str:
+    return word.casefold().strip(",.!?;:\"'")
+
+
+def _clause_like(words: list[str]) -> bool:
+    """A subject plus a finite verb before any relative clause."""
+    bare = [_bare(w) for w in words]
+    if not bare:
+        return False
+    if bare[0] in PRONOUNS:
+        return True
+    for i, word in enumerate(bare):
+        if word in RELATIVE:
+            return False  # "the meeting that ran long" is a thing
+        after = bare[i + 1] if i + 1 < len(bare) else None
+        if word in FINITE or word in IRREGULAR_PAST and i > 0:
+            return True
+        if i > 0 and len(word) > 4 and word.endswith("ed") and (after is None or after in OBJECT_STARTERS):
+            return True  # "the deploy failed", "the intern pushed to main"
+        if (i == 2 and bare[0] in DETERMINERS and word in BASE_VERBS
+                and (after is None or after in OBJECT_STARTERS)):
+            return True  # "the tests pass"
+    return False
+
+
+def _task(words: list[str]) -> bool:
+    """A verb phrase: "fix the flaky test", "be on call", "fix bugs"."""
+    first = _bare(words[0])
+    if first not in VERBS or not words[0].isalpha():
+        return False
+    if len(words) == 1:
+        return True
+    second = _bare(words[1])
+    return second in OBJECT_STARTERS or (
+        first in OBJECT_VERBS and second.endswith("s") and not second.endswith("ss"))
 
 
 BREAKS = {"and", "but", "while", "because", "so", "until", "after", "before", "then", "or",
@@ -74,21 +170,33 @@ def _clip(text: str, limit: int) -> str:
 
 
 def _topic(value: str) -> tuple[str, str]:
-    """(shape, text): shape is ``thing`` or ``situation``."""
+    """(shape, text). Shape is ``situation`` (a clause: "you commit", "the
+    build finally passes"), ``wh`` (a wh-clause used as a noun: "how it
+    works"), or ``thing`` (a noun phrase or a gerund: "release day",
+    "fixing the flaky test")."""
     text = " ".join(value.split()).rstrip(".!?")
-    situation = bool(SITUATION.match(text))
-    text = SITUATION.sub("", text)
-    trying = bool(TRYING.match(text))
-    text = TRYING.sub("", text)
+    shape = None
+    match = WHEN.match(text)
+    if match:
+        text, shape = text[match.end():], "situation"
+    else:
+        match = POV.match(text)
+        if match:
+            text = text[match.end():]
+    trying = TRYING.match(text)
+    if trying:
+        text = text[trying.end():]
     words = text.split()
-    if words and (trying or words[0].casefold() in VERBS) and words[0].isalpha():
-        words[0] = _gerund(words[0].casefold())  # "fix a bug" -> "fixing a bug"
-        text = " ".join(words)
-    lowered = {w.casefold().strip(",.!?") for w in words}
-    if not situation and words and not trying and (
-            lowered & FINITE or words[0].casefold() in PRONOUNS):
-        situation = True
-    return ("situation" if situation else "thing"), _clip(text, TOPIC_LIMIT)
+    if not words:
+        return "thing", ""
+    if _bare(words[0]) in WH:
+        shape = "wh"  # never "when how it works"
+    elif trying or (shape is None and _task(words)):
+        words[0] = _gerund(words[0])  # "fix a bug" -> "fixing a bug"
+        text, shape = " ".join(words), "thing"
+    elif shape is None:
+        shape = "situation" if _clause_like(words) else "thing"
+    return shape, _clip(text, TOPIC_LIMIT)
 
 
 def _short(value: str, limit: int = TOPIC_LIMIT) -> str:
@@ -156,7 +264,22 @@ def generate_ideas(topic: str, template: str = "", n: int = 6,
     asked = f"{crowd}: how's {short} going" if crowd else f"how's {short} going"
     if len(asked) > 70:
         asked = f"how's {short} going"
-    if shape == "situation" and not selected:
+    if shape == "wh" and not selected:
+        # A wh-clause works as a noun: "me explaining how it works".
+        formulas = [
+            ([f"me explaining {short}", "(i have no idea)"], "bluff", "Confidence without knowledge."),
+            ([f"me pretending to know {short}"], "pretend", "One line; the photo sells the bluff."),
+            ([f"nobody knows {short}", "and at this point i'm afraid to ask"], "afraid_to_ask",
+             "A shared secret nobody admits."),
+            ([f"pov: you finally understand {short}", "nobody move"], "understatement",
+             "A frozen beat adds tension."),
+            ([f"day 1 of figuring out {short}", "day 47"], "time_jump", "The number jump supplies the reversal."),
+            ([f"the docs on {short}", "one sentence"], "docs", "The gap between need and help."),
+            ([short, "great question. next slide."], "deflection", "A deflection carries the payoff."),
+            ([f"the senior dev explaining {short}", "the junior dev nodding"], "nodding",
+             "Two roles, one misunderstanding."),
+        ]
+    elif shape == "situation" and not selected:
         # The photo is the reaction; the situation is the setup.
         # Varied setups, so six concepts are not one setup with six payoffs.
         formulas = [
