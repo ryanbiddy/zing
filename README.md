@@ -47,3 +47,9 @@ uv run pytest
 MIT licensed. Core is stdlib-only; optional tools (ffmpeg, yt-dlp,
 faster-whisper, OCR) are detected by `zing doctor`.
 
+To match a clip's color toward a local reference, install `myzing[color]`
+and run `zing color match --reference reference.mp4 --clip clip.mp4 --out zing-workspace/look`.
+This saves a procedural LUT, measured recipe, and before/reference/after preview.
+The result is a matched approximation. See [color matching](docs/color.md) for
+SDR assumptions, LUT application, confidence, and the acceptance test.
+

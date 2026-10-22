@@ -46,6 +46,7 @@ list — update both together):
 7. **uoink (optional):** the suite peer on port 5179, probed per INTEGRATION-CONTRACT v1 (absent is calm; unhealthy names its code).
 8. **pillow (optional):** local still meme rendering; install with `python -m pip install "myzing[memes]"`.
 9. **layout (optional):** pinned OpenCV runtime and verified local YuNet model; fetch explicitly with `zing layout fetch-model`.
+10. **color (optional):** NumPy for local SDR look matching and LUT application; install with `python -m pip install "myzing[color]"`.
 
 ---
 

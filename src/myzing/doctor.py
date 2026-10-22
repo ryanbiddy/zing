@@ -745,6 +745,12 @@ def check_layout() -> Check:
                  fix="" if valid else "zing layout fetch-model",
                  data={"model": str(path), "model_verified": valid, "network_used": False,
                        "runtime_probe": "package-metadata-only"})
+def check_color() -> Check:
+    present = _has_module("numpy")
+        name="color", tier=OPTIONAL, ok=present,
+        detail="numpy installed (local SDR color matching)" if present else "numpy is not importable",
+        fix="" if present else 'python -m pip install "myzing[color]"',
+        degraded_mode="" if present else "color match/apply unavailable; other commands are unaffected",
 
 
 def run_checks(today: date | None = None) -> list[Check]:
@@ -757,6 +763,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_tts(),
         check_pillow(),
         check_layout(),
+        check_color(),
         check_uoink(),
     ]
 
