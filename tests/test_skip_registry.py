@@ -53,6 +53,11 @@ REGISTERED_SKIPS = {
         "PRODUCT SURFACE: none needed — a platform detail, not a "
         "user-visible capability."
     ),
+    "install myzing[memes] for render tests": (
+        "meme rendering needs the optional Pillow extra; the skip is per test so "
+        "the CI FFmpeg gates (which forbid skips) never see it. PRODUCT SURFACE: "
+        "doctor.check_pillow and meme_render's install hint name myzing[memes]."
+    ),
     "Windows PowerShell mutation": (
         "the hermetic Chocolatey retry mutation creates Windows command "
         "shims. windows-latest CI executes both cases; the workflow-shape "
@@ -65,6 +70,9 @@ REGISTERED_SKIPS = {
 # module name IS the reason, and each is a declared optional extra.
 REGISTERED_IMPORTORSKIP = {
     "numpy", "cv2", "scenedetect", "faster_whisper", "mcp",
+    # Optional myzing[memes]; doctor.check_pillow and render's install hint
+    # expose the same dependency gap to users.
+    "PIL.Image",
 }
 
 

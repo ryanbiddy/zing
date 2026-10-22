@@ -28,7 +28,8 @@ study = [
 # do exactly this. Raising it is a deliberate port, not a version bump.
 mcp = ["mcp>=1.2,<2"]
 render = ["pysubs2>=1.8.1"]
-all = ["myzing[study]", "myzing[mcp]", "myzing[render]"]
+memes = ["Pillow>=10.4"]
+all = ["myzing[study]", "myzing[mcp]", "myzing[render]", "myzing[memes]"]
 
 [project.scripts]
 zing = "myzing.cli:main"
@@ -37,7 +38,7 @@ zing = "myzing.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md"]
+myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md", "_data/memes/*.json", "_data/fonts/*.ttf", "_data/fonts/*.txt", "_data/fonts/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

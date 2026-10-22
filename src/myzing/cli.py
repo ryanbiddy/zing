@@ -19,7 +19,7 @@ _COMMANDS: dict[str, tuple[str, str]] = {
     "study": ("myzing.study.command",
               "measure a video (URL or local file) into a breakdown"),
     "prompt": ("myzing.prompt_pack",
-               "print a judgment prompt (study, compare, direct, taste)"),
+               "print a judgment prompt (study, compare, direct, taste, meme-writer)"),
     "profile": ("myzing.profile.command",
                 "build and inspect style profiles from studied videos"),
     "assemble": ("myzing.assemble.command",
@@ -28,6 +28,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
                "render an EDL to video"),
     "thumbs": ("myzing.thumbs",
                "generate thumbnail candidates for a video"),
+    "meme": ("myzing.memes.command",
+             "browse templates, draft ideas, check text, and render still memes"),
     "serve-mcp": ("myzing.mcp_server",
                   "run the MCP server (connects Claude and other AI clients)"),
 }
