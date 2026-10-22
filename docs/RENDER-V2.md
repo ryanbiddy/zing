@@ -26,9 +26,10 @@ assets. Supplied media, font and LUT SHA-256 hashes are checked before subproces
 work files or MCP job creation. A null legacy media hash is allowed with an
 unverified-identity warning. Queued MCP jobs recheck hashes when they run.
 
-The supported media graph is hard cuts, source audio, voiceover/music placement,
+The supported media graph includes cuts, dissolves, directional wipes, dips to
+black/white, zoom punches, source audio, voiceover/music placement,
 gain and music ducking under voiceover. Rational FPS is retained in FFmpeg's
-filters and output rate. Per-clip SDR `.cube` LUTs are supported. Speed maps, non-cut transitions, HyperFrames,
+filters and output rate. Per-clip SDR `.cube` LUTs are supported. Speed maps, unsupported transition kinds, HyperFrames,
 other audio roles, audio source trims, non-voiceover ducking scopes and loudness
 targets produce one `not yet supported in this renderer: ...` list. V2
 voiceover synthesis and OTIO export are also rejected; place an existing
@@ -45,7 +46,8 @@ concat and captions. The order is:
    the Rec.709 matrix, apply
    [FFmpeg `lut3d` with `interp=trilinear`](https://ffmpeg.org/ffmpeg-filters.html#lut3d),
    and convert back to limited-range Rec.709 `yuv420p`.
-3. Scale/pad each clip to the output size, then concatenate the clips.
+3. Scale/pad each clip to the output size, then join the clips with the planned
+   cuts or transitions. Both sides of a transition have already been graded.
 4. Composite captions on the graded cut. Encode the result with the existing
    H.264/AAC settings. Caption fill, highlights, outlines and plates never pass
    through the footage LUT.
@@ -93,10 +95,68 @@ These render checks are separate from the plan's broader color-selection
 release gate (median Delta E 2000 <= 3 plus review of unrelated real scenes).
 
 Frozen FFmpeg 6/9 command and graph fixtures cover v1 and v2 without LUTs.
+R15 also freezes a graded two-clip v2 cut. Documents without positive overlaps
+retain their existing FFmpeg commands and filtergraph bytes.
 Generate a before/after pair and measured parity report locally with:
 
 ```text
 python -m tools.eval.render_lut_fixture --out zing-workspace/r13-lut-sample
+```
+
+R15 renders explicit `Transition` records using these recipe names:
+
+| Recipe | Video operation |
+|---|---|
+| `hard_cut` | Concatenate; zero overlap and no handles. |
+| `dissolve` | `xfade=transition=fade`. |
+| `wipe` | `wipeleft`, `wiperight`, `wipeup` or `wipedown`, selected by `direction`. |
+| `dip_to_black`, `dip_to_white` | Native `fadeblack` / `fadewhite` profiles. |
+| `zoom_punch` | Centered outgoing scale-up from 1 to 1.35 over the overlap, using `zoompan` with one output per input frame, dissolved into the incoming clip. |
+
+These are chosen approximations, not recovered editor presets. The native dip
+profiles approach the chosen background during the window; they do not promise
+a fully black or white midpoint. Whip, flash and shader effects are rejected
+by name before media work. A flash observation never selects `dip_to_white`
+automatically; the recipe must explicitly request it. HyperFrames remains
+unsupported by this renderer.
+
+The handle definition lives in [Composition v2](COMPOSITION-V2.md): source
+trims include the outgoing tail and incoming head handles. An overlap of `d`
+consumes `d` seconds of each and reduces the trims' summed duration by `d`.
+The supplied clip positions and transition window already express that
+shortening; rendering does not subtract it again or move captions/music.
+Missing or short handles fail with both clip IDs and missing seconds. Probed
+video duration, when available, prevents a longer audio stream from hiding
+missing video. Overlap plans require the source trim to fit within the probed
+duration to one microsecond; cut-only plans retain the legacy 50 ms tolerance.
+
+Every overlap input explicitly shares the output FPS, size, square SAR,
+`yuv444p` pixel format and microsecond timebase, including chains containing
+cuts. Video endpoints use the nearest output frame. Windows must cover at
+least one output frame and cannot exceed xfade's 60-second limit. Footage
+returns to `yuv420p` before captions.
+
+Clip audio uses 48 kHz stereo and sample-count timestamps. Each leg's length
+is the difference between its rounded absolute output sample endpoints;
+`acrossfade` consumes the same window using quarter-sine, equal-power curves.
+Silent source clips receive a matching silent leg. External music/voiceover
+keeps MR1's sample-count placement and the existing ducking stage. Equal power
+keeps independent tones steady; correlated audio can become louder during an
+overlap. R15 does not add loudness normalization.
+
+Required filters are checked before probing media or writing render files.
+[`xfade`](https://ffmpeg.org/ffmpeg-filters.html#xfade) is available from FFmpeg
+4.3; R15 does not impose a newer major-version gate. Script loading retains
+the FFmpeg 6/9 compatibility helper. Generated tests measure color blends,
+wipe edges, dip profiles, magnification, binary frame counters, audio RMS and
+sample discontinuities. Detector v5 is checked separately on P14 corpus
+textures, including every wipe direction.
+
+Generate individual examples, a combined timeline, inspection PNGs and the
+detector report without downloads:
+
+```text
+python -m tools.eval.render_transition_fixture --out zing-workspace/r15-transitions
 ```
 
 ASS captions need libass. The renderer preflights the selected FFmpeg through

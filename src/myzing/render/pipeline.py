@@ -13,7 +13,10 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from myzing.composition import Transition
 
 from myzing.ffmpeg_capabilities import FFmpegCapabilityError, caption_filter
 from myzing.schemas import EDL
@@ -85,7 +88,7 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
                 "-show_entries",
                 "format=duration",
                 "-show_entries",
-                ("stream=codec_type,color_space,color_transfer,color_primaries,color_range,pix_fmt:stream_tags:format_tags"
+                ("stream=codec_type,duration,color_space,color_transfer,color_primaries,color_range,pix_fmt:stream_tags:format_tags"
                  if include_color else "stream=codec_type"),
                 "-of",
                 "json",
@@ -109,6 +112,7 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
             stream.get("codec_type") for stream in payload.get("streams", [])
         }
         metadata = {}
+        video_duration = None
         if include_color:
             video = next((s for s in payload.get("streams", []) if s.get("codec_type") == "video"), {})
             metadata = {key: str(video.get(key, "unknown")) for key in (
@@ -117,6 +121,21 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
             tags = {**payload.get("format", {}).get("tags", {}), **video.get("tags", {})}
             metadata["profile_tags"] = json.dumps({k: v for k, v in tags.items()
                 if any(term in k.lower() for term in ("color", "gamma", "transfer", "profile"))}, sort_keys=True)
+            # Container duration can include audio that outlasts the video.
+            # Matroska commonly stores this as a DURATION stream tag instead.
+            stream_duration = video.get("duration")
+            try:
+                if stream_duration not in (None, "N/A"):
+                    video_duration = float(stream_duration)
+                else:
+                    stamp = video.get("tags", {}).get("DURATION", "")
+                    if re.fullmatch(r"\d+:\d{2}:\d{2}(?:\.\d+)?", stamp):
+                        hours, minutes, seconds = map(float, stamp.split(":"))
+                        video_duration = hours * 3600 + minutes * 60 + seconds
+                if video_duration is not None and (not math.isfinite(video_duration) or video_duration <= 0):
+                    video_duration = None
+            except (TypeError, ValueError):
+                video_duration = None
     except (KeyError, TypeError, ValueError) as exc:
         raise RenderError(f"ffprobe returned malformed metadata for {path}") from exc
     if not math.isfinite(duration) or duration <= 0:
@@ -126,6 +145,7 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
         has_video="video" in stream_types,
         has_audio="audio" in stream_types,
         color_metadata=metadata,
+        video_duration=video_duration,
     )
 
 
@@ -220,6 +240,7 @@ def _render_in_directory(
     caption_writer: Callable[[Path], None] | None = None,
     fps_rate: str | None = None,
     clip_luts: tuple[str | None, ...] = (),
+    transitions: tuple[Transition | None, ...] = (),
 ) -> RenderResult:
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -249,6 +270,7 @@ def _render_in_directory(
         validated, include_captions, caption_filter=caption_filter_name,
         fonts_dir=caption_writer is not None, fps_rate=fps_rate,
         clip_luts=clip_luts,
+        transitions=transitions,
     )
     graph_path = directory / "filter graph.txt"
     try:

@@ -34,6 +34,7 @@ class MediaInfo:
     has_video: bool
     has_audio: bool
     color_metadata: dict[str, str] = field(default_factory=dict)
+    video_duration: float | None = None
 
 
 @dataclass(frozen=True)
@@ -210,6 +211,8 @@ def _validate_caption(
 def validate_edl(
     edl: EDL, base_dir: Path, probe: Probe, *,
     resolved_assets: dict[str, Path] | None = None,
+    overlaps: tuple[float, ...] = (),
+    clip_ids: tuple[str, ...] = (),
 ) -> ValidatedEDL:
     """Resolve media and reject every malformed Sprint 1 timeline."""
     if edl.schema_version != 1:
@@ -244,11 +247,15 @@ def validate_edl(
 
     resolved_clips = []
     expected_start = 0.0
+    if overlaps and len(overlaps) != len(edl.clips):
+        raise EDLValidationError("overlaps must match the validated timeline order")
     for original_index, clip in sorted(
         enumerate(edl.clips),
         key=lambda item: (item[1].timeline_start, item[0]),
     ):
         label = f"clips[{original_index}]"
+        if clip_ids:
+            label += f" (clip {clip_ids[original_index]})"
         src_in = _finite(clip.src_in, f"{label}.src_in")
         src_out = _finite(clip.src_out, f"{label}.src_out")
         timeline_start = _finite(
@@ -258,6 +265,8 @@ def validate_edl(
             raise EDLValidationError(f"{label} must have 0 <= src_in < src_out")
         if timeline_start < 0:
             raise EDLValidationError(f"{label}.timeline_start must be non-negative")
+        if overlaps:
+            expected_start -= overlaps[len(resolved_clips)]
         if timeline_start < expected_start - TIME_EPSILON:
             raise EDLValidationError(
                 f"{label} overlaps the previous clip at {timeline_start:.3f}s"
@@ -272,10 +281,12 @@ def validate_edl(
         media = inspect(path)
         if not media.has_video:
             raise EDLValidationError(f"{label}.src has no video stream: {path}")
-        if src_out > media.duration + SOURCE_DURATION_EPSILON:
+        source_duration = media.video_duration if overlaps and media.video_duration is not None else media.duration
+        tolerance = TIME_EPSILON if overlaps else SOURCE_DURATION_EPSILON
+        if src_out > source_duration + tolerance:
             raise EDLValidationError(
                 f"{label}.src_out {src_out:.3f}s exceeds source duration "
-                f"{media.duration:.3f}s"
+                f"{source_duration:.3f}s; missing {src_out - source_duration:.6f}s of source"
             )
         resolved_clips.append(ResolvedClip(clip, path, media))
         expected_start = timeline_start + (src_out - src_in)

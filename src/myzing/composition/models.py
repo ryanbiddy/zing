@@ -24,7 +24,7 @@ from myzing.timing import interval_problem
 from .timebase import rate_fraction
 
 EPSILON = 1e-6  # Same seconds tolerance as the legacy renderer.
-TransitionKind = Literal["hard_cut", "dissolve", "wipe", "zoom_punch"]
+TransitionKind = Literal["hard_cut", "dissolve", "wipe", "zoom_punch", "dip_to_black", "dip_to_white"]
 AudioRole = Literal["speech", "music", "silence", "uncertain", "voiceover", "sfx", "ambience"]
 
 
@@ -244,7 +244,11 @@ class Transition(Record):
                             rel_tol=0, abs_tol=EPSILON):
             raise ValueError("transition overlap window must match recipe duration")
         if self.recipe.kind != "hard_cut" and (self.outgoing_handle is None or self.incoming_handle is None):
-            raise ValueError("transition overlap is missing required source handles for both clips")
+            missing = [clip for clip, handle in ((self.outgoing_clip, self.outgoing_handle),
+                       (self.incoming_clip, self.incoming_handle)) if handle is None]
+            raise ValueError(f"transition {self.id} ({self.outgoing_clip} -> {self.incoming_clip}): "
+                             f"missing required source handles: {', '.join(missing)} needs "
+                             f"{self.recipe.duration_seconds:.6f}s")
         if self.recipe.kind == "hard_cut" and (self.outgoing_handle is not None or self.incoming_handle is not None):
             raise ValueError("hard cuts have no source handles")
 
@@ -371,7 +375,10 @@ class Composition(Record):
             if item.src not in [asset.path, *asset.aliases]:
                 raise ValueError(f"{item.id}: src must match the asset path or a recorded alias")
             if asset.duration is not None and item.src_out is not None and item.src_out > asset.duration + 0.05:
-                raise ValueError(f"{item.id}: source trim exceeds asset duration")
+                context = "".join(f"; transition {t.id} ({t.outgoing_clip} -> {t.incoming_clip})" for t in self.transitions
+                                  if item.id in (t.outgoing_clip, t.incoming_clip))
+                raise ValueError(f"{item.id}{context}: source trim exceeds asset duration; "
+                                 f"missing {item.src_out - asset.duration:.6f}s of source")
         ordered = sorted(self.clips, key=lambda c: c.timeline_start)
         pairs = {(a.id, b.id): (a, b) for a, b in zip(ordered, ordered[1:])}
         declared = {}
@@ -384,7 +391,9 @@ class Composition(Record):
             a, b = pairs[key]
             length = transition.end - transition.start
             if length > min(a.duration, b.duration) + EPSILON:
-                raise ValueError("transition overlap is longer than either clip")
+                missing = "; ".join(f"clip {c.id} missing {length - c.duration:.6f}s" for c in (a, b)
+                                    if length > c.duration + EPSILON)
+                raise ValueError(f"transition {transition.id} ({a.id} -> {b.id}): overlap is longer than either clip; {missing}")
             if not (math.isclose(transition.start, b.timeline_start, abs_tol=EPSILON, rel_tol=0)
                     and math.isclose(transition.end, a.timeline_end, abs_tol=EPSILON, rel_tol=0)):
                 raise ValueError("transition window must equal the clips' timeline overlap")
@@ -394,7 +403,11 @@ class Composition(Record):
                     expected = (clip.source_at(transition.start), clip.source_at(transition.end))
                     if not all(math.isclose(x, y, abs_tol=EPSILON, rel_tol=0)
                                for x, y in zip((handle.src_in, handle.src_out), expected)):
-                        raise ValueError("required source handles must cover the entire overlap through the speed map")
+                        covered = max(0, min(handle.src_out, expected[1]) - max(handle.src_in, expected[0]))
+                        missing = expected[1] - expected[0] - covered
+                        raise ValueError(f"transition {transition.id} ({a.id} -> {b.id}): clip {clip.id} "
+                                         f"required source handles must cover the entire overlap through the speed map; "
+                                         f"missing {missing:.6f}s; expected [{expected[0]:.6f}, {expected[1]:.6f})")
         if ordered and abs(ordered[0].timeline_start) > EPSILON:
             raise ValueError("composition must start at zero")
         for (aid, bid), (a, b) in pairs.items():

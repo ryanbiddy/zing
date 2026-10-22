@@ -10,13 +10,14 @@ from pathlib import Path
 
 from myzing.composition import Composition, frame_index, load_composition
 from myzing.composition.timebase import rate_fraction
-from myzing.ffmpeg_capabilities import FFmpegCapabilityError, require_lut3d
+from myzing.ffmpeg_capabilities import FFmpegCapabilityError, require_lut3d, require_transitions
 from myzing.schemas import AudioTrack, CaptionSpec, Clip, EDL
 from myzing.timing import TimingReviewError, prepare_words
 
 from . import pipeline
 from .font_files import ass_em_scale, private_font
 from .validation import EDLValidationError, output_preset, validate_edl
+from .transitions import SUPPORTED_KINDS, timeline_joins, validate_render_windows
 
 
 def load_render_document(data: dict) -> EDL | Composition:
@@ -32,7 +33,7 @@ def unsupported_features(composition: Composition) -> list[str]:
         if clip.speed_map:
             problems.append(f"clip {clip.id}: speed maps")
     for transition in composition.transitions:
-        if transition.recipe.kind != "hard_cut":
+        if transition.recipe.kind not in SUPPORTED_KINDS:
             problems.append(f"transition {transition.id}: {transition.recipe.kind}")
     for caption in composition.captions:
         if caption.backend != "ass":
@@ -99,6 +100,8 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
     problems = unsupported_features(composition)
     if problems:
         raise EDLValidationError("not yet supported in this renderer: " + "; ".join(problems))
+    if timeline_joins(composition):
+        validate_render_windows(composition)
     if not composition.clips:
         raise EDLValidationError("composition must contain at least one clip")
     if composition.width % 2 or composition.height % 2:
@@ -187,6 +190,8 @@ def render_composition(
     """Render supported v2 instructions locally, publishing only a finished MP4."""
     base_dir = (base_dir or Path.cwd()).expanduser().resolve()
     prepared = prepare_composition(composition, base_dir)
+    c = prepared.composition
+    joins = timeline_joins(c)
     output = Path(output).expanduser().resolve()
     if output in prepared.input_paths:
         raise pipeline.RenderError("output path must not overwrite an input media, font or LUT file")
@@ -196,11 +201,20 @@ def render_composition(
         except FFmpegCapabilityError as exc:
             raise pipeline.RenderError(str(exc)) from exc
     caption_filter = pipeline.preflight_captions(prepared.edl, ffmpeg)
+    if joins:
+        try:
+            require_transitions(ffmpeg, zoom=any(t is not None and t.recipe.kind == "zoom_punch" for t in joins))
+        except FFmpegCapabilityError as exc:
+            raise pipeline.RenderError(str(exc)) from exc
     validated = validate_edl(prepared.edl, base_dir, lambda path: pipeline.probe_media(path, ffprobe, include_color=True),
-                             resolved_assets=prepared.assets)
+                             resolved_assets=prepared.assets,
+                             overlaps=(0.0, *(t.recipe.duration_seconds if t else 0 for t in joins)) if joins else (),
+                             clip_ids=tuple(
+                                 clip.id + "".join(f"; transition {t.id} ({t.outgoing_clip} -> {t.incoming_clip})"
+                                                   for t in c.transitions if clip.id in (t.outgoing_clip, t.incoming_clip))
+                                 for clip in c.clips) if joins else ())
     from .color import validate_source_colors, write_luts
     validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated))
-    c = prepared.composition
 
     def render(directory: Path):
         from .positioned_captions import generate_positioned_ass
@@ -224,6 +238,7 @@ def render_composition(
             caption_writer=(lambda d: generate_positioned_ass(c, prepared.fonts, d, ffmpeg, caption_filter)) if c.captions else None,
             fps_rate=f"{c.fps.numerator}/{c.fps.denominator}",
             clip_luts=clip_luts,
+            transitions=joins,
         )
 
     if work_dir is not None:

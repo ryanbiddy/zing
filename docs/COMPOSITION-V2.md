@@ -13,10 +13,11 @@ EDL v1 or Composition v2. R9 adds `myzing.render.render_composition(plan, output
 base_dir=plan_directory)`. V1 still uses its original compiler. V2 supports
 cuts, source audio, placed voiceover/music, v1 voiceover ducking, and positioned
 ASS captions. R13 adds per-clip SDR LUT rendering before scaling, concat and
-caption compositing. See [V2 rendering](RENDER-V2.md) for bounds, fonts, timing
+caption compositing. R15 adds dissolve, wipe, dip and zoom-punch overlaps.
+See [V2 rendering](RENDER-V2.md) for bounds, fonts, timing
 and color-space requirements.
 
-Speed maps, non-cut transitions, HyperFrames captions, other audio roles,
+Speed maps, unsupported transition kinds, HyperFrames captions, other audio roles,
 audio trims, other ducking scopes and loudness targets fail before media work
 with a `not yet supported in this renderer: ...` list. Passing v2 JSON to
 `EDL.from_dict` still fails; use `load_composition` to load v2.
@@ -99,7 +100,9 @@ guesses 30000/1001. At 30000/1001, frame 30000 starts at exactly 1001 seconds.
 | `outgoing_handle`, `incoming_handle` | Required `SourceRange` objects for a positive overlap: `src_in`, `src_out`, `version: 1`. Null for a hard cut. |
 | `version` | `1`. |
 
-`TransitionRecipe.kind` is `hard_cut`, `dissolve`, `wipe` or `zoom_punch`.
+`TransitionRecipe.kind` is `hard_cut`, `dissolve`, `wipe`, `zoom_punch`,
+`dip_to_black` or `dip_to_white`. R15 adds the two explicit dip choices;
+existing documents and observation evidence retain their meaning.
 Hard cuts require zero duration; other kinds require positive duration. Only a
 wipe has a direction, which must be `left`, `right`, `up` or `down`. `reason`
 records why a stand-in was chosen. `observation` reuses P14's
@@ -116,6 +119,11 @@ clip's output duration. Handles must cover the complete mapped overlap;
 missing or shortened handles fail. Timeline gaps and three-way overlaps are
 unsupported. Time comparisons use the legacy renderer's one-microsecond
 tolerance. Known source durations use its 50-millisecond probe tolerance.
+Rendering overlap plans checks actual source/video duration more strictly;
+see [R15 render bounds](RENDER-V2.md). With ordinary rate-1 clips, a duration
+`d` consumes `d` seconds of A's tail and `d` seconds of B's head. The output
+duration is the sum of trim durations minus overlap durations. Clip positions
+must already match that result; there is no implicit preserve-duration mode.
 
 | CompositionCaption field | Contract |
 |---|---|

@@ -788,7 +788,9 @@
             "hard_cut",
             "dissolve",
             "wipe",
-            "zoom_punch"
+            "zoom_punch",
+            "dip_to_black",
+            "dip_to_white"
           ]
         },
         "observation": {

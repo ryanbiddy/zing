@@ -110,8 +110,9 @@ def test_all_unsupported_features_named_before_io(tmp_path, monkeypatch):
         render_composition(c, tmp_path / "out.mp4")
     message = str(caught.value)
     assert message.startswith("not yet supported in this renderer: ")
-    for text in ("speed maps", "dissolve", "hyperframes", "duck_scope=all_speech", "loudness targets", "source trims"):
+    for text in ("speed maps", "hyperframes", "duck_scope=all_speech", "loudness targets", "source trims"):
         assert text in message
+    assert "dissolve" not in message
     assert "LUTs" not in message
     assert not (tmp_path / "out.mp4").exists()
 
