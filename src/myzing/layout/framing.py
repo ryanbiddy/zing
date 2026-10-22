@@ -181,14 +181,31 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
 
     # A sub-second shot can fall entirely between regular samples. Decode the
     # first frame of every used shot explicitly; never borrow the previous shot.
+    def evenly(items, count):
+        if count <= 0:
+            return []
+        if len(items) <= count:
+            return list(items)
+        return [items[round(j * (len(items) - 1) / max(1, count - 1))] for j in range(count)]
+
     cut_starts = [(i, t) for i, t in enumerate(cuts[:-1]) if window_of(t) is not None]
     if len(cut_starts) > MAX_SAMPLES // 2:
         keep = MAX_SAMPLES // 2
         warnings.append(f"{len(cut_starts)} used source cuts exceed the explicit cut-sample budget; "
                         f"{keep} evenly spaced cut starts were decoded, the rest rely on regular samples.")
-        cut_starts = [cut_starts[round(j * (len(cut_starts) - 1) / (keep - 1))] for j in range(keep)]
-    span = sum(b - a for a, b in windows)
-    budget = MAX_SAMPLES - len(cut_starts) - len(windows)
+        cut_starts = evenly(cut_starts, keep)
+    # Every sampled range costs at least its first frame. Past the budget,
+    # keep one frame from evenly spaced ranges rather than failing outright.
+    sampled = windows
+    if len(windows) > MAX_SAMPLES:
+        sampled = evenly(windows, MAX_SAMPLES)
+        warnings.append(f"{len(windows)} separate used ranges exceed the {MAX_SAMPLES}-frame analysis budget; "
+                        f"one frame each from {MAX_SAMPLES} evenly spaced ranges was analyzed, the rest are unmeasured.")
+    if len(cut_starts) + len(sampled) > MAX_SAMPLES:
+        cut_starts = evenly(cut_starts, MAX_SAMPLES - len(sampled))
+        warnings.append("Too many used ranges for explicit cut-start samples; shots rely on regular samples.")
+    span = sum(b - a for a, b in sampled)
+    budget = MAX_SAMPLES - len(cut_starts) - len(sampled)
     interval = max(.5, span / max(1, budget))
     if interval > .5 + 1e-9:
         warnings.append(f"Subjects sampled every {interval:.3g}s over {span:.1f}s of used source to stay within "
@@ -196,7 +213,7 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
     try:
         with tempfile.TemporaryDirectory(prefix="framing-", dir=directory) as temp:
             samples = []
-            for i, (a, b) in enumerate(windows):
+            for i, (a, b) in enumerate(sampled):
                 samples += _sample_window(video, Path(temp) / f"window-{i:04d}", a, b, interval,
                                           math.floor((b - a) / interval) + 2)
             times = {t for t, _ in samples}
@@ -234,21 +251,30 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
         diagnostic = re.sub(r" @ (?:0x)?[0-9a-fA-F]+", "", str(exc))
         return [], [f"Subject analysis failed: {diagnostic}; center heuristic, confidence 0."]
     tracks = []
+    # At 2 fps bridge half a second, as before; a lowered budget rate bridges
+    # one and a half intervals, but only inside one used range.
+    gap = .5 if interval <= .5 + 1e-9 else min(10, interval * 1.5)
     for scene, (start, end) in enumerate(zip(cuts, cuts[1:])):
-        for frames, prefix, margin in ((faces, "face", .025), (people, "person", .015), (salient, "saliency", .015)):
-            measured = [frame for frame in frames if start <= frame.time < end]
-            # At 2 fps bridge half a second, as before; a lowered budget rate
-            # bridges one and a half intervals. Separate ranges stay apart.
-            gap = .5 if interval <= .5 + 1e-9 else min(10, interval * 1.5)
-            for track in build_tracks(measured, duration=end, smooth_radius=1, margin=margin, max_gap=gap):
-                a, b = max(start, track.keyframes[0].time), min(end, track.keyframes[-1].time)
-                # Keep the held endpoint on this side of the scene boundary.
-                b = max(a, b - 1e-7 if b == end and end < duration else b)
-                keys = [Keyframe(a, box_at(track.keyframes, a))]
-                keys += [k for k in track.keyframes if a < k.time < b]
-                if b > a:
-                    keys.append(Keyframe(b, box_at(track.keyframes, b)))
-                tracks.append(replace(track, id=f"{prefix}-{scene}-{track.id}", keyframes=keys))
+        # Segment by source shot AND by used range: no linking, smoothing,
+        # endpoint hold or interpolation crosses a cut or an unused gap.
+        for part, (window_start, window_end) in enumerate(windows):
+            low, high = max(start, window_start), min(end, window_end)
+            if high <= low:
+                continue
+            label = f"{scene}" if len(windows) == 1 else f"{scene}.{part}"
+            for frames, prefix, margin in ((faces, "face", .025), (people, "person", .015), (salient, "saliency", .015)):
+                measured = [frame for frame in frames if low <= frame.time < high]
+                if not measured:
+                    continue
+                for track in build_tracks(measured, duration=high, smooth_radius=1, margin=margin, max_gap=gap):
+                    a, b = max(low, track.keyframes[0].time), min(high, track.keyframes[-1].time)
+                    # Keep the held endpoint on this side of a scene boundary.
+                    b = max(a, b - 1e-7 if b == high == end and end < duration else b)
+                    keys = [Keyframe(a, box_at(track.keyframes, a))]
+                    keys += [k for k in track.keyframes if a < k.time < b]
+                    if b > a:
+                        keys.append(Keyframe(b, box_at(track.keyframes, b)))
+                    tracks.append(replace(track, id=f"{prefix}-{label}-{track.id}", keyframes=keys))
     scope = "the whole source" if ranges is None else f"{len(windows)} used source range(s) plus {RANGE_MARGIN:g}s margins"
     warnings.append(f"Subjects sampled at up to 2 fps over {scope}, plus measured source-cut starts: YuNet faces, bundled HOG people (confidence .5), then stable contrast objects; large clipped highlights and bright changing regions are suppressed. Saliency "
                     "(confidence .25), center for gaps (confidence 0). Saliency is not object recognition; missed subjects remain possible.")
@@ -415,25 +441,56 @@ def swept_output_box(box, framing, times, output_width, output_height):
     return bounds(left, top, right, bottom) if left < right and top < bottom else None
 
 
-def default_caption_box(caption, width, height):
-    """Estimated box of an unstyled, unplaced caption at its preset anchor.
+DEFAULT_POP_SCALE = 1.18  # v1 word-timed captions pop each word to 118% (ASS fscx/fscy 118).
 
-    Same default size/outline as both caption renderers and the same 0.8 em
-    per character and 1.4 em line estimate as placement. None if it cannot
-    fit the frame at all (the default would need layout to wrap or shrink).
+
+def default_ink_margin(width, height):
+    """Output pixels added on every side of a measured default caption."""
+    return max(4, min(width, height) / 180)
+
+
+def measure_default_ink(caption, width, height, ffmpeg="ffmpeg"):
+    """libass ink+outline extent of an unstyled caption at its largest render.
+
+    Uses the positioned renderer's own measurement (Arial bold, short side/12,
+    outline short side/270, the defaults both renderers draw) with size and
+    outline scaled by DEFAULT_POP_SCALE, which bounds the v1 word pop and the
+    100% full-text draw. Returns (left, top, right, bottom) offsets in output
+    pixels from the anchor. Raises if FFmpeg/libass or the caption cannot be
+    measured; callers then place the caption explicitly.
+    """
+    from myzing.composition import CaptionStyle
+    from myzing.ffmpeg_capabilities import caption_filter
+    from myzing.render.positioned_captions import _measure, caption_runs
+
+    if caption.font is not None:
+        raise ValueError("default measurement covers the unstyled default font only")
+    short = min(width, height)
+    style = CaptionStyle(max(24, round(short / 12)) * DEFAULT_POP_SCALE,
+                         outline_width=max(2, round(short / 270)) * DEFAULT_POP_SCALE)
+    renderer = caption_filter(ffmpeg)
+    with tempfile.TemporaryDirectory(prefix="zing-caption-ink-") as temporary:
+        directory = Path(temporary)
+        (directory / "fonts").mkdir()
+        return _measure(caption, style, "Arial", caption_runs(caption), width, height,
+                        directory, ffmpeg, renderer, 1.0)
+
+
+def default_caption_box(caption, width, height, ink):
+    """Measured box of an unstyled caption at its preset anchor, plus margin.
+
+    ink is measure_default_ink's anchor-relative extent. None when the
+    widened box leaves the frame (the default would need layout to fit).
     """
     from myzing.render.captions import caption_anchor
 
-    size, outline = max(24, round(min(width, height) / 12)), max(2, round(min(width, height) / 270))
-    text = caption.text.upper() if caption.all_caps else caption.text
-    lines = text.splitlines() or [""]
-    ink_width = (max(len(line) for line in lines) * size * .8 + outline * 2 + 6) / width
-    ink_height = (len(lines) * size * 1.4 + outline * 2 + 6) / height
     x, y = caption_anchor(caption.position, width, height)
-    left, top = x / width - ink_width / 2, y / height - ink_height / 2
-    if left < 0 or top < 0 or left + ink_width > 1 or top + ink_height > 1:
+    margin = default_ink_margin(width, height)
+    left, top = (x + ink[0] - margin) / width, (y + ink[1] - margin) / height
+    right, bottom = (x + ink[2] + margin) / width, (y + ink[3] + margin) / height
+    if left < 0 or top < 0 or right > 1 or bottom > 1:
         return None
-    return Box(left, top, ink_width, ink_height)
+    return Box(left, top, right - left, bottom - top)
 
 
 def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False):
@@ -442,10 +499,12 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
     Conservative source envelopes plus crop extrema enclose motion continuously,
     including between samples; this checks supplied tracks, not detector recall.
 
-    keep_safe_defaults leaves an unstyled, unplaced caption untouched when its
-    default preset position already passes the same subject, content and
+    keep_safe_defaults leaves an unstyled, unplaced default-font caption
+    untouched when its measured default box (libass ink at the 118% word-pop
+    size plus default_ink_margin) passes the same subject, content and
     output-reserve checks. Layout is then attached only where it changes
-    placement, which keeps such plans representable as v1 EDLs.
+    placement, which keeps such plans representable as v1 EDLs. Without
+    FFmpeg/libass the caption is placed.
     """
     from myzing.composition.timebase import frame_index, frame_time
     from myzing.render.positioned_captions import caption_frame_timing
@@ -494,8 +553,15 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
         for name, box in [("left", Box(0, 0, left, 1)), ("right", Box(right, 0, 1 - right, 1)),
                           ("top", Box(0, 0, 1, top)), ("bottom", Box(0, bottom, 1, 1 - bottom))]:
             masks.append(Mask(name, box))
-        if keep_safe_defaults and caption.layout is None and caption.style is None:
-            default = default_caption_box(caption, plan.width, plan.height)
+        if (keep_safe_defaults and caption.layout is None and caption.style is None and caption.font is None
+                and caption.template is None and caption.backend == "ass" and caption.alignment == "center"):
+            # Decide on measured libass ink at the largest rendered size, never
+            # an estimate: neither renderer re-checks an unplaced caption.
+            try:
+                ink = measure_default_ink(caption, plan.width, plan.height)
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                ink = None  # Unmeasurable: place it explicitly below.
+            default = default_caption_box(caption, plan.width, plan.height, ink) if ink else None
             if default is not None and check_overlap([Keyframe(caption.start, default), Keyframe(caption.end, default)],
                                                      obstacles, masks).safe:
                 continue

@@ -118,7 +118,7 @@ def test_director_and_match_preserve_output_framing_and_caption_bounds(tmp_path,
     from myzing.director import plan_drafts
     from myzing.match.api import _prepare_plan
     from myzing.style_recipe import StyleRecipe
-    from myzing.layout.framing import default_caption_box, visible_content
+    from myzing.layout.framing import default_caption_box, measure_default_ink, visible_content
     project,_,recipe=example_project(tmp_path/"project",media=True)
     brief=json.loads((project/"brief.json").read_text())
     brief.update(aspect="1:1",framing=requested)
@@ -138,7 +138,8 @@ def test_director_and_match_preserve_output_framing_and_caption_bounds(tmp_path,
                     framing=clip.framing or centered_framing("fit",320,180,plan.width,plan.height)
                     visible=visible_content(framing,plan.width,plan.height)
                     # A caption left at its preset position was checked clear.
-                    box=cap.layout.box if cap.layout else default_caption_box(cap,plan.width,plan.height)
+                    box=cap.layout.box if cap.layout else default_caption_box(cap,plan.width,plan.height,
+                                                                                    measure_default_ink(cap,plan.width,plan.height))
                     assert visible.x <= box.x < box.right <= visible.right
                     assert visible.y <= box.y < box.bottom <= visible.bottom
 
@@ -253,3 +254,92 @@ def test_long_source_analysis_samples_only_used_trims_and_never_fails_on_length(
     assert len(windows)==1 and windows[0][2]>.5
     assert tracks and any("analysis budget" in w for w in warnings)
     assert not any("failed" in w for w in warnings)
+
+
+def _estimate_box(caption, width, height):
+    """The pre-fix 0.8 em/char estimate, kept here to prove each case mattered."""
+    from myzing.layout.types import Box
+    from myzing.render.captions import caption_anchor
+    size, outline = max(24, round(min(width, height) / 12)), max(2, round(min(width, height) / 270))
+    w = (len(caption.text) * size * .8 + outline * 2 + 6) / width
+    h = (size * 1.4 + outline * 2 + 6) / height
+    x, y = caption_anchor(caption.position, width, height)
+    return Box(x / width - w / 2, y / height - h / 2, w, h)
+
+
+@pytest.mark.parametrize("aspect,text", [("9:16", "M"*11), ("1:1", "W"*13), ("16:9", "W"*23)])
+def test_wide_default_caption_is_placed_from_measured_ink_not_the_estimate(aspect, text):
+    from myzing.composition.aspects import SAFE_INSETS, dimensions
+    width, height = dimensions(aspect)
+    caption = CompositionCaption(id="wide", text=text, start=.2, end=1.8, word_timed=False)
+    plan = Composition(assets=[AssetRef("s","s",None)], clips=[CompositionClip("s",0,2,0,id="c",asset_id="s")],
+                       captions=[caption], width=width, height=height)
+    left, top, right, bottom = SAFE_INSETS[aspect]
+    estimate = _estimate_box(caption, width, height)
+    # The old estimate cleared every output reserve, so the caption was kept.
+    assert estimate.x >= left and estimate.right <= 1 - right
+    place_captions(plan, {"s": []}, {"s": (width, height)}, keep_safe_defaults=True)
+    placed = plan.captions[0]
+    assert placed.layout is not None and placed.layout.overlap.safe and placed.style is not None
+    box = placed.layout.box
+    assert box.x >= left - 1e-9 and box.right <= 1 - right + 1e-9
+
+
+def test_subject_touching_only_the_measured_ink_moves_the_caption():
+    from myzing.layout.framing import default_caption_box, measure_default_ink
+    from myzing.layout.types import Box, FaceTrack, Keyframe
+    caption = CompositionCaption(id="www", text="WWW", start=.2, end=1.8, word_timed=False)
+    estimate = _estimate_box(caption, 1920, 1080)
+    measured = default_caption_box(caption, 1920, 1080, measure_default_ink(caption, 1920, 1080))
+    assert measured.right > estimate.right + 10 / 1920  # Real bold W ink is wider than 0.8 em.
+    # A subject just right of the estimate but inside the real glyph box.
+    subject = Box(estimate.right + 2 / 1920, estimate.y, .05, estimate.height)
+    face = FaceTrack("face", [Keyframe(0, subject), Keyframe(2, subject)])
+    plan = Composition(assets=[AssetRef("s","s",None)], clips=[CompositionClip("s",0,2,0,id="c",asset_id="s")],
+                       captions=[caption], width=1920, height=1080)
+    place_captions(plan, {"s": [face]}, {"s": (1920, 1080)}, keep_safe_defaults=True)
+    placed = plan.captions[0]
+    assert placed.layout is not None and placed.layout.overlap.safe
+    box = placed.layout.box
+    assert box.right <= subject.x or box.x >= subject.right or box.bottom <= subject.y or box.y >= subject.bottom
+    # Control: with no subject the same measured default is kept (v1-representable).
+    plan.captions = [CompositionCaption(id="www", text="WWW", start=.2, end=1.8, word_timed=False)]
+    place_captions(plan, {"s": []}, {"s": (1920, 1080)}, keep_safe_defaults=True)
+    assert plan.captions[0].layout is None and plan.captions[0].style is None
+
+
+def test_separate_trims_in_one_shot_never_share_tracks_at_a_lowered_rate(tmp_path, monkeypatch):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
+    from myzing.layout.detector import LayoutError
+    from myzing.layout import framing as layout
+    from myzing.layout.types import box_at
+    def unavailable(*a,**k):
+        raise LayoutError("generated target has no face")
+    monkeypatch.setattr(layout,"YuNetDetector",unavailable)
+    monkeypatch.setattr(layout.PeopleDetector,"detect",lambda *a:[])
+    source=tmp_path/"one-shot.mkv"
+    # One continuous shot: the target sits at x=120 before 13 s and x=170 after.
+    ffmpeg("-f","lavfi","-i","color=c=0x303050:s=320x180:r=10:d=30[bg];color=white:s=16x16:r=10:d=30[dot];[bg][dot]overlay=x='if(lt(t,13),120,170)':y=60:shortest=1",
+           "-c:v","ffv1",source)
+    # Budget 6 for two 3 s windows: one sample per 1.5 s and a 2.25 s gap
+    # allowance, wider than the 1.5 s unused gap between the windows.
+    monkeypatch.setattr(layout,"MAX_SAMPLES",6)
+    tracks,warnings=analyze_subjects(source,30,tmp_path/"a",ranges=[(10,12),(14.5,16.5)])
+    assert any("analysis budget" in w for w in warnings)
+    windows=[(9.5,12.5),(14,17)]
+    early,late=(120+8)/320,(170+8)/320
+    assert tracks
+    for track in tracks:
+        times=[k.time for k in track.keyframes]
+        inside=[i for i,(a,b) in enumerate(windows) if a-1e-6<=min(times) and max(times)<=b+1e-6]
+        assert inside, (track.id, times)  # No track spans the unused gap.
+        expected=early if inside[0]==0 else late
+        for t in [k.time for k in track.keyframes]:
+            assert abs(box_at(track.keyframes,t).center[0]-expected)<.02
+    for t in (10,11,12):
+        active=[k for k in tracks if k.keyframes[0].time<=t<=k.keyframes[-1].time]
+        assert active and all(abs(box_at(k.keyframes,t).center[0]-early)<.02 for k in active)
+    for t in (14.5,15.5,16.5):
+        active=[k for k in tracks if k.keyframes[0].time<=t<=k.keyframes[-1].time]
+        assert active and all(abs(box_at(k.keyframes,t).center[0]-late)<.02 for k in active)

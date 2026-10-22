@@ -105,10 +105,12 @@ optional, versioned Composition fields (clip `framing`, caption `layout` and
 
 Planning measures subjects in the used source trims, then writes as little new
 geometry as safety needs. A square-pixel source that fits the brief aspect keeps
-absent framing (the same default fit graph). A caption whose default preset
-position already clears measured subjects, the visible picture and the output
-reserves keeps no layout or style. Any other caption receives a placed layout
-and an output-scaled style, and other aspects receive explicit framing.
+absent framing (the same default fit graph). An unstyled caption keeps no
+layout or style when its default box, measured with libass at the 118% word-pop
+size plus a small margin, clears measured subjects, the visible picture and the
+output reserves. Any other caption, or any caption that cannot be measured
+(no FFmpeg/libass), receives a placed layout and an output-scaled style, and
+other aspects receive explicit framing.
 
 For v1-representable edits, the command also writes `plan-A.edl.json` and its
 B/C counterparts. The full v2 documents retain their evidence. The derivative

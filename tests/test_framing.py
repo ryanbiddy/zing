@@ -130,13 +130,16 @@ def test_swept_subject_crossing_between_offscreen_endpoints_is_protected():
     assert obstacle.x==0 and obstacle.right==1
 
 
-def test_safe_default_captions_stay_v1_and_only_unsafe_ones_get_layout():
+def test_safe_default_captions_stay_v1_and_only_unsafe_ones_get_layout(monkeypatch):
+    from myzing.layout import framing as layout_framing
     from myzing.layout.framing import default_caption_box
+    ink = (-220, -40, 222, 38)  # Measured "HI THERE" at 1920x1080, 118% pop.
+    monkeypatch.setattr(layout_framing, "measure_default_ink", lambda *a, **k: ink)
     clip = CompositionClip("s", 0, 3, 0, id="c", asset_id="s")
     captions = [CompositionCaption(id="clear", text="HI THERE", start=.2, end=1, word_timed=False),
                 CompositionCaption(id="covered", text="HI THERE", start=1.5, end=2.5, word_timed=False)]
     plan = Composition(assets=[AssetRef("s", "s", None)], clips=[clip], captions=captions, width=1920, height=1080)
-    default = default_caption_box(captions[0], 1920, 1080)
+    default = default_caption_box(captions[0], 1920, 1080, ink)
     # A subject sits exactly under the default position during the second caption only.
     face = FaceTrack("face", [Keyframe(1.4, default), Keyframe(3, default)])
     place_captions(plan, {"s": [face]}, {"s": (1920, 1080)}, keep_safe_defaults=True)
@@ -171,3 +174,26 @@ def test_expression_depth_stays_logarithmic_for_the_keyframe_maximum():
         deepest = max(deepest, depth)
     assert deepest <= 40 and x.count("if(") == 255  # 255 moving segments + final hold
     assert _expression(f, "center_y", "30/1") == "20"  # Static axis: one constant per piece collapses.
+
+
+@pytest.mark.parametrize("failure", [OSError("no ffmpeg"), RuntimeError("no libass"), ValueError("bad text")])
+def test_unmeasurable_default_captions_are_placed_not_kept(monkeypatch, failure):
+    from myzing.layout import framing as layout_framing
+    def unavailable(*a, **k):
+        raise failure
+    monkeypatch.setattr(layout_framing, "measure_default_ink", unavailable)
+    clip = CompositionClip("s", 0, 3, 0, id="c", asset_id="s")
+    plan = Composition(assets=[AssetRef("s", "s", None)], clips=[clip], width=1920, height=1080,
+                       captions=[CompositionCaption(id="cap", text="HI", start=.2, end=1, word_timed=False)])
+    place_captions(plan, {"s": []}, {"s": (1920, 1080)}, keep_safe_defaults=True)
+    assert plan.captions[0].layout is not None and plan.captions[0].style is not None
+
+
+def test_default_box_includes_the_stated_margin_and_rejects_off_frame_ink():
+    from myzing.layout.framing import default_caption_box, default_ink_margin
+    caption = CompositionCaption(id="cap", text="HI", start=0, end=1, word_timed=False)
+    box = default_caption_box(caption, 1920, 1080, (-100, -40, 100, 40))
+    margin = default_ink_margin(1920, 1080)
+    assert margin == 6
+    assert box.width * 1920 == pytest.approx(200 + 2 * margin) and box.height * 1080 == pytest.approx(80 + 2 * margin)
+    assert default_caption_box(caption, 1920, 1080, (-961, -40, 961, 40)) is None

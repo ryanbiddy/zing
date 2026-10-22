@@ -104,9 +104,12 @@ FFmpeg 9 remains a CI check.
 Subjects are sampled only over the source trims an edit uses, each widened by
 0.5 s, at 2 fps plus the first frame of every used source shot, within a
 600-frame budget per source. A longer used span lowers the regular rate to fit
-(with a warning) instead of failing, so source length never removes evidence;
-separate ranges are never bridged. Director drafts and `zing match` deliveries
-analyze each source once over the union of the A/B/C trims. Priority is YuNet faces, OpenCV's bundled HOG pedestrian detector,
+(with a warning) instead of failing, so source length never removes evidence.
+More separate ranges than the budget keep one frame from evenly spaced ranges.
+Tracks are built per source shot and per used range: no linking, smoothing,
+endpoint hold or interpolation crosses a cut or an unused gap, at any rate.
+Director drafts and `zing match` deliveries analyze each source once over the
+union of the A/B/C trims. Priority is YuNet faces, OpenCV's bundled HOG pedestrian detector,
 then stable contrast components. HOG needs no download, has limited recall for
 seated/occluded people and receives conservative .5 confidence; its SVM score
 is not treated as probability. Faces are ranked by area and center preference
@@ -149,10 +152,15 @@ measured before publishing. Word timing is unchanged. Crowded frames can need
 manual editing when no safe legible caption position exists.
 
 Director plans keep v1 export where it changes nothing: a square-pixel
-full-picture fit is written as absent framing (the same default graph), and a
-caption whose preset position already clears measured subjects, content and
-output reserves keeps no layout or style. Other captions receive placed layout,
-which blocks v1 lowering and is listed in the report.
+full-picture fit is written as absent framing (the same default graph), and an
+unstyled default-font caption keeps no layout or style when its default box
+clears measured subjects, content and output reserves. That box is libass ink
+measured by the positioned renderer's probe (Arial Bold, short side/12, outline
+short side/270) at 118% size and outline, the v1 word-pop peak, plus
+max(4 px, short side/180) on every side. Neither renderer re-checks an unplaced
+caption, so no estimate is trusted: without FFmpeg/libass, or when the probe
+fails, the caption is placed. Placed captions block v1 lowering and are listed
+in the report.
 
 Director and delivery reports retain tracks and warnings. Per-aspect
 compositions retain crop keys, bounds, modes, limits and caption geometry.
