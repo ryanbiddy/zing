@@ -131,7 +131,9 @@ class StdioClient:
 def run_smoke() -> dict:
     from myzing import __version__
 
-    env = dict(os.environ)
+    # This installation check must not probe the user's resident Uoink.
+    env = dict(os.environ, UOINK_URL="disabled://mcp-smoke")
+    env.pop("UOINK_TOKEN", None)
     client = StdioClient(env)
     try:
         initialized = client.send(

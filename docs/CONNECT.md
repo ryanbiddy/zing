@@ -25,6 +25,16 @@ pack as slash commands:
 (This list is pinned by a test against the server's own tool registry —
 if it drifts, CI fails.)
 
+The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
+launch commands still work. It accepts legacy initialization through
+`2025-11-25` and the stateless `2026-07-28` protocol; the 32 tools and five
+prompts keep their schemas and results. See [SDK 2 compatibility](MCP-SDK2.md)
+for protocol details and the recorded SDK 1 baseline. Zing exposes no HTTP
+MCP endpoint.
+
+The source-built MCPB bundle requires a host supporting manifest 0.4's uv
+runtime. It installs the dependencies recorded in its included lockfile.
+
 **One command prints your exact config with real paths — start there:**
 
 ```
@@ -184,21 +194,18 @@ python packaging/build_mcpb.py        # -> dist/myzing.mcpb
 
 Then double-click `myzing.mcpb` (or drag it into Claude Desktop →
 Settings → Extensions). The bundle is `server.type: "uv"`: Claude
-Desktop's runtime resolves Python + dependencies from the bundled
-`pyproject.toml` at install time, so nothing compiled is packed and one
+Desktop's runtime installs Python + dependencies from the bundled
+`pyproject.toml` and `uv.lock`, so nothing compiled is packed and one
 bundle serves Windows/macOS/Linux. The install dialog offers one
 optional setting — the Zing workspace directory (default `~/.zing`).
 
-**What is verified** (2026-07-18, this machine, then a 12-tool
-surface): the staged bundle tree is complete and CI-tested; `mcpb pack`
-produces the bundle; the manifest's exact launch command (`uv run
+**What is verified** (2026-10-22, Windows): MCPB CLI 2.1.2 validates and
+packs the manifest 0.4 bundle. Its exact launch command (`uv run --frozen
 --directory <bundle> --extra mcp python -m myzing.cli serve-mcp`) boots
-the server cold from the staged tree — initialize handshake, every tool
-listed, the four then-current prompts (study, compare, direct, taste)
-served via the `${__dirname}/prompts`
-pin. The served tool list follows the package (CI pins it), so bundles
-built today serve all thirty-two tools and all five prompt-pack prompts,
-including `meme-writer`. **What still needs a
+from the extracted archive with a fresh environment. Both legacy and
+`2026-07-28` stdio serve all thirty-two tools and all five prompt-pack prompts,
+including `meme-writer`. Schemas, prompt bodies and representative results
+match the recorded SDK 1 baseline. **What still needs a
 human:** the Claude Desktop double-click dialog itself (GUI). If it
 fails, the fallback is the manual config above — same server, same
 behavior. Requires a Claude Desktop recent enough to support uv-type

@@ -7,8 +7,8 @@ with the official MCPB CLI:
     python packaging/build_mcpb.py --stage-only   # stage, skip npx pack (CI)
 
 The bundle is `server.type: "uv"`: the host runs
-``uv run --directory <bundle> --extra mcp python -m myzing.cli serve-mcp``,
-so dependencies resolve from pyproject.toml at install time — nothing
+``uv run --frozen --directory <bundle> --extra mcp python -m myzing.cli serve-mcp``,
+so dependencies install from the audited uv.lock — nothing
 compiled is bundled (the pydantic-doesn't-bundle landmine from
 handoff/research/R1-lane-b-surface-judgment.md §1a). The prompt pack rides
 inside the bundle and is pinned via ZING_PROMPTS_DIR, so prompt lookup
@@ -32,6 +32,8 @@ REPO = Path(__file__).resolve().parents[1]
 STAGE_FILES = [
     ("packaging/mcpb/manifest.json", True),
     ("pyproject.toml", True),
+    ("uv.lock", True),
+    ("docs/THIRD-PARTY-NOTICES.md", True),
     ("README.md", True),
     ("LICENSE", True),
 ]

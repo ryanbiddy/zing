@@ -20,6 +20,8 @@ def test_staged_tree_is_complete(tmp_path):
     staged = build_mcpb.stage(tmp_path / "stage")
     assert (staged / "manifest.json").is_file()
     assert (staged / "pyproject.toml").is_file()
+    assert (staged / "uv.lock").read_bytes() == (build_mcpb.REPO / "uv.lock").read_bytes()
+    assert (staged / "THIRD-PARTY-NOTICES.md").is_file()
     assert (staged / "LICENSE").is_file()
     assert (staged / "src" / "myzing" / "mcp_server.py").is_file()
     assert (staged / "prompts" / "study.md").is_file()
@@ -31,10 +33,9 @@ def test_manifest_agrees_with_staged_layout(tmp_path):
     staged = build_mcpb.stage(tmp_path / "stage")
     manifest = json.loads((staged / "manifest.json").read_text(encoding="utf-8"))
 
-    # SG-4 2026-07-19: the mcpb spec (modelcontextprotocol/mcpb
-    # MANIFEST.md) requires manifest_version "0.3"; our "0.4" was a
-    # toolchain-version mixup and could fail one-click install.
-    assert manifest["manifest_version"] == "0.3"
+    # The official CLI rejects server.type=uv under 0.3. Its uv runtime
+    # is a 0.4 feature (MANIFEST.md, "UV Runtime (v0.4+)").
+    assert manifest["manifest_version"] == "0.4"
     assert manifest["name"] == "myzing"
     assert manifest["license"] == "MIT"
     server = manifest["server"]
@@ -44,6 +45,7 @@ def test_manifest_agrees_with_staged_layout(tmp_path):
     # the run command must invoke the real CLI module with the mcp extra
     args = server["mcp_config"]["args"]
     assert "myzing.cli" in args and "serve-mcp" in args and "--extra" in args
+    assert "--frozen" in args
     # the prompts pin must point inside the bundle
     env = server["mcp_config"]["env"]
     assert env["ZING_PROMPTS_DIR"].startswith("${__dirname}")

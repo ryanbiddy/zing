@@ -43,6 +43,8 @@ class StdioClient:
     """Minimal MCP stdio client: one request in flight, honest timeouts."""
 
     def __init__(self, env: dict[str, str]):
+        env = dict(env, UOINK_URL="disabled://mcp-stdio-test")
+        env.pop("UOINK_TOKEN", None)
         self.proc = subprocess.Popen(
             [sys.executable, "-P", "-m", "myzing.cli", "serve-mcp"],
             stdin=subprocess.PIPE,
@@ -295,20 +297,15 @@ def test_tool_error_is_data_not_protocol_error(client):
     # An old client still gets its own version back (backward compat) —
     # this is what the rest of this file's smoke tests exercise.
     ("2024-11-05", "2024-11-05"),
-    # What a current client actually negotiates.
-    (None, None),  # None => the SDK's LATEST_PROTOCOL_VERSION, echoed back
-    # A client from the FUTURE (the 2026-07-28 revision goes final in
-    # days and is the largest ever): the server must answer with its own
-    # latest supported version, never echo a version it cannot speak and
-    # never fail the handshake. Verified live before this test was
-    # written; pinned here so an SDK bump can't silently change it.
-    ("2026-07-28", None),
+    ("2025-03-26", "2025-03-26"),
+    ("2025-06-18", "2025-06-18"),
+    ("2025-11-25", "2025-11-25"),
+    # initialize selects the legacy era. Modern clients use server/discover
+    # or inline metadata, tested in test_mcp_wire.py.
+    ("2026-07-28", "2025-11-25"),
+    ("2099-01-01", "2025-11-25"),
 ])
 def test_protocol_version_negotiation(tmp_path, asked, expect):
-    from mcp.types import LATEST_PROTOCOL_VERSION
-
-    asked = asked or LATEST_PROTOCOL_VERSION
-    expect = expect or LATEST_PROTOCOL_VERSION
     env = dict(os.environ)
     env["ZING_HOME"] = str(tmp_path / "zing-home")
     c = StdioClient(env)

@@ -14,6 +14,9 @@ tests/fixtures/render-v1-baseline.json text eol=lf
 tests/fixtures/render-v2-no-lut-baseline.json text eol=lf
 tests/fixtures/render-v2-graded-cut-baseline.json text eol=lf
 
+# MCP stdio compatibility fixtures use canonical UTF-8/LF bytes.
+tests/fixtures/mcp_wire/** text eol=lf
+
 # P10b overlay cache hashes these sidecar sources byte-for-byte.
 tools/hyperframes-sidecar/render.mjs text eol=lf
 tools/hyperframes-sidecar/plan.mjs text eol=lf
