@@ -45,7 +45,12 @@ def run(argv: list[str]) -> int:
         command.add_argument("--layout", choices=("classic", "caption", "labels"), default="")
         command.add_argument("--aspect", default="1:1")
         command.add_argument("--out", default="")
-        command.add_argument("--fit", choices=("cover", "contain"), default="")
+        command.add_argument("--fit", choices=(("auto", "fill", "blur", "cover", "contain") if command is render
+                                               else ("cover", "contain", "blur")), default="",
+                             help=("photo framing (default auto: face/subject-aware fill, or blur-fill "
+                                   "when a crop would cut faces); templates default to contain"
+                                   if command is render else "video framing (default cover; blur keeps the "
+                                   "whole frame over a blurred copy)"))
         command.add_argument("--font", default="", help="anton, sans, system font name, or font file path")
         command.add_argument("--regions", help="JSON list of normalized [x,y,width,height] boxes for labels")
         command.add_argument("--plate", action="store_true")
