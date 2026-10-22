@@ -86,8 +86,8 @@ def _files(clips: Path, root: Path) -> list[Path]:
                          and (parent / d).resolve() != root)
         for name in sorted(names):
             path = parent / name
-            if parent == root and (name in {MANIFEST_NAME, LOCK_NAME, "brief.json"}
-                                   or (name.startswith((".project-", ".brief-")) and name.endswith(".tmp"))):
+            if parent == root and (name in {MANIFEST_NAME, LOCK_NAME, "brief.json", "choices.json"}
+                                   or (name.startswith((".project-", ".brief-", ".choices-")) and name.endswith(".tmp"))):
                 continue
             if not path.is_symlink() and stat.S_ISREG(path.stat().st_mode):
                 found.append(path)

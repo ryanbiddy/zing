@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 27 tools. Inspect the connected client's tool schemas for
+The current server has 28 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -19,6 +19,7 @@ An MCP-only client cannot execute CLI-only operations without a separate shell.
 | `setup_taste` | Guided taste/profile workflow; may start authorized reference studies. |
 | `brief_questions` | Interview questions/defaults/examples. |
 | `brief_save` | Save replacement answers for an existing local project and return evidence gaps. |
+| `plan_drafts` | Project, recipe and output paths plus seed; three Composition v2 plans, supported v1 derivatives and a comparison, or named shortages. No study/render/network. |
 | `build_profile` | Aggregate studied sources with coverage and unjudged-source warnings. |
 | `get_profile` | Read one profile. |
 | `list_profiles` | Discover stored profiles. |
@@ -38,6 +39,10 @@ An MCP-only client cannot execute CLI-only operations without a separate shell.
 
 Tools return `{ok: true, ...}` or `{ok: false, error: ...}`. Check the envelope:
 a transport success is not a successful study, render or text check.
+
+For planning, also check `status`: ready means three plans were written;
+shortage means no trio was written. Read the returned comparison path for
+honored measurements, deviations, source/output mappings and v1 blockers.
 
 For study: call `study_video`, retain its slug, poll `zing_status` until that
 study is done/failed, then read `get_breakdown`. A started/running result is not

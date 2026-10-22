@@ -35,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
+      ZING_TEST_FETCH_FONTS: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -62,6 +63,8 @@ jobs:
       # GUI cv2 wheel. Restore the single pinned headless runtime after install.
       - run: pip uninstall -y opencv-python
       - run: pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92
+      - name: Provision pinned font library (explicit download; matching stays offline)
+        run: zing fonts fetch --all
       - name: Provision pinned caption OCR models (explicit download; study stays offline)
         run: python -m myzing.study.caption_models --fetch
       - name: Golden generation (real ffmpeg fixtures, hostile paths)
@@ -69,7 +72,7 @@ jobs:
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 102
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 117
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -86,6 +89,7 @@ jobs:
     runs-on: windows-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
+      ZING_TEST_FETCH_FONTS: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -110,10 +114,12 @@ jobs:
       - run: pip install -e .[dev,layout,color,audio,memes,study] "rapidocr==3.9.1"
       - run: pip uninstall -y opencv-python
       - run: pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92
+      - name: Provision pinned font library (explicit download; matching stays offline)
+        run: zing fonts fetch --all
       - name: Provision pinned caption OCR models (explicit download; study stays offline)
         run: python -m myzing.study.caption_models --fetch
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 102
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 117
 
   # macOS smoke: frame extraction, six inspection tests, audio placement,
   # and the caption/ducking render oracle (Homebrew FFmpeg with libass).
@@ -145,7 +151,7 @@ jobs:
           fi
       - run: pip install -e .[dev,audio,memes]
       - name: Real media, inspection, render audio and animated meme gates (skips are failures)
-        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking tests/test_memes_video.py -m ffmpeg --expected-ffmpeg-tests 21
+        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking tests/test_memes_video.py tests/test_director_ffmpeg.py -m ffmpeg --expected-ffmpeg-tests 22
 
   # S5 Lane B: fresh-host install gate — wheel -> bare venv -> first-run
   # surface, NO repo checkout on the tested path (packaged data must

@@ -359,7 +359,17 @@ def _stage_local(path_str: str, slug: str) -> Path:
     if not src.is_file():
         raise MediaError(f"no such file: {src}")
     target = storage.media_target(slug, src.suffix)
-    if not (target.exists() and target.stat().st_size == src.stat().st_size):
+    # A same-length replacement is still new content. Project reference hashes
+    # must describe the bytes studied, not a stale workspace copy.
+    def digest(path: Path) -> str:
+        sha = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1 << 20), b""):
+                sha.update(chunk)
+        return sha.hexdigest()
+
+    if not (target.exists() and target.stat().st_size == src.stat().st_size
+            and digest(target) == digest(src)):
         shutil.copy2(src, target)
     return target
 

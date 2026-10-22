@@ -1,4 +1,4 @@
-"""Zing-owned durable delivery of Uoink ``opened`` engagement events.
+"""Zing-owned durable delivery of observed Uoink engagement events.
 
 The study result stays primary. Before Zing reports that it accepted a
 verified kept-media handoff, this module either obtains an accounted Uoink
@@ -164,6 +164,8 @@ def _validate_response(
     status: int,
     event_id: str,
 ) -> dict[str, Any]:
+    from myzing.uoink_bridge import redact
+
     if not isinstance(payload, dict):
         raise _DeliveryError(
             "contract_mismatch",
@@ -201,8 +203,8 @@ def _validate_response(
                 retryable=status >= 500,
             )
         raise _DeliveryError(
-            error["code"],
-            error["message"],
+            redact(error["code"]),
+            redact(error["message"]),
             retryable=error["retryable"],
         )
     data = payload.get("data")
@@ -251,16 +253,19 @@ def _validate_response(
             "Uoink engagement accounting is inconsistent",
             retryable=False,
         )
+    for item in rejected:
+        item["code"], item["message"] = redact(item["code"]), redact(item["message"])
     return data
 
 
 def _post(event: dict[str, Any]) -> dict[str, Any]:
+    from myzing.uoink_bridge import credential_safe_url, redact
     try:
         base = suite_peer.resolve_uoink_base().base
     except suite_peer.UoinkResolutionError as error:
         raise _DeliveryError(
             error.code,
-            str(error),
+            redact(str(error)),
             retryable=error.retryable,
         ) from error
     token = os.environ.get(
@@ -276,16 +281,20 @@ def _post(event: dict[str, Any]) -> dict[str, Any]:
         "version": 1,
         "events": [event],
     }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    try:
+        url = credential_safe_url(base.rstrip("/") + "/api/engagement/v1/events")
+    except ValueError as error:
+        raise _DeliveryError("invalid_configuration", str(error), retryable=False) from error
     request = urllib.request.Request(
-        base.rstrip("/") + "/api/engagement/v1/events",
+        url,
         data=body,
         headers={
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "X-Uoink-Token": token,
         },
         method="POST",
     )
+    request.add_unredirected_header("X-Uoink-Token", token)
     status = 200
     try:
         with urllib.request.urlopen(
@@ -331,6 +340,26 @@ def _post(event: dict[str, Any]) -> dict[str, Any]:
 def record_opened(item_ref: str, sha256: str) -> dict[str, Any]:
     """Account for one verified kept-media handoff and return its receipt."""
     event_id = _event_id(item_ref, sha256)
+    return _record_event({
+        "event_id": event_id, "item_ref": item_ref, "event_type": "opened",
+        "source_product": "zing", "occurred_at": _now(),
+    })
+
+
+def record_choice(item_ref: str, event_id: str, occurred_at: str) -> dict[str, Any]:
+    """Account for citing a reference in a chosen draft, using v1's cite event.
+
+    The project owns the choice details and artifact hashes. v1 permits exactly
+    five fields; a draft choice is not a publish or social-performance claim.
+    """
+    return _record_event({
+        "event_id": event_id, "item_ref": item_ref, "event_type": "cite",
+        "source_product": "zing", "occurred_at": occurred_at,
+    })
+
+
+def _record_event(event: dict[str, Any]) -> dict[str, Any]:
+    event_id = event["event_id"]
     with _LOCK:
         state = _read_state()
         completed = state["receipts"].get(event_id)
@@ -346,13 +375,6 @@ def record_opened(item_ref: str, sha256: str) -> dict[str, Any]:
             return _receipt(event_id, "rejected", rejected=1)
         pending = state["pending"].get(event_id)
         if not isinstance(pending, dict):
-            event = {
-                "event_id": event_id,
-                "item_ref": item_ref,
-                "event_type": "opened",
-                "source_product": "zing",
-                "occurred_at": _now(),
-            }
             pending = {
                 "event": event,
                 "attempts": 0,

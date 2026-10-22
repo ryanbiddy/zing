@@ -45,6 +45,7 @@ def study(
     kept_media: Path | str | None = None,
     handoff: dict[str, Any] | None = None,
     caption_geometry: bool = False,
+    fonts: bool = False,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -69,6 +70,8 @@ def study(
     MCP jobs, no process-global state. The env-var mutation survives only
     as a fallback for a storage build without it.
     """
+    if fonts and not caption_geometry:
+        raise ValueError("font candidates require caption_geometry=True (CLI: --caption-geometry --fonts)")
     with _workspace_override(workspace):
         _phase(phase_callback, "ingest")
         ing = ingest_mod.ingest(
@@ -105,6 +108,17 @@ def study(
 
             _phase(phase_callback, "caption_geometry")
             geometry = read_geometry(ing.media_path, ing.meta.duration)
+            if fonts:
+                from .font_match import match_geometry, failed_candidates
+                _phase(phase_callback, "font_candidates")
+                try:
+                    candidates = match_geometry(ing.media_path, geometry)
+                except Exception as exc:
+                    # Optional font matching must never prevent saving the study,
+                    # including OpenCV errors and unexpected backend failures.
+                    candidates = failed_candidates(ing.media_path, geometry, exc)
+                geometry.font_candidates = candidates.to_dict()
+                geometry.warnings.extend(candidates.warnings)
             caps_r = captions_mod.CaptionsResult(
                 captions=caption_events(geometry), warnings=geometry.warnings,
             )

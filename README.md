@@ -4,7 +4,7 @@
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
 from local images. Measurement and rendering run on your machine; your AI supplies
-the creative judgment through the CLI or **27 MCP tools**. No Zing API key needed.
+the creative judgment through the CLI or **28 MCP tools**. No Zing API key needed.
 
 Today these are explicit steps you and your agent can run and review. A saved
 brief and project inventory keep the work organized; automatic style-match
@@ -61,16 +61,20 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | First local edit | [Quickstart](docs/QUICKSTART.md): generated clip, explicit EDL, rendered draft and review artifacts. |
 | Study and direct footage | [Direct flow](docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v5. |
 | Inventory a project | [Project inventory](docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
+| Reuse saved references and remember a choice | [Uoink memory](docs/UOINK-MEMORY.md): verified local media, optional peer search, and durable draft-choice receipts. |
 | Save creative intent | [Briefs](docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
 | Match a color look | [Color](docs/color.md): SDR LUT approximation, recipe and before/reference/after preview; separate apply step. |
 | Measure a reference's captions | [Caption geometry](docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
+| Find the caption font | [Font candidates](docs/FONT-CANDIDATES.md): `zing fonts match` ranks a pinned OFL/Apache library against measured caption glyphs; low scores are labeled substitutes. |
 | Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; not wired into render. |
 | Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
 | Make memes | [Memes](docs/MEMES.md): local stills, template metadata, ideas and text checks; animated memes on a video, GIF or zooming still with timed captions (`zing meme render-video`). |
 | Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; silent output, not integrated with `zing render`. |
+| Render v2 caption overlays | [HyperFrames v2 adapter](docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions and an FFmpeg composite helper. |
 | Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe; v1 EDLs keep rendering, v2 render support lands in later passes. |
-| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 27 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans or a named shortage, with v1 EDL derivatives where supported. |
+| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 28 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
@@ -144,8 +148,8 @@ See [Connect](docs/CONNECT.md) for the actual MCP handoff and explicit credentia
 
 ## Coming next
 
-`zing match` is planned, **not implemented**. The intended flow is a reference
-plus a clip folder and brief → distinct style-constrained drafts and match
-reports. Automatic layout, graded-footage, audio and HyperFrames composition
-integration still need to be connected. Use the explicit steps above today.
+`zing match` is planned, **not implemented**. `zing plan drafts` produces three
+style-constrained plans and match reports from existing studies. Automatic study,
+rendering and output verification for the complete reference-plus-folder flow
+remain future work. Use the explicit planning and rendering steps above today.
 

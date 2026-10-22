@@ -23,7 +23,7 @@ not mean every optional extra or model is installed.
 
 Read [commands.md](references/commands.md) for CLI recipes, direction JSON,
 installation needs, and still/animated meme handling. Read
-[mcp.md](references/mcp.md) for the 27-tool surface and asynchronous job rules.
+[mcp.md](references/mcp.md) for the 28-tool surface and asynchronous job rules.
 The CLI also has project, layout, color, audio and assembly operations that do
 not have equivalent MCP tools. Switch to shell access for them; do not invent
 tools or imply that a connected MCP server grants shell access.
@@ -55,6 +55,10 @@ tools or imply that a connected MCP server grants shell access.
    `--transitions` opts into transition detector v5. Over MCP, `study_video`
    starts a job: poll `zing_status`, then read `get_breakdown` after completion.
    Use returned slugs; never guess them. Read warnings before interpreting counts.
+   Add `--caption-geometry` to measure caption boxes, size, colors and motion, and
+   `--fonts` to rank font candidates; `zing fonts match <slug>` adds candidates to
+   an existing study. Font files are fetched only by `zing fonts fetch` (ask first).
+   A low score is a substitute, not a detected font.
    Review frames and timed words together. Transition labels are observations
    with class-specific limits, not recovered editing presets.
 2. **Clarify the brief and inventory.** Ask only for missing purpose/audience,
@@ -74,6 +78,9 @@ tools or imply that a connected MCP server grants shell access.
    frames. State missing shots and context risks. MCP `save_judgment` with
    `section="direct"` saves a validated judgment and direction report; it does
    not assemble or render. Use the prompt's full contract for that write.
+   For three deterministic alternatives across the project, use `zing plan drafts`
+   or MCP `plan_drafts` with a saved brief and StyleRecipe. Read the comparison's
+   deviations and shortages; a ready plan is not a rendered or verified video.
 5. **Plan treatments.** Use `zing layout captions` for boxes around sampled faces
    and approximate platform UI. Supply measured/author-approved caption sizes,
    including outline and maximum animation extent; text alone is not a size.
@@ -151,5 +158,7 @@ captions) use `zing meme render-video` (MCP `meme_render_video`); see
 ## Coming next
 
 The planned **match command** is not implemented. Automatic reference-plus-folder
-orchestration, three distinct style-constrained drafts, and automatic consumption
-of the newer treatment plans remain future work. Do not call or promise them.
+study, rendering and output verification remain future work. Three distinct
+Composition v2 plans are available through the planning command; render only a
+reported v1 derivative with the current renderer. Do not promise unsupported
+font, layout, color or audio lowering.

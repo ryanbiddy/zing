@@ -65,6 +65,7 @@ Alternatively, `sudo port install ffmpeg` installs
 put `/opt/local/bin` first on PATH. Both options were checked on October 21, 2026.
 
 13. **caption_geometry (optional):** study runtime packages and verified local OCR assets. See [caption geometry](CAPTION-GEOMETRY.md) for explicit model provisioning and the sidecar contract.
+14. **fonts (optional):** Pillow/OpenCV and verified local font/license pairs. Install `myzing[fonts]`; `zing fonts fetch --all` explicitly provisions the library. See [font candidates](FONT-CANDIDATES.md).
 
 ---
 
@@ -155,5 +156,5 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 102
+ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 117
 ```

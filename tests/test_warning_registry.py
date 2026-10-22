@@ -49,6 +49,7 @@ REGISTERED: dict[str, str] = {
     # --- a FIX is named --------------------------------------------------
     "rapidocr/onnxruntime not installed": "names pip install myzing[study]",
     "caption geometry sidecar could not be saved": "names workspace permissions; no success provenance is emitted",
+    "font candidates unavailable": "names the install/fetch/doctor remedy and states no comparison or unmeasured tracks",
     "caption geometry sample {t:.6f}s failed": "states that the observation becomes a coverage gap",
     "faster-whisper not installed": "names pip install myzing[study]",
     "scenedetect not installed": "names pip install myzing[study]",

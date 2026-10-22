@@ -698,7 +698,7 @@ def test_lease_supplies_the_base_url_when_no_env_var(lease_dir, monkeypatch):
 def test_explicit_url_beats_the_lease(lease_dir, monkeypatch):
     """§3.3 order: explicit configuration wins outright."""
     write_lease(lease_dir, valid_lease())
-    monkeypatch.setenv(suite_peer.UOINK_URL_ENV, "http://127.0.0.1:5179")
+    monkeypatch.setenv(suite_peer.UOINK_URL_ENV, "http://127.0.0.1:6189")
     seen = {}
 
     class Server(FakeUoink):
@@ -708,7 +708,7 @@ def test_explicit_url_beats_the_lease(lease_dir, monkeypatch):
 
     monkeypatch.setattr(suite_peer.urllib.request, "urlopen", Server())
     peer, evidence = suite_peer.probe_uoink()
-    assert "127.0.0.1:5179" in seen["url"]
+    assert "127.0.0.1:6189" in seen["url"]
     assert suite_peer.UOINK_URL_ENV in evidence
 
 

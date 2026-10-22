@@ -64,14 +64,18 @@ outline width tolerance is 1.5 pixels on a three-pixel stroke. The low-confidenc
 test deliberately lowers two real inference scores to exercise the gap contract.
 
 ```text
-ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 90
+ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 117
 ```
 
 The tests establish those limits for the generated cases. Real footage, gradients,
 translucency, rotated text and occlusion need further calibration. Confidence
 values describe heuristic evidence quality, not calibrated probabilities.
 Pixel colors assume decoded SDR/sRGB-like content; HDR and original color-space
-recovery are unsupported. Font candidates belong to pass 8.
+recovery are unsupported. Add `--fonts` to compare measured text against the
+local font library. The optional `font_candidates` section has its own version
+and records ranked candidates, substitutions and frame evidence; see
+[font candidates](FONT-CANDIDATES.md). Geometry without `--fonts` keeps its
+existing JSON shape.
 
 Overlay classification requires at least three observations, coverage of both
 ends of the clip within one sampling step, at least 90% of expected samples, low text change and less than

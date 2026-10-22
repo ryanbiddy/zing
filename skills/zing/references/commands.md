@@ -13,11 +13,13 @@ over nested JSON in native-command arguments.
 | `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v5. |
-| `zing project` | Init, scan, status; source inventory and hashes, not edit selection. |
+| `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
 | `zing brief` | New/show; save interview answers after project init, not an automatic director. |
+| `zing plan choose` | Choose A/B/C from a local artifact; durable receipt, optional reference citation with --share-choice; never publishes. |
 | `zing prompt` | Print study, compare, direct, taste or meme-writer judgment instructions. |
 | `zing profile` | Build/show measured aggregates; pack can study missing references. |
 | `zing assemble` | One studied source plus chosen keepers → draft-edl.json. |
+| `zing plan drafts` | Project-wide studies, saved brief and recipe → three distinct Composition v2 plans, comparison, and supported v1 derivatives; named shortage if no trio is found. |
 | `zing render` | EDL → MP4 using FFmpeg/libass; optional voiceover is separate. |
 | `zing layout` | Explicit model fetching or standalone caption geometry plan. |
 | `zing color` | Match SDR distribution → recipe/LUT/preview; apply LUT → derived video. |
@@ -47,13 +49,34 @@ zing thumbs SOURCE_SLUG --workspace /absolute/workspace
 For noninteractive brief import use `zing brief new ./project --brief brief.json`.
 It accepts the complete version 1 brief; `--answers` instead takes a JSON object
 of answers and fills omitted defaults. Neither selects footage. Init already
-scans; another scan updates changed files. Reference study is not auto-attached.
+scans; another scan updates changed files. To attach a reference study explicitly,
+run `zing project resolve-reference ./project`, then
+`zing project study-reference ./project`. For an offline peer, supply
+`zing project resolve-reference ./project --file reference.mp4`.
+
+`zing project find-reference "soft cuts"` lists candidates only when the peer
+advertises the optional search contract. Choose an existing draft with
+`zing plan choose ./project --draft A --draft-file draft-edl.json`.
+Without an explicit file, the command reads ./project/drafts/A.json (or B/C).
+Add --share-choice only when the user asks to share the reference citation;
+retrying with that flag preserves the event identity. Choice details stay local.
 
 The smallest direction consumed by assembly is a keepers object:
 
 ```json
 {"keepers":[{"start":0,"end":2,"why":"Chosen opening"},{"start":4,"end":6,"why":"Chosen payoff"}]}
 ```
+
+For project-wide alternatives, study clips into the project workspace (or
+the current ZING_HOME), then run:
+
+```sh
+zing plan drafts ./project --recipe ./recipe.json --seed 17 --out ./draft-plans
+```
+
+The output includes plan-A/B/C.json and comparison.json. It also includes v1 EDL
+derivatives when rendering instructions can be represented without loss. Read
+the comparison before rendering; a shortage removes the earlier owned trio.
 
 These are chosen **source seconds**; replace them with valid spans in measured
 footage. This minimal object is for assembly only, not the full direct-judgment
@@ -137,6 +160,19 @@ Inputs are trimmed with `--start`/`--end` and capped by `--max-duration`
 (default 30 s); `--gif` adds a bounded GIF (10 fps, 640 px, 8 s by default).
 Existing outputs need `--overwrite`. MCP: `meme_render_video` (paths out, never
 bytes). Only the first audio stream is kept.
+
+## Caption geometry and font candidates
+
+```sh
+zing study reference.mp4 --caption-geometry --fonts
+zing fonts list
+zing fonts fetch --all   # explicit download of the pinned OFL/Apache library; ask first
+zing fonts match <slug>
+```
+
+Geometry writes caption-geometry.json beside the breakdown. Font matching ranks
+library fonts per caption track; results below the calibrated threshold are
+labeled substitutes. Failures become warnings and never abort the study.
 
 ## Installation and offline limits
 

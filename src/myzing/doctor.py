@@ -559,6 +559,22 @@ def check_caption_geometry() -> Check:
                  data={"network_used": False})
 
 
+def check_fonts() -> Check:
+    from myzing.fonts import library
+    missing = [name for name in ("PIL", "cv2", "numpy") if not _has_module(name)]
+    if missing:
+        return Check("fonts", OPTIONAL, False, f"font comparison runtime missing: {', '.join(missing)}",
+                     fix=library.INSTALL_HINT, data={"network_used": False})
+    try:
+        rows = library.inventory()
+    except (OSError, ValueError) as exc:
+        return Check("fonts", OPTIONAL, False, str(exc), fix="reinstall Zing; run zing fonts list")
+    available = [r["id"] for r in rows if r["available"]]
+    return Check("fonts", OPTIONAL, bool(available), f"{len(available)}/{len(rows)} verified font assets available; native rendering not probed",
+                 fix="" if available else "zing fonts fetch --all",
+                 data={"available_fonts": available, "network_used": False})
+
+
 def check_scenedetect() -> Check:
     """Shot detection is the core measurement — doctor must check it (F-10)."""
     if _has_module(SHOT_MODULE):
@@ -840,6 +856,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_whisper(),
         check_ocr(),
         check_caption_geometry(),
+        check_fonts(),
         check_tts(),
         check_pillow(),
         check_layout(),

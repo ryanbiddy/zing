@@ -1,0 +1,214 @@
+{
+  "version": 1,
+  "source_revision": "45e3d5269e4a17d823f6d84470bc084dc5ae46f6",
+  "fonts": [
+    {
+      "id": "anton",
+      "family": "Anton",
+      "file": "Anton-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/anton/Anton-Regular.ttf",
+      "sha256": "a4ba3a92350ebb031da0cb47630ac49eb265082ca1bc0450442f4a83ab947cab",
+      "bundled": true,
+      "weights": [
+        null
+      ],
+      "license": "OFL-1.1",
+      "license_file": "Anton-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/anton/OFL.txt",
+      "license_sha256": "ee67e6ee22790b7929f1a3769ca2801d565c64b5a9096942c1adf5596de9c9e4"
+    },
+    {
+      "id": "ibmplexsans",
+      "family": "IBM Plex Sans",
+      "file": "IBMPlexSans.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/ibmplexsans/IBMPlexSans%5Bwdth%2Cwght%5D.ttf",
+      "sha256": "3b031aa4216174205bd8471f88a49b91f093169e9e87bd5262242bc5967fe2e3",
+      "bundled": true,
+      "weights": [
+        400,
+        600,
+        700
+      ],
+      "license": "OFL-1.1",
+      "license_file": "IBMPlexSans-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/ibmplexsans/OFL.txt",
+      "license_sha256": "7e6b2818edbd8f6a01ae80641cc8f16a51080d08fb4e532be3a0b6f74adb07da"
+    },
+    {
+      "id": "bebasneue",
+      "family": "Bebas Neue",
+      "file": "BebasNeue-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/bebasneue/BebasNeue-Regular.ttf",
+      "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73",
+      "bundled": false,
+      "weights": [
+        null
+      ],
+      "license": "OFL-1.1",
+      "license_file": "bebasneue-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/bebasneue/OFL.txt",
+      "license_sha256": "72082f6cb4d04be2ecf7cc7d9e1e7d73787f0af8a5a278a47cade70c16b78341"
+    },
+    {
+      "id": "oswald",
+      "family": "Oswald",
+      "file": "Oswald[wght].ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/oswald/Oswald%5Bwght%5D.ttf",
+      "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+      "bundled": false,
+      "weights": [
+        400,
+        600,
+        700
+      ],
+      "license": "OFL-1.1",
+      "license_file": "oswald-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/oswald/OFL.txt",
+      "license_sha256": "0fd731a904b729a4e02eaf5e8ebd06783edd9abe400e8882760160230675b652"
+    },
+    {
+      "id": "montserrat",
+      "family": "Montserrat",
+      "file": "Montserrat[wght].ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/montserrat/Montserrat%5Bwght%5D.ttf",
+      "sha256": "0f7b311b2f3279e4eef9b2f968bcdbab6e28f4daeb1f049f4f278a902bcd82f7",
+      "bundled": false,
+      "weights": [
+        100,
+        400,
+        700,
+        900
+      ],
+      "license": "OFL-1.1",
+      "license_file": "montserrat-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/montserrat/OFL.txt",
+      "license_sha256": "8b7141c03fa4f8d44e6345d5d4931709290f0f67875e452e95ac1fd3a027802e"
+    },
+    {
+      "id": "poppins",
+      "family": "Poppins",
+      "file": "Poppins-Bold.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/poppins/Poppins-Bold.ttf",
+      "sha256": "983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c",
+      "bundled": false,
+      "weights": [
+        null
+      ],
+      "license": "OFL-1.1",
+      "license_file": "poppins-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/poppins/OFL.txt",
+      "license_sha256": "6be04893d770899a015649c7aa3b582f871b272f8747a92b78b17c3e5c8b2573"
+    },
+    {
+      "id": "inter",
+      "family": "Inter",
+      "file": "Inter[opsz,wght].ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf",
+      "sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+      "bundled": false,
+      "weights": [
+        400,
+        700,
+        900
+      ],
+      "license": "OFL-1.1",
+      "license_file": "inter-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/inter/OFL.txt",
+      "license_sha256": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57"
+    },
+    {
+      "id": "roboto",
+      "family": "Roboto",
+      "file": "Roboto[wdth,wght].ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf",
+      "sha256": "d7598e12c5dbef095ff8272cfc55da0250bd07fbdecbac8a530b9b277872a134",
+      "bundled": false,
+      "weights": [
+        400,
+        700,
+        900
+      ],
+      "license": "OFL-1.1",
+      "license_file": "roboto-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/roboto/OFL.txt",
+      "license_sha256": "061402327a96aadb0bfb694a960ed289ecd38d383e396243831ab81feb109c41"
+    },
+    {
+      "id": "opensans",
+      "family": "Open Sans",
+      "file": "OpenSans[wdth,wght].ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf",
+      "sha256": "36643644f318a812aab2d2ed3bb98f8cf0872527f835fe9398d95fe6b9adb878",
+      "bundled": false,
+      "weights": [
+        400,
+        700,
+        800
+      ],
+      "license": "OFL-1.1",
+      "license_file": "opensans-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/opensans/OFL.txt",
+      "license_sha256": "fbbbcfef55318de350562559b671360de6d597112ecc5c73881b05092db89602"
+    },
+    {
+      "id": "archivoblack",
+      "family": "Archivo Black",
+      "file": "ArchivoBlack-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/archivoblack/ArchivoBlack-Regular.ttf",
+      "sha256": "dd9a89a019b4849f66ab75455fe7bdf931311042cbb0f0f97acc061539703180",
+      "bundled": false,
+      "weights": [
+        null
+      ],
+      "license": "OFL-1.1",
+      "license_file": "archivoblack-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/archivoblack/OFL.txt",
+      "license_sha256": "3173acd82f8c6159b5b1037b539fcbd4edff68e65c2ea8b9412b5a5ca97b08ff"
+    },
+    {
+      "id": "bangers",
+      "family": "Bangers",
+      "file": "Bangers-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/bangers/Bangers-Regular.ttf",
+      "sha256": "4160a7311de9342674cce9160cde9fcbb30f48190397d86ff1b70b455af65824",
+      "bundled": false,
+      "weights": [
+        null
+      ],
+      "license": "OFL-1.1",
+      "license_file": "bangers-OFL.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/bangers/OFL.txt",
+      "license_sha256": "630dd5a307c0657b094d324e069b390edf90182fe5003639e06c02a0e5769af7"
+    },
+    {
+      "id": "luckiestguy",
+      "family": "Luckiest Guy",
+      "file": "LuckiestGuy-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/luckiestguy/LuckiestGuy-Regular.ttf",
+      "sha256": "cfbdd68a039f92df51cf3721506af6242e64594c6325fe0bedbeff3fe385d980",
+      "bundled": false,
+      "weights": [
+        null
+      ],
+      "license": "Apache-2.0",
+      "license_file": "luckiestguy-LICENSE.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/luckiestguy/LICENSE.txt",
+      "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "id": "permanentmarker",
+      "family": "Permanent Marker",
+      "file": "PermanentMarker-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/permanentmarker/PermanentMarker-Regular.ttf",
+      "sha256": "28f82c8a7943cb8e9d599f8554da1d4fc75dbcf69b9885ad6c0611d20c6946c5",
+      "bundled": false,
+      "weights": [
+        null
+      ],
+      "license": "Apache-2.0",
+      "license_file": "permanentmarker-LICENSE.txt",
+      "license_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/permanentmarker/LICENSE.txt",
+      "license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    }
+  ]
+}

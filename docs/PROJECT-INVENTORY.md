@@ -22,7 +22,8 @@ The folder scan is recursive and includes regular files of any extension.
 Unprobeable files remain in the inventory as unsupported. Symlink files and
 directories are skipped. When the project folder is nested inside the clips
 folder, its entire subtree is excluded. When both folders are the same,
-`project.json`, `.project.lock`, `.project-*.tmp`, `brief.json`, and `.brief-*.tmp`
+`project.json`, `.project.lock`, `.project-*.tmp`, `brief.json`, `.brief-*.tmp`,
+`choices.json`, and `.choices-*.tmp`
 are reserved metadata names.
 Keep rendered output outside the clips folder so it does not become an input.
 
@@ -78,9 +79,10 @@ liveness. After confirming its owner has stopped, remove only `.project.lock`
 and rerun scan. A normal exception releases the lock automatically. Status can
 read the last committed manifest during a scan.
 
-The later match pass can use `reference.study` (currently null) to attach its
-study provenance and results. Inventory does not resolve Uoink IDs or implement
-`zing match`. CLI and Python APIs are available; MCP scan tools are deferred
+`zing project resolve-reference` verifies kept media or a supplied file, and
+`zing project study-reference` attaches its local study in `reference.study`.
+See [Uoink memory](UOINK-MEMORY.md) for search and choice receipts. Inventory
+does not implement `zing match`. CLI and Python APIs are available; MCP scan tools are deferred
 until scans can use the server's background-job contract.
 
 After scanning, run `zing brief new ./project` to record the creative direction.
