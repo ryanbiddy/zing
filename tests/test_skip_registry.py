@@ -44,9 +44,9 @@ REGISTERED_SKIPS = {
         "and zing doctor check local prerequisites and give setup remedies."
     ),
     "set ZING_REQUIRE_HYPERFRAMES=1 for real alpha render/composite": (
-        "the P10a pixel acceptance needs the pinned local sidecar, browser, FFmpeg "
+        "the P10a/P10b pixel acceptance needs the pinned local sidecar, browser, FFmpeg "
         "and NumPy from the existing color extra; it uses the bundled OFL font. "
-        "PRODUCT SURFACE: the standalone adapter and doctor report missing render "
+        "PRODUCT SURFACE: v2 render preflight, the standalone adapter and doctor report missing render "
         "tools; docs/HYPERFRAMES-V2.md records setup and the separate opt-in gate."
     ),
     "optional real Kokoro check": (

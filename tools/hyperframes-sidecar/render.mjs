@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { createRequire } from 'node:module';
-import { validatePlan } from './plan.mjs';
+import { validatePlan, planRate } from './plan.mjs';
 import { composition } from './templates.mjs';
 import { reserveOutput, publishPair } from './publish.mjs';
 
@@ -105,10 +105,11 @@ function renderJob(planFile, output, job) {
   const probeResult = spawnSync(env.HYPERFRAMES_FFPROBE_PATH, ['-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_streams', '-show_format', '-of', 'json', encoded], { encoding: 'utf8', windowsHide: true, timeout: 60000 });
   const probe = JSON.parse(probeResult.stdout || '{}'), video = probe.streams?.[0];
   const rate = video?.avg_frame_rate?.split('/').map(Number);
+  const expectedRate = planRate(p.fps);
   if (probeResult.status !== 0 || !video || video.width !== p.width || video.height !== p.height ||
-      !rate || !Number.isFinite(rate[0] / rate[1]) || Math.abs(rate[0] / rate[1] - p.fps) > 1e-6 || Number(video.nb_read_frames) !== Math.round(p.duration * p.fps) ||
+      !rate || rate[0] * expectedRate.denominator !== rate[1] * expectedRate.numerator || Number(video.nb_read_frames) !== Math.round(p.duration * expectedRate.value) ||
       !Number.isFinite(Number(video.duration ?? probe.format?.duration)) ||
-      Math.abs(Number(video.duration ?? probe.format?.duration) - p.duration) > 1 / p.fps + 1e-6 ||
+      Math.abs(Number(video.duration ?? probe.format?.duration) - p.duration) > 1e-6 ||
       (format === 'mov' && (video.codec_name !== 'prores' || !video.pix_fmt.startsWith('yuva444p')))) throw Error('Output probe differs from plan or lacks ProRes alpha');
   let seekProof;
   if (process.env.ZING_HF_VERIFY_SEEKS === '1') {

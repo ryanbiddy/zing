@@ -1,8 +1,15 @@
-# Standalone Composition v2 caption adapter (P10a)
+# Composition v2 HyperFrames captions
 
-P10a converts `CompositionCaption` records into a transparent ProRes 4444 MOV.
-R9 can overlay that file after grading the cut. This pass does not route through
-`pipeline.py`, `graph.py` or `captions.py`.
+P10b wires the P10a adapter into `zing render`. All HyperFrames events render
+together into one transparent ProRes 4444 MOV, then FFmpeg composites it after
+footage LUTs and transitions and before ASS captions. ASS stays on top to keep
+conventional subtitles readable. The sidecar performs no footage grading.
+
+```text
+zing render composition.json -o draft.mp4 --keep-work render-work
+```
+
+The standalone adapter remains available:
 
 ```python
 from pathlib import Path
@@ -39,9 +46,12 @@ Boxes use normalized top-left coordinates; paths preserve every keyframe and
 interpolate linearly. Size, fill, highlight, outline and optional plate colors
 map directly to the sidecar. Position anchors yield to the explicit layout.
 
-Supported output is even dimensions from 2 to 4096 pixels, integer FPS from
-1 to 120 (including equivalent rationals such as 60/2), and durations up to
-600 seconds containing a whole number of frames. Fractional FPS, untimed words,
+Supported output is even dimensions from 2 to 4096 pixels, rational FPS from
+1 to 120 (including 30000/1001), and durations up to
+600 seconds containing a whole number of frames. The sidecar plan represents
+fractional rates as exact `"numerator/denominator"` strings; decimal guesses
+such as 29.97 fail. At 30000/1001, a 90-frame composition must last 3.003 seconds.
+Nonaligned duration, untimed words,
 missing or changed fonts, mismatched phrase text, unsupported templates and
 `layout.scale != 1` fail with a named error. For a scaled layout, supply final
 font size/effect values and geometry with scale 1. No size or timing is silently
@@ -61,7 +71,7 @@ ProRes 4444 with `yuva444p10le` encoding (FFmpeg reports the decoded stream as
 `yuva444p12le` here). The pin and npm lockfile are unchanged. This avoids a
 separate PNG capture engine or chroma-key approximation.
 
-The wrapper and Node entrypoint probe dimensions, FPS, duration and decoded frame
+The wrapper and Node entrypoint probe dimensions, exact rational FPS, duration and decoded frame
 count before publishing. Transparent output also requires ProRes and an alpha
 pixel format. The opt-in pixel test checks actual transparency, word timing,
 path positions and the final composite on all 90 frames; a pixel-format label
@@ -70,8 +80,36 @@ alone is not the acceptance test.
 `composite_overlay` requires both inputs to match the full plan's size, CFR,
 duration and frame count. It resets their video timestamps, uses straight alpha,
 copies optional source audio, and encodes H.264/yuv420p. It performs no resize or
-grade. It uses inline `-filter_complex`, compatible with FFmpeg 6–9's CLI; the
-local measured run uses 8.1.2. FFmpeg 6 and 9 were not executed in this pass.
+grade. It uses inline `-filter_complex`. The v2 renderer uses the existing
+`filter_script_args` compatibility helper for FFmpeg 6–9.
+
+The v2 compositor explicitly converts limited-range Rec.709 to full-range RGB
+and uses `overlay=alpha=straight` before returning to tagged Rec.709/yuv420p.
+Real glyph-edge tests check that the overlay has straight RGB even where alpha
+is partial, and compare the composite with `foreground * alpha + cut * (1-alpha)`.
+CI uses generated ProRes 4444 with opaque, half-alpha and transparent regions.
+Those tests also cover LUT exclusion, ASS on top, dissolve timing, audio input
+indices, exact rational rates and rejection of mismatched overlays without Node.
+
+## Renderer preflight and cache
+
+When any event selects HyperFrames, the renderer runs the doctor's existing
+Node/pinned-install/browser check before media probing or work-file creation.
+Missing tools report their setup remedy and fail; the renderer never substitutes
+ASS. The check also runs before cache reuse.
+
+With `--keep-work`, `hyperframes-overlays/<sha256>.mov` holds the full-composition
+overlay. The key includes the normalized caption plan, verified font bytes,
+size/FPS/duration, HyperFrames pin and sidecar source hashes. It excludes footage
+and ASS captions. A JSON manifest records the plan, probe, alpha convention,
+stage and output SHA-256. Cache hits verify that hash and re-probe the overlay.
+The cache lock covers generation and manifest publication; incomplete results
+without a manifest are rendered again. A corrupt completed entry fails with
+a remedy. Temporary work folders do not survive a completed render.
+
+Verification rejects wrong dimensions, rate, frame count or duration. The Python
+verifier compares integer duration ticks against the rational frame count when
+available; decimal probe durations allow only one microsecond of text rounding.
 
 ## Offline guard and artifact ownership
 
@@ -113,15 +151,16 @@ font or media. The pixel proof uses NumPy from the existing optional `color`
 extra. Core conversion and publication remain stdlib-only.
 
 ```powershell
-uv run --frozen pytest -q tests/test_hyperframes_v2.py tests/test_hyperframes_adapter.py
+uv run --frozen pytest -q tests/test_hyperframes_v2.py tests/test_hyperframes_adapter.py tests/test_render_hyperframes.py
 npm.cmd test --prefix tools/hyperframes-sidecar
 $env:ZING_REQUIRE_HYPERFRAMES = '1'
 $env:ZING_HYPERFRAMES_FONT = "$PWD/src/myzing/_data/fonts/Anton-Regular.ttf"
-uv run --frozen pytest -q tests/test_hyperframes_v2.py tests/test_hyperframes_adapter.py
+uv run --frozen pytest -q tests/test_hyperframes_v2.py tests/test_hyperframes_adapter.py tests/test_render_hyperframes_ffmpeg.py
 Remove-Item Env:ZING_REQUIRE_HYPERFRAMES
 # Use an unused proof directory; existing outputs are protected.
 $env:ZING_HYPERFRAMES_PROOF_DIR = 'zing-workspace/hyperframes/p10a-proof'
 uv run --frozen python tools/hyperframes-sidecar/overlay-proof.py
+uv run --frozen python -m tools.eval.render_hyperframes_fixture --out zing-workspace/p10b-sample
 ```
 
 The proof saves `overlay.mov`, `composite.mp4`, their receipts, the v2 caption
@@ -129,5 +168,8 @@ events, sidecar plan, `pixel-proof.json`, and `contact-sheet.png` with sampled
 frame times. The local result checks 90 frames, has zero-frame word-switch error,
 and maximum path-edge error of 0.001191 of a frame dimension (0.12%). It also
 checks unchanged colored footage outside the caption rectangle and retained
-audio. The HyperFrames tests have their own opt-in gate; the existing 102-test
-FFmpeg gate count is unchanged.
+audio. These are the historical P10a measurements. P10b adds seven generated
+FFmpeg tests, raising the CI gate from 196 to 203. Real HyperFrames tests stay
+opt-in and outside that marker gate. The sample generator saves mixed ASS and
+kinetic captions over a graded dissolve, its composition, retained render work
+and a six-frame contact sheet.

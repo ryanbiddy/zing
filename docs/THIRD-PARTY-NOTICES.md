@@ -83,3 +83,27 @@ All four cached files, revision-specific URLs and hashes are recorded in
 `zing-workspace/r9-model-cache-receipt.json`. These were recorded after the
 existing test downloaded the model, not verified against a pin beforehand.
 The model is neither vendored nor used by the R9 renderer.
+
+## V1 real-video evaluation (October 2026)
+
+Only manifests, labels, evaluation code and reports are tracked. All source
+videos, excerpts, PNGs, models, downloaded fonts and renders remain under the
+ignored `zing-workspace/` directory. Excerpts are resized/re-encoded and trimmed;
+no new edits or captions are added to the source corpus.
+
+| Asset | License and credit | Source |
+|---|---|---|
+| Korky Paul Introduction | CC0-1.0; Mvolz | [Wikimedia file page](https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm) |
+| Tears of Steel (2012) | CC BY 3.0; (CC) Blender Foundation \| mango.blender.org; directed by Ian Hubert | [Sharing terms](https://mango.blender.org/sharing/), [download source](https://archive.org/details/Tears-of-Steel) |
+| Duck and Cover (1951) | Public domain per archive declaration; Archer Productions, Inc.; Prelinger Archives / Internet Archive | [Archive item](https://archive.org/details/DuckandC1951) |
+| We Are NASA (2018) | Public domain in the United States; NASA; narration by Mike Rowe. Agency logos retain their separate restrictions. | [Wikimedia file page](https://commons.wikimedia.org/wiki/File:We_Are_NASA.webm) |
+| faster-whisper-tiny.en | MIT; Systran conversion of OpenAI Whisper; revision `0d3d19a32d3338f10357c0889762bd8d64bbdeba` | [Publisher repository](https://huggingface.co/Systran/faster-whisper-tiny.en) |
+
+URLs, SHA-256 pins, attribution and derivation commands are in
+[`tools/eval/real/manifest.json`](../tools/eval/real/manifest.json).
+The model binary was checked against publisher LFS metadata; the remaining
+small model files were fetched at the immutable revision and pinned locally.
+The audit reuses the OCR, YuNet and OFL/Apache font assets documented above.
+It adds no package dependency. See the
+[evaluation report](../tools/eval/real/REAL-EVAL-2026-10.md) for measured results
+and unvalidated capabilities.
