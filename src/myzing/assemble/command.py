@@ -26,6 +26,11 @@ def run(argv: list[str]) -> int:
         help="direction judgment JSON (the prompts/direct.md contract)",
     )
     parser.add_argument("--workspace", type=Path, default=None)
+    parser.add_argument(
+        "--retry-word-timing-model", type=Path, default=None, metavar="LOCAL_DIRECTORY",
+        help="after a zero-length word cannot be repaired, retry its <=2s span "
+             "once with this existing local whisper model (max 3 words; no download)",
+    )
     parser.add_argument("--json", action="store_true",
                         help="print the draft EDL JSON to stdout")
     args = parser.parse_args(argv)
@@ -48,7 +53,17 @@ def run(argv: list[str]) -> int:
     root = storage.resolve_workspace(args.workspace)
     try:
         with storage.use_workspace(root):
-            result = draft_for_slug(args.slug, direction)
+            if args.retry_word_timing_model is None:
+                result = draft_for_slug(args.slug, direction)
+            else:
+                from myzing.assemble.word_retry import local_word_retry
+
+                media = storage.find_media(args.slug)
+                if media is None:
+                    raise AssembleError(f"no stored media for '{args.slug}' — re-run 'zing study' first")
+                result = draft_for_slug(args.slug, direction, retry_word_timing=local_word_retry(
+                    media, args.retry_word_timing_model,
+                ))
             target = storage.breakdown_dir(args.slug) / "draft-edl.json"
     except (AssembleError, FileNotFoundError, storage.SlugError) as exc:
         print(f"zing assemble: {exc}")

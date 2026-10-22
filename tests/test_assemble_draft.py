@@ -192,8 +192,8 @@ def test_captions_derived_from_measured_words(media):
     b = make_breakdown()
     b.words = [
         Word("hello", 5.2, 5.5, 0.9), Word("world", 5.6, 5.9, 0.9),
-        Word("outside", 20.0, 20.4, 0.9),   # not inside any clip
         Word("after", 7.0, 7.4, 0.9),       # gap > 0.6s -> second window
+        Word("outside", 20.0, 20.4, 0.9),   # not inside any clip; transcript order
     ]
     result = draft_edl(b, direction_with([
         {"start": 5.0, "end": 10.0, "why": "the take"},
@@ -217,7 +217,7 @@ def test_trim_edge_words_captioned_with_clamped_times(media):
 
     b = make_breakdown()
     b.words = [
-        Word("intro", 4.85, 5.05, 0.9),     # straddles src_in, midpoint 4.95 outside
+        Word("intro", 4.5, 4.9, 0.9),       # outside; never overlap the next word
         Word("start", 4.9, 5.2, 0.9),       # straddles src_in, midpoint 5.05 inside
         Word("this", 9.72, 10.02, 0.9),     # gate's case: 93% audible, tail past src_out
     ]
@@ -233,6 +233,12 @@ def test_trim_edge_words_captioned_with_clamped_times(media):
     assert words[0].start == 0.0            # 4.9 clamped to src_in -> timeline 0.0
     assert words[-1].end == 5.0             # 10.28 clamped to src_out -> timeline 5.0
     assert all(0.0 <= w.start <= w.end <= 5.0 for w in words)
+
+    # Exercise an excluded straddler separately: two overlapping words at
+    # the same trim boundary are now invalid transcript input under P2.
+    b.words = [Word("intro", 4.85, 5.05, 0.9)]
+    outside = draft_edl(b, direction_with([{"start": 5.0, "end": 10.0}]), media)
+    assert outside.edl.captions == []
 
 
 def test_trim_inside_measured_words_warns_without_changing_edl(media):

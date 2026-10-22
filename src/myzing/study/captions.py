@@ -29,12 +29,13 @@ an honest skip with a warning.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterator
 
 from myzing.schemas import CaptionEvent
+from myzing.timing import TimingReviewError, clamp_interval, finite
 
 from . import formats
 
@@ -100,7 +101,7 @@ class CaptionsResult:
 
 def read_captions(media_path: Path, duration: float) -> CaptionsResult:
     result = CaptionsResult(warnings=[sampling_note(duration)])
-    if duration <= 0:
+    if not finite(duration) or duration <= 0:
         result.warnings.append("caption OCR skipped: unknown duration")
         return result
     try:
@@ -152,7 +153,8 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
             f"caption OCR: {errors} frame(s) failed to OCR and were treated "
             "as empty"
         )
-    result.captions, overlay_notes = cluster_regions(observations, duration)
+    corrections: list[dict[str, Any]] = []
+    result.captions, overlay_notes = cluster_regions(observations, duration, corrections=corrections)
     result.warnings.extend(overlay_notes)
     result.provenance = {
         "ocr_backend": f"rapidocr-{version}",
@@ -161,6 +163,7 @@ def read_captions(media_path: Path, duration: float) -> CaptionsResult:
         "body_fps": formats.body_fps(duration),
         "hook_window_s": formats.hook_window_s(duration),
         "clustering": "region-tracked v2 (A-Q8)",
+        "ocr_interval_corrections": corrections,
     }
     return result
 
@@ -239,15 +242,51 @@ def _overlay_threshold_s(duration: float) -> float:
 
 
 def cluster_regions(
-    observations: list[Observation], duration: float
+    observations: list[Observation], duration: float, *,
+    corrections: list[dict[str, Any]] | None = None,
 ) -> tuple[list[CaptionEvent], list[str]]:
     """Region-aware clustering: events per concurrent text region, with
     persistent static overlays diverted into warning notes."""
     events: list[CaptionEvent] = []
     notes: list[str] = []
+    bounded: list[Observation] = []
+    for index, obs in enumerate(observations):
+        end = obs.t + obs.step
+        try:
+            start, stop = clamp_interval(obs.t, end, duration)
+        except TimingReviewError as exc:
+            notes.append(f"OCR observation {index} at {obs.t!r}-{end!r}s excluded: {exc}")
+            continue
+        if (start, stop) != (obs.t, end):
+            notes.append(f"OCR observation {index} {obs.text!r} clamped from "
+                         f"{obs.t:.3f}-{end:.3f}s to {start:.3f}-{stop:.3f}s (media duration)")
+            if corrections is not None:
+                corrections.append({
+                    "version": 1, "observation_index": index, "text": obs.text,
+                    "method": "clamped_to_media",
+                    "original": {"start": obs.t, "end": end},
+                    "corrected": {"start": start, "end": stop},
+                })
+        bounded.append(replace(obs, t=start, step=stop - start))
     threshold = _overlay_threshold_s(duration)
-    for track in track_regions(observations):
+    for track in track_regions(bounded):
         for event in cluster(track.observations):
+            # Event serialization rounds to milliseconds. A duration between
+            # millisecond ticks must still be an exact upper bound.
+            try:
+                start, end = clamp_interval(event.start, event.end, duration)
+            except TimingReviewError as exc:
+                notes.append(f"OCR event {event.text!r} excluded after rounding: {exc}")
+                continue
+            if (start, end) != (event.start, event.end):
+                notes.append(f"OCR event {event.text!r} clamped to media duration after rounding")
+                if corrections is not None:
+                    corrections.append({
+                        "version": 1, "text": event.text, "method": "clamped_to_media",
+                        "original": {"start": event.start, "end": event.end},
+                        "corrected": {"start": start, "end": end},
+                    })
+                event = replace(event, start=start, end=end)
             if event.end - event.start >= threshold:
                 notes.append(
                     "persistent on-screen text (likely watermark/label) "
