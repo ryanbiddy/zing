@@ -38,7 +38,7 @@ def _constraints(cls: type, properties: dict) -> None:
         for key in ("width", "height"):
             properties[key]["minimum"] = 1
     if name == "Brief":
-        properties["framing"]["enum"] = ["auto", "fit", "fill", "reframe", "blurfill"]
+        properties["framing"]["enum"] = ["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"]
         properties["aspects"]["items"] = {"enum": ["16:9", "1:1", "9:16"]}
         properties["aspects"]["uniqueItems"] = True
         properties["framing_max_upscale"].update(minimum=1, maximum=16)
@@ -49,6 +49,14 @@ def _constraints(cls: type, properties: dict) -> None:
         properties["max_upscale"]["minimum"] = 1
         properties["confidence"].update(minimum=0, maximum=1)
         properties["keyframes"]["maxItems"] = 256
+    if name == "CropAssessment":
+        for key in ("sharp_height_share", "sharp_area_share", "retained_area", "subject_coverage"):
+            properties[key].update(minimum=0, maximum=1)
+        properties["enlargement"]["exclusiveMinimum"] = 0
+    if name in {"SpeechWord", "SpeakerTurn"}:
+        properties["confidence"].update(minimum=0, maximum=1)
+        properties["start"]["minimum"] = 0
+        properties["end"]["exclusiveMinimum"] = 0
     if name in {"Framing", "CropKeyframe", "CropBounds"}:
         for key in ("time", "x", "y", "center_x", "center_y"):
             if key in properties:

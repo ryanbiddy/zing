@@ -52,8 +52,8 @@ def brief_questions() -> dict:
             "music": {"source": "supplied files", "files": ["audio/bed.wav"]},
             "sfx": {"source": "none"},
         },
-        "optional_fields": [{"key": "framing", "default": "auto", "choices": ["auto", "fit", "fill", "reframe", "blurfill"],
-                             "description": "Auto crops only within loss, subject-coverage and enlargement limits; otherwise blurfill."},
+        "optional_fields": [{"key": "framing", "default": "auto", "choices": ["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"],
+                             "description": "Auto chooses full reframe, intermediate zoomfill, or full-picture fallback within subject and enlargement limits."},
                             {"key": "aspects", "default": [], "description": "Delivery list: 16:9, 1:1, 9:16. Empty uses aspect."},
                             {"key": "framing_max_upscale", "default": 2.5, "description": "Configurable auto crop enlargement limit, 1-16x."}],
     }

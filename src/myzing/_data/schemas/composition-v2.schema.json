@@ -77,6 +77,7 @@
             "fit",
             "fill",
             "reframe",
+            "zoomfill",
             "blurfill"
           ],
           "type": "string"
@@ -199,6 +200,72 @@
       ],
       "type": "object"
     },
+    "myzing_composition_framing_CropAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "enlargement": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "evidence_gaps": {
+          "type": "boolean"
+        },
+        "headroom_safe": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "fit",
+            "fill",
+            "reframe",
+            "zoomfill",
+            "blurfill"
+          ]
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "retained_area": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "sharp_area_share": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "sharp_height_share": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "subject_coverage": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "sharp_height_share",
+        "sharp_area_share",
+        "enlargement",
+        "retained_area",
+        "subject_coverage",
+        "headroom_safe",
+        "evidence_gaps",
+        "version"
+      ],
+      "type": "object"
+    },
     "myzing_composition_framing_CropBounds": {
       "additionalProperties": false,
       "properties": {
@@ -263,6 +330,12 @@
     "myzing_composition_framing_Framing": {
       "additionalProperties": false,
       "properties": {
+        "assessments": {
+          "items": {
+            "$ref": "#/$defs/myzing_composition_framing_CropAssessment"
+          },
+          "type": "array"
+        },
         "bounds": {
           "$ref": "#/$defs/myzing_composition_framing_CropBounds"
         },
@@ -311,6 +384,7 @@
             "fit",
             "fill",
             "reframe",
+            "zoomfill",
             "blurfill"
           ]
         },
@@ -321,6 +395,12 @@
         "source_width": {
           "minimum": 1,
           "type": "integer"
+        },
+        "speaker_turns": {
+          "items": {
+            "$ref": "#/$defs/myzing_composition_speakers_SpeakerTurn"
+          },
+          "type": "array"
         },
         "version": {
           "const": 1,
@@ -1009,6 +1089,118 @@
       ],
       "type": "object"
     },
+    "myzing_composition_speakers_SpeakerTurn": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "face_track_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "method": {
+          "type": "string"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "speaker",
+        "face_track_id",
+        "confidence",
+        "method",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_speakers_SpeechWord": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "face_track_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "asset_id",
+        "text",
+        "start",
+        "end",
+        "version"
+      ],
+      "type": "object"
+    },
     "myzing_layout_types_Box": {
       "additionalProperties": false,
       "properties": {
@@ -1401,6 +1593,12 @@
     "schema_version": {
       "const": 2,
       "type": "integer"
+    },
+    "speech_words": {
+      "items": {
+        "$ref": "#/$defs/myzing_composition_speakers_SpeechWord"
+      },
+      "type": "array"
     },
     "transitions": {
       "items": {

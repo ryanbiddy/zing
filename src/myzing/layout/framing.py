@@ -15,6 +15,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from myzing.composition.framing import CropBounds, CropKeyframe, Framing
+from .crop_planner import select_framing, track_framing
 from .chooser import choose_layout, check_overlap
 from .detector import LayoutError, YuNetDetector, load_cv2
 from .tracking import build_tracks
@@ -34,10 +35,10 @@ def centered_framing(mode, source_width, source_height, width, height):
     multiple = min(source_width // rw, source_height // rh)
     if multiple < 1 and mode not in ("fit", "blurfill"):
         raise ValueError("source is too small for an integer crop at the output aspect")
-    cw, ch = (source_width, source_height) if mode in ("fit", "blurfill") else (rw * multiple, rh * multiple)
+    cw, ch = (source_width, source_height) if mode in ("fit", "blurfill", "zoomfill") else (rw * multiple, rh * multiple)
     cx, cy = source_width / 2, source_height / 2
     return Framing(mode, source_width, source_height, CropBounds(0, 0, source_width, source_height),
-                   cw, ch, cx, cy, [CropKeyframe(0, cx, cy)] if mode == "reframe" else [],
+                   cw, ch, cx, cy, [CropKeyframe(0, cx, cy)] if mode in ("reframe", "zoomfill") else [],
                    max_velocity=min(cw, ch) * .5, method="center-heuristic",
                    warnings=["Center heuristic; no measured subject track. Confidence 0; review the crop."])
 
@@ -281,137 +282,16 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
     return tracks, warnings
 
 
-def track_framing(framing, clip, tracks):
-    if framing.mode != "reframe":
-        return framing
-    # Keep a single face while available. Detector confidence measures whether
-    # it is a face, not editorial prominence: prefer area with a center bias.
-    times = sorted({0.0, clip.duration, *[k.time - clip.src_in for t in tracks for k in t.keyframes
-                                       if clip.src_in < k.time < clip.src_out]})
-    if len(times) > 256:
-        times = [clip.duration * i / 255 for i in range(256)]
-    targets, confidences, methods = [], [], set()
-    previous_id = None
-    for time in times:
-        source_time = min(clip.src_out - 1e-7, clip.source_at(clip.timeline_start + time))
-        active = [t for t in tracks if t.keyframes[0].time <= source_time <= t.keyframes[-1].time]
-        faces = [t for t in active if not t.id.startswith(("saliency-", "person-"))]
-        people = [t for t in active if t.id.startswith("person-")]
-        choices = faces or people or active
-        selected = next((t for t in choices if t.id == previous_id), None)
-        if selected is None and choices:
-            def prominence(track):
-                box = box_at(track.keyframes, source_time)
-                return (box.width * box.height * (.5 + track.confidence) /
-                        (1 + math.dist(box.center, (.5, .5))), track.id)
-            selected = max(choices, key=prominence)
-        if selected:
-            x, y = box_at(selected.keyframes, source_time).center
-            x, y = x * framing.source_width, y * framing.source_height
-            previous_id = selected.id
-            confidences.append(selected.confidence)
-            methods.add("saliency" if selected.id.startswith("saliency-") else
-                        "people-hog" if selected.id.startswith("person-") else "yunet")
-        else:
-            x, y = targets[-1] if targets else (framing.source_width / 2, framing.source_height / 2)
-            confidences.append(0.0)
-            methods.add("center/hold")
-        b = framing.bounds
-        targets.append((min(b.x + b.width - framing.width / 2, max(b.x + framing.width / 2, x)),
-                        min(b.y + b.height - framing.height / 2, max(b.y + framing.height / 2, y))))
-    # Centered three-sample mean suppresses detector jitter; clamp each step so
-    # the smoothstep curve's peak Euclidean velocity respects the contract.
-    smooth = [targets[i] if i in (0, len(targets) - 1) else
-              tuple(sum(p[axis] for p in targets[i - 1:i + 2]) / 3 for axis in (0, 1))
-              for i in range(len(targets))]
-    keys = []
-    for time, (x, y) in zip(times, smooth):
-        if keys:
-            previous = keys[-1]
-            distance = math.hypot(x - previous.center_x, y - previous.center_y)
-            limit = framing.max_velocity * (time - previous.time) / 1.5
-            factor = min(1, limit / distance) if distance else 1
-            x, y = previous.center_x + (x - previous.center_x) * factor, previous.center_y + (y - previous.center_y) * factor
-        keys.append(CropKeyframe(time, x, y))
-    warnings = ["Crop follows sampled geometric evidence; 2 fps sampling, smoothing and velocity limiting can lag fast motion."]
-    if not methods <= {"yunet", "people-hog"}:
-        warnings.append("Saliency/center fallback used with lower confidence; subject identity and complete visibility are unverified.")
-    return replace(framing, center_x=keys[0].center_x, center_y=keys[0].center_y,
-                   keyframes=keys, confidence=min(confidences), method="+".join(sorted(methods)), warnings=warnings)
-
-
 def visible_content(framing, output_width, output_height):
-    if framing.mode not in ("fit", "blurfill"):
+    if framing.mode not in ("fit", "blurfill", "zoomfill"):
         return Box(0, 0, 1, 1)
-    scale = min(output_width / framing.source_width, output_height / framing.source_height)
+    sw, sh = ((framing.width, framing.height) if framing.mode == "zoomfill" else
+              (framing.source_width, framing.source_height))
+    scale = min(output_width / sw, output_height / sh)
     # Same force_divisible_by=2 floor as the fit graph.
-    w = max(2, math.floor(framing.source_width * scale / 2) * 2) / output_width
-    h = max(2, math.floor(framing.source_height * scale / 2) * 2) / output_height
+    w = max(2, math.floor(sw * scale / 2) * 2) / output_width
+    h = max(2, math.floor(sh * scale / 2) * 2) / output_height
     return Box((1 - w) / 2, (1 - h) / 2, w, h)
-
-
-def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscale=2.5, fps=30):
-    """Auto: <=2.5x, >=30% area, >=60% height, >=90% tracked coverage.
-
-    Full subject coverage is checked on every output frame against supplied
-    tracks, not against ground truth. Missing evidence permits only <=10% loss.
-    """
-    mode = framing_mode(requested, sw, sh, width, height)
-    if mode in ("fit", "blurfill"):
-        return replace(centered_framing(mode, sw, sh, width, height), max_upscale=max_upscale,
-                       method="aspect-match" if requested == "auto" else "user-specified",
-                       warnings=["Entire source picture retained; subject detection still limits caption safety."])
-    try:
-        candidate = replace(centered_framing(mode, sw, sh, width, height), max_upscale=max_upscale)
-    except ValueError:
-        if requested != "auto":
-            raise
-        return replace(centered_framing("blurfill", sw, sh, width, height), max_upscale=max_upscale,
-                       warnings=["Auto selected blurfill: source too small for an integer crop at this aspect."])
-    candidate = track_framing(candidate, clip, tracks)
-    if requested != "auto":
-        return candidate
-    area = candidate.width * candidate.height / (sw * sh)
-    height_fraction = candidate.height / sh
-    upscale = max(width / candidate.width, height / candidate.height)
-    reasons = []
-    if upscale > max_upscale + 1e-9:
-        reasons.append(f"crop enlargement {upscale:.3f}x exceeds {max_upscale:g}x")
-    if area < .30:
-        reasons.append(f"retained area {area:.1%} is below 30%")
-    if height_fraction < .60:
-        reasons.append(f"retained source height {height_fraction:.1%} is below 60%")
-    coverage, missing = 1.0, False
-    # Pixel-window evaluation on the actual CFR clock; subpixel rounding gets
-    # the same two-source-pixel allowance used by caption envelopes.
-    for frame in range(max(1, math.ceil(clip.duration * fps))):
-        local = min(clip.duration - 1e-7, frame / fps)
-        source_time = clip.source_at(clip.timeline_start + local)
-        active = [t for t in tracks if t.keyframes[0].time <= source_time <= t.keyframes[-1].time]
-        people = [t for t in active if not t.id.startswith("saliency-")]
-        active = people or active
-        if not active:
-            missing = True
-            continue
-        cx, cy = candidate.center_at(local)
-        left, top = cx - candidate.width / 2 + 2, cy - candidate.height / 2 + 2
-        right, bottom = cx + candidate.width / 2 - 2, cy + candidate.height / 2 - 2
-        for track in active:
-            b = box_at(track.keyframes, source_time)
-            iw = max(0, min(right, b.right * sw) - max(left, b.x * sw))
-            ih = max(0, min(bottom, b.bottom * sh) - max(top, b.y * sh))
-            coverage = min(coverage, iw * ih / (b.width * sw * b.height * sh))
-    if coverage < .90:
-        reasons.append(f"tracked-subject coverage {coverage:.1%} is below 90%")
-    if missing and area < .90:
-        reasons.append("subject evidence has gaps while crop loss exceeds 10%")
-    decision = (f"Auto crop assessment: retained area {area:.1%}, height {height_fraction:.1%}, "
-                f"tracked coverage {coverage:.1%}, enlargement {upscale:.3f}x; detector recall unverified.")
-    if reasons:
-        return replace(centered_framing("blurfill", sw, sh, width, height), max_upscale=max_upscale,
-                       method="auto-blurfill", confidence=candidate.confidence,
-                       warnings=["Auto selected blurfill: " + "; ".join(reasons) + ".", decision])
-    return replace(candidate, warnings=[*candidate.warnings, "Auto selected reframe. " + decision])
 
 
 def output_box(box, framing, time, output_width, output_height):
@@ -425,7 +305,15 @@ def output_box(box, framing, time, output_width, output_height):
     top = max(0, (box.y * framing.source_height - y - 2) / framing.height)
     right = min(1, (box.right * framing.source_width - x + 2) / framing.width)
     bottom = min(1, (box.bottom * framing.source_height - y + 2) / framing.height)
-    return bounds(left, top, right, bottom) if left < right and top < bottom else None
+    return _content_box(left, top, right, bottom, framing, output_width, output_height)
+
+
+def _content_box(left, top, right, bottom, framing, width, height):
+    if left >= right or top >= bottom:
+        return None
+    content = visible_content(framing, width, height)
+    return Box(content.x + left * content.width, content.y + top * content.height,
+               (right - left) * content.width, (bottom - top) * content.height)
 
 
 def swept_output_box(box, framing, times, output_width, output_height):
@@ -438,7 +326,7 @@ def swept_output_box(box, framing, times, output_width, output_height):
     right = min(1, (box.right * framing.source_width - min(x for x, _ in centers) + framing.width / 2 + 2) / framing.width)
     top = max(0, (box.y * framing.source_height - max(y for _, y in centers) + framing.height / 2 - 2) / framing.height)
     bottom = min(1, (box.bottom * framing.source_height - min(y for _, y in centers) + framing.height / 2 + 2) / framing.height)
-    return bounds(left, top, right, bottom) if left < right and top < bottom else None
+    return _content_box(left, top, right, bottom, framing, output_width, output_height)
 
 
 DEFAULT_POP_SCALE = 1.18  # v1 word-timed captions pop each word to 118% (ASS fscx/fscy 118).
@@ -516,6 +404,12 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
     source_dimensions = source_dimensions or {}
     layouts = []
     for caption in plan.captions:
+        vertical = plan.height > plan.width
+        if vertical:
+            short = min(plan.width, plan.height)
+            style = caption.style or CaptionStyle(max(1, short / 18))
+            caption.style = replace(style, outline_width=max(style.outline_width, min(20, short / 270)),
+                                    box_color=style.box_color or "#111111")
         first, last, _, _ = caption_frame_timing(caption, plan.fps, frame_limit)
         visible_start, visible_end = float(frame_time(first, plan.fps)), float(frame_time(last, plan.fps))
         obstacles, contents = [], []
@@ -546,6 +440,28 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                                               Keyframe(caption.end, box)], track.confidence))
         content = bounds(max((b.x for b in contents), default=0), max((b.y for b in contents), default=0),
                          min((b.right for b in contents), default=1), min((b.bottom for b in contents), default=1))
+        placement_region = "sharp picture"
+        if vertical and contents and all(b.width > .99 for b in contents):
+            # Prefer a band only when the entire static caption can fit there
+            # throughout its event. A caption spanning differently framed shots
+            # uses the intersection of their bands, never crosses the seam.
+            columns = max(1, int((1 - inset_left - inset_right) * .94 * plan.width /
+                                (caption.style.size * .8)))
+            line_count = max(1, len(textwrap.wrap(" ".join(caption.text.split()), width=columns,
+                                                break_long_words=False, break_on_hyphens=False)))
+            required = (line_count * caption.style.size * 1.4 + caption.style.outline_width * 2 + 14) / plan.height / .8
+            bands = [(max(b.bottom for b in contents), 1 - inset_bottom, "lower blur band"),
+                     (inset_top, min(b.y for b in contents), "upper blur band")]
+            # Fit's black padding remains outside content; only blurred modes
+            # invite a caption into the surrounding picture.
+            blurred = all(c.framing and c.framing.mode in ("blurfill", "zoomfill")
+                          for c in plan.clips if c.timeline_start < visible_end and c.timeline_end > visible_start)
+            if blurred:
+                for band_top, band_bottom, name in bands:
+                    if band_bottom - band_top >= required:
+                        content = bounds(0, band_top, 1, band_bottom)
+                        placement_region = name
+                        break
         masks = []
         # Include a small output edge inset as well as every padding bar.
         left, top = max(inset_left, content.x), max(inset_top, content.y)
@@ -576,7 +492,7 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                                              break_long_words=False, break_on_hyphens=False))
         lines = caption.text.splitlines()
         def extent():
-            padding = caption.style.outline_width * 2 + 6
+            padding = caption.style.outline_width * 2 + (14 if caption.style.box_color else 6)
             return (max(len(line) for line in lines) * caption.style.size * .8 + padding,
                     len(lines) * caption.style.size * 1.4 + padding)
         ink_width, ink_height = extent()
@@ -621,7 +537,8 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                     break
             else:
                 caption.text, caption.style = original_text, original_style
-        scope = "output crop; aspect UI insets, swept supplied subject tracks and visible-content bounds; detector recall unverified"
+        scope = (f"output crop; {placement_region}; aspect UI insets, swept supplied subject tracks and "
+                 "visible-content bounds; detector recall unverified")
         if not obstacles:
             scope += "; faces unmeasured in this interval"
         layout = replace(layout, overlap=replace(layout.overlap, scope=scope))

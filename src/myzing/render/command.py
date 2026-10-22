@@ -33,7 +33,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
     parser.add_argument("--aspect", help="replan from sources for all, or a comma-separated list: 16:9,1:1,9:16")
-    parser.add_argument("--framing", choices=["auto", "fit", "fill", "reframe", "blurfill"], help="delivery framing override")
+    parser.add_argument("--framing", choices=["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"], help="delivery framing override")
     parser.add_argument("--max-upscale", type=float, help="auto crop enlargement ceiling (default 2.5x)")
     parser.add_argument("--short-side", type=int, default=1080, help="delivery short side; multiple of 18, default 1080")
     parser.add_argument(

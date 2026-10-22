@@ -32,7 +32,7 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
         boundaries = [clip.src_in]
         # Splitting transition legs would invalidate their linked handles.
         # Auto coverage checks instead fall back to full-picture blurfill.
-        if not plan.transitions and requested in ("auto", "reframe"):
+        if not plan.transitions and requested in ("auto", "reframe", "zoomfill"):
             for cut in sorted((cuts or {}).get(clip.asset_id, [])):
                 if cut - boundaries[-1] >= 1 / rate and clip.src_out - cut >= 1 / rate:
                     boundaries.append(cut)
@@ -42,7 +42,8 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
                            src_in=start, src_out=end, timeline_start=clip.timeline_start + start - clip.src_in,
                            framing=None)
             part.framing = select_framing(requested, *source_dimensions[clip.asset_id], width, height,
-                                          part, subjects.get(clip.asset_id, []), max_upscale=max_upscale, fps=rate)
+                                          part, subjects.get(clip.asset_id, []), max_upscale=max_upscale, fps=rate,
+                                          speech_words=plan.speech_words)
             clips.append(part)
     plan.clips = clips
     place_captions(plan, subjects, source_dimensions)

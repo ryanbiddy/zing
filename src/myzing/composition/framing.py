@@ -7,6 +7,28 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from myzing.contracts import Record, bounded, nonempty
+from .speakers import SpeakerTurn
+
+
+@dataclass
+class CropAssessment(Record):
+    mode: Literal["fit", "fill", "reframe", "zoomfill", "blurfill"]
+    sharp_height_share: float
+    sharp_area_share: float
+    enlargement: float
+    retained_area: float
+    subject_coverage: float
+    headroom_safe: bool
+    evidence_gaps: bool
+    reasons: list[str] = field(default_factory=list)
+    version: int = 1
+
+    def __post_init__(self):
+        super().__post_init__()
+        for name in ("sharp_height_share", "sharp_area_share", "retained_area", "subject_coverage"):
+            bounded(getattr(self, name), 0, 1, name)
+        if self.enlargement <= 0:
+            raise ValueError("enlargement must be positive")
 
 
 @dataclass
@@ -38,7 +60,7 @@ class CropKeyframe(Record):
 
 @dataclass
 class Framing(Record):
-    mode: Literal["fit", "fill", "reframe", "blurfill"]
+    mode: Literal["fit", "fill", "reframe", "zoomfill", "blurfill"]
     source_width: int
     source_height: int
     bounds: CropBounds
@@ -53,6 +75,8 @@ class Framing(Record):
     confidence: float = 0.0
     method: str = "user-specified"
     warnings: list[str] = field(default_factory=list)
+    assessments: list[CropAssessment] = field(default_factory=list, metadata={"omit_default": True})
+    speaker_turns: list[SpeakerTurn] = field(default_factory=list, metadata={"omit_default": True})
     version: int = 1
 
     def __post_init__(self):
@@ -72,7 +96,7 @@ class Framing(Record):
                     or x + self.width / 2 > b.x + b.width + 1e-6
                     or y + self.height / 2 > b.y + b.height + 1e-6):
                 raise ValueError("crop window exceeds stated bounds/source dimensions")
-        if self.mode == "reframe":
+        if self.mode in ("reframe", "zoomfill"):
             if not self.keyframes or self.keyframes[0].time != 0:
                 raise ValueError("reframe keyframes must start at clip-local time zero")
             if len(self.keyframes) > 256:
@@ -90,7 +114,9 @@ class Framing(Record):
                 if speed > self.max_velocity + 1e-6:
                     raise ValueError("reframe keyframes exceed max_velocity")
         elif self.keyframes:
-            raise ValueError("only reframe accepts keyframes")
+            raise ValueError("only reframe and zoomfill accept keyframes")
+        if any(a.end > b.start for a, b in zip(self.speaker_turns, self.speaker_turns[1:])):
+            raise ValueError("speaker turns must be ordered without overlap")
 
     def center_at(self, time: float) -> tuple[float, float]:
         if not self.keyframes:
@@ -105,13 +131,18 @@ class Framing(Record):
 
     def validate_output(self, width: int, height: int, duration: float) -> None:
         self.__post_init__()
-        if self.mode not in ("fit", "blurfill") and self.width * height != self.height * width:
+        if self.mode not in ("fit", "blurfill", "zoomfill") and self.width * height != self.height * width:
             raise ValueError("crop aspect must equal the output aspect")
+        if self.mode == "zoomfill" and self.width * height < self.height * width:
+            raise ValueError("zoomfill crop must fit the output height when scaled to output width")
         if self.keyframes and self.keyframes[-1].time > duration + 1e-6:
             raise ValueError("reframe keyframe exceeds the clip duration")
+        if self.speaker_turns and self.speaker_turns[-1].end > duration + 1e-6:
+            raise ValueError("speaker turn exceeds the clip duration")
 
     def upscale_warning(self, width: int, height: int) -> list[str]:
         scale = (min(width / self.source_width, height / self.source_height) if self.mode in ("fit", "blurfill")
+                 else width / self.width if self.mode == "zoomfill"
                  else max(width / self.width, height / self.height))
         return ([f"Framing upscale {scale:.3f}x exceeds stated {self.max_upscale:g}x limit; source detail cannot be recovered."]
                 if scale > self.max_upscale + 1e-9 else [])

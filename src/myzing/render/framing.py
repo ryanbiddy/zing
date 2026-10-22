@@ -79,10 +79,14 @@ def framing_filter(framing, width, height, rate, label="framing"):
     if framing is None or framing.mode == "fit":
         return (normal + f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p")
-    if framing.mode == "blurfill":
+    if framing.mode in ("blurfill", "zoomfill"):
         # Blur at quarter delivery resolution, then enlarge. Both branches
         # share the same decoded, graded CFR frames; there is no temporal lag.
         bw, bh = max(2, width // 4), max(2, height // 4)
+        foreground_crop = ""
+        if framing.mode == "zoomfill":
+            x, y = (_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
+            foreground_crop = f"crop=w={framing.width}:h={framing.height}:x='{x}':y='{y}':exact=1,"
         return (normal + f"split=2[{label}_fg][{label}_bg];\n"
                 f"[{label}_bg]scale={bw}:{bh}:force_original_aspect_ratio=increase,"
                 f"crop={bw}:{bh}:exact=1,gblur=sigma=12:steps=2,"
@@ -92,7 +96,7 @@ def framing_filter(framing, width, height, rate, label="framing"):
                 "format=yuv420p,"
                 "lutyuv=y='16+(val-16)*0.55':u='128+(val-128)*0.65':v='128+(val-128)*0.65',"
                 f"scale={width}:{height},setsar=1[{label}_back];\n"
-                f"[{label}_fg]scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
+                f"[{label}_fg]{foreground_crop}scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
                 f"setsar=1[{label}_front];\n"
                 # The main/background CFR stream owns EOF. Restore the exact
                 # clock after framesync: without it FFmpeg 6's downstream
