@@ -93,6 +93,7 @@ def test_real_recall_audit_covers_both_requested_corpora() -> None:
     assert result["production_disposition"] == "experimental-warning"
     assert result["detector_execution"] == {
         "available": True,
+        "matches_current_detector": False,
         "accuracy_status": "unjudged",
         "detector_version": 4,
         "source_count": 3,
@@ -164,7 +165,7 @@ def test_real_recall_audit_source_identities_match_frozen_provenance() -> None:
     assert audited == real_sources | gate_sources
 
 
-def test_real_recall_audit_rejects_stale_detector_measurements(
+def test_real_recall_audit_rejects_mixed_historical_detector_measurements(
     tmp_path: Path,
 ) -> None:
     audit = json.loads(
@@ -175,7 +176,7 @@ def test_real_recall_audit_rejects_stale_detector_measurements(
     audit_path = tmp_path / "stale-recall-audit.json"
     audit_path.write_text(json.dumps(audit), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="measurements are stale"):
+    with pytest.raises(ValueError, match="mix historical versions"):
         summarize_real_transition_recall(audit_path)
 
 
@@ -193,12 +194,22 @@ def test_production_detector_returns_typed_audio_aligned_observation(
                     "start_seconds": 1.0,
                     "end_seconds": 1.0,
                     "frame_pair_count": 1,
+                    "evidence_start_seconds": 0.8,
+                    "evidence_end_seconds": 1.2,
+                    "confidence": 0.9,
+                    "detector_version": study_transitions.DETECTOR_VERSION,
+                    "reason": "test structural discontinuity",
                 },
                 {
                     "signature": "dissolve",
                     "start_seconds": 2.0,
                     "end_seconds": 2.4,
                     "frame_pair_count": 12,
+                    "evidence_start_seconds": 1.8,
+                    "evidence_end_seconds": 2.6,
+                    "confidence": 0.9,
+                    "detector_version": study_transitions.DETECTOR_VERSION,
+                    "reason": "test endpoint reconstruction",
                 },
             ],
             "audio_probe_ok": True,
@@ -225,14 +236,12 @@ def test_production_detector_returns_typed_audio_aligned_observation(
     assert result.transitions[0].audio_aligned is True
     assert result.transitions[0].audio_onset_delta == -0.02
     assert result.transitions[1].audio_aligned is False
-    assert result.provenance["transition_detector_version"] == 4
+    assert result.provenance["transition_detector_version"] == 5
     assert result.provenance["transition_feature_summary"]["frame_count"] == 90
     assert result.provenance["transition_audio_probe_ok"] is True
-    assert result.provenance["transition_validation"] == {
-        "status": "experimental",
-        "synthetic_recall_available": True,
-        "real_video_recall_available": False,
-    }
+    assert result.provenance["transition_validation"] == study_transitions.VALIDATION_STATUS
+    assert result.provenance["transition_evidence"][0]["observation_index"] == 0
+    assert result.provenance["transition_evidence"][1]["confidence"] == 0.9
     assert len(result.warnings) == 1
     assert "real-video recall is unavailable" in result.warnings[0]
 
@@ -269,7 +278,7 @@ def test_non_monotonic_gradual_motion_is_not_a_dissolve(
     )
 
     assert "dissolve" not in measurement["predicted"]
-    assert measurement["events"] == []
+    assert [event["signature"] for event in measurement["events"]] == ["unknown"]
     assert measurement["feature_summary"]["suppressed_dissolve_candidates"] == 1
 
 

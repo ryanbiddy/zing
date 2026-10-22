@@ -10,7 +10,7 @@ from typing import Sequence
 from myzing.schemas import AudioTrack, EDL
 
 from .otio_export import OTIOExportResult, export_otio
-from .pipeline import RenderResult, render_edl
+from .pipeline import RenderResult, preflight_captions, render_edl
 from .validation import resolve_assets
 from .tts import (
     DEFAULT_LANGUAGE,
@@ -74,6 +74,7 @@ def render_assembled_edl(
     ffprobe: str = "ffprobe",
 ) -> AssembleResult:
     """Synthesize scripts, render the augmented EDL, then export its timeline."""
+    preflight_captions(edl, ffmpeg)
     output_path = output_path.expanduser().resolve()
     base_dir = base_dir or Path.cwd()
     resolved_assets = resolve_assets(edl, base_dir)

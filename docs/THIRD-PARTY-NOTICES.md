@@ -23,3 +23,11 @@ FFmpeg and ffprobe remain external binaries. The tested Gyan FFmpeg 8.1.2 build
 is GPLv3; this pass invokes the installed executable and does not vendor its
 code or binaries. See [FFmpeg's legal page](https://ffmpeg.org/legal.html) and
 [the build distributor](https://www.gyan.dev/ffmpeg/builds/) before redistribution.
+
+MR1 macOS CI installs Homebrew's external `ffmpeg-full` bottle (9.0.2 when
+verified on October 21, 2026), licensed GPL-3.0-or-later by its
+[formula](https://formulae.brew.sh/formula/ffmpeg-full). Its libass dependency
+uses the [ISC license](https://github.com/libass/libass/blob/master/COPYING).
+These remain external tools; no source or binaries are vendored and no Python
+dependency was added. The documented MacPorts alternative enables libass and
+defaults to GPL-2+; see its [port details](https://ports.macports.org/port/ffmpeg/details/).

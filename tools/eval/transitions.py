@@ -182,10 +182,9 @@ def summarize_real_transition_recall(
         raise ValueError(
             "real recall calculation is not implemented for labeled sources"
         )
-    if measured_sources and measured_detector_versions != {DETECTOR_VERSION}:
+    if len(measured_detector_versions) > 1:
         raise ValueError(
-            "real recall audit detector measurements are stale: "
-            f"expected version {DETECTOR_VERSION}, found "
+            "real recall audit detector measurements mix historical versions: "
             f"{sorted(measured_detector_versions)}"
         )
     reason = (
@@ -204,6 +203,7 @@ def summarize_real_transition_recall(
     }
     detector_execution = {
         "available": measured_sources > 0,
+        "matches_current_detector": measured_detector_versions == {DETECTOR_VERSION},
         "accuracy_status": (
             next(iter(measured_accuracy_statuses))
             if len(measured_accuracy_statuses) == 1
@@ -240,7 +240,10 @@ def summarize_real_transition_recall(
 def summarize_real_dissolve_calibration(
     calibration_path: Path = DEFAULT_REAL_CALIBRATION,
 ) -> dict[str, Any]:
-    """Apply the current dissolve gate to frozen detector-v2 measurements."""
+    """Replay the historical monotonicity sub-gate on frozen v2 measurements.
+
+    These features cannot replay v5's endpoint reconstruction gate.
+    """
     calibration = json.loads(
         calibration_path.read_text(encoding="utf-8")
     )
@@ -288,6 +291,7 @@ def summarize_real_dissolve_calibration(
             "temporal_monotonicity": DISSOLVE_TEMPORAL_MONOTONICITY,
             "mean_frame_difference": DISSOLVE_MEAN_FRAME_DIFFERENCE,
         },
+        "scope": "historical monotonicity sub-gate only; not a replay of detector v5",
         "precision": {
             "available": annotation["precision_available"],
             "value": None,
@@ -397,6 +401,9 @@ def evaluate_transition_goldens(
 def run(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("goldens", type=Path)
+    parser.add_argument("--generated", action="store_true", help="score the P14 event-labeled corpus")
+    parser.add_argument("--generate", action="store_true", help="generate P14 media locally before scoring")
+    parser.add_argument("--split", choices=("all", "calibration", "held_out"), default="all")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
@@ -407,6 +414,23 @@ def run(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
     try:
+        if args.generated or args.generate:
+            from .transition_benchmark import evaluate_corpus
+            from .transition_corpus import generate_corpus
+
+            if args.generate:
+                directories = generate_corpus(args.goldens, args.split, ffmpeg=args.ffmpeg)
+            else:
+                directories = sorted(path.parent for path in args.goldens.glob("*/truth.json")
+                                     if args.split == "all" or path.parent.name.startswith(args.split + "-"))
+            report = evaluate_corpus(directories, args.report, ffmpeg=args.ffmpeg, ffprobe=args.ffprobe)
+            for kind, stats in report["aggregate"]["signatures"].items():
+                print(f"{kind}: precision={stats['precision']} recall={stats['recall']} unknown={stats['unknown']}")
+            print(f"unknown observations: {report['aggregate']['unknown_count']}")
+            print(f"confident effects on negatives: {report['aggregate']['negative_confident_effects']}")
+            print(f"acceptance: {report['acceptance']}")
+            print(f"report: {args.report}")
+            return 0 if report["acceptance"]["passed"] else 1
         if not args.goldens.is_dir():
             raise ValueError(
                 "transition goldens path is missing or not a directory: "

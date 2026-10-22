@@ -14,6 +14,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from myzing.ffmpeg_capabilities import FFmpegCapabilityError, caption_filter
 from myzing.schemas import EDL
 
 from .captions import CaptionDependencyError, generate_ass
@@ -23,6 +24,16 @@ from .validation import MediaInfo, ValidatedEDL, validate_edl
 
 class RenderError(RuntimeError):
     """The renderer could not probe or execute the requested EDL."""
+
+
+def preflight_captions(edl: EDL, ffmpeg: str) -> str:
+    """Fail before probing media, authoring files, or synthesizing voiceovers."""
+    if not edl.captions:
+        return "ass"
+    try:
+        return caption_filter(ffmpeg)
+    except FFmpegCapabilityError as exc:
+        raise RenderError(str(exc)) from exc
 
 
 @dataclass(frozen=True)
@@ -191,6 +202,7 @@ def _render_in_directory(
     output_path: Path,
     directory: Path,
     ffmpeg: str,
+    caption_filter_name: str = "ass",
 ) -> RenderResult:
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -211,7 +223,9 @@ def _render_in_directory(
         except (CaptionDependencyError, OSError) as exc:
             raise RenderError(str(exc)) from exc
 
-    plan = build_graph(validated, include_captions)
+    plan = build_graph(
+        validated, include_captions, caption_filter=caption_filter_name,
+    )
     graph_path = directory / "filter graph.txt"
     try:
         graph_path.write_text(plan.graph, encoding="utf-8")
@@ -262,6 +276,7 @@ def render_edl(
     resolved_assets, when supplied, is the result of resolve_assets() for
     this EDL, captured before dispatch or voiceover synthesis.
     """
+    caption_filter_name = preflight_captions(edl, ffmpeg)
     base_dir = base_dir or Path.cwd()
     output_path = output_path.expanduser().resolve()
     validated = validate_edl(
@@ -281,6 +296,7 @@ def render_edl(
             output_path,
             work_dir.expanduser().resolve(),
             ffmpeg,
+            caption_filter_name,
         )
 
     _create_directory(
@@ -296,6 +312,7 @@ def render_edl(
             output_path,
             Path(temporary),
             ffmpeg,
+            caption_filter_name,
         )
     return RenderResult(
         output_path=result.output_path,

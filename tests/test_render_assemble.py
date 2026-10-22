@@ -7,9 +7,11 @@ import pytest
 from myzing.render import assemble
 from myzing.render.assemble import VoiceoverScript, render_assembled_edl
 from myzing.render.otio_export import OTIOExportResult
-from myzing.render.pipeline import RenderResult
+from myzing.ffmpeg_capabilities import FFmpegCapabilityError
+from myzing.render import pipeline
+from myzing.render.pipeline import RenderError, RenderResult
 from myzing.render.tts import SynthesisResult, TTSGenerationError
-from myzing.schemas import AudioTrack, Clip, EDL
+from myzing.schemas import AudioTrack, CaptionSpec, Clip, EDL
 
 
 class RecordingProvider:
@@ -96,6 +98,26 @@ def test_assembly_synthesizes_scripts_without_mutating_input_edl(
 def test_voiceover_script_rejects_blank_text() -> None:
     with pytest.raises(ValueError, match="must not be empty"):
         VoiceoverScript("   ")
+
+
+def test_caption_preflight_precedes_voiceover_synthesis(tmp_path, monkeypatch):
+    def missing(_):
+        raise FFmpegCapabilityError("this FFmpeg build has no libass support")
+
+    monkeypatch.setattr(pipeline, "caption_filter", missing)
+    edl = EDL(
+        clips=[Clip("missing.mp4", 0.0, 1.0, 0.0)],
+        captions=[CaptionSpec("hello", 0.0, 1.0)],
+    )
+    provider = RecordingProvider()
+    assets = tmp_path / "voice-assets"
+    with pytest.raises(RenderError, match="no libass"):
+        render_assembled_edl(
+            edl, tmp_path / "render.mp4", provider=provider,
+            scripts=[VoiceoverScript("hello")], voiceover_dir=assets,
+        )
+    assert provider.requests == []
+    assert not assets.exists()
 
 
 def test_failed_tts_setup_removes_new_empty_asset_directory(tmp_path: Path) -> None:

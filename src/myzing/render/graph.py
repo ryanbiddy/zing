@@ -50,23 +50,34 @@ def _audio_leg(
     )
     if gain_db:
         filters.append(f"volume={_number(gain_db)}dB")
-    if start:
-        filters.extend(
-            [
-                f"adelay={round(start * 1000)}:all=1",
-                "asetpts=PTS-STARTPTS",
-            ]
+    # Count decoded/resampled samples, independent of decoder timestamps.
+    filters.append("asetpts=N/SR/TB")
+    source = f"[{input_index}:a:0]" + ",".join(filters)
+    start_samples = round(start * 48000)
+    if start_samples:
+        # Materialize the offset as samples. A subsequent timestamp reset
+        # cannot erase this silence; rounding to milliseconds loses precision.
+        source += (
+            f"[{label}_content];\n"
+            "anullsrc=r=48000:cl=stereo,"
+            f"atrim=end_sample={start_samples},"
+            "aformat=sample_fmts=fltp:channel_layouts=stereo,"
+            f"asetpts=N/SR/TB[{label}_silence];\n"
+            f"[{label}_silence][{label}_content]concat=n=2:v=0:a=1,"
+            "asetpts=N/SR/TB"
         )
-    filters.extend(
-        [
-            f"apad=whole_dur={_number(duration)}",
-            f"atrim=duration={_number(duration)}",
-        ]
+    return (
+        source + f",apad=whole_dur={_number(duration)},"
+        f"atrim=duration={_number(duration)}[{label}]"
     )
-    return f"[{input_index}:a:0]" + ",".join(filters) + f"[{label}]"
 
 
-def build_graph(validated: ValidatedEDL, include_captions: bool) -> GraphPlan:
+def build_graph(
+    validated: ValidatedEDL,
+    include_captions: bool,
+    *,
+    caption_filter: str = "ass",
+) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
     lines: list[str] = []
@@ -110,8 +121,10 @@ def build_graph(validated: ValidatedEDL, include_captions: bool) -> GraphPlan:
         f"trim=duration={_number(duration)}[video_concat]"
     )
     if include_captions:
+        if caption_filter not in {"ass", "subtitles"}:
+            raise ValueError(f"unsupported caption filter: {caption_filter}")
         lines.append(
-            "[video_concat]ass=filename='captions.ass':"
+            f"[video_concat]{caption_filter}=filename='captions.ass':"
             f"original_size={edl.width}x{edl.height}[video_out]"
         )
     else:

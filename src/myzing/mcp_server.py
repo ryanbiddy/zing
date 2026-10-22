@@ -1453,6 +1453,25 @@ def h_meme_render(texts: list[str], image: str = "", template: str = "",
         return _err(str(exc))
 
 
+@_workspace_boundary
+def h_inspect_timeline(video: str, out: str, start: float | None = None,
+                       end: float | None = None, around: float | None = None,
+                       edl: str | None = None, breakdown: str | None = None,
+                       frames: int = 5, width: int = 1600, radius: float = 1.0,
+                       overwrite: bool = False) -> dict[str, Any]:
+    """Bounded local inspection; no media bytes cross the MCP boundary."""
+    from myzing.inspect.timeline import inspect_timeline
+
+    try:
+        return _ok(**inspect_timeline(
+            video, out, start=start, end=end, around=around, edl=edl,
+            breakdown=breakdown, frames=frames, width=width, radius=radius,
+            overwrite=overwrite,
+        ).to_dict())
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
 def h_get_prompt(name: str = "study") -> dict[str, Any]:
     loaded = load_prompt(name)
     if loaded is None:
@@ -1778,6 +1797,21 @@ def build_server():
         name="meme_render",
         description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path.",
     )(h_meme_render)
+
+    mcp.tool(
+        name="inspect_timeline",
+        description=(
+            "Create one local PNG showing a filmstrip, aligned waveform, planned cuts "
+            "and timed transcript. Supply video and out paths; with edl, video must be "
+            "the rendered edit. Times are output seconds. Use start/end OR around; "
+            "an EDL without a range centers one row on each cut. breakdown is a stored "
+            "slug; otherwise EDL captions supply words. Requires myzing[memes] and "
+            "FFmpeg; no network or ASR. Capped at 60 frames, 12 rows, 12 megapixels, "
+            "120 seconds per row and a 50-second decoder budget. Returns PNG path, "
+            "source/output mappings and pixel metadata, never image bytes. Existing "
+            "output is refused unless overwrite=true."
+        ),
+    )(h_inspect_timeline)
 
     for prompt_name in available_prompts():
         def _make(nm: str):

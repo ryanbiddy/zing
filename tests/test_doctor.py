@@ -14,6 +14,11 @@ from myzing import doctor
 
 
 @pytest.fixture(autouse=True)
+def _hermetic_caption_filter(monkeypatch):
+    monkeypatch.setattr(doctor, "caption_filter", lambda _: "ass")
+
+
+@pytest.fixture(autouse=True)
 def _fresh_version_cache():
     doctor._version_cache.clear()
     doctor._peer_cache.clear()
@@ -145,13 +150,28 @@ def test_json_output_is_parseable_and_complete(full_machine, capsys):
     names = {c["name"] for c in payload["checks"]}
     assert names == {
         "ffmpeg", "yt-dlp", "scenedetect", "faster-whisper", "ocr",
-        "tts", "uoink", "pillow", "layout", "color", "hyperframes",
+        "tts", "uoink", "pillow", "layout", "color", "hyperframes", "audio", "libass",
     }
     tiers = {c["name"]: c["tier"] for c in payload["checks"]}
     assert tiers["ffmpeg"] == "required"
     assert tiers["scenedetect"] == "recommended"
     assert tiers["uoink"] == "optional"
     assert tiers["layout"] == "optional"
+    assert tiers["libass"] == "optional"
+
+
+def test_missing_libass_is_optional_and_explains_caption_remedy(full_machine, monkeypatch):
+    def missing(_):
+        raise doctor.FFmpegCapabilityError("this FFmpeg build has no libass support")
+
+    monkeypatch.setattr(doctor, "caption_filter", missing)
+    check = doctor.check_libass()
+    assert not check.ok
+    assert check.tier == doctor.OPTIONAL
+    assert "no libass" in check.detail
+    assert "brew install ffmpeg-full" in check.fix
+    assert "HyperFrames" in check.degraded_mode
+    assert doctor.summarize(doctor.run_checks())["ok"] is True
 
 
 def test_json_on_bare_machine_reports_required_missing(bare_machine, capsys):

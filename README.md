@@ -26,6 +26,8 @@ your saved references live.
 
 [Stills and memes](docs/MEMES.md): `zing meme` renders photos or requested templates with your text; install the optional `myzing[memes]` extra.
 
+[Audio observations](docs/AUDIO.md): `zing audio analyze clip.wav --json` measures beats, attacks, role candidates, and loudness; install `myzing[audio]` and FFmpeg.
+
 Status: pre-alpha, under active build. See the [Developer Guide](docs/DEVELOPER-GUIDE.md), [CONNECT](docs/CONNECT.md) for AI clients, and [DIRECT-FLOW](docs/DIRECT-FLOW.md) for the direction workflow.
 
 For standalone caption placement around faces and platform UI, see
