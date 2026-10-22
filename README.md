@@ -28,6 +28,10 @@ your saved references live.
 
 Status: pre-alpha, under active build. See the [Developer Guide](docs/DEVELOPER-GUIDE.md), [CONNECT](docs/CONNECT.md) for AI clients, and [DIRECT-FLOW](docs/DIRECT-FLOW.md) for the direction workflow.
 
+For standalone caption placement around faces and platform UI, see
+[face-aware layout](docs/FACE-LAYOUT.md). It produces a JSON plan and debug contact
+sheet; ASS integration is a later pass.
+
 ## Quick Start
 ```bash
 # Setup virtual environment with dev/study dependencies
@@ -42,4 +46,10 @@ uv run pytest
 
 MIT licensed. Core is stdlib-only; optional tools (ffmpeg, yt-dlp,
 faster-whisper, OCR) are detected by `zing doctor`.
+
+To match a clip's color toward a local reference, install `myzing[color]`
+and run `zing color match --reference reference.mp4 --clip clip.mp4 --out zing-workspace/look`.
+This saves a procedural LUT, measured recipe, and before/reference/after preview.
+The result is a matched approximation. See [color matching](docs/color.md) for
+SDR assumptions, LUT application, confidence, and the acceptance test.
 

@@ -33,6 +33,7 @@ import urllib.error
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import date
+from importlib import metadata
 from pathlib import Path
 
 REQUIRED = "required"
@@ -716,6 +717,68 @@ def check_pillow() -> Check:
     )
 
 
+def check_layout() -> Check:
+    """Offline metadata/cache probe; never import native runtimes in MCP status."""
+    from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
+
+    if not _has_module("cv2"):
+        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed", fix=INSTALL_HINT)
+    try:
+        version = metadata.version("opencv-python-headless")
+        conflicts = []
+        for name in ("opencv-python", "opencv-contrib-python", "opencv-contrib-python-headless"):
+            try:
+                metadata.version(name)
+                conflicts.append(name)
+            except metadata.PackageNotFoundError:
+                pass
+        if version != "4.13.0.92" or conflicts:
+            return Check("layout", OPTIONAL, False,
+                         f"OpenCV headless package {version}; conflicting wheels: {conflicts}",
+                         fix="Remove GUI/contrib OpenCV wheels, then reinstall opencv-python-headless==4.13.0.92; "
+                             "checkout: uv sync --all-extras --reinstall-package opencv-python-headless")
+        path = model_path()
+        valid = verified_model(path)
+    except (metadata.PackageNotFoundError, OSError) as exc:
+        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT)
+    return Check("layout", OPTIONAL, valid,
+                 f"OpenCV headless package {version}; YuNet model {'verified' if valid else 'missing or corrupt'}; "
+                 "native inference not probed",
+                 fix="" if valid else "zing layout fetch-model",
+                 data={"model": str(path), "model_verified": valid, "network_used": False,
+                       "runtime_probe": "package-metadata-only"})
+
+
+def check_color() -> Check:
+    present = _has_module("numpy")
+    return Check(
+        name="color", tier=OPTIONAL, ok=present,
+        detail="numpy installed (local SDR color matching)" if present else "numpy is not importable",
+        fix="" if present else 'python -m pip install "myzing[color]"',
+        degraded_mode="" if present else "color match/apply unavailable; other commands are unaffected",
+    )
+
+
+def check_hyperframes() -> Check:
+    """PH is a separately installed, optional local caption adapter."""
+    from .render.hyperframes_adapter import HyperframesError, check_install
+
+    try:
+        data = check_install()
+    except HyperframesError as exc:
+        return Check(
+            name="hyperframes", tier=OPTIONAL, ok=False,
+            detail="local HyperFrames spike is unavailable",
+            fix=str(exc),
+            degraded_mode="HyperFrames adapter unavailable; existing zing render is unaffected",
+        )
+    return Check(
+        name="hyperframes", tier=OPTIONAL, ok=True,
+        detail="pinned local sidecar prerequisites found (render not exercised)",
+        data=data,
+    )
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -725,6 +788,9 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_ocr(),
         check_tts(),
         check_pillow(),
+        check_layout(),
+        check_color(),
+        check_hyperframes(),
         check_uoink(),
     ]
 

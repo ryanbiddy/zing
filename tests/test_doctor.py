@@ -145,12 +145,13 @@ def test_json_output_is_parseable_and_complete(full_machine, capsys):
     names = {c["name"] for c in payload["checks"]}
     assert names == {
         "ffmpeg", "yt-dlp", "scenedetect", "faster-whisper", "ocr",
-        "tts", "uoink", "pillow",
+        "tts", "uoink", "pillow", "layout", "color", "hyperframes",
     }
     tiers = {c["name"]: c["tier"] for c in payload["checks"]}
     assert tiers["ffmpeg"] == "required"
     assert tiers["scenedetect"] == "recommended"
     assert tiers["uoink"] == "optional"
+    assert tiers["layout"] == "optional"
 
 
 def test_json_on_bare_machine_reports_required_missing(bare_machine, capsys):

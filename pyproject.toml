@@ -29,7 +29,9 @@ study = [
 mcp = ["mcp>=1.2,<2"]
 render = ["pysubs2>=1.8.1"]
 memes = ["Pillow>=10.4"]
-all = ["myzing[study]", "myzing[mcp]", "myzing[render]", "myzing[memes]"]
+layout = ["opencv-python-headless==4.13.0.92"]
+color = ["numpy>=1.24"]
+all = ["myzing[study]", "myzing[mcp]", "myzing[render]", "myzing[memes]", "myzing[layout]", "myzing[color]"]
 
 [project.scripts]
 zing = "myzing.cli:main"
@@ -42,3 +44,8 @@ myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md", "_dat
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv]
+# RapidOCR uses cv2 but requests the GUI wheel. scenedetect-headless/layout
+# supply the same API; installing both wheels overwrites the pinned runtime.
+exclude-dependencies = ["opencv-python"]
