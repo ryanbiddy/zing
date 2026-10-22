@@ -4,11 +4,11 @@
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
 from local images. Measurement and rendering run on your machine; your AI supplies
-the creative judgment through the CLI or **30 MCP tools**. No Zing API key needed.
+the creative judgment through the CLI or **32 MCP tools**. No Zing API key needed.
 
-Today these are explicit steps you and your agent can run and review. A saved
-brief and project inventory keep the work organized; automatic style-match
-orchestration is still coming. Status: pre-alpha. MIT licensed.
+`zing match` runs the reference-plus-clips workflow and writes three playable
+drafts, plans, a reusable recipe and rendered match reports. Missing footage and
+failed drafts stay visible. Status: pre-alpha. MIT licensed.
 
 ## Five commands to a first result
 
@@ -59,6 +59,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Task | Current capability and documentation |
 |---|---|
 | First local edit | [Quickstart](docs/QUICKSTART.md): generated clip, explicit EDL, rendered draft and review artifacts. |
+| Match a reference with your clips | [Match](docs/MATCH.md): `zing match reference.mp4 --clips ./clips --out ./project --brief brief.json`; resumable A/B/C rendering, full decode, PNGs and measured reports. |
 | Study and direct footage | [Direct flow](docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v5. |
 | Inventory a project | [Project inventory](docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
 | Reuse saved references and remember a choice | [Uoink memory](docs/UOINK-MEMORY.md): verified local media, optional peer search, and durable draft-choice receipts. |
@@ -75,16 +76,16 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe. |
 | Render positioned word captions | [V2 rendering](docs/RENDER-V2.md): verified assets and fonts, ASS positions/paths, word highlights and layout safety acceptance; unsupported v2 effects fail before rendering. V1 rendering stays compatible. |
 | Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans or a named shortage, with v1 EDL derivatives where supported. |
-| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 30 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 32 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
 | Check asset provenance | [Third-party notices](docs/THIRD-PARTY-NOTICES.md): model pins, hashes and licenses. |
 
 The older profile, assemble, render and thumbnail commands remain available.
-The [skill command reference](skills/zing/references/commands.md) maps all 16
-top-level commands. Attach layout results explicitly to Composition v2 captions.
-Color/audio analysis and saved briefs remain separate planning inputs.
+The [skill command reference](skills/zing/references/commands.md) maps the
+top-level commands. Match attaches per-clip LUTs and available face-layout plans
+to v2 compositions; standalone treatment artifacts still need explicit planning.
 
 ## Optional dependencies
 
@@ -119,6 +120,9 @@ cached (the default `large-v2` model uses about 3.1 GB; select another with
 `ZING_WHISPER_MODEL`). RapidOCR may fetch missing weights too. Ask before an
 uncached study; a local input alone does not guarantee an offline run.
 
+`zing match` uses local models only and requires `--allow-download` before
+acquiring a reference URL. Missing models remain warnings or planning shortages.
+
 Layout model downloads are explicit and hash-verified. Meme catalog searches and
 local-photo renders stay offline; requesting a template may fetch its blank on
 cache miss unless `--offline` is set. If you opt in to ElevenLabs voiceover, Zing
@@ -147,10 +151,7 @@ For inventory only, `zing project init --reference uoink:123 --clips ./clips
 --out ./my-project` records the reference; it does not resolve or study it.
 See [Connect](docs/CONNECT.md) for the actual MCP handoff and explicit credentials.
 
-## Coming next
-
-`zing match` is planned, **not implemented**. `zing plan drafts` produces three
-style-constrained plans and match reports from existing studies. Automatic study,
-rendering and output verification for the complete reference-plus-folder flow
-remain future work. Use the explicit planning and rendering steps above today.
+Match reports separate playable output from style fidelity. Current director
+plans use cuts; sparse OCR, font substitutions, sampled face detection and color
+distribution comparisons remain approximations that need review.
 

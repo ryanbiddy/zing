@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 30 tools. Inspect the connected client's tool schemas for
+The current server has 32 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -20,6 +20,8 @@ An MCP-only client cannot execute CLI-only operations without a separate shell.
 | `brief_questions` | Interview questions/defaults/examples. |
 | `brief_save` | Save replacement answers for an existing local project and return evidence gaps. |
 | `plan_drafts` | Project, recipe and output paths plus seed; three Composition v2 plans, supported v1 derivatives and a comparison, or named shortages. No study/render/network. |
+| `match_start` | Background reference-plus-clips workflow; brief/answers, seed, resume, and explicit URL consent. Local models only; returns a project path for polling. |
+| `match_status` | Actual progress, ready count, comparison, failures and logs. `cancel=true` stops this server's owned match worker and descendants. |
 | `build_profile` | Aggregate studied sources with coverage and unjudged-source warnings. |
 | `get_profile` | Read one profile. |
 | `list_profiles` | Discover stored profiles. |
@@ -45,6 +47,12 @@ a transport success is not a successful study, render or text check.
 For planning, also check `status`: ready means three plans were written;
 shortage means no trio was written. Read the returned comparison path for
 honored measurements, deviations, source/output mappings and v1 blockers.
+
+For match, poll `match_status(project)` after `match_start`. Only claim three ready
+when `result.ready == 3`; read shortages and rendered match reports separately.
+Resume with the same inputs and `resume=true` after correcting the named failure.
+Reference URL acquisition needs `allow_download=true` after user consent; models
+are never fetched by match. `uoink:<id>` requires usable verified retained media.
 
 For study: call `study_video`, retain its slug, poll `zing_status` until that
 study is done/failed, then read `get_breakdown`. A started/running result is not

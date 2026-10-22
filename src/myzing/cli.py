@@ -26,6 +26,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
               "ask about the edit, save a brief, and recommend from known facts"),
     "plan": ("myzing.plan.command",
              "make three style-constrained draft plans, then record the one you choose"),
+    "match": ("myzing.match.command",
+              "turn a reference and local clips into three measured, playable drafts"),
     "prompt": ("myzing.prompt_pack",
                "print a judgment prompt (study, compare, direct, taste, meme-writer)"),
     "profile": ("myzing.profile.command",

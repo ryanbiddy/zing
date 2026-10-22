@@ -1108,6 +1108,104 @@ def h_setup_taste(
 # ---------------------------------------------------------------------------
 
 _RENDER_JOBS: dict[str, threading.Thread] = {}
+_MATCH_JOBS: dict[str, threading.Thread] = {}
+_MATCH_CANCEL: dict[str, threading.Event] = {}
+
+
+def _run_match(options, root, workspace, stop, lease):
+    from myzing.match.jobs import execute
+
+    directory = root / "match-job"
+    heartbeat_stop = threading.Event()
+    def stamp(**fields):
+        with _STATUS_LOCK:
+            storage.write_status_at(directory, updated_at=_now(), **fields)
+    def heartbeat():
+        while not heartbeat_stop.wait(HEARTBEAT_INTERVAL):
+            stamp(heartbeat_at=_now())
+    beat = threading.Thread(target=heartbeat, daemon=True)
+    beat.start()
+    try:
+        with storage.use_workspace(workspace):
+            result = execute(options, progress=lambda line: stamp(phase=line), cancel=stop, locked=True)
+        stamp(state="done" if result["status"] == "ready" else result["status"],
+              result=result, finished_at=_now(), error="")
+    except BaseException as exc:
+        stamp(state="failed", error=f"{type(exc).__name__}: {exc}",
+              log=str(root / "logs" / "worker.log"), finished_at=_now())
+    finally:
+        heartbeat_stop.set()
+        beat.join(timeout=2)
+        lease.__exit__(None, None, None)
+        with _JOBS_LOCK:
+            if _MATCH_JOBS.get(str(root)) is threading.current_thread():
+                _MATCH_JOBS.pop(str(root), None)
+                _MATCH_CANCEL.pop(str(root), None)
+
+
+@_workspace_boundary
+def h_match_start(reference: str, clips: str, out: str, brief: str | None = None,
+                  answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
+                  resume: bool = False, allow_download: bool = False) -> dict[str, Any]:
+    """Start the same supervised pipeline as the CLI; no media bytes returned."""
+    from myzing.match.api import validate
+    from myzing.match.process import run_lock
+    options = dict(reference=reference, clips=clips, out=out, brief=brief, answers=answers,
+                   drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    try:
+        validate(**options)
+        root = Path(out).expanduser().resolve()
+        directory = root / "match-job"
+        with _JOBS_LOCK:
+            if _job_is_live(_MATCH_JOBS, str(root), storage.read_status_at(directory)):
+                return _ok(project=str(root), status="already_matching", hint="Poll match_status(project).")
+            lease = run_lock(root)
+            lease.__enter__()
+            try:
+                storage.write_status_at(directory, state="running", pid=os.getpid(), started_at=_now(),
+                                        updated_at=_now(), heartbeat_at=_now(), result=None, error="")
+                stop = threading.Event()
+                thread = threading.Thread(target=_run_match,
+                    args=(options, root, storage.workspace_root(), stop, lease), daemon=True)
+                _MATCH_JOBS[str(root)] = thread
+                _MATCH_CANCEL[str(root)] = stop
+                thread.start()
+            except BaseException:
+                lease.__exit__(None, None, None)
+                raise
+        return _ok(project=str(root), status="started", hint="Poll match_status(project). URL downloads need allow_download=true; models stay local.")
+    except (ValueError, OSError, TypeError) as exc:
+        return _err(str(exc))
+
+
+def h_match_status(project: str, cancel: bool = False) -> dict[str, Any]:
+    """Reconcile job liveness and return final paths/counts; optional owned cancellation."""
+    try:
+        root = Path(project).expanduser().resolve()
+        directory = root / "match-job"
+        status = storage.read_status_at(directory)
+        if not status:
+            return _err("No match job here; call match_start first.")
+        with _JOBS_LOCK:
+            job = _MATCH_JOBS.get(str(root))
+            live = job is not None and job.is_alive()
+            if cancel and live:
+                _MATCH_CANCEL[str(root)].set()
+        if status.get("state") == "running" and not live:
+            from myzing.project.locking import _pid_alive as owner_alive
+            beat = _parse_ts(status.get("heartbeat_at"))
+            pid = status.get("pid")
+            foreign = type(pid) is int and pid != os.getpid() and owner_alive(pid)
+            fresh = beat is not None and (datetime.now(timezone.utc) - beat).total_seconds() <= HEARTBEAT_STALE_AFTER
+            if not (foreign and fresh):
+                storage.write_status_at(directory, state="failed", error="Match worker is gone or stale; rerun match_start with resume=true.", updated_at=_now())
+                status = storage.read_status_at(directory)
+        result = _ok(project=str(root), **{k: v for k, v in status.items() if k != "pid"})
+        if cancel:
+            result["cancellation_requested"] = live
+        return result
+    except (ValueError, OSError, TypeError) as exc:
+        return _err(str(exc))
 
 
 def _load_edl(edl_path: str, *, allow_composition: bool = False):
@@ -1949,6 +2047,20 @@ def build_server():
             "and named shortages; status=shortage means no trio was written. Seed defaults to 0."
         ),
     )(h_plan_drafts)
+
+    mcp.tool(
+        name="match_start",
+        description=(
+            "Start a resumable background reference-to-drafts job. Supply a local file, uoink:<id>, or URL; "
+            "URL acquisition requires explicit allow_download=true. Supply local clips/out folders and brief path or answers. "
+            "Uses cached models only. Writes three distinct v2 plans, rendered MP4s, recipe, timeline PNGs and rendered-output "
+            "match reports. Missing footage yields director shortages. Poll match_status; ready counts require full decode and report."
+        ),
+    )(h_match_start)
+    mcp.tool(
+        name="match_status",
+        description="Read match job progress, failures/log paths, final comparison and actual ready count. cancel=true stops this server's owned worker tree and preserves checkpoints for resume.",
+    )(h_match_status)
 
     for prompt_name in available_prompts():
         def _make(nm: str):
