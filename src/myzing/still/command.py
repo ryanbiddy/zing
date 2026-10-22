@@ -32,6 +32,10 @@ def run(argv: list[str]) -> int:
         parser.add_argument("--n", type=int, default=6, help="total concepts, 1-8 (default 6)")
         parser.add_argument("--aspect", choices=("1:1", "4:5", "9:16", "16:9"), default="1:1")
         parser.add_argument("--layout", choices=("auto", "classic", "caption", "labels"), default="auto")
+        parser.add_argument("--fit", choices=("auto", "fill", "blur", "contain", "cover"), default="auto",
+                            help="photo framing: auto (default) crops to fill only when the face detector "
+                                 "ran and the faces (or a measured subject) fit with margin, else "
+                                 "blur-fills and warns why; contain letterboxes")
         parser.add_argument("--lines", help="local JSON file of AI/user-written ideas; its length overrides --n")
     args = parser.parse_args(argv[1:] if picking else argv, namespace=workspace_args)
     try:
@@ -40,7 +44,8 @@ def run(argv: list[str]) -> int:
                 result = {"ok": True, **pick_still(args.out_folder, args.id, video=args.video, gif=args.gif)}
             else:
                 result = {"ok": True, **create_stills(args.photos, args.topic, args.out, n=args.n,
-                                                     aspect=args.aspect, layout=args.layout, lines=args.lines)}
+                                                     aspect=args.aspect, layout=args.layout, lines=args.lines,
+                                                     fit=args.fit)}
     except (OSError, ValueError) as exc:
         result = {"ok": False, "error": str(exc)}
     if args.json:
@@ -56,7 +61,7 @@ def run(argv: list[str]) -> int:
     else:
         print(f"{result['count']} concepts: {result['contact_sheet']}\nIndex: {result['index_path']}")
         for idea in result["summary"]:
-            print(f"{idea['id']} [{idea['layout']}]: {' / '.join(idea['texts'])}")
+            print(f"{idea['id']} [{idea['layout']}, {idea['fit']}]: {' / '.join(idea['texts'])}")
         print(f"\nWriter prompt saved to {result['prompt_path']}\n\n{result['prompt']}")
     if not args.json and result["ok"]:
         for warning in result.get("warnings", []):

@@ -165,6 +165,12 @@ zing still pick ./stills --id CONCEPT_ID --workspace /absolute/workspace
 
 Use an ID returned by the first command. Both forms accept `--json`; workspace
 selection controls cached models and assets, while `--out` names the output folder.
+`--aspect` is 1:1, 4:5, 9:16 or 16:9. `--fit auto` (default) crops to fill the
+frame only when the face detector ran and detected faces (or, with none, a
+measured subject in a crop keeping 75% of the photo) fit with margin; else it
+blur-fills and warns why. Without `zing layout fetch-model` it never crops; `fill`, `blur`, `contain`
+(letterbox) and `cover` (centered crop) force one framing. `meme render` takes
+the same `--fit` values; `meme render-video` takes `cover`, `contain` or `blur`.
 
 For individual memes:
 

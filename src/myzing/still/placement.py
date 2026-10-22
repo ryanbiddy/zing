@@ -5,10 +5,34 @@ from __future__ import annotations
 from myzing.layout.chooser import check_overlap, choose_layout
 from myzing.layout.types import Box, CaptionEvent, FaceTrack, Keyframe, Mask
 from myzing.memes import MemeError
-from myzing.memes.render import Rect, fit_rect, normalized_regions, output_size, text_layers
+from myzing.memes.framing import focus_box, resolve
+from myzing.memes.render import Rect, caption_bar, fit_rect, normalized_regions, output_size, text_layers
 from .models import Photo
 
 LAYOUTS = ("auto", "classic", "caption", "labels")
+FIT_REQUESTS = ("auto", "fill", "blur", "contain", "cover")
+
+
+def _bar(layout: str, texts: list[str] | None, size: tuple[int, int]) -> int:
+    if layout != "caption":
+        return 0
+    # The caption bar fits its text; without texts use the 26% maximum.
+    return caption_bar(texts, size) if texts else round(size[1] * .26)
+
+
+def frame(photo: Photo, aspect: str, layout: str, fit: str = "contain",
+          size: tuple[int, int] | None = None,
+          texts: list[str] | None = None) -> tuple[str, list[float] | None, list[str]]:
+    """Resolve the photo's framing for this layout's image viewport.
+
+    ``auto`` fills the frame when the crop keeps every prominent face (or
+    the estimated subject, keeping most of the photo) and blur-fills otherwise.
+    """
+    w, h = size or output_size(aspect, (photo.width, photo.height))
+    bar = _bar(layout, texts, (w, h))
+    focus, basis = focus_box([[f["x"], f["y"], f["width"], f["height"]] for f in photo.faces],
+                             photo.face_method, photo.subject)
+    return resolve(fit, (photo.width, photo.height), (w, h - bar), focus, basis)
 
 
 def protected_boxes(photo: Photo) -> list[Box]:
@@ -18,12 +42,20 @@ def protected_boxes(photo: Photo) -> list[Box]:
 
 
 def output_faces(photo: Photo, aspect: str, layout: str,
-                 size: tuple[int, int] | None = None) -> list[Box]:
+                 size: tuple[int, int] | None = None, fit: str = "contain",
+                 focus: list[float] | None = None, texts: list[str] | None = None) -> list[Box]:
+    """Protected boxes in output coordinates, clipped to the visible image."""
     w, h = size or output_size(aspect, (photo.width, photo.height))
-    bar = round(h * .26) if layout == "caption" else 0
-    frame = fit_rect((photo.width, photo.height), Rect(0, bar, w, h - bar), "contain")
-    return [Box((frame.x + b.x * frame.width) / w, (frame.y + b.y * frame.height) / h,
-                b.width * frame.width / w, b.height * frame.height / h) for b in protected_boxes(photo)]
+    bar = _bar(layout, texts, (w, h))
+    rect = fit_rect((photo.width, photo.height), Rect(0, bar, w, h - bar), fit, focus)
+    boxes = []
+    for b in protected_boxes(photo):
+        left, top = max(rect.x + b.x * rect.width, 0), max(rect.y + b.y * rect.height, bar)
+        right = min(rect.x + b.right * rect.width, w)
+        bottom = min(rect.y + b.bottom * rect.height, h)
+        if right > left and bottom > top:  # a crop can remove background faces
+            boxes.append(Box(left / w, top / h, (right - left) / w, (bottom - top) / h))
+    return boxes
 
 
 def _tracks(boxes: list[Box]) -> list[FaceTrack]:
@@ -31,14 +63,21 @@ def _tracks(boxes: list[Box]) -> list[FaceTrack]:
 
 
 def safe_geometry(photo: Photo, texts: list[str], aspect: str, layout: str,
-                  regions: list[list[float]] | None, *, size: tuple[int, int] | None = None) -> bool:
+                  regions: list[list[float]] | None, *, size: tuple[int, int] | None = None,
+                  fit: str = "contain", focus: list[float] | None = None) -> bool:
+    """Text boxes avoid protected boxes for this framing. ``fit`` is either a
+    resolved fit (with its focus) or a request such as ``auto`` to resolve."""
     size = size or output_size(aspect, (photo.width, photo.height))
     try:
+        if fit not in ("contain", "cover", "fill", "blur") or (fit == "fill" and focus is None):
+            fit, focus, _ = frame(photo, aspect, layout, fit, size, texts)
+        # The same fonts the renderer uses: box sizes follow the text.
         _, layers = text_layers(texts, source_size=(photo.width, photo.height), size=size,
-                               layout=layout, fit="contain", font="sans", regions=regions)
+                               layout=layout, fit=fit, font="sans" if layout == "caption" else "anton",
+                               regions=regions, focus=focus)
     except MemeError:
         return False
-    tracks = _tracks(output_faces(photo, aspect, layout, size))
+    tracks = _tracks(output_faces(photo, aspect, layout, size, fit, focus, texts))
     masks = []
     for layer in layers:
         if not layer.text:
@@ -52,7 +91,12 @@ def safe_geometry(photo: Photo, texts: list[str], aspect: str, layout: str,
 
 
 def place(photo: Photo, texts: list[str], aspect: str, requested: str = "auto",
-          regions: list[list[float]] | None = None) -> tuple[str, list[list[float]] | None, list[str]]:
+          regions: list[list[float]] | None = None,
+          fit: str = "contain") -> tuple[str, list[list[float]] | None, list[str]]:
+    """Choose a layout whose text avoids protected areas under ``fit``
+    (resolved per layout with :func:`frame`)."""
+    if fit not in FIT_REQUESTS:
+        raise MemeError("fit must be auto, fill, blur, contain, or cover")
     if requested not in LAYOUTS:
         raise MemeError("layout must be auto, classic, caption, or labels")
     if regions is not None:
@@ -81,11 +125,11 @@ def place(photo: Photo, texts: list[str], aspect: str, requested: str = "auto",
             planned.append([b.x, b.y, b.width, b.height])
             if texts[i]:
                 masks.append(Mask(str(i), b))
-        if len(planned) == len(texts) and safe_geometry(photo, texts, aspect, chosen, planned):
+        if len(planned) == len(texts) and safe_geometry(photo, texts, aspect, chosen, planned, fit=fit):
             if regions is not None and planned != regions:
                 notes.append("Label regions moved to avoid protected areas and other text.")
             return chosen, planned, notes
-    elif safe_geometry(photo, texts, aspect, chosen, None):
+    elif safe_geometry(photo, texts, aspect, chosen, None, fit=fit):
         return chosen, None, notes
     if len(texts) > 3:
         raise MemeError("No safe label placement found; use at most three beats for an external caption bar.")

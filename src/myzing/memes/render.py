@@ -13,6 +13,7 @@ from uuid import uuid4
 
 from myzing import storage
 from . import MemeError, PILLOW_HINT
+from .framing import FITS, REQUESTS, blur_background, fill_origin, photo_focus, resolve
 from .score import viral_score
 from .templates import fetch_blank, get_template
 from .validate import check_texts
@@ -20,6 +21,14 @@ from .validate import check_texts
 ASPECTS = {"16:9": (1200, 675), "1:1": (1080, 1080),
            "4:5": (1080, 1350), "9:16": (1080, 1920)}
 ASPECT_ALIASES = {"x-landscape": "16:9", "square": "1:1", "portrait": "4:5", "story": "9:16"}
+# Outline width as a share of the font size (per unit of TextLayer.stroke_width):
+# 0.5 * 0.16 = 8% of the font size, about 6 px on 73 px Anton. A width-only
+# outline (3 px at 1080) vanished over bright sky and smoke at phone size.
+STROKE_PER_FONT = .16
+CAPTION_BAR_MAX = .26
+# Words that read badly at the end of a wrapped line.
+DANGLING = {"a", "an", "the", "of", "to", "for", "in", "on", "at", "and", "or", "my", "your",
+            "our", "with", "from", "by", "is", "i"}
 FONTS_DIR = Path(__file__).resolve().parents[1] / "_data" / "fonts"
 MAX_PIXELS = 40_000_000
 
@@ -49,6 +58,7 @@ class TextLayer:
     rotation: float = 0
     uppercase: bool = False
     align: str = "center"
+    max_font_px: int | None = None  # shared size across a caption's beats
 
 
 def require_pillow():
@@ -75,14 +85,25 @@ def output_size(aspect: str, source: tuple[int, int]) -> tuple[int, int]:
     return width, height
 
 
-def fit_rect(source: tuple[int, int], target: Rect, fit: str) -> Rect:
-    if fit not in ("cover", "contain"):
-        raise MemeError("fit must be cover or contain")
+def fit_rect(source: tuple[int, int], target: Rect, fit: str,
+             focus: list[float] | None = None) -> Rect:
+    """Where the whole source lands; crops (cover/fill) extend past ``target``.
+
+    ``fill`` keeps the normalized ``focus`` box in view (faces or subject);
+    without one it is a centered ``cover``. ``blur`` places the photo like
+    ``contain`` over a blurred copy drawn by the compositor.
+    """
+    if fit not in FITS:
+        raise MemeError("fit must be cover, contain, fill, or blur")
     sw, sh = source
     if sw <= 0 or sh <= 0 or target.width <= 0 or target.height <= 0:
         raise MemeError("Source and target dimensions must be positive.")
-    scale = (max if fit == "cover" else min)(target.width / sw, target.height / sh)
+    crop = fit in ("cover", "fill")
+    scale = (max if crop else min)(target.width / sw, target.height / sh)
     w, h = sw * scale, sh * scale
+    origin = fill_origin(source, scale, (target.width, target.height), focus) if fit == "fill" else None
+    if origin is not None:
+        return Rect(target.x - origin[0] * scale, target.y - origin[1] * scale, w, h)
     return Rect(target.x + (target.width - w) / 2, target.y + (target.height - h) / 2, w, h)
 
 
@@ -188,6 +209,70 @@ def wrap_text(text: str, font: Any, max_width: float) -> list[str]:
     return lines
 
 
+def balanced_wrap(text: str, font: Any, max_width: float) -> list[str]:
+    """Greedy wrapping, then the narrowest width with the same line count, so
+    lines come out even ("the 4th / week" widows become two similar lines).
+    A short function word is not left dangling at the end of a line."""
+    lines = wrap_text(text, font, max_width)
+    words = text.split()
+    if len(lines) < 2 or "\n" in text or any(font.getlength(w) > max_width for w in words):
+        return lines
+    low, high, best = max(font.getlength(w) for w in words), max_width, lines
+    for _ in range(14):
+        middle = (low + high) / 2
+        trial = wrap_text(text, font, middle)
+        if len(trial) <= len(lines):
+            best, high = trial, middle
+        else:
+            low = middle
+    best = [line.split() for line in best]
+    for i in range(len(best) - 1):
+        moved = best[i][-1:]
+        if (len(best[i]) > 1 and moved[0].casefold() in DANGLING
+                and font.getlength(" ".join(moved + best[i + 1])) <= max_width):
+            best[i], best[i + 1] = best[i][:-1], moved + best[i + 1]
+    return [" ".join(line) for line in best]
+
+
+def stroke_px(canvas_width: float, font_size: int, stroke_width: float) -> int:
+    if stroke_width <= 0:
+        return 0
+    return max(1, round(max(canvas_width * stroke_width / 200, font_size * stroke_width * STROKE_PER_FONT)))
+
+
+def fit_text(text: str, font_path: str, canvas_width: float, box_width: float, box_height: float,
+             start: int, stroke_width: float) -> dict | None:
+    """Largest size from ``start`` down to 10 px whose wrapped block fits."""
+    ImageFont = require_pillow()[3]
+    for font_size in range(max(10, start), 9, -1):
+        font = ImageFont.truetype(font_path, font_size)
+        stroke = stroke_px(canvas_width, font_size, stroke_width)
+        padding = max(4, math.ceil(font_size * .18)) + stroke
+        available = box_width - 2 * padding
+        if available <= 0:
+            continue
+        # Shrink normal words before splitting them ("emergency" must not
+        # become "emergen / cy"). Long unbroken tokens still wrap safely.
+        if any(len(word) <= 24 and font.getlength(word) > available for word in text.split()):
+            continue
+        lines = balanced_wrap(text, font, available)
+        heights = [font.getbbox(line or " ")[3] - font.getbbox(line or " ")[1] for line in lines]
+        line_height = max(math.ceil(font_size * 1.04), max(heights) + stroke * 2)
+        widths = [font.getlength(line) for line in lines]
+        block_width = math.ceil(max(widths)) + 2 * padding
+        block_height = len(lines) * line_height + 2 * padding
+        if block_width <= box_width and block_height <= box_height and len(lines) <= 8:
+            return {"font": font, "font_size": font_size, "stroke": stroke, "padding": padding,
+                    "lines": lines, "heights": heights, "line_height": line_height, "widths": widths,
+                    "block_width": block_width, "block_height": block_height}
+    return None
+
+
+def _start_size(canvas_width: float, layer: TextLayer) -> int:
+    start = min(round(canvas_width * layer.font_size / 100), round(layer.box.height * .8))
+    return max(10, min(start, layer.max_font_px) if layer.max_font_px else start)
+
+
 def _draw_layer(canvas: Any, layer: TextLayer) -> dict:
     Image, ImageDraw, ImageFilter, ImageFont, _ = require_pillow()
     if layer.align not in ("left", "center", "right"):
@@ -195,29 +280,13 @@ def _draw_layer(canvas: Any, layer: TextLayer) -> dict:
     if not math.isfinite(layer.rotation) or abs(layer.rotation) > 180:
         raise MemeError("rotation must be between -180 and 180 degrees")
     text = layer.text.upper() if layer.uppercase else layer.text
-    font_path = resolve_font(layer.font)
-    stroke = max(1, round(canvas.width * layer.stroke_width / 200)) if layer.stroke_width > 0 else 0
-    start = max(10, min(round(canvas.width * layer.font_size / 100), round(layer.box.height * .8)))
-    for font_size in range(start, 9, -1):
-        font = ImageFont.truetype(font_path, font_size)
-        padding = max(4, math.ceil(font_size * .18)) + stroke
-        available = layer.box.width - 2 * padding
-        if available <= 0:
-            continue
-        # Shrink normal words before splitting them ("emergency" must not
-        # become "emergen / cy"). Long unbroken tokens still wrap safely.
-        if any(len(word) <= 24 and font.getlength(word) > available for word in text.split()):
-            continue
-        lines = wrap_text(text, font, available)
-        heights = [font.getbbox(line or " ")[3] - font.getbbox(line or " ")[1] for line in lines]
-        line_height = max(math.ceil(font_size * 1.04), max(heights) + stroke * 2)
-        widths = [font.getlength(line) for line in lines]
-        block_width = math.ceil(max(widths)) + 2 * padding
-        block_height = len(lines) * line_height + 2 * padding
-        if block_width <= layer.box.width and block_height <= layer.box.height and len(lines) <= 8:
-            break
-    else:
+    fitted = fit_text(text, resolve_font(layer.font), canvas.width, layer.box.width, layer.box.height,
+                      _start_size(canvas.width, layer), layer.stroke_width)
+    if fitted is None:
         raise MemeError("Text does not fit its box at a readable size; shorten it or enlarge the region.")
+    font, font_size, stroke, padding = fitted["font"], fitted["font_size"], fitted["stroke"], fitted["padding"]
+    lines, heights, line_height, widths = fitted["lines"], fitted["heights"], fitted["line_height"], fitted["widths"]
+    block_width, block_height = fitted["block_width"], fitted["block_height"]
     patch = Image.new("RGBA", (block_width, block_height))
     if layer.background:
         ImageDraw.Draw(patch).rounded_rectangle((0, 0, block_width - 1, block_height - 1),
@@ -253,14 +322,18 @@ def _draw_layer(canvas: Any, layer: TextLayer) -> dict:
 
 def draw_composition(source: Any, *, size: tuple[int, int], layers: list[TextLayer],
                      fit: str = "cover", background: str = "#181818",
-                     viewport: Rect | None = None, caption: bool = False) -> tuple[Any, list[dict]]:
+                     viewport: Rect | None = None, caption: bool = False,
+                     focus: list[float] | None = None) -> tuple[Any, list[dict]]:
     Image, _, _, _, _ = require_pillow()
     if source.mode != "RGBA":
         source = source.convert("RGBA")
     w, h = size
     viewport = viewport or Rect(0, 0, w, h)
-    rect = fit_rect(source.size, viewport, fit)
+    rect = fit_rect(source.size, viewport, fit, focus)
     canvas = Image.new("RGBA", size, background)
+    if fit == "blur":
+        canvas.alpha_composite(blur_background(source, (round(viewport.width), round(viewport.height))),
+                               (round(viewport.x), round(viewport.y)))
     # Crop before resizing for cover: extreme source ratios must not allocate
     # a giant off-canvas intermediate image.
     sw, sh = source.size
@@ -268,7 +341,7 @@ def draw_composition(source: Any, *, size: tuple[int, int], layers: list[TextLay
     crop = (max(0, (viewport.x - rect.x) / scale), max(0, (viewport.y - rect.y) / scale),
             min(sw, (viewport.x + viewport.width - rect.x) / scale),
             min(sh, (viewport.y + viewport.height - rect.y) / scale))
-    if fit == "cover":
+    if fit in ("cover", "fill"):
         fitted = source.resize((round(viewport.width), round(viewport.height)), Image.Resampling.LANCZOS, box=crop)
         canvas.alpha_composite(fitted, (round(viewport.x), round(viewport.y)))
     else:
@@ -276,7 +349,7 @@ def draw_composition(source: Any, *, size: tuple[int, int], layers: list[TextLay
         canvas.alpha_composite(fitted, (round(rect.x), round(rect.y)))
     if caption:
         from PIL import ImageDraw
-        ImageDraw.Draw(canvas).rectangle((0, 0, w, round(h * .26) - 1), fill="white")
+        ImageDraw.Draw(canvas).rectangle((0, 0, w, round(viewport.y) - 1), fill="white")
     reports = []
     for index, layer in enumerate(layers):
         if layer.text.strip():
@@ -284,20 +357,87 @@ def draw_composition(source: Any, *, size: tuple[int, int], layers: list[TextLay
     return canvas.convert("RGB"), reports
 
 
+def caption_geometry(texts: list[str], size: tuple[int, int], font: str) -> tuple[int, list[Rect], int]:
+    """A caption bar that fits its text: every beat at one shared size,
+    stacked and centered, the bar at most 26% of the height (the previous
+    fixed height). Returns (bar height, boxes, font px)."""
+    w, h = size
+    if not 1 <= len(texts) <= 3:
+        raise MemeError("caption layout accepts 1-3 text boxes")
+    font_path = resolve_font(font)
+    limit = round(h * CAPTION_BAR_MAX)
+    margin = max(4, round(h * .02))
+    width = w * .92
+    shown = [t for t in texts if t.strip()]
+    size_px = max(10, round(w * TextLayer.font_size / 100))
+    while True:
+        fitted = [fit_text(t, font_path, w, width, limit - 2 * margin, size_px, 0) for t in shown]
+        if any(f is None for f in fitted):
+            raise MemeError("Text does not fit its box at a readable size; shorten it or enlarge the region.")
+        size_px = min([f["font_size"] for f in fitted] or [size_px])
+        fitted = [fit_text(t, font_path, w, width, limit, size_px, 0) for t in shown]
+        gap = round(size_px * .1)
+        total = sum(f["block_height"] for f in fitted) + gap * max(0, len(fitted) - 1)
+        if total + 2 * margin <= limit or size_px <= 10:
+            break
+        size_px -= 1
+    bar = min(limit, max(round(size_px * 2.2), total + 2 * max(margin, round(size_px * .3))))
+    y = (bar - total) / 2
+    boxes, heights = [], iter([f["block_height"] for f in fitted])
+    for text in texts:
+        if not text.strip():
+            boxes.append(Rect(w * .04, y, width, 1))
+            continue
+        block = next(heights)
+        boxes.append(Rect(w * .04, y, width, block))
+        y += block + gap
+    return bar, boxes, size_px
+
+
+def caption_bar(texts: list[str], size: tuple[int, int], font: str = "sans") -> int:
+    return caption_geometry(texts, size, font)[0]
+
+
+def _hug_edges(texts: list[str], boxes: list[Rect], size: tuple[int, int], font: str) -> list[Rect]:
+    """Classic text sits at the top and bottom edges; its box shrinks to the
+    text so placement checks the space the words use, not a 23% band."""
+    w, h = size
+    result = []
+    for index, (text, box) in enumerate(zip(texts, boxes)):
+        fitted = fit_text(text.upper(), resolve_font(font), w, box.width, box.height,
+                          max(10, min(round(w * TextLayer.font_size / 100), round(box.height * .8))), .5) \
+            if text.strip() else None
+        if fitted is None:
+            result.append(box)
+            continue
+        block = min(box.height, fitted["block_height"])
+        top = box.y if index == 0 else box.y + box.height - block
+        result.append(Rect(box.x, top, box.width, block))
+    return result
+
+
 def text_layers(texts: list[str], *, source_size: tuple[int, int], size: tuple[int, int],
                 layout: str, fit: str, font: str, regions: list[list[float]] | None = None,
-                plate: bool = False, shadow: bool = False, rotation: float = 0
-                ) -> tuple[Rect, list[TextLayer]]:
+                plate: bool = False, shadow: bool = False, rotation: float = 0,
+                focus: list[float] | None = None) -> tuple[Rect, list[TextLayer]]:
     """Shared geometry and typography for still and FFmpeg compositions."""
     w, h = size
-    bar = round(h * .26)
-    viewport = Rect(0, bar, w, h - bar) if layout == "caption" else Rect(0, 0, w, h)
-    rect = fit_rect(source_size, viewport, fit)
-    boxes = layout_boxes(layout, len(texts), size, regions=regions, image_rect=rect)
+    caption_px = None
+    if layout == "caption":
+        bar, boxes, caption_px = caption_geometry(texts, size, font)
+        viewport = Rect(0, bar, w, h - bar)
+    else:
+        viewport = Rect(0, 0, w, h)
+        rect = fit_rect(source_size, viewport, fit, focus)
+        boxes = layout_boxes(layout, len(texts), size, regions=regions, image_rect=rect)
+        if layout == "classic" and not rotation:
+            boxes = _hug_edges(texts, boxes, size, font)
+    fit_rect(source_size, viewport, fit, focus)  # validates the framing for every layout
     layers = [TextLayer(text, box, font=font, color="black" if layout == "caption" else "white",
                         stroke_width=0 if layout == "caption" else .5,
                         background="#000000b0" if plate and layout != "caption" else None,
-                        shadow=shadow, rotation=rotation, uppercase=layout == "classic")
+                        shadow=shadow, rotation=rotation, uppercase=layout == "classic",
+                        max_font_px=caption_px)
               for text, box in zip(texts, boxes)]
     return viewport, layers
 
@@ -306,16 +446,24 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                 layout: str = "", aspect: str = "1:1", out: str = "", fit: str = "",
                 font: str = "", regions: list[list[float]] | None = None,
                 plate: bool = False, shadow: bool = False, rotation: float = 0,
-                offline: bool = False, overwrite: bool = False) -> dict:
+                offline: bool = False, overwrite: bool = False,
+                focus: list[float] | None = None) -> dict:
+    """``fit`` defaults to ``auto`` for photos (face/subject-aware fill, or
+    blur-fill when a crop would cut faces) and ``contain`` for templates.
+    ``focus`` (normalized [x, y, w, h]) is a precomputed fill focus."""
     if bool(image) == bool(template):
         raise MemeError("Provide exactly one of image or template.")
     selected = get_template(template) if template else None
     layout = layout or ("labels" if selected else "classic")
-    fit = fit or ("contain" if selected else "cover")
+    fit = fit or ("contain" if selected else "auto")
     aspect = ASPECT_ALIASES.get(aspect, aspect)
     output_size(aspect, (1200, 675))  # validate before network/filesystem writes
-    if fit not in ("cover", "contain"):
-        raise MemeError("fit must be cover or contain")
+    if fit not in REQUESTS:
+        raise MemeError("fit must be auto, fill, blur, cover, or contain")
+    if focus is not None:
+        normalized_regions([focus])
+        if fit != "fill":
+            raise MemeError("focus applies only to fit fill (a precomputed subject-aware crop).")
     if isinstance(rotation, bool) or not isinstance(rotation, (int, float)) or not math.isfinite(rotation) or abs(rotation) > 180:
         raise MemeError("rotation must be between -180 and 180 degrees")
     for name, value in (("plate", plate), ("shadow", shadow), ("offline", offline),
@@ -351,11 +499,21 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                 source = ImageOps.exif_transpose(opened).convert("RGBA")
         size = output_size(aspect, source.size)
         w, h = size
+        requested, notes, basis = fit, [], "none"
+        if focus is not None:
+            basis = "explicit"  # a resolved fill (still workflow): use it exactly as planned
+        else:
+            if fit in ("auto", "fill"):
+                focus, basis, notes = photo_focus(source)
+            bar = caption_bar(texts, size, font) if layout == "caption" else 0
+            fit, focus, more = resolve(fit, source.size, (w, h - bar), focus, basis)
+            notes += more
         viewport, layers = text_layers(texts, source_size=source.size, size=size, layout=layout,
                                       fit=fit, font=font, regions=regions, plate=plate,
-                                      shadow=shadow, rotation=rotation)
+                                      shadow=shadow, rotation=rotation, focus=focus)
         result, reports = draw_composition(source, size=size, layers=layers, fit=fit,
-                                           viewport=viewport, caption=layout == "caption")
+                                           viewport=viewport, caption=layout == "caption",
+                                           focus=focus)
         target.parent.mkdir(parents=True, exist_ok=True)
         temp = None
         try:
@@ -371,8 +529,9 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
             raise
         raise MemeError(f"Could not render {source_path}: {exc}") from exc
     return {"path": str(target), "source_path": str(source_path), "width": w, "height": h,
-            "layout": layout, "aspect": aspect, "fit": fit, "boxes": reports,
+            "layout": layout, "aspect": aspect, "fit": fit, "fit_requested": requested,
+            "focus": focus, "focus_basis": basis, "boxes": reports,
             "validation": validation,
             "viral_lens": viral_score(texts, aspect=aspect, contrast=[True] * len(texts)),
             "warnings": (["Generic catalog regions: inspect placement or supply custom regions."]
-                         if selected and selected["layout_kind"] == "generic_rows" else [])}
+                         if selected and selected["layout_kind"] == "generic_rows" else []) + notes}
