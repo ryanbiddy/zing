@@ -120,10 +120,20 @@ jobs:
           ffmpeg -version
           ffprobe -version
 
-      - name: Install Zing and Writer runtimes
+      - name: Install Zing's runtime
         run: |
           python -m pip install \
             -e "./zing[all,dev]" \
+            "Pillow==10.4.0" \
+            "keyring==25.7.0"
+
+      # Zing uses MCP SDK 2 and Writer still targets SDK 1, so Writer gets its
+      # own venv (like Uoink below) instead of sharing one MCP pin.
+      - name: Install Writer's runtime
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/writer-venv"
+          "$RUNNER_TEMP/writer-venv/bin/python" -m pip install \
             -e "./writer[dev]" \
             "mcp==1.27.1" \
             "Pillow==10.4.0" \
@@ -165,6 +175,7 @@ jobs:
             --uoink-repo "$GITHUB_WORKSPACE/uoink" \
             --uoink-python "$RUNNER_TEMP/uoink-venv/bin/python" \
             --writer-repo "$GITHUB_WORKSPACE/writer" \
+            --writer-python "$RUNNER_TEMP/writer-venv/bin/python" \
             --zing-repo "$GITHUB_WORKSPACE/zing" \
             --work-dir "$SMOKE_WORK_DIR" \
             --output "$SMOKE_DIR/suite-smoke.json" \

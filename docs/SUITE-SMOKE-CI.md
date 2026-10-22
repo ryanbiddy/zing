@@ -125,11 +125,12 @@ Writer still require clean checkouts; CI does not enable this option.
 `--python` selects Zing's interpreter. `--uoink-python` and `--writer-python`
 select peer interpreters and each defaults to `--python`. Uoink's server, MCP
 and fixture seeding use its interpreter; Writer's server, MCP and doctor use
-Writer's. CI keeps the existing Zing/Writer pins, including MCP 1.27.1, and
-creates a separate Uoink venv. It installs the server/MCP subset of the selected
-Uoink checkout's `requirements.txt`, including its MCP pin and any v2 transport
-pins. This accommodates main's MCP 2.3.0 without changing Zing's SDK. Desktop
-and ASR packages are unnecessary for seeded media. Ref resolution and final
+Writer's. CI gives each product its own runtime. Zing installs from its own
+extras (MCP SDK 2, see [MCP-SDK2.md](MCP-SDK2.md)). Writer gets a separate venv
+with its existing pins, including MCP 1.27.1. Uoink gets a separate venv with
+the server/MCP subset of the selected Uoink checkout's `requirements.txt`,
+including its MCP pin and any v2 transport pins. Desktop and ASR packages are
+unnecessary for seeded media. Ref resolution and final
 record-to-checkout SHA verification are unchanged.
 
 On Windows, pass base interpreters and expose their required test dependencies

@@ -43,6 +43,9 @@ myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md", "_dat
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Tests import tools.eval.*; without this, a file run on its own fails to
+# collect unless an earlier test module happened to add the repo root.
+pythonpath = ["."]
 markers = [
     "real_media: opt-in local pinned real-video regression; no downloads (ZING_REAL_TRANSITIONS=1)",
     "real_caption: opt-in pinned real-video caption check (ZING_CG2_REAL_ROOT)",
