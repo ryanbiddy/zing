@@ -533,20 +533,40 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
         max_width, max_height = min(.84, (right - left) * .94), min(.16, (bottom - top) * .8)
         # Reserve the text's estimated extent, not 84% of the frame for every
         # word. Oversized empty boxes make otherwise safe close-ups infeasible.
-        line_width = max(1, int(max_width * plan.width / (caption.style.size * .8)))
-        caption.text = "\n".join(textwrap.wrap(" ".join(caption.text.split()), width=line_width,
-                                             break_long_words=False, break_on_hyphens=False))
-        lines = caption.text.splitlines()
-        def extent():
-            padding = caption.style.outline_width * 2 + (14 if caption.style.box_color else 6)
-            return (max(len(line) for line in lines) * caption.style.size * .8 + padding,
-                    len(lines) * caption.style.size * 1.4 + padding)
-        ink_width, ink_height = extent()
+        words = " ".join(caption.text.split())
+
+        def wrap(size):
+            return textwrap.wrap(words, width=max(1, int(max_width * plan.width / (size * .8))),
+                                 break_long_words=False, break_on_hyphens=False)
+
+        def extent(lines, style):
+            padding = style.outline_width * 2 + (14 if style.box_color else 6)
+            return (max(len(line) for line in lines) * style.size * .8 + padding,
+                    len(lines) * style.size * 1.4 + padding)
+
+        base = caption.style
+        lines = wrap(base.size)
+        ink_width, ink_height = extent(lines, base)
         shrink = max(1, ink_width / (max_width * plan.width), ink_height / (max_height * plan.height))
         if shrink > 1:
-            caption.style = replace(caption.style, size=max(1, caption.style.size / shrink),
-                                    outline_width=caption.style.outline_width / shrink)
-            ink_width, ink_height = extent()
+            # Shrinking a narrow wrap on both axes can leave a tall clause far
+            # below readable size (a 9:16 source fit into 16:9). Re-wrap each
+            # smaller size and keep the largest whose estimated extent fits;
+            # the plain proportional shrink remains the floor.
+            scale = 1 / shrink
+            for step in range(1, 80):
+                candidate = .97 ** step
+                if candidate <= scale:
+                    break
+                style = replace(base, size=max(1, base.size * candidate), outline_width=base.outline_width * candidate)
+                trial = wrap(style.size)
+                trial_width, trial_height = extent(trial, style)
+                if trial_width <= max_width * plan.width and trial_height <= max_height * plan.height:
+                    scale, lines = candidate, trial
+                    break
+            caption.style = replace(base, size=max(1, base.size * scale), outline_width=base.outline_width * scale)
+            ink_width, ink_height = extent(lines, caption.style)
+        caption.text = "\n".join(lines)
         event = CaptionEvent(caption.id, caption.start, caption.end,
                              min(max_width, ink_width / plan.width), min(max_height, ink_height / plan.height), "lower-third")
         prior = caption.layout
