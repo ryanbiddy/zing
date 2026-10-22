@@ -99,13 +99,17 @@ class CaptionsResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def read_captions(media_path: Path, duration: float) -> CaptionsResult:
+def read_captions(media_path: Path, duration: float, *, local_models_only: bool = False) -> CaptionsResult:
     result = CaptionsResult(warnings=[sampling_note(duration)])
     if not finite(duration) or duration <= 0:
         result.warnings.append("caption OCR skipped: unknown duration")
         return result
     try:
-        engine, version = _engine()
+        if local_models_only:
+            from .caption_models import engine as local_engine
+            engine, version = local_engine()
+        else:
+            engine, version = _engine()
     except ImportError:
         result.warnings = [
             "caption OCR skipped: rapidocr/onnxruntime not installed "

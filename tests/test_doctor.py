@@ -795,3 +795,29 @@ def test_the_model_checked_is_the_model_transcribe_will_load(
     # large-v2 IS cached in the fixture; 'small' is not, so a check that
     # ignored the override would wrongly report the weights as present.
     assert check.data["cached"] is False
+
+
+@pytest.mark.parametrize("complete", [True, False])
+def test_local_whisper_directory_is_not_reported_as_a_download(monkeypatch, tmp_path, complete):
+    model = tmp_path / "local model"
+    model.mkdir()
+    for name in ("model.bin", "config.json", "tokenizer.json"):
+        (model / name).write_bytes(b"fixture" if complete else b"")
+    monkeypatch.setenv("ZING_WHISPER_MODEL", str(model))
+    monkeypatch.setattr(doctor, "_has_module", lambda _: True)
+    monkeypatch.setattr(doctor, "_whisper_cache", lambda: pytest.fail("local model must not inspect hub cache"))
+    check = doctor.check_whisper()
+    assert check.ok is complete
+    assert check.data["local"] is True
+    assert "downloads" not in check.detail
+    assert ("native loading not probed" in check.detail) is complete
+    assert bool(check.fix) is not complete
+
+
+def test_missing_absolute_whisper_directory_names_the_local_remedy(monkeypatch, tmp_path):
+    monkeypatch.setenv("ZING_WHISPER_MODEL", str(tmp_path / "missing"))
+    monkeypatch.setattr(doctor, "_has_module", lambda _: True)
+    check = doctor.check_whisper()
+    assert not check.ok
+    assert "incomplete" in check.detail
+    assert "ZING_WHISPER_MODEL" in check.fix

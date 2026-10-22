@@ -91,6 +91,7 @@ def test_resolve_keeps_path_hash_provenance_and_studies_offline(project, handoff
     studied = []
 
     def study(source, **kwargs):
+        assert kwargs["local_models_only"] is True
         studied.append(source)
         return Breakdown(meta=VideoMeta(source_url=source, platform="local"))
 

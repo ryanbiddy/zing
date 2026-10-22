@@ -253,6 +253,32 @@ def test_read_captions_frame_ocr_error_warns(monkeypatch):
     assert any("failed to OCR" in w for w in result.warnings)
 
 
+def test_local_caption_models_missing_never_uses_downloading_backend(monkeypatch):
+    from myzing.study import caption_models
+
+    monkeypatch.setattr(captions, "_engine", lambda: pytest.fail("implicit model download"))
+    def missing():
+        raise RuntimeError("caption OCR model missing; provision the pinned assets")
+    monkeypatch.setattr(caption_models, "engine", missing)
+    result = captions.read_captions(Path("m.mp4"), 10, local_models_only=True)
+    assert result.captions == []
+    assert any("provision the pinned assets" in w for w in result.warnings)
+
+
+def test_local_caption_models_are_used_for_offline_ocr(monkeypatch):
+    from myzing.study import caption_models
+
+    monkeypatch.setattr(captions, "_engine", lambda: pytest.fail("implicit model download"))
+    monkeypatch.setattr(caption_models, "engine", lambda: ("LOCAL", "fixture"))
+    monkeypatch.setattr(captions, "_iter_frames", lambda *a: iter([(0, 1, "FRAME")]))
+    def ocr(engine, frame):
+        assert engine == "LOCAL"
+        return [captions.Line("offline", 0.99, 0.8)]
+    monkeypatch.setattr(captions, "_ocr", ocr)
+    result = captions.read_captions(Path("m.mp4"), 1, local_models_only=True)
+    assert result.captions[0].text == "offline"
+
+
 def test_read_captions_zero_duration_skips(monkeypatch):
     result = captions.read_captions(Path("m.mp4"), duration=0.0)
     assert result.captions == []

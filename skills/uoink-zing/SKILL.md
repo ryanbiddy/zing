@@ -15,6 +15,9 @@ Run `zing doctor` or Zing MCP `zing_status`. Use `zing serve-mcp --print-config`
 for client setup. Uoink is optional; get it at https://uoink.app. Configure its
 per-install credential through the normal local setup without printing it.
 An absent or unconfigured helper does not prevent local-file editing.
+For an isolated helper, set UOINK_URL to its explicit nonproduction URL and
+UOINK_TOKEN to the token issued inside that profile. The MCP process needs the
+same environment and ZING_HOME as the CLI; --print-config does not embed them.
 
 Prefer connected MCP tools where they cover the operation. CLI examples assume
 an installed `zing`; in this repository, prefix them with `uv run --frozen`.
@@ -33,7 +36,9 @@ not Zing tools. Their names are pinned to the upstream server registry in
 [uoink-tools.json](references/uoink-tools.json); consult that snapshot when
 checking a tool name, and the connected server for its current arguments.
 Zing uses GET search without mode, match or details options; matching follows
-the peer's default (forgiving keyword search on Uoink 3.11).
+the peer's default. Uoink main tested for SUITE2 reports 3.10.0: reordered title
+words match, but adding an unrelated word can return no results. Shorten the
+query when needed; do not assume every installed peer has 3.11's forgiving search.
 Use the returned ID; never derive it from a title or guess a local library path.
 
 ## Resolve and study kept media
@@ -47,7 +52,9 @@ zing project study-reference ./zing-workspace/edit
 ```
 
 Resolve verifies the handoff's file, size and SHA-256. Project study uses that
-verified local file without web fallback. If it is unavailable, ask for a local
+verified local file and cached models without web fallback or model downloads.
+Missing models leave warnings in the breakdown; review them before judging the
+reference. If kept media is unavailable, ask for a local
 copy and use `zing project resolve-reference ./zing-workspace/edit --file ./reference.mp4`.
 The `uoink:<id>` form is a reference, not a filesystem path. Do not crawl the
 library to find another copy.
@@ -70,6 +77,10 @@ Supply a brief or answers using the installed command's options. Zing MCP
 `match_start` and `match_status` provide the background-job route. Match reuses
 verified kept media, uses local model caches and reports each draft's result.
 Do not call a planned draft rendered, or claim three ready drafts if one failed.
+Noninteractive runs require --brief or --answers. For example, add
+`--answers '{"aspect":"16:9","target_length_seconds":12}'`; use `"9:16"` with
+a different --out folder for portrait. Three completed renders can still have
+failed style dimensions; read comparison.md before calling them a style match.
 
 For an existing plan, `zing render ./draft-edl.json -o ./zing-workspace/draft-01.mp4`
 or Zing MCP `render_edl` renders it; use `get_render` to inspect job status.

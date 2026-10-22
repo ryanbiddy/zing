@@ -101,7 +101,7 @@ def study_reference(project: str | Path, *, workspace: Path | None = None) -> di
         verify()
         # Passing the local path, never source_url, makes web fallback impossible.
         workspace = storage.resolve_workspace(workspace)
-        breakdown = study(str(path), workspace=workspace)
+        breakdown = study(str(path), workspace=workspace, local_models_only=True)
         verify()
         breakdown.provenance["project_reference"] = {
             "version": 1, "reference": manifest.reference.value,
