@@ -6,7 +6,7 @@ EDL renderer.
 
 ## First, once (Phase 0 — do this before any building)
 
-Read, in order: `E:\AI\projects\uoink\handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`,
+Read, in order: `uoink/handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`,
 `handoff/ROADMAP.md`, `handoff/SPRINT-1-D1.md`, `src/myzing/schemas.py`.
 Then write `handoff/reviews/PLAN-CRITIQUE-lane-c.md`: what is weak, missing,
 or wrong in this plan from YOUR lane's vantage (eval design, tolerance
@@ -30,7 +30,7 @@ Re-read the sprint doc at the start of every work session.
 
 ## Workflow (binding)
 
-- Work ONLY in your worktree at `E:\AI\projects\zing-lanes\lane-c` (branch
+- Work ONLY in your worktree at `worktrees/lane-c` (branch
   `lane-c-eval-render`); own only your lane's paths as listed in the sprint
   spec.
 - Follow `src/myzing/schemas.py` EXACTLY as written. If a schema seems wrong

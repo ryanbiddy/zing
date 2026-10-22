@@ -1,9 +1,9 @@
 # Grok/X Findings — R3-D (synthesized)
 
 Researcher: Ryan (Grok prompts on X), synthesis by orchestrator. Date: 2026-07-18.
-Source material: three Grok reports (PDFs in `Grok Research/`): (1) X-native
-video mechanics + conversion, (2) winning X video creators + editing styles,
-(3) AI-video-editor sentiment on X. Grok searched X posts/threads from
+Source material: three Grok reports (removed from the public tree):
+(1) X-native video mechanics + conversion, (2) winning X video creators +
+editing styles, (3) AI-video-editor sentiment on X. Grok searched X posts/threads from
 2025–mid-2026 (creator report: viral/recent posts since June 2026).
 
 **Provenance & tier ceiling.** Grok is an LLM synthesizing X search results —
@@ -156,11 +156,11 @@ across the named set). Engagement numbers are Grok-reported, unverified.
   expert soundbite hook in first seconds; broadcast-style pacing;
   graphics/captions common; talking head + B-roll mix; 30–90s; regular
   timely cadence.
-- **Sensational/claim-driven archetype (T4, style archetype — accounts like
-  "@QuantumGuard17 / @MrWhiplash_ style").** Dramatic money/politics with
-  strong claims + footage, text overlays, document/news B-roll,
-  high-energy audio. Variable quality; some flagged for recycling old
-  footage. Short-to-medium, frequent.
+- **Sensational/claim-driven archetype (T4, style archetype — no account
+  named; see the caveat below).** Dramatic money/politics with strong
+  claims + footage, text overlays, document/news B-roll, high-energy
+  audio. Variable quality; recycled footage is a reported problem in this
+  archetype generally. Short-to-medium, frequent.
 
 ### Comedy
 
@@ -175,9 +175,9 @@ across the named set). Engagement numbers are Grok-reported, unverified.
   funny/silent clips. Instant visual absurdity + enhanced audio punch;
   fast pacing; minimal text; heavy sound design (raw clip + effects);
   often <10s; high cadence.
-- **Edgy/reaction archetype ("@Def_Not_Deuce style") (T4).** Short
-  relatable/shocking reaction memes with text/visual punchlines; quick
-  cuts, strong audio design, minimal talking head.
+- **Edgy/reaction archetype (T4, no account named; see the caveat below).**
+  Short relatable/shocking reaction memes with text/visual punchlines;
+  quick cuts, strong audio design, minimal talking head.
 
 ### Sports
 
@@ -434,9 +434,14 @@ needs a primary source before it can enter docs/taste at any tier:
 12. **Sentiment quantifiers**: Submagic "~90% reliable per users," Stanley
     ~$19/mo, Submagic ~$15/mo, "raw → polished vertical in ~2 minutes" —
     pricing checkable on vendor pages, reliability figure is vibes.
-13. **Style-archetype accounts** (@QuantumGuard17, @MrWhiplash_,
-    @Def_Not_Deuce "style") — named as archetypes, not verified accounts
-    with cited posts.
+13. **Style-archetype accounts** — Grok attached three real handles to the
+    sensational/claim-driven and edgy/reaction archetypes. None was
+    verified and none had a cited post, so the handles were **removed on
+    2026-10-22**: attaching an unverified characterisation to a real,
+    identifiable account is a claim this research cannot support. The
+    archetypes remain, described by their observable style only. Do not
+    reintroduce the handles without a primary source, and prefer keeping
+    archetypes account-free regardless.
 
 ---
 

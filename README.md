@@ -8,7 +8,8 @@ the creative judgment through the CLI or **32 MCP tools**. No Zing API key neede
 
 `zing match` runs the reference-plus-clips workflow and writes three playable
 drafts, plans, a reusable recipe and rendered match reports. Missing footage and
-failed drafts stay visible. Status: pre-alpha. MIT licensed.
+failed drafts stay visible. Status: pre-alpha. MIT licensed for this project's own software and documentation. Third-party
+assets retain their original terms; see [NOTICE.md](NOTICE.md).
 
 ## Five commands to a first result
 

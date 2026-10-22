@@ -465,7 +465,7 @@ def color_evidence(reference, source, rendered, folder, identity, env):
         draw.text((i * 300 + 4, 4), label, fill="white")
     sheet.save(folder / "comparison.png")
     result = {
-        "preview": str(folder / "comparison.png"),
+        "preview": f"{folder.name}/comparison.png",
         "time": 6,
         "identity": identity,
     }

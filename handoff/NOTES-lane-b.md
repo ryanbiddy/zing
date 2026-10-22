@@ -859,7 +859,7 @@
   - #212's own findings are all now confirmed by outcome: my #213,
     Lane A's #214 amendment, and Lane C's #215 each closed one at the
     boundary the audit named. The mesh converged in one day.
-- **2026-07-19 (orchestrator): S5 CLOSED (final gate PASS, all criteria, 26min e2e, VO phase-cancellation-proven). SPRINT 6 INTEGRATION OPEN — spec at E:\AI\projects\uoink\handoff\suite-split\S6-INTEGRATION.md; your items in QUEUE §S6. This is the last build sprint before the final review.
+- **2026-07-19 (orchestrator): S5 CLOSED (final gate PASS, all criteria, 26min e2e, VO phase-cancellation-proven). SPRINT 6 INTEGRATION OPEN — spec at uoink/handoff\suite-split\S6-INTEGRATION.md; your items in QUEUE §S6. This is the last build sprint before the final review.
 - **2026-07-19 (Lane B): S5 gate defects D-11 (P2) and D-13 (P3)
   closed.**
   - D-11: one public resolver (`doctor.resolve_ytdlp_argv()`) now

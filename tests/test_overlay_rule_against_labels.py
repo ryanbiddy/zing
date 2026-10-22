@@ -1,4 +1,4 @@
-"""Regression gate for the persistent-overlay rule, scored against the
+"""Historical regression gate for the persistent-overlay rule, scored against the
 P-C2 frozen labels.
 
 `cluster_regions` diverts long-lived on-screen text into a warning
@@ -15,7 +15,8 @@ hand-labeled cells (15,999 lines) gives a split verdict
 Both halves are pinned here, so a threshold or clustering change has
 to confront each. Offline: reads only committed frozen data.
 
-Offline: reads only committed frozen data, no media, no network.
+SEC1: five original lexical checks skip because their OCR text is no longer
+redistributed. Generated cases below cover behavior, not empirical accuracy.
 """
 
 from __future__ import annotations
@@ -76,6 +77,8 @@ def _caption_texts(slug: str) -> set[str]:
 
 
 @pytest.mark.parametrize("slug", CAPTIONED_CELLS)
+@pytest.mark.requires_private_ocr
+@pytest.mark.skip(reason="SEC1-OCR: original OCR text is not redistributed; see tests/PRIVATE-FIXTURES.md")
 def test_overlay_rule_never_diverts_a_labeled_caption(slug: str) -> None:
     observations, duration = _observations(slug)
     captions = _caption_texts(slug)
@@ -97,6 +100,8 @@ def test_overlay_rule_never_diverts_a_labeled_caption(slug: str) -> None:
         )
 
 
+@pytest.mark.requires_private_ocr
+@pytest.mark.skip(reason="SEC1-OCR: original OCR text is not redistributed; see tests/PRIVATE-FIXTURES.md")
 def test_overlay_rule_under_fires_on_long_form_documented_limitation() -> None:
     """DOCUMENTED LIMITATION, pinned so it stays visible.
 
@@ -133,3 +138,33 @@ def test_overlay_rule_under_fires_on_long_form_documented_limitation() -> None:
         f"longest event {longest:.1f}s — if clustering now holds text "
         "together, the overlay rule may finally fire on long-form"
     )
+
+
+@pytest.mark.parametrize("y", [0.15, 0.38, 0.65, 0.88])
+def test_generated_short_caption_survives_beside_persistent_overlay(y: float) -> None:
+    observations = []
+    for i in range(160):
+        lines = [Line(text="SYNTHETIC MARK", score=0.99, y_center=0.05, x_center=0.1)]
+        if 40 <= i < 48:
+            lines.append(Line(text="A paper kite", score=0.98, y_center=y, x_center=0.8))
+        observations.append(Observation(t=i / 4, step=0.25, lines=lines))
+    events, notes = cluster_regions(observations, 40.0)
+    captions = [event for event in events if event.text == "A paper kite"]
+    assert len(captions) == 1
+    assert (captions[0].start, captions[0].end) == (10.0, 12.0)
+    assert any('"SYNTHETIC MARK"' in note for note in notes)
+    assert all(event.text != "SYNTHETIC MARK" for event in events)
+
+
+def test_generated_changing_hud_documents_fragmentation() -> None:
+    texts = ["HUD AAAAAAAA", "HUD ZZZZZZZZ", "HUD MMMMMMMM", "HUD QQQQQQQQ"]
+    observations = [
+        Observation(t=i / 2, step=0.5, lines=[
+            Line(text=texts[i % len(texts)], score=0.99, y_center=0.1, x_center=0.2)
+        ])
+        for i in range(860)
+    ]
+    events, notes = cluster_regions(observations, 430.0)
+    assert len(events) == 860
+    assert max(event.end - event.start for event in events) == 0.5
+    assert not any("persistent on-screen text" in note for note in notes)

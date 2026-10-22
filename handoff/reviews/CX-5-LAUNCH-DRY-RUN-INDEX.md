@@ -3,7 +3,7 @@
 CX-5 rehearsed the authorization-free part of `LAUNCH-PLAN.md` step 6. The
 canonical evidence packet is:
 
-- `E:\AI\projects\uoink\handoff\suite-split\LAUNCH-DRY-RUN.md`
+- `uoink/handoff\suite-split\LAUNCH-DRY-RUN.md`
 - 28,358 bytes
 - SHA-256
   `2F3F3DBAE733751F89EE6CB7E558335A00F312424BDB99CC366C76F943E3F672`

@@ -15,3 +15,50 @@ goldens/*/media*
 *.mp3
 !tests/fixtures/**
 .coverage
+
+# Local credentials and environment. Zing reads UOINK_TOKEN and
+# ELEVENLABS_API_KEY from the environment; neither may ever be committed.
+.env
+.env.*
+!.env.example
+*.token
+.pypirc
+.netrc
+*.pem
+*.key
+id_rsa*
+
+# Local databases and logs
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.log
+
+# Local git worktrees used by the build lanes
+worktrees/
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Raw research exports and creator frames removed by SEC1.
+/Grok Research/
+/tools/eval/real_videos/reference-cleo-antarctica/frames/
+/tools/eval/real_videos/raw-editing-practice/frames/
+# V1 keeps only reviewed JSON metadata, code and its report.
+/tools/eval/real/**/*.png
+/tools/eval/real/**/*.jpg
+/tools/eval/real/**/*.onnx
+*.mov
+*.m4v
+*.flac
+*.aac
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3-wal
+*.sqlite3-shm
+id_ed25519*

@@ -36,7 +36,7 @@
     },
     "tools/eval/real_videos/raw-editing-practice/breakdown.json#": {
       "contract": "Breakdown",
-      "sha256": "bc73e5cb1904e3697ea968c5eeaeb7cb2130576562110482dc09260d16e6f2da"
+      "sha256": "c92e144dfddc97bdef3ae8154a286d66240145bca85712211aa2c680f33d237f"
     },
     "tools/eval/real_videos/raw-talking-head-korky-paul/breakdown.json#": {
       "contract": "Breakdown",
@@ -44,7 +44,7 @@
     },
     "tools/eval/real_videos/reference-cleo-antarctica/breakdown.json#": {
       "contract": "Breakdown",
-      "sha256": "d569c0fade603cf6021b00ced3d71604f4e8d16a66656d31ab4685d7c5b4cebc"
+      "sha256": "6b69f7b391363e124d047b5b93354e3ad739511862b3b967a0d058b671f21110"
     },
     "tools/eval/real_videos/short-daily-dweebs/breakdown.json#": {
       "contract": "Breakdown",
@@ -59,5 +59,17 @@
       "sha256": "095b14e0f9d0c7acccf1b617f48ef3bb1e63d70e546fb048cc364bd6007adc79"
     }
   },
-  "encoding": "pre-P4 to_json(indent=2), UTF-8, no added newline"
+  "encoding": "pre-P4 to_json(indent=2), UTF-8, no added newline",
+  "content_redactions": [
+    {
+      "document": "tools/eval/real_videos/raw-editing-practice/breakdown.json#",
+      "previous_sha256": "bc73e5cb1904e3697ea968c5eeaeb7cb2130576562110482dc09260d16e6f2da",
+      "reason": "SEC1 2026-10-22: remove transcript text and keyframe paths; all other values and v1 serializer unchanged."
+    },
+    {
+      "document": "tools/eval/real_videos/reference-cleo-antarctica/breakdown.json#",
+      "previous_sha256": "d569c0fade603cf6021b00ced3d71604f4e8d16a66656d31ab4685d7c5b4cebc",
+      "reason": "SEC1 2026-10-22: remove transcript text and keyframe paths; all other values and v1 serializer unchanged."
+    }
+  ]
 }

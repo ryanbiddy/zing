@@ -46,27 +46,27 @@ def score(rows: list[dict], predicate) -> tuple[float, float, float]:
 def rule(row: dict) -> bool:
     """FALSIFIED candidate, kept so the failure stays reproducible:
     lower-third position AND at least two tokens."""
-    return row["y_center"] >= 0.55 and len(row["text"].split()) >= 2
+    return row["y_center"] >= 0.55 and row["token_count"] >= 2
 
 
 def persistence_rule(row: dict) -> bool:
     """The surviving candidate: text that does NOT sit still. Watermarks
     and HUD counters persist; captions move with speech. Position-agnostic,
     so it survives the style that killed the rule above."""
-    return row.get("frames", 0) <= 20 and len(row["text"].split()) >= 2
+    return row.get("frames", 0) <= 20 and row["token_count"] >= 2
 
 
 def annotate_persistence(rows: list[dict]) -> None:
     """Attach, per row, how many sampled frames carry the same text in
-    that cell. Uses only the frozen text and timestamps — never the
-    transcript."""
+    that cell. Uses normalized-text hashes and timestamps; the original
+    OCR strings are not needed for equality comparisons."""
     per: dict[str, dict[str, set]] = collections.defaultdict(
         lambda: collections.defaultdict(set)
     )
     for r in rows:
-        per[r["slug"]][" ".join(r["text"].upper().split())].add(r["t"])
+        per[r["slug"]][r["normalized_text_sha256"]].add(r["t"])
     for r in rows:
-        r["frames"] = len(per[r["slug"]][" ".join(r["text"].upper().split())])
+        r["frames"] = len(per[r["slug"]][r["normalized_text_sha256"]])
 
 
 def main() -> int:

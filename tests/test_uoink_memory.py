@@ -370,7 +370,7 @@ def test_auth_header_is_not_forwarded_on_redirect(project, handoff, monkeypatch)
 @pytest.mark.parametrize("event,args", [
     ("socket.connect", (None, ("127.0.0.1", 5179))),
     ("open", ("E:/Uoink/secret", "r", 0)),
-    ("os.scandir", ("C:/Users/hello/AppData/Local/Uoink",)),
+    ("os.scandir", ("C:/Users/ExampleUser/AppData/Local/Uoink",)),
 ])
 def test_live_uoink_guard_is_fail_closed(event, args):
     # Invoke the guard directly: no attempted real network/file operation.

@@ -5,7 +5,7 @@ core that turns a short video into an honest, complete `Breakdown`.
 
 ## First, once (Phase 0 — do this before any building)
 
-Read, in order: `E:\AI\projects\uoink\handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`,
+Read, in order: `uoink/handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`,
 `handoff/ROADMAP.md`, `handoff/SPRINT-1-D1.md`, `src/myzing/schemas.py`.
 Then write `handoff/reviews/PLAN-CRITIQUE-lane-a.md`: what is weak, missing,
 or wrong in this plan from YOUR lane's vantage (measurement quality, library

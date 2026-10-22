@@ -50,6 +50,15 @@ REGISTERED_SKIPS = {
         "PRODUCT SURFACE: docs/CAPTION-GEOMETRY.md describes the offline real replay; "
         "doctor and caption_models report missing local OCR assets. No product cap is hidden."
     ),
+    "SEC1-OCR: original OCR text is not redistributed": (
+        "five historical fuzzy-clustering cases require third-party transcript "
+        "text without recorded redistribution permission. PUBLIC SURFACE: NOTICE.md, "
+        "handoff/research/ocr-calibration/README.md and tests/PRIVATE-FIXTURES.md "
+        "state that lexical accuracy is not rerun. Generated overlay tests cover "
+        "behavior; token counts/hashes keep the baseline scorer reproducible. "
+        "No production capability is disabled. Restore empirical checks only "
+        "with a licensed, independently labeled replacement corpus."
+    ),
     "caption geometry OCR models unavailable": (
         "real caption geometry acceptance requires pinned local OCR assets. PRODUCT "
         "SURFACE: doctor and study name the explicit caption_models --fetch command. "

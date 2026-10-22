@@ -1532,24 +1532,15 @@ def _fixture_privacy_report(
 ) -> dict[str, Any]:
     issues: list[dict[str, Any]] = []
     scanned_files = 1
-    private_markers = (
-        "E:\\AI\\",
-        "C:\\Users\\hello\\",
-        "/Users/hello/",
-        "/home/hello/",
-    )
+    # Match local roots without embedding any developer's home directory.
+    # JSON can double the backslashes; the fixture's synthetic root is allowed.
+    private_path = re.compile(r"\b[A-Za-z]:(?!\\+SuiteFixture\\)\\+|/(?:Users|home)/", re.I)
     for entry in manifest["case_files"]:
         path = DEFAULT_SUITE_FIXTURES / entry["path"]
         scanned_files += 1
         text = path.read_text(encoding="utf-8")
-        for marker in private_markers:
-            if marker.lower() in text.lower():
-                _issue(
-                    issues,
-                    entry["path"],
-                    "private_machine_path",
-                    marker=marker,
-                )
+        if private_path.search(text):
+            _issue(issues, entry["path"], "private_machine_path")
         document = json.loads(text)
 
         def walk(value: Any, location: str) -> None:

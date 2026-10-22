@@ -3,7 +3,7 @@
 Researcher: Lane B (Claude Fable 5). Date: 2026-07-18.
 Method: three parallel web-research agents (MCP server design; LLM-as-judge;
 cross-model prompt consistency) + direct source reading of uoink's MCP
-server (`E:\AI\projects\uoink\checkouts\Yoink\{uoink_mcp.py, uoink_mcp_tools.py,
+server (`uoink/checkouts\Yoink\{uoink_mcp.py, uoink_mcp_tools.py,
 tests/test_c01_mcp_stdio.py}`) + local verification of the `mcp` SDK
 (v1.28.1 installed, license/capability check).
 Confidence tags: verified-data / practitioner-consensus / single-opinion.

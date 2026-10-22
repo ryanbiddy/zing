@@ -21,16 +21,16 @@ dependency tree in `tools/hyperframes-sidecar/package-lock.json`. npm metadata
 was checked on 2026-10-21. This matches the existing Windows-tested tool version.
 Its registry integrity is
 `sha512-MrPr9NSGkgU9N1u+M5GNWHju90vlWUMJFKBQq3rHxakg0qDo11fO3dEoiCzStxCS3TQ4cuwBDMtY/MQJ24xrfg==`.
-The shared install at `E:\AI\tools\hyperframes` was read only. PH installs its
+The existing shared HyperFrames install was read only. PH installs its
 own Node modules and reuses only the existing browser executable.
 
 Run setup from the worktree in PowerShell. The npm install and font-fetch command
 are explicit network operations. Neither runs during a render or test.
 
 ```powershell
-Set-Location 'E:\AI\projects\zing\worktrees\hf-sidecar'
-$env:PATH = 'E:\AI\tools\ffmpeg-8.1.2\bin;E:\AI\tools\uv;' + $env:PATH
-$env:UV_CACHE_DIR = 'C:\Users\hello\AppData\Local\uv\cache'
+# Run from your Zing checkout.
+# Ensure FFmpeg, ffprobe, uv and Node are on PATH.
+$env:UV_CACHE_DIR = Join-Path $env:LOCALAPPDATA 'uv\cache'
 $env:TEMP = $env:TMP = "$PWD\zing-workspace\tmp"
 $env:HF_HOME = "$PWD\zing-workspace\models"
 $env:ZING_HOME = "$PWD\zing-workspace\home"
@@ -41,7 +41,7 @@ uv sync --frozen --all-extras
 npm.cmd ci --prefix tools/hyperframes-sidecar --ignore-scripts --no-audit --no-fund --cache zing-workspace/npm-cache
 npm.cmd run fetch-font --prefix tools/hyperframes-sidecar
 
-$env:HYPERFRAMES_BROWSER_PATH = 'E:\AI\tools\hyperframes\.cache\browser\chrome-headless-shell\win64-152.0.7977.30\chrome-headless-shell-win64\chrome-headless-shell.exe'
+$env:HYPERFRAMES_BROWSER_PATH = 'C:\Tools\hyperframes\.cache\browser\chrome-headless-shell\win64-152.0.7977.30\chrome-headless-shell-win64\chrome-headless-shell.exe'
 ```
 
 Node 24 or newer and FFmpeg/ffprobe must be on PATH. PH was exercised with
