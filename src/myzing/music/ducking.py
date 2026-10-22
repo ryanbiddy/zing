@@ -32,9 +32,9 @@ class SpanLimitError(ValueError):
     """Too many measurement windows for one bounded FFmpeg selection."""
 
 
-def check_span_count(count: int, what: str = "speech spans") -> None:
-    if count > MAX_SPANS:
-        raise SpanLimitError(f"{count} {what} exceed the {MAX_SPANS}-span limit for one music mix; "
+def check_span_count(count: int, what: str = "speech spans", limit: int = MAX_SPANS) -> None:
+    if count > limit:
+        raise SpanLimitError(f"{count} {what} exceed the {limit}-span limit for one music mix; "
                              "split the edit into shorter renders or merge adjacent clauses.")
 
 

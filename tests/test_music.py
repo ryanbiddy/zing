@@ -96,6 +96,26 @@ def test_span_count_is_validated_with_a_clear_message():
     assert len(MusicPlan(speech_spans=spans[:MAX_SPANS]).speech_spans) == MAX_SPANS
 
 
+def test_pause_windows_of_a_legal_plan_pass_the_window_limit(monkeypatch):
+    # The complement of MAX_SPANS separated spans has MAX_SPANS + 1 windows.
+    from myzing.music import measurement
+    from myzing.music.ducking import MAX_SPANS
+    spans = [[i + .5, i + 1] for i in range(MAX_SPANS)]
+    pauses = measurement.complement(spans, MAX_SPANS + 1)
+    assert len(pauses) == MAX_SPANS + 1
+
+    class Reached(Exception):
+        pass
+
+    def stop(path):
+        raise Reached
+    monkeypatch.setattr(measurement, "local_file", stop)
+    with pytest.raises(Reached):
+        measurement.window_loudness("music.wav", pauses, MAX_SPANS + 1)
+    with pytest.raises(ValueError, match="span limit"):
+        measurement.window_loudness("music.wav", [[i, i + .5] for i in range(MAX_SPANS + 2)], MAX_SPANS + 3)
+
+
 def test_balanced_span_expression_stays_shallow():
     from myzing.music.ducking import span_expression
     expr = span_expression([[i, i + .5] for i in range(512)])

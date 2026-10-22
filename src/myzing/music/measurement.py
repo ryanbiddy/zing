@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 from myzing.audio.media import ffmpeg, numpy, run_ffmpeg, decode_mono, local_file, SAMPLE_RATE
 from myzing.audio.loudness import measure_loudness, parse_ebur128
-from .ducking import check_span_count, merge, span_expression
+from .ducking import MAX_SPANS, check_span_count, merge, span_expression
 
 
 def window_loudness(path, spans, duration):
@@ -18,7 +18,9 @@ def window_loudness(path, spans, duration):
     windows = merge([[max(0.0, a), min(duration, b)] for a, b in spans])
     if not windows:
         return None
-    check_span_count(len(windows), "loudness windows")
+    # Pause windows are the complement of up to MAX_SPANS speech spans, so a
+    # legal plan can produce one more window than it has spans.
+    check_span_count(len(windows), "loudness windows", MAX_SPANS + 1)
     from myzing.render.pipeline import filter_script_args
     path = local_file(path)
     graph = f"[0:a:0]aselect='{span_expression(windows)}',asetpts=N/SR/TB,ebur128=peak=true[loudness]"

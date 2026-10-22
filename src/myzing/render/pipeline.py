@@ -330,6 +330,7 @@ def _render_in_directory(
     if plan.music_label:
         from myzing.music.measurement import measure_mix
         from myzing.audio.media import AudioError
+        from myzing.music.ducking import SpanLimitError
         try:
             measurements = measure_mix(staged_output, directory / "music-stem.wav",
                 directory / "source-stem.wav" if plan.source_label else None, speech_spans, validated.duration,
@@ -338,7 +339,7 @@ def _render_in_directory(
                 measurements["duck"] = {**(duck or {}), "passages": len(duck_passages),
                                         "method": "known-speech gain envelope: raised-cosine pre-duck before each passage, "
                                                   "held through clause gaps shorter than the hold, slow raised-cosine recovery"}
-        except AudioError as exc:
+        except (AudioError, SpanLimitError) as exc:
             raise RenderError(f"could not measure music mix: {exc}") from exc
         from myzing.project.api import hash_file
         measurements.update(render_sha256=hash_file(staged_output), music_plan=music_metadata)

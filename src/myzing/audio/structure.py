@@ -160,7 +160,7 @@ def analyze_structure(features, tempo, beats, onsets, duration):
             result.moments.append(Moment(t, min(1, max(0, jump + bass) / 30), kind, .8 if kind == "drop" else .6,
                 f"4s sustained RMS +{jump:.1f} dB, bass +{bass:.1f} dB, bass-share change {share_jump:+.1f} dB, "
                 f"attacks {density_before:.2f} to {density_after:.2f}/s after {'build' if build else 'break'}; "
-                f"at the onset: bass {bass_attack:+.1f} dB, RMS {rms_attack:+.1f} dB over 20–200ms; "
+                f"at the onset: bass {bass_attack:+.1f} dB (20–200 ms after vs before), RMS {rms_attack:+.1f} dB (10–80 ms after vs 20–200 ms before); "
                 + ("texture return supports a drop" if kind == "drop" else "no supported bass/rhythm return; level swell only")))
         changes = []
         for i in range(8, len(levels) - 7):
