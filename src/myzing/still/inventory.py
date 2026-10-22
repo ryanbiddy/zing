@@ -11,6 +11,7 @@ from myzing.memes import MemeError
 from myzing.memes.framing import saliency_box
 from myzing.memes.photo import HEIF_EXTENSIONS, load_photo
 from myzing.memes.render import require_pillow
+from myzing.memes.subject import describe_estimate, estimate_subject
 from myzing.project.api import hash_file
 from .models import Photo
 
@@ -97,6 +98,8 @@ def describe_photo(path: Path, detector=None) -> Photo:
         if origin.note():
             notes.append(origin.note())
         subject = saliency_box(source)
+        estimate = estimate_subject(source)
+        notes.append(describe_estimate(estimate))
     if before != (path.stat().st_size, path.stat().st_mtime_ns):
         raise MemeError(f"Photo changed during inventory: {path}; run again.")
     orientation = "square" if width == height else "landscape" if width > height else "portrait"
@@ -109,7 +112,7 @@ def describe_photo(path: Path, detector=None) -> Photo:
                    "Subject details have not been identified.")
     return Photo("photo-" + digest[:16], str(path), digest, width, height, before[0],
                  description, colors, orientation, round(density, 6), round(band_density, 6),
-                 faces, method, notes, subject, origin.to_dict())
+                 faces, method, notes, subject, origin.to_dict(), estimate)
 
 
 def inventory(folder: str | Path) -> tuple[list[Photo], list[str]]:

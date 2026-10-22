@@ -1568,14 +1568,24 @@ def h_plan_drafts(project: str, recipe: str, out: str, seed: int = 0) -> dict[st
     return _ok(**result)
 
 
+# POLISH1 added the optional protect argument to these two tools. The SDK 1
+# wire capture predates it; test_mcp_wire strips exactly these additions.
+PROTECT_DESCRIPTIONS = {
+    "still_concepts": ' Optional protect is a list of normalized [x,y,width,height] boxes text must avoid, besides faces and a model-free subject estimate.',
+    "meme_render": ' Optional protect is a list of normalized [x,y,width,height] source boxes text must avoid; faces and a confident model-free subject estimate are also protected (protection reports the estimate and its uncalibrated confidence).',
+}
+
+
 def h_still_concepts(photos: str, topic: str, out: str, n: int = 6,
                      aspect: str = "1:1", layout: str = "auto",
-                     lines: str | None = None) -> dict[str, Any]:
+                     lines: str | None = None,
+                     protect: list[list[float]] | None = None) -> dict[str, Any]:
     """Inventory local photos and render distinct concepts; no uploads/model calls."""
     from myzing.still.api import create_stills
 
     try:
-        return _ok(**create_stills(photos, topic, out, n=n, aspect=aspect, layout=layout, lines=lines))
+        return _ok(**create_stills(photos, topic, out, n=n, aspect=aspect, layout=layout, lines=lines,
+                                   protect=protect))
     except (ValueError, OSError) as exc:
         return _err(str(exc))
 
@@ -1629,7 +1639,8 @@ def h_meme_render(texts: list[str], image: str = "", template: str = "",
                   regions: list[list[float]] | None = None,
                   plate: bool = False, shadow: bool = False,
                   rotation: float = 0, offline: bool = False,
-                  overwrite: bool = False) -> dict[str, Any]:
+                  overwrite: bool = False,
+                  protect: list[list[float]] | None = None) -> dict[str, Any]:
     """Synchronous bounded still render: paths and metadata, never inline bytes."""
     from myzing.memes.render import render_meme
 
@@ -1638,7 +1649,7 @@ def h_meme_render(texts: list[str], image: str = "", template: str = "",
             texts, image=image, template=template, layout=layout, aspect=aspect,
             out=out, fit=fit, font=font, regions=regions, plate=plate,
             shadow=shadow, rotation=rotation, offline=offline,
-            overwrite=overwrite,
+            overwrite=overwrite, protect=protect,
         ))
     except (ValueError, OSError) as exc:
         return _err(str(exc))
@@ -2013,7 +2024,8 @@ def build_server():
 
     mcp.tool(
         name="still_concepts",
-        description="Create 1-8 distinct meme concepts from a local photo folder and topic. Requires myzing[memes]. No model calls, network, or media uploads. Supply a new/empty out folder. Optional lines is a local JSON file of AI/user-written ideas; all text is validated. aspect: 1:1, 4:5, 9:16, 16:9. layout: auto, classic, caption, labels. Uses local YuNet when installed/cached; otherwise reports a center heuristic. Returns index_path, contact_sheet path, writer prompt, concept IDs, scores, alt text and warnings, never media bytes.",
+        description="Create 1-8 distinct meme concepts from a local photo folder and topic. Requires myzing[memes]. No model calls, network, or media uploads. Supply a new/empty out folder. Optional lines is a local JSON file of AI/user-written ideas; all text is validated. aspect: 1:1, 4:5, 9:16, 16:9. layout: auto, classic, caption, labels. Uses local YuNet when installed/cached; otherwise reports a center heuristic."
+        + PROTECT_DESCRIPTIONS["still_concepts"] + " Returns index_path, contact_sheet path, writer prompt, concept IDs, scores, alt text and warnings, never media bytes.",
     )(h_still_concepts)
     mcp.tool(
         name="still_render",
@@ -2034,7 +2046,8 @@ def build_server():
     )(h_meme_check)
     mcp.tool(
         name="meme_render",
-        description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path.",
+        description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path."
+        + PROTECT_DESCRIPTIONS["meme_render"],
     )(h_meme_render)
     mcp.tool(
         name="meme_render_video",

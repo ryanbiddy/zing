@@ -14,6 +14,7 @@ from myzing.memes import MemeError
 from myzing.memes.ideas import generate_ideas
 from myzing.memes.render import ASPECTS, render_meme, require_pillow, resolve_font, wrap_text
 from myzing.memes.score import idea_score
+from myzing.memes.subject import user_boxes
 from myzing.memes.templates import get_template
 from myzing.memes.validate import check_texts
 from myzing.project.api import hash_file
@@ -144,14 +145,14 @@ def writer_prompt(topic: str, photos: list[Photo], n: int) -> str:
 
 
 def _concept(topic: str, photo: Photo, idea: dict, aspect: str, requested: str,
-             fit: str = "auto") -> Concept:
+             fit: str = "auto", protect: list[list[float]] | None = None) -> Concept:
     template = get_template(idea["template"]) if idea.get("template") else None
     regions = idea.get("regions", template["box_layout"] if template else None)
     count = template["box_count"] if template else (len(regions) if isinstance(regions, list) else None)
     texts = _validate(idea.get("texts"), count)
     if template:
         texts += [""] * (template["box_count"] - len(texts))
-    layout, regions, notes = place(photo, texts, aspect, requested, regions, fit=fit)
+    layout, regions, notes = place(photo, texts, aspect, requested, regions, fit=fit, protect=protect)
     fit, focus, framing_notes = frame(photo, aspect, layout, fit, texts=texts)
     notes += framing_notes
     shown = [text.upper() if layout == "classic" else text for text in texts if text]
@@ -163,11 +164,12 @@ def _concept(topic: str, photo: Photo, idea: dict, aspect: str, requested: str,
                    alt, list(photo.warnings) + notes, fit=fit, focus=focus)
 
 
-def _render(concept: Concept, photo: Photo, aspect: str, target: Path) -> dict:
+def _render(concept: Concept, photo: Photo, aspect: str, target: Path,
+            protect: list[list[float]] | None = None) -> dict:
     return render_meme(concept.texts, image=photo.path, layout=concept.layout,
                        aspect=aspect, out=str(target), fit=concept.fit, focus=concept.focus,
                        regions=concept.regions, plate=concept.layout == "labels",
-                       offline=True, overwrite=True)
+                       offline=True, overwrite=True, protect=protect)
 
 
 def _sheet(root: Path, concepts: list[Concept], aspect: str = "1:1",
@@ -207,7 +209,10 @@ def _sheet(root: Path, concepts: list[Concept], aspect: str = "1:1",
 
 def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6,
                   aspect: str = "1:1", layout: str = "auto", lines: str | Path | None = None,
-                  fit: str = "auto") -> dict:
+                  fit: str = "auto", protect: list | None = None) -> dict:
+    """``protect``: optional normalized [x, y, w, h] boxes (source coordinates)
+    that text must avoid on every photo, in addition to faces and the subject
+    estimate. Placement avoids them or says it used a caption bar instead."""
     if not isinstance(topic, str) or not topic.strip() or len(topic) > 500:
         raise MemeError("topic must be a nonempty string of at most 500 characters")
     if type(n) is not int or not 1 <= n <= MAX_CONCEPTS:
@@ -216,6 +221,7 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
         raise MemeError("Use aspect 1:1, 4:5, 9:16, or 16:9 and layout auto, classic, caption, or labels.")
     if fit not in FIT_REQUESTS:
         raise MemeError("Use fit auto, fill, blur, contain, or cover.")
+    protect = user_boxes(protect) or None
     root = local_path(out)
     if root.exists() and (not root.is_dir() or any(root.iterdir())):
         raise MemeError(f"Use a new or empty output folder: {root}")
@@ -225,7 +231,7 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
     candidates = sorted(inventory_photos, key=lambda p: hashlib.sha256(
         (topic + "\0" + p.sha256).encode("utf-8")).hexdigest())
     ideas = _import_lines(lines, candidates) if lines is not None else _offline(topic, candidates, n)
-    concepts = [_concept(topic, photo, idea, aspect, layout, fit) for photo, idea in ideas]
+    concepts = [_concept(topic, photo, idea, aspect, layout, fit, protect) for photo, idea in ideas]
     if len({_text_key(c.texts) for c in concepts}) != len(concepts):
         raise MemeError("Duplicate caption text across ideas; provide distinct lines for each concept.")
     prompt = writer_prompt(topic, candidates, len(concepts))
@@ -239,12 +245,12 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
             if hash_file(Path(photo.path)) != photo.sha256:
                 raise MemeError(f"Photo changed since inventory: {photo.path}; run again.")
             concept.path = f"candidate-{concept.id}.png"
-            report = _render(concept, photo, aspect, stage / concept.path)
+            report = _render(concept, photo, aspect, stage / concept.path, protect)
             concept.render = {**report, "path": concept.path, "alt_text": concept.alt_text}
             concept.score["readability"] = report["viral_lens"]["score"]
             concept.warnings.extend(report["warnings"])
         sheet = _sheet(stage, concepts, aspect, by_id)
-        index = StillIndex(topic, aspect, candidates, concepts, sheet, warnings=notes)
+        index = StillIndex(topic, aspect, candidates, concepts, sheet, warnings=notes, protect=protect)
         (stage / index.prompt_path).write_text(prompt, encoding="utf-8")
         _save_index(stage, index)
         for source in sorted(stage.iterdir(), key=lambda p: p.name == "index.json"):
@@ -285,7 +291,7 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
             raise MemeError("Source photo changed since inventory; create a new still run before picking.")
     _validate(concept.texts, len(concept.regions) if isinstance(concept.regions, list) else None)
     if not safe_geometry(photo, concept.texts, index.aspect, concept.layout, concept.regions,
-                         fit=concept.fit, focus=concept.focus):
+                         fit=concept.fit, focus=concept.focus, protect=index.protect):
         raise MemeError("Saved text placement is unsafe; recreate this still run.")
     basename = f"finished-{concept.id}"
     extensions = [".png"] + ([".mp4"] if video or gif else []) + ([".gif"] if gif else [])
@@ -298,7 +304,7 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
     # An encoder failure must leave the previous export and selection intact.
     with tempfile.TemporaryDirectory(prefix=".pick-", dir=root) as directory:
         stage = Path(directory)
-        report = _render(concept, photo, index.aspect, stage / (basename + ".png"))
+        report = _render(concept, photo, index.aspect, stage / (basename + ".png"), index.protect)
         result = {**report, "path": str(root / (basename + ".png")),
                   "id": concept.id, "alt_text": concept.alt_text,
                   "warnings": concept.warnings, "index_path": str(root / "index.json")}
@@ -310,7 +316,8 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
             # No zoom: it could move faces under fixed text. Check even H.264 geometry too.
             motion_size = tuple(axis + axis % 2 for axis in ASPECTS[index.aspect])
             if not safe_geometry(photo, concept.texts, index.aspect, concept.layout,
-                                 concept.regions, size=motion_size, fit=concept.fit, focus=concept.focus):
+                                 concept.regions, size=motion_size, fit=concept.fit, focus=concept.focus,
+                                 protect=index.protect):
                 raise MemeError("Animated output needs a different safe layout; create a caption-bar concept.")
             # Normalize supported photo formats (including BMP/TIFF) to the
             # animated renderer's local PNG input; preserve EXIF orientation.

@@ -74,8 +74,43 @@ model while generating concepts. To provision it explicitly, run
 fails, Zing reports an unknown face count and keeps text off the central 60%
 of the source image as a heuristic, and `auto` blur-fills instead of
 cropping (a subject estimate can sit beside a face it cannot see). This can
-miss faces elsewhere. Text avoids faces only; pets and objects are not
-protected. Inspect placement before sharing, even when detection is available.
+miss faces elsewhere. Inspect placement before sharing, even when detection
+is available.
+
+### Pets, objects and protect boxes
+
+Text also avoids non-face subjects. Each photo gets a model-free subject
+estimate: color distance from the photo's border color plus local edge
+strength, a mild center prior, an Otsu threshold and the strongest connected
+region (nearby pieces join it). It marks "a distinct region", never a dog,
+cat or any other category, and its confidence is an uncalibrated separation
+score from 0 to 1. Flat, evenly busy, full-width bands (sky, floor) and
+regions covering most of the photo are not subjects. When no prominent face
+was detected and the confidence is at least 0.5, the estimate's box (grown
+by 3% of the photo per side) is protected like a face. Lower estimates are
+reported but not protected. The still index records `subject_estimate` (box,
+confidence, method, position and evidence), and each concept warns with one
+line such as "Subject estimate (top-center, box [...], confidence 1.00,
+uncalibrated) ... it marks a distinct region, not what it is."
+
+Add your own boxes with `--protect x,y,w,h` (normalized source coordinates,
+repeatable, at most six) on `zing still` and `zing meme render`, or `protect`
+on MCP `still_concepts` and `meme_render`. They apply in addition to faces
+and the estimate; `zing still pick` re-checks the boxes saved in the index.
+
+```sh
+uv run --frozen zing meme render --image dog.jpg --text "me at 6am" --protect 0.3,0.05,0.4,0.5 --out dog-meme.png
+```
+
+`meme render` now checks its text boxes against detected faces, the subject
+estimate and protect boxes (it does not use the central-60% fallback). When
+its default classic layout would cover one, it uses a caption bar above the
+photo and says why. An explicitly requested `--layout` (or `--regions`) is
+kept, and the overlap is stated in `warnings` and in the result's
+`protection` object (`regions`, `text_clear`, `subject_estimate`, `summary`).
+The check uses layout boxes, which are wider than the ink, so it errs toward
+moving text. Templates check only explicit protect boxes. `render-video`
+does not run face or subject protection.
 
 The photo inventory reads one folder, without recursion or links. It accepts
 single-frame JPEG, PNG, WebP, BMP, TIFF, and HEIC/HEIF; other extensions are

@@ -50,6 +50,9 @@ class Photo(Record):
     # Decoding report (myzing.memes.photo.PhotoSource): original and working
     # sizes, decoder and orientation source; None for older indexes.
     source: dict | None = None
+    # Model-free distinct-region estimate (myzing.memes.subject); protected
+    # from text when confident and no prominent face. None for older indexes.
+    subject_estimate: dict | None = None
 
 
 @dataclass
@@ -83,6 +86,8 @@ class StillIndex(Record):
     prompt_path: str = "meme-writer.md"
     warnings: list[str] = field(default_factory=list)
     selected: str | None = None
+    # Explicit user protect boxes (normalized source [x, y, w, h]); pick re-checks them.
+    protect: list[list[float]] | None = None
 
     @classmethod
     def from_dict(cls, data: dict):
