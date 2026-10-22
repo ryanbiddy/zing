@@ -180,3 +180,21 @@ def test_render_refuses_to_overwrite_existing_output(photo, tmp_path):
     result = render_meme(["top", "bottom"], image=str(photo), out=str(out), overwrite=True)
     with Image.open(result["path"]) as image:
         assert image.size == (1080, 1080)
+
+
+def test_render_rejects_non_boolean_overwrite(photo, tmp_path):
+    with pytest.raises(MemeError, match="overwrite must be boolean"):
+        render_meme(["top"], image=str(photo), out=str(tmp_path / "x.png"), overwrite="yes")
+
+
+def test_truncated_blank_is_not_cached():
+    from io import BytesIO
+
+    from myzing.memes.templates import _require_decodable
+
+    buffer = BytesIO()
+    Image.new("RGB", (64, 64), (200, 10, 10)).save(buffer, format="JPEG")
+    whole = buffer.getvalue()
+    _require_decodable(whole)
+    with pytest.raises(MemeError, match="unreadable image"):
+        _require_decodable(whole[: len(whole) // 2])

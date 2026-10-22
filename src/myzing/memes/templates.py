@@ -43,6 +43,21 @@ class _MemegenRedirect(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+def _require_decodable(data: bytes) -> None:
+    """Fully decode a downloaded blank so a truncated body is never cached."""
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+    except ImportError:  # rendering needs Pillow anyway; the signature check still ran
+        return
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image.load()
+    except Exception as exc:  # Pillow raises several types for corrupt data
+        raise MemeError(f"Memegen returned an unreadable image ({exc}); retry or use --image.") from exc
+
+
 def fetch_blank(template_id: str, *, allow_download: bool = False) -> Path:
     """Return a cached blank. A cache miss needs explicit download consent.
 
@@ -73,6 +88,7 @@ def fetch_blank(template_id: str, *, allow_download: bool = False) -> Path:
         if not (data.startswith(b"\xff\xd8\xff") or data.startswith(b"\x89PNG\r\n\x1a\n")
                 or (data.startswith(b"RIFF") and data[8:12] == b"WEBP")):
             raise MemeError("Memegen returned an invalid image signature.")
+        _require_decodable(data)
         directory.mkdir(parents=True, exist_ok=True)
         temp = None
         try:

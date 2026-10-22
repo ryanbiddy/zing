@@ -300,7 +300,8 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
         raise MemeError("fit must be cover or contain")
     if isinstance(rotation, bool) or not isinstance(rotation, (int, float)) or not math.isfinite(rotation) or abs(rotation) > 180:
         raise MemeError("rotation must be between -180 and 180 degrees")
-    for name, value in (("plate", plate), ("shadow", shadow), ("offline", offline)):
+    for name, value in (("plate", plate), ("shadow", shadow), ("offline", offline),
+                        ("overwrite", overwrite)):
         if not isinstance(value, bool):
             raise MemeError(f"{name} must be boolean")
     count = selected["box_count"] if selected else (len(regions) if regions is not None else None)

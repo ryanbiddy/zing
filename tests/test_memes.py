@@ -143,12 +143,25 @@ class Response(io.BytesIO):
         self.headers["Content-Type"] = content_type
 
 
+def _jpeg_body() -> bytes:
+    """A decodable JPEG when Pillow is installed; fetch_blank decode-checks downloads."""
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+    except ImportError:
+        return b"\xff\xd8\xffmock-jpeg"
+    buffer = BytesIO()
+    Image.new("RGB", (32, 32), (10, 20, 30)).save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+
 def test_template_fetch_is_opt_in_and_cached(zing_workspace, monkeypatch):
     calls = []
     class Opener:
         def open(self, request, timeout):
             calls.append((request.full_url, timeout))
-            return Response(b"\xff\xd8\xffmock-jpeg")
+            return Response(_jpeg_body())
     monkeypatch.setattr("myzing.memes.templates.build_opener", lambda *args: Opener())
     with pytest.raises(MemeError, match="not cached"):
         fetch_blank("drake")
