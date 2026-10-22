@@ -126,6 +126,12 @@ pause average includes recovery ramps and fades. Loudness windows use a
 balanced FFmpeg selection expression read from a script file, so hundreds of
 spans measure on FFmpeg 6.1 and 8.1.
 
+Framing may split a clip at source shot boundaries, in the director or in a
+per-aspect delivery. Contiguous pieces of one source keep the planned
+timeline, so each 16:9, 1:1 and 9:16 delivery ducks under the same speech
+spans and measures the same mix; a generated test renders all three and
+compares their sidecars within 0.2 LU.
+
 Match JSON includes the music choice and measured mix. `zing inspect timeline`
 reads a matching sidecar, returns its measurements and draws pink moment
 markers beside amber planned cuts. A mismatched SHA-256 is reported as stale.

@@ -422,3 +422,46 @@ def test_source_speech_ducking_rejects_a_changed_clip_timeline(tmp_path):
     attach(p, MusicPlan(mode="speech-led", speech_spans=[[1, 2]], tracks=[{"id": "m1"}], timeline=timeline_of(planned)))
     with pytest.raises(ValueError, match="re-run zing plan drafts"):
         render_composition(p, tmp_path / "stale.mp4", work_dir=tmp_path / "work")
+
+
+def test_every_aspect_delivery_carries_the_same_music_plan_and_mix(np, tmp_path, monkeypatch):
+    import myzing.render.deliveries as deliveries
+    from myzing.composition.aspects import ASPECTS, dimensions
+    from myzing.music.models import extract, timeline_of
+    from myzing.render.framing import probe_dimensions
+    source = tmp_path / "talk.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=6",
+                    "-f", "lavfi", "-i", "anoisesrc=c=pink:a=0.1:d=6:r=48000", "-c:v", "libx264",
+                    "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(source)],
+                   check=True, capture_output=True, timeout=120)
+    bed = audio(tmp_path / "bed.wav", ".25*sin(2*PI*300*t)", 8)
+    p = Composition(assets=[AssetRef("v", str(source), hash_file(source)), AssetRef("m", str(bed), hash_file(bed))],
+        clips=[CompositionClip(str(source), 0, 6, 0, id="v1", asset_id="v")],
+        audio=[CompositionAudio(str(bed), "music", gain_db=-6, duck_under_speech=True, id="m1", asset_id="m",
+                                role="music", src_in=1, src_out=7, duck_scope="source_speech")],
+        width=320, height=180)
+    spans = [[.5, 2.0], [3.5, 5.0]]
+    attach(p, MusicPlan(mode="speech-led", speech_spans=spans, tracks=[{"id": "m1"}], timeline=timeline_of(p.clips)))
+    # A detected cut at 2.5 s splits every adapted clip (per-aspect reframing);
+    # the pieces must still match the timeline the speech spans were planned for.
+    monkeypatch.setattr(deliveries, "detect_shots", lambda *a, **k: SimpleNamespace(
+        shots=[SimpleNamespace(start=0.0), SimpleNamespace(start=2.5)], warnings=[]))
+    monkeypatch.setattr(deliveries, "analyze_subjects", lambda *a, **k: ([], []))
+    result = deliveries.render_deliveries(p, tmp_path / "edit.mp4", aspects="all", short_side=180, base_dir=tmp_path)
+    rows = result["deliveries"]
+    assert set(rows) == set(ASPECTS)
+    measured = {}
+    for aspect, row in rows.items():
+        assert probe_dimensions(Path(row["video"])) == dimensions(aspect, 180)
+        adapted = Composition.from_json(Path(row["plan"]).read_text(encoding="utf-8"))
+        assert [(c.src_in, c.src_out) for c in adapted.clips] == [(0, 2.5), (2.5, 6)]
+        assert extract(adapted) == extract(p)  # the same music plan, spans and duck settings
+        assert [(a.src_in, a.src_out, a.gain_db, a.duck_scope) for a in adapted.audio] == [(1, 7, -6, "source_speech")]
+        measured[aspect] = json.loads(Path(row["music"]).read_text(encoding="utf-8"))
+    first = measured[ASPECTS[0]]
+    for aspect, m in measured.items():
+        assert m["duck"]["passages"] == 2 and m["music_plan"]["speech_spans"] == spans
+        for key in ("music_speech_lufs", "music_gap_lufs", "source_speech_lufs", "speech_to_music_lu",
+                    "music_speech_rms_dbfs", "music_gap_rms_dbfs"):
+            assert m[key] is not None and m[key] == pytest.approx(first[key], abs=.2), (aspect, key)
+        assert m["integrated"]["integrated_lufs"] == pytest.approx(first["integrated"]["integrated_lufs"], abs=.2)

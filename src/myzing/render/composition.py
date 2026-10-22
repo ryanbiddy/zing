@@ -270,7 +270,8 @@ def render_composition(
             raise EDLValidationError("source_speech ducking requires source clips with audio")
         validated = replace(validated, warnings=tuple(w for w in validated.warnings if "EDL has no voiceover" not in w))
     from .color import validate_source_colors, write_luts
-    validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated))
+    validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated)
+                        + measurement_warnings)
     from .framing import probe_dimensions
     framing_warnings, dimensions = [], {}
     ordered = sorted(c.clips, key=lambda clip: clip.timeline_start)

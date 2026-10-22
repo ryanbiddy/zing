@@ -23,6 +23,10 @@ One composition produces `draft-A.16x9.mp4`, `draft-A.1x1.mp4`, and
 `draft-A.deliveries.json` report. Each delivery preserves source choices, trims,
 audio, grade and timeline, and rebuilds source framing and caption layout.
 It never rescales an already rendered draft. Source-cut splits preserve timing.
+Music plans travel unchanged: every delivery carries the same MUSIC1 evidence,
+music trim, gain and known-speech ducking, and writes its own
+`draft-A.<aspect>.music.json` measurement sidecar. Split pieces still match
+the timeline the speech spans were planned for (see [Music](MUSIC.md)).
 Transition-linked clips retain their handles and are not split; auto can choose
 blurfill when their crops lose subjects. Forced reframe across internal cuts
 in a transition leg needs editorial review.

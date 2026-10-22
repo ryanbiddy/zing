@@ -199,3 +199,22 @@ def test_music_spans_are_tied_to_the_planned_clip_timeline():
     clips[1].timeline_start = 2.5  # e.g. an overlapping transition pulled the clip earlier
     assert "re-run zing plan drafts" in stale_timeline(plan, clips)
     assert stale_timeline(MusicPlan(speech_spans=[[0, 1]]), clips) is None
+
+
+def test_framing_splits_keep_the_planned_speech_timeline():
+    from types import SimpleNamespace
+    from myzing.director.selection import Candidate
+    from myzing.music.models import stale_timeline, timeline_of
+    # The director plans speech spans on its candidate sequence; reframe then
+    # splits clips at shot boundaries (director and per-aspect deliveries).
+    sequence = [Candidate("a", "a", 1.0, 4.0, 0, 0, None, "", False, True),
+                Candidate("b", "b", 2.0, 5.0, 0, 0, None, "", False, True)]
+    plan = MusicPlan(speech_spans=[[0, 1]], timeline=timeline_of(sequence))
+    split = [SimpleNamespace(asset_id="a", src_in=1.0, src_out=2.5, timeline_start=0.0),
+             SimpleNamespace(asset_id="a", src_in=2.5, src_out=4.0, timeline_start=1.5),
+             SimpleNamespace(asset_id="b", src_in=2.0, src_out=3.0, timeline_start=3.0),
+             SimpleNamespace(asset_id="b", src_in=3.0, src_out=5.0, timeline_start=4.0)]
+    assert stale_timeline(plan, split) is None
+    assert stale_timeline(plan, list(reversed(split))) is None  # composition order is by timeline
+    split[3].src_in, split[3].src_out = 3.2, 5.2  # a retrimmed piece is a different timeline
+    assert stale_timeline(plan, split) is not None

@@ -47,7 +47,7 @@ REGISTERED_SKIPS = {
     "real-media test needs ffmpeg and ffprobe": (
         "the separately opted-in media regression needs the decoder binaries. "
         "PRODUCT SURFACE: doctor names FFmpeg as required and the transition probe "
-        "raises an explicit executable-not-found error. The 289 mandatory FFmpeg "
+        "raises an explicit executable-not-found error. The 308 mandatory FFmpeg "
         "tests remain in the no-skip CI gate."
     ),
     "set ZING_CG2_REAL_ROOT": (

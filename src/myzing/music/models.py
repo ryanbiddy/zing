@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from myzing.contracts import Record
 from .ducking import (DEFAULT_ATTACK_SECONDS, DEFAULT_DEPTH_DB, DEFAULT_HOLD_SECONDS,
                       DEFAULT_RELEASE_SECONDS, check_span_count)
@@ -50,15 +51,30 @@ class MusicPlan(Record):
                 "attack": self.duck_attack_seconds, "release": self.duck_release_seconds}
 
 
+def _contiguous(a: dict, b: dict) -> bool:
+    return (a["asset_id"] == b["asset_id"] and abs(a["src_out"] - b["src_in"]) <= 1e-6
+            and abs(a["timeline_start"] + a["src_out"] - a["src_in"] - b["timeline_start"]) <= 1e-6)
+
+
 def timeline_of(clips) -> list[dict]:
-    """Fingerprint of composition clips (or director candidates) in output order."""
+    """Fingerprint of composition clips (or director candidates) in output order.
+
+    Contiguous pieces of one source (same asset, continuous source and output
+    time) merge, so framing splits at shot boundaries in the director or in a
+    per-aspect delivery keep the planned speech-span timeline.
+    """
     rows, cursor = [], 0.0
-    for c in clips:
+    for c in sorted(clips, key=lambda c: getattr(c, "timeline_start", 0.0)) if all(
+            hasattr(c, "timeline_start") for c in clips) else clips:
         start = getattr(c, "timeline_start", cursor)
         src_in = getattr(c, "src_in", getattr(c, "start", None))
         src_out = getattr(c, "src_out", getattr(c, "end", None))
-        rows.append({"asset_id": c.asset_id, "src_in": float(src_in), "src_out": float(src_out),
-                     "timeline_start": float(start)})
+        row = {"asset_id": c.asset_id, "src_in": float(src_in), "src_out": float(src_out),
+               "timeline_start": float(start)}
+        if rows and _contiguous(rows[-1], row):
+            rows[-1]["src_out"] = row["src_out"]
+        else:
+            rows.append(row)
         cursor = start + src_out - src_in
     return rows
 
@@ -68,9 +84,10 @@ def stale_timeline(evidence: MusicPlan, clips) -> str | None:
     if not evidence.timeline:
         return None
     current = timeline_of(clips)
-    if len(current) != len(evidence.timeline) or any(
+    planned = timeline_of([SimpleNamespace(**row) for row in evidence.timeline])
+    if len(current) != len(planned) or any(
             a["asset_id"] != b["asset_id"] or any(abs(a[k] - b[k]) > 1e-6 for k in ("src_in", "src_out", "timeline_start"))
-            for a, b in zip(current, evidence.timeline)):
+            for a, b in zip(current, planned)):
         return ("MUSIC1 speech spans were planned for a different clip timeline (clips, trims or transition "
                 "overlaps changed); re-run zing plan drafts before ducking under source speech")
     return None
