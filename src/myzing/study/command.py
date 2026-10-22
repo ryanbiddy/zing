@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-USAGE = "zing study <url|file> [--workspace DIR] [--transitions] [--caption-geometry] [--json]"
+USAGE = "zing study <url|file> [--workspace DIR] [--transitions] [--caption-geometry [--fonts]] [--json]"
 
 
 def run(argv: list[str]) -> int:
@@ -42,7 +42,11 @@ def run(argv: list[str]) -> int:
              "-- studied with zero refetch; unusable kept media falls back "
              "to a normal fetch with a warning",
     )
+    parser.add_argument("--fonts", action="store_true",
+                        help="rank locally available fonts (requires --caption-geometry; never downloads fonts)")
     args = parser.parse_args(argv)
+    if args.fonts and not args.caption_geometry:
+        parser.error("--fonts requires --caption-geometry")
 
     from myzing import storage
     from myzing.study.api import study
@@ -55,6 +59,8 @@ def run(argv: list[str]) -> int:
             study_kwargs["detect_transitions"] = True
         if args.caption_geometry:
             study_kwargs["caption_geometry"] = True
+        if args.fonts:
+            study_kwargs["fonts"] = True
         if args.raw:
             study_kwargs["raw_mode"] = True
         if args.kept_media is not None:

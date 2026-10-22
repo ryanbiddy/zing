@@ -87,9 +87,19 @@ class CaptionGeometry(JsonRecord):
     provenance: dict[str, Any] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     version: int = 1
+    font_candidates: dict[str, Any] | None = None
+
+    def to_dict(self):
+        value = super().to_dict()
+        if self.font_candidates is None:
+            value.pop("font_candidates")
+        return value
 
     @classmethod
     def from_dict(cls, value):
+        if value.get("font_candidates") is not None:
+            from .font_match import FontCandidates
+            FontCandidates.from_dict(value["font_candidates"])
         return super().from_dict({**value,
             "frames": [FrameSample.from_dict(f) for f in value.get("frames", [])],
             "tracks": [CaptionTrack.from_dict(t) for t in value.get("tracks", [])]})

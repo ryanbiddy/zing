@@ -85,8 +85,8 @@ REGISTERED_SKIPS = {
 # module name IS the reason, and each is a declared optional extra.
 REGISTERED_IMPORTORSKIP = {
     "numpy", "cv2", "scenedetect", "faster_whisper", "mcp", "rapidocr", "onnxruntime",
-    # Optional myzing[memes]; doctor.check_pillow and render's install hint
-    # expose the same dependency gap to users.
+    # Optional myzing[memes] and myzing[fonts]; doctor.check_pillow,
+    # doctor.check_fonts and the command install hints expose the same gap.
     "PIL.Image",
 }
 

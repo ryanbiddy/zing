@@ -18,6 +18,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
               "guided first run: study a preset pack or your own links"),
     "study": ("myzing.study.command",
               "measure a video (URL or local file) into a breakdown"),
+    "fonts": ("myzing.fonts.command",
+              "list or fetch caption fonts; rank candidates for a study"),
     "project": ("myzing.project.command",
                 "inventory a reference and local clips; scan and inspect a project"),
     "brief": ("myzing.brief.command",

@@ -47,3 +47,22 @@ The explicit model provisioner pins RapidAI's v3.9.1 ONNX exports of
 are never triggered by study. These are the same model families used by the
 existing caption reader. Licensing: [RapidOCR Apache-2.0 license at v3.9.1](https://github.com/RapidAI/RapidOCR/blob/v3.9.1/LICENSE)
 and [PaddleOCR Apache-2.0 license](https://github.com/PaddlePaddle/PaddleOCR/blob/main/LICENSE).
+
+## P8 font candidates
+
+The `fonts` optional extra reuses Pillow (HPND), OpenCV headless
+(Apache-2.0; Python packaging MIT) and its NumPy dependency (BSD-3-Clause).
+Core installation stays stdlib-only. No new third-party package or binary is
+vendored. Pillow's FreeType rasterizer is supplied by the optional Pillow
+installation; see [Pillow's license](https://github.com/python-pillow/Pillow/blob/main/LICENSE).
+
+The font library pins Google Fonts revision
+`45e3d5269e4a17d823f6d84470bc084dc5ae46f6` in
+[`library.json`](../src/myzing/_data/fonts/library.json), with URLs and SHA-256
+hashes for each font and license. Anton, IBM Plex Sans, Bebas Neue, Oswald,
+Montserrat, Poppins, Inter, Roboto, Open Sans, Archivo Black and Bangers are
+OFL-1.1. Luckiest Guy and Permanent Marker are Apache-2.0; see their pinned
+[Luckiest Guy license](https://github.com/google/fonts/blob/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/luckiestguy/LICENSE.txt)
+and [Permanent Marker license](https://github.com/google/fonts/blob/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/permanentmarker/LICENSE.txt).
+Only the existing Anton and IBM Plex Sans files remain bundled. Other fonts
+and their license texts are downloaded together on explicit `zing fonts fetch`.
