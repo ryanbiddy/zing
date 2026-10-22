@@ -26,6 +26,10 @@ your saved references live.
 
 Status: pre-alpha, under active build. See the [Developer Guide](docs/DEVELOPER-GUIDE.md), [CONNECT](docs/CONNECT.md) for AI clients, and [DIRECT-FLOW](docs/DIRECT-FLOW.md) for the direction workflow.
 
+For standalone caption placement around faces and platform UI, see
+[face-aware layout](docs/FACE-LAYOUT.md). It produces a JSON plan and debug contact
+sheet; ASS integration is a later pass.
+
 ## Quick Start
 ```bash
 # Setup virtual environment with dev/study dependencies
