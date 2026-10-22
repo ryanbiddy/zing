@@ -706,6 +706,16 @@ def check_uoink() -> Check:
     )
 
 
+def check_pillow() -> Check:
+    present = _has_module("PIL")
+    return Check(
+        name="pillow", tier=OPTIONAL, ok=present,
+        detail="Pillow available for still memes" if present else "Pillow is not installed",
+        fix='' if present else 'python -m pip install "myzing[memes]"',
+        degraded_mode="" if present else "meme rendering is unavailable; ideas, templates, and text checks still work",
+    )
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -714,6 +724,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_whisper(),
         check_ocr(),
         check_tts(),
+        check_pillow(),
         check_uoink(),
     ]
 

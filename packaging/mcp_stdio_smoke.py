@@ -35,6 +35,10 @@ EXPECTED_TOOLS = {
     "export_otio",
     "list_presets",
     "setup_taste",
+    "meme_templates",
+    "meme_ideas",
+    "meme_check",
+    "meme_render",
 }
 TIMEOUT_SECONDS = 60
 
