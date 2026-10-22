@@ -108,6 +108,8 @@ def read_captions(media_path: Path, duration: float, *, local_models_only: bool 
         if local_models_only:
             from .caption_models import engine as local_engine
             engine, version = local_engine()
+            # caption_models already prefixes its version; ocr_backend adds one.
+            version = version.removeprefix("rapidocr-")
         else:
             engine, version = _engine()
     except ImportError:
