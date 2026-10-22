@@ -118,9 +118,11 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         report["search"] = {"candidate_count": len(pool), "method": "deterministic bounded beam; 96 states per expansion",
                             "distinctness": "Different opening content with <50% overlap, or >=max(1s, reference median, 20% target) changed footage.",
                             "duration_tolerance_seconds": 2 / 30}
+        music_cache = {}
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
-                                       style, brief, manifest, root, seed, keep, forbidden, subject_evidence)
+                                       style, brief, manifest, root, seed, keep, forbidden,
+                                       subject_evidence=subject_evidence, music_cache=music_cache)
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},

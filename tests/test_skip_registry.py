@@ -28,6 +28,11 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "real-model test requires explicit opt-in": (
+        "normal pytest never loads real Whisper, OCR, YuNet or Kokoro models without an explicit test opt-in. "
+        "PRODUCT SURFACE: docs/DEVELOPER-GUIDE.md lists each environment variable; the real-ASR fixture "
+        "also uses local_files_only=True. Production feature availability remains exposed by zing doctor."
+    ),
     "opt in with ZING_REAL_TRANSITIONS=1": (
         "the real transition regression reads licensed, hash-pinned local media only. "
         "PRODUCT SURFACE: tools/eval/TRANSITIONS.md documents the opt-in and media root; "
@@ -137,7 +142,7 @@ def _literal(node: ast.AST) -> str | None:
 def collect_authored_skips() -> list[tuple[str, str]]:
     """(file, reason) for every skip reason written in a test source."""
     found: list[tuple[str, str]] = []
-    for path in sorted(TESTS.glob("test_*.py")):
+    for path in sorted([*TESTS.glob("test_*.py"), TESTS / "conftest.py"]):
         if path.name == Path(__file__).name:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))

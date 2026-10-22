@@ -246,7 +246,7 @@ def test_missing_clip_audio_fades_silence_without_shifting_music(tmp_path, sourc
     c.audio = [CompositionAudio(str(pulse), "music", .70037, id="pulse", asset_id="pulse", role="music")]
     result = render(tmp_path, c)
     command = ["ffmpeg", "-v", "error", "-i", str(silent), "-i", str(sources[1]), "-i", str(pulse),
-               "-filter_complex", result.filtergraph + ";[video_out]nullsink", "-map", "[audio_out]", "-ac", "1", "-f", "f32le", "-"]
+               "-filter_complex", result.filtergraph + ";[video_out]nullsink;[source_measure]anullsink;[music_measure]anullsink", "-map", "[audio_out]", "-ac", "1", "-f", "f32le", "-"]
     pcm = np.frombuffer(run(command), dtype="<f4")
     assert np.argmax(np.abs(pcm[:48000])) == round(.70037 * 48000)
     assert np.count_nonzero(pcm[:30000]) == 0

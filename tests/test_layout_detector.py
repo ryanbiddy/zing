@@ -69,6 +69,7 @@ def test_doctor_layout_is_offline_and_actionable(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(os.environ.get("ZING_REQUIRE_YUNET") != "1", reason="set ZING_REQUIRE_YUNET=1 for cached model tests")
+@pytest.mark.real_model(env="ZING_REQUIRE_YUNET")
 def test_real_yunet_detects_public_domain_face_at_two_sizes_and_blank(monkeypatch):
     # NASA Eileen Collins image; provenance/hash and explicit fetch instructions
     # in docs/FACE-LAYOUT.md. No model/image download from a test.

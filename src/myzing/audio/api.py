@@ -40,8 +40,40 @@ def analyze(
         warnings.append(f"Analysis truncated at {duration:.6f} seconds; all observations, including loudness, describe only this excerpt.")
     onsets = detect_onsets(features)
     tempo, beats = track_beats(onsets, duration, words)
+    if tempo.status != "steady" and not words:
+        from .pulse import layered_pulse
+        fallback = layered_pulse(features, onsets, duration)
+        if fallback:
+            tempo, beats = fallback
     segments = segment_roles(features, duration, words)
     loudness = measure_loudness(path, max_seconds=duration)
+    from .structure import analyze_structure, channel_quality
+    structure = analyze_structure(features, tempo, beats, onsets, duration)
+    if tempo.status != "steady" and not words and duration >= 16:
+        from .pulse import layered_pulse
+        from .features import HOP
+        from .models import Onset
+        for frame in range(0, len(features["rms"]), round(16 * SAMPLE_RATE / HOP)):
+            start = frame * HOP / SAMPLE_RATE
+            length = min(16, duration - start)
+            if length < 8:
+                continue
+            local = {key: values[frame:frame + round(length * SAMPLE_RATE / HOP)] for key, values in features.items()}
+            attacks = [Onset(o.time - start, o.strength) for o in onsets if start <= o.time < start + length]
+            pulse, supported = track_beats(attacks, length, [])
+            if pulse.status != "steady":
+                found = layered_pulse(local, attacks, length)
+                if found:
+                    pulse, supported = found
+            if pulse.status != "steady":
+                continue
+            sub = analyze_structure(local, pulse, supported, attacks, length)
+            structure.rhythm_regions.append({"start": start, "end": start + length, "bpm": pulse.bpm,
+                "confidence": pulse.confidence, "evidence": pulse.evidence,
+                "beats": [start + t for t in supported], "downbeat_status": pulse.downbeat_status,
+                "bars": [start + t for t in sub.bars]})
+            structure.phrases.extend({**p, "time": start + p["time"], "region_start": start} for p in sub.phrases)
+    structure.quality = channel_quality(path, duration, loudness.true_peak_dbtp)
     if float(features["rms"].max()) < 10 ** (-55 / 20) and loudness.integrated_lufs is not None and loudness.integrated_lufs > -50:
         segments = [Segment(0, duration, "uncertain", 0.0, "source is audible but mono downmix is near-silent; possible phase cancellation")]
         warnings.append("Source-channel loudness conflicts with near-silent mono audio; roles and beats are unavailable after possible channel cancellation.")
@@ -50,11 +82,13 @@ def analyze(
     if duration < 3:
         warnings.append("Loudness range is not meaningful for excerpts shorter than three seconds.")
     warnings.append("Role and tempo confidence are heuristic evidence scores, not calibrated probabilities; onsets are attacks, not identified SFX.")
-    warnings.append("Downbeats and meter are unknown; half/double-time interpretations are unresolved.")
+    warnings.append("Meter requires repeated four-beat accents; otherwise downbeats/bars/phrases are unknown. Metric phrases are candidates, not recovered song form.")
+    warnings.append(structure.vocals["limits"])
     return AudioMap(
         source=str(path), duration_seconds=duration, sample_rate=SAMPLE_RATE,
         max_seconds=max_seconds, truncated=truncated, tempo=tempo, beats=beats,
         onsets=onsets, segments=segments, loudness=loudness, warnings=warnings,
-        tool_versions={"zing": __version__, "audio_algorithm": "1", "numpy": numpy().__version__, "ffmpeg": ffmpeg_version()},
+        tool_versions={"zing": __version__, "audio_algorithm": "2.1", "numpy": numpy().__version__, "ffmpeg": ffmpeg_version()},
         breakdown_source=breakdown_source,
+        structure=structure,
     )

@@ -1,4 +1,4 @@
-"""Version 1 audio observations, independent of the composition schemas.
+"""Version 2 audio maps with version 1 observations and backwards loading.
 
 Confidence values are heuristic evidence scores, not calibrated probabilities.
 All times refer to decoded audio, starting at zero, in seconds.
@@ -24,7 +24,7 @@ class Record:
         return cls(**data)
 
     def __post_init__(self) -> None:
-        if self.version != 1:
+        if self.version not in ((1, 2) if type(self).__name__ == "AudioMap" else (1,)):
             raise ValueError(f"unsupported {type(self).__name__} version: {self.version}")
         for name, value in vars(self).items():
             if isinstance(value, float) and not math.isfinite(value):
@@ -117,15 +117,19 @@ class AudioMap(Record):
     warnings: list[str] = field(default_factory=list)
     tool_versions: dict[str, str] = field(default_factory=dict)
     breakdown_source: str | None = None
-    version: int = 1
+    version: int = 2
+    structure: Any = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AudioMap:
         data = dict(data)
-        if data.get("version") != 1:
+        if data.get("version") not in (1, 2):
             raise ValueError(f"unsupported AudioMap version: {data.get('version')!r}")
         data["tempo"] = Tempo.from_dict(data["tempo"])
         data["loudness"] = Loudness.from_dict(data["loudness"])
         data["onsets"] = [Onset.from_dict(item) for item in data["onsets"]]
         data["segments"] = [Segment.from_dict(item) for item in data["segments"]]
+        if data.get("structure") is not None:
+            from .structure import Structure
+            data["structure"] = Structure.from_dict(data["structure"])
         return cls(**data)

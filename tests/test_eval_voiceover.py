@@ -135,6 +135,7 @@ def test_real_voiceover_probe_mutations_fail_only_target_dimension(
     os.environ.get("ZING_REQUIRE_KOKORO") != "1",
     reason="set ZING_REQUIRE_KOKORO=1 for the optional real Kokoro check",
 )
+@pytest.mark.real_model(env="ZING_REQUIRE_KOKORO")
 def test_real_kokoro_voiceover_survives_assembled_render(
     tmp_path: Path,
 ) -> None:

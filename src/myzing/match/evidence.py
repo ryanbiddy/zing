@@ -57,7 +57,7 @@ def group_disclosures(warnings: list[str], *, examples: int = 6) -> list[str]:
 
 def user_warnings(warnings):
     """The director's serialized evidence stays in plans, not warning prose."""
-    return list(dict.fromkeys(w for w in warnings if not w.startswith("P17 planning evidence:")))
+    return list(dict.fromkeys(w for w in warnings if not w.startswith(("P17 planning evidence:", "MUSIC1 evidence:"))))
 
 
 def decode(path, plan):
@@ -110,7 +110,7 @@ def _metric(target, observed, tolerance, basis, *, approximate=False):
             "basis": basis, "reason": reason}
 
 
-def report(recipe, rendered, geometry, color, verification, plan):
+def report(recipe, rendered, geometry, color, verification, plan, audio_measurements=None):
     facts = {f.name: f.value for f in recipe.measured}
     durations = facts.get("shot_durations", [])
     observed_durations = [s.duration for s in rendered.shots]
@@ -184,7 +184,17 @@ def report(recipe, rendered, geometry, color, verification, plan):
     if continuity:
         dimensions["continuity"] = {"status": {"flagged": "miss", "pass": "pass"}.get(continuity["status"], "not_applicable"),
                                     "reason": continuity["basis"], **{k: v for k, v in continuity.items() if k != "status"}}
+    if any(a.kind == "music" for a in plan.audio):
+        target = planning.get("music", {}).get("speech_to_music_lu", 21) if planning.get("music") else 21
+        measured = (audio_measurements or {}).get("speech_to_music_lu")
+        dimensions["music_mix"] = _metric(target if measured is not None else None, measured, 3,
+            "Isolated music and source stems in director speech windows; target 18-24 LU under speech.")
+        if (planning.get("music") or {}).get("mode") == "music-led":
+            dimensions["music_mix"] = _metric(-16,
+                (audio_measurements or {}).get("music_integrated", {}).get("integrated_lufs"), 3,
+                "Isolated music stem before final peak limiting; music-led planning target -16 LUFS.")
     return {"version": 1, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
+            "music": planning.get("music"), "audio_measurements": audio_measurements,
             "source_pacing": source_pacing, "text_roles": output_roles,
             "pacing_flag": "unmet" if dimensions["shot_pace"]["status"] == "miss" else "unverified" if dimensions["shot_pace"]["status"] == "approximate" else "met",
             "render": verification, "dimensions": dimensions,
@@ -214,6 +224,21 @@ def markdown(summary):
         if row["status"] == "ready":
             lines += ["", f"{label}: [video](<{link(row['video'])}>) · [plan](<{link(row['plan'])}>) · "
                       f"[timeline](<{link(row['timeline'])}>) · [match report](<{link(row['report'])}>)"]
+            for track in (row.get("music") or {}).get("tracks", []):
+                lines += ["", f"Music: {Path(track['path']).name}. {track['reason']}",
+                          track["advice"]["licensing"]]
+            cuts = (row.get("music") or {}).get("cut_summary")
+            if cuts:
+                lines += ["", f"Music timing: {cuts['snapped']}/{cuts['total']} cuts snapped; "
+                          f"{cuts['moment_locked']} locked to a moment, {cuts['already_aligned']} already aligned, "
+                          f"{cuts['kept']} retained with per-cut reasons in the plan."]
+            measured = row.get("audio_measurements")
+            if measured:
+                lines += ["", f"Measured music: {measured['music_speech_lufs']} LUFS in speech windows; "
+                          f"{measured['music_gap_lufs']} LUFS in gaps; "
+                          f"{measured['speech_to_music_lu']} LU below source speech. "
+                          f"Mix: {measured['integrated']['integrated_lufs']} LUFS, "
+                          f"{measured['integrated']['true_peak_dbtp']} dBTP. Unknown values remain unmeasured."]
     if summary.get("director_comparison"):
         lines += ["", f"[Full planning evidence](<{link(summary['director_comparison'])}>)"]
     if summary.get("reference_text_roles"):

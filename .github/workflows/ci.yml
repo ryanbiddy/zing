@@ -35,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
+      ZING_REQUIRE_OCR: "1"
       ZING_TEST_FETCH_FONTS: "1"
     steps:
       - uses: actions/checkout@v5
@@ -89,6 +90,7 @@ jobs:
     runs-on: windows-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
+      ZING_REQUIRE_OCR: "1"
       ZING_TEST_FETCH_FONTS: "1"
     steps:
       - uses: actions/checkout@v5
@@ -130,6 +132,7 @@ jobs:
     runs-on: macos-latest
     env:
       ZING_REQUIRE_FFMPEG: "1"
+      ZING_REQUIRE_OCR: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -155,7 +158,7 @@ jobs:
       - run: pip uninstall -y opencv-python
       - run: pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92
       - name: Real media, inspection, render audio and animated meme gates (skips are failures)
-        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking tests/test_memes_video.py tests/test_director_ffmpeg.py tests/test_render_composition_ffmpeg.py tests/test_render_lut_ffmpeg.py tests/test_match_ffmpeg.py tests/test_e2e1_ffmpeg.py tests/test_continuity_ffmpeg.py tests/test_framing_ffmpeg.py tests/test_aspect_delivery_ffmpeg.py tests/test_render_transitions_ffmpeg.py::test_supported_transition_pixels_frames_duration_audio tests/test_render_transitions_ffmpeg.py::test_mixed_chain_normalizes_inputs_and_keeps_fractional_audio_placement tests/test_render_transitions_ffmpeg.py::test_luts_precede_overlap_and_captions_follow_it tests/test_still.py::test_pick_real_video_and_gif_offline -m ffmpeg --expected-ffmpeg-tests 169
+        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking tests/test_memes_video.py tests/test_director_ffmpeg.py tests/test_render_composition_ffmpeg.py tests/test_render_lut_ffmpeg.py tests/test_match_ffmpeg.py tests/test_e2e1_ffmpeg.py tests/test_continuity_ffmpeg.py tests/test_framing_ffmpeg.py tests/test_aspect_delivery_ffmpeg.py tests/test_music_ffmpeg.py tests/test_render_transitions_ffmpeg.py::test_supported_transition_pixels_frames_duration_audio tests/test_render_transitions_ffmpeg.py::test_mixed_chain_normalizes_inputs_and_keeps_fractional_audio_placement tests/test_render_transitions_ffmpeg.py::test_luts_precede_overlap_and_captions_follow_it tests/test_still.py::test_pick_real_video_and_gif_offline -m ffmpeg --expected-ffmpeg-tests 169
 
   # S5 Lane B: fresh-host install gate — wheel -> bare venv -> first-run
   # surface, NO repo checkout on the tested path (packaged data must

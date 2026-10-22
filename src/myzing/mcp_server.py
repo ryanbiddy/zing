@@ -1663,6 +1663,18 @@ def h_inspect_timeline(video: str, out: str, start: float | None = None,
         return _err(str(exc))
 
 
+def h_music_check(tracks: list[str], brief: str | None = None, plan: str | None = None,
+                  length: float | None = None, pace: float | None = None,
+                  speech: bool | None = None, license_record: str | None = None) -> dict[str, Any]:
+    from myzing.music.advice import check_tracks
+    from myzing.audio.media import AudioError
+    try:
+        return _ok(**check_tracks(tracks, brief=brief, plan=plan, length=length, pace=pace,
+                                  speech=speech, license_record=license_record))
+    except (AudioError, OSError, ValueError, TypeError, KeyError) as exc:
+        return _err(str(exc))
+
+
 def h_meme_render_video(texts: list[str], video: str = "", image: str = "", template: str = "",
                         layout: str = "", aspect: str = "1:1", out: str = "", fit: str = "",
                         font: str = "", regions: list[list[float]] | None = None,
@@ -2043,6 +2055,7 @@ def build_server():
             "output is refused unless overwrite=true."
         ),
     )(h_inspect_timeline)
+    mcp.tool(name="music_check", description="Rate local music candidates for a brief or v2 plan: good, usable or bad, with measured reasons. Optional length seconds, pace seconds per cut and speech context. Requires myzing[audio] and FFmpeg. No downloads, uploads or song identification. Licensing stays unknown unless the user records a claim; Zing does not verify it.")(h_music_check)
 
     mcp.tool(
         name="plan_drafts",

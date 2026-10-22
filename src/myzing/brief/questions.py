@@ -116,6 +116,8 @@ def interview(project, stdin: TextIO, stdout: TextIO) -> Brief:
                 print('  Use clip.mp4 @ 0-2; "exact phrase". Times are source seconds or mm:ss.', file=stdout)
             if kind == "audio":
                 print("  For files: supplied files: audio/bed.wav; audio/hit.wav (paths relative to project).", file=stdout)
+                if key == "music":
+                    print("  Supplied tracks receive advice on pace, vocals, length and mix; licensing remains unknown.", file=stdout)
             while True:
                 default = json.dumps(item["default"], ensure_ascii=False)
                 print(f"  {item['prompt']} [default: {default}]\n> ", end="", file=stdout, flush=True)

@@ -157,5 +157,20 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 289
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 289
 ```
+
+Real-model tests require explicit opt-in even when models are already cached:
+`ZING_REQUIRE_REAL_ASR=1` for Whisper, `ZING_REQUIRE_OCR=1` for the generated
+OCR fixtures, `ZING_REQUIRE_YUNET=1` for face inference, and
+`ZING_REQUIRE_KOKORO=1` for synthesis. The separate caption real-media test
+requires `ZING_CG2_REAL_ROOT` to name its local fixture directory. The shared
+`real_model(env=...)` marker skips before fixture/model loading; its reason is
+registered in `tests/test_skip_registry.py`.
+
+Default `pytest` needs no HF offline environment variables to avoid real model
+loads. `tests/test_real_model_opt_in.py` removes those variables and poisons
+the ASR loader and hub download functions to prove the default skips first.
+The opted-in Whisper test also sets `local_files_only=True`: provision a model
+explicitly outside the tests before running it. The mandatory FFmpeg gate
+opts into OCR with pre-provisioned assets; missing assets still fail the gate.
