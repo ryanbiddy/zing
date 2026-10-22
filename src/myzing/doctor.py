@@ -706,6 +706,16 @@ def check_uoink() -> Check:
     )
 
 
+def check_color() -> Check:
+    present = _has_module("numpy")
+    return Check(
+        name="color", tier=OPTIONAL, ok=present,
+        detail="numpy installed (local SDR color matching)" if present else "numpy is not importable",
+        fix="" if present else 'python -m pip install "myzing[color]"',
+        degraded_mode="" if present else "color match/apply unavailable; other commands are unaffected",
+    )
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -714,6 +724,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_whisper(),
         check_ocr(),
         check_tts(),
+        check_color(),
         check_uoink(),
     ]
 

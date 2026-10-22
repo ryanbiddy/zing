@@ -26,6 +26,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
                  "turn a direction into a draft edit"),
     "render": ("myzing.render.command",
                "render an EDL to video"),
+    "color": ("myzing.color.command",
+              "match an SDR look approximation and apply a .cube LUT"),
     "thumbs": ("myzing.thumbs",
                "generate thumbnail candidates for a video"),
     "serve-mcp": ("myzing.mcp_server",

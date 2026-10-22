@@ -28,7 +28,8 @@ study = [
 # do exactly this. Raising it is a deliberate port, not a version bump.
 mcp = ["mcp>=1.2,<2"]
 render = ["pysubs2>=1.8.1"]
-all = ["myzing[study]", "myzing[mcp]", "myzing[render]"]
+color = ["numpy>=1.24"]
+all = ["myzing[study]", "myzing[mcp]", "myzing[render]", "myzing[color]"]
 
 [project.scripts]
 zing = "myzing.cli:main"
