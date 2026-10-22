@@ -30,6 +30,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
                "plan caption boxes and paths around faces and platform UI"),
     "color": ("myzing.color.command",
               "match an SDR look approximation and apply a .cube LUT"),
+    "audio": ("myzing.audio.command",
+              "measure local beats, onsets, audio roles, and loudness"),
     "thumbs": ("myzing.thumbs",
                "generate thumbnail candidates for a video"),
     "meme": ("myzing.memes.command",

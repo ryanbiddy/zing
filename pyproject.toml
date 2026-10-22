@@ -28,10 +28,11 @@ study = [
 # do exactly this. Raising it is a deliberate port, not a version bump.
 mcp = ["mcp>=1.2,<2"]
 render = ["pysubs2>=1.8.1"]
+audio = ["numpy>=1.24,<3"]
 memes = ["Pillow>=10.4"]
 layout = ["opencv-python-headless==4.13.0.92"]
 color = ["numpy>=1.24"]
-all = ["myzing[study]", "myzing[mcp]", "myzing[render]", "myzing[memes]", "myzing[layout]", "myzing[color]"]
+all = ["myzing[study]", "myzing[mcp]", "myzing[render]", "myzing[memes]", "myzing[layout]", "myzing[color]", "myzing[audio]"]
 
 [project.scripts]
 zing = "myzing.cli:main"

@@ -835,6 +835,11 @@ all = [
     { name = "scenedetect-headless" },
     { name = "yt-dlp", extra = ["default"] },
 ]
+audio = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
+    { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+]
 color = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
@@ -871,6 +876,7 @@ requires-dist = [
     { name = "faster-whisper", marker = "extra == 'study'", specifier = ">=1.1" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.2,<2" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2,<2" },
+    { name = "myzing", extras = ["audio"], marker = "extra == 'all'" },
     { name = "myzing", extras = ["color"], marker = "extra == 'all'" },
     { name = "myzing", extras = ["layout"], marker = "extra == 'all'" },
     { name = "myzing", extras = ["mcp"], marker = "extra == 'all'" },
@@ -878,6 +884,7 @@ requires-dist = [
     { name = "myzing", extras = ["render"], marker = "extra == 'all'" },
     { name = "myzing", extras = ["render"], marker = "extra == 'dev'" },
     { name = "myzing", extras = ["study"], marker = "extra == 'all'" },
+    { name = "numpy", marker = "extra == 'audio'", specifier = ">=1.24,<3" },
     { name = "numpy", marker = "extra == 'color'", specifier = ">=1.24" },
     { name = "onnxruntime", marker = "extra == 'study'", specifier = ">=1.16" },
     { name = "opencv-python-headless", marker = "extra == 'layout'", specifier = "==4.13.0.92" },
@@ -888,7 +895,7 @@ requires-dist = [
     { name = "scenedetect-headless", marker = "extra == 'study'", specifier = ">=0.7" },
     { name = "yt-dlp", extras = ["default"], marker = "extra == 'study'", specifier = ">=2026.6" },
 ]
-provides-extras = ["dev", "study", "mcp", "render", "memes", "layout", "color", "all"]
+provides-extras = ["dev", "study", "mcp", "render", "audio", "memes", "layout", "color", "all"]
 
 [[package]]
 name = "numpy"

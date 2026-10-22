@@ -779,6 +779,16 @@ def check_hyperframes() -> Check:
     )
 
 
+def check_audio() -> Check:
+    present = _has_module("numpy")
+    return Check(
+        name="audio", tier=OPTIONAL, ok=present,
+        detail="NumPy available for audio analysis" if present else "NumPy is not installed",
+        fix='' if present else 'python -m pip install "myzing[audio]"',
+        degraded_mode="" if present else "beat, onset, and audio-role analysis is unavailable",
+    )
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -791,6 +801,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_layout(),
         check_color(),
         check_hyperframes(),
+        check_audio(),
         check_uoink(),
     ]
 
