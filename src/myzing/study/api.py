@@ -46,6 +46,8 @@ def study(
     handoff: dict[str, Any] | None = None,
     caption_geometry: bool = False,
     fonts: bool = False,
+    local_models_only: bool = False,
+    model_workspace: Path | None = None,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -97,7 +99,8 @@ def study(
 
         _phase(phase_callback, "transcribe")
         words_r = transcribe_mod.transcribe(
-            ing.media_path, duration=ing.meta.duration
+            ing.media_path, duration=ing.meta.duration,
+            **({"local_files_only": True} if local_models_only else {}),
         )
         warnings += words_r.warnings
         provenance.update(words_r.provenance)
@@ -107,18 +110,21 @@ def study(
             from .caption_geometry import read_geometry, caption_events
 
             _phase(phase_callback, "caption_geometry")
-            geometry = read_geometry(ing.media_path, ing.meta.duration)
-            if fonts:
-                from .font_match import match_geometry, failed_candidates
-                _phase(phase_callback, "font_candidates")
-                try:
-                    candidates = match_geometry(ing.media_path, geometry)
-                except Exception as exc:
-                    # Optional font matching must never prevent saving the study,
-                    # including OpenCV errors and unexpected backend failures.
-                    candidates = failed_candidates(ing.media_path, geometry, exc)
-                geometry.font_candidates = candidates.to_dict()
-                geometry.warnings.extend(candidates.warnings)
+            # A project may keep measurements in separate reference/output
+            # workspaces while sharing explicitly provisioned local model assets.
+            with _workspace_override(model_workspace):
+                geometry = read_geometry(ing.media_path, ing.meta.duration)
+                if fonts:
+                    from .font_match import match_geometry, failed_candidates
+                    _phase(phase_callback, "font_candidates")
+                    try:
+                        candidates = match_geometry(ing.media_path, geometry)
+                    except Exception as exc:
+                        # Optional font matching must never prevent saving the study,
+                        # including OpenCV errors and unexpected backend failures.
+                        candidates = failed_candidates(ing.media_path, geometry, exc)
+                    geometry.font_candidates = candidates.to_dict()
+                    geometry.warnings.extend(candidates.warnings)
             caps_r = captions_mod.CaptionsResult(
                 captions=caption_events(geometry), warnings=geometry.warnings,
             )

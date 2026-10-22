@@ -53,11 +53,14 @@ def transcribe(
     media_path: Path,
     model_name: str | None = None,
     duration: float = 0.0,
+    local_files_only: bool = False,
 ) -> TranscribeResult:
     result = TranscribeResult()
     name = model_name or os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
     try:
-        model, device, compute_type, version = _load_model(name)
+        model, device, compute_type, version = (
+            _load_model(name, local_files_only=True) if local_files_only else _load_model(name)
+        )
     except ImportError:
         result.warnings.append(
             "transcription skipped: faster-whisper not installed "
@@ -110,19 +113,20 @@ def transcribe(
     return result
 
 
-def _load_model(name: str):
+def _load_model(name: str, *, local_files_only: bool = False):
     """Import + construct the model (tests mock this). GPU with int8_float16
     when available, plain int8 otherwise — the R1-A compute picks."""
     import faster_whisper
 
     version = getattr(faster_whisper, "__version__", "unknown")
+    options = {"local_files_only": True} if local_files_only else {}
     try:
         model = faster_whisper.WhisperModel(
-            name, device="auto", compute_type="int8_float16"
+            name, device="auto", compute_type="int8_float16", **options
         )
         return model, "auto", "int8_float16", version
     except (ValueError, RuntimeError):
-        model = faster_whisper.WhisperModel(name, device="cpu", compute_type="int8")
+        model = faster_whisper.WhisperModel(name, device="cpu", compute_type="int8", **options)
         return model, "cpu", "int8", version
 
 

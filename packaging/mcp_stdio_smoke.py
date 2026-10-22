@@ -16,6 +16,8 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "match_start",
+    "match_status",
     "plan_drafts",
     "still_concepts",
     "still_render",

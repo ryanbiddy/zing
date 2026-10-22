@@ -16,6 +16,7 @@ over nested JSON in native-command arguments.
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
 | `zing brief` | New/show; save interview answers after project init, not an automatic director. |
 | `zing plan choose` | Choose A/B/C from a local artifact; durable receipt, optional reference citation with --share-choice; never publishes. |
+| `zing match` | Reference + clip folder to three rendered, decoded, inspected drafts and measured reports; resumable, with named failures/shortages. |
 | `zing prompt` | Print study, compare, direct, taste or meme-writer judgment instructions. |
 | `zing profile` | Build/show measured aggregates; pack can study missing references. |
 | `zing assemble` | One studied source plus chosen keepers → draft-edl.json. |
@@ -30,7 +31,32 @@ over nested JSON in native-command arguments.
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 
-## Study, brief and draft
+## Match a reference
+
+```sh
+zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --brief brief.json --drafts 3 --seed 18
+zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --resume --json
+zing plan choose ./zing-workspace/match --draft B
+```
+
+Use `--answers` for a JSON object of brief answers. With no supplied brief, a
+terminal runs the interview; scripts must supply answers or resume a saved brief.
+URLs require `--allow-download` after acquisition consent. `uoink:<id>` reuses
+verified retained media without URL fallback. Models are local-only.
+
+Review `comparison.md`/`.json`, `drafts/plan-A.json`, `drafts/draft-A.mp4`,
+`drafts/draft-A.png`, and `drafts/draft-A.match.json` (likewise B/C), plus
+`recipe.json`. Ready means rendered, fully decoded, inspected and reported.
+Read the actual ready count, named failures/logs, director shortages, and
+pass/approximate/miss dimensions. Match grades measure the rendered file;
+caption sampling and unpaired color statistics cannot certify exact fidelity.
+
+Resume reuses checksum-valid measurements and artifacts. Ctrl+C stops owned child
+jobs and preserves checkpoints. Missing layout/model support uses disclosed
+position defaults; missing color support leaves ungraded footage. The current
+director emits cuts with warnings about unreconstructed reference effects.
+
+## Individual study and assembly
 
 ```sh
 zing study reference.mp4 --workspace /absolute/workspace --transitions

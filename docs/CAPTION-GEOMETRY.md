@@ -64,7 +64,7 @@ outline width tolerance is 1.5 pixels on a three-pixel stroke. The low-confidenc
 test deliberately lowers two real inference scores to exercise the gap contract.
 
 ```text
-ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 196
+ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 197
 ```
 
 The tests establish those limits for the generated cases. Real footage, gradients,
