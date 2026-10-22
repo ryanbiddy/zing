@@ -195,7 +195,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     from myzing.layout.framing import select_framing, place_captions
     from myzing.render.framing import display_dimensions
     framing_notes = []
-    source_dimensions = {}
+    source_dimensions, square_pixels = {}, set()
     subject_evidence = subject_evidence or {}
     for clip in clips:
         probe = next(a.probe for a in manifest.assets if a.id == clip.asset_id)
@@ -208,6 +208,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         sw, sh = display_dimensions({"width": probe.width, "height": probe.height,
                                     "tags": {"rotate": probe.rotation}, **stream})
         source_dimensions[clip.asset_id] = (sw, sh)
+        if display_dimensions({"width": probe.width, "height": probe.height, "tags": {"rotate": probe.rotation},
+                               **stream, "sample_aspect_ratio": "1:1"}) == (sw, sh):
+            square_pixels.add(clip.asset_id)
         tracks, notes = subject_evidence.get(clip.asset_id, ([], []))
         clip.framing = select_framing(brief.framing, sw, sh, width, height, clip, tracks,
                                       max_upscale=brief.framing_max_upscale)
@@ -230,11 +233,18 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                               part, subject_evidence.get(clip.asset_id, ([], []))[0],
                                               max_upscale=brief.framing_max_upscale)
             split_clips.append(part)
+    for clip in split_clips:
+        # A square-pixel full-picture fit renders identically with framing
+        # absent (the default fit graph; FFmpeg applies display rotation).
+        # Omitting it keeps such plans representable as v1 EDLs.
+        if clip.framing is not None and clip.framing.mode == "fit" and clip.asset_id in square_pixels:
+            clip.framing = None
     clips = split_clips
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
     if source_dimensions:
-        place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions)
+        place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions,
+                       keep_safe_defaults=True)
     numbers = {
         "median_shot_seconds": metric(style.median_shot, median(durations), (style.median_shot or 0) * .1,
                                       "Whole-word cuts, required moments and available shot choices constrain the selected edit."),

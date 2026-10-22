@@ -1243,7 +1243,7 @@ def _render_id_for(edl_path: str) -> str:
 
 def _run_render(
     edl, base_dir: Path, out_path: Path, render_id: str, root: Path,
-    resolved_assets: dict[str, Path], aspects=None,
+    resolved_assets: dict[str, Path], aspects=None, inputs=(),
 ) -> None:
     from myzing.render import pipeline
 
@@ -1253,7 +1253,7 @@ def _run_render(
             if aspects:
                 from myzing.render.deliveries import render_deliveries
                 delivered = render_deliveries(edl, out_path, aspects=aspects, base_dir=base_dir,
-                                             work_dir=d / "delivery-work")
+                                             work_dir=d / "delivery-work", inputs=inputs)
                 storage.write_status_at(d, state="done", outputs=[v["video"] for v in delivered["deliveries"].values()],
                                         deliveries=delivered["deliveries"], report=delivered["report"],
                                         finished_at=_now(), updated_at=_now(), error="")
@@ -1345,7 +1345,10 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
         )
         thread = threading.Thread(
             target=_run_render,
-            args=(edl, base_dir, out, render_id, root, resolved_assets) + ((selected_aspects,) if selected_aspects else ()),
+            args=(edl, base_dir, out, render_id, root, resolved_assets),
+            # The source plan is an input too: no delivery may overwrite it.
+            kwargs={"aspects": selected_aspects, "inputs": (Path(edl_path).expanduser().resolve(),)}
+            if selected_aspects else {},
             daemon=True,
         )
         _RENDER_JOBS[render_id] = thread

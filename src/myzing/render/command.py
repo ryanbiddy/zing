@@ -157,7 +157,8 @@ def run(argv: list[str]) -> int:
             from .deliveries import render_deliveries
             result = render_deliveries(edl, output, aspects=selected_aspects, base_dir=edl_path.parent,
                                       work_dir=args.keep_work, framing=args.framing, max_upscale=args.max_upscale,
-                                      short_side=args.short_side, ffmpeg=args.ffmpeg, ffprobe=args.ffprobe)
+                                      short_side=args.short_side, ffmpeg=args.ffmpeg, ffprobe=args.ffprobe,
+                                      inputs=(edl_path,))
             print(json.dumps(result, indent=2, ensure_ascii=False))
             return 0
         if isinstance(edl, Composition):

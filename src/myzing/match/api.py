@@ -218,13 +218,16 @@ def _prepare_plan(source, destination, colors, recipe, caps):
         raise ValueError("Renderer cannot represent planned transition overlaps: " + "; ".join(transitions))
     if any(f.name.startswith(("transitions[", "legacy_transitions[")) for f in recipe.measured) and not plan.transitions:
         plan.warnings.append("Reference transition observations are experimental. Director/renderer use cuts; effects were not reconstructed.")
-    if any(c.framing is not None for c in plan.clips) or all(c.layout is not None for c in plan.captions):
+    if any(c.framing is not None for c in plan.clips) or any(c.layout is not None for c in plan.captions):
         # Director has already measured source subjects and placed captions in
-        # the cropped output. Do not replace that safety with face-only layout.
+        # the cropped output (captions it left at their default position were
+        # checked clear). Do not replace that safety with face-only layout.
         folder = destination.parent / destination.stem
         write(folder / "layout.json", {"version": 1, "events": [c.layout.to_dict() for c in plan.captions if c.layout],
                                        "framing": [c.framing.to_dict() for c in plan.clips if c.framing]})
-    elif caps["layout"] and plan.captions:
+    elif not plan.captions:
+        pass  # Nothing to place; no face-layout warning applies.
+    elif caps["layout"]:
         _layout(plan, destination.parent / destination.stem, recipe)
     else:
         plan.warnings.append("Face layout unavailable: using disclosed caption-position defaults; face avoidance is unmeasured. "
@@ -376,14 +379,34 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         plans_to_render = dict(planned["plans"])
         delivery_aspects = load_brief(root / "brief.json").aspects
         if delivery_aspects:
-            from myzing.render.deliveries import delivery_plans
+            from myzing.render.composition import _path
+            from myzing.render.deliveries import delivery_plans, measure_sources
             plans_to_render = {}
             summary["requested"] = drafts * len(delivery_aspects)
+            shared = {}
+
+            def measurements():
+                # One subject/cut analysis per source over the union of the
+                # trims every draft uses, shared by A/B/C (computed lazily so
+                # resumed runs with cached deliveries decode nothing).
+                if not shared:
+                    sources, rate = {}, 30.0
+                    for path in planned["plans"].values():
+                        draft = Composition.from_dict(read(path))
+                        rate = draft.fps.numerator / draft.fps.denominator
+                        located = {a.id: _path(a.path, Path(path).parent, f"asset {a.id}") for a in draft.assets}
+                        for clip in draft.clips:
+                            sources.setdefault(located[clip.asset_id], []).append((clip.src_in, clip.src_out))
+                    shared.update(measure_sources(sources, root / "aspect-plans" / "analysis", fps=rate))
+                return shared
+
+            all_plans = sorted(projects.hash_file(Path(p)) for p in planned["plans"].values())
             for label, plan_path in planned["plans"].items():
                 def adapt(source=plan_path, label=label):
                     directory = root / "aspect-plans" / label
                     adapted, analysis = delivery_plans(Composition.from_dict(read(source)), delivery_aspects,
-                                                       directory, base_dir=Path(source).parent)
+                                                       directory, base_dir=Path(source).parent,
+                                                       measured=measurements())
                     outputs = {}
                     for aspect, plan in adapted.items():
                         name = label + "." + aspect.replace(":", "x")
@@ -393,8 +416,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     evidence_path = directory / "analysis.json"
                     write(evidence_path, analysis)
                     return {"plans": outputs, "outputs": [*outputs.values(), str(evidence_path)]}
-                adapted = checkpoints.step("aspects-" + label, [projects.hash_file(Path(plan_path)), delivery_aspects,
-                                                               caps, "aspect-delivery-v1"], adapt)
+                adapted = checkpoints.step("aspects-" + label, [projects.hash_file(Path(plan_path)), all_plans, delivery_aspects,
+                                                               caps, "aspect-delivery-v2"], adapt)
                 plans_to_render.update(adapted["plans"])
         for label, plan_path in plans_to_render.items():
             row = {"status": "failed"}

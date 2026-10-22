@@ -6,8 +6,9 @@ Fit retains the entire picture with black padding. Fill crops around a stated
 center. Reframe follows local subject evidence with bounded crop motion.
 Blurfill fits the sharp picture and fills the surroundings with a blurred,
 darkened copy of the same frames. Its background is blurred at quarter delivery
-resolution, darkened to 55% luma above black, and desaturated to 65%.
-Source-baked mattes can remain; framing does not reconstruct detail.
+resolution, converted to 8-bit 4:2:0, darkened to 55% luma above black, and
+desaturated to 65%. The conversion keeps 10-bit, RGB and full-range sources
+neutral. Source-baked mattes can remain; framing does not reconstruct detail.
 
 Set brief `framing` to `auto` (default), `fit`, `fill`, `reframe`, or `blurfill`:
 
@@ -25,6 +26,12 @@ It never rescales an already rendered draft. Source-cut splits preserve timing.
 Transition-linked clips retain their handles and are not split; auto can choose
 blurfill when their crops lose subjects. Forced reframe across internal cuts
 in a transition leg needs editorial review.
+
+No delivery file may replace something the render reads. The source plan,
+assets, LUTs and fonts are checked before any analysis, and a collision (for
+example `draft-A.9x16.json` rendered with `-o draft-A.mp4`) is refused with both
+paths. Analysis and render work lives in a temporary folder next to the output
+and is removed afterwards; `--keep-work DIR` keeps it in `DIR`.
 
 `--aspect` accepts `all` or a comma-separated list. Without it, a v2 brief's
 optional `aspects` list requests deliveries; an empty list renders the composition
@@ -61,7 +68,7 @@ each source pixel already covers 6.25 output pixels in area, so further
 enlargement quickly softens archival detail. It is not a measured perceptual
 optimum. Configure it with brief `framing_max_upscale` (1–16), or render
 `--max-upscale`. Explicit fill/reframe override auto but still warn above their
-stated limit. Full-picture fit/blurfill can exceed it for very small sources;
+stated `max_upscale` (default 2.5, the same as auto). Full-picture fit/blurfill can exceed it for very small sources;
 those enlargements warn too. Background enlargement is intentionally blurred.
 
 The contract uses square-pixel source coordinates after display rotation.
@@ -86,13 +93,20 @@ crop dimension per second, averages neighboring targets and limits steps.
 Fast subjects can outrun it. Acceleration is not separately limited.
 
 FFmpeg evaluates crop x/y from `n/(fps numerator/fps denominator)` after CFR
-sampling and E2E1's rounded absolute frame allocations. LUTs precede framing;
+sampling and E2E1's rounded absolute frame allocations. Each axis is one
+smoothstep piece per key segment, selected by a balanced binary `if()` tree, so
+expression depth grows with log2 of the key count. A flat sum of segments fails
+on FFmpeg 8 beyond about 93 moving segments; the 256-key maximum is gated. LUTs precede framing;
 captions follow framing and joins. `crop:exact=1` avoids chroma-grid rounding;
 raster origins remain integer pixels. Local gates cover FFmpeg 6.1.1 and 8.1.2;
 FFmpeg 9 remains a CI check.
 
-Subjects are sampled at 2 fps plus measured source-cut starts, capped at
-600 frames. Priority is YuNet faces, OpenCV's bundled HOG pedestrian detector,
+Subjects are sampled only over the source trims an edit uses, each widened by
+0.5 s, at 2 fps plus the first frame of every used source shot, within a
+600-frame budget per source. A longer used span lowers the regular rate to fit
+(with a warning) instead of failing, so source length never removes evidence;
+separate ranges are never bridged. Director drafts and `zing match` deliveries
+analyze each source once over the union of the A/B/C trims. Priority is YuNet faces, OpenCV's bundled HOG pedestrian detector,
 then stable contrast components. HOG needs no download, has limited recall for
 seated/occluded people and receives conservative .5 confidence; its SVM score
 is not treated as probability. Faces are ranked by area and center preference
@@ -128,10 +142,17 @@ or shrinks the box, and reflows long lines into narrower side gaps when needed;
 infeasible results stay unsafe.
 
 Default font size is the output short side divided by 18. Explicit sizes and
-outlines scale by the short-side ratio during adaptation. Preliminary wrapping
+outlines scale by the short-side ratio during adaptation, clamped to the
+caption contract (1–512 px size, 0–20 px outline). Preliminary wrapping
 and bounded shrink fit the available content; actual glyph/outline ink is still
 measured before publishing. Word timing is unchanged. Crowded frames can need
 manual editing when no safe legible caption position exists.
+
+Director plans keep v1 export where it changes nothing: a square-pixel
+full-picture fit is written as absent framing (the same default graph), and a
+caption whose preset position already clears measured subjects, content and
+output reserves keeps no layout or style. Other captions receive placed layout,
+which blocks v1 lowering and is listed in the report.
 
 Director and delivery reports retain tracks and warnings. Per-aspect
 compositions retain crop keys, bounds, modes, limits and caption geometry.

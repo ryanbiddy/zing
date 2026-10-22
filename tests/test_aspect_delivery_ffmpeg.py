@@ -140,6 +140,8 @@ def test_single_plan_cli_exports_three_independently_adapted_deliveries(tmp_path
         assert box.x>=left-1e-9 and box.right<=1-right+1e-9
         assert box.y>=top-1e-9 and box.bottom<=1-bottom+1e-9
     assert modes==["fit","reframe","reframe"]
+    # Analysis/render work is temporary unless --keep-work names a folder.
+    assert not [p.name for p in tmp_path.iterdir() if p.is_dir() and "delivery" in p.name]
 
 
 def test_bright_moving_exhaust_does_not_pull_crop_off_stable_object(tmp_path,monkeypatch):
@@ -200,3 +202,18 @@ def test_match_brief_exports_all_aspects_and_resumes(tmp_path,monkeypatch,zing_w
     assert resumed["ready"]==9
     assert all("render-"+label in resumed["reused_steps"] for label in result["drafts"])
     assert len(read(trace)["calls"])==13
+
+
+@pytest.mark.parametrize("pix_fmt",["yuv420p10le","yuv422p10le"])
+def test_blurfill_background_stays_neutral_for_high_bit_depth_sources(tmp_path,pix_fmt):
+    # 8-bit lut constants on 10-bit samples once pulled neutral gray to green.
+    source=tmp_path/"gray.mkv"
+    ffmpeg("-f","lavfi","-i","color=c=0x808080:s=320x180:r=30:d=0.4","-pix_fmt",pix_fmt,"-c:v","ffv1",source)
+    plan=plan_for(source,320,180,180,320,"blurfill")
+    output=tmp_path/"output.mp4"
+    render_composition(plan,output)
+    frames=pixels(output,180,320).astype(int)
+    background,foreground=frames[:,8,90],frames[:,160,90]
+    assert (abs(background[:,0]-background[:,1])<=3).all() and (abs(background[:,1]-background[:,2])<=3).all()
+    assert (abs(foreground-128)<=3).all()
+    assert (background.mean(axis=1)<foreground.mean(axis=1)-30).all()  # darkened, not replaced

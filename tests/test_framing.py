@@ -128,3 +128,46 @@ def test_swept_subject_crossing_between_offscreen_endpoints_is_protected():
     f=replace(f,center_x=100, keyframes=[CropKeyframe(0,100,180),CropKeyframe(10,540,180)])
     obstacle=swept_output_box(Box(.48,.4,.04,.1),f,[0,10],180,320)
     assert obstacle.x==0 and obstacle.right==1
+
+
+def test_safe_default_captions_stay_v1_and_only_unsafe_ones_get_layout():
+    from myzing.layout.framing import default_caption_box
+    clip = CompositionClip("s", 0, 3, 0, id="c", asset_id="s")
+    captions = [CompositionCaption(id="clear", text="HI THERE", start=.2, end=1, word_timed=False),
+                CompositionCaption(id="covered", text="HI THERE", start=1.5, end=2.5, word_timed=False)]
+    plan = Composition(assets=[AssetRef("s", "s", None)], clips=[clip], captions=captions, width=1920, height=1080)
+    default = default_caption_box(captions[0], 1920, 1080)
+    # A subject sits exactly under the default position during the second caption only.
+    face = FaceTrack("face", [Keyframe(1.4, default), Keyframe(3, default)])
+    place_captions(plan, {"s": [face]}, {"s": (1920, 1080)}, keep_safe_defaults=True)
+    clear, covered = plan.captions
+    assert clear.layout is None and clear.style is None and clear.text == "HI THERE"
+    assert covered.layout is not None and covered.layout.overlap.safe and covered.style is not None
+    assert [b for b in lowering_blockers(plan) if b.startswith("captions[")] == ["captions[1].layout", "captions[1].style"]
+    # Without the option every caption is placed explicitly (deliveries).
+    plan = Composition(assets=[AssetRef("s", "s", None)], clips=[clip],
+                       captions=[CompositionCaption(id="clear", text="HI THERE", start=.2, end=1, word_timed=False)],
+                       width=1920, height=1080)
+    place_captions(plan, {"s": []}, {"s": (1920, 1080)})
+    assert plan.captions[0].layout is not None
+
+
+def test_framing_upscale_default_matches_auto_policy():
+    f = Framing("fill", 640, 360, CropBounds(0, 0, 640, 360), 640, 360, 320, 180)
+    assert f.max_upscale == 2.5
+    assert f.upscale_warning(1600, 900) == []  # exactly 2.5x
+    assert "2.5x" in f.upscale_warning(1920, 1080)[0]
+
+
+def test_expression_depth_stays_logarithmic_for_the_keyframe_maximum():
+    from myzing.render.framing import _expression
+    keys = [CropKeyframe(i * .05, 120 + 400 * (i % 2), 180) for i in range(256)]
+    f = Framing("reframe", 640, 360, CropBounds(0, 0, 640, 360), 180, 320, 120, 180, keys, max_velocity=20000)
+    x = _expression(f, "center_x", "30/1")
+    depth = deepest = 0
+    for char in x:
+        depth += char == "("
+        depth -= char == ")"
+        deepest = max(deepest, depth)
+    assert deepest <= 40 and x.count("if(") == 255  # 255 moving segments + final hold
+    assert _expression(f, "center_y", "30/1") == "20"  # Static axis: one constant per piece collapses.

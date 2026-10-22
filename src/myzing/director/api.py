@@ -107,8 +107,11 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             if asset.id not in used or probe is None or not probe.width or not probe.height:
                 continue
             study = next(s for s in clips if s.asset_id == asset.id)
+            # Only the trims any draft uses (plus margins), so source length
+            # never exhausts the analysis budget or decodes unused footage.
+            ranges = [(c.start, c.end) for sequence in selected.values() for c in sequence if c.asset_id == asset.id]
             subject_evidence[asset.id] = analyze_subjects(Path(study.path), study.duration, root / "framing-work",
-                                                         [s.start for s in study.shots])
+                                                         [s.start for s in study.shots], ranges=ranges)
         report["subject_analysis"] = {key: {"tracks": [t.to_dict() for t in tracks], "warnings": notes}
                                       for key, (tracks, notes) in subject_evidence.items()}
         report["envelope"] = style.to_dict()

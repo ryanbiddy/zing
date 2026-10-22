@@ -21,9 +21,11 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
     for caption in plan.captions:
         caption.layout = None
         if caption.style:
+            # Scale with the short side, clamped to CaptionStyle's 1-512 px
+            # size and 0-20 px outline contract at extreme --short-side values.
             factor = min(width, height) / old_short
-            caption.style = replace(caption.style, size=caption.style.size * factor,
-                                    outline_width=caption.style.outline_width * factor)
+            caption.style = replace(caption.style, size=min(512, max(1, caption.style.size * factor)),
+                                    outline_width=min(20, max(0, caption.style.outline_width * factor)))
     clips = []
     rate = plan.fps.numerator / plan.fps.denominator
     for clip in plan.clips:

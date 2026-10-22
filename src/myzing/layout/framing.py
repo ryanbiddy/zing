@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import re
+import subprocess
 import tempfile
 from dataclasses import replace
 from pathlib import Path
@@ -102,9 +103,60 @@ class PeopleDetector:
         return result
 
 
-def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()):
+MAX_SAMPLES = 600  # Decoded analysis frames per source, regular plus cut starts.
+RANGE_MARGIN = .5  # Seconds sampled around each used trim for smoothing context.
+
+
+def used_windows(ranges, duration, margin=RANGE_MARGIN):
+    """Merge used source trims, widened by margin and clipped to the source."""
+    windows = sorted((max(0.0, float(a) - margin), min(float(duration), float(b) + margin))
+                     for a, b in ranges if b > a)
+    merged = []
+    for a, b in windows:
+        if merged and a <= merged[-1][1] + 1e-9:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+        elif b - a > 1e-6:
+            merged.append((a, b))
+    return merged
+
+
+def _sample_window(video, folder, start, end, interval, limit):
+    """Seek to start and keep frames at least interval apart, in source seconds.
+
+    Input seeking keeps the clock relative to the container start, the same
+    convention as the cut-start samples and the renderer's trims.
+    """
+    from myzing.study import proc
+
+    folder.mkdir(parents=True, exist_ok=True)
+    factor = "min(1,min(640/(iw*sar),640/ih))"
+    filters = (f"select='isnan(prev_selected_t)+gte(t-prev_selected_t,{interval:.12f})',"
+               f"scale=w='max(1,round(iw*sar*{factor}))':h='max(1,round(ih*{factor}))',setsar=1,showinfo")
+    command = ["ffmpeg", "-hide_banner", "-loglevel", "info", "-nostdin", "-y",
+               *(["-ss", f"{start:.9f}"] if start > 0 else []), "-t", f"{end - start:.9f}",
+               "-protocol_whitelist", "file,pipe", "-i", str(video.resolve()), "-map", "0:v:0", "-vf", filters,
+               "-fps_mode", "vfr", "-frames:v", str(limit), "-an", "-sn", str(folder / "frame-%04d.png")]
+    try:
+        result = proc.run(command, timeout=max(30, (end - start) * 3))
+    except subprocess.TimeoutExpired as exc:
+        raise LayoutError("FFmpeg sampling timed out; trim or remux the video") from exc
+    if result.returncode:
+        raise LayoutError(f"FFmpeg sampling failed: {proc.tail(result.stderr)}")
+    times = [float(t) for t in re.findall(r"\bn:\s*\d+\s+pts:.*?\bpts_time:([\d.eE+-]+)", result.stderr)]
+    files = sorted(folder.glob("frame-*.png"))
+    if len(times) != len(files) or any(b <= a for a, b in zip(times, times[1:])):
+        raise LayoutError("FFmpeg sample count/PTS mismatch; remux the video and retry")
+    return [(start + t, path) for t, path in zip(times, files) if -1e-6 <= t < end - start]
+
+
+def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=(), ranges=None):
+    """Sample the used source ranges (or the whole source) within MAX_SAMPLES.
+
+    ranges are (src_in, src_out) trims; each is widened by RANGE_MARGIN. Long
+    spans lower the regular sampling rate instead of failing, so source length
+    alone never removes subject evidence.
+    """
     from .debug import read_image
-    from .media import sample_frames
     from myzing.study import proc
 
     warnings = []
@@ -119,14 +171,36 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
         warnings.append(f"Face detector unavailable: {exc}")
     people_detector = PeopleDetector(cv2)
     directory.mkdir(parents=True, exist_ok=True)
+    windows = used_windows([(0.0, duration)] if ranges is None else ranges, duration, 0 if ranges is None else RANGE_MARGIN)
+    if not windows:
+        return [], ["Subject analysis skipped: no used source range; center heuristic, confidence 0."]
+    cuts = sorted({0.0, duration, *(t for t in cut_times if 0 < t < duration)})
+
+    def window_of(time):
+        return next((i for i, (a, b) in enumerate(windows) if a - 1e-9 <= time < b + 1e-9), None)
+
+    # A sub-second shot can fall entirely between regular samples. Decode the
+    # first frame of every used shot explicitly; never borrow the previous shot.
+    cut_starts = [(i, t) for i, t in enumerate(cuts[:-1]) if window_of(t) is not None]
+    if len(cut_starts) > MAX_SAMPLES // 2:
+        keep = MAX_SAMPLES // 2
+        warnings.append(f"{len(cut_starts)} used source cuts exceed the explicit cut-sample budget; "
+                        f"{keep} evenly spaced cut starts were decoded, the rest rely on regular samples.")
+        cut_starts = [cut_starts[round(j * (len(cut_starts) - 1) / (keep - 1))] for j in range(keep)]
+    span = sum(b - a for a, b in windows)
+    budget = MAX_SAMPLES - len(cut_starts) - len(windows)
+    interval = max(.5, span / max(1, budget))
+    if interval > .5 + 1e-9:
+        warnings.append(f"Subjects sampled every {interval:.3g}s over {span:.1f}s of used source to stay within "
+                        f"the {MAX_SAMPLES}-frame analysis budget; fast motion between samples can be missed.")
     try:
         with tempfile.TemporaryDirectory(prefix="framing-", dir=directory) as temp:
-            samples = sample_frames(video, Path(temp), duration=duration, sample_rate=2)
-            cuts = sorted({0.0, duration, *(t for t in cut_times if 0 < t < duration)})
-            # A sub-second shot can fall entirely between regular samples.
-            # Decode its first frame explicitly; never borrow the previous shot.
+            samples = []
+            for i, (a, b) in enumerate(windows):
+                samples += _sample_window(video, Path(temp) / f"window-{i:04d}", a, b, interval,
+                                          math.floor((b - a) / interval) + 2)
             times = {t for t, _ in samples}
-            for i, time in enumerate(cuts[:-1]):
+            for i, time in cut_starts:
                 if time in times:
                     continue
                 path = Path(temp) / f"cut-{i:04d}.png"
@@ -138,14 +212,16 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                 if result.returncode or not path.exists():
                     raise LayoutError(f"Cannot sample source cut at {time:g}s: {proc.tail(result.stderr)}")
                 samples.append((time, path))
-            if len(samples) > 600:
-                raise LayoutError("Source cuts plus regular samples exceed the 600-frame analysis limit; trim the source")
+            if len(samples) > MAX_SAMPLES:
+                raise LayoutError(f"Source cuts plus regular samples exceed the {MAX_SAMPLES}-frame analysis limit")
             samples.sort()
             faces, people, salient = [], [], []
             previous, previous_scene = None, None
             for time, path in samples:
                 image = read_image(path)
-                scene = sum(t <= time for t in cuts) - 1
+                # Temporal comparison resets at source cuts and between
+                # separate used ranges; distant frames are not motion evidence.
+                scene = (sum(t <= time for t in cuts) - 1, window_of(time))
                 if scene != previous_scene:
                     previous = None
                 detections = detector.detect(image) if detector else []
@@ -161,7 +237,10 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
     for scene, (start, end) in enumerate(zip(cuts, cuts[1:])):
         for frames, prefix, margin in ((faces, "face", .025), (people, "person", .015), (salient, "saliency", .015)):
             measured = [frame for frame in frames if start <= frame.time < end]
-            for track in build_tracks(measured, duration=end, smooth_radius=1, margin=margin, max_gap=.5):
+            # At 2 fps bridge half a second, as before; a lowered budget rate
+            # bridges one and a half intervals. Separate ranges stay apart.
+            gap = .5 if interval <= .5 + 1e-9 else min(10, interval * 1.5)
+            for track in build_tracks(measured, duration=end, smooth_radius=1, margin=margin, max_gap=gap):
                 a, b = max(start, track.keyframes[0].time), min(end, track.keyframes[-1].time)
                 # Keep the held endpoint on this side of the scene boundary.
                 b = max(a, b - 1e-7 if b == end and end < duration else b)
@@ -170,7 +249,8 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                 if b > a:
                     keys.append(Keyframe(b, box_at(track.keyframes, b)))
                 tracks.append(replace(track, id=f"{prefix}-{scene}-{track.id}", keyframes=keys))
-    warnings.append("Subjects sampled at 2 fps plus measured source-cut starts: YuNet faces, bundled HOG people (confidence .5), then stable contrast objects; large clipped highlights and bright changing regions are suppressed. Saliency "
+    scope = "the whole source" if ranges is None else f"{len(windows)} used source range(s) plus {RANGE_MARGIN:g}s margins"
+    warnings.append(f"Subjects sampled at up to 2 fps over {scope}, plus measured source-cut starts: YuNet faces, bundled HOG people (confidence .5), then stable contrast objects; large clipped highlights and bright changing regions are suppressed. Saliency "
                     "(confidence .25), center for gaps (confidence 0). Saliency is not object recognition; missed subjects remain possible.")
     return tracks, warnings
 
@@ -335,11 +415,37 @@ def swept_output_box(box, framing, times, output_width, output_height):
     return bounds(left, top, right, bottom) if left < right and top < bottom else None
 
 
-def place_captions(plan, subjects, source_dimensions=None):
+def default_caption_box(caption, width, height):
+    """Estimated box of an unstyled, unplaced caption at its preset anchor.
+
+    Same default size/outline as both caption renderers and the same 0.8 em
+    per character and 1.4 em line estimate as placement. None if it cannot
+    fit the frame at all (the default would need layout to wrap or shrink).
+    """
+    from myzing.render.captions import caption_anchor
+
+    size, outline = max(24, round(min(width, height) / 12)), max(2, round(min(width, height) / 270))
+    text = caption.text.upper() if caption.all_caps else caption.text
+    lines = text.splitlines() or [""]
+    ink_width = (max(len(line) for line in lines) * size * .8 + outline * 2 + 6) / width
+    ink_height = (len(lines) * size * 1.4 + outline * 2 + 6) / height
+    x, y = caption_anchor(caption.position, width, height)
+    left, top = x / width - ink_width / 2, y / height - ink_height / 2
+    if left < 0 or top < 0 or left + ink_width > 1 or top + ink_height > 1:
+        return None
+    return Box(left, top, ink_width, ink_height)
+
+
+def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False):
     """Static caption boxes avoid swept subject envelopes on the output clock.
 
     Conservative source envelopes plus crop extrema enclose motion continuously,
     including between samples; this checks supplied tracks, not detector recall.
+
+    keep_safe_defaults leaves an unstyled, unplaced caption untouched when its
+    default preset position already passes the same subject, content and
+    output-reserve checks. Layout is then attached only where it changes
+    placement, which keeps such plans representable as v1 EDLs.
     """
     from myzing.composition.timebase import frame_index, frame_time
     from myzing.render.positioned_captions import caption_frame_timing
@@ -388,6 +494,11 @@ def place_captions(plan, subjects, source_dimensions=None):
         for name, box in [("left", Box(0, 0, left, 1)), ("right", Box(right, 0, 1 - right, 1)),
                           ("top", Box(0, 0, 1, top)), ("bottom", Box(0, bottom, 1, 1 - bottom))]:
             masks.append(Mask(name, box))
+        if keep_safe_defaults and caption.layout is None and caption.style is None:
+            default = default_caption_box(caption, plan.width, plan.height)
+            if default is not None and check_overlap([Keyframe(caption.start, default), Keyframe(caption.end, default)],
+                                                     obstacles, masks).safe:
+                continue
         if caption.style is None:
             caption.style = CaptionStyle(max(1, min(plan.width, plan.height) / 18),
                                          outline_width=min(plan.width, plan.height) / 540)

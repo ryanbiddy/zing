@@ -89,8 +89,9 @@ def test_render_multi_aspect_job_reports_each_output(zing_workspace, has_ffmpeg,
     plan.brief = Brief(aspects=list(ASPECTS))
     edl_file.write_text(plan.to_json(), encoding="utf-8")
     monkeypatch.setattr(pipeline, "preflight_captions", lambda *a, **k: "ass")
-    def render(plan, output, *, aspects, **kwargs):
+    def render(plan, output, *, aspects, inputs=(), **kwargs):
         assert plan.schema_version == 2 and aspects == list(ASPECTS)
+        assert inputs == (edl_file.resolve(),)  # The source plan is overwrite-protected.
         return {"report": str(output.with_suffix(".deliveries.json")),
                 "deliveries": {a: {"video": str(output.with_name("out."+a.replace(":","x")+".mp4")),
                                     "status": "ready"} for a in aspects}}

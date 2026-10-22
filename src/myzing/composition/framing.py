@@ -49,7 +49,7 @@ class Framing(Record):
     keyframes: list[CropKeyframe] = field(default_factory=list)
     interpolation: Literal["smoothstep"] = "smoothstep"
     max_velocity: float = 240.0  # Source pixels / output second; Euclidean peak.
-    max_upscale: float = 2.0  # Linear scale; exceeding it emits a render warning.
+    max_upscale: float = 2.5  # Linear scale; matches the auto policy default. Exceeding it warns.
     confidence: float = 0.0
     method: str = "user-specified"
     warnings: list[str] = field(default_factory=list)

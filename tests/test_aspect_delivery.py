@@ -151,3 +151,75 @@ def test_closeup_caption_reflows_into_a_safe_side_gap():
     box = result.layout.box
     assert box.right <= face.x or face.right <= box.x
     assert result.start == caption.start and result.end == caption.end
+
+
+@pytest.mark.parametrize("plan_name,asset_name,output_name", [
+    ("draft.9x16.json", "source.mp4", "draft.mp4"),  # The per-aspect plan would replace the input plan.
+    ("plan.json", "draft.9x16.mp4", "draft.mp4"),    # The per-aspect video would replace an asset.
+])
+def test_delivery_refuses_to_overwrite_any_input_before_analysis(tmp_path, capsys, plan_name, asset_name, output_name):
+    from myzing.render.command import run
+    (tmp_path / asset_name).write_bytes(b"never decoded: the guard runs before any probe")
+    plan = Composition(assets=[AssetRef("s", asset_name, None)],
+                       clips=[CompositionClip(asset_name, 0, 1, 0, id="c", asset_id="s")], width=1920, height=1080)
+    edl = tmp_path / plan_name
+    edl.write_text(plan.to_json(), encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    assert run([str(edl), "--aspect", "9:16", "-o", str(tmp_path / output_name)]) == 1
+    error = capsys.readouterr().err
+    assert "would overwrite input" in error and "choose a different -o" in error
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+
+
+def test_adapt_plan_clamps_scaled_caption_style_to_its_contract():
+    for size, outline, short_side, expected in ((300, 12, 4320, (512, 20)), (36, 2, 18, (1, 2 * 18 / 1080))):
+        cap = CompositionCaption(id="cap", text="A", start=.1, end=1.9, word_timed=False,
+                                 style=CaptionStyle(size, outline_width=outline))
+        plan = Composition(assets=[AssetRef("s", "source", None)], clips=[clip()], captions=[cap], width=1080, height=1080)
+        width, height = dimensions("1:1", short_side)
+        source = adapt_plan(plan, width, height, {"s": (1080, 1080)}, {"s": []}, requested="fit")
+        style = source.captions[0].style
+        assert style.size <= expected[0] + 1e-9 and style.size >= 1
+        assert style.outline_width <= 20
+
+
+def test_shared_source_measurement_is_reused_across_drafts(tmp_path, monkeypatch):
+    from myzing.render import deliveries
+    media = tmp_path / "source.mp4"
+    media.write_bytes(b"not decoded")
+    calls = []
+    monkeypatch.setattr(deliveries, "probe_dimensions", lambda path, ffprobe="ffprobe": (1920, 1080))
+    monkeypatch.setattr(deliveries, "probe_duration", lambda path: 600.0)
+    monkeypatch.setattr(deliveries, "detect_shots", lambda *a: type("Shots", (), {"shots": [], "warnings": []})())
+    def analyze(path, duration, directory, cuts, ranges=None):
+        calls.append(sorted(ranges))
+        return [subject()], []
+    monkeypatch.setattr(deliveries, "analyze_subjects", analyze)
+    drafts = [Composition(assets=[AssetRef("s", str(media), None)],
+                          clips=[CompositionClip(str(media), start, start + 2, 0, id="c", asset_id="s")],
+                          width=1920, height=1080) for start in (100, 400)]
+    sources = {}
+    for draft in drafts:
+        for path, ranges in deliveries.used_ranges(draft).items():
+            sources.setdefault(media.resolve(), []).extend(ranges)
+    measured = deliveries.measure_sources(sources, tmp_path / "analysis", fps=30)
+    assert calls == [[(100, 102), (400, 402)]]  # Only used trims, once per source.
+    for draft in drafts:
+        plans, evidence = deliveries.delivery_plans(draft, ["1:1"], tmp_path / "work", measured=measured)
+        assert plans["1:1"].clips[0].framing is not None
+        assert evidence["sources"]["s"]["analyzed_ranges"] == [[100, 102], [400, 402]]
+    assert len(calls) == 1
+    # Without shared evidence a plan measures its own trims only.
+    deliveries.delivery_plans(drafts[1], ["1:1"], tmp_path / "solo")
+    assert calls[-1] == [(400, 402)]
+
+
+def test_prepare_plan_without_captions_skips_face_layout_and_its_warning(tmp_path):
+    from types import SimpleNamespace
+    from myzing.match.api import _prepare_plan
+    plan = Composition(assets=[AssetRef("s", "source", None)], clips=[clip()], width=1920, height=1080)
+    source = tmp_path / "plan.json"
+    source.write_text(plan.to_json(), encoding="utf-8")
+    result = _prepare_plan(source, tmp_path / "drafts" / "plan-A.json", {}, SimpleNamespace(measured=[]), {"layout": True})
+    assert not any("Face layout" in w for w in result["warnings"])
+    assert not (tmp_path / "drafts" / "plan-A" / "layout.json").exists()

@@ -38,17 +38,40 @@ def _number(value):
 
 
 def _expression(framing, axis, rate):
+    """Piecewise smoothstep selected by a balanced binary search on time.
+
+    A flat sum with one term per segment exceeds FFmpeg 8's expression limit
+    at about 93 moving segments. Nested if() halving keeps the depth at
+    ceil(log2(pieces)) (8 for the 256-key contract) and evaluates one
+    segment per frame, using Framing.center_at's selection rule: a segment
+    owns times up to and including its end key.
+    """
     half = framing.width / 2 if axis == "center_x" else framing.height / 2
-    expression = _number(getattr(framing, axis) - half)
-    for a, b in zip(framing.keyframes, framing.keyframes[1:]):
-        delta = getattr(b, axis) - getattr(a, axis)
+    keys = framing.keyframes
+    if not keys:
+        return _number(getattr(framing, axis) - half)
+    # n is the CFR clip-local frame index, independent of source/container
+    # PTS and the rounded absolute timeline endpoint allocation.
+    clock = f"n/({rate})"
+    pieces = []  # (exclusive start time, expression); the first start is unused.
+    for a, b in zip(keys, keys[1:]):
+        start, delta = getattr(a, axis) - half, getattr(b, axis) - getattr(a, axis)
         if abs(delta) < 1e-10:
+            pieces.append((a.time, _number(start)))
             continue
-        # n is the CFR clip-local frame index, independent of source/container
-        # PTS and the rounded absolute timeline endpoint allocation.
-        u = f"clip((n/({rate})-{_number(a.time)})/{_number(b.time - a.time)},0,1)"
-        expression += f"+({_number(delta)})*({u})*({u})*(3-2*({u}))"
-    return expression
+        u = f"clip(({clock}-{_number(a.time)})/{_number(b.time - a.time)},0,1)"
+        pieces.append((a.time, f"{_number(start)}+({_number(delta)})*(({u})*({u})*(3-2*({u})))"))
+    pieces.append((keys[-1].time, _number(getattr(keys[-1], axis) - half)))
+    # Adjacent holds at the same value form one piece (a static axis is a constant).
+    pieces = [piece for i, piece in enumerate(pieces) if i == 0 or piece[1] != pieces[i - 1][1]]
+
+    def select(lo, hi):
+        if lo == hi:
+            return pieces[lo][1]
+        mid = (lo + hi + 1) // 2
+        return f"if(lte({clock},{_number(pieces[mid][0])}),{select(lo, mid - 1)},{select(mid, hi)})"
+
+    return select(0, len(pieces) - 1)
 
 
 def framing_filter(framing, width, height, rate, label="framing"):
@@ -63,6 +86,10 @@ def framing_filter(framing, width, height, rate, label="framing"):
         return (normal + f"split=2[{label}_fg][{label}_bg];\n"
                 f"[{label}_bg]scale={bw}:{bh}:force_original_aspect_ratio=increase,"
                 f"crop={bw}:{bh}:exact=1,gblur=sigma=12:steps=2,"
+                # The lut constants are 8-bit limited-range levels. Convert
+                # 10/12-bit, RGB and full-range input first, or neutral chroma
+                # (512 at 10 bits) is pulled toward green.
+                "format=yuv420p,"
                 "lutyuv=y='16+(val-16)*0.55':u='128+(val-128)*0.65':v='128+(val-128)*0.65',"
                 f"scale={width}:{height},setsar=1[{label}_back];\n"
                 f"[{label}_fg]scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
