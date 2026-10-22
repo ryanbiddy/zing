@@ -1421,6 +1421,18 @@ def h_push_to_uoink(slug: str) -> dict[str, Any]:
     return uoink_bridge.push_breakdown(slug)
 
 
+@_workspace_boundary
+def h_plan_drafts(project: str, recipe: str, out: str, seed: int = 0) -> dict[str, Any]:
+    """Local paths in, Composition paths and named shortages out."""
+    from myzing.director import plan_drafts
+
+    try:
+        result = plan_drafts(project, recipe, out, seed=seed)
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+    return _ok(**result)
+
+
 def h_meme_templates(search: str = "") -> dict[str, Any]:
     """Catalog lookup is offline and does not fetch image files."""
     from myzing.memes.templates import list_templates
@@ -1874,6 +1886,17 @@ def build_server():
             "output is refused unless overwrite=true."
         ),
     )(h_inspect_timeline)
+
+    mcp.tool(
+        name="plan_drafts",
+        description=(
+            "Plan three distinct Composition v2 edits from a project folder, StyleRecipe JSON path, "
+            "and saved brief.json. Reads local clip studies from project/breakdowns and ZING_HOME. "
+            "Writes plan-A/B/C.json, comparison.json, and v1 EDL derivatives when representable. "
+            "No study, render, model download or network. Returns paths, planned match deviations "
+            "and named shortages; status=shortage means no trio was written. Seed defaults to 0."
+        ),
+    )(h_plan_drafts)
 
     for prompt_name in available_prompts():
         def _make(nm: str):

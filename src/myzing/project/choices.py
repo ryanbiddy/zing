@@ -99,6 +99,9 @@ def choose_draft(project: str | Path, draft: str, *, note: str | None = None,
     with project_lock(root):
         manifest = load_project(root)
         artifact = Path(draft_file).expanduser().resolve() if draft_file is not None else root / "drafts" / f"{draft}.json"
+        if draft_file is None and not artifact.exists() and (root / "drafts" / f"plan-{draft}.json").exists():
+            # `zing plan drafts --out <project>/drafts` writes plan-A.json.
+            artifact = root / "drafts" / f"plan-{draft}.json"
         if not artifact.is_file():
             raise ProjectError(f"Draft {draft} is missing at {artifact}. Save its plan there or supply --draft-file FILE.")
         before = artifact.stat()

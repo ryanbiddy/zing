@@ -19,6 +19,7 @@ over nested JSON in native-command arguments.
 | `zing prompt` | Print study, compare, direct, taste or meme-writer judgment instructions. |
 | `zing profile` | Build/show measured aggregates; pack can study missing references. |
 | `zing assemble` | One studied source plus chosen keepers → draft-edl.json. |
+| `zing plan drafts` | Project-wide studies, saved brief and recipe → three distinct Composition v2 plans, comparison, and supported v1 derivatives; named shortage if no trio is found. |
 | `zing render` | EDL → MP4 using FFmpeg/libass; optional voiceover is separate. |
 | `zing layout` | Explicit model fetching or standalone caption geometry plan. |
 | `zing color` | Match SDR distribution → recipe/LUT/preview; apply LUT → derived video. |
@@ -65,6 +66,17 @@ The smallest direction consumed by assembly is a keepers object:
 ```json
 {"keepers":[{"start":0,"end":2,"why":"Chosen opening"},{"start":4,"end":6,"why":"Chosen payoff"}]}
 ```
+
+For project-wide alternatives, study clips into the project workspace (or
+the current ZING_HOME), then run:
+
+```sh
+zing plan drafts ./project --recipe ./recipe.json --seed 17 --out ./draft-plans
+```
+
+The output includes plan-A/B/C.json and comparison.json. It also includes v1 EDL
+derivatives when rendering instructions can be represented without loss. Read
+the comparison before rendering; a shortage removes the earlier owned trio.
 
 These are chosen **source seconds**; replace them with valid spans in measured
 footage. This minimal object is for assembly only, not the full direct-judgment

@@ -16,6 +16,7 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "plan_drafts",
     "inspect_timeline",
     "brief_questions",
     "brief_save",

@@ -138,6 +138,7 @@ def client(tmp_path):
 
 
 EXPECTED_TOOLS = {
+    "plan_drafts",
     "inspect_timeline",
     "meme_templates",
     "meme_ideas",
@@ -202,7 +203,7 @@ def test_connect_doc_names_every_tool():
     assert not undocumented, f"CONNECT.md is missing: {sorted(undocumented)}"
     spelled = {
         3: "three", 12: "twelve", 17: "seventeen", 18: "eighteen",
-        19: "nineteen", 20: "twenty", 23: "twenty-three", 24: "twenty-four", 26: "twenty-six", 27: "twenty-seven",
+        19: "nineteen", 20: "twenty", 23: "twenty-three", 24: "twenty-four", 26: "twenty-six", 27: "twenty-seven", 28: "twenty-eight",
     }.get(len(EXPECTED_TOOLS))
     assert spelled and spelled in doc, (
         f"CONNECT.md's tool count is stale — the server serves "
