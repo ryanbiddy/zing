@@ -16,11 +16,55 @@ from __future__ import annotations
 
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
 
 from myzing import storage
+
+
+def _guard_live_uoink(event, args):
+    """Fail before any real socket or filesystem access to Ryan's Uoink."""
+    if event in {"socket.connect", "socket.getaddrinfo"}:
+        address = args[1] if event == "socket.connect" else args[:2]
+        if isinstance(address, tuple) and len(address) > 1 and str(address[1]) == "5179":
+            raise AssertionError("Tests must never contact the live Uoink port")
+    if event in {"open", "os.listdir", "os.scandir", "os.remove", "os.rename", "os.mkdir"}:
+        for value in args[:2] if event == "os.rename" else args[:1]:
+            if not isinstance(value, (str, bytes, os.PathLike)):
+                continue
+            path = os.fsdecode(value).replace("\\", "/").lower().rstrip("/")
+            if (path == "e:/uoink" or path.startswith("e:/uoink/")
+                    or "/appdata/local/uoink/" in path or path.endswith("/appdata/local/uoink")):
+                raise AssertionError("Tests must never access the live Uoink library")
+
+
+sys.addaudithook(_guard_live_uoink)
+
+
+@pytest.fixture(autouse=True)
+def isolated_uoink_transport(monkeypatch):
+    """Default peer requests must be mocked; never inherit real credentials."""
+    import urllib.error
+    import urllib.request
+    from myzing import suite_peer, uoink_bridge
+
+    monkeypatch.delenv("UOINK_TOKEN", raising=False)
+    monkeypatch.delenv("UOINK_URL", raising=False)
+    monkeypatch.setattr(suite_peer, "UOINK_DEFAULT_URL", "http://127.0.0.1:1")
+    monkeypatch.setattr(uoink_bridge, "UOINK_DEFAULT_URL", "http://127.0.0.1:1")
+    original = urllib.request.urlopen
+
+    def offline_peer(request, *args, **kwargs):
+        url = request.full_url if hasattr(request, "full_url") else str(request)
+        if url.startswith("http://127.0.0.1:1/"):
+            raise urllib.error.URLError("isolated test peer is offline")
+        if ":5179" in url:
+            raise AssertionError("Patch peer discovery before making test requests")
+        return original(request, *args, **kwargs)
+
+    monkeypatch.setattr(urllib.request, "urlopen", offline_peer)
 
 
 @pytest.fixture(autouse=True)

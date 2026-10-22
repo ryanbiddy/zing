@@ -13,8 +13,9 @@ over nested JSON in native-command arguments.
 | `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v5. |
-| `zing project` | Init, scan, status; source inventory and hashes, not edit selection. |
+| `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
 | `zing brief` | New/show; save interview answers after project init, not an automatic director. |
+| `zing plan choose` | Choose A/B/C from a local artifact; durable receipt, optional reference citation with --share-choice; never publishes. |
 | `zing prompt` | Print study, compare, direct, taste or meme-writer judgment instructions. |
 | `zing profile` | Build/show measured aggregates; pack can study missing references. |
 | `zing assemble` | One studied source plus chosen keepers → draft-edl.json. |
@@ -47,7 +48,17 @@ zing thumbs SOURCE_SLUG --workspace /absolute/workspace
 For noninteractive brief import use `zing brief new ./project --brief brief.json`.
 It accepts the complete version 1 brief; `--answers` instead takes a JSON object
 of answers and fills omitted defaults. Neither selects footage. Init already
-scans; another scan updates changed files. Reference study is not auto-attached.
+scans; another scan updates changed files. To attach a reference study explicitly,
+run `zing project resolve-reference ./project`, then
+`zing project study-reference ./project`. For an offline peer, supply
+`zing project resolve-reference ./project --file reference.mp4`.
+
+`zing project find-reference "soft cuts"` lists candidates only when the peer
+advertises the optional search contract. Choose an existing draft with
+`zing plan choose ./project --draft A --draft-file draft-edl.json`.
+Without an explicit file, the command reads ./project/drafts/A.json (or B/C).
+Add --share-choice only when the user asks to share the reference citation;
+retrying with that flag preserves the event identity. Choice details stay local.
 
 The smallest direction consumed by assembly is a keepers object:
 

@@ -1,4 +1,4 @@
-"""The uoink bridge: push a breakdown back into the user's corpus.
+"""Optional Uoink bridge: kept media, reference search and breakdown notes.
 
 Optional by design — Zing is fully standalone. When the uoink helper
 answers on localhost (explicit ``UOINK_URL``, then its valid runtime lease,
@@ -14,9 +14,9 @@ and tells the user exactly where uoink keeps it — see ``TOKEN_LOCATION``,
 the one place that guidance is written (final review P3-3: "next to
 server.py" alone is meaningless to someone who installed the app).
 
-The full two-way integration (reading saved shorts from the corpus,
-profiles/shot-lists back) is the S6 sprint with its own contract doc —
-this is deliberately just the one high-value push.
+Kept media uses the existing exact-key handoff. Search requires the optional
+capability documented in docs/UOINK-MEMORY.md; it is unavailable unless the
+peer explicitly advertises that contract.
 """
 
 from __future__ import annotations
@@ -82,6 +82,22 @@ def _token() -> str:
     return os.environ.get(UOINK_TOKEN_ENV, "").strip()
 
 
+def redact(value: str) -> str:
+    """Never persist or display credentials echoed by an optional peer."""
+    token = _token()
+    if token:
+        for secret in {token, urllib.parse.quote(token, safe=""), urllib.parse.quote_plus(token),
+                       json.dumps(token, ensure_ascii=False)[1:-1], repr(token)[1:-1]}:
+            value = value.replace(secret, "[redacted]")
+    return value
+
+
+def credential_safe_url(url: str) -> str:
+    if redact(url) != url:
+        raise ValueError("Uoink request URL contains a credential; remove it from the URL/input.")
+    return url
+
+
 def _item_id_from_ref(item_ref: Any) -> str | None:
     """Return one canonical Uoink item id, or ``None``.
 
@@ -114,7 +130,8 @@ def _err(message: str, **extra: Any) -> dict[str, Any]:
     """The house errors-as-data envelope (uoink house pattern, same shape
     the MCP server returns). Hand-built literals were duplicated 15
     times here before SG-3."""
-    return {"ok": False, "error": message, **extra}
+    return {"ok": False, "error": redact(message),
+            **{key: redact(value) if isinstance(value, str) else value for key, value in extra.items()}}
 
 
 def _nonconformant(what: str) -> dict[str, Any]:
@@ -251,9 +268,11 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
         + urllib.parse.quote(item_id, safe="")
         + "/kept-media"
     )
-    request = urllib.request.Request(
-        url, headers={"X-Uoink-Token": token}, method="GET"
-    )
+    try:
+        request = urllib.request.Request(credential_safe_url(url), method="GET")
+    except ValueError as error:
+        return _err(str(error))
+    request.add_unredirected_header("X-Uoink-Token", token)
     try:
         with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8"))
@@ -297,6 +316,65 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     return {"ok": True, "data": body["data"]}
 
 
+# Optional client handoff, documented in docs/UOINK-MEMORY.md. The existing
+# v1 suite does not advertise search; do not guess a legacy /search route.
+SEARCH_CAPABILITY = "uoink.corpus.search/1"
+
+
+def search_references(query: str) -> dict[str, Any]:
+    """List reference candidates only when the peer advertises this contract."""
+    if not isinstance(query, str) or not query.strip() or len(query) > 1000:
+        return _err("Supply a search query of 1 to 1000 characters.", code="invalid_query")
+    token = _token()
+    if not token:
+        return _err("Reference search unavailable: configure UOINK_TOKEN, or supply a local file.", code="unconfigured")
+    try:
+        base = credential_safe_url(helper_url())
+        status, manifest = suite_peer._get_json(base + "/.well-known/suite-service.json")
+        if status != 200 or suite_peer._manifest_defect(manifest) is not None:
+            return _err("Reference search unavailable: peer service manifest is nonconformant.", code="contract_mismatch")
+        service = manifest["service"]
+        if service["id"] != "uoink":
+            return _err("Reference search unavailable: endpoint is not Uoink.", code="wrong_service")
+        if SEARCH_CAPABILITY not in service["capabilities"]:
+            return _err("Reference search unavailable: peer does not advertise uoink.corpus.search/1. Supply a known uoink:<id> or a local file.", code="unsupported_capability")
+        # POST keeps the query out of URLs, including accidental pasted secrets.
+        request = urllib.request.Request(
+            base + "/api/corpus/v1/search",
+            data=json.dumps({"contract": "uoink.corpus.search", "version": 1,
+                             "query": query.strip(), "limit": 20}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST",
+        )
+        request.add_unredirected_header("X-Uoink-Token", token)
+        with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
+            raw = response.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            raise ValueError("oversized search response")
+        body = json.loads(raw.decode("utf-8"))
+    except suite_peer.UoinkResolutionError as error:
+        return _err("Reference search unavailable: " + str(error), code=error.code)
+    except urllib.error.HTTPError as error:
+        code = "unsupported_capability" if error.code in (404, 405, 501) else "peer_error"
+        return _err(f"Reference search unavailable (HTTP {error.code}); use a known ID or local file.", code=code)
+    except (OSError, ValueError):
+        return _err("Reference search unavailable: peer offline or response invalid. Use a known ID or local file.", code="unavailable")
+    if (not isinstance(body, dict) or set(body) != {"ok", "contract", "version", "data"}
+            or body["ok"] is not True or body["contract"] != "uoink.corpus.search"
+            or type(body["version"]) is not int or body["version"] != 1
+            or not isinstance(body["data"], dict) or set(body["data"]) != {"results"}
+            or not isinstance(body["data"]["results"], list) or len(body["data"]["results"]) > 20):
+        return _err("Reference search response is not uoink.corpus.search v1.", code="contract_mismatch")
+    results = body["data"]["results"]
+    for result in results:
+        if (not isinstance(result, dict) or set(result) != {"item_ref", "title", "source_url"}
+                or _item_id_from_ref(result.get("item_ref")) is None
+                or not isinstance(result.get("title"), str)
+                or (result.get("source_url") is not None and not is_http_url(result["source_url"]))
+                or any(isinstance(value, str) and redact(value) != value for value in result.values())):
+            return _err("Reference search returned an invalid candidate.", code="contract_mismatch")
+    return {"ok": True, "results": results, "selected": None}
+
+
 def push_breakdown(slug: str) -> dict[str, Any]:
     """Send a slug's breakdown.md to uoink as a note.
 
@@ -330,7 +408,10 @@ def push_breakdown(slug: str) -> dict[str, Any]:
             f"uoink discovery failed: {error.code} — {error}",
             code=error.code,
         )
-    url = base.rstrip("/") + "/notes"
+    try:
+        url = credential_safe_url(base.rstrip("/") + "/notes")
+    except ValueError as error:
+        return _err(str(error))
     payload = json.dumps(
         {"text": text, "title": title, "author": "Zing"}
     ).encode("utf-8")
@@ -339,10 +420,10 @@ def push_breakdown(slug: str) -> dict[str, Any]:
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "X-Uoink-Token": _token(),
         },
         method="POST",
     )
+    request.add_unredirected_header("X-Uoink-Token", _token())
     try:
         with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8"))

@@ -38,6 +38,30 @@ class SourceRecord(Record):
 
 
 @dataclass
+class ReferenceResolution(Record):
+    state: str
+    path: str | None = None
+    sha256: str | None = None
+    byte_length: int | None = None
+    item_ref: str | None = None
+    source_url: str | None = None
+    provenance: dict[str, Any] = field(default_factory=dict)
+    reason: str | None = None
+    version: int = 1
+
+    def __post_init__(self):
+        if self.state not in {"resolved", "unresolved"}:
+            raise ProjectError("Invalid reference resolution state.")
+        if self.state == "resolved" and (
+            not isinstance(self.path, str) or not self.path
+            or not isinstance(self.sha256, str) or len(self.sha256) != 64
+            or any(c not in "0123456789abcdef" for c in self.sha256)
+            or type(self.byte_length) is not int or self.byte_length < 0
+        ):
+            raise ProjectError("Resolved reference needs a path, SHA-256 and byte length.")
+
+
+@dataclass
 class Reference(Record):
     value: str
     kind: str  # url, file, uoink
@@ -46,11 +70,16 @@ class Reference(Record):
     study: dict[str, Any] | None = None
     state: str = "recorded"
     version: int = 1
+    resolution: ReferenceResolution | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> Reference:
         _version(data, cls.__name__)
-        return super().from_dict({**data, "source": SourceRecord.from_dict(data["source"])})
+        return super().from_dict({
+            **data, "source": SourceRecord.from_dict(data["source"]),
+            "resolution": (ReferenceResolution.from_dict(data["resolution"])
+                           if data.get("resolution") is not None else None),
+        })
 
 
 @dataclass
@@ -136,6 +165,8 @@ class ProjectManifest(Record):
             if result.reference.kind == "file":
                 resolve_path(result.reference.value, project, entry="reference.value")
                 resolve_path(result.reference.source.origin, project, entry="reference.source.origin")
+            if result.reference.resolution and result.reference.resolution.path:
+                resolve_path(result.reference.resolution.path, project, entry="reference.resolution.path")
             ids, paths = set(), set()
             for index, asset in enumerate(result.assets):
                 entry = f"assets[{index}] ({asset.id})"

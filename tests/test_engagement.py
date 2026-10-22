@@ -70,7 +70,7 @@ def test_opened_event_is_exact_and_accepted(
     }
     assert captured == {
         "url": (
-            "http://127.0.0.1:5179/api/engagement/v1/events"
+            "http://127.0.0.1:1/api/engagement/v1/events"
         ),
         "token": "local-token",
         "body": {
