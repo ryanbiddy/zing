@@ -1,0 +1,428 @@
+{
+  "_fixture": {
+    "contract": "uoink.corpus.read",
+    "version": 1,
+    "provider": "UoinkCorpusProvider",
+    "regenerate": "python tests/regenerate_corpus_contract_v1_fixture.py",
+    "check": "python tests/regenerate_corpus_contract_v1_fixture.py --check",
+    "data": "synthetic"
+  },
+  "operations": {
+    "search_all": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "search",
+      "data": {
+        "items": [
+          {
+            "id": "video-contract",
+            "title": "The saved hour",
+            "author": "Fixture Creator",
+            "source_type": "youtube",
+            "platform": "youtube",
+            "source_url": "https://example.test/video-contract",
+            "captured_at": "2030-01-02T03:04:05Z",
+            "duration_seconds": 42,
+            "credit": {
+              "creator": "Fixture Creator",
+              "handle": "@FixtureCreator",
+              "source_url": "https://example.test/video-contract"
+            },
+            "facets": {
+              "topic": "Local AI",
+              "hook_type": "curiosity_gap",
+              "format": "talking_head",
+              "performance_tier": "over",
+              "length_bucket": "short"
+            },
+            "preview": {
+              "id": "thumbnail",
+              "kind": "image",
+              "role": "thumbnail",
+              "media_type": "image/jpeg",
+              "label": "thumbnail",
+              "byte_length": 17,
+              "href": "/api/corpus/v1/items/video-contract/attachments/thumbnail"
+            }
+          },
+          {
+            "id": "note-contract",
+            "title": "Local note",
+            "author": "You",
+            "source_type": "note",
+            "platform": "note",
+            "source_url": null,
+            "captured_at": "2030-01-01T03:04:05Z",
+            "duration_seconds": null,
+            "credit": {
+              "creator": "You",
+              "handle": null,
+              "source_url": null
+            },
+            "facets": {
+              "topic": "Systems",
+              "hook_type": null,
+              "format": null,
+              "performance_tier": null,
+              "length_bucket": null
+            },
+            "preview": null
+          }
+        ],
+        "page": {
+          "state": "matches",
+          "total": 2,
+          "corpus_total": 2,
+          "limit": 20,
+          "offset": 0
+        }
+      }
+    },
+    "search_filtered": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "search",
+      "data": {
+        "items": [
+          {
+            "id": "video-contract",
+            "title": "The saved hour",
+            "author": "Fixture Creator",
+            "source_type": "youtube",
+            "platform": "youtube",
+            "source_url": "https://example.test/video-contract",
+            "captured_at": "2030-01-02T03:04:05Z",
+            "duration_seconds": 42,
+            "credit": {
+              "creator": "Fixture Creator",
+              "handle": "@FixtureCreator",
+              "source_url": "https://example.test/video-contract"
+            },
+            "facets": {
+              "topic": "Local AI",
+              "hook_type": "curiosity_gap",
+              "format": "talking_head",
+              "performance_tier": "over",
+              "length_bucket": "short"
+            },
+            "preview": {
+              "id": "thumbnail",
+              "kind": "image",
+              "role": "thumbnail",
+              "media_type": "image/jpeg",
+              "label": "thumbnail",
+              "byte_length": 17,
+              "href": "/api/corpus/v1/items/video-contract/attachments/thumbnail"
+            }
+          }
+        ],
+        "page": {
+          "state": "matches",
+          "total": 1,
+          "corpus_total": 2,
+          "limit": 10,
+          "offset": 0
+        }
+      }
+    },
+    "search_no_matches": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "search",
+      "data": {
+        "items": [],
+        "page": {
+          "state": "no_matches",
+          "total": 0,
+          "corpus_total": 2,
+          "limit": 10,
+          "offset": 0
+        }
+      }
+    },
+    "get": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "get",
+      "data": {
+        "item": {
+          "id": "video-contract",
+          "title": "The saved hour",
+          "author": "Fixture Creator",
+          "source_type": "youtube",
+          "platform": "youtube",
+          "source_url": "https://example.test/video-contract",
+          "captured_at": "2030-01-02T03:04:05Z",
+          "duration_seconds": 42,
+          "credit": {
+            "creator": "Fixture Creator",
+            "handle": "@FixtureCreator",
+            "source_url": "https://example.test/video-contract"
+          },
+          "facets": {
+            "topic": "Local AI",
+            "hook_type": "curiosity_gap",
+            "format": "talking_head",
+            "performance_tier": "over",
+            "length_bucket": "short"
+          },
+          "preview": {
+            "id": "thumbnail",
+            "kind": "image",
+            "role": "thumbnail",
+            "media_type": "image/jpeg",
+            "label": "thumbnail",
+            "byte_length": 17,
+            "href": "/api/corpus/v1/items/video-contract/attachments/thumbnail"
+          }
+        },
+        "content": {
+          "available": true,
+          "media_type": "text/markdown",
+          "text": "# The saved hour\n\nA local workflow removed one repeated task.\n",
+          "byte_length": 62,
+          "truncated": false
+        },
+        "attachments": [
+          {
+            "id": "thumbnail",
+            "kind": "image",
+            "role": "thumbnail",
+            "media_type": "image/jpeg",
+            "label": "thumbnail",
+            "byte_length": 17,
+            "href": "/api/corpus/v1/items/video-contract/attachments/thumbnail"
+          },
+          {
+            "id": "screenshot-0",
+            "kind": "image",
+            "role": "screenshot",
+            "media_type": "image/jpeg",
+            "label": "shot 0001",
+            "byte_length": 18,
+            "href": "/api/corpus/v1/items/video-contract/attachments/screenshot-0"
+          }
+        ]
+      }
+    },
+    "get_non_video": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "get",
+      "data": {
+        "item": {
+          "id": "note-contract",
+          "title": "Local note",
+          "author": "You",
+          "source_type": "note",
+          "platform": "note",
+          "source_url": null,
+          "captured_at": "2030-01-01T03:04:05Z",
+          "duration_seconds": null,
+          "credit": {
+            "creator": "You",
+            "handle": null,
+            "source_url": null
+          },
+          "facets": {
+            "topic": "Systems",
+            "hook_type": null,
+            "format": null,
+            "performance_tier": null,
+            "length_bucket": null
+          },
+          "preview": null
+        },
+        "content": {
+          "available": true,
+          "media_type": "text/markdown",
+          "text": "# Local note\n\nA short note about repeatable systems.\n",
+          "byte_length": 53,
+          "truncated": false
+        },
+        "attachments": [
+          {
+            "id": "primary",
+            "kind": "image",
+            "role": "primary",
+            "media_type": "image/png",
+            "label": "note image",
+            "byte_length": 18,
+            "href": "/api/corpus/v1/items/note-contract/attachments/primary"
+          }
+        ]
+      }
+    },
+    "facets": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "facets",
+      "data": {
+        "facets": {
+          "platform": [
+            {
+              "value": "note",
+              "label": "Note",
+              "count": 1
+            },
+            {
+              "value": "youtube",
+              "label": "Youtube",
+              "count": 1
+            }
+          ],
+          "source_type": [
+            {
+              "value": "note",
+              "label": "Note",
+              "count": 1
+            },
+            {
+              "value": "youtube",
+              "label": "Youtube",
+              "count": 1
+            }
+          ],
+          "author": [
+            {
+              "value": "Fixture Creator",
+              "label": "Fixture Creator",
+              "count": 1
+            },
+            {
+              "value": "You",
+              "label": "You",
+              "count": 1
+            }
+          ],
+          "channel": [
+            {
+              "value": "Fixture Creator",
+              "label": "Fixture Creator",
+              "count": 1
+            },
+            {
+              "value": "You",
+              "label": "You",
+              "count": 1
+            }
+          ],
+          "format": [
+            {
+              "value": "talking_head",
+              "label": "Talking Head",
+              "count": 1
+            }
+          ],
+          "performance_tier": [
+            {
+              "value": "over",
+              "label": "Over",
+              "count": 1
+            }
+          ],
+          "length_bucket": [
+            {
+              "value": "short",
+              "label": "Short",
+              "count": 1
+            }
+          ],
+          "topic": [
+            {
+              "value": "Local AI",
+              "label": "Local Ai",
+              "count": 1
+            },
+            {
+              "value": "Systems",
+              "label": "Systems",
+              "count": 1
+            }
+          ],
+          "hook_type": [
+            {
+              "value": "curiosity_gap",
+              "label": "Curiosity Gap",
+              "count": 1
+            }
+          ]
+        },
+        "date_bounds": {
+          "min": "2030-01-01T03:04:05Z",
+          "max": "2030-01-02T03:04:05Z"
+        }
+      }
+    },
+    "taste": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "taste",
+      "data": {
+        "markdown": "# Taste\n\n_Generated by Uoink `consolidate_taste()`. Edit `USER.md` for free-form notes -- this file is regenerated whenever an anchor is updated or `/memory/taste` is POSTed, and any human edits here will be overwritten._\n\n## Preferred hooks\n\nOpen on a concrete result.\n\n## Preferred formats\n\n_no anchors yet_\n\n## Avoid\n\n_no anchors yet_\n\n## Performance anchors\n\n_Top videos by `value_score` (v2.5 S2 -- weighted, 30-day half-life decay)._\n\n_no engagement yet_\n\n## Last consolidated\n\n2030-01-02T03:04:05Z\n",
+        "anchors": {
+          "best": [
+            {
+              "id": "video-contract",
+              "title": "The saved hour"
+            }
+          ],
+          "worst": [],
+          "admired_channels": [
+            "Fixture Creator"
+          ]
+        }
+      }
+    },
+    "assemble": {
+      "ok": true,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "assemble",
+      "data": {
+        "filters": {
+          "format": "talking_head",
+          "topic": "Local AI",
+          "hook_target": "curiosity_gap",
+          "your_channel": null,
+          "n_examples": 5
+        },
+        "assembled": [
+          {
+            "video_id": "video-contract",
+            "slug": "video-contract",
+            "title": "The saved hour",
+            "channel": "Fixture Creator",
+            "topic": "Local AI",
+            "hook_type": "curiosity_gap",
+            "format": "talking_head",
+            "performance_tier": "over",
+            "length_bucket": "short",
+            "yoinked_at": "2030-01-02T03:04:05Z"
+          }
+        ],
+        "audience_questions": [],
+        "self_snapshot": null,
+        "taste_anchors": "# Taste\n\n_Generated by Uoink `consolidate_taste()`. Edit `USER.md` for free-form notes -- this file is regenerated whenever an anchor is updated or `/memory/taste` is POSTed, and any human edits here will be overwritten._\n\n## Preferred hooks\n\nOpen on a concrete result.\n\n## Preferred formats\n\n_no anchors yet_\n\n## Avoid\n\n_no anchors yet_\n\n## Performance anchors\n\n_Top videos by `value_score` (v2.5 S2 -- weighted, 30-day half-life decay)._\n\n_no engagement yet_\n\n## Last consolidated\n\n2030-01-02T03:04:05Z\n"
+      }
+    },
+    "missing": {
+      "ok": false,
+      "contract": "uoink.corpus.read",
+      "version": 1,
+      "operation": "get",
+      "error": {
+        "code": "not_found",
+        "message": "corpus item not found",
+        "retryable": false
+      }
+    }
+  }
+}

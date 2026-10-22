@@ -49,6 +49,24 @@ python -m pip install -e ".[mcp]"
 Then run `zing doctor` once — `study_video` refuses to start without ffmpeg
 and says why.
 
+## Use Uoink and Zing together
+
+`zing doctor` and `zing serve-mcp --print-config` report the Uoink helper's
+connection state. When connected, the suite can find saved references with
+`zing project find-reference` through `uoink.corpus.read/1`, resolve `uoink:<id>`
+kept media, and save breakdown notes through Zing MCP `push_to_uoink`.
+If a helper is detected without credentials, configure UOINK_TOKEN before
+using those operations. No credential value belongs in a shared config or log.
+
+Uoink adds saved references, kept-media reuse and breakdown storage:
+[get Uoink](https://uoink.app). Zing also works with local files on its own.
+
+The [Uoink + Zing skill](../skills/uoink-zing/SKILL.md) covers finding a reference,
+verifying kept media, study or match, rendering, inspection, the breakdown note
+and the chosen-draft receipt. Uoink MCP also provides search and saved-item
+tools for browsing the library. Project reference resolution never falls back to a download;
+`study_uoink_item` can, so obtain download consent before using that tool.
+
 ## Claude Desktop
 
 1. Run `zing serve-mcp --print-config desktop` and merge the JSON it

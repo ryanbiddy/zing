@@ -14,9 +14,8 @@ and tells the user exactly where uoink keeps it — see ``TOKEN_LOCATION``,
 the one place that guidance is written (final review P3-3: "next to
 server.py" alone is meaningless to someone who installed the app).
 
-Kept media uses the existing exact-key handoff. Search requires the optional
-capability documented in docs/UOINK-MEMORY.md; it is unavailable unless the
-peer explicitly advertises that contract.
+Kept media uses the existing exact-key handoff. Search uses corpus.read/1,
+documented in docs/UOINK-MEMORY.md, with its v1 response validated unchanged.
 """
 
 from __future__ import annotations
@@ -316,15 +315,13 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     return {"ok": True, "data": body["data"]}
 
 
-# Optional client handoff, documented in docs/UOINK-MEMORY.md. The existing
-# v1 suite does not advertise search; do not guess a legacy /search route.
-SEARCH_CAPABILITY = "uoink.corpus.search/1"
+SEARCH_CAPABILITY = "uoink.corpus.read/1"
 
 
 def search_references(query: str) -> dict[str, Any]:
     """List reference candidates only when the peer advertises this contract."""
-    if not isinstance(query, str) or not query.strip() or len(query) > 1000:
-        return _err("Supply a search query of 1 to 1000 characters.", code="invalid_query")
+    if not isinstance(query, str) or not query.strip() or len(query) > 500:
+        return _err("Supply a search query of 1 to 500 characters.", code="invalid_query")
     token = _token()
     if not token:
         return _err("Reference search unavailable: configure UOINK_TOKEN, or supply a local file.", code="unconfigured")
@@ -337,13 +334,13 @@ def search_references(query: str) -> dict[str, Any]:
         if service["id"] != "uoink":
             return _err("Reference search unavailable: endpoint is not Uoink.", code="wrong_service")
         if SEARCH_CAPABILITY not in service["capabilities"]:
-            return _err("Reference search unavailable: peer does not advertise uoink.corpus.search/1. Supply a known uoink:<id> or a local file.", code="unsupported_capability")
-        # POST keeps the query out of URLs, including accidental pasted secrets.
+            return _err("Reference search unavailable: peer does not advertise uoink.corpus.read/1. Supply a known uoink:<id> or a local file.", code="unsupported_capability")
+        # Omit mode, match and search_details: use the peer's default matching
+        # and its unchanged v1 shape (forgiving keyword search on Uoink 3.11).
         request = urllib.request.Request(
-            base + "/api/corpus/v1/search",
-            data=json.dumps({"contract": "uoink.corpus.search", "version": 1,
-                             "query": query.strip(), "limit": 20}).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST",
+            base + "/api/corpus/v1/search?" + urllib.parse.urlencode(
+                {"q": query.strip(), "limit": 20}),
+            method="GET",
         )
         request.add_unredirected_header("X-Uoink-Token", token)
         with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
@@ -358,21 +355,73 @@ def search_references(query: str) -> dict[str, Any]:
         return _err(f"Reference search unavailable (HTTP {error.code}); use a known ID or local file.", code=code)
     except (OSError, ValueError):
         return _err("Reference search unavailable: peer offline or response invalid. Use a known ID or local file.", code="unavailable")
-    if (not isinstance(body, dict) or set(body) != {"ok", "contract", "version", "data"}
-            or body["ok"] is not True or body["contract"] != "uoink.corpus.search"
+    return parse_search_response(body)
+
+
+def parse_search_response(body: Any) -> dict[str, Any]:
+    """Validate corpus.read/1 search; project items to Zing's stable candidates.
+
+    All wire fields are checked before mapping id -> item_ref and retaining
+    title/source_url. Page and descriptive metadata are not returned to callers.
+    """
+    invalid = _err("Reference search response is not uoink.corpus.read v1 search.",
+                   code="contract_mismatch")
+    if (not isinstance(body, dict) or set(body) != _HANDOFF_TOP_KEYS
+            or body["ok"] is not True or body["contract"] != "uoink.corpus.read"
             or type(body["version"]) is not int or body["version"] != 1
-            or not isinstance(body["data"], dict) or set(body["data"]) != {"results"}
-            or not isinstance(body["data"]["results"], list) or len(body["data"]["results"]) > 20):
-        return _err("Reference search response is not uoink.corpus.search v1.", code="contract_mismatch")
-    results = body["data"]["results"]
-    for result in results:
-        if (not isinstance(result, dict) or set(result) != {"item_ref", "title", "source_url"}
-                or _item_id_from_ref(result.get("item_ref")) is None
-                or not isinstance(result.get("title"), str)
-                or (result.get("source_url") is not None and not is_http_url(result["source_url"]))
+            or body["operation"] != "search"
+            or not isinstance(body["data"], dict) or set(body["data"]) != {"items", "page"}):
+        return invalid
+    items, page = body["data"]["items"], body["data"]["page"]
+    if (not isinstance(items, list) or len(items) > 20
+            or not isinstance(page, dict)
+            or set(page) != {"state", "total", "corpus_total", "limit", "offset"}
+            or page["state"] not in ("matches", "no_matches", "empty_corpus")
+            or any(type(page[key]) is not int or page[key] < 0
+                   for key in ("total", "corpus_total", "limit", "offset"))):
+        return invalid
+    results = []
+    for item in items:
+        if not _search_item_valid(item):
+            return invalid
+        result = {"item_ref": _ITEM_REF_PREFIX + urllib.parse.quote(item["id"], safe=""),
+                  "title": item["title"], "source_url": item["source_url"]}
+        if (_item_id_from_ref(result["item_ref"]) is None
                 or any(isinstance(value, str) and redact(value) != value for value in result.values())):
-            return _err("Reference search returned an invalid candidate.", code="contract_mismatch")
+            return invalid
+        results.append(result)
     return {"ok": True, "results": results, "selected": None}
+
+
+def _search_item_valid(item: Any) -> bool:
+    """Mirror corpus_contract.validate_item_ref, including nested exact keys."""
+    if (not isinstance(item, dict) or set(item) != {
+            "id", "title", "author", "source_type", "platform", "source_url",
+            "captured_at", "duration_seconds", "credit", "facets", "preview"}
+            or not isinstance(item["id"], str) or not item["id"]
+            or not isinstance(item["title"], str)
+            or any(item[key] is not None and not isinstance(item[key], str)
+                   for key in ("author", "source_type", "platform", "captured_at"))
+            or (item["source_url"] is not None and not is_http_url(item["source_url"]))
+            or (item["duration_seconds"] is not None
+                and type(item["duration_seconds"]) not in (int, float))):
+        return False
+    credit, facets, preview = item["credit"], item["facets"], item["preview"]
+    if (not isinstance(credit, dict) or set(credit) != {"creator", "handle", "source_url"}
+            or any(credit[key] is not None and not isinstance(credit[key], str)
+                   for key in ("creator", "handle"))
+            or (credit["source_url"] is not None and not is_http_url(credit["source_url"]))
+            or not isinstance(facets, dict)
+            or set(facets) != {"topic", "hook_type", "format", "performance_tier", "length_bucket"}
+            or any(value is not None and not isinstance(value, str) for value in facets.values())):
+        return False
+    return preview is None or (
+        isinstance(preview, dict)
+        and set(preview) == {"id", "kind", "role", "media_type", "label", "byte_length", "href"}
+        and type(preview["byte_length"]) is int and preview["byte_length"] >= 0
+        and all(isinstance(preview[key], str) and preview[key]
+                for key in ("id", "kind", "role", "media_type", "label", "href"))
+    )
 
 
 def push_breakdown(slug: str) -> dict[str, Any]:

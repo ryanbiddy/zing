@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/ryanbiddy/uoink",
+  "source_path": "tests/fixtures/corpus_contract_v1/provider.json",
+  "source_checkout": "E:\\AI\\projects\\uoink\\checkouts\\Yoink-search",
+  "commit": "14abb479d0b5ddb0106e4e62c18bb1a9f75bf675",
+  "sha256": "204b89b0b3e0197e6934341570c69c4d6e34ae2145e60c9b4044029ca361cc89",
+  "license": "MIT",
+  "note": "Verbatim corpus.read/1 provider fixture. Its search responses are passed unchanged into Zing's wire parser. Only after exact-key validation does Zing map id to canonical item_ref and retain title/source_url for its callers."
+}

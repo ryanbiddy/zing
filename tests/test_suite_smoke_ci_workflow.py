@@ -125,3 +125,13 @@ def test_suite_smoke_ci_doc_states_what_the_runner_does_not_prove() -> None:
     ):
         assert required in text
     assert f"recomputes {len(SUITE_SMOKE_ASSERTION_IDS)} assertions" in text
+
+
+def test_uoink_runtime_is_separate_and_pinned_from_the_selected_checkout() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert 'python -m venv "$RUNNER_TEMP/uoink-venv"' in text
+    assert 'Path("uoink/requirements.txt").read_text()' in text
+    assert '"$RUNNER_TEMP/uoink-venv/bin/python" -m pip install' in text
+    assert '--uoink-python "$RUNNER_TEMP/uoink-venv/bin/python"' in text
+    assert '"mcp==1.27.1"' in text  # Zing and Writer keep their SDK pin.
+    assert "--isolated-ports" not in text  # CI must exercise shipped ports.

@@ -8,6 +8,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -57,8 +58,11 @@ def test_recorded_revision_refuses_uncommitted_runtime_source(
     with pytest.raises(smoke.SmokeError) as tracked_failure:
         smoke._git_revision(repo)
     assert tracked_failure.value.code == "source_worktree_dirty"
+    assert smoke._git_revision(repo, allow_dirty=True) == revision
+    changed_hash = smoke._working_tree_sha256(repo)
 
     tracked.write_text("VERSION = 1\n", encoding="utf-8")
+    assert smoke._working_tree_sha256(repo) != changed_hash
     (repo / "src").mkdir()
     (repo / "src" / "untracked.py").write_text(
         "RUNTIME = True\n", encoding="utf-8")
@@ -105,6 +109,10 @@ def test_fixture_seed_uses_uoink_platform_data_root(
     repo.mkdir()
     observed = tmp_path / "observed-root.txt"
     product_data = tmp_path / "product-data"
+    (repo / "uoink_install_isolation.py").write_text(
+        "def apply_from_process(): pass\n"
+        "def data_root(path): return path\n", encoding="utf-8",
+    )
     (repo / "_platform.py").write_text(
         "import os\n"
         "from pathlib import Path\n"
@@ -288,10 +296,13 @@ def test_safe_environment_removes_provider_credentials_and_forces_offline(
 ) -> None:
     for name in smoke.FORBIDDEN_PROVIDER_ENV:
         monkeypatch.setenv(name, "must-not-cross")
+    for name in ("UOINK_URL", "UOINK_TOKEN", "UOINK_ISOLATED_PROFILE", "WRITER_UOINK_URL"):
+        monkeypatch.setenv(name, "must-not-cross")
 
     env = smoke._safe_base_env(tmp_path)
 
     assert not set(smoke.FORBIDDEN_PROVIDER_ENV) & set(env)
+    assert not any(name.startswith(("UOINK_", "WRITER_")) for name in env)
     assert env["LOCALAPPDATA"] == str(tmp_path)
     assert env["HF_HUB_OFFLINE"] == "1"
     assert env["TRANSFORMERS_OFFLINE"] == "1"
@@ -385,3 +396,114 @@ def test_launcher_assertion_set_matches_independent_evaluator() -> None:
     assert list(smoke.RECORDED_ASSERTIONS) == [
         assertion["id"] for assertion in record["assertions"]
     ]
+
+
+@pytest.mark.parametrize("isolated_ports", [False, True])
+@pytest.mark.parametrize("separate_runtimes", [False, True])
+def test_peer_launch_seed_and_doctor_use_selected_runtime_and_ports(
+    tmp_path, monkeypatch, isolated_ports, separate_runtimes,
+):
+    """Drive through discovery to seeding with no sockets or real processes."""
+    repos = {name: tmp_path / name for name in ("uoink", "writer", "zing")}
+    for product, marker in (("uoink", "server.py"), ("writer", "src/writer/cli.py"),
+                            ("zing", "src/myzing/cli.py"), ("uoink", "uoink_install_isolation.py")):
+        path = repos[product] / marker
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    work = tmp_path / "work"
+    media = tmp_path / "fixture.mp4"
+    media.write_bytes(b"fake-media")
+    starts, mcps, doctors, ports, urls, seeds = {}, {}, [], [], [], []
+    expected = {name: name + "-python" if separate_runtimes else "zing-python" for name in repos}
+
+    class FakeProcess:
+        process = SimpleNamespace(pid=12345, poll=lambda: 0)
+
+        def stop(self):
+            pass
+
+    def start(name, command, *, cwd, env):
+        starts[name] = (command, env)
+        if name == "uoink":
+            root = Path(env["UOINK_ISOLATED_PROFILE"]) if isolated_ports else cwd
+            (root / "token.txt").write_text("fake-token", encoding="utf-8")
+        return FakeProcess()
+
+    class FakeClient(FakeProcess):
+        def __init__(self, name, command, **kwargs):
+            self.name = name
+            mcps[name] = command
+
+        def initialize(self):
+            return self.name, "1.0", []
+
+        def call(self, *args):
+            return {"ok": True}
+
+        def close(self):
+            pass
+
+    def seed(**kwargs):
+        seeds.append(kwargs)
+        raise smoke.SmokeError("test_stop", "stop after recording seed interpreter")
+
+    monkeypatch.setattr(smoke.ManagedProcess, "start", start)
+    monkeypatch.setattr(smoke, "StdioMCPClient", FakeClient)
+    monkeypatch.setattr(smoke, "_port_available", lambda port: ports.append(port) or True)
+    monkeypatch.setattr(smoke, "_wait_http", lambda url, process: urls.append(url))
+    monkeypatch.setattr(smoke, "_git_revision", lambda *a, **k: "a" * 40)
+    monkeypatch.setattr(smoke, "_product_versions", lambda *a: dict.fromkeys(repos, "1.0"))
+    monkeypatch.setattr(smoke, "_read_json_file", lambda *a, **k: {})
+    monkeypatch.setattr(smoke, "_json_request", lambda *a, **k: (200, {"ok": True}))
+    monkeypatch.setattr(smoke, "_validate_contract", lambda *a, **k: None)
+    monkeypatch.setattr(smoke, "_validate_mcp_initialize", lambda *a, **k: None)
+    monkeypatch.setattr(smoke, "_require_initial_peer", lambda *a: None)
+    monkeypatch.setattr(smoke, "_run_writer_doctor", lambda executable, *a: doctors.append(executable) or {})
+    monkeypatch.setattr(smoke, "_seed_uoink_fixture", seed)
+    kwargs = {"uoink_python": expected["uoink"], "writer_python": expected["writer"]} if separate_runtimes else {}
+    with pytest.raises(smoke.SmokeError, match="stop after recording"):
+        smoke.run_suite_smoke(mode="deterministic_ci", uoink_repo=repos["uoink"],
+                              writer_repo=repos["writer"], zing_repo=repos["zing"],
+                              work_root=work, fixture_video=media, python="zing-python",
+                              isolated_ports=isolated_ports, **kwargs)
+    assert ports == ([15179, 15181] if isolated_ports else [5179, 5181])
+    assert urls == [f"http://127.0.0.1:{port}/ping" for port in ports]
+    for name in ("uoink", "writer"):
+        assert starts[name][0][0] == expected[name]
+    for name in repos:
+        assert mcps[name][0] == expected[name]
+    assert doctors == [expected["writer"]]
+    assert seeds[0]["python"] == expected["uoink"]
+    assert ("UOINK_ISOLATED_PROFILE" in starts["uoink"][1]) is isolated_ports
+    assert starts["writer"][1]["WRITER_UOINK_URL"] == urls[0].removesuffix("/ping")
+
+
+def test_cli_forwards_peer_runtimes_and_local_port_opt_in(tmp_path, monkeypatch):
+    observed = {}
+
+    def run(**kwargs):
+        observed.update(kwargs)
+        return {"record_contract": "zing.suite-smoke", "version": 1, "mode": "deterministic_ci"}
+
+    monkeypatch.setattr(smoke, "run_suite_smoke", run)
+    args = ["--uoink-repo", str(tmp_path), "--writer-repo", str(tmp_path),
+            "--zing-repo", str(tmp_path), "--output", str(tmp_path / "record.json"),
+            "--work-dir", str(tmp_path / "work"), "--python", "zing-python"]
+    assert smoke.main(args) == 0
+    assert observed["isolated_ports"] is False
+    assert observed["uoink_python"] is None and observed["writer_python"] is None
+    assert smoke.main(args + ["--isolated-ports", "--uoink-python", "uoink-python",
+                             "--writer-python", "writer-python"]) == 0
+    assert observed["isolated_ports"] is True
+    assert observed["uoink_python"] == "uoink-python"
+    assert observed["writer_python"] == "writer-python"
+
+
+def test_windows_venv_redirector_is_refused_before_launch(tmp_path, monkeypatch):
+    monkeypatch.setattr(smoke, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(smoke, "sys", SimpleNamespace(prefix="venv", base_prefix="base", executable="venv-python"))
+    with pytest.raises(smoke.SmokeError) as failure:
+        smoke.run_suite_smoke(mode="deterministic_ci", uoink_repo=tmp_path,
+                              writer_repo=tmp_path, zing_repo=tmp_path, work_root=tmp_path,
+                              python="venv-python")
+    assert failure.value.code == "windows_venv_launcher"

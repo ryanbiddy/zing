@@ -708,7 +708,7 @@ def check_uoink() -> Check:
             ok=True,
             detail=(
                 f"uoink available at {url} ({evidence}) — kept-media "
-                "study and corpus push ready"
+                "study and corpus push ready. " + uoink_suite_hint(state)
             ),
             data={"url": url, "peer": peer, "evidence": evidence},
         )
@@ -720,7 +720,7 @@ def check_uoink() -> Check:
             mark="unconfig",  # detected-but-uncredentialed is NOT absence
             detail=(
                 f"uoink detected at {url} ({evidence}) but no credential "
-                "is configured"
+                "is configured. " + uoink_suite_hint(state)
             ),
             fix=(
                 "set UOINK_TOKEN to uoink's per-install token — "
@@ -737,7 +737,7 @@ def check_uoink() -> Check:
             mark="unhealthy",  # drift/auth/identity is never shown as absent
             detail=(
                 f"uoink peer unhealthy ({err['code']}): {err['message']} "
-                f"[probe evidence: {evidence}]"
+                f"[probe evidence: {evidence}]. " + uoink_suite_hint(state)
             ),
             fix=(
                 "check UOINK_TOKEN" if err["code"] == "authentication_failed"
@@ -751,7 +751,7 @@ def check_uoink() -> Check:
         name="uoink",
         tier=OPTIONAL,
         ok=False,
-        detail=f"no uoink at {url} (fine — Zing is fully standalone)",
+        detail=f"no uoink at {url} (fine — Zing is fully standalone). " + uoink_suite_hint(state),
         # The consequence belongs in degraded_mode, not in a parenthetical:
         # zing_status serves these fields to an AI, and every other check
         # puts "what you lose" here. Found by the anti-stranding test —
@@ -763,6 +763,18 @@ def check_uoink() -> Check:
         ),
         data={"url": url, "peer": peer, "evidence": evidence},
     )
+
+
+def uoink_suite_hint(state: str) -> str:
+    """Shared suite guidance without changing the peer's readiness verdict."""
+    if state in {"available", "unconfigured"}:
+        readiness = "available" if state == "available" else "detected; configure UOINK_TOKEN to connect"
+        return (
+            f"Uoink + Zing suite {readiness}: find references with "
+            "zing project find-reference, resolve "
+            "uoink:<id> kept media, and push breakdowns with MCP push_to_uoink."
+        )
+    return "Uoink adds saved references, kept-media reuse and breakdown storage: https://uoink.app"
 
 
 def check_pillow() -> Check:

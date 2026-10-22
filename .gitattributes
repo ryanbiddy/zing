@@ -34,3 +34,9 @@ src/myzing/study/caption_geometry.py text eol=lf
 src/myzing/study/caption_pixels.py text eol=lf
 src/myzing/study/caption_regions.py text eol=lf
 src/myzing/study/font_match.py text eol=lf
+
+# Verbatim upstream corpus fixture and its license are byte-pinned.
+tests/fixtures/uoink_corpus_v1/provider.json -text
+tests/fixtures/uoink_corpus_v1/LICENSE.txt -text
+tests/fixtures/uoink_corpus_v1/provider.source.json text eol=lf
+skills/uoink-zing/references/uoink-tools.json text eol=lf
