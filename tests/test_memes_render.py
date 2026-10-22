@@ -7,8 +7,14 @@ from pathlib import Path
 
 import pytest
 
-Image = pytest.importorskip("PIL.Image", reason="install myzing[memes] for render tests")
-from PIL import ImageChops, ImageFont
+try:
+    from PIL import Image, ImageChops, ImageFont
+except ImportError:  # the memes extra is optional
+    Image = ImageChops = ImageFont = None
+
+# A per-test skip, not a module-level importorskip: a collection-time skip
+# is reported even under `-m ffmpeg`, where the CI gate forbids skips.
+pytestmark = pytest.mark.skipif(Image is None, reason="install myzing[memes] for render tests")
 
 from myzing import cli, mcp_server, storage
 from myzing.memes import MemeError
