@@ -140,6 +140,7 @@ def client(tmp_path):
 
 
 EXPECTED_TOOLS = {
+    "zing_explain",
     "music_check",
     "plan_drafts",
     "match_start",
@@ -209,7 +210,7 @@ def test_connect_doc_names_every_tool():
     undocumented = {t for t in EXPECTED_TOOLS if f"`{t}`" not in doc}
     assert not undocumented, f"CONNECT.md is missing: {sorted(undocumented)}"
     spelled = {
-        3: "three", 12: "twelve", 17: "seventeen", 18: "eighteen", 33: "thirty-three",
+        3: "three", 12: "twelve", 17: "seventeen", 18: "eighteen", 33: "thirty-three", 34: "thirty-four",
         19: "nineteen", 20: "twenty", 23: "twenty-three", 24: "twenty-four", 26: "twenty-six", 27: "twenty-seven", 28: "twenty-eight", 30: "thirty", 32: "thirty-two",
     }.get(len(EXPECTED_TOOLS))
     assert spelled and spelled in doc, (

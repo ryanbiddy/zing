@@ -1,6 +1,6 @@
 # Connecting your AI to Zing
 
-Zing's MCP server gives any MCP client thirty-three tools, plus the prompt
+Zing's MCP server gives any MCP client thirty-four tools, plus the prompt
 pack as slash commands:
 
 - **Study:** `study_video`, `study_uoink_item`, `get_breakdown`,
@@ -9,6 +9,7 @@ pack as slash commands:
 - **Brief:** `brief_questions`, `brief_save`
 - **Music:** `music_check` (local candidate advice; see [Music](MUSIC.md))
 - **Plan:** `plan_drafts` (project, recipe and output paths; see [Three draft plans](PLAN-DRAFTS.md))
+- **Explain:** `zing_explain` (style card, reusable recipe and optional comparison; see [Explain](EXPLAIN.md))
 - **Match:** `match_start`, `match_status` (reference plus clips to resumable drafts and rendered match reports; see [Match](MATCH.md))
 - **Profile:** `build_profile`, `get_profile`, `list_profiles`,
   `list_presets`
@@ -29,7 +30,7 @@ if it drifts, CI fails.)
 The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
 launch commands still work. It accepts legacy initialization through
 `2025-11-25` and the stateless `2026-07-28` protocol. The current registry has
-33 tools and five prompts. MUSIC1 adds `music_check`; existing tool and prompt
+34 tools and five prompts. MUSIC1 adds `music_check`; existing tool and prompt
 schemas remain compatible. See [SDK 2 compatibility](MCP-SDK2.md)
 for protocol details and the recorded SDK 1 baseline. Zing exposes no HTTP
 MCP endpoint.
