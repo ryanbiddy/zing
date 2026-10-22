@@ -140,8 +140,7 @@ def test_evidence_based_crop_keeps_detected_faces_with_margin(tmp_path, monkeypa
 @pytest.mark.parametrize("detector", [False, True])
 @pytest.mark.parametrize("aspect", list(ASPECTS))
 def test_face_near_the_top_is_never_cut(tmp_path, monkeypatch, aspect, detector):
-    # With the detector the face is evidence; without it only a measured
-    # subject may steer a crop, and the face must still survive whole.
+    # With the detector the face is evidence; without it auto never crops.
     if detector:
         faces_at(monkeypatch, [FACE_TOP])
     source = portrait_face_near_top(tmp_path / "portrait.png")
@@ -149,42 +148,98 @@ def test_face_near_the_top_is_never_cut(tmp_path, monkeypatch, aspect, detector)
     w, h = ASPECTS[aspect]
     rect = fit_rect((600, 900), Rect(0, 0, w, h), result["fit"], result["focus"])
     assert inside(rect, FACE_TOP, w, h)
-    if result["fit"] == "fill":
-        assert result["focus_basis"] == ("faces" if detector else "subject")
+    if detector:
+        assert result["fit"] == "fill" and result["focus_basis"] == "faces"
     else:
-        assert result["fit"] == "blur" and any("instead of cropping" in n for n in result["warnings"])
-    if not detector:
-        assert any("No local face detector" in n for n in result["warnings"])
+        assert result["fit"] == "blur" and result["warnings"] == [framing.BLUR_NO_DETECTOR]
+
+
+def face_beside_subject(path):
+    """Grok's repro: a face at the top and a salient orange body well below it,
+    so the measured subject excludes the face."""
+    image = Image.new("RGB", (600, 900), (40, 70, 120))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((250, 20, 350, 120), fill=(195, 165, 140))
+    draw.rectangle((130, 460, 470, 740), fill=(255, 140, 20))
+    image.save(path)
+    return path
+
+
+FACE_ABOVE = (250 / 600, 20 / 900, 100 / 600, 100 / 900)
+
+
+@pytest.mark.parametrize("aspect", list(ASPECTS))
+def test_no_detector_never_crops_on_a_subject_beside_a_face(tmp_path, aspect):
+    source = face_beside_subject(tmp_path / "photo.png")
+    with Image.open(source) as image:
+        subject = framing.saliency_box(image)
+    # Precondition: the measured subject fits a 1:1 crop but leaves the face out.
+    assert subject is not None and subject[1] > FACE_ABOVE[1] + FACE_ABOVE[3]
+    kept, basis = framing.focus_box([], "yunet", subject)
+    assert basis == "subject" and framing.fits_window(framing.with_margin(kept), (600, 900), (1080, 1080))
+    w, h = ASPECTS[aspect]
+    result = render_meme(["top"], image=str(source), aspect=aspect, out=str(tmp_path / "out.png"))
+    assert result["fit"] == "blur" and result["focus_basis"] == "no_detector"
+    assert result["warnings"] == [framing.BLUR_NO_DETECTOR]
+    assert inside(fit_rect((600, 900), Rect(0, 0, w, h), "blur", None), FACE_ABOVE, w, h)
+    # The still workflow (photo.subject recorded at inventory) behaves the same.
+    folder = tmp_path / "photos"
+    folder.mkdir()
+    face_beside_subject(folder / "photo.png")
+    api.create_stills(folder, "release day", tmp_path / "still", n=2, aspect=aspect)
+    index = StillIndex.from_dict(json.loads((tmp_path / "still" / "index.json").read_text(encoding="utf-8")))
+    assert index.photos[0].subject is not None
+    for concept in index.concepts:
+        assert concept.fit == "blur" and framing.BLUR_NO_DETECTOR in concept.warnings
 
 
 def test_no_detector_and_no_subject_never_crops(tmp_path):
     path = tmp_path / "flat.png"
     Image.new("RGB", (640, 480), (63, 97, 122)).save(path)
     for aspect in ASPECTS:
-        result = render_meme(["a"], image=str(path), aspect=aspect, out=str(tmp_path / (aspect.replace(":", "x") + ".png")))
-        assert result["fit"] == "blur" and result["focus"] is None and result["focus_basis"] == "none"
-        assert framing.BLUR_NO_EVIDENCE in result["warnings"]
-        assert any("No local face detector" in n for n in result["warnings"])
+        result = render_meme(["a"], image=str(path), aspect=aspect,
+                             out=str(tmp_path / (aspect.replace(":", "x") + ".png")))
+        assert result["fit"] == "blur" and result["focus"] is None and result["focus_basis"] == "no_detector"
+        assert result["warnings"] == [framing.BLUR_NO_DETECTOR]
     # The face-blind centered crop is only ever an explicit request.
     cover = render_meme(["a"], image=str(path), fit="cover", out=str(tmp_path / "cover.png"))
     assert cover["fit"] == "cover" and cover["warnings"] == []
+    explicit = render_meme(["a"], image=str(path), fit="fill", out=str(tmp_path / "fill.png"))
+    assert explicit["fit"] == "cover" and "may cut faces" in explicit["warnings"][0]
 
 
-def test_detector_with_no_faces_crops_only_on_a_measured_subject(tmp_path, monkeypatch):
+def test_detector_with_no_faces_crops_only_on_a_large_measured_subject(tmp_path, monkeypatch):
     faces_at(monkeypatch, [])
     flat = tmp_path / "flat.png"
     Image.new("RGB", (640, 480), (63, 97, 122)).save(flat)
     blurred = render_meme(["a"], image=str(flat), out=str(tmp_path / "flat-out.png"))
     assert blurred["fit"] == "blur" and blurred["warnings"] == [framing.BLUR_NO_EVIDENCE]
+    # 4:3 into 1:1 keeps 75% of the photo: a subject crop is allowed, with a caveat.
     source = subject_photo(tmp_path / "subject.png")
     filled = render_meme(["a"], image=str(source), aspect="1:1", out=str(tmp_path / "subject-out.png"))
     assert filled["fit"] == "fill" and filled["focus_basis"] == "subject"
+    assert "keeps 75% of the photo" in filled["warnings"][0] and "missed" in filled["warnings"][0]
     rect = fit_rect((800, 600), Rect(0, 0, 1080, 1080), "fill", filled["focus"])
     assert inside(rect, SUBJECT, 1080, 1080, framing.MARGIN - 1e-9)
-    # A 9:16 crop would drop more than 45% of the photo: blur, and say why.
-    tall = render_meme(["a"], image=str(source), aspect="9:16", out=str(tmp_path / "tall.png"))
-    assert tall["fit"] == "blur" and any("45%" in n for n in tall["warnings"])
-    # An explicit fill without evidence is centered and says so.
+    # 4:5 and 9:16 would drop more than 25% of the photo: blur, and say why.
+    for aspect in ("4:5", "9:16"):
+        tall = render_meme(["a"], image=str(source), aspect=aspect,
+                           out=str(tmp_path / (aspect.replace(":", "x") + ".png")))
+        assert tall["fit"] == "blur" and any("more than 25%" in n for n in tall["warnings"])
+    # A face the detector missed beside a salient subject: every crop that would
+    # drop more than 25% of the photo blurs instead and keeps the face; the mild
+    # crops that remain (4:5 and 9:16 of a 2:3 photo) carry the caveat.
+    missed = face_beside_subject(tmp_path / "missed.png")
+    for aspect in ASPECTS:
+        result = render_meme(["a"], image=str(missed), aspect=aspect,
+                             out=str(tmp_path / ("missed-" + aspect.replace(":", "x") + ".png")))
+        w, h = ASPECTS[aspect]
+        width, height = framing.crop_window((600, 900), (w, h))
+        if width * height < framing.MIN_SCENERY_AREA:
+            rect = fit_rect((600, 900), Rect(0, 0, w, h), result["fit"], result["focus"])
+            assert result["fit"] == "blur" and inside(rect, FACE_ABOVE, w, h), aspect
+        else:
+            assert result["fit"] == "fill" and "missed" in result["warnings"][0], aspect
     explicit = render_meme(["a"], image=str(flat), fit="fill", out=str(tmp_path / "explicit.png"))
     assert explicit["fit"] == "cover" and "centered crop" in explicit["warnings"][0]
 
@@ -228,6 +283,8 @@ def test_saliency_finds_an_off_center_subject_and_ignores_flat_photos():
 def test_background_faces_do_not_steer_the_crop():
     tiny = [.01, .7, .01, .02]
     assert framing.prominent_faces([[.4, .1, .2, .2], tiny]) == [[.4, .1, .2, .2]]
+    # A street scene whose largest face is a 2.8%-tall passer-by has no subject face.
+    assert framing.prominent_faces([[.006, .684, .011, .028], [.3, .66, .01, .017]]) == []
     box, basis = framing.focus_box([tiny], "yunet", [.3, .3, .2, .2])
     assert basis == "subject" and box == pytest.approx([.27, .27, .26, .26])  # grown 15% per side
 

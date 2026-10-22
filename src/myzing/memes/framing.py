@@ -3,10 +3,11 @@
 ``contain`` letterboxes, ``cover`` is a centered crop, ``fill`` is a crop that
 keeps a focus box (faces or an estimated subject) in frame, and ``blur``
 places the whole photo over a blurred, darkened copy of itself. ``auto``
-crops only on positive evidence of where the subject is (detected faces or a
-measured subject box) and only when the crop keeps all of it with a margin;
-otherwise it blur-fills and says why. A missing detector is never a reason to
-crop. Geometry here is stdlib-only; Pillow is imported lazily.
+crops only when the face detector ran: on detected faces, or (when it found
+none) on a measured subject box while keeping 75% of the photo, and only when
+the crop keeps all of it with a margin. Without a detector it never crops, since
+it cannot see where faces are. Otherwise it blur-fills and says why. Geometry
+here is stdlib-only; Pillow is imported lazily.
 """
 
 from __future__ import annotations
@@ -20,13 +21,17 @@ REQUESTS = FITS + ("auto",)
 # Faces smaller than this share of the largest face (or of the image height)
 # are background crowd: still protected from text, but they never steer a crop.
 PROMINENT_SHARE = .25
-PROMINENT_MIN_HEIGHT = .025
-# Without a reliable face, a crop must keep at least this share of the photo.
-MIN_SCENERY_AREA = .55
+PROMINENT_MIN_HEIGHT = .05
+# When the detector found no face, a subject crop must keep this share of the
+# photo, so a face the detector missed is unlikely to be cut.
+MIN_SCENERY_AREA = .75
 # A crop keeps the focus plus this margin (share of the photo) on every side.
 MARGIN = .03
 BLUR_SUFFIX = ", so auto kept the whole photo over a blurred copy instead of cropping."
 BLUR_NO_EVIDENCE = "No detected face or measured subject to frame on" + BLUR_SUFFIX
+BLUR_NO_DETECTOR = ("No local face detector, so auto did not crop (it cannot see where faces are) and kept "
+                    "the whole photo over a blurred copy. Run 'zing layout fetch-model' (with "
+                    "myzing[layout]) for face-aware crops.")
 
 
 def _box(values) -> list[float]:
@@ -59,13 +64,17 @@ def prominent_faces(faces: list[list[float]]) -> list[list[float]]:
 def focus_box(faces: list[list[float]] | None, face_method: str,
               subject: list[float] | None) -> tuple[list[float] | None, str]:
     """The evidence a crop must keep, and what it is: ``faces`` (prominent
-    detected heads), ``subject`` (a measured subject box), or ``none``.
+    detected heads), ``subject`` (a measured subject box after the detector
+    found no prominent face), ``none``, or ``no_detector``.
 
     ``faces`` are normalized [x, y, w, h] detector boxes. Without a detector
-    (``center_heuristic``) only a measured subject counts; the central-60%
-    text heuristic is never treated as evidence of where to crop.
+    (``center_heuristic``) nothing counts as evidence: a subject estimate can
+    sit beside an undetected face, and the central-60% text heuristic says
+    nothing about where faces are.
     """
-    heads = [] if face_method == "center_heuristic" else [head_box(f) for f in prominent_faces(faces or [])]
+    if face_method == "center_heuristic":
+        return None, "no_detector"
+    heads = [head_box(f) for f in prominent_faces(faces or [])]
     if heads:
         return union(heads), "faces"
     if subject is not None:
@@ -100,14 +109,19 @@ def resolve(requested: str, source: tuple[float, float], viewport: tuple[float, 
     """Return (fit, focus, notes).
 
     ``auto`` crops (``fill``) only with evidence (``basis`` faces or subject)
-    that fits the crop with margin; a subject crop must also keep 55% of the
-    photo. Anything else is ``blur`` with a note saying why. An explicit
-    ``fill`` without evidence is a centered crop, with a note.
+    that fits the crop with margin; a subject crop must also keep 75% of the
+    photo and carries a note. Without a detector, or anything else, it is
+    ``blur`` with a note saying why. An explicit ``fill`` without evidence is
+    a centered crop, with a note.
     """
     if requested not in REQUESTS:
         raise MemeError("fit must be auto, fill, blur, cover, or contain")
     if requested in ("cover", "contain", "blur"):
         return requested, None, []
+    if basis == "no_detector":
+        if requested == "fill":
+            return "cover", None, ["No local face detector; fill used a centered crop that may cut faces."]
+        return "blur", None, [BLUR_NO_DETECTOR]
     if focus is None or basis not in ("faces", "subject"):
         if requested == "fill":
             return "cover", None, ["fill found no detected face or measured subject; used a centered crop."]
@@ -119,14 +133,19 @@ def resolve(requested: str, source: tuple[float, float], viewport: tuple[float, 
                                  "use fit blur or contain to keep it."]
         return "fill", kept, notes
     cw, ch = crop_window(source, viewport)
-    if fits and (basis == "faces" or cw * ch >= MIN_SCENERY_AREA):
+    if fits and basis == "faces":
         return "fill", kept, []
+    if fits and cw * ch >= MIN_SCENERY_AREA - 1e-9:
+        return "fill", kept, [f"No face was detected, so the crop follows an estimated subject and keeps "
+                              f"{round(cw * ch * 100)}% of the photo; a face the detector missed could "
+                              "still be cut. Use fit blur to keep the whole photo."]
     if basis == "faces":
         why = "The detected faces do not fit a full-bleed crop at this aspect with margin"
     elif not fits:
         why = "The measured subject does not fit a full-bleed crop at this aspect with margin"
     else:
-        why = "A crop around the measured subject would drop more than 45% of the photo"
+        why = ("No face was detected and a crop around the estimated subject would drop more than "
+               f"{round((1 - MIN_SCENERY_AREA) * 100)}% of the photo")
     return "blur", None, [why + BLUR_SUFFIX]
 
 
@@ -252,8 +271,7 @@ def photo_focus(image) -> tuple[list[float] | None, str, list[str]]:
         detector = YuNetDetector(download=False)
         faces, method = detect_faces(image, detector), "yunet"
     except (LayoutError, ImportError):
-        return focus_box(None, "center_heuristic", saliency_box(image)) + ([
-            "No local face detector: auto framing used only a measured subject box (it may "
-            "miss faces). Run 'zing layout fetch-model' (with myzing[layout]) for face-aware framing."],)
+        # Never crop on a subject estimate when faces cannot be seen.
+        return focus_box(None, "center_heuristic", None) + ([],)
     subject = None if prominent_faces(faces) else saliency_box(image)
     return focus_box(faces, method, subject) + ([],)
