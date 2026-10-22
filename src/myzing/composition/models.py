@@ -22,6 +22,7 @@ from myzing.schemas import AudioTrack, CaptionSpec, Clip
 from myzing.study.transitions import TransitionEvidence
 from myzing.timing import interval_problem
 from .timebase import rate_fraction
+from .framing import Framing
 
 EPSILON = 1e-6  # Same seconds tolerance as the legacy renderer.
 TransitionKind = Literal["hard_cut", "dissolve", "wipe", "zoom_punch", "dip_to_black", "dip_to_white"]
@@ -139,6 +140,7 @@ class CompositionClip(Record, Clip):
     asset_id: str
     speed_map: list[SpeedSegment] = field(default_factory=list)
     color: ColorTransform | None = None
+    framing: Framing | None = field(default=None, metadata={"omit_default": True})
     version: int = 1
 
     def __post_init__(self):
@@ -159,6 +161,10 @@ class CompositionClip(Record, Clip):
                 raise ValueError("speed map must cover the complete source trim")
         if not math.isfinite(self.timeline_end):
             raise ValueError("clip timeline end must be finite")
+        if self.framing is not None:
+            self.framing.__post_init__()
+            if self.framing.keyframes and self.framing.keyframes[-1].time > self.duration + EPSILON:
+                raise ValueError("reframe keyframe exceeds the clip duration")
 
     @property
     def duration(self) -> float:
@@ -380,6 +386,9 @@ class Composition(Record):
                 raise ValueError(f"{item.id}{context}: source trim exceeds asset duration; "
                                  f"missing {item.src_out - asset.duration:.6f}s of source")
         ordered = sorted(self.clips, key=lambda c: c.timeline_start)
+        for clip in ordered:
+            if clip.framing is not None:
+                clip.framing.validate_output(self.width, self.height, clip.duration)
         pairs = {(a.id, b.id): (a, b) for a, b in zip(ordered, ordered[1:])}
         declared = {}
         for transition in self.transitions:

@@ -83,10 +83,14 @@ def test_three_plans_are_deterministic_valid_distinct_and_word_safe(project):
         with pytest.raises(ValueError, match="brief"):
             lower_to_v1(p)  # Strict v2 lowering never silently discards evidence.
         legacy, blockers = render_projection(p)
-        assert not blockers
-        assert [(c.src, c.src_in, c.src_out) for c in legacy.clips] == [(c.src, c.src_in, c.src_out) for c in p.clips]
-        assert legacy.to_dict()["schema_version"] == 1
-    assert len(result["v1_edls"]) == 3
+        # Output-safe caption geometry and short-side typography are now v2
+        # instructions even on a matching aspect; lowering must retain them.
+        assert legacy is None and blockers
+        assert all((b.startswith("captions[") and b.endswith((".layout", ".style"))) or
+                   (b.startswith("clips[") and b.endswith(".framing")) for b in blockers)
+        assert all(c.framing.mode == "fit" for c in p.clips)
+        assert all(c.layout.overlap.safe for c in p.captions)
+    assert not result["v1_edls"]
 
 
 @pytest.mark.parametrize("kind,expected", [("length", "target_length"), ("missing", "must_keep_missing"),

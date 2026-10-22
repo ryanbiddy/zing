@@ -37,6 +37,25 @@ def _constraints(cls: type, properties: dict) -> None:
     if name == "Composition":
         for key in ("width", "height"):
             properties[key]["minimum"] = 1
+    if name == "Brief":
+        properties["framing"]["enum"] = ["auto", "fit", "fill", "reframe", "blurfill"]
+        properties["aspects"]["items"] = {"enum": ["16:9", "1:1", "9:16"]}
+        properties["aspects"]["uniqueItems"] = True
+        properties["framing_max_upscale"].update(minimum=1, maximum=16)
+    if name == "Framing":
+        for key in ("source_width", "source_height", "width", "height"):
+            properties[key]["minimum"] = 1
+        properties["max_velocity"]["exclusiveMinimum"] = 0
+        properties["max_upscale"]["minimum"] = 1
+        properties["confidence"].update(minimum=0, maximum=1)
+        properties["keyframes"]["maxItems"] = 256
+    if name in {"Framing", "CropKeyframe", "CropBounds"}:
+        for key in ("time", "x", "y", "center_x", "center_y"):
+            if key in properties:
+                properties[key]["minimum"] = 0
+    if name == "CropBounds":
+        for key in ("width", "height"):
+            properties[key]["exclusiveMinimum"] = 0
     if name in {"CompositionClip", "SourceRange", "SpeedSegment", "CompositionAudio"}:
         for key in ("src_in", "src_out", "timeline_start"):
             if key in properties:

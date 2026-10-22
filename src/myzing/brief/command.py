@@ -34,6 +34,7 @@ def run(argv: list[str]) -> int:
     sub = parser.add_subparsers(dest="action", required=True)
     new = sub.add_parser("new", help="ask six topics, or reuse the saved brief",
                          epilog="Answer keys and defaults: " + json.dumps(Brief().to_dict())
+                         + '. Optional framing: auto (default), fit, fill, reframe, or blurfill. Auto checks subject coverage, crop loss and framing_max_upscale (default 2.5). Optional aspects: ["16:9", "1:1", "9:16"] for multiple deliveries.'
                          + ". JSON examples: " + json.dumps(brief_questions()["answer_examples"]))
     new.add_argument("project", type=Path)
     source = new.add_mutually_exclusive_group()

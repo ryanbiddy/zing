@@ -1243,13 +1243,21 @@ def _render_id_for(edl_path: str) -> str:
 
 def _run_render(
     edl, base_dir: Path, out_path: Path, render_id: str, root: Path,
-    resolved_assets: dict[str, Path],
+    resolved_assets: dict[str, Path], aspects=None,
 ) -> None:
     from myzing.render import pipeline
 
     with storage.use_workspace(root):
         d = storage.render_dir(render_id)
         try:
+            if aspects:
+                from myzing.render.deliveries import render_deliveries
+                delivered = render_deliveries(edl, out_path, aspects=aspects, base_dir=base_dir,
+                                             work_dir=d / "delivery-work")
+                storage.write_status_at(d, state="done", outputs=[v["video"] for v in delivered["deliveries"].values()],
+                                        deliveries=delivered["deliveries"], report=delivered["report"],
+                                        finished_at=_now(), updated_at=_now(), error="")
+                return
             if edl.schema_version == 2:
                 from myzing.render.composition import render_composition
                 # Rehash at execution time: a queued asset may have changed.
@@ -1289,6 +1297,11 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
     edl, base_dir, bad = _load_edl(edl_path, allow_composition=True)
     if bad:
         return bad
+    try:
+        from myzing.composition.aspects import requested_aspects
+        selected_aspects = requested_aspects(edl) if edl.schema_version == 2 else []
+    except ValueError as exc:
+        return _err(str(exc))
     from myzing.render.validation import EDLValidationError, resolve_assets
 
     try:
@@ -1304,6 +1317,8 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
     except (EDLValidationError, RuntimeError) as exc:
         return _err(str(exc))
     render_id = _render_id_for(edl_path)
+    if selected_aspects:
+        render_id += "-" + "-".join(a.replace(":", "x") for a in selected_aspects)
     root = storage.workspace_root()
     d = storage.render_dir(render_id)
     out = (
@@ -1330,7 +1345,7 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
         )
         thread = threading.Thread(
             target=_run_render,
-            args=(edl, base_dir, out, render_id, root, resolved_assets),
+            args=(edl, base_dir, out, render_id, root, resolved_assets) + ((selected_aspects,) if selected_aspects else ()),
             daemon=True,
         )
         _RENDER_JOBS[render_id] = thread

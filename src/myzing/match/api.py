@@ -218,7 +218,13 @@ def _prepare_plan(source, destination, colors, recipe, caps):
         raise ValueError("Renderer cannot represent planned transition overlaps: " + "; ".join(transitions))
     if any(f.name.startswith(("transitions[", "legacy_transitions[")) for f in recipe.measured) and not plan.transitions:
         plan.warnings.append("Reference transition observations are experimental. Director/renderer use cuts; effects were not reconstructed.")
-    if caps["layout"] and plan.captions:
+    if any(c.framing is not None for c in plan.clips) or all(c.layout is not None for c in plan.captions):
+        # Director has already measured source subjects and placed captions in
+        # the cropped output. Do not replace that safety with face-only layout.
+        folder = destination.parent / destination.stem
+        write(folder / "layout.json", {"version": 1, "events": [c.layout.to_dict() for c in plan.captions if c.layout],
+                                       "framing": [c.framing.to_dict() for c in plan.clips if c.framing]})
+    elif caps["layout"] and plan.captions:
         _layout(plan, destination.parent / destination.stem, recipe)
     else:
         plan.warnings.append("Face layout unavailable: using disclosed caption-position defaults; face avoidance is unmeasured. "
@@ -362,16 +368,39 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v4", repair_asr], direct)
+                                                 "continuity-v4", repair_asr, "aspect-auto-blurfill-people-v5", caps["layout"]], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["source_asr"] = planned["summary"].get("source_asr", [])
         summary["director_comparison"] = planned["comparison_path"]
-        for label, plan_path in planned["plans"].items():
+        plans_to_render = dict(planned["plans"])
+        delivery_aspects = load_brief(root / "brief.json").aspects
+        if delivery_aspects:
+            from myzing.render.deliveries import delivery_plans
+            plans_to_render = {}
+            summary["requested"] = drafts * len(delivery_aspects)
+            for label, plan_path in planned["plans"].items():
+                def adapt(source=plan_path, label=label):
+                    directory = root / "aspect-plans" / label
+                    adapted, analysis = delivery_plans(Composition.from_dict(read(source)), delivery_aspects,
+                                                       directory, base_dir=Path(source).parent)
+                    outputs = {}
+                    for aspect, plan in adapted.items():
+                        name = label + "." + aspect.replace(":", "x")
+                        path = directory / f"plan-{name}.json"
+                        write(path, plan.to_dict())
+                        outputs[name] = str(path)
+                    evidence_path = directory / "analysis.json"
+                    write(evidence_path, analysis)
+                    return {"plans": outputs, "outputs": [*outputs.values(), str(evidence_path)]}
+                adapted = checkpoints.step("aspects-" + label, [projects.hash_file(Path(plan_path)), delivery_aspects,
+                                                               caps, "aspect-delivery-v1"], adapt)
+                plans_to_render.update(adapted["plans"])
+        for label, plan_path in plans_to_render.items():
             row = {"status": "failed"}
             summary["drafts"][label] = row
             try:
-                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "clause-fit-v1"],
+                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "clause-fit-v1", "aspect-safe-layout-v3"],
                     lambda p=plan_path, label=label: _prepare_plan(p, root / "drafts" / f"plan-{label}.json", colors, recipe, caps))
                 summary["warnings"].extend(prepared["warnings"])
                 plan = Composition.from_dict(read(prepared["path"]))
@@ -427,13 +456,13 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             summary["failures"].append({"step": "match", "error": str(exc), "log": str(log)})
     summary["failures"].extend(checkpoints.failures())
     summary["ready"] = sum(r["status"] == "ready" for r in summary["drafts"].values())
-    summary["status"] = "ready" if summary["ready"] == drafts else "shortage" if summary["shortages"] else "partial" if summary["ready"] else "failed"
+    summary["status"] = "ready" if summary["ready"] == summary["requested"] else "shortage" if summary["shortages"] else "partial" if summary["ready"] else "failed"
     for row in summary["drafts"].values():
         row["render_status"] = "render complete" if row["status"] == "ready" else row["status"]
         row["failed_style_dimensions"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "miss"]
         row["unverified_style_dimensions"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "approximate"]
         row["style_match"] = "failed" if row["failed_style_dimensions"] else "unverified"
-    summary["summary"] = f"{summary['ready']} of {drafts} render complete"
+    summary["summary"] = f"{summary['ready']} of {summary['requested']} render complete"
     details = [f"{label}: style match {r['style_match']}" +
                (" (" + ", ".join(r["failed_style_dimensions"]) + ")" if r["failed_style_dimensions"] else "")
                for label, r in summary["drafts"].items()]

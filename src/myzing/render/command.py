@@ -32,6 +32,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("-o", "--output", type=Path, help="output MP4 path")
     parser.add_argument("--ffmpeg", default="ffmpeg")
     parser.add_argument("--ffprobe", default="ffprobe")
+    parser.add_argument("--aspect", help="replan from sources for all, or a comma-separated list: 16:9,1:1,9:16")
+    parser.add_argument("--framing", choices=["auto", "fit", "fill", "reframe", "blurfill"], help="delivery framing override")
+    parser.add_argument("--max-upscale", type=float, help="auto crop enlargement ceiling (default 2.5x)")
+    parser.add_argument("--short-side", type=int, default=1080, help="delivery short side; multiple of 18, default 1080")
     parser.add_argument(
         "--keep-work",
         type=Path,
@@ -100,6 +104,18 @@ def run(argv: list[str]) -> int:
         if args.output
         else edl_path.with_suffix(".mp4")
     )
+    try:
+        from myzing.composition.aspects import aspect_for, requested_aspects
+        if args.aspect or args.framing or args.max_upscale is not None:
+            if not isinstance(edl, Composition):
+                from myzing.composition.compatibility import upgrade_edl
+                edl = upgrade_edl(edl)
+            selected_aspects = requested_aspects(edl, args.aspect or aspect_for(edl.width, edl.height))
+        else:
+            selected_aspects = requested_aspects(edl) if isinstance(edl, Composition) else []
+    except ValueError as exc:
+        print(f"zing render: {exc}", file=sys.stderr)
+        return 2
     scripts = []
     provider = None
     if isinstance(edl, Composition) and (args.voiceover_script is not None or args.otio is not None):
@@ -137,6 +153,13 @@ def run(argv: list[str]) -> int:
         return 2
     otio_path = args.otio.expanduser().resolve() if args.otio else None
     try:
+        if selected_aspects:
+            from .deliveries import render_deliveries
+            result = render_deliveries(edl, output, aspects=selected_aspects, base_dir=edl_path.parent,
+                                      work_dir=args.keep_work, framing=args.framing, max_upscale=args.max_upscale,
+                                      short_side=args.short_side, ffmpeg=args.ffmpeg, ffprobe=args.ffprobe)
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0
         if isinstance(edl, Composition):
             assembled = None
             result = render_composition(
@@ -172,6 +195,7 @@ def run(argv: list[str]) -> int:
         RenderError,
         TTSGenerationError,
         TTSUnavailableError,
+        ValueError,
     ) as exc:
         print(f"zing render: {exc}", file=sys.stderr)
         return 1

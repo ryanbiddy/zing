@@ -234,6 +234,21 @@ def render_composition(
                                  for clip in c.clips) if joins else ())
     from .color import validate_source_colors, write_luts
     validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated))
+    from .framing import probe_dimensions
+    framing_warnings, dimensions = [], {}
+    ordered = sorted(c.clips, key=lambda clip: clip.timeline_start)
+    for clip, resolved in zip(ordered, validated.clips):
+        if clip.framing is None:
+            continue
+        framing = clip.framing
+        framing.validate_output(c.width, c.height, clip.duration)
+        if resolved.path not in dimensions:
+            dimensions[resolved.path] = probe_dimensions(resolved.path, ffprobe)
+        if dimensions[resolved.path] != (framing.source_width, framing.source_height):
+            raise EDLValidationError(f"clip {clip.id}: framing source dimensions disagree with probed display dimensions")
+        framing_warnings.extend(f"clip {clip.id}: {w}" for w in
+                                [*framing.warnings, *framing.upscale_warning(c.width, c.height)])
+    validated = replace(validated, warnings=validated.warnings + tuple(framing_warnings))
 
     def render(directory: Path):
         from .positioned_captions import generate_positioned_ass
@@ -272,6 +287,7 @@ def render_composition(
             clip_luts=clip_luts,
             transitions=joins,
             caption_overlay=caption_overlay,
+            clip_framings=tuple(clip.framing for clip in ordered),
         )
 
     if work_dir is not None:

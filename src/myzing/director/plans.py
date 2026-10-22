@@ -168,7 +168,8 @@ def audio_for(brief, manifest, root, duration, first_cut):
     return assets, tracks, notes
 
 
-def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden):
+def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden,
+              subject_evidence=None):
     lookup = {s.asset_id: s for s in studies}
     font, font_report = font_choice(recipe, recipe_dir)
     used = sorted({c.asset_id for c in sequence})
@@ -191,8 +192,49 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     # Output dimensions follow the brief; 30 CFR is an explicit delivery choice,
     # not an inferred property of the reference or camera.
     width, height = {"9:16": (1080, 1920), "1:1": (1080, 1080), "16:9": (1920, 1080)}[brief.aspect]
+    from myzing.layout.framing import select_framing, place_captions
+    from myzing.render.framing import display_dimensions
+    framing_notes = []
+    source_dimensions = {}
+    subject_evidence = subject_evidence or {}
+    for clip in clips:
+        probe = next(a.probe for a in manifest.assets if a.id == clip.asset_id)
+        if probe is None or not probe.width or not probe.height:
+            if brief.framing not in ("auto", "fit"):
+                shortage("framing_dimensions", "Source dimensions are missing.", "Run zing project scan before framing.", clip.asset_id)
+            framing_notes.append(f"clip {clip.id}: source dimensions missing; retaining fit, framing unmeasured.")
+            continue
+        stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
+        sw, sh = display_dimensions({"width": probe.width, "height": probe.height,
+                                    "tags": {"rotate": probe.rotation}, **stream})
+        source_dimensions[clip.asset_id] = (sw, sh)
+        tracks, notes = subject_evidence.get(clip.asset_id, ([], []))
+        clip.framing = select_framing(brief.framing, sw, sh, width, height, clip, tracks,
+                                      max_upscale=brief.framing_max_upscale)
+        framing_notes.extend([*notes, *clip.framing.warnings, *clip.framing.upscale_warning(width, height)])
+    split_clips = []
+    for clip in clips:
+        f = clip.framing
+        cuts = [clip.src_in]
+        if f is not None and f.mode != "fit" and brief.framing in ("auto", "reframe"):
+            for shot in lookup[clip.asset_id].shots:
+                if shot.start - cuts[-1] >= 1 / 30 and clip.src_out - shot.start >= 1 / 30:
+                    cuts.append(shot.start)
+        cuts.append(clip.src_out)
+        for i, (start, end) in enumerate(zip(cuts, cuts[1:])):
+            part = replace(clip, id=clip.id if len(cuts) == 2 else f"{clip.id}-shot-{i + 1}",
+                           src_in=start, src_out=end, timeline_start=clip.timeline_start + start - clip.src_in,
+                           framing=None)
+            if f is not None:
+                part.framing = select_framing(brief.framing, f.source_width, f.source_height, width, height,
+                                              part, subject_evidence.get(clip.asset_id, ([], []))[0],
+                                              max_upscale=brief.framing_max_upscale)
+            split_clips.append(part)
+    clips = split_clips
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
+    if source_dimensions:
+        place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions)
     numbers = {
         "median_shot_seconds": metric(style.median_shot, median(durations), (style.median_shot or 0) * .1,
                                       "Whole-word cuts, required moments and available shot choices constrain the selected edit."),
@@ -210,7 +252,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         "target_length_seconds": metric(brief.target_length_seconds, cursor, 2 / 30,
                                         "The brief supplies the duration; two output frames are allowed."),
     }
-    notes = [*recipe.warnings, *audio_notes,
+    notes = [*recipe.warnings, *audio_notes, *framing_notes,
              "30 fps CFR and full-HD aspect dimensions are delivery defaults; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
@@ -255,6 +297,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         "source_output_mappings": [{"clip_id": c.id, "asset_id": c.asset_id, "src_in": c.src_in,
                                     "src_out": c.src_out, "output_start": c.timeline_start,
                                     "output_end": c.timeline_end} for c in clips],
+        "framing": [{"clip_id": c.id, "framing": c.framing.to_dict()} for c in clips if c.framing is not None],
         "constraints": {"must_keep_word_safe": required, "forbidden_word_safe": forbidden,
                         "speech_cuts": "whole rule-derived clauses, or measured non-speech boundaries",
                         "repeated_source_ranges": False},
