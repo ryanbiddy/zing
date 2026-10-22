@@ -64,6 +64,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Save creative intent | [Briefs](docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
 | Match a color look | [Color](docs/color.md): SDR LUT approximation, recipe and before/reference/after preview; separate apply step. |
 | Measure a reference's captions | [Caption geometry](docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
+| Find the caption font | [Font candidates](docs/FONT-CANDIDATES.md): `zing fonts match` ranks a pinned OFL/Apache library against measured caption glyphs; low scores are labeled substitutes. |
 | Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; not wired into render. |
 | Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |

@@ -55,6 +55,10 @@ tools or imply that a connected MCP server grants shell access.
    `--transitions` opts into transition detector v5. Over MCP, `study_video`
    starts a job: poll `zing_status`, then read `get_breakdown` after completion.
    Use returned slugs; never guess them. Read warnings before interpreting counts.
+   Add `--caption-geometry` to measure caption boxes, size, colors and motion, and
+   `--fonts` to rank font candidates; `zing fonts match <slug>` adds candidates to
+   an existing study. Font files are fetched only by `zing fonts fetch` (ask first).
+   A low score is a substitute, not a detected font.
    Review frames and timed words together. Transition labels are observations
    with class-specific limits, not recovered editing presets.
 2. **Clarify the brief and inventory.** Ask only for missing purpose/audience,

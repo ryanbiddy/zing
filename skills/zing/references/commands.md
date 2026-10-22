@@ -138,6 +138,19 @@ Inputs are trimmed with `--start`/`--end` and capped by `--max-duration`
 Existing outputs need `--overwrite`. MCP: `meme_render_video` (paths out, never
 bytes). Only the first audio stream is kept.
 
+## Caption geometry and font candidates
+
+```sh
+zing study reference.mp4 --caption-geometry --fonts
+zing fonts list
+zing fonts fetch --all   # explicit download of the pinned OFL/Apache library; ask first
+zing fonts match <slug>
+```
+
+Geometry writes caption-geometry.json beside the breakdown. Font matching ranks
+library fonts per caption track; results below the calibrated threshold are
+labeled substitutes. Failures become warnings and never abort the study.
+
 ## Installation and offline limits
 
 From a source checkout, `uv sync --all-extras` installs the Python extras, not
