@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { extname } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const pixels = (b, p) => `left:${b.x * p.width}px;top:${b.y * p.height}px;width:${b.width * p.width}px;height:${b.height * p.height}px;`;
@@ -13,7 +14,9 @@ export function composition(p, videoName = 'background.mp4') {
     const s = e.style;
     const family = `ZingFont${i}`;
     const type = { '.ttf': 'ttf', '.otf': 'otf', '.woff': 'woff', '.woff2': 'woff2' }[extname(s.font).toLowerCase()];
-    css.push(`@font-face{font-family:${family};src:url(data:font/${type};base64,${readFileSync(s.font).toString('base64')})}`);
+    const bytes = readFileSync(s.font);
+    if (s.font_sha256 && createHash('sha256').update(bytes).digest('hex') !== s.font_sha256) throw Error('Font SHA-256 mismatch at embedding; restore the declared font file');
+    css.push(`@font-face{font-family:${family};src:url(data:font/${type};base64,${bytes.toString('base64')})}`);
     const initialBox = e.box ?? e.path[0].box;
     let motion = '';
     if (e.path) {
@@ -32,7 +35,7 @@ export function composition(p, videoName = 'background.mp4') {
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src data:; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'">
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:${p.width}px;height:${p.height}px;overflow:hidden}
-body{background:${p.background.color ?? '#000000'}}
+body{background:${p.background.transparent ? 'transparent' : p.background.color ?? '#000000'}}
 #root{position:relative;width:${p.width}px;height:${p.height}px;overflow:hidden}
 video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .caption{position:absolute;overflow:hidden;display:flex;flex-wrap:wrap;align-content:center;align-items:center;justify-content:center;gap:0 .25em;padding:8px;line-height:1.2;paint-order:stroke fill}

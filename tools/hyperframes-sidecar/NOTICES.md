@@ -1,6 +1,9 @@
 # PH dependency and asset notices
 
 This private sidecar is an optional install. It adds no Python dependency.
+P10a keeps HyperFrames 0.8.144 and the lockfile unchanged. Its overlay proof uses
+the existing bundled Anton font (OFL-1.1) and NumPy from Zing's optional color
+extra (BSD-3-Clause); it adds no dependency or downloaded asset.
 `package-lock.json` records exact npm versions, registry integrity values and
 package license metadata, including optional binaries for other platforms.
 No node_modules directory, font binary, browser, media or model is committed.

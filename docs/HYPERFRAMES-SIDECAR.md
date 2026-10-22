@@ -1,5 +1,8 @@
 # HyperFrames sidecar: pass PH
 
+P10a adds a [standalone Composition v2 adapter and transparent overlays](HYPERFRAMES-V2.md).
+The historical PH measurements below describe the original opaque fixture.
+
 PH renders local, positioned word captions from a plain JSON plan on Windows.
 The three-second proof passed at 640×360 and 30 fps: all 90 decoded frames matched
 the expected word and caption-box position. The recorded render took **10.91
@@ -73,8 +76,9 @@ To render the included solid-background plan:
 node tools/hyperframes-sidecar/render.mjs tools/hyperframes-sidecar/example-plan.json zing-workspace/hyperframes/example.mp4
 ```
 
-Choose an unused output path on reruns. Both entrypoints refuse to overwrite
-an existing MP4. The [example plan](../tools/hyperframes-sidecar/example-plan.json)
+Choose an unused output path on reruns, or explicitly pass `--overwrite` (Node)
+or `overwrite=True` (Python). Both entrypoints protect existing output and
+receipt files. The [example plan](../tools/hyperframes-sidecar/example-plan.json)
 contains both templates and is also a readable contract example.
 
 From Python:
@@ -110,7 +114,7 @@ The input fields have these meanings:
 | `version` | Exactly `1`; unknown fields fail rather than silently losing effects. |
 | `width`, `height` | Even dimensions, 2–4096 pixels. |
 | `fps`, `duration` | Integer fps from 1–120; finite duration up to 600 seconds and an exact whole number of frames. These are validation bounds, not tested performance claims. |
-| `background` | Exactly one `color: "#RRGGBB"` or `video: "local path"`. |
+| `background` | Exactly one `color: "#RRGGBB"`, `video: "local path"`, or `transparent: true` (ProRes MOV). |
 | `captions[].start/end` | Absolute output seconds, half-open intervals `[start, end)`. |
 | `words[].text/start/end` | Text and absolute output times. Positive, ordered, nonoverlapping intervals inside the event; gaps are allowed. |
 | `box` | Normalized top-left `x`, `y`, `width`, `height`; the entire box must fit in the frame. |
@@ -143,7 +147,8 @@ attempt rejects the render. Loopback traffic is required. This is a guarded loca
 render path, not an operating-system network sandbox or a packet-capture audit.
 
 The wrapper enforces a timeout and terminates the render's process tree on expiry.
-It keeps the plan, HTML, logs and intermediate output for diagnosis. Before moving
+Failed jobs keep the plan, HTML, logs and intermediate output for diagnosis;
+successful jobs are cleaned. Before publishing
 the MP4 to the requested path, ffprobe must confirm the dimensions, exact fps,
 decoded frame count and duration within one frame. The receipt records the
 measured time and probe result. There is no cloud account or API-key requirement.
@@ -166,7 +171,7 @@ The pixel acceptance bands assume that font and the authored fixture. Without
 `ZING_REQUIRE_HYPERFRAMES=1`, only the real-render test skips. All plan, writer,
 validation and failure-boundary tests run. When opted in, missing prerequisites
 fail; they do not turn into skips. The real HyperFrames test has its own gate and
-does not change the existing 22-test FFmpeg marker gate.
+does not change the existing 102-test FFmpeg marker gate.
 
 HyperFrames lint reports zero errors and 12 Studio-editing warnings for the
 fixture: timed elements lack `.clip` classes and highlight spans lack editable
@@ -205,11 +210,12 @@ The render log reports no shader transitions and no page-side compositing.
 The official [shader-transition documentation](https://hyperframes.heygen.com/packages/shader-transitions)
 warns that its no-WebGL fallback omits shader compositing. PH rejects unrecognized
 effect fields instead of promising an effect it did not render. Hardware GPU,
-HDR/WebGPU, transparent output and long-video performance remain untested.
+HDR/WebGPU and long-video performance remain untested. P10a tests transparent
+ProRes output separately, as documented in the v2 adapter guide.
 
-Pass 10 still needs the composition-v2 translator with asset IDs/hashes and
-rational fps; exactly one caption backend per event; source audio and graded
-footage routing; packaging/install discovery beyond a source checkout; overflow,
+P10a supplies the composition-v2 caption translator with verified font hashes,
+backend selection and transparent overlays. Fractional fps, pipeline audio/graded
+footage routing, packaging/install discovery beyond a source checkout, overflow,
 wrapping and multilingual acceptance cases; and a tested capability map for
 shader effects with explicit failure or disclosed fallback. Cross-machine pixel
 identity requires pinned browser, fonts and encoder behavior beyond this one-PC

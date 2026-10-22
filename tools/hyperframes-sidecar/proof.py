@@ -95,12 +95,10 @@ def run_proof(root: Path, font: Path) -> dict:
     ], check=True, timeout=30)
     plan = fixture_plan(font, background)
     output = root / "fixture.mp4"
-    receipt = render_hyperframes(plan, output, timeout=180)
+    receipt = render_hyperframes(plan, output, timeout=180, verify_seeks=True)
     pixels = inspect_pixels(output, plan)
     (root / "pixel-proof.json").write_text(json.dumps(pixels, indent=2) + "\n", encoding="utf-8")
-    subprocess.run([
-        "node", str(sidecar_directory() / "verify-seeks.mjs"), receipt["project"],
-    ], check=True, capture_output=True, timeout=60)
+    assert receipt["seek_proof"]
     frames = [6, 17, 18, 29, 30, 41, 48, 59, 60, 71, 72, 84]
     frame_dir = root / "frames"
     frame_dir.mkdir(exist_ok=True)

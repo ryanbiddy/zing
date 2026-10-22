@@ -1,6 +1,7 @@
 // PH v1 is an adapter input, not Zing's future composition v2.
 import { isAbsolute, resolve } from 'node:path';
-import { statSync } from 'node:fs';
+import { statSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 function object(value, keys, label) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error(`${label}: expected object`);
@@ -44,9 +45,11 @@ export function validatePlan(input, base = process.cwd(), checkFiles = true) {
   if (!Number.isInteger(p.fps)) throw Error('fps: PH supports integer fps only');
   number(p.duration, 1 / p.fps, 600, 'duration');
   if (Math.abs(p.duration * p.fps - Math.round(p.duration * p.fps)) > 1e-7) throw Error('duration: must be a whole number of frames');
-  object(p.background, ['color', 'video'], 'background');
-  if (Object.keys(p.background).length !== 1) throw Error('background: choose exactly one of color or video');
-  if ('color' in p.background) color(p.background.color, 'background.color');
+  object(p.background, ['color', 'video', 'transparent'], 'background');
+  if (Object.keys(p.background).length !== 1) throw Error('background: choose exactly one of color, video or transparent');
+  if ('transparent' in p.background) {
+    if (p.background.transparent !== true) throw Error('background.transparent: must be true');
+  } else if ('color' in p.background) color(p.background.color, 'background.color');
   else p.background.video = asset(p.background.video, base, 'background.video', checkFiles);
   if (!Array.isArray(p.captions)) throw Error('captions: expected array');
   for (const [i, e] of p.captions.entries()) {
@@ -70,8 +73,12 @@ export function validatePlan(input, base = process.cwd(), checkFiles = true) {
       if (e.path[0].time !== e.start || e.path.at(-1).time !== e.end) throw Error(`${label}.path: first/last times must match event start/end`);
     }
     const s = e.style;
-    object(s, ['font', 'size', 'color', 'highlight', 'outline_color', 'outline_width', 'box_color'], `${label}.style`);
+    object(s, ['font', 'font_sha256', 'size', 'color', 'highlight', 'outline_color', 'outline_width', 'box_color'], `${label}.style`);
     s.font = asset(s.font, base, `${label}.style.font`, checkFiles);
+    if ('font_sha256' in s) {
+      if (typeof s.font_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(s.font_sha256)) throw Error(`${label}: invalid font SHA-256`);
+      if (checkFiles && createHash('sha256').update(readFileSync(s.font)).digest('hex') !== s.font_sha256) throw Error(`${label}: font SHA-256 mismatch; restore the declared font file`);
+    }
     if (!/\.(ttf|otf|woff2?)$/i.test(s.font)) throw Error(`${label}.style.font: use TTF, OTF, WOFF or WOFF2`);
     number(s.size, 1, 512, `${label}.style.size`);
     number(s.outline_width, 0, 20, `${label}.style.outline_width`);

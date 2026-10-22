@@ -71,6 +71,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
 | Make memes | [Memes](docs/MEMES.md): local stills, template metadata, ideas and text checks; animated memes on a video, GIF or zooming still with timed captions (`zing meme render-video`). |
 | Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; silent output, not integrated with `zing render`. |
+| Render v2 caption overlays | [HyperFrames v2 adapter](docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions and an FFmpeg composite helper. |
 | Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe; v1 EDLs keep rendering, v2 render support lands in later passes. |
 | Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans or a named shortage, with v1 EDL derivatives where supported. |
 | Connect an AI or Uoink | [Connect](docs/CONNECT.md): 28 MCP tools, prompt pack, local stdio and optional suite integration. |

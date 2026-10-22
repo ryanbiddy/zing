@@ -7,6 +7,7 @@ top-left coordinates. The PH v1 contract deliberately supports integer fps.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 import os
@@ -20,6 +21,9 @@ from dataclasses import asdict, dataclass
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
+
+from myzing.storage import resolve_workspace
+from .hyperframes_publish import reserve_output, publish_pair
 
 HYPERFRAMES_VERSION = "0.8.144"
 SETUP_HINT = "See docs/HYPERFRAMES-SIDECAR.md for local setup."
@@ -100,10 +104,13 @@ def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
     if abs(frames - round(frames)) > 1e-7:
         raise HyperframesError("duration: must be a whole number of frames")
     bg = p.get("background")
-    _object(bg, {"color", "video"}, "background")
+    _object(bg, {"color", "video", "transparent"}, "background")
     if len(bg) != 1:
-        raise HyperframesError("background: choose exactly one of color or video")
-    if "color" in bg:
+        raise HyperframesError("background: choose exactly one of color, video or transparent")
+    if "transparent" in bg:
+        if bg["transparent"] is not True:
+            raise HyperframesError("background.transparent: must be true")
+    elif "color" in bg:
         _color(bg["color"], "background.color")
     else:
         bg["video"] = _asset(bg["video"], "background.video", base_dir)
@@ -137,8 +144,14 @@ def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
             if path[0]["time"] != event["start"] or path[-1]["time"] != event["end"]:
                 raise HyperframesError(f"{label}.path: first/last times must match event start/end")
         style = event.get("style")
-        _object(style, {"font", "size", "color", "highlight", "outline_color", "outline_width", "box_color"}, f"{label}.style")
+        _object(style, {"font", "font_sha256", "size", "color", "highlight", "outline_color", "outline_width", "box_color"}, f"{label}.style")
         style["font"] = _asset(style.get("font"), f"{label}.style.font", base_dir)
+        if "font_sha256" in style:
+            digest = style["font_sha256"]
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise HyperframesError(f"{label}.style.font_sha256: expected lowercase SHA-256")
+            if base_dir is not None and hashlib.sha256(Path(style["font"]).read_bytes()).hexdigest() != digest:
+                raise HyperframesError(f"{label}: font SHA-256 mismatch; restore the declared font file")
         if Path(style["font"]).suffix.lower() not in (".ttf", ".otf", ".woff", ".woff2"):
             raise HyperframesError(f"{label}.style.font: use TTF, OTF, WOFF or WOFF2")
         _number(style.get("size"), 1, 512, f"{label}.style.size")
@@ -260,7 +273,7 @@ def verify_output(path: Path, plan: HyperframesPlan | dict, ffprobe: str = "ffpr
     p = plan.to_dict() if isinstance(plan, HyperframesPlan) else validate_plan(plan)
     try:
         result = subprocess.run(
-            [ffprobe, "-v", "error", "-select_streams", "v:0", "-count_frames", "-show_streams", "-show_format", "-of", "json", str(path)],
+            [ffprobe, "-v", "error", "-protocol_whitelist", "file,pipe,fd", "-select_streams", "v:0", "-count_frames", "-show_streams", "-show_format", "-of", "json", str(path)],
             capture_output=True, text=True, check=True, timeout=60,
         )
         probe = json.loads(result.stdout)
@@ -275,6 +288,10 @@ def verify_output(path: Path, plan: HyperframesPlan | dict, ffprobe: str = "ffpr
         )
         if not valid:
             raise ValueError("duration, size, fps or decoded frame count differs from plan")
+        if p["background"].get("transparent") and (
+            video.get("codec_name") != "prores" or not video.get("pix_fmt", "").startswith("yuva444p")
+        ):
+            raise ValueError("transparent overlay requires ProRes 4444 with an alpha pixel format")
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError, TypeError, ZeroDivisionError) as exc:
         raise HyperframesError(f"ffprobe verification failed for {path}: {exc}") from exc
     return probe
@@ -283,26 +300,39 @@ def verify_output(path: Path, plan: HyperframesPlan | dict, ffprobe: str = "ffpr
 def render_hyperframes(
     plan: HyperframesPlan | dict, output_path: Path, *, base_dir: Path | None = None,
     sidecar: Path | None = None, browser: Path | None = None, timeout: float = 180,
+    workspace: Path | None = None, overwrite: bool = False, verify_seeks: bool = False,
 ) -> dict:
-    """Render a plan locally and publish the MP4 only after ffprobe accepts it."""
+    """Publish verified MP4 or transparent ProRes MOV; clean successful jobs."""
     _number(timeout, 0.01, 86400, "timeout")
     output = Path(output_path).resolve()
-    if output.suffix.lower() != ".mp4":
-        raise HyperframesError("HyperFrames output must use .mp4")
-    if output.exists():
-        raise HyperframesError(f"Output already exists: {output}; choose a new path.")
-    tools = check_install(sidecar=sidecar, browser=browser)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    work = Path(tempfile.mkdtemp(prefix="hf-run-", dir=output.parent))
-    plan_path = write_plan(plan, work / "plan.json", base_dir=base_dir)
-    temporary_output = work / "render.mp4"
-    env = os.environ.copy()
-    env.update({"HYPERFRAMES_BROWSER_PATH": tools["browser"], "HYPERFRAMES_FFMPEG_PATH": tools["ffmpeg"], "HYPERFRAMES_FFPROBE_PATH": tools["ffprobe"]})
-    started = time.perf_counter()
-    _run_process([tools["node"], str(Path(tools["sidecar"]) / "render.mjs"), str(plan_path), str(temporary_output)], env=env, timeout=timeout, log=work / "sidecar.log")
-    probe = verify_output(temporary_output, plan, tools["ffprobe"])
-    receipt = json.loads(Path(str(temporary_output) + ".receipt.json").read_text(encoding="utf-8"))
-    receipt.update({"output": str(output), "plan": str(plan_path), "wrapper_seconds": time.perf_counter() - started, "probe": probe})
-    os.replace(temporary_output, output)
-    Path(str(output) + ".receipt.json").write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
-    return receipt
+    p = plan.to_dict() if isinstance(plan, HyperframesPlan) else validate_plan(plan)
+    suffix = ".mov" if p["background"].get("transparent") else ".mp4"
+    if output.suffix.lower() != suffix:
+        raise HyperframesError(f"HyperFrames output must use {suffix} for this background mode")
+    work = None
+    try:
+        with reserve_output(output, overwrite=overwrite):
+            tools = check_install(sidecar=sidecar, browser=browser)
+            jobs = resolve_workspace(workspace) / "hyperframes" / "jobs"
+            jobs.mkdir(parents=True, exist_ok=True)
+            work = Path(tempfile.mkdtemp(prefix="hf-job-", dir=jobs))
+            plan_path = write_plan(p, work / "plan.json", base_dir=base_dir)
+            temporary_output = work / ("render" + suffix)
+            env = os.environ.copy()
+            env.update({"HYPERFRAMES_BROWSER_PATH": tools["browser"], "HYPERFRAMES_FFMPEG_PATH": tools["ffmpeg"],
+                        "HYPERFRAMES_FFPROBE_PATH": tools["ffprobe"], "ZING_HF_JOB": str(work),
+                        "ZING_HF_WORKSPACE": str(resolve_workspace(workspace)),
+                        "ZING_HF_VERIFY_SEEKS": "1" if verify_seeks else "0"})
+            started = time.perf_counter()
+            _run_process([tools["node"], str(Path(tools["sidecar"]) / "render.mjs"), str(plan_path), str(temporary_output)], env=env, timeout=timeout, log=work / "sidecar.log")
+            probe = verify_output(temporary_output, p, tools["ffprobe"])
+            receipt = json.loads(Path(str(temporary_output) + ".receipt.json").read_text(encoding="utf-8"))
+            receipt.update({"output": str(output), "plan": json.loads(plan_path.read_text(encoding="utf-8")),
+                            "wrapper_seconds": time.perf_counter() - started, "probe": probe,
+                            "work_cleaned": True})
+            publish_pair(temporary_output, output, receipt, overwrite=overwrite)
+            shutil.rmtree(work)
+            return receipt
+    except (OSError, HyperframesError, ValueError) as exc:
+        location = f"; job retained at {work}" if work is not None else ""
+        raise HyperframesError(f"{exc}{location}") from exc
