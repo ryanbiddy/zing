@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
-from myzing.composition import Composition, load_composition
+from myzing.composition import Composition, frame_index, load_composition
 from myzing.composition.timebase import rate_fraction
 from myzing.ffmpeg_capabilities import FFmpegCapabilityError, require_lut3d
 from myzing.schemas import AudioTrack, CaptionSpec, Clip, EDL
@@ -114,6 +114,7 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
             lut_paths[clip.id] = path
             luts[clip.id] = prepare_lut(clip.color, path, clip.id)
     warnings = list(composition.warnings)
+    frame_limit = frame_index(max(c.timeline_end for c in composition.clips), composition.fps, rounding="nearest")
     for caption in composition.captions:
         layout = caption.layout
         if layout is not None:
@@ -134,8 +135,9 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
                 prepare_words(caption.words, caption.end + 1e-6, repair=False)
             except TimingReviewError as exc:
                 raise EDLValidationError(f"caption {caption.id}: {exc}") from exc
-        from .positioned_captions import caption_runs
+        from .positioned_captions import caption_frame_timing, caption_runs
         caption_runs(caption)  # Reject unmatched words and control characters before IO.
+        warnings.extend(caption_frame_timing(caption, composition.fps, frame_limit)[3])
     paths = {}
     for asset in composition.assets:
         paths[asset.id] = _path(asset.path, base_dir, f"asset {asset.id}")

@@ -21,6 +21,7 @@ from myzing.render import render_composition
 from myzing.render import pipeline
 from myzing.render.validation import EDLValidationError
 from myzing.schemas import Word
+from test_positioned_caption_timing import RATES, SHORT_WORDS, WORD_FRAMES
 from test_render_composition import ROOT, caption, font_ref
 
 pytestmark = pytest.mark.ffmpeg
@@ -329,3 +330,86 @@ def test_real_v1_render_keeps_pre_r9_command_graph_and_ass_bytes(tmp_path, sourc
     assert hashlib.sha256((result.work_dir / "captions.ass").read_bytes()).hexdigest() == baseline["ass_sha256"][os.name]
     decoded = frames(result.output_path)
     assert len(decoded) == 60 and (decoded[15].max(axis=2) > 150).any()
+
+
+@pytest.mark.parametrize(("fps", "expected"), list(zip(RATES, WORD_FRAMES)))
+def test_subframe_words_highlight_on_exact_frames_without_overlap(tmp_path, source, fps, expected):
+    np = pytest.importorskip("numpy")
+    e = caption(text="A B C D E F G H", end=2.911, words=SHORT_WORDS, word_timed=True,
+                style=CaptionStyle(42, outline_width=0),
+                layout=EventLayout("caption", 0, 2.911, "fixture", OverlapCheck(True), box=Box(.1, .3, .8, .3)))
+    c = composition(source, [e], fps)
+    before = c.to_json()
+    result = render(tmp_path, c)
+    decoded = frames(result.output_path)
+    # Locate each glyph independently from the unhighlighted phrase. Each
+    # one-letter word has a separate horizontal ink span, in transcript order.
+    columns = np.flatnonzero((decoded[0].min(axis=2) > 150).any(axis=0))
+    spans = np.split(columns, np.where(np.diff(columns) > 1)[0] + 1)
+    assert len(spans) == len(SHORT_WORDS)
+    for index, image in enumerate(decoded):
+        yellow = (image[:, :, 0] > 160) & (image[:, :, 1] > 160) & (image[:, :, 2] < 100)
+        actual = [i for i, span in enumerate(spans) if yellow[:, span].sum() > 10]
+        wanted = [i for i, (start, end) in enumerate(expected) if start <= index < end]
+        assert actual == wanted, (fps, index, actual, wanted)
+    assert c.to_json() == before
+    assert any("word 1 'A' render timing" in w for w in result.warnings)
+    if fps.numerator != 100:
+        assert any("render window" in w for w in result.warnings)
+
+
+@pytest.mark.parametrize("fps", RATES[:5])
+@pytest.mark.parametrize("plate", [False, True])
+def test_fast_multi_keyframe_path_matches_plan_on_every_output_frame(tmp_path, source, fps, plate):
+    from fractions import Fraction
+
+    a, b, c = Box(.05, .15, .22, .18), Box(.68, .15, .25, .22), Box(.34, .65, .3, .25)
+    keys = [Keyframe(t, box) for t, box in [
+        (.1, a), (.201, a), (.208, b), (.219, c), (.225, a),
+        (.501, b), (.505, a), (.511, c), (.521, b),
+        (1.01, a), (1.02, c), (1.03, b),
+        (1.801, c), (1.807, b), (1.819, a), (2.9, c),
+    ]]
+    e = caption(text="ZIP", start=.1, end=2.9, style=CaptionStyle(
+        26, outline_width=0, box_color="#FF00FF" if plate else None),
+        layout=EventLayout("caption", .1, 2.9, "explicit-path", OverlapCheck(True), path=keys))
+    result = render(tmp_path, composition(source, [e], fps))
+    for index, image in enumerate(frames(result.output_path)):
+        time = Fraction(index * fps.denominator, fps.numerator)
+        ink = image.min(axis=2) > 150
+        if not Fraction("0.1") <= time < Fraction("2.9"):
+            assert not ink.any(), (fps, index)
+            continue
+        expected = box_at(keys, time)
+        actual = center(ink)
+        assert all(abs(a - b) <= .02 for a, b in zip(actual, expected.center)), (fps, index, actual, expected)
+        if plate:
+            magenta = (image[:, :, 0] > 150) & (image[:, :, 1] < 100) & (image[:, :, 2] > 150)
+            l, t, r, b = bounds(magenta)
+            assert max(abs(l / 640 - expected.x), abs(t / 360 - expected.y),
+                       abs(r / 640 - expected.right), abs(b / 360 - expected.bottom)) <= .02, (fps, index)
+
+
+@pytest.mark.parametrize("fps", RATES)
+def test_one_frame_events_switch_exactly_on_every_frame_across_a_cut(tmp_path, source, fps):
+    from fractions import Fraction
+
+    count = int(Fraction(28, 10) * fps.numerator / fps.denominator)
+    events = []
+    for index in range(count):
+        time = Fraction(index * fps.denominator, fps.numerator)
+        start, end = float(max(0, time - Fraction(1, 1000))), float(time + Fraction(1, 1000))
+        events.append(caption(id=f"frame-{index}", text="I", start=start, end=end,
+            word_timed=True, words=[Word("I", start, end)],
+            style=CaptionStyle(42, outline_width=0, highlight="#00FFFF" if index % 2 else "#FFFF00"),
+            layout=EventLayout(f"frame-{index}", start, end, "fixture", OverlapCheck(True), box=Box(.2, .3, .6, .3))))
+    c = composition(source, events, fps)
+    c.clips[0].src_out = 1
+    c.clips.append(CompositionClip("source-id", 1, 3, 1, id="clip-2", asset_id="video"))
+    result = render(tmp_path, c)
+    for index, image in enumerate(frames(result.output_path)):
+        yellow = ((image[:, :, 0] > 160) & (image[:, :, 1] > 160) & (image[:, :, 2] < 100)).sum() > 10
+        cyan = ((image[:, :, 0] < 100) & (image[:, :, 1] > 160) & (image[:, :, 2] > 160)).sum() > 10
+        assert (bool(yellow), bool(cyan)) == (
+            index < count and index % 2 == 0, index < count and index % 2 == 1,
+        ), (fps, index, yellow, cyan)

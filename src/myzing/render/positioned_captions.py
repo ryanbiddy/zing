@@ -11,10 +11,12 @@ import math
 import re
 import subprocess
 from dataclasses import replace
+from fractions import Fraction
 from pathlib import Path
 
-from myzing.composition import CaptionStyle, Composition, CompositionCaption
+from myzing.composition import CaptionStyle, Composition, CompositionCaption, frame_index, frame_time
 from myzing.layout.types import Box, box_at
+from myzing.project.models import Rational
 
 from .captions import caption_anchor
 from .font_files import ass_em_scale
@@ -64,6 +66,62 @@ def _n(value: float) -> str:
 
 def _stamp(cs: int) -> str:
     return f"{cs // 360000}:{cs // 6000 % 60:02}:{cs // 100 % 60:02}.{cs % 100:02}"
+
+
+def frame_centisecond(index: int, fps: Rational) -> int:
+    """An ASS boundary after frame index-1 and at/before frame index.
+
+    Choose the first centisecond strictly after the preceding frame, using
+    rational arithmetic. Subtracting a centisecond from a rounded timestamp
+    can instead select the preceding frame, or collapse two word boundaries.
+    The renderer supports ASS rates up to 100 fps.
+    """
+    current = frame_time(index, fps)
+    boundary = 0 if index == 0 else int(frame_time(index - 1, fps) * 100) + 1
+    if Fraction(boundary, 100) > current:
+        raise EDLValidationError("ASS frame boundaries require fps at or below 100")
+    return boundary
+
+
+def caption_frame_timing(
+    caption: CompositionCaption, fps: Rational, frame_limit: int,
+) -> tuple[int, int, list[tuple[int, int]], list[str]]:
+    """Schedule positive words in order, with at least one exclusive frame each.
+
+    Starts move forward only as far as the preceding word requires. Ends keep
+    their original frame unless one frame is needed. Extend the phrase when
+    necessary, but fail rather than silently lose words beyond the video end.
+    Source timings/provenance are never modified; warnings describe the render.
+    """
+    first = frame_index(caption.start, fps, rounding="ceil")
+    last = max(first + 1, min(frame_limit, frame_index(caption.end, fps, rounding="ceil")))
+    words, warnings = [], []
+    previous = first
+    for i, word in enumerate(caption.words if caption.word_timed else []):
+        start = max(previous, frame_index(word.start, fps, rounding="ceil"))
+        end = max(start + 1, min(frame_limit, frame_index(word.end, fps, rounding="ceil")))
+        words.append((start, end))
+        previous = end
+        if (frame_time(start, fps), frame_time(end, fps)) != (Fraction(str(word.start)), Fraction(str(word.end))):
+            warnings.append(
+                f"caption {caption.id}: word {i + 1} {word.text!r} render timing "
+                f"{word.start:g}-{word.end:g}s -> frames [{start}, {end}) at "
+                f"{fps.numerator}/{fps.denominator} fps "
+                "(frame quantization; minimum one frame; ordered without overlap)",
+            )
+    last = max(last, previous)
+    if last > frame_limit:
+        raise EDLValidationError(
+            f"caption {caption.id}: one frame per word/caption needs output frames through {last - 1}, "
+            f"but the video has {frame_limit} frames; extend the video or move the caption earlier",
+        )
+    if (frame_time(first, fps), frame_time(last, fps)) != (Fraction(str(caption.start)), Fraction(str(caption.end))):
+        warnings.append(
+            f"caption {caption.id}: render window {caption.start:g}-{caption.end:g}s -> "
+            f"frames [{first}, {last}) at {fps.numerator}/{fps.denominator} fps "
+            "(frame quantization; extend for words or clip to video end)",
+        )
+    return first, last, words, warnings
 
 
 def _dialogue(start: int, end: int, text: str, *, layer: int = 1) -> str:
@@ -149,15 +207,15 @@ def _measure(caption: CompositionCaption, style: CaptionStyle, font: str,
     return left - x, top - y, right - x, bottom - y
 
 
-def _motion(a: tuple[float, float], b: tuple[float, float], milliseconds: int) -> str:
+def _motion(a: tuple[float, float], b: tuple[float, float], milliseconds: int, offset: int = 0) -> str:
     if a == b:
         return rf"\pos({_n(a[0])},{_n(a[1])})"
-    return rf"\move({_n(a[0])},{_n(a[1])},{_n(b[0])},{_n(b[1])},0,{milliseconds})"
+    return rf"\move({_n(a[0])},{_n(a[1])},{_n(b[0])},{_n(b[1])},{offset},{milliseconds})"
 
 
 def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str, bytes]],
                             directory: Path, ffmpeg: str, caption_filter: str) -> Path:
-    """Compile per-word event slices and piecewise linear paths into ASS."""
+    """Compile ordered frame highlights and sample the original piecewise path."""
     font_dir = directory / "fonts"
     font_dir.mkdir(exist_ok=True)
     receipts = []
@@ -170,6 +228,7 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
     default_font = next(iter(fonts.values()))[0] if fonts else "Arial"
     lines = [_header(composition.width, composition.height, default_font)]
     measurements = {}
+    frame_limit = frame_index(max(c.timeline_end for c in composition.clips), composition.fps, rounding="nearest")
     for caption in composition.captions:
         width, height = composition.width, composition.height
         style = caption.style or CaptionStyle(
@@ -216,32 +275,31 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
                 x = b.center[0] * width - (left + right) / 2
             return x, b.center[1] * height - (top + bottom) / 2
 
-        # Target the first output frame at/after each boundary. Use the last
-        # centisecond strictly before it: concat's microsecond timebase and
-        # libass's millisecond truncation can otherwise delay exact boundaries
-        # by another frame (e.g. 1.8s reaches the filter as 1.799999s).
-        from myzing.composition import frame_index, frame_time
-
-        def cs(time: float) -> int:
-            return max(0, math.ceil(frame_time(frame_index(time, composition.fps, rounding="ceil"), composition.fps) * 100) - 1)
-
-        boundaries = {cs(caption.start), cs(caption.end)}
-        boundaries.update(cs(k.time) for k in path)
-        if caption.word_timed:
-            boundaries.update(cs(t) for word in caption.words for t in (word.start, word.end))
+        first, last, word_frames, _ = caption_frame_timing(caption, composition.fps, frame_limit)
+        boundaries = {first, last}
+        boundaries.update(t for word in word_frames for t in word)
+        # Sample the ORIGINAL polyline before coalescing keyframes onto output
+        # frames. Same-frame vertices all contribute to interpolation; the later
+        # vertex governs the outgoing segment. No shortcut can cut a visible
+        # corner, even when several reversals occur between two output frames.
+        if any(k.box != boxes[0] for k in path):
+            boundaries.update(range(first, last + 1))
         ordered = sorted(boundaries)
-        for start, end in zip(ordered, ordered[1:]):
-            if start == end:
-                continue
-            active = next((i for i, w in enumerate(caption.words)
-                           if cs(w.start) <= start < cs(w.end)), None) if caption.word_timed else None
-            position = _motion(anchor(start / 100), anchor(end / 100), (end - start) * 10)
+        for start_frame, end_frame in zip(ordered, ordered[1:]):
+            start, end = (frame_centisecond(f, composition.fps) for f in (start_frame, end_frame))
+            a_time, b_time = (frame_time(f, composition.fps) for f in (start_frame, end_frame))
+            # ASS evaluates in integer milliseconds. Hold the exact sampled
+            # position through that frame's evaluation, regardless of truncation.
+            offset = math.ceil(a_time * 1000) - start * 10
+            finish = math.ceil(b_time * 1000) - start * 10
+            active = next((i for i, (a, b) in enumerate(word_frames) if a <= start_frame < b), None)
+            position = _motion(anchor(a_time), anchor(b_time), finish, offset)
             text = "{" + _tags(caption, style, font, font_scale) + position + "}" + _text(runs, style, active)
             lines.append(_dialogue(start, end, text))
             if style.box_color is not None:
-                a, b = box(start / 100), box(end / 100)
-                move = _motion((a.x * width, a.y * height), (b.x * width, b.y * height), (end - start) * 10)
-                resize = (rf"\fscx100\fscy100\t(0,{(end - start) * 10},"
+                a, b = box(a_time), box(b_time)
+                move = _motion((a.x * width, a.y * height), (b.x * width, b.y * height), finish, offset)
+                resize = (rf"\fscx100\fscy100\t({offset},{finish},"
                           rf"\fscx{_n(100 * b.width / a.width)}\fscy{_n(100 * b.height / a.height)})")
                 plate = ("{" + rf"\an7\bord0\shad0\1c{_color(style.box_color)}\p1" + move + resize + "}"
                          + f"m 0 0 l {_n(a.width * width)} 0 {_n(a.width * width)} {_n(a.height * height)} 0 {_n(a.height * height)}")
