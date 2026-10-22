@@ -368,6 +368,12 @@ class EDL:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "EDL":
+        # P4: v1 render callers must never silently discard v2 instructions.
+        version = d.get("schema_version", 1)
+        if type(version) is not int or version != 1:
+            raise ValueError(f"unsupported EDL schema_version {version!r}; expected 1. "
+                             "Use myzing.composition.load_composition for v2 and "
+                             "lower_to_v1 before rendering.")
         return cls(
             clips=[Clip(**c) for c in d.get("clips", [])],
             captions=[

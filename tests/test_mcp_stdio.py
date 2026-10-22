@@ -143,6 +143,9 @@ EXPECTED_TOOLS = {
     "meme_ideas",
     "meme_check",
     "meme_render",
+    "brief_questions",
+    "brief_save",
+    "meme_render_video",
     "study_video",
     "study_uoink_item",
     "import_shot_list",
@@ -165,6 +168,27 @@ EXPECTED_TOOLS = {
 }
 
 
+def test_brief_tools_roundtrip(client, tmp_path):
+    from myzing.project.api import init_project
+
+    root = tmp_path / "brief-project"
+    root.mkdir()
+    init_project("uoink:example", root, root)
+
+    def call(name, arguments):
+        response = client.send("tools/call", {"name": name, "arguments": arguments})
+        assert not response.get("isError"), response
+        return json.loads(next(block["text"] for block in response["content"] if block["type"] == "text"))
+
+    questions = call("brief_questions", {})
+    assert questions["ok"] and len(questions["questions"]) == 6
+    saved = call("brief_save", {"project": str(root), "answers": {"exact_spellings": ["Zoë"]}})
+    assert saved["ok"] and saved["brief"]["exact_spellings"] == ["Zoë"]
+    assert json.loads((root / "brief.json").read_text(encoding="utf-8")) == saved["brief"]
+    bad = call("brief_save", {"project": str(root), "answers": {"aspect": "wrong"}})
+    assert bad["ok"] is False and "aspect" in bad["error"]
+
+
 def test_connect_doc_names_every_tool():
     """B-S6 doc-drift gate: CONNECT.md promised "twelve tools" while the
     server served nineteen — the count and enumeration now live under
@@ -178,7 +202,7 @@ def test_connect_doc_names_every_tool():
     assert not undocumented, f"CONNECT.md is missing: {sorted(undocumented)}"
     spelled = {
         3: "three", 12: "twelve", 17: "seventeen", 18: "eighteen",
-        19: "nineteen", 20: "twenty", 23: "twenty-three", 24: "twenty-four",
+        19: "nineteen", 20: "twenty", 23: "twenty-three", 24: "twenty-four", 26: "twenty-six", 27: "twenty-seven",
     }.get(len(EXPECTED_TOOLS))
     assert spelled and spelled in doc, (
         f"CONNECT.md's tool count is stale — the server serves "
@@ -231,6 +255,7 @@ def test_meme_tools_roundtrip_without_network(client):
     invalid = call("meme_check", {"texts": ["a" * 71]})
     assert invalid["ok"] and invalid["problems"][0]["code"] == "line_too_long"
     assert not call("meme_render", {"texts": ["hello"]})["ok"]
+    assert not call("meme_render_video", {"texts": ["hello"]})["ok"]
 
 
 def test_meme_render_stdio_returns_a_path(client, tmp_path):

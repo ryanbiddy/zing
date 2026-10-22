@@ -284,6 +284,24 @@ def draw_composition(source: Any, *, size: tuple[int, int], layers: list[TextLay
     return canvas.convert("RGB"), reports
 
 
+def text_layers(texts: list[str], *, source_size: tuple[int, int], size: tuple[int, int],
+                layout: str, fit: str, font: str, regions: list[list[float]] | None = None,
+                plate: bool = False, shadow: bool = False, rotation: float = 0
+                ) -> tuple[Rect, list[TextLayer]]:
+    """Shared geometry and typography for still and FFmpeg compositions."""
+    w, h = size
+    bar = round(h * .26)
+    viewport = Rect(0, bar, w, h - bar) if layout == "caption" else Rect(0, 0, w, h)
+    rect = fit_rect(source_size, viewport, fit)
+    boxes = layout_boxes(layout, len(texts), size, regions=regions, image_rect=rect)
+    layers = [TextLayer(text, box, font=font, color="black" if layout == "caption" else "white",
+                        stroke_width=0 if layout == "caption" else .5,
+                        background="#000000b0" if plate and layout != "caption" else None,
+                        shadow=shadow, rotation=rotation, uppercase=layout == "classic")
+              for text, box in zip(texts, boxes)]
+    return viewport, layers
+
+
 def render_meme(texts: list[str], *, image: str = "", template: str = "",
                 layout: str = "", aspect: str = "1:1", out: str = "", fit: str = "",
                 font: str = "", regions: list[list[float]] | None = None,
@@ -333,15 +351,9 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                 source = ImageOps.exif_transpose(opened).convert("RGBA")
         size = output_size(aspect, source.size)
         w, h = size
-        bar = round(h * .26)
-        viewport = Rect(0, bar, w, h - bar) if layout == "caption" else Rect(0, 0, w, h)
-        rect = fit_rect(source.size, viewport, fit)
-        boxes = layout_boxes(layout, len(texts), size, regions=regions, image_rect=rect)
-        layers = [TextLayer(text, box, font=font, color="black" if layout == "caption" else "white",
-                            stroke_width=0 if layout == "caption" else .5,
-                            background="#000000b0" if plate and layout != "caption" else None,
-                            shadow=shadow, rotation=rotation, uppercase=layout == "classic")
-                  for text, box in zip(texts, boxes)]
+        viewport, layers = text_layers(texts, source_size=source.size, size=size, layout=layout,
+                                      fit=fit, font=font, regions=regions, plate=plate,
+                                      shadow=shadow, rotation=rotation)
         result, reports = draw_composition(source, size=size, layers=layers, fit=fit,
                                            viewport=viewport, caption=layout == "caption")
         target.parent.mkdir(parents=True, exist_ok=True)

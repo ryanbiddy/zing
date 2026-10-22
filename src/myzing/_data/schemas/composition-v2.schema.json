@@ -1,0 +1,1223 @@
+{
+  "$defs": {
+    "myzing_audio_models_Segment": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "end": {
+          "type": "number"
+        },
+        "evidence": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "label",
+        "confidence",
+        "evidence",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_brief_models_Brief": {
+      "additionalProperties": false,
+      "properties": {
+        "aspect": {
+          "type": "string"
+        },
+        "audience": {
+          "type": "string"
+        },
+        "caption_language": {
+          "type": "string"
+        },
+        "exact_spellings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "forbidden": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "music": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "must_keep": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "reference_match": {
+          "type": "string"
+        },
+        "sfx": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "target_length_seconds": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_color_models_LookParameters": {
+      "additionalProperties": false,
+      "properties": {
+        "contrast": {
+          "type": "number"
+        },
+        "gain": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "gamma": {
+          "type": "number"
+        },
+        "highlights": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "lift": {
+          "type": "number"
+        },
+        "saturation": {
+          "type": "number"
+        },
+        "shadows": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_color_models_Transform": {
+      "additionalProperties": false,
+      "properties": {
+        "exposure_ev": {
+          "type": "number"
+        },
+        "look": {
+          "type": "string"
+        },
+        "parameters": {
+          "$ref": "#/$defs/myzing_color_models_LookParameters"
+        },
+        "strength": {
+          "type": "number"
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "tint": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "look",
+        "parameters",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_AssetRef": {
+      "additionalProperties": false,
+      "properties": {
+        "aliases": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "duration": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "sha256",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_CaptionStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "box_color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "color": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        "highlight": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        "outline_color": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        "outline_width": {
+          "maximum": 20,
+          "minimum": 0,
+          "type": "number"
+        },
+        "size": {
+          "maximum": 512,
+          "minimum": 1,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "size",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_ColorTransform": {
+      "additionalProperties": false,
+      "properties": {
+        "baked_transform": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_color_models_Transform"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "color_space": {
+          "type": "string"
+        },
+        "lut_path": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "before_captions"
+          ]
+        },
+        "strength": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "lut_path",
+        "sha256",
+        "strength",
+        "color_space",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_CompositionAudio": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "duck_scope": {
+          "enum": [
+            "voiceover",
+            "source_speech",
+            "all_speech"
+          ]
+        },
+        "duck_under_speech": {
+          "type": "boolean"
+        },
+        "gain_db": {
+          "type": "number"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "speech",
+            "music",
+            "silence",
+            "uncertain",
+            "voiceover",
+            "sfx",
+            "ambience"
+          ]
+        },
+        "role_evidence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_audio_models_Segment"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "src": {
+          "type": "string"
+        },
+        "src_in": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "src_out": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "minimum": 0
+        },
+        "timeline_start": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "src",
+        "kind",
+        "id",
+        "asset_id",
+        "role",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_CompositionCaption": {
+      "additionalProperties": false,
+      "properties": {
+        "all_caps": {
+          "type": "boolean"
+        },
+        "backend": {
+          "enum": [
+            "ass",
+            "hyperframes"
+          ]
+        },
+        "end": {
+          "type": "number"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_models_FontAsset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "layout": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_layout_types_EventLayout"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "position": {
+          "type": "string"
+        },
+        "start": {
+          "type": "number"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_models_CaptionStyle"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "template": {
+          "anyOf": [
+            {
+              "enum": [
+                "phrase-highlight",
+                "kinetic"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "word_timed": {
+          "type": "boolean"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/myzing_schemas_Word"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "start",
+        "end",
+        "id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_CompositionClip": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "color": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_models_ColorTransform"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "speed_map": {
+          "items": {
+            "$ref": "#/$defs/myzing_composition_models_SpeedSegment"
+          },
+          "type": "array"
+        },
+        "src": {
+          "type": "string"
+        },
+        "src_in": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "src_out": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "timeline_start": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "src",
+        "src_in",
+        "src_out",
+        "timeline_start",
+        "id",
+        "asset_id",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_FontAsset": {
+      "additionalProperties": false,
+      "properties": {
+        "license": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "license",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_LoudnessTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "integrated_lufs": {
+          "type": "number"
+        },
+        "loudness_range_lu": {
+          "type": "number"
+        },
+        "true_peak_dbtp": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "integrated_lufs",
+        "true_peak_dbtp",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_SourceRange": {
+      "additionalProperties": false,
+      "properties": {
+        "src_in": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "src_out": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "src_in",
+        "src_out",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_SpeedSegment": {
+      "additionalProperties": false,
+      "properties": {
+        "rate": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "src_in": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "src_out": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "src_in",
+        "src_out",
+        "rate",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_Transition": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "recipe": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "dissolve",
+                      "wipe",
+                      "zoom_punch"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              }
+            },
+            "required": [
+              "recipe"
+            ]
+          },
+          "then": {
+            "properties": {
+              "incoming_handle": {
+                "$ref": "#/$defs/myzing_composition_models_SourceRange"
+              },
+              "outgoing_handle": {
+                "$ref": "#/$defs/myzing_composition_models_SourceRange"
+              }
+            },
+            "required": [
+              "outgoing_handle",
+              "incoming_handle"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "end": {
+          "type": "number"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "incoming_clip": {
+          "type": "string"
+        },
+        "incoming_handle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_models_SourceRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outgoing_clip": {
+          "type": "string"
+        },
+        "outgoing_handle": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_models_SourceRange"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recipe": {
+          "$ref": "#/$defs/myzing_composition_models_TransitionRecipe"
+        },
+        "start": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "outgoing_clip",
+        "incoming_clip",
+        "start",
+        "end",
+        "recipe",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_TransitionRecipe": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "anyOf": [
+            {
+              "enum": [
+                "left",
+                "right",
+                "up",
+                "down"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "duration_seconds": {
+          "type": "number"
+        },
+        "kind": {
+          "enum": [
+            "hard_cut",
+            "dissolve",
+            "wipe",
+            "zoom_punch"
+          ]
+        },
+        "observation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_study_transitions_TransitionEvidence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "duration_seconds",
+        "reason",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_Box": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "x": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "y": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "version",
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_EventLayout": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_layout_types_Box"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end": {
+          "type": "number"
+        },
+        "fallback": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "overlap": {
+          "$ref": "#/$defs/myzing_layout_types_OverlapCheck"
+        },
+        "path": {
+          "items": {
+            "$ref": "#/$defs/myzing_layout_types_Keyframe"
+          },
+          "type": "array"
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "scale": {
+          "type": "number"
+        },
+        "start": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "start",
+        "end",
+        "reason",
+        "overlap"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_Keyframe": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "$ref": "#/$defs/myzing_layout_types_Box"
+        },
+        "time": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "time",
+        "box"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_OverlapCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "face_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "mask_names": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "method": {
+          "type": "string"
+        },
+        "safe": {
+          "type": "boolean"
+        },
+        "scope": {
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "safe"
+      ],
+      "type": "object"
+    },
+    "myzing_project_models_Rational": {
+      "additionalProperties": false,
+      "properties": {
+        "denominator": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "numerator": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_schemas_Word": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "end": {
+          "type": "number"
+        },
+        "start": {
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        },
+        "timing": {
+          "anyOf": [
+            {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "text",
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "myzing_study_transitions_TransitionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "detector_version": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "enum": [
+            null,
+            "left",
+            "right",
+            "up",
+            "down"
+          ]
+        },
+        "end_seconds": {
+          "type": "number"
+        },
+        "evidence_end_seconds": {
+          "type": "number"
+        },
+        "evidence_start_seconds": {
+          "type": "number"
+        },
+        "observation_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "signature": {
+          "enum": [
+            "hard_cut",
+            "dissolve",
+            "wipe",
+            "zoom_punch",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "start_seconds": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "signature",
+        "start_seconds",
+        "end_seconds",
+        "evidence_start_seconds",
+        "evidence_end_seconds",
+        "confidence",
+        "detector_version",
+        "reason",
+        "version"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "urn:myzing:composition:2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Structural contract. Apply Python validation for cross-field time, geometry and reference constraints.",
+  "properties": {
+    "assets": {
+      "items": {
+        "$ref": "#/$defs/myzing_composition_models_AssetRef"
+      },
+      "type": "array"
+    },
+    "audio": {
+      "items": {
+        "$ref": "#/$defs/myzing_composition_models_CompositionAudio"
+      },
+      "type": "array"
+    },
+    "brief": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/myzing_brief_models_Brief"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "captions": {
+      "items": {
+        "$ref": "#/$defs/myzing_composition_models_CompositionCaption"
+      },
+      "type": "array"
+    },
+    "clips": {
+      "items": {
+        "$ref": "#/$defs/myzing_composition_models_CompositionClip"
+      },
+      "type": "array"
+    },
+    "fps": {
+      "$ref": "#/$defs/myzing_project_models_Rational"
+    },
+    "height": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "legacy_fps": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "legacy_timing_order": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "type": "object"
+    },
+    "loudness_target": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/myzing_composition_models_LoudnessTarget"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "schema_version": {
+      "const": 2,
+      "type": "integer"
+    },
+    "transitions": {
+      "items": {
+        "$ref": "#/$defs/myzing_composition_models_Transition"
+      },
+      "type": "array"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "width": {
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "title": "Composition",
+  "type": "object"
+}

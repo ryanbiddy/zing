@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-USAGE = "zing study <url|file> [--workspace DIR] [--transitions] [--json]"
+USAGE = "zing study <url|file> [--workspace DIR] [--transitions] [--caption-geometry] [--json]"
 
 
 def run(argv: list[str]) -> int:
@@ -25,6 +25,10 @@ def run(argv: list[str]) -> int:
         "--transitions",
         action="store_true",
         help="run the opt-in synthetic-calibrated transition detector",
+    )
+    parser.add_argument(
+        "--caption-geometry", action="store_true",
+        help="measure caption polygons, appearance and motion into caption-geometry.json (offline OCR models required)",
     )
     parser.add_argument(
         "--raw",
@@ -49,6 +53,8 @@ def run(argv: list[str]) -> int:
         study_kwargs = {"workspace": root}
         if args.transitions:
             study_kwargs["detect_transitions"] = True
+        if args.caption_geometry:
+            study_kwargs["caption_geometry"] = True
         if args.raw:
             study_kwargs["raw_mode"] = True
         if args.kept_media is not None:
@@ -75,5 +81,7 @@ def run(argv: list[str]) -> int:
         print(f"  {len(breakdown.warnings)} measurement note(s) -- see breakdown.md")
     print(f"  -> {folder / 'breakdown.md'}")
     print(f"  -> {folder / 'breakdown.json'}")
+    if "caption_geometry" in breakdown.provenance:
+        print(f"  -> {folder / 'caption-geometry.json'}")
     return 0
 

@@ -18,6 +18,10 @@ _COMMANDS: dict[str, tuple[str, str]] = {
               "guided first run: study a preset pack or your own links"),
     "study": ("myzing.study.command",
               "measure a video (URL or local file) into a breakdown"),
+    "project": ("myzing.project.command",
+                "inventory a reference and local clips; scan and inspect a project"),
+    "brief": ("myzing.brief.command",
+              "ask about the edit, save a brief, and recommend from known facts"),
     "prompt": ("myzing.prompt_pack",
                "print a judgment prompt (study, compare, direct, taste, meme-writer)"),
     "profile": ("myzing.profile.command",
@@ -89,6 +93,14 @@ def main(argv: list[str] | None = None) -> int:
                     stream.reconfigure(errors="replace")
             except (ValueError, OSError):
                 pass
+    # Piped answers (zing brief new < answers.txt) are UTF-8 too; without
+    # this a name like "Zoë" mis-decodes under the legacy codepage.
+    if hasattr(sys.stdin, "reconfigure"):
+        try:
+            if not sys.stdin.isatty():
+                sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            pass
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv == ["--version"]:
         print(_version())

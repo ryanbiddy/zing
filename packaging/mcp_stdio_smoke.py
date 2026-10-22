@@ -17,6 +17,8 @@ import threading
 
 EXPECTED_TOOLS = {
     "inspect_timeline",
+    "brief_questions",
+    "brief_save",
     "study_video",
     "study_uoink_item",
     "import_shot_list",
@@ -40,6 +42,7 @@ EXPECTED_TOOLS = {
     "meme_ideas",
     "meme_check",
     "meme_render",
+    "meme_render_video",
 }
 TIMEOUT_SECONDS = 60
 

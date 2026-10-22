@@ -1,0 +1,138 @@
+{
+  "events": [
+    {
+      "box": {
+        "height": 0.12,
+        "version": 1,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.5866666666666667
+      },
+      "end": 1.5,
+      "fallback": null,
+      "id": "caption-1",
+      "overlap": {
+        "face_ids": [],
+        "mask_names": [],
+        "method": "continuous-piecewise-linear",
+        "safe": true,
+        "scope": "supplied face tracks and masks; not proof of detector recall",
+        "version": 1
+      },
+      "path": [],
+      "reason": "nearest-free-zone",
+      "scale": 1.0,
+      "start": 0.3,
+      "version": 1,
+      "warnings": []
+    },
+    {
+      "box": null,
+      "end": 4.3,
+      "fallback": null,
+      "id": "caption-2",
+      "overlap": {
+        "face_ids": [],
+        "mask_names": [],
+        "method": "continuous-piecewise-linear",
+        "safe": true,
+        "scope": "supplied face tracks and masks; not proof of detector recall",
+        "version": 1
+      },
+      "path": [
+        {
+          "box": {
+            "height": 0.12,
+            "version": 1,
+            "width": 0.6,
+            "x": 0.15,
+            "y": 0.68
+          },
+          "time": 3.2,
+          "version": 1
+        },
+        {
+          "box": {
+            "height": 0.12,
+            "version": 1,
+            "width": 0.6,
+            "x": 0.25,
+            "y": 0.72
+          },
+          "time": 4.3,
+          "version": 1
+        }
+      ],
+      "reason": "explicit-path",
+      "scale": 1.0,
+      "start": 3.2,
+      "version": 1,
+      "warnings": []
+    },
+    {
+      "box": {
+        "height": 0.12,
+        "version": 1,
+        "width": 0.6,
+        "x": 0.2,
+        "y": 0.6066666666666667
+      },
+      "end": 7.5,
+      "fallback": null,
+      "id": "caption-3",
+      "overlap": {
+        "face_ids": [],
+        "mask_names": [],
+        "method": "continuous-piecewise-linear",
+        "safe": true,
+        "scope": "supplied face tracks and masks; not proof of detector recall",
+        "version": 1
+      },
+      "path": [],
+      "reason": "preferred-anchor",
+      "scale": 1.0,
+      "start": 6,
+      "version": 1,
+      "warnings": []
+    }
+  ],
+  "masks": [],
+  "platform": "none",
+  "provenance": {
+    "construction": "Synthetic padded face box; no detector was run."
+  },
+  "tracks": [
+    {
+      "confidence": 1.0,
+      "id": "synthetic-face",
+      "keyframes": [
+        {
+          "box": {
+            "height": 0.4,
+            "version": 1,
+            "width": 0.36,
+            "x": 0.32,
+            "y": 0.15
+          },
+          "time": 0,
+          "version": 1
+        },
+        {
+          "box": {
+            "height": 0.4,
+            "version": 1,
+            "width": 0.36,
+            "x": 0.32,
+            "y": 0.15
+          },
+          "time": 8,
+          "version": 1
+        }
+      ],
+      "version": 1,
+      "warnings": []
+    }
+  ],
+  "version": 1,
+  "warnings": []
+}

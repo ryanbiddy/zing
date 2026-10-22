@@ -44,6 +44,7 @@ def study(
     raw_mode: bool = False,
     kept_media: Path | str | None = None,
     handoff: dict[str, Any] | None = None,
+    caption_geometry: bool = False,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -99,7 +100,22 @@ def study(
         provenance.update(words_r.provenance)
 
         _phase(phase_callback, "ocr")
-        caps_r = captions_mod.read_captions(ing.media_path, ing.meta.duration)
+        if caption_geometry:
+            from .caption_geometry import read_geometry, caption_events
+
+            _phase(phase_callback, "caption_geometry")
+            geometry = read_geometry(ing.media_path, ing.meta.duration)
+            caps_r = captions_mod.CaptionsResult(
+                captions=caption_events(geometry), warnings=geometry.warnings,
+            )
+            try:
+                geometry.write(ing.breakdown_dir)
+            except OSError as exc:
+                warnings.append(f"caption geometry sidecar could not be saved: {exc}; check workspace permissions")
+            else:
+                provenance["caption_geometry"] = geometry.summary()
+        else:
+            caps_r = captions_mod.read_captions(ing.media_path, ing.meta.duration)
         warnings += caps_r.warnings
         provenance.update(caps_r.provenance)
 

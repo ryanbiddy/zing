@@ -22,6 +22,37 @@ import pytest
 
 from myzing import storage
 
+
+@pytest.fixture(autouse=True)
+def preserve_v1_contract_bytes(monkeypatch):
+    """Check every existing fixture/golden that constructs or serializes v1."""
+    from myzing.schemas import Breakdown, EDL, StyleProfile
+    from test_composition_v1_compat import assert_v1_bytes
+
+    for cls in (EDL, Breakdown, StyleProfile):
+        original = cls.to_dict
+
+        def checked(self, serialize=original):
+            result = serialize(self)
+            if self.schema_version == 1:
+                assert_v1_bytes(self, result)
+            return result
+
+        monkeypatch.setattr(cls, "to_dict", checked)
+
+    initialize = EDL.__init__
+
+    def checked_init(self, *args, **kwargs):
+        initialize(self, *args, **kwargs)
+        # Also cover render goldens that pass EDL objects directly to FFmpeg.
+        # Malformed non-JSON test objects remain the renderer validator's job.
+        try:
+            self.to_dict()
+        except (TypeError, KeyError):
+            pass
+
+    monkeypatch.setattr(EDL, "__init__", checked_init)
+
 pytest_plugins = ["pytester"]
 
 FFMPEG_TOOLS = ("ffmpeg", "ffprobe")

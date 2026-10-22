@@ -104,6 +104,27 @@ def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
 
 
+def h_brief_questions() -> dict[str, Any]:
+    """Return the terminal interview's questions, defaults, and answer examples."""
+    from myzing.brief.questions import brief_questions
+
+    return _ok(**brief_questions())
+
+
+def h_brief_save(project: str, answers: dict[str, Any]) -> dict[str, Any]:
+    """Validate complete replacement answers, save locally, and name evidence gaps."""
+    from myzing.brief.api import brief_result, save_brief
+    from myzing.brief.models import Brief
+
+    if not isinstance(project, str) or not project.strip():
+        return _err("project: supply the local folder created by 'zing project init'.")
+    try:
+        brief = save_brief(project, Brief.from_answers(answers))
+        return _ok(**brief_result(project, brief))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
 def _workspace_boundary(handler):
     """Pin the absolute workspace for one tool call and its dispatched jobs."""
     @wraps(handler)
@@ -1472,6 +1493,30 @@ def h_inspect_timeline(video: str, out: str, start: float | None = None,
         return _err(str(exc))
 
 
+def h_meme_render_video(texts: list[str], video: str = "", image: str = "", template: str = "",
+                        layout: str = "", aspect: str = "1:1", out: str = "", fit: str = "",
+                        font: str = "", regions: list[list[float]] | None = None,
+                        plate: bool = False, shadow: bool = False, rotation: float = 0,
+                        start: float = 0, end: float | None = None, max_duration: float = 30,
+                        duration: float = 5, zoom: float = 0, fps: int = 30, width: int | None = None,
+                        gif: bool = False, gif_fps: int = 10, gif_width: int = 640,
+                        gif_duration: float = 8, at: list[float] | None = None,
+                        until: list[float] | None = None, overwrite: bool = False) -> dict[str, Any]:
+    """Bounded offline MP4/GIF render; return paths and metadata, never bytes."""
+    from myzing.memes.video import render_meme_video
+
+    try:
+        return _ok(**render_meme_video(
+            texts, video=video, image=image, template=template, layout=layout, aspect=aspect,
+            out=out, fit=fit, font=font, regions=regions, plate=plate, shadow=shadow,
+            rotation=rotation, start=start, end=end, max_duration=max_duration, duration=duration,
+            zoom=zoom, fps=fps, width=width, gif=gif, gif_fps=gif_fps, gif_width=gif_width,
+            gif_duration=gif_duration, at=at, until=until, overwrite=overwrite,
+        ))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
 def h_get_prompt(name: str = "study") -> dict[str, Any]:
     loaded = load_prompt(name)
     if loaded is None:
@@ -1566,6 +1611,19 @@ def build_server():
     except AttributeError:
         pass
 
+    mcp.tool(
+        name="brief_questions",
+        description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",
+    )(h_brief_questions)
+    mcp.tool(
+        name="brief_save",
+        description=(
+            "Validate and atomically save answers to brief.json in an existing local project folder. "
+            "Replaces the whole brief; omitted fields use brief_questions defaults. "
+            "Returns answers, path, and a recommendation grounded in inventory and any attached reference breakdown. "
+            "No media bytes, downloads, or model calls."
+        ),
+    )(h_brief_save)
     mcp.tool(
         name="study_video",
         description=(
@@ -1797,6 +1855,10 @@ def build_server():
         name="meme_render",
         description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path.",
     )(h_meme_render)
+    mcp.tool(
+        name="meme_render_video",
+        description="Render a local video/GIF or still image/cached template to H.264 MP4 (AAC when source has audio), optionally a companion GIF. Requires myzing[memes], FFmpeg and ffprobe. No network. Maximum selected duration 30s; trim with source start/end. Still duration defaults to 5s; zoom is 0..0.25. Layouts and text caps match meme_render. at/until arrays give one inclusive output-time window per text, relative to the trimmed clip. GIF limits: 8s, 10fps, 640px wide; parameters may lower these. Existing outputs require overwrite=true. Returns paths, dimensions, durations, byte sizes and text boxes, never media bytes.",
+    )(h_meme_render_video)
 
     mcp.tool(
         name="inspect_timeline",

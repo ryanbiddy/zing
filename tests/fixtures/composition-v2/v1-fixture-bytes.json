@@ -1,0 +1,63 @@
+{
+  "baseline_commit": "fd2e9a11b5f8ed55a74a0f6cf5b4918bcaca499b",
+  "baseline_schemas_sha256": "6eff3ce9ba64541c0fb27d668fac59035ff355586e14aec8be2c177747e055d1",
+  "documents": {
+    "tools/eval/profiles/real-frozen/expected-profile.json#": {
+      "contract": "StyleProfile",
+      "sha256": "90eb2c81b17e8baa21266d33c79e453f9dae31cb582880294e631887c78bf9d2"
+    },
+    "tools/eval/profiles/synthetic-constructed/breakdowns/synthetic-1/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "0f13d8514220e73b46684976523a47e2a0b5f20816e679e13d0ab001422a3731"
+    },
+    "tools/eval/profiles/synthetic-constructed/breakdowns/synthetic-2/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "9f82c04b56ac6458c952e3e5ff9e3bc724cdc3644a2e3323b1f8c367e982d4e0"
+    },
+    "tools/eval/profiles/synthetic-constructed/breakdowns/synthetic-3/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "71de7a05c1a46a217fb427584522dfb4e758b17286554eae64721bf22a09a4ef"
+    },
+    "tools/eval/profiles/synthetic-constructed/breakdowns/synthetic-4/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "6533d0b87f4898a13317dcad7706aff7d8e7ac464f3c34c43fe2ba56e02548c6"
+    },
+    "tools/eval/profiles/synthetic-constructed/breakdowns/synthetic-5/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "b9797d672232dff97aeca7077fe07521fe11be07ef7030aad170acdf9359e09a"
+    },
+    "tools/eval/profiles/synthetic-constructed/expected-profile.json#": {
+      "contract": "StyleProfile",
+      "sha256": "2a76748caf6d9a156409c771cf7a9a370aed2a439cbc3334e9c4b39c54d48671"
+    },
+    "tools/eval/real_videos/landscape-big-buck-bunny/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "5944fb85f3415c17022fd69525a0283e9f061c70146b5aa4fec4e2f0baca6598"
+    },
+    "tools/eval/real_videos/raw-editing-practice/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "bc73e5cb1904e3697ea968c5eeaeb7cb2130576562110482dc09260d16e6f2da"
+    },
+    "tools/eval/real_videos/raw-talking-head-korky-paul/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "24e564305dec18b31532c644494f28ee1a4d9ec81876869decf8c0fba1dce6ae"
+    },
+    "tools/eval/real_videos/reference-cleo-antarctica/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "d569c0fade603cf6021b00ced3d71604f4e8d16a66656d31ab4685d7c5b4cebc"
+    },
+    "tools/eval/real_videos/short-daily-dweebs/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "7f2e644da403fccd03ee0926b3b422e08e20973e0d0f504165a05b58e0244710"
+    },
+    "tools/eval/real_videos/x-nasa-artemis-backseat-drivers/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "d5e94edf346f7bea4ed6aa5d741d9ebd565bcb9f3a3e5d3301b487e8d5c909be"
+    },
+    "tools/eval/sample/breakdown.json#": {
+      "contract": "Breakdown",
+      "sha256": "095b14e0f9d0c7acccf1b617f48ef3bb1e63d70e546fb048cc364bd6007adc79"
+    }
+  },
+  "encoding": "pre-P4 to_json(indent=2), UTF-8, no added newline"
+}

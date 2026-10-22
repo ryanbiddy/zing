@@ -5,3 +5,8 @@ tools/eval/fixtures/suite_v1/source-url.json text eol=lf
 # Bundled font files and their upstream OFL texts are hashed against the
 # upstream bytes in sources.json (the OFL.txt files ship with CRLF).
 src/myzing/_data/fonts/** -text
+
+# P4 deterministic exports and compatibility byte snapshots.
+src/myzing/_data/schemas/*.json text eol=lf
+docs/examples/composition-v2/*.json text eol=lf
+tests/fixtures/composition-v2/*.json text eol=lf

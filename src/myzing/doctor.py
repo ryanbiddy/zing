@@ -541,6 +541,24 @@ def check_ocr() -> Check:
     )
 
 
+def check_caption_geometry() -> Check:
+    """Offline, without importing native runtimes or initializing OCR."""
+    from myzing.study import caption_models
+
+    missing = [name for name in ("rapidocr", "onnxruntime", "cv2", "numpy") if not _has_module(name)]
+    if missing:
+        return Check("caption_geometry", OPTIONAL, False,
+                     f"caption geometry runtime missing: {', '.join(missing)}",
+                     fix='python -m pip install "myzing[study]"', data={"network_used": False})
+    try:
+        caption_models.model_paths()
+    except (OSError, RuntimeError, ValueError) as exc:
+        return Check("caption_geometry", OPTIONAL, False, str(exc),
+                     fix="python -m myzing.study.caption_models --fetch", data={"network_used": False})
+    return Check("caption_geometry", OPTIONAL, True, "caption geometry runtime and pinned OCR assets present",
+                 data={"network_used": False})
+
+
 def check_scenedetect() -> Check:
     """Shot detection is the core measurement — doctor must check it (F-10)."""
     if _has_module(SHOT_MODULE):
@@ -821,6 +839,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_scenedetect(),
         check_whisper(),
         check_ocr(),
+        check_caption_geometry(),
         check_tts(),
         check_pillow(),
         check_layout(),

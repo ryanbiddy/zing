@@ -1,0 +1,3 @@
+{
+  "error": "Cannot lower Composition v2 to EDL v1; blocking features: clips[0].color; clips[1].color; clips[2].color; transitions; captions[0].layout; captions[0].font; captions[0].style; captions[1].layout; captions[1].font; captions[1].style; captions[1].template; captions[1].backend=hyperframes; captions[2].layout; captions[2].font; captions[2].style; audio[0].duck_scope=all_speech; loudness_target; warnings"
+}

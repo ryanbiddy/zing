@@ -41,7 +41,7 @@ zing = "myzing.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md", "_data/memes/*.json", "_data/fonts/*.ttf", "_data/fonts/*.txt", "_data/fonts/*.json"]
+myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md", "_data/memes/*.json", "_data/fonts/*.ttf", "_data/fonts/*.txt", "_data/fonts/*.json", "_data/schemas/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
