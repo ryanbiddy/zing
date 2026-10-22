@@ -187,17 +187,37 @@ def test_cli_noninteractive_requires_answers_and_emits_json(tmp_path, capsys, mo
     assert "--brief" in result["error"] and "--answers" in result["error"]
 
 
-def test_local_only_model_load_reaches_both_whisper_attempts(monkeypatch):
-    from myzing.study.transcribe import _load_model
-    calls = []
+def _fake_whisper(monkeypatch, snapshot, calls):
     def model(name, **kwargs):
-        calls.append(kwargs)
+        calls.append((name, kwargs))
         if len(calls) == 1:
             raise ValueError("no GPU")
         return object()
+    utils = type("FakeUtils", (), {"download_model": staticmethod(
+        lambda name, local_files_only=False: str(snapshot))})
     monkeypatch.setitem(sys.modules, "faster_whisper", type("FakeWhisper", (), {"WhisperModel": staticmethod(model)}))
+    monkeypatch.setitem(sys.modules, "faster_whisper.utils", utils)
+
+
+def test_local_only_model_load_reaches_both_whisper_attempts(monkeypatch, tmp_path):
+    from myzing.study.transcribe import _load_model
+    (tmp_path / "tokenizer.json").write_text("{}")
+    calls = []
+    _fake_whisper(monkeypatch, tmp_path, calls)
     _load_model("cached-model", local_files_only=True)
-    assert len(calls) == 2 and all(c["local_files_only"] for c in calls)
+    assert len(calls) == 2 and all(c["local_files_only"] for _, c in calls)
+    assert all(name == str(tmp_path) for name, _ in calls)
+
+
+@pytest.mark.parametrize("as_directory", [True, False])
+def test_local_only_model_without_tokenizer_is_never_constructed(monkeypatch, tmp_path, as_directory):
+    from myzing.study.transcribe import _load_model
+    (tmp_path / "model.bin").write_bytes(b"x")
+    calls = []
+    _fake_whisper(monkeypatch, tmp_path, calls)
+    with pytest.raises(FileNotFoundError, match="tokenizer.json"):
+        _load_model(str(tmp_path) if as_directory else "tiny.en", local_files_only=True)
+    assert calls == []
 
 
 def test_mcp_match_background_status_and_dead_worker(tmp_path, monkeypatch, zing_workspace):

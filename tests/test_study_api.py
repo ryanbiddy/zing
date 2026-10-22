@@ -47,14 +47,14 @@ def wire_measurement_stages_only(monkeypatch):
     )
     monkeypatch.setattr(
         api.transcribe_mod, "transcribe",
-        lambda p, duration=0.0: TranscribeResult(
+        lambda p, duration=0.0, **kwargs: TranscribeResult(
             words=[Word("hi", 0.0, 0.2, 0.9)],
             provenance={"whisper_model": "test"},
         ),
     )
     monkeypatch.setattr(
         api.captions_mod, "read_captions",
-        lambda p, d: CaptionsResult(provenance={"ocr_backend": "test"}),
+        lambda p, d, **kwargs: CaptionsResult(provenance={"ocr_backend": "test"}),
     )
     monkeypatch.setattr(
         api.audio_mod, "measure_audio",
@@ -115,6 +115,26 @@ def wire_stages(monkeypatch, slug="tiktok-777"):
             provenance={"vad": "test"},
         ),
     )
+
+
+def test_local_only_study_forwards_policy_to_both_model_loaders(zing_workspace, monkeypatch):
+    wire_stages(monkeypatch)
+    calls = []
+
+    def transcribe(path, *, duration, local_files_only):
+        assert local_files_only is True
+        calls.append("asr")
+        return TranscribeResult()
+
+    def captions(path, duration, *, local_models_only):
+        assert local_models_only is True
+        calls.append("ocr")
+        return CaptionsResult()
+
+    monkeypatch.setattr(api.transcribe_mod, "transcribe", transcribe)
+    monkeypatch.setattr(api.captions_mod, "read_captions", captions)
+    api.study("local.mp4", local_models_only=True)
+    assert calls == ["asr", "ocr"]
 
 
 def test_study_assembles_and_persists(zing_workspace, monkeypatch):

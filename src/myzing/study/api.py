@@ -135,7 +135,10 @@ def study(
             else:
                 provenance["caption_geometry"] = geometry.summary()
         else:
-            caps_r = captions_mod.read_captions(ing.media_path, ing.meta.duration)
+            caps_r = captions_mod.read_captions(
+                ing.media_path, ing.meta.duration,
+                **({"local_models_only": True} if local_models_only else {}),
+            )
         warnings += caps_r.warnings
         provenance.update(caps_r.provenance)
 
