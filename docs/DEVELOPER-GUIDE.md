@@ -47,6 +47,7 @@ list — update both together):
 8. **pillow (optional):** local still meme rendering; install with `python -m pip install "myzing[memes]"`.
 9. **layout (optional):** pinned OpenCV runtime and verified local YuNet model; fetch explicitly with `zing layout fetch-model`.
 10. **color (optional):** NumPy for local SDR look matching and LUT application; install with `python -m pip install "myzing[color]"`.
+11. **hyperframes (optional):** PH sidecar prerequisites: Node 24, the pinned npm install, a configured local browser, and FFmpeg. See [HyperFrames setup](HYPERFRAMES-SIDECAR.md); this adapter is not routed through `zing render`.
 
 ---
 

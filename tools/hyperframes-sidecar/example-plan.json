@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "width": 640,
+  "height": 360,
+  "fps": 30,
+  "duration": 3,
+  "background": { "color": "#101820" },
+  "captions": [
+    {
+      "start": 0.2, "end": 1.4, "template": "phrase-highlight",
+      "box": { "x": 0.1, "y": 0.1, "width": 0.8, "height": 0.3 },
+      "style": {
+        "font": "../../zing-workspace/hyperframes/fonts/Anton-Regular.ttf",
+        "size": 44, "color": "#ffffff", "highlight": "#ffff00",
+        "outline_color": "#000000", "outline_width": 1, "box_color": "#204080"
+      },
+      "words": [
+        { "text": "WORDS", "start": 0.2, "end": 0.6 },
+        { "text": "FOLLOW", "start": 0.6, "end": 1 },
+        { "text": "TIME", "start": 1, "end": 1.4 }
+      ]
+    },
+    {
+      "start": 1.6, "end": 2.9, "template": "kinetic",
+      "path": [
+        { "time": 1.6, "box": { "x": 0.1, "y": 0.55, "width": 0.7, "height": 0.3 } },
+        { "time": 2.9, "box": { "x": 0.25, "y": 0.15, "width": 0.7, "height": 0.3 } }
+      ],
+      "style": {
+        "font": "../../zing-workspace/hyperframes/fonts/Anton-Regular.ttf",
+        "size": 44, "color": "#ffffff", "highlight": "#ffff00",
+        "outline_color": "#000000", "outline_width": 1, "box_color": "#204080"
+      },
+      "words": [
+        { "text": "MOVE", "start": 1.6, "end": 2 },
+        { "text": "WITH", "start": 2, "end": 2.4 },
+        { "text": "ME", "start": 2.4, "end": 2.9 }
+      ]
+    }
+  ]
+}

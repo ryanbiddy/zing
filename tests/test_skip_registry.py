@@ -33,6 +33,11 @@ REGISTERED_SKIPS = {
         "fixture. PRODUCT SURFACE: layout and doctor name the optional runtime and "
         "fetch-model command; normal planning never downloads assets."
     ),
+    "optional real HyperFrames check": (
+        "requires explicit ZING_REQUIRE_HYPERFRAMES=1 plus Node, the sidecar, "
+        "Chrome, FFmpeg and a fetched OFL font. PRODUCT SURFACE: the adapter "
+        "and zing doctor check local prerequisites and give setup remedies."
+    ),
     "optional real Kokoro check": (
         "the real synthesis check needs the optional kokoro-onnx runtime and "
         "model assets. PRODUCT SURFACE: tts_status() checks runtime and asset "
