@@ -106,6 +106,11 @@ REQUIRE_ENV_VAR = "ZING_REQUIRE_FFMPEG"
 def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers",
+        "requires_private_ocr: original lexical calibration requires unredistributed "
+        "third-party text (SEC1-OCR; see tests/PRIVATE-FIXTURES.md)",
+    )
+    config.addinivalue_line(
+        "markers",
         "ffmpeg: needs real ffmpeg+ffprobe on PATH (skips when absent; "
         f"{REQUIRE_ENV_VAR}=1 turns that skip into a failure)",
     )

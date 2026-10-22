@@ -3,7 +3,7 @@
 Date: 2026-07-19
 
 The canonical audit is
-`E:\AI\projects\uoink\handoff\suite-split\FINAL-REVIEW\ag-research-audit.md`.
+`uoink/handoff\suite-split\FINAL-REVIEW\ag-research-audit.md`.
 It is 23,103 bytes and its SHA-256 is
 `32BFA6D8F791A1073788B4FD83F26E1E0D44C1145E3F366B90FC969E8C75D65B`.
 
@@ -62,7 +62,7 @@ downstream documents contaminated by DR-2, DR-4, and DR-7.
 
 ## Decision packet correction
 
-`E:\AI\projects\uoink\handoff\suite-split\DECISION-WEEK-PACKET.md` no longer
+`uoink/handoff\suite-split\DECISION-WEEK-PACKET.md` no longer
 calls DR-2's umbrella verdict or the invalidated round-two name board
 decision-ready. Its corrected SHA-256 is
 `7756DF34F8E8D1B27B0DF9A4507EBADD39E951E286308DE81FB0EF5B31C1CAAD`.

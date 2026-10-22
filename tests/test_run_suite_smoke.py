@@ -324,9 +324,9 @@ def test_runtime_registry_path_matches_the_product_contract(
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("C:\\Users\\Ryan\\clip.mp4", True),
+        ("C:\\Users\\ExampleUser\\clip.mp4", True),
         ("D:/suite/private.json", True),
-        ("/home/ryan/clip.mp4", True),
+        ("/home/example/clip.mp4", True),
         ("writer://script/17", False),
         ("uoink://item/source-1", False),
         ("A relative/path.md", False),

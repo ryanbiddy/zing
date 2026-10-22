@@ -1330,7 +1330,7 @@
           "version": 1
         },
         "visual_check": {
-          "preview": "E:\\AI\\projects\\zing\\worktrees\\v1-realeval\\zing-workspace\\real-eval\\run-01\\color-tos-dialogue-tos-dialogue\\comparison.png",
+          "preview": "zing-workspace/real-eval/run-01/color-tos-dialogue-tos-dialogue/comparison.png",
           "time": 6,
           "identity": true,
           "mean_absolute_rgb8_error": 2.0210009022944058,
@@ -1403,7 +1403,7 @@
           "version": 1
         },
         "visual_check": {
-          "preview": "E:\\AI\\projects\\zing\\worktrees\\v1-realeval\\zing-workspace\\real-eval\\run-01\\color-tos-dialogue-tos-lab\\comparison.png",
+          "preview": "zing-workspace/real-eval/run-01/color-tos-dialogue-tos-lab/comparison.png",
           "time": 6,
           "identity": false
         }
@@ -1472,7 +1472,7 @@
           "version": 1
         },
         "visual_check": {
-          "preview": "E:\\AI\\projects\\zing\\worktrees\\v1-realeval\\zing-workspace\\real-eval\\run-01\\color-duck-classroom-tos-dialogue\\comparison.png",
+          "preview": "zing-workspace/real-eval/run-01/color-duck-classroom-tos-dialogue/comparison.png",
           "time": 6,
           "identity": false
         }

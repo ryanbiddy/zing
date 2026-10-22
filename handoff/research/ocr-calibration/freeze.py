@@ -1,12 +1,12 @@
-"""P-C2 freeze: dump raw per-frame OCR evidence for calibration cells.
+"""P-C2 freeze: dump content-free per-frame OCR measurements.
 
 Re-runs the exact study-time sampling and OCR over a stored study's
 media and writes frozen/<slug>.jsonl — one provenance header row, then
-one row per sampled frame. Deterministic for a given media file + OCR
-model; rerunning this script IS the regeneration command.
+one row per sampled frame. Text is replaced by hashes and token counts.
+Deterministic for a given media file + OCR model.
 
 Usage:
-    python freeze.py <workspace> <slug> [<slug> ...]
+    python -m handoff.research.ocr-calibration.freeze <workspace> <slug> [<slug> ...]
 
 Research tooling (P-C2, warning-only phase): no production imports
 back into the study pipeline; reuses captions.py internals read-only.
@@ -21,6 +21,7 @@ from pathlib import Path
 
 from myzing import storage
 from myzing.study import captions
+from tools.eval.content_policy import text_measurements
 
 
 def freeze(workspace: Path, slug: str, out_dir: Path) -> Path:
@@ -37,6 +38,11 @@ def freeze(workspace: Path, slug: str, out_dir: Path) -> Path:
     rows = 0
     with target.open("w", encoding="utf-8") as fh:
         fh.write(json.dumps({
+            "publication": {
+                "version": 1,
+                "text_permitted": False,
+                "reason": "No redistribution license recorded; measurements and hashes only.",
+            },
             "provenance": {
                 "slug": slug,
                 "source_url": breakdown.meta.source_url,
@@ -61,7 +67,7 @@ def freeze(workspace: Path, slug: str, out_dir: Path) -> Path:
                 "frame_sha256": hashlib.sha256(frame.tobytes()).hexdigest(),
                 "lines": [
                     {
-                        "text": ln.text,
+                        **text_measurements(ln.text),
                         "score": round(float(ln.score), 4),
                         "y_center": round(float(ln.y_center), 4),
                         "x_center": round(float(ln.x_center), 4),

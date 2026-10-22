@@ -238,9 +238,9 @@ Audio needs listening labels before a detector fix is ranked. Identity color exp
 Use the pass-rule environment on this Windows host. No downloads occur without the relevant flag; missing/corrupt assets fail with a hint. The script refuses changed media hashes instead of silently rewriting labels. Model and font downloads use the existing explicit provisioners. All thirteen expected font families must be verified to reproduce the ranking experiment.
 
 ```powershell
-Set-Location 'E:\AI\projects\zing\worktrees\v1-realeval'
-$env:PATH = 'E:\AI\tools\ffmpeg-8.1.2-essentials\bin;E:\AI\tools\uv;' + $env:PATH
-$env:UV_CACHE_DIR = 'C:\Users\hello\AppData\Local\uv\cache'
+# Run from your Zing checkout.
+# Ensure FFmpeg, ffprobe and uv are on PATH.
+$env:UV_CACHE_DIR = Join-Path $env:LOCALAPPDATA 'uv\cache'
 $env:TEMP = $env:TMP = "$PWD\zing-workspace\tmp"
 $env:HF_HOME = "$PWD\zing-workspace\models"
 $env:ZING_HOME = "$PWD\zing-workspace\home"

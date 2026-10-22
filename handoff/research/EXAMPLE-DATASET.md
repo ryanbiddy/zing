@@ -62,7 +62,7 @@ confirmed present in `GET /recent`:
 |---|---|---|
 | Result | ok | ok |
 | Slug | `Why_You_Can_t_Pee_On_Antarctica` | `Raw_Footage_for_Editing_Practice_with_Download_Link_Raw_footage_for_Video_Editin` |
-| Folder | `E:\Uoink\Social Media Research\Why_You_Can_t_Pee_On_Antarctica` | `E:\Uoink\Uncategorized\Raw_Footage_for_Editing_Practice_with_Download_Link_Raw_footage_for_Video_Editin` |
+| Folder | `<local Uoink media folder>` | `<local Uoink media folder>` |
 | video_id | `nlGYV0bmddI` | `FHMXO_VikdA` |
 | source_type | `short_video` | `video` |
 | hook_type | `curiosity_gap` (5/5) | `story_open` (4/5) |

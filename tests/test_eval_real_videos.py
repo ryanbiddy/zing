@@ -236,6 +236,35 @@ def test_freeze_run_prints_every_frozen_directory(
     assert capsys.readouterr().out == f"{frozen[0]}\n{frozen[1]}\n"
 
 
+def test_freeze_cannot_restore_transcripts_for_restricted_manifest(tmp_path: Path) -> None:
+    from myzing.schemas import Word, CaptionEvent
+
+    class TextAdapter(FakeBenchmarkAdapter):
+        def __call__(self, media_path: Path) -> Breakdown:
+            result = super().__call__(media_path)
+            result.words = [Word("Generated kite", 1.0, 2.0, confidence=0.9)]
+            result.captions = [CaptionEvent("Generated kite", 1.0, 2.0, words_visible=2)]
+            return result
+
+    manifest = json.loads(DEFAULT_MANIFEST.read_text(encoding="utf-8"))
+    assert manifest["media_policy"]["transcript_text_permitted"] is False
+    media = tmp_path / "media"
+    media.mkdir()
+    for case in manifest["cases"]:
+        (media / case["media_filename"]).write_bytes(b"generated")
+    adapter = TextAdapter(tmp_path / "study")
+    directories = freeze_real_videos(media, tmp_path / "frozen", adapter=adapter,
+                                    ffmpeg="not-installed-ffmpeg")
+    for directory in directories:
+        data = Breakdown.from_json((directory / "breakdown.json").read_text(encoding="utf-8"))
+        assert [(w.text, w.start, w.end, w.confidence) for w in data.words] == [("", 1.0, 2.0, 0.9)]
+        assert [(c.text, c.start, c.end, c.words_visible) for c in data.captions] == [("", 1.0, 2.0, 2)]
+        provenance = json.loads((directory / "provenance.json").read_text(encoding="utf-8"))
+        anchor = provenance["redactions"]["transcript_text"]
+        assert anchor["words_cleared"] == anchor["captions_cleared"] == 1
+        assert anchor["words_text_sha256"] == anchor["captions_text_sha256"] == hashlib.sha256(b"Generated kite").hexdigest()
+
+
 def test_freeze_preflights_all_media_before_writing(
     tmp_path: Path,
 ) -> None:
@@ -602,6 +631,58 @@ def test_backfill_main_preflights_and_processes_fixture(
     assert capsys.readouterr().out == "sample: 2 frames committed\n"
 
 
+def test_backfill_refuses_manifests_that_forbid_committing_frames(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The rights gate holds against the documented regeneration command.
+
+    ``backfill_frames`` is the tool that put 63 frames of two identifiable
+    creators into this repo. Removing them is not enough on its own: the
+    command is written down as the way to regenerate fixtures, so someone
+    will run it again. A manifest that forbids committed frames must make
+    it refuse before it writes anything.
+    """
+    manifest_path, media_root, calls = _backfill_cli_fixture(
+        tmp_path,
+        monkeypatch,
+        write_media=True,
+    )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["media_policy"]["derived_frames_permitted"] = False
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    original_manifest = manifest_path.read_bytes()
+
+    with pytest.raises(
+        backfill_frames.BackfillError,
+        match="derived_frames_permitted is false",
+    ):
+        backfill_frames.main(
+            [
+                "--media-root",
+                str(media_root),
+                "--manifest",
+                str(manifest_path),
+            ]
+        )
+
+    assert manifest_path.read_bytes() == original_manifest
+    assert calls == []
+
+
+def test_shipped_rights_unknown_manifest_forbids_committing_frames() -> None:
+    """The gate above is armed on the real manifest, not just testable."""
+    manifest = json.loads(
+        (CHECKED_IN / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["media_policy"]["derived_frames_permitted"] is False
+    # The CC-licensed manifests are unaffected: they have a rights basis.
+    for licensed in (CQ13_MANIFEST, RAW_MODE_MANIFEST):
+        policy = json.loads(licensed.read_text(encoding="utf-8"))["media_policy"]
+        assert policy.get("derived_frames_permitted") is not False
+        assert policy["derived_frames_committed"] is True
+
+
 def test_backfill_main_missing_media_does_not_rewrite_manifest(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -633,12 +714,20 @@ def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
     Pin chain (dependency order): each ``provenance.json`` pins the truth
     doc and the manifest by normalized-text sha256 (see ``_sha256`` —
     line-ending independent by construction), and its own artifacts —
-    text artifacts normalized, binary keyframe JPEGs by raw bytes.
+    text artifacts normalized, binary artifacts by raw bytes.
     Nothing pins the provenance files themselves, so a sanctioned
     truth-document correction (e.g. fixlist item F-16, PR #52) is
     recorded by re-pinning the ``human_truth``/``manifest`` hashes and
     keeping a ``human_truth.supersession`` record (date, superseded
     hash) — without touching the frozen measurements.
+
+    Both cases in this manifest are rights-unknown third-party uploads by
+    identifiable named creators, so they are measurement-only: no source
+    media, no derived frames, no verbatim text. That is checked here too,
+    because a rights regression is exactly the kind of change that looks
+    harmless in a diff (`git add` of a frames/ directory) and is expensive
+    once published. See ``test_rights_unknown_fixtures_commit_no_third_party_content``
+    for the content-side half of the same contract.
     """
     manifest_path = CHECKED_IN / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -663,28 +752,31 @@ def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
 
         assert breakdown.meta.source_url == case["source_url"]
         assert breakdown.meta.media_path == ""
-        # A-Q6: analysis keyframes ARE committed (small JPEGs) so visual
-        # judgment criteria are scoreable; source media still is not.
-        assert manifest["media_policy"]["derived_frames_committed"] is True
-        assert all(
-            shot.keyframe == f"frames/shot_{shot.index:03d}.jpg"
-            for shot in breakdown.shots
-        )
-        for shot in breakdown.shots:
-            assert (case_directory / shot.keyframe).is_file()
-        assert provenance["derived_frames"]["committed"] is True
+        # A-Q6's committed thumbnails were reverted for this manifest:
+        # neither source has a redistribution basis, so keyframe paths are
+        # cleared exactly as the freezer emits them for rights-unknown
+        # sources. The CC-licensed fixtures still commit theirs.
+        assert manifest["media_policy"]["derived_frames_committed"] is False
+        assert all(shot.keyframe == "" for shot in breakdown.shots)
+        assert not (case_directory / "frames").exists()
+        assert provenance["derived_frames"]["committed"] is False
         assert not any(
-            path.suffix.lower() in {".mp4", ".mov", ".webm"}
+            path.suffix.lower() in {".mp4", ".mov", ".webm", ".jpg", ".png"}
             for path in case_directory.rglob("*")
         )
-        # every committed frame is hash-tracked in provenance artifacts
-        frame_files = {
-            f"frames/{p.name}"
-            for p in (case_directory / "frames").iterdir()
-        }
-        assert frame_files == {
-            rel for rel in provenance["artifacts"] if rel.startswith("frames/")
-        }
+        # The frames are gone but stay identifiable: one SHA-256 anchor per
+        # frame the recipe produces, so a holder of the verified source
+        # media can regenerate and confirm the exact frames measured.
+        anchors = provenance["derived_frames"]["sha256"]
+        assert len(anchors) == provenance["derived_frames"]["count"]
+        assert all(
+            name.startswith("frames/") and len(digest) == 64
+            for name, digest in anchors.items()
+        )
+        assert not any(
+            relative.startswith("frames/") for relative in provenance["artifacts"]
+        )
+        assert provenance["rights"] == case["rights"]
         assert provenance["source_media"]["committed"] is False
         assert provenance["source_media"]["acquisition"][
             "selected_format_ids"
@@ -698,7 +790,7 @@ def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
             assert artifact.is_file()
             if artifact.suffix.lower() in {".json", ".md", ".txt"}:
                 assert _sha256(artifact) == expected_hash
-            else:  # binary artifacts (keyframe JPEGs)
+            else:  # binary artifacts
                 assert hashlib.sha256(artifact.read_bytes()).hexdigest() == expected_hash
         serialized = breakdown_path.read_text(encoding="utf-8")
         assert "AppData" not in serialized
@@ -720,6 +812,70 @@ def test_checked_in_real_video_snapshots_are_self_consistent() -> None:
     )
     assert raw.cuts_per_10s[2] == 15.0
     assert "not zero-cut raw footage" in raw_provenance["human_truth"]["caveat"]
+
+
+def test_rights_unknown_fixtures_commit_no_third_party_content() -> None:
+    """Rights-unknown fixtures keep the measurements and drop the content.
+
+    The two cases in ``manifest.json`` are all-rights-reserved uploads by
+    named, identifiable creators. What is committed is measurement ABOUT
+    the work — shot and word timings, OCR confidence, caption style flags —
+    never the work itself. This test is the gate on that distinction, and
+    it is deliberately two-sided: it fails if any verbatim text comes back,
+    AND it fails if the measurements that justify keeping the fixture at
+    all are hollowed out. A fixture of 146 empty words with no timings
+    would be a vacuous pass, so the timings are checked for real values.
+    """
+    manifest = json.loads(
+        (CHECKED_IN / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert manifest["media_policy"]["text_policy"]
+
+    for case in manifest["cases"]:
+        fixture_id = case["fixture_id"]
+        case_directory = CHECKED_IN / fixture_id
+        breakdown = Breakdown.from_json(
+            (case_directory / "breakdown.json").read_text(encoding="utf-8")
+        )
+        provenance = json.loads(
+            (case_directory / "provenance.json").read_text(encoding="utf-8")
+        )
+
+        # A rights block exists at all, names who to attribute, and points
+        # at the evidence that was checked. Its absence was finding Z-H2.
+        rights = provenance["rights"]
+        assert rights["attribution"] and rights["evidence_url"]
+        assert rights["label"] and rights["evidence_checked_at"]
+
+        redactions = provenance["redactions"]["transcript_text"]
+        assert redactions["words_cleared"] == len(breakdown.words)
+        assert redactions["captions_cleared"] == len(breakdown.captions)
+        assert len(redactions["words_text_sha256"]) == 64
+        assert len(redactions["captions_text_sha256"]) == 64
+
+        # No verbatim text survives anywhere in the committed fixture.
+        assert all(word.text == "" for word in breakdown.words)
+        assert all(caption.text == "" for caption in breakdown.captions)
+        assert breakdown.meta.media_path == ""
+
+        # ... and the measurements the fixture exists for are still there.
+        assert len(breakdown.words) >= 100, fixture_id
+        assert len(breakdown.captions) >= 40, fixture_id
+        assert breakdown.words == sorted(
+            breakdown.words, key=lambda word: word.start
+        )
+        assert breakdown.words[-1].end > breakdown.words[0].start > -1
+        assert all(word.end >= word.start for word in breakdown.words)
+        assert any(word.confidence > 0.0 for word in breakdown.words)
+        assert all(
+            caption.end >= caption.start for caption in breakdown.captions
+        )
+        assert any(caption.all_caps for caption in breakdown.captions) or any(
+            caption.words_visible > 0 for caption in breakdown.captions
+        )
+        assert breakdown.shots and breakdown.avg_shot_duration > 0.0
+        assert breakdown.meta.duration > 0.0
+        assert breakdown.audio.speech_ratio > 0.0
 
 
 def test_checked_in_cq13_snapshots_are_self_consistent() -> None:

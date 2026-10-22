@@ -1,45 +1,34 @@
-# P-C2 calibration pack — frozen raw-OCR evidence (Lane A half)
+# P-C2 calibration measurements
 
-Warning-only, offline calibration per P-C2's guardrails: no production
-filter, no schema change, no text rewrite. This directory freezes the
-RAW per-frame OCR evidence (pre-clustering) so candidate signals
-(persistence, region stability, script, lexicality) can be compared
-against the confidence-only baseline with per-class precision/recall
-by Lane C's harness.
+The seven cells retain per-frame timestamps, confidence, geometry, frame
+hashes and manual class labels. Source URLs and OCR backend versions remain
+in the frozen headers. No redistribution license is recorded for these
+sources, so SEC1 removed their OCR text on 2026-10-22.
 
-## Contents
+Each former text field is now `text_sha256`, `normalized_text_sha256` and
+`token_count`. The first hash covers the exact UTF-8 string. The second uses
+`" ".join(text.upper().split())`; token count uses `len(text.split())`.
+Hashes are provenance anchors, not encryption or anonymity guarantees.
+Each header records the removed-text count and a joined-text hash.
 
-- `freeze.py` — deterministic extractor: re-runs the exact study-time
-  sampling (`_iter_frames`) and OCR (`_ocr`, same engine/threshold)
-  over a stored study's media and dumps one JSONL row per sampled
-  frame: `{slug, t, step, frame_sha256, lines:[{text, score,
-  y_center, x_center}]}`. Rerunning it on the same media + model is
-  the regeneration command.
-- `frozen/<slug>.jsonl` — the frozen evidence, one file per cell.
-- `labels/<slug>.jsonl` — manual labels (added in a later pass): one
-  row per (t, line-index) with a class from P-C2's four:
-  `likely_caption | incidental_text | unsupported_script | unreadable`.
+`pc2_baseline.py` still calculates the confidence, position and persistence
+scores from these measurements. Token counts preserve the candidate rule;
+normalized hashes preserve its equality groups. Geometry, label classes and
+timestamps were not changed.
 
-## Frozen cells and why
+Fuzzy clustering needs the original strings. Five empirical cases therefore
+skip with registered reason SEC1-OCR; generated cases exercise overlay
+exclusion and caption retention. See
+[the coverage record](../../../tests/PRIVATE-FIXTURES.md).
 
-| Slug | Why it's in the pack |
-|---|---|
-| `x-1732824684683784516` | SW-1 origin: texture junk at median 0.88 conf (SpaceX plume) + mangled real location tags |
-| `x-2075286280561107161` | Cyrillic overlays fabricated into Latin at 0.77–0.93 — the unsupported_script class |
-| `youtube-uc6b5owmca` | 1,882-event HUD flood: incidental_text vs story-overlay separation at scale |
-| `youtube-nlgyv0bmddi` | known-good: real burned-in creator captions (word-timed style) |
-| `youtube-oyaneh0joqi` | known-good: real creator captions, denser text |
+Regenerate measurements from media you are authorized to use, from the repo
+root:
 
-## Known limitations (honest scope)
+```sh
+uv run python -m handoff.research.ocr-calibration.freeze WORKSPACE SLUG
+```
 
-- `Line` exposes center coordinates only, not box extents; if extent
-  features prove necessary, that is a captions.py debug-output change
-  (Lane A) and a pack v2.
-- Frames themselves stay local (media redistribution unavailable);
-  `frame_sha256` anchors labels to exact frames for anyone holding
-  the media.
-- The OCR model version is pinned in each row's provenance header
-  (first JSONL line): comparisons are only valid within one model.
-- Promotion bar (from P-C2 verbatim): a held-out result showing a
-  named warning separates at least one failure class without reducing
-  recall on real captions; otherwise archive as negative evidence.
+The freezer writes only hashes and measurements, including on regeneration.
+Source media and frames belong under ignored `zing-workspace/`. A licensed
+replacement corpus with independent labels is needed to restore the original
+lexical calibration checks.

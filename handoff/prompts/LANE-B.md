@@ -6,7 +6,7 @@ user and every AI touches Zing.
 
 ## First, once (Phase 0 — do this before any building)
 
-Read, in order: `E:\AI\projects\uoink\handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`,
+Read, in order: `uoink/handoff\VIDEO-DIRECTOR-VISION-2026-07-17.md`,
 `handoff/ROADMAP.md`, `handoff/SPRINT-1-D1.md`, `src/myzing/schemas.py`.
 Then write `handoff/reviews/PLAN-CRITIQUE-lane-b.md`: what is weak, missing,
 or wrong in this plan from YOUR lane's vantage (MCP tool design, storage

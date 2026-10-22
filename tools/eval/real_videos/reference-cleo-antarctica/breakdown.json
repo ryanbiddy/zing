@@ -15,1014 +15,1014 @@
       "index": 0,
       "start": 0.0,
       "end": 0.292,
-      "keyframe": "frames/shot_000.jpg"
+      "keyframe": ""
     },
     {
       "index": 1,
       "start": 0.292,
       "end": 1.958,
-      "keyframe": "frames/shot_001.jpg"
+      "keyframe": ""
     },
     {
       "index": 2,
       "start": 1.958,
       "end": 2.958,
-      "keyframe": "frames/shot_002.jpg"
+      "keyframe": ""
     },
     {
       "index": 3,
       "start": 2.958,
       "end": 5.042,
-      "keyframe": "frames/shot_003.jpg"
+      "keyframe": ""
     },
     {
       "index": 4,
       "start": 5.042,
       "end": 6.292,
-      "keyframe": "frames/shot_004.jpg"
+      "keyframe": ""
     },
     {
       "index": 5,
       "start": 6.292,
       "end": 7.333,
-      "keyframe": "frames/shot_005.jpg"
+      "keyframe": ""
     },
     {
       "index": 6,
       "start": 7.333,
       "end": 8.5,
-      "keyframe": "frames/shot_006.jpg"
+      "keyframe": ""
     },
     {
       "index": 7,
       "start": 8.5,
       "end": 10.125,
-      "keyframe": "frames/shot_007.jpg"
+      "keyframe": ""
     },
     {
       "index": 8,
       "start": 10.125,
       "end": 12.125,
-      "keyframe": "frames/shot_008.jpg"
+      "keyframe": ""
     },
     {
       "index": 9,
       "start": 12.125,
       "end": 13.458,
-      "keyframe": "frames/shot_009.jpg"
+      "keyframe": ""
     },
     {
       "index": 10,
       "start": 13.458,
       "end": 16.792,
-      "keyframe": "frames/shot_010.jpg"
+      "keyframe": ""
     },
     {
       "index": 11,
       "start": 16.792,
       "end": 18.833,
-      "keyframe": "frames/shot_011.jpg"
+      "keyframe": ""
     },
     {
       "index": 12,
       "start": 18.833,
       "end": 20.125,
-      "keyframe": "frames/shot_012.jpg"
+      "keyframe": ""
     },
     {
       "index": 13,
       "start": 20.125,
       "end": 23.125,
-      "keyframe": "frames/shot_013.jpg"
+      "keyframe": ""
     },
     {
       "index": 14,
       "start": 23.125,
       "end": 24.792,
-      "keyframe": "frames/shot_014.jpg"
+      "keyframe": ""
     },
     {
       "index": 15,
       "start": 24.792,
       "end": 26.083,
-      "keyframe": "frames/shot_015.jpg"
+      "keyframe": ""
     },
     {
       "index": 16,
       "start": 26.083,
       "end": 27.583,
-      "keyframe": "frames/shot_016.jpg"
+      "keyframe": ""
     },
     {
       "index": 17,
       "start": 27.583,
       "end": 28.542,
-      "keyframe": "frames/shot_017.jpg"
+      "keyframe": ""
     },
     {
       "index": 18,
       "start": 28.542,
       "end": 31.5,
-      "keyframe": "frames/shot_018.jpg"
+      "keyframe": ""
     },
     {
       "index": 19,
       "start": 31.5,
       "end": 32.333,
-      "keyframe": "frames/shot_019.jpg"
+      "keyframe": ""
     },
     {
       "index": 20,
       "start": 32.333,
       "end": 37.833,
-      "keyframe": "frames/shot_020.jpg"
+      "keyframe": ""
     },
     {
       "index": 21,
       "start": 37.833,
       "end": 41.167,
-      "keyframe": "frames/shot_021.jpg"
+      "keyframe": ""
     },
     {
       "index": 22,
       "start": 41.167,
       "end": 42.5,
-      "keyframe": "frames/shot_022.jpg"
+      "keyframe": ""
     }
   ],
   "words": [
     {
-      "text": "In",
+      "text": "",
       "start": 0.0,
       "end": 0.2,
       "confidence": 0.787
     },
     {
-      "text": "Antarctica,",
+      "text": "",
       "start": 0.2,
       "end": 0.64,
       "confidence": 0.887
     },
     {
-      "text": "you're",
+      "text": "",
       "start": 0.86,
       "end": 1.04,
       "confidence": 0.913
     },
     {
-      "text": "never",
+      "text": "",
       "start": 1.04,
       "end": 1.32,
       "confidence": 0.873
     },
     {
-      "text": "allowed",
+      "text": "",
       "start": 1.32,
       "end": 1.78,
       "confidence": 0.786
     },
     {
-      "text": "to",
+      "text": "",
       "start": 1.78,
       "end": 2.02,
       "confidence": 0.9
     },
     {
-      "text": "pee",
+      "text": "",
       "start": 2.02,
       "end": 2.18,
       "confidence": 0.848
     },
     {
-      "text": "on",
+      "text": "",
       "start": 2.18,
       "end": 2.36,
       "confidence": 0.889
     },
     {
-      "text": "the",
+      "text": "",
       "start": 2.36,
       "end": 2.5,
       "confidence": 0.809
     },
     {
-      "text": "ice.",
+      "text": "",
       "start": 2.5,
       "end": 2.78,
       "confidence": 0.755
     },
     {
-      "text": "Not",
+      "text": "",
       "start": 3.04,
       "end": 3.16,
       "confidence": 0.88
     },
     {
-      "text": "even",
+      "text": "",
       "start": 3.16,
       "end": 3.36,
       "confidence": 0.803
     },
     {
-      "text": "when",
+      "text": "",
       "start": 3.36,
       "end": 3.54,
       "confidence": 0.863
     },
     {
-      "text": "you're",
+      "text": "",
       "start": 3.54,
       "end": 3.68,
       "confidence": 0.92
     },
     {
-      "text": "hiking",
+      "text": "",
       "start": 3.68,
       "end": 4.0,
       "confidence": 0.861
     },
     {
-      "text": "for",
+      "text": "",
       "start": 4.0,
       "end": 4.26,
       "confidence": 0.772
     },
     {
-      "text": "hours.",
+      "text": "",
       "start": 4.26,
       "end": 4.78,
       "confidence": 0.786
     },
     {
-      "text": "It's",
+      "text": "",
       "start": 5.1,
       "end": 5.2,
       "confidence": 0.945
     },
     {
-      "text": "because",
+      "text": "",
       "start": 5.2,
       "end": 5.4,
       "confidence": 0.811
     },
     {
-      "text": "it's",
+      "text": "",
       "start": 5.4,
       "end": 5.68,
       "confidence": 0.952
     },
     {
-      "text": "so",
+      "text": "",
       "start": 5.68,
       "end": 5.9,
       "confidence": 0.899
     },
     {
-      "text": "cold",
+      "text": "",
       "start": 5.9,
       "end": 6.24,
       "confidence": 0.82
     },
     {
-      "text": "and",
+      "text": "",
       "start": 6.24,
       "end": 6.46,
       "confidence": 0.824
     },
     {
-      "text": "so",
+      "text": "",
       "start": 6.46,
       "end": 6.78,
       "confidence": 0.887
     },
     {
-      "text": "dry",
+      "text": "",
       "start": 6.78,
       "end": 7.1,
       "confidence": 0.858
     },
     {
-      "text": "there",
+      "text": "",
       "start": 7.1,
       "end": 7.32,
       "confidence": 0.855
     },
     {
-      "text": "that",
+      "text": "",
       "start": 7.32,
       "end": 7.46,
       "confidence": 0.571
     },
     {
-      "text": "when",
+      "text": "",
       "start": 7.46,
       "end": 7.64,
       "confidence": 0.827
     },
     {
-      "text": "it",
+      "text": "",
       "start": 7.64,
       "end": 7.86,
       "confidence": 0.907
     },
     {
-      "text": "snows,",
+      "text": "",
       "start": 7.86,
       "end": 8.4,
       "confidence": 0.954
     },
     {
-      "text": "it",
+      "text": "",
       "start": 8.5,
       "end": 8.58,
       "confidence": 0.905
     },
     {
-      "text": "basically",
+      "text": "",
       "start": 8.58,
       "end": 8.88,
       "confidence": 0.88
     },
     {
-      "text": "never",
+      "text": "",
       "start": 8.88,
       "end": 9.22,
       "confidence": 0.877
     },
     {
-      "text": "melts.",
+      "text": "",
       "start": 9.22,
       "end": 9.56,
       "confidence": 0.772
     },
     {
-      "text": "So",
+      "text": "",
       "start": 9.68,
       "end": 9.76,
       "confidence": 0.863
     },
     {
-      "text": "it",
+      "text": "",
       "start": 9.76,
       "end": 9.84,
       "confidence": 0.813
     },
     {
-      "text": "just",
+      "text": "",
       "start": 9.84,
       "end": 10.0,
       "confidence": 0.872
     },
     {
-      "text": "stacks",
+      "text": "",
       "start": 10.0,
       "end": 10.44,
       "confidence": 0.814
     },
     {
-      "text": "up",
+      "text": "",
       "start": 10.44,
       "end": 10.7,
       "confidence": 0.892
     },
     {
-      "text": "into",
+      "text": "",
       "start": 10.7,
       "end": 10.9,
       "confidence": 0.736
     },
     {
-      "text": "layers",
+      "text": "",
       "start": 10.9,
       "end": 11.18,
       "confidence": 0.927
     },
     {
-      "text": "and",
+      "text": "",
       "start": 11.18,
       "end": 11.34,
       "confidence": 0.891
     },
     {
-      "text": "layers",
+      "text": "",
       "start": 11.34,
       "end": 11.5,
       "confidence": 0.935
     },
     {
-      "text": "of",
+      "text": "",
       "start": 11.5,
       "end": 11.72,
       "confidence": 0.902
     },
     {
-      "text": "ice",
+      "text": "",
       "start": 11.72,
       "end": 12.04,
       "confidence": 0.803
     },
     {
-      "text": "and",
+      "text": "",
       "start": 12.04,
       "end": 12.3,
       "confidence": 0.775
     },
     {
-      "text": "traps",
+      "text": "",
       "start": 12.3,
       "end": 12.66,
       "confidence": 0.717
     },
     {
-      "text": "air",
+      "text": "",
       "start": 12.66,
       "end": 12.96,
       "confidence": 0.882
     },
     {
-      "text": "inside.",
+      "text": "",
       "start": 12.96,
       "end": 13.38,
       "confidence": 0.859
     },
     {
-      "text": "And",
+      "text": "",
       "start": 13.52,
       "end": 13.6,
       "confidence": 0.867
     },
     {
-      "text": "then",
+      "text": "",
       "start": 13.6,
       "end": 13.76,
       "confidence": 0.747
     },
     {
-      "text": "scientists",
+      "text": "",
       "start": 13.76,
       "end": 14.22,
       "confidence": 0.71
     },
     {
-      "text": "drill",
+      "text": "",
       "start": 14.22,
       "end": 14.68,
       "confidence": 0.768
     },
     {
-      "text": "ice",
+      "text": "",
       "start": 14.68,
       "end": 14.98,
       "confidence": 0.808
     },
     {
-      "text": "cores",
+      "text": "",
       "start": 14.98,
       "end": 15.24,
       "confidence": 0.869
     },
     {
-      "text": "to",
+      "text": "",
       "start": 15.24,
       "end": 15.5,
       "confidence": 0.893
     },
     {
-      "text": "study",
+      "text": "",
       "start": 15.5,
       "end": 15.8,
       "confidence": 0.763
     },
     {
-      "text": "that",
+      "text": "",
       "start": 15.8,
       "end": 16.02,
       "confidence": 0.881
     },
     {
-      "text": "air,",
+      "text": "",
       "start": 16.02,
       "end": 16.24,
       "confidence": 0.877
     },
     {
-      "text": "going",
+      "text": "",
       "start": 16.32,
       "end": 16.48,
       "confidence": 0.851
     },
     {
-      "text": "back",
+      "text": "",
       "start": 16.48,
       "end": 16.72,
       "confidence": 0.822
     },
     {
-      "text": "hundreds",
+      "text": "",
       "start": 16.72,
       "end": 17.2,
       "confidence": 0.797
     },
     {
-      "text": "of",
+      "text": "",
       "start": 17.2,
       "end": 17.52,
       "confidence": 0.895
     },
     {
-      "text": "thousands",
+      "text": "",
       "start": 17.52,
       "end": 18.02,
       "confidence": 0.823
     },
     {
-      "text": "of",
+      "text": "",
       "start": 18.02,
       "end": 18.38,
       "confidence": 0.899
     },
     {
-      "text": "years",
+      "text": "",
       "start": 18.38,
       "end": 18.64,
       "confidence": 0.883
     },
     {
-      "text": "to",
+      "text": "",
       "start": 18.64,
       "end": 18.96,
       "confidence": 0.819
     },
     {
-      "text": "learn",
+      "text": "",
       "start": 18.96,
       "end": 19.2,
       "confidence": 0.909
     },
     {
-      "text": "what",
+      "text": "",
       "start": 19.2,
       "end": 19.34,
       "confidence": 0.876
     },
     {
-      "text": "the",
+      "text": "",
       "start": 19.34,
       "end": 19.46,
       "confidence": 0.808
     },
     {
-      "text": "environment",
+      "text": "",
       "start": 19.46,
       "end": 19.76,
       "confidence": 0.762
     },
     {
-      "text": "was",
+      "text": "",
       "start": 19.76,
       "end": 19.96,
       "confidence": 0.896
     },
     {
-      "text": "like",
+      "text": "",
       "start": 19.96,
       "end": 20.16,
       "confidence": 0.876
     },
     {
-      "text": "back",
+      "text": "",
       "start": 20.16,
       "end": 20.4,
       "confidence": 0.816
     },
     {
-      "text": "then.",
+      "text": "",
       "start": 20.4,
       "end": 20.68,
       "confidence": 0.726
     },
     {
-      "text": "But",
+      "text": "",
       "start": 20.8,
       "end": 20.98,
       "confidence": 0.882
     },
     {
-      "text": "if",
+      "text": "",
       "start": 20.98,
       "end": 21.24,
       "confidence": 0.778
     },
     {
-      "text": "anything",
+      "text": "",
       "start": 21.24,
       "end": 21.6,
       "confidence": 0.842
     },
     {
-      "text": "else",
+      "text": "",
       "start": 21.6,
       "end": 22.0,
       "confidence": 0.843
     },
     {
-      "text": "hits",
+      "text": "",
       "start": 22.0,
       "end": 22.32,
       "confidence": 0.874
     },
     {
-      "text": "that",
+      "text": "",
       "start": 22.32,
       "end": 22.54,
       "confidence": 0.881
     },
     {
-      "text": "ice,",
+      "text": "",
       "start": 22.54,
       "end": 22.84,
       "confidence": 0.794
     },
     {
-      "text": "like",
+      "text": "",
       "start": 22.94,
       "end": 23.12,
       "confidence": 0.874
     },
     {
-      "text": "ash",
+      "text": "",
       "start": 23.12,
       "end": 23.52,
       "confidence": 0.787
     },
     {
-      "text": "from",
+      "text": "",
       "start": 23.52,
       "end": 23.78,
       "confidence": 0.827
     },
     {
-      "text": "volcanic",
+      "text": "",
       "start": 23.78,
       "end": 24.2,
       "confidence": 0.802
     },
     {
-      "text": "eruptions,",
+      "text": "",
       "start": 24.2,
       "end": 24.7,
       "confidence": 0.906
     },
     {
-      "text": "that",
+      "text": "",
       "start": 24.86,
       "end": 25.04,
       "confidence": 0.869
     },
     {
-      "text": "gets",
+      "text": "",
       "start": 25.04,
       "end": 25.32,
       "confidence": 0.813
     },
     {
-      "text": "trapped",
+      "text": "",
       "start": 25.32,
       "end": 25.6,
       "confidence": 0.891
     },
     {
-      "text": "too.",
+      "text": "",
       "start": 25.6,
       "end": 25.96,
       "confidence": 0.653
     },
     {
-      "text": "So",
+      "text": "",
       "start": 26.12,
       "end": 26.26,
       "confidence": 0.874
     },
     {
-      "text": "you",
+      "text": "",
       "start": 26.26,
       "end": 26.4,
       "confidence": 0.879
     },
     {
-      "text": "can't",
+      "text": "",
       "start": 26.4,
       "end": 26.76,
       "confidence": 0.949
     },
     {
-      "text": "pee",
+      "text": "",
       "start": 26.76,
       "end": 27.04,
       "confidence": 0.796
     },
     {
-      "text": "because",
+      "text": "",
       "start": 27.04,
       "end": 27.42,
       "confidence": 0.463
     },
     {
-      "text": "if",
+      "text": "",
       "start": 27.42,
       "end": 27.9,
       "confidence": 0.869
     },
     {
-      "text": "you",
+      "text": "",
       "start": 27.9,
       "end": 28.12,
       "confidence": 0.886
     },
     {
-      "text": "did,",
+      "text": "",
       "start": 28.12,
       "end": 28.5,
       "confidence": 0.899
     },
     {
-      "text": "One",
+      "text": "",
       "start": 28.5,
       "end": 28.76,
       "confidence": 0.451
     },
     {
-      "text": "day,",
+      "text": "",
       "start": 28.76,
       "end": 29.08,
       "confidence": 0.891
     },
     {
-      "text": "some",
+      "text": "",
       "start": 29.26,
       "end": 29.6,
       "confidence": 0.822
     },
     {
-      "text": "descendant",
+      "text": "",
       "start": 29.6,
       "end": 30.5,
       "confidence": 0.768
     },
     {
-      "text": "of",
+      "text": "",
       "start": 30.5,
       "end": 30.66,
       "confidence": 0.894
     },
     {
-      "text": "yours",
+      "text": "",
       "start": 30.66,
       "end": 31.02,
       "confidence": 0.561
     },
     {
-      "text": "would",
+      "text": "",
       "start": 31.02,
       "end": 31.18,
       "confidence": 0.83
     },
     {
-      "text": "be",
+      "text": "",
       "start": 31.18,
       "end": 31.42,
       "confidence": 0.886
     },
     {
-      "text": "taking",
+      "text": "",
       "start": 31.42,
       "end": 31.82,
       "confidence": 0.798
     },
     {
-      "text": "an",
+      "text": "",
       "start": 31.82,
       "end": 32.0,
       "confidence": 0.875
     },
     {
-      "text": "ice",
+      "text": "",
       "start": 32.0,
       "end": 32.22,
       "confidence": 0.835
     },
     {
-      "text": "core",
+      "text": "",
       "start": 32.22,
       "end": 32.46,
       "confidence": 0.832
     },
     {
-      "text": "in",
+      "text": "",
       "start": 32.46,
       "end": 32.66,
       "confidence": 0.91
     },
     {
-      "text": "Antarctica,",
+      "text": "",
       "start": 32.66,
       "end": 33.14,
       "confidence": 0.87
     },
     {
-      "text": "and",
+      "text": "",
       "start": 33.34,
       "end": 33.4,
       "confidence": 0.883
     },
     {
-      "text": "they'd",
+      "text": "",
       "start": 33.4,
       "end": 33.62,
       "confidence": 0.835
     },
     {
-      "text": "dig",
+      "text": "",
       "start": 33.62,
       "end": 34.02,
       "confidence": 0.91
     },
     {
-      "text": "and",
+      "text": "",
       "start": 34.02,
       "end": 34.14,
       "confidence": 0.786
     },
     {
-      "text": "dig",
+      "text": "",
       "start": 34.14,
       "end": 34.3,
       "confidence": 0.892
     },
     {
-      "text": "and",
+      "text": "",
       "start": 34.3,
       "end": 34.42,
       "confidence": 0.883
     },
     {
-      "text": "dig,",
+      "text": "",
       "start": 34.42,
       "end": 34.56,
       "confidence": 0.894
     },
     {
-      "text": "and",
+      "text": "",
       "start": 34.62,
       "end": 34.66,
       "confidence": 0.894
     },
     {
-      "text": "they'd",
+      "text": "",
       "start": 34.66,
       "end": 34.84,
       "confidence": 0.875
     },
     {
-      "text": "pull",
+      "text": "",
       "start": 34.84,
       "end": 35.06,
       "confidence": 0.833
     },
     {
-      "text": "it",
+      "text": "",
       "start": 35.06,
       "end": 35.18,
       "confidence": 0.915
     },
     {
-      "text": "out,",
+      "text": "",
       "start": 35.18,
       "end": 35.34,
       "confidence": 0.814
     },
     {
-      "text": "and",
+      "text": "",
       "start": 35.38,
       "end": 35.44,
       "confidence": 0.899
     },
     {
-      "text": "they'd",
+      "text": "",
       "start": 35.44,
       "end": 35.62,
       "confidence": 0.863
     },
     {
-      "text": "say,",
+      "text": "",
       "start": 35.62,
       "end": 35.86,
       "confidence": 0.897
     },
     {
-      "text": "what's",
+      "text": "",
       "start": 35.98,
       "end": 36.42,
       "confidence": 0.571
     },
     {
-      "text": "that",
+      "text": "",
       "start": 36.42,
       "end": 36.62,
       "confidence": 0.889
     },
     {
-      "text": "yellow",
+      "text": "",
       "start": 36.62,
       "end": 36.94,
       "confidence": 0.809
     },
     {
-      "text": "line?",
+      "text": "",
       "start": 36.94,
       "end": 37.32,
       "confidence": 0.845
     },
     {
-      "text": "But",
+      "text": "",
       "start": 37.62,
       "end": 37.78,
       "confidence": 0.806
     },
     {
-      "text": "to",
+      "text": "",
       "start": 37.78,
       "end": 37.96,
       "confidence": 0.893
     },
     {
-      "text": "see",
+      "text": "",
       "start": 37.96,
       "end": 38.14,
       "confidence": 0.799
     },
     {
-      "text": "what's",
+      "text": "",
       "start": 38.14,
       "end": 38.42,
       "confidence": 0.942
     },
     {
-      "text": "really",
+      "text": "",
       "start": 38.42,
       "end": 38.82,
       "confidence": 0.789
     },
     {
-      "text": "hidden",
+      "text": "",
       "start": 38.82,
       "end": 39.18,
       "confidence": 0.821
     },
     {
-      "text": "under",
+      "text": "",
       "start": 39.18,
       "end": 39.64,
       "confidence": 0.79
     },
     {
-      "text": "the",
+      "text": "",
       "start": 39.64,
       "end": 39.96,
       "confidence": 0.793
     },
     {
-      "text": "ice,",
+      "text": "",
       "start": 39.96,
       "end": 40.38,
       "confidence": 0.801
     },
     {
-      "text": "subscribe,",
+      "text": "",
       "start": 40.66,
       "end": 40.98,
       "confidence": 0.792
     },
     {
-      "text": "because",
+      "text": "",
       "start": 41.2,
       "end": 41.38,
       "confidence": 0.805
     },
     {
-      "text": "it's",
+      "text": "",
       "start": 41.38,
       "end": 41.64,
       "confidence": 0.95
     },
     {
-      "text": "really",
+      "text": "",
       "start": 41.64,
       "end": 41.96,
       "confidence": 0.77
     },
     {
-      "text": "crazy.",
+      "text": "",
       "start": 41.96,
       "end": 42.32,
       "confidence": 0.849
@@ -1030,7 +1030,7 @@
   ],
   "captions": [
     {
-      "text": "ANTARCT IN ANTARCTICA,",
+      "text": "",
       "start": 0.0,
       "end": 0.875,
       "position": "bottom",
@@ -1039,7 +1039,7 @@
       "confidence": 0.997
     },
     {
-      "text": "ANTARCTICA YOU'RE NEVER ALLOWED TO",
+      "text": "",
       "start": 0.875,
       "end": 2.0,
       "position": "center",
@@ -1048,7 +1048,7 @@
       "confidence": 0.992
     },
     {
-      "text": "WHITE DESERT ANTARCTICA PEE ON THE ICE!",
+      "text": "",
       "start": 2.0,
       "end": 2.25,
       "position": "lower",
@@ -1057,7 +1057,7 @@
       "confidence": 0.978
     },
     {
-      "text": "ANTARCTICA WHITE DESERT PEE ON THE ICE!",
+      "text": "",
       "start": 2.25,
       "end": 2.5,
       "position": "lower",
@@ -1066,7 +1066,7 @@
       "confidence": 0.989
     },
     {
-      "text": "WHITE DESERT ANTARCTICA PEE ON THE ICE!",
+      "text": "",
       "start": 2.5,
       "end": 2.75,
       "position": "lower",
@@ -1075,7 +1075,7 @@
       "confidence": 0.985
     },
     {
-      "text": "ANTARCTICA WHITE DESERT PEE ON THE ICE!",
+      "text": "",
       "start": 2.75,
       "end": 3.0,
       "position": "lower",
@@ -1084,7 +1084,7 @@
       "confidence": 0.994
     },
     {
-      "text": "NO PEEING! NOT EVEN WHEN YOU'RE",
+      "text": "",
       "start": 3.0,
       "end": 3.75,
       "position": "lower",
@@ -1093,7 +1093,7 @@
       "confidence": 0.992
     },
     {
-      "text": "NO PEEING! HIKING FOR HOURS!",
+      "text": "",
       "start": 3.75,
       "end": 5.25,
       "position": "lower",
@@ -1102,7 +1102,7 @@
       "confidence": 0.994
     },
     {
-      "text": "IT'S BECAUSE IT'S SO COLD",
+      "text": "",
       "start": 5.75,
       "end": 6.5,
       "position": "bottom",
@@ -1111,7 +1111,7 @@
       "confidence": 0.987
     },
     {
-      "text": "AND SO DRY THERE",
+      "text": "",
       "start": 6.5,
       "end": 7.5,
       "position": "bottom",
@@ -1120,7 +1120,7 @@
       "confidence": 0.979
     },
     {
-      "text": "SMITH THAT WHEN IT SNOWS,",
+      "text": "",
       "start": 7.5,
       "end": 8.5,
       "position": "bottom",
@@ -1129,7 +1129,7 @@
       "confidence": 0.989
     },
     {
-      "text": "ME IT BASICALLY NEVER MELTS.",
+      "text": "",
       "start": 8.5,
       "end": 9.75,
       "position": "lower",
@@ -1138,7 +1138,7 @@
       "confidence": 0.984
     },
     {
-      "text": "ME SO IT JUST STACKS UP INTO LAYERS",
+      "text": "",
       "start": 9.75,
       "end": 11.25,
       "position": "bottom",
@@ -1147,7 +1147,7 @@
       "confidence": 0.98
     },
     {
-      "text": "AND LAYERS OF ICE",
+      "text": "",
       "start": 11.25,
       "end": 12.25,
       "position": "bottom",
@@ -1156,7 +1156,7 @@
       "confidence": 0.974
     },
     {
-      "text": "AND TRAPS AIR INSIDE.",
+      "text": "",
       "start": 12.25,
       "end": 13.5,
       "position": "bottom",
@@ -1165,7 +1165,7 @@
       "confidence": 0.967
     },
     {
-      "text": "HUGE AND THEN SCIENTISTS DRILL",
+      "text": "",
       "start": 13.5,
       "end": 14.75,
       "position": "center",
@@ -1174,7 +1174,7 @@
       "confidence": 0.989
     },
     {
-      "text": "HUGE ICE CORES TO STUDY THAT AIR",
+      "text": "",
       "start": 14.75,
       "end": 16.25,
       "position": "center",
@@ -1183,7 +1183,7 @@
       "confidence": 0.988
     },
     {
-      "text": "HUGE GOING BACK",
+      "text": "",
       "start": 16.25,
       "end": 17.0,
       "position": "center",
@@ -1192,7 +1192,7 @@
       "confidence": 0.991
     },
     {
-      "text": "HUGE* 5,552ft 1,692m HUNDREDS OF THOUSANDS OF YEARS",
+      "text": "",
       "start": 17.0,
       "end": 17.75,
       "position": "center",
@@ -1201,7 +1201,7 @@
       "confidence": 0.986
     },
     {
-      "text": "HUGE* 2,159m 7,083ft HUNDREDS OF THOUSANDS OF YÉARS",
+      "text": "",
       "start": 17.75,
       "end": 19.0,
       "position": "center",
@@ -1210,7 +1210,7 @@
       "confidence": 0.99
     },
     {
-      "text": "TO LEARN WHAT THE ENVIRONMENT",
+      "text": "",
       "start": 19.0,
       "end": 20.0,
       "position": "bottom",
@@ -1219,7 +1219,7 @@
       "confidence": 0.979
     },
     {
-      "text": "WAS LIKE BACKTHEN.",
+      "text": "",
       "start": 20.0,
       "end": 20.75,
       "position": "bottom",
@@ -1228,7 +1228,7 @@
       "confidence": 0.994
     },
     {
-      "text": "BUT IF ANYTHING ELSE",
+      "text": "",
       "start": 20.75,
       "end": 22.25,
       "position": "bottom",
@@ -1237,7 +1237,7 @@
       "confidence": 0.982
     },
     {
-      "text": "HITS THAT ICE LIKE",
+      "text": "",
       "start": 22.25,
       "end": 23.25,
       "position": "bottom",
@@ -1246,7 +1246,7 @@
       "confidence": 0.973
     },
     {
-      "text": "SUBSCRIBE ASH FROM VOLCANIC ERUPTIONS,",
+      "text": "",
       "start": 23.25,
       "end": 25.0,
       "position": "lower",
@@ -1255,7 +1255,7 @@
       "confidence": 0.999
     },
     {
-      "text": "SUBSCRIBE THAT GETS TRAPPED, TOO!",
+      "text": "",
       "start": 25.0,
       "end": 26.25,
       "position": "bottom",
@@ -1264,7 +1264,7 @@
       "confidence": 0.969
     },
     {
-      "text": "SO YOU CAN'T PEE,",
+      "text": "",
       "start": 26.25,
       "end": 27.25,
       "position": "bottom",
@@ -1273,7 +1273,7 @@
       "confidence": 0.98
     },
     {
-      "text": "BROAARR BECAUSE IF YOU DID,",
+      "text": "",
       "start": 27.25,
       "end": 28.75,
       "position": "bottom",
@@ -1282,7 +1282,7 @@
       "confidence": 0.961
     },
     {
-      "text": "WHTTE DEBERT ONE DAY,",
+      "text": "",
       "start": 28.75,
       "end": 29.0,
       "position": "lower",
@@ -1291,7 +1291,7 @@
       "confidence": 0.899
     },
     {
-      "text": "ONE DAY,",
+      "text": "",
       "start": 29.0,
       "end": 29.25,
       "position": "bottom",
@@ -1300,7 +1300,7 @@
       "confidence": 0.967
     },
     {
-      "text": "SMITH WHITE DESERT ANTARCTICA SOME DESCENDANT OF YOURS",
+      "text": "",
       "start": 29.25,
       "end": 29.5,
       "position": "lower",
@@ -1309,7 +1309,7 @@
       "confidence": 0.987
     },
     {
-      "text": "SITH SOME DESCENDANT OF YOURS",
+      "text": "",
       "start": 29.5,
       "end": 29.75,
       "position": "top",
@@ -1318,7 +1318,7 @@
       "confidence": 0.912
     },
     {
-      "text": "ANTARCTICA WHITE DESERT SOME DESCENDANT OF YOURS",
+      "text": "",
       "start": 29.75,
       "end": 30.25,
       "position": "lower",
@@ -1327,7 +1327,7 @@
       "confidence": 0.973
     },
     {
-      "text": "SOME DESCENDANT OF YOURS",
+      "text": "",
       "start": 30.25,
       "end": 31.0,
       "position": "bottom",
@@ -1336,7 +1336,7 @@
       "confidence": 0.992
     },
     {
-      "text": "ANTARCTICA WITEDESERT MOUINTAN WOULD BE TAKING AN ICE CORE",
+      "text": "",
       "start": 31.0,
       "end": 31.5,
       "position": "center",
@@ -1345,7 +1345,7 @@
       "confidence": 0.955
     },
     {
-      "text": "DTE DESERT ANTANGTIGA WOULD BE TAKING AN ICE CORE",
+      "text": "",
       "start": 31.5,
       "end": 32.0,
       "position": "center",
@@ -1354,7 +1354,7 @@
       "confidence": 0.941
     },
     {
-      "text": "AMIANCITICA NTE DESERT WOULD BE TAKING AN ICE CORE",
+      "text": "",
       "start": 32.0,
       "end": 32.5,
       "position": "lower",
@@ -1363,7 +1363,7 @@
       "confidence": 0.911
     },
     {
-      "text": "HUGE* DRILLING CO. IN ANTARCTICA,",
+      "text": "",
       "start": 32.5,
       "end": 33.5,
       "position": "center",
@@ -1372,7 +1372,7 @@
       "confidence": 0.988
     },
     {
-      "text": "HUGE* DRILUINOCO AND THEY'D DIG AND DIG AND DIG",
+      "text": "",
       "start": 33.5,
       "end": 33.75,
       "position": "lower",
@@ -1381,7 +1381,7 @@
       "confidence": 0.952
     },
     {
-      "text": "AND THEY'D DIG AND DIG AND DIG",
+      "text": "",
       "start": 33.75,
       "end": 34.75,
       "position": "bottom",
@@ -1390,7 +1390,7 @@
       "confidence": 0.97
     },
     {
-      "text": "AND THEY'D PULL IT OUT",
+      "text": "",
       "start": 34.75,
       "end": 35.5,
       "position": "bottom",
@@ -1399,7 +1399,7 @@
       "confidence": 0.982
     },
     {
-      "text": "AND THEN SAY,",
+      "text": "",
       "start": 35.5,
       "end": 35.75,
       "position": "bottom",
@@ -1408,7 +1408,7 @@
       "confidence": 0.948
     },
     {
-      "text": "BUT TO SEE WHAT'S REALLY HIDDEN",
+      "text": "",
       "start": 37.75,
       "end": 39.25,
       "position": "bottom",
@@ -1417,7 +1417,7 @@
       "confidence": 0.966
     },
     {
-      "text": "UNDERTHE ICE,",
+      "text": "",
       "start": 39.25,
       "end": 39.5,
       "position": "bottom",
@@ -1426,7 +1426,7 @@
       "confidence": 0.966
     },
     {
-      "text": "SUBSCRIBE UNDERTHE ICE,",
+      "text": "",
       "start": 39.5,
       "end": 40.75,
       "position": "lower",
@@ -1435,7 +1435,7 @@
       "confidence": 0.99
     },
     {
-      "text": "SUBSCRIBE SUBSCRIBE,",
+      "text": "",
       "start": 40.75,
       "end": 41.25,
       "position": "lower",
@@ -1444,7 +1444,7 @@
       "confidence": 1.0
     },
     {
-      "text": "SUBSCRIBE BECAUSE IT'S REALLY CRAZY!",
+      "text": "",
       "start": 41.25,
       "end": 42.5,
       "position": "lower",

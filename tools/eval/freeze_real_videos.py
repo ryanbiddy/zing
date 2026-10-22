@@ -281,6 +281,27 @@ def _freeze_with_adapter(
 
         case_directory.mkdir(parents=True)
         frozen = _portable_breakdown(measured, case)
+        redactions = {}
+        if manifest.get("media_policy", {}).get("transcript_text_permitted") is False:
+            # Regeneration must preserve the same publication policy as the
+            # checked-in snapshots, including when output points elsewhere.
+            redactions = {
+                "transcript_text": {
+                    "words_cleared": len(frozen.words),
+                    "captions_cleared": len(frozen.captions),
+                    "words_text_sha256": hashlib.sha256(
+                        "\n".join(word.text for word in frozen.words).encode("utf-8")
+                    ).hexdigest(),
+                    "captions_text_sha256": hashlib.sha256(
+                        "\n".join(caption.text for caption in frozen.captions).encode("utf-8")
+                    ).hexdigest(),
+                    "hash_definition": "SHA-256 of UTF-8 text values joined by LF in array order",
+                }
+            }
+            for word in frozen.words:
+                word.text = ""
+            for caption in frozen.captions:
+                caption.text = ""
         breakdown_path = case_directory / "breakdown.json"
         breakdown_path.write_text(
             frozen.to_json(indent=2) + "\n",
@@ -299,6 +320,7 @@ def _freeze_with_adapter(
                 truth_provenance.pop("available", None)
         provenance = {
             "schema_version": manifest["schema_version"],
+            **({"redactions": redactions} if redactions else {}),
             "fixture_id": case["fixture_id"],
             "source": {
                 "url": case["source_url"],

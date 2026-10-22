@@ -26,7 +26,7 @@ In the `## Shots` table, the keyframe column prints a raw local path:
 `| 0 | 0.00 | 1.40 | 1.40s | frames/shot_000.jpg |`
 *   **The Issue:** A text path is useless to a creator reading the markdown report. They cannot see the shot.
 *   **The Fix:** Embed the keyframes directly in the markdown using markdown image tags, or link them:
-    `| 0 | 0.00 | 1.40 | 1.40s | ![Shot 0](file:///E:/AI/projects/zing-lanes/lane-d/tools/eval/real_videos/raw-editing-practice/shot_000.jpg) |`
+    `| 0 | 0.00 | 1.40 | 1.40s | ![Shot 0](frames/shot_000.jpg) |`
 
 ### B. Unclear Timeline Distribution Formatting
 In the `## Pacing` section, the cut density is represented by space-separated integers:

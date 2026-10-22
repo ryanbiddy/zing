@@ -213,6 +213,21 @@ def main(argv: list[str] | None = None) -> int:
     manifest_path = args.manifest.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
+    # Rights gate, checked before anything else. Committing frames is
+    # redistributing a still of somebody's video, so a manifest is allowed
+    # to forbid it outright — the two rights-unknown fixtures in
+    # real_videos/manifest.json do, after those frames were published once
+    # by accident (security sweep Z-H2). Re-running this command must not
+    # quietly undo that.
+    if manifest["media_policy"].get("derived_frames_permitted") is False:
+        raise BackfillError(
+            f"{manifest_path.name}: media_policy.derived_frames_permitted is "
+            "false — this manifest's sources have no recorded redistribution "
+            "basis, so no derived frames may be committed for them. Record a "
+            "rights basis in each case's rights block and flip the flag "
+            "deliberately if that changes."
+        )
+
     # Resolve and validate every required input before the first write. A
     # missing later case must not leave the manifest claiming that its
     # derived frames were committed.

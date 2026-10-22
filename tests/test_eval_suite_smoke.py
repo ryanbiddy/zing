@@ -324,7 +324,7 @@ def test_checked_in_suite_smoke_record_passes_every_independent_assertion() -> N
                 {
                     "id": "private-path",
                     "sha256": "a" * 64,
-                    "path": "C:\\Users\\Ryan\\private.mp4",
+                    "path": "C:\\Users\\ExampleUser\\private.mp4",
                 },
             ),
             "record_privacy",

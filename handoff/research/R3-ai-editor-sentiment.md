@@ -28,35 +28,16 @@ discount hard. Vendor pricing pages cited for facts are T1-adjacent.
 
 ---
 
-## Astroturf map (colors everything below)
+## Source incentives
 
-This niche is drowning in manufactured sentiment. Verified this round:
+Treat vendor, affiliate and referral-linked posts as promotional evidence.
+They do not establish independent user sentiment. Verify a source's disclosed
+relationship before relying on it, and distinguish reported experience from
+claims about an account's motives or conduct.
 
-- **Submagic:** founder publicly described a 25%-recurring-commission
-  affiliate program generating "$1.6 million in revenue"
-  ([r/SaaS, Mar 2025](https://www.reddit.com/r/SaaS/comments/1jgd3mb/affiliate_marketing_generated_over_16_million_in/));
-  the same founder account (u/ElieInAI) posted fake-neutral praise of his own
-  product in 8+ subreddits, e.g. "Yes honestly I tried Submagic and it's
-  really easy to use, I definitely recommend it!"
-  ([r/VideoEditing](https://www.reddit.com/r/VideoEditing/comments/1apu82x/what_is_the_best_option_for_ai_auto_captioning/mj5e8kk/)),
-  plus ~47 identical spam submissions across random subreddits
-  ([example](https://www.reddit.com/r/MachineLearning/comments/1eycz0y/submagic_generate_amazing_ai_captions/)).
-- **Veed:** coordinated late-2024 Reddit promo wave — identical "Best AI
-  video editor" posts + 50%-off referral links from paired accounts across
-  4+ subreddits, plus a dedicated discount-code subreddit
-  ([visible in PullPush submission search](https://api.pullpush.io/reddit/search/submission/?q=veed.io&size=25));
-  Veed's programmatic-SEO strategy is itself documented by Redditors.
-- **Seeded "review" subreddits** (pro-tool "honest review" posts here are
-  not organic): r/AIToolTesting, r/WeReviewedIt, r/AIVideoCut,
-  r/VideoEditingTips, r/PictoryAIReview, r/Trusted_Reviews; r/RiversideFM
-  is largely company-seeded guides.
-- **In-thread shills:** Klap plugged by one account across 5+ subreddits in
-  48h; quickreel/crayo/ZapCap dropped with referral codes; a pro-Vizard
-  comment in an Opus thread used an affiliate URL; Opus's flagship
-  r/podcasting AutoPod-style hype threads ("85X less work") read
-  promotional. Called out by users in-thread: "Every single one of your
-  comments is about this tool"
-  ([r/podcasting](https://www.reddit.com/r/podcasting/comments/14zzbpk/how_do_yall_feel_about_opus_clips/m8rf3ih/)).
+SEC1 removed this section's account-level allegations, quoted accusations and
+links identifying those accounts on 2026-10-22. The research does not establish
+that any named person acted deceptively.
 
 ---
 
@@ -150,7 +131,7 @@ of any tool this round.
 ## 2. Submagic (submagic.co)
 
 Genuine sentiment much thinner than Opus's, and its positive footprint is
-provably manufactured (see astroturf map). What survives filtering:
+promotional (see source-incentive caveat). What survives filtering:
 
 - **Praise — captions, the one loved feature** `[repeated, 4+ independent
   users]`: "You just throw your video in there, pick the style/animation...
@@ -458,7 +439,7 @@ converting; AppSumo reviews skew positive by construction).
   ([r/NewTubers, Sep 2023](https://www.reddit.com/r/NewTubers/comments/16tpmoc/thoughts_on_ai_sites_that_turn_long_form_videos/));
   quality "hit or miss," missing the strategic edit that earns engagement
   (paraphrase, [r/podcasting, Mar 2026](https://www.reddit.com/r/podcasting/comments/1s0z324/anyone_find_success_with_ai_clipped_shorts/));
-  heavy astroturf presence (see map).
+  promotional sources requiring incentive checks.
 - **Pictory (pictory.ai):** slop IS the defining complaint `[repeated]` —
   "AI tends to produce very generic type content... you will have to change
   out a lot of the preselected footage"
