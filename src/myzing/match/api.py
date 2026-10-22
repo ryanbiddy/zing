@@ -345,14 +345,14 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             sha = projects.hash_file(source)
             clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps],
                                                       lambda source=source: _study(str(source), root, raw=True))
-            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps],
+            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.2"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             if caps["color"]:
                 colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, "sdr-matrix-v1"],
                                                     lambda source=source, a=asset.id: _color(ref_study["media"], source, root / "color" / a))
         if not caps["color"]:
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
-        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps],
+        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.2"],
                                      lambda: _audio(ref_study, caps["audio"]))
         recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
@@ -371,7 +371,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v4", repair_asr, "aspect-auto-blurfill-people-v5", caps["layout"]], direct)
+                                                 "continuity-v4", repair_asr, "aspect-auto-blurfill-people-v5", caps["layout"],
+                                                 "music1-review-v3"], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["source_asr"] = planned["summary"].get("source_asr", [])
@@ -431,8 +432,11 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 def render():
                     from myzing.render.composition import render_composition
                     result = render_composition(plan, video, base_dir=root / "drafts", work_dir=root / "render-work" / label)
-                    return {"outputs": [str(video)], "warnings": list(result.warnings)}
-                rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps, "frame-clock-audio-headroom-v2"], render)
+                    outputs = [str(video)]
+                    if result.audio_measurements is not None:
+                        outputs.append(str(video.with_suffix(".music.json")))
+                    return {"outputs": outputs, "warnings": list(result.warnings), "audio_measurements": result.audio_measurements}
+                rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps, "frame-clock-audio-headroom-v2", "music1-duck-envelope-v2"], render)
                 rendered_result = {**rendered_result, "warnings": evidence.user_warnings(rendered_result["warnings"])}
                 summary["warnings"].extend(rendered_result["warnings"])
                 def verify():
@@ -460,15 +464,17 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 def report():
                     result = evidence.report(recipe, Breakdown.from_dict(read(output_study["path"])),
                                              read(output_study["geometry"]) if output_study["geometry"] else {},
-                                             output_color["measurement"], verified["verification"], plan)
+                                             output_color["measurement"], verified["verification"], plan, rendered_result.get("audio_measurements"))
                     result.update(recipe={"path": str(root / "recipe.json"), "sha256": projects.hash_file(root / "recipe.json")},
                                   plan={"path": prepared["path"], "sha256": projects.hash_file(Path(prepared["path"]))})
                     result["warnings"] = evidence.user_warnings([*result["warnings"], *rendered_result["warnings"], *inspected["warnings"]])
                     write(report_path, result)
-                    return {"outputs": [str(report_path)], "dimensions": result["dimensions"]}
+                    return {"outputs": [str(report_path)], "dimensions": result["dimensions"],
+                            "music": result["music"], "audio_measurements": result["audio_measurements"]}
                 matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected, "continuity-status-v3"], report)
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
-                           report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"])
+                           report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"],
+                           music=matched.get("music"), audio_measurements=matched.get("audio_measurements"))
             except StepFailed as exc:
                 row["error"] = str(exc)
     except (StepFailed, ValueError, OSError) as exc:

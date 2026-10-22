@@ -2,7 +2,7 @@
 
 `zing audio analyze` produces a versioned audio map for a local audio or video
 file. It measures attacks, a supported tempo, audio-role candidates, and EBU
-R128 loudness. This standalone pass does not change study or render behavior.
+R128 loudness. Music planning and rendering consume these observations; see [Music](MUSIC.md).
 
 ```sh
 uv sync --extra audio  # from the source checkout
@@ -16,11 +16,11 @@ uploads audio. JSON goes to stdout; without `--json`, the command prints a
 summary and warnings. Failures return exit 1 and an error (JSON when requested).
 Invalid command syntax returns exit 2.
 
-The map and its nested records have `version: 1` and `to_dict()` / `from_dict()`
-methods in `myzing.audio`. Unsupported versions are rejected. `schemas.py` is
+The map has `version: 2`; its nested records have `version: 1` and `to_dict()` / `from_dict()`
+methods in `myzing.audio`. Version 1 maps still load with unknown structure. Unsupported versions are rejected. `schemas.py` is
 unchanged. The top-level fields are `source`, `duration_seconds`, `sample_rate`,
 `max_seconds`, `truncated`, `tempo`, `beats`, `onsets`, `segments`, `loudness`,
-`warnings`, `tool_versions`, and `breakdown_source`.
+`warnings`, `tool_versions`, `breakdown_source`, and `structure`.
 
 All timestamps are seconds from the first decoded audio sample at zero. Use a
 breakdown of the same file with the same time origin; an arbitrary trim or
@@ -49,8 +49,7 @@ phase. It requires six attacks spanning at least three seconds, 75% regular
 consecutive intervals, 85% agreement within 30 ms, and 80% pulse occupancy.
 Returned `beats` are supported onset times; missing ticks are never filled in.
 Unstable material returns `none`; short or speech-confounded evidence returns
-`unknown`. Both have null BPM and no beats. Downbeats always remain unknown in
-this version. Meter and half/double-time interpretations are unresolved.
+`unknown`. Both have null BPM and no beats. Repeated four-beat accents can support downbeats (see below). Other meters and half/double-time interpretations remain unresolved.
 
 The tracker favors regular, salient attacks. Quiet beats, syncopation, tempo
 changes, dense subdivisions, and speech over most attacks can prevent a tempo
@@ -129,3 +128,62 @@ video without an audio stream. Click and tempo tolerances are 1/30 second and
 1 BPM. Supplied speech boundaries allow 100 ms, music-only duration allows
 500 ms total, and recommended gain allows 0.5 LU. These tests do not establish
 real-world speech recognition, music classification, or listening quality.
+
+## Song structure (map v2)
+
+The `structure` record adds bars, metric phrase candidates at 4/8/16 bars,
+energy sections, a 250 ms curve (RMS dBFS, positive flux, energy below 180 Hz,
+onset candidates/second and salient attacks/second), and timestamped
+drops/hits/section changes. A salient attack is a band (40–344 Hz, then
+octaves to 11 kHz) rising at least 6 dB above its level 20–80 ms earlier,
+holding at least 0.5% of the loudest frame energy of the past second, in a
+frame above −60 dBFS. Steady pads, drones and noise beds give none, and the
+floor does not depend on the track's loudest attack, so one loud pickup does
+not hide the quieter kicks after it. Attack densities in drops and advice use
+salient attacks; `onsets_per_second` keeps every onset candidate for audit. Four-beat meter
+requires at least four repetitions, median accent strength 1.55 times the
+next phase, and 80% consistent accents. Equal accents give unknown meter.
+Phrase candidates inherit the first supported accent as their metric origin;
+verse/chorus names and true musical phrasing are unknown.
+
+Layered music has a second pulse test when the original strict tracker fails:
+spectral-flux autocorrelation, at least 70% observed pulse occupancy and
+support in 70% of 16-pulse windows within 40 ms. It requires a 4 dB level
+spread to exclude steady beating tones. Missing pulses are never filled in.
+When the whole excerpt lacks a stable tempo, non-overlapping 16-second
+windows can supply local `rhythm_regions`; their beats stay separate from
+the unknown global tempo. The director can use those observed local beats,
+and track advice combines regions that agree within 2% to support pace.
+
+Drops require at least a 5 dB RMS increase sustained over four seconds after
+a build or break, with prior audible activity. A break is a dip at least 7 dB
+under the 85th-percentile level, a 3 dB fall from the preceding section, or a
+section at least 5 dB under that level with fewer than one attack per second
+(for example a pad-only bar). Loudness alone gives `swell`.
+A drop also needs a bass return (at least 6 dB low-end increase, 3 dB rise in
+bass share, post-change bass/RMS at least −18 dB, and 1.5 attacks/s) or an
+onset-density jump (at least 2 attacks/s, 1.75 times before, and 1 extra
+attack/s). Both require recurring attacks in at least three of the four
+following one-second windows, so a piano run followed by sustained ringing
+does not count as a rhythm return. Slow, sparse drops may remain unknown.
+Windows are 250 ms; the bin containing the observed onset belongs to the
+post-change side. Bass return also needs a 6 dB jump at the onset itself;
+the onset-density route needs a 3 dB RMS jump there (median of the 10–80 ms
+after the onset against the 20–200 ms before, so short decaying stabs count).
+Drop candidates outrank swells when nearby moments are deduplicated.
+The first half-second must reach within 3 dB of the following four-second
+median. These checks keep an earlier build attack from borrowing energy
+from a later drop. Swells may use coarse bins when no attack is observed.
+Salient hits exceed 1.7 times
+the median onset. Sections are sustained energy partitions, not recovered
+song labels. Intro length is the first one-second level near the 85th
+percentile energy; this can differ from a listener's idea of an intro.
+
+Vocal presence checks multiple midrange harmonic peaks and formant-region
+energy. At least 30% eligible-frame coverage gives `possible`; 18–30% gives
+`unknown`, and less gives `not_detected`. It cannot distinguish instruments
+from voices, identify words, or rule out masked vocals. True peak comes from
+the existing EBU meter. Stereo correlation, mono fold-down loss and near-full-
+scale samples use bounded 22.05 kHz stereo PCM; clipping is a risk indicator,
+not proof of past distortion. At the 600-second cap, stereo decoding uses
+about 106 MB of float32 PCM, plus bounded working arrays.

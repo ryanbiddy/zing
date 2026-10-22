@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
 from myzing import storage
@@ -47,6 +47,7 @@ class InspectionResult:
     warnings: list[str]
     transcript_origin: str
     version: int = 1
+    audio_measurements: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -79,7 +80,17 @@ def _load_edl(path: Path) -> EDL:
     if path.stat().st_size > 10_000_000:
         raise InspectionError("EDL exceeds the 10 MB inspection limit; split the input.")
     try:
-        return EDL.from_json(path.read_text(encoding="utf-8"))
+        from myzing.render.composition import load_render_document
+        from myzing.composition import Composition
+        from myzing.schemas import Clip, CaptionSpec
+        document = load_render_document(json.loads(path.read_text(encoding="utf-8")))
+        if isinstance(document, Composition):
+            if any(c.speed_map for c in document.clips) or any(t.end > t.start for t in document.transitions):
+                raise InspectionError("Timeline inspection does not yet support speed maps or overlapping transitions")
+            return EDL(clips=[Clip(**{f.name: getattr(c, f.name) for f in fields(Clip)}) for c in document.clips],
+                       captions=[CaptionSpec(**{f.name: getattr(c, f.name) for f in fields(CaptionSpec)}) for c in document.captions],
+                       width=document.width, height=document.height, fps=document.fps.numerator / document.fps.denominator)
+        return document
     except (ValueError, TypeError, KeyError, AttributeError) as exc:
         raise InspectionError(f"Invalid EDL JSON: {exc}") from exc
 
@@ -314,6 +325,18 @@ def inspect_timeline(video: str | Path, out: str | Path, *, start: float | None 
     rows, height = plan_ranges(extent, cuts, start=start, end=end, around=around,
                                radius=radius, frames=frames, width=width)
     words, origin, warnings = _transcript(plan, spans, breakdown, video, extent)
+    measurements = None
+    sidecar = video.with_suffix(".music.json")
+    if sidecar.is_file() and sidecar.stat().st_size < 10_000_000:
+        from myzing.project.api import hash_file
+        try:
+            candidate = json.loads(sidecar.read_text(encoding="utf-8"))
+            if candidate.get("render_sha256") == hash_file(video):
+                measurements = candidate
+            else:
+                warnings.append("Music measurements are stale: render SHA-256 differs.")
+        except (ValueError, OSError):
+            warnings.append("Music measurement sidecar is unreadable.")
     if spans:
         warnings.append("Cut markers use the EDL plan; frames show the supplied video. This is not automatic cut detection or proof of EDL/video identity.")
         warnings.append("Frame seeks select the first decoded frame at or after the labeled time; allow one video frame for sampling/rounding.")
@@ -334,6 +357,17 @@ def inspect_timeline(video: str | Path, out: str | Path, *, start: float | None 
     for i, row in enumerate(rows):
         _draw_row(canvas, draw, (label_font, small_font), decoder, video, row, cuts,
                   spans, words, frames, 74 + i * ROW_HEIGHT, info["has_audio"])
+        if measurements:
+            moments = [m for t in (measurements.get("music_plan") or {}).get("tracks", []) for m in t.get("moments", [])]
+            row["music_moments"] = []
+            for m in moments:
+                t = m["output_time"]
+                if row["start"] <= t <= row["end"]:
+                    x = time_to_x(t, row["start"], row["end"], MARGIN, width - MARGIN)
+                    y = 74 + i * ROW_HEIGHT
+                    draw.line((x, y + 30, x, y + 278), fill="#f588db", width=2)
+                    draw.text((x + 3, y + 205), m["kind"], fill="#f588db", font=small_font)
+                    row["music_moments"].append(m)
     y = 80 + len(rows) * ROW_HEIGHT
     for c in visible_cuts:
         left, right = c["left"], c["right"]
@@ -343,4 +377,5 @@ def inspect_timeline(video: str | Path, out: str | Path, *, start: float | None 
         y += 52
     _publish(canvas, out, overwrite)
     return InspectionResult(str(out), width, height, str(video), duration, rows,
-                            [s.to_dict() for s in spans], cuts, list(dict.fromkeys(warnings)), origin)
+                            [s.to_dict() for s in spans], cuts, list(dict.fromkeys(warnings)), origin,
+                            audio_measurements=measurements)

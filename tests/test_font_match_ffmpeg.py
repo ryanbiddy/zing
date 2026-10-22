@@ -163,6 +163,7 @@ def test_calibrated_threshold_rejects_held_out_font(tmp_path, font_workspace, ca
 
 
 @pytest.mark.parametrize("font_id", ["anton", "ibmplexsans"])
+@pytest.mark.real_model(env="ZING_REQUIRE_OCR")
 def test_real_ocr_geometry_to_font_candidates(tmp_path, font_workspace, font_id):
     pytest.importorskip("rapidocr")
     pytest.importorskip("onnxruntime")

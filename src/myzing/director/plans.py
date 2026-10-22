@@ -129,9 +129,11 @@ def captions_for(sequence, studies, style, recipe, font, brief):
     return result
 
 
-def audio_for(brief, manifest, root, duration, first_cut):
+def audio_for(brief, manifest, root, duration, first_cut, *, include_music=True):
     assets, tracks, notes = [], [], []
     for role in ("music", "sfx"):
+        if role == "music" and not include_music:
+            continue
         choice = getattr(brief, role)
         if choice["source"] != "supplied files":
             continue
@@ -169,7 +171,14 @@ def audio_for(brief, manifest, root, duration, first_cut):
 
 
 def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden,
-              subject_evidence=None):
+              subject_evidence=None, music_cache=None):
+    from myzing.music.planning import plan_music
+    from myzing.audio.media import AudioError
+    try:
+        sequence, music_assets, music_tracks, music_evidence = plan_music(
+            sequence, studies, brief, manifest, root, style.median_shot, required, forbidden, music_cache)
+    except AudioError as exc:
+        shortage("music_analysis", str(exc), "Check the local track and zing doctor; install myzing[audio] for music analysis.")
     lookup = {s.asset_id: s for s in studies}
     font, font_report = font_choice(recipe, recipe_dir)
     used = sorted({c.asset_id for c in sequence})
@@ -187,7 +196,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     captions = captions_for(sequence, studies, style, recipe, font, brief)
     durations = shot_lengths(sequence, studies)
     first_cut = durations[0] if len(durations) > 1 else None
-    audio_assets, audio, audio_notes = audio_for(brief, manifest, root, cursor, first_cut)
+    audio_assets, audio, audio_notes = audio_for(brief, manifest, root, cursor, first_cut, include_music=False)
+    audio_assets += music_assets
+    audio += music_tracks
     assets = list({a.id: a for a in [*assets, *audio_assets]}.values())
     # Output dimensions follow the brief; 30 CFR is an explicit delivery choice,
     # not an inferred property of the reference or camera.
@@ -245,6 +256,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     if source_dimensions:
         place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions,
                        keep_safe_defaults=True)
+    if music_tracks:
+        from myzing.music.models import attach
+        attach(plan, music_evidence)
     numbers = {
         "median_shot_seconds": metric(style.median_shot, median(durations), (style.median_shot or 0) * .1,
                                       "Whole-word cuts, required moments and available shot choices constrain the selected edit."),
@@ -266,6 +280,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
              "30 fps CFR and full-HD aspect dimensions are delivery defaults; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
+    if music_tracks:
+        notes.extend(music_evidence.warnings)
     continuity = score(sequence, studies, allow_reordering="[allow source reordering]" in brief.purpose.casefold())
     if continuity["status"] == "flagged":
         notes.append("Continuity flagged: no better complete-clause trio found within the bounded search; review dangling source speech.")
@@ -289,6 +305,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             notes.append(f"Exact spelling {spelling!r} was not found verbatim; review ASR names before rendering.")
     report = {
         "version": 1, "draft": label, "seed": seed, "strategy": STRATEGIES[label],
+        "music": music_evidence.to_dict() if music_tracks else None,
         "continuity": continuity,
         "opening": {"asset_id": sequence[0].asset_id, "src_in": sequence[0].start,
                     "src_out": sequence[0].end, "words": sequence[0].text,
@@ -318,7 +335,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
 
 
 def attach_report(plan, report):
-    plan.warnings = [*report["warnings"], REPORT_PREFIX + json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False)]
+    from myzing.music.models import PREFIX
+    music = [w for w in plan.warnings if w.startswith(PREFIX)]
+    plan.warnings = [*report["warnings"], *music, REPORT_PREFIX + json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False)]
     return Composition.from_dict(plan.to_dict())
 
 

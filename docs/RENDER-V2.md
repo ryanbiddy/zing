@@ -28,9 +28,12 @@ unverified-identity warning. Queued MCP jobs recheck hashes when they run.
 
 The supported media graph includes cuts, dissolves, directional wipes, dips to
 black/white, zoom punches, source audio, voiceover/music placement,
-gain and music ducking under voiceover. Rational FPS is retained in FFmpeg's
+gain, audio source trims and music ducking under voiceover or known source
+speech. [Music planning and measurement](MUSIC.md) describes the versioned
+speech evidence required for `duck_scope="source_speech"` and the optional
+`audio` extra used for measurements. Rational FPS is retained in FFmpeg's
 filters and output rate. Per-clip SDR `.cube` LUTs and HyperFrames captions are supported. Speed maps, unsupported transition kinds,
-other audio roles, audio source trims, non-voiceover ducking scopes and loudness
+other audio roles, `all_speech` ducking and explicit loudness
 targets produce one `not yet supported in this renderer: ...` list. V2
 voiceover synthesis and OTIO export are also rejected; place an existing
 voiceover asset in the composition. Evidence, brief and warning metadata are

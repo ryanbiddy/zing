@@ -13,6 +13,9 @@ from .models import Onset, Segment, Tempo
 
 HOP = 220  # 9.98 ms at 22.05 kHz
 WINDOW = 1024
+# The lowest band spans 40-344 Hz so it holds enough FFT bins (14) that noise
+# beds do not fluctuate like attacks.
+BAND_EDGES = (40, 344, 689, 1378, 2756, 5512, 11025)
 
 
 def spectral_features(samples):
@@ -25,6 +28,9 @@ def spectral_features(samples):
     flux = np.empty(count)
     flatness = np.empty(count)
     similarity = np.empty(count)
+    low = np.empty(count)
+    vocal = np.empty(count)
+    bands = np.empty((count, len(BAND_EDGES) - 1))
     window = np.hanning(WINDOW)
     previous = np.zeros(WINDOW // 2 + 1)
     # Batch the FFT instead of allocating a whole ten-minute spectrogram.
@@ -37,12 +43,26 @@ def spectral_features(samples):
         flux[start:end] = np.sqrt(np.sum(positive ** 2, axis=1))
         rms[start:end] = np.sqrt(np.mean(chunk ** 2, axis=1))
         power = magnitude ** 2 + 1e-16
+        frequencies = np.fft.rfftfreq(WINDOW, 1 / SAMPLE_RATE)
+        low[start:end] = np.sqrt(np.sum(power[:, frequencies < 180], axis=1))
+        # Octave-ish band energies for salient-attack evidence (structure.py).
+        for b, (lo, hi) in enumerate(zip(BAND_EDGES, BAND_EDGES[1:])):
+            bands[start:end, b] = np.sum(power[:, (frequencies >= lo) & (frequencies < hi)], axis=1)
+        # A harmonic, multi-partial midrange with formant-region energy is
+        # compatible with voice. Instruments can satisfy this too.
+        mid = magnitude[:, (frequencies >= 120) & (frequencies <= 4000)]
+        peaks = (mid[:, 1:-1] > mid[:, :-2]) & (mid[:, 1:-1] > mid[:, 2:])
+        salient = peaks & (mid[:, 1:-1] > mid.max(axis=1)[:, None] * .12)
+        harmonic = np.sum(np.where(salient, mid[:, 1:-1] ** 2, 0), axis=1) / np.maximum(1e-16, np.sum(mid ** 2, axis=1))
+        formants = np.sum(power[:, (frequencies >= 500) & (frequencies <= 3500)], axis=1) / np.sum(power, axis=1)
+        vocal[start:end] = ((salient.sum(axis=1) >= 4) & (harmonic > .35) & (formants > .15)).astype(float)
         flatness[start:end] = np.exp(np.mean(np.log(power), axis=1)) / np.mean(power, axis=1)
         similarity[start:end] = np.sum(magnitude * prior, axis=1) / np.maximum(
             1e-16, np.linalg.norm(magnitude, axis=1) * np.linalg.norm(prior, axis=1),
         )
         previous = magnitude[-1]
-    return {"rms": rms, "flux": flux, "flatness": flatness, "similarity": similarity}
+    return {"rms": rms, "flux": flux, "flatness": flatness, "similarity": similarity,
+            "low": low, "vocal": vocal, "bands": bands}
 
 
 def detect_onsets(features) -> list[Onset]:

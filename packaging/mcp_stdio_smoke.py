@@ -16,6 +16,7 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "music_check",
     "match_start",
     "match_status",
     "plan_drafts",

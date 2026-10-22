@@ -169,5 +169,21 @@ def recommend(project: str | Path, brief: Brief) -> dict:
             summary += " Review the must-keep moments before choosing the opening."
     if brief.reference_match == "exact":
         summary += " Exact matching is your requested goal; current measurements cannot establish an exact match."
-    return {"summary": summary, "basis": basis, "missing": missing,
+    music_advice = []
+    if brief.music["source"] == "supplied files":
+        from myzing.music.advice import rate, talking
+        from myzing.audio import analyze
+        from myzing.audio.media import AudioError
+        for selector in brief.music["files"]:
+            asset = next((a for a in manifest.assets if selector in (a.id, a.path)), None)
+            path = resolve_path(asset.path if asset else selector, root)
+            try:
+                advice = rate(analyze(path), length=brief.target_length_seconds, speech=talking(brief),
+                              pace=pace, purpose=brief.purpose,
+                              source_duration=asset.probe.duration if asset and asset.probe else None)
+                music_advice.append(advice.to_dict())
+                basis.append(f"Music {path.name}: {advice.rating} ({advice.score}/100). " + advice.licensing)
+            except (AudioError, ValueError, OSError) as exc:
+                missing.append(f"Music advice unavailable for {path.name}: {exc}")
+    return {"summary": summary, "basis": basis, "missing": missing, **({"music_advice": music_advice} if music_advice else {}),
             "scope": "Deterministic suggestions from inventory and attached reference observations; no model judgment or content review."}

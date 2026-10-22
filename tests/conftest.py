@@ -104,6 +104,7 @@ REQUIRE_ENV_VAR = "ZING_REQUIRE_FFMPEG"
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line("markers", "real_model(env): requires an explicit named environment variable equal to 1 before loading a real model")
     config.addinivalue_line(
         "markers",
         "requires_private_ocr: original lexical calibration requires unredistributed "
@@ -160,6 +161,9 @@ def pytest_sessionfinish(session: pytest.Session) -> None:
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
+    model = item.get_closest_marker("real_model")
+    if model is not None and os.environ.get(model.kwargs["env"]) != "1":
+        pytest.skip("real-model test requires explicit opt-in; see docs/DEVELOPER-GUIDE.md")
     if item.get_closest_marker("ffmpeg") is None:
         return
     missing = [tool for tool in FFMPEG_TOOLS if shutil.which(tool) is None]
