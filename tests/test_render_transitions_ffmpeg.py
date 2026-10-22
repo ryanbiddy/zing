@@ -119,12 +119,12 @@ def test_supported_transition_pixels_frames_duration_audio(tmp_path, sources, ki
 
 
 @pytest.mark.parametrize("kind,direction", [("dissolve", None), *(("wipe", d) for d in ("left", "right", "up", "down"))])
-def test_detector_v5_reads_rendered_corpus_textures(tmp_path, textures, kind, direction):
+def test_detector_v6_reads_rendered_corpus_textures(tmp_path, textures, kind, direction):
     result = render(tmp_path, pair_plan(textures, kind, direction))
     reading = detect_transition_signatures(result.output_path)
     assert reading["predicted"] == [kind], reading["events"]
     event, = reading["events"]
-    assert event["detector_version"] == 5
+    assert event["detector_version"] == 6
     assert event["direction"] == direction
     assert abs(event["start_seconds"] - 1.4) <= 1 / 30
     assert abs(event["end_seconds"] - 2) <= 1 / 30

@@ -1,5 +1,120 @@
 # Zing V1 real-video evaluation — October 2026
 
+## T6 transition update
+
+Detector v6 recovers the seven cuts missed by v5 and the calibration classroom
+dissolve. The held-out title dissolve still fails. No decision rule changed
+after held-out inference. The current measurements are in
+[transitions-v6-results.json](transitions-v6-results.json); the original
+[results.json](results.json) remains a frozen v5 record marked
+`matches_current_detector=false`. The historical V1 sections below describe
+their original checkout and measurements, including its then-missing commands.
+
+The [clip split](transition-split.json) was fixed before tuning. Calibration:
+`korky`, `tos-lab`, `tos-credits`, `duck-classroom`, `nasa-opening` (23.75 reviewed
+seconds, 16 events). Held-out: `tos-dialogue`, `tos-memory`, `duck-titles`,
+`duck-street`, `nasa-montage` (22 seconds, eight events). Each partition has one
+dissolve. The prior v5 failure report was supplied in advance; source works
+overlap across partitions. This is a tuning holdout with provisional
+single-annotator labels, not a blind benchmark or a population accuracy estimate.
+
+The split receipt, baseline source hashes, and
+[pre-evaluation decision lock](transition-v6-lock.json) are checked in.
+All ten clip and four source SHA-256 hashes match the existing manifest. Media
+was read from `E:\AI\projects\zing\worktrees\v1-realeval\zing-workspace\real-eval`;
+no source files were changed or downloaded. Matching stays one-to-one, within
+two frames for cuts and interval IoU ≥0.5 for dissolves, at confidence ≥0.8.
+
+| Partition / class | v5 TP / FP / FN | v5 precision / recall / unknown | v6 TP / FP / FN | v6 precision / recall / unknown |
+|---|---:|---|---:|---|
+| Calibration hard cut | 10 / 0 / 5 | 100% / 66.7% / 5 | 15 / 0 / 0 | 100% / 100% / 0 |
+| Calibration dissolve | 0 / 0 / 1 | undefined / 0% / 1 | 1 / 0 / 0 | 100% / 100% / 0 |
+| **Held-out hard cut** | 5 / 0 / 2 | 100% / 71.4% / 2 | 7 / 0 / 0 | 100% / 100% / 0 |
+| **Held-out dissolve** | 0 / 0 / 1 | undefined / 0% / 1 | 0 / 0 / 1 | undefined / 0% / 1 |
+
+| Other real class | Calibration v5 → v6: precision / recall / unknown | Held-out v5 → v6: precision / recall / unknown |
+|---|---|---|
+| Wipe | undefined / undefined / 0 → same | undefined / undefined / 0 → same |
+| Zoom punch | undefined / undefined / 0 → same | undefined / undefined / 0 → same |
+| Audio-aligned cut | undefined / undefined / 0 → same | undefined / undefined / 0 → same |
+| Whip pan (unsupported) | undefined / undefined / 0 → same | undefined / undefined / 0 → same |
+| Flash (unsupported) | undefined / undefined / 0 → same | undefined / undefined / 0 → same |
+
+These other classes have no labeled positives. Audio alignment has no listening
+ground truth; no real accuracy claim is made for it. Per-class unknown counts
+mean missed labels intersected by an explicit abstention. Missing predictions
+remain false negatives. Overall abstentions intersecting reviewed windows rise
+from 52 to 62 on calibration and 118 to 123 on held-out: accepted cuts split
+long unknown motion runs into smaller intervals. Those totals are activity
+counts, not missed-edit counts. V6 has zero confident false edits in reviewed
+no-cut spans, including the title overlay fade and Korky's monologue.
+
+Across both partitions, hard cuts improve from 15/22 to 22/22 and dissolves
+from 0/2 to 1/2, with no accepted false positives. This aggregate combines
+calibration and held-out data and must not be called a held-out result.
+Matched-cut MAE is 2.22 ms on calibration and 9.52 ms on held-out. The classroom
+dissolve is measured at 7.000–7.700 s, against 6.833–7.633 s labeled (IoU 0.731;
+worst endpoint error 166.7 ms). Its detection passes the unchanged interval
+gate; its endpoints are less precise than the label's ±100 ms uncertainty.
+
+The synthetic rerun uses the same 48 generated cases for both versions:
+
+| Synthetic class | Labeled events | v5 precision / recall / unknown | v6 precision / recall / unknown |
+|---|---:|---|---|
+| Hard cut | 6 | 100% / 100% / 0 | 100% / 100% / 0 |
+| Dissolve | 6 | 100% / 100% / 0 | 100% / 100% / 0 |
+| Wipe | 8 | 100% / 100% / 0 | 100% / 100% / 0 |
+| Zoom punch | 4 | 100% / 100% / 0 | 100% / 100% / 0 |
+| Audio-aligned cut | 2 | 100% / 100% / 0 | 100% / 100% / 0 |
+| Whip pan (unsupported) | 4 | undefined / 0% / 4 | undefined / 0% / 4 |
+| Flash (unsupported) | 4 | undefined / 0% / 4 | undefined / 0% / 4 |
+
+Both synthetic partitions independently pass precision ≥0.95, recall ≥0.85
+for each supported class, and zero confident effects on the 16 motion/lighting
+negatives. Total synthetic unknown activity is 82 → 83; all eight unsupported
+events retain abstention coverage. The detailed split counts are in the JSON.
+
+One real miss remains, all on held-out data:
+
+| Clip / class | Clip-local labeled interval | Evidence in this T6 worktree |
+|---|---|---|
+| `duck-titles` / dissolve | **12.233333–12.766667 s** | [Midpoint PNG](../../../zing-workspace/t6/v6-held-out/duck-titles-dissolve-0-12.233.png), [seven-frame context](../../../zing-workspace/t6/v6-held-out/duck-titles-miss-strip.png) |
+
+The PNGs show the title cards superimposed; v6 leaves this region unknown.
+No remaining hard-cut miss exists in the reviewed windows. Further optical
+tuning needs another frozen holdout rather than repeated tuning on this clip.
+
+V6 adds area-averaged grayscale features, local motion baselines, block
+structure and edge-change tests, short-blend peak suppression, and persistent
+black detection. A separate optical-window test permits limited endpoint
+motion while requiring spatial replacement and blend reconstruction. Rapid
+translation, lighting changes and unsupported effects retain abstentions.
+Evidence includes tested anchors, heuristic confidence, detector version and
+reason. No dependency, renderer, shared schema or lockfile change was needed.
+
+Reproduction commands and the opt-in local test are in
+[TRANSITIONS.md](../TRANSITIONS.md). Full observations, per-miss PNGs, generated
+media and test logs are under `zing-workspace/t6/`. The final command counts
+are recorded in `zing-workspace/PASS-REPORT.md`. Replaying the frozen detector
+on FFmpeg 6.1.1 reproduces the 8.1.2 real per-class counts, unknown counts and
+matched boundary errors on both partitions. The opt-in classroom test passes
+on both versions, and both mandatory FFmpeg gates pass **204/204** tests.
+
+| T6 final check | FFmpeg 8.1.2 | FFmpeg 6.1.1 |
+|---|---|---|
+| `uv run --frozen pytest -ra` | 2,509 passed, 7 skipped; 345.02 s | 2,509 passed, 7 skipped; 363.66 s |
+| `ZING_REQUIRE_FFMPEG=1 ... pytest -q -m ffmpeg --expected-ffmpeg-tests 204` | 204 passed; 371.98 s | 204 passed; 253.21 s |
+| `ZING_REAL_TRANSITIONS=1 ... pytest -q tests/test_transition_v6.py -m real_media` | 1 passed; 6.40 s | 1 passed; 5.38 s |
+
+The seven full-suite skips are six existing optional runtime checks (Kokoro,
+three HyperFrames checks, YuNet and OpenTimelineIO) plus the separately executed
+local-media test. Initial full runs found the new skip reasons missing from
+the authored-skip registry; those entries were added before these final runs.
+No required FFmpeg test skipped. Timings include concurrent checks and are not
+a performance benchmark. No new dependency or license was introduced.
+
+## Frozen V1 audit (detector v5)
+
 Zing's synthetic transition scores overstate what this small real-video audit found. In 45.75 seconds reviewed frame by frame, detector v5 found 15 of 22 cuts and neither of two dissolves. Its accepted cut predictions were precise, but recall was 68.2%. Caption measurements missed two of eleven labeled title lines and overestimated visible text height. These results support keeping both capabilities experimental.
 
 This pass changes evaluation tooling, labels, tests and documentation only. No detector, renderer, schema, dependency or lockfile changed. Evaluation started October 21 and finished October 22 on `feat/v1-real-eval`, HEAD `46a93c1646e6b5f5b8f9b44e8b86309a39019555`. Changes are uncommitted, as required by the pass rules.

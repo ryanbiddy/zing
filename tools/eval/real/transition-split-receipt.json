@@ -1,0 +1,20 @@
+{
+  "frozen_utc": "2026-10-22T07:23:08.547301+00:00",
+  "split_sha256": "55031c95ccccd22bbc27d463565f56da2e98ba922c820a08eb8ed8b3aa67ace8",
+  "verified_clips": {
+    "korky": "f11726ac7085f55a9d4f2a8a4c5ecb07c237a9639505ea0caae0802f4189a8d7",
+    "tos-dialogue": "852add1c626b0c2b4f5365a22eecd7b2e2558adad9fb933a54cd7d063f7251ad",
+    "tos-lab": "5cfdd64418b759b40aff88a352da0d23e0c76199f451a031180f009a1f4a9674",
+    "tos-memory": "41a9d08ecda09bc871e92f8911e1b4b6819eebce45f3b340b37e5dca6e7cd2e3",
+    "tos-credits": "67ed8cbf2b53932c21f8100461230772b048132adf0ab8e92921b0ca928f6fda",
+    "duck-titles": "9e859de69eec8f03c25877c0a6caf558e6772e62f26dd24345f9e8ca67874070",
+    "duck-classroom": "c04f2b720d48fea0c4ec9ada3ab42e625246cc208d79e532427d4fbf2fafa2c4",
+    "duck-street": "3fa59431a0dc6e4d74f944984091d23f586020aa7f1df97d50cf9e46d697e417",
+    "nasa-opening": "3d9cf44cec35ddf9e4a1ade7cfb04d02e9de759adf07aa9c5cde4ffe4337e50c",
+    "nasa-montage": "72b196b82642985f05bbf8cc4652dbc46e82510dc28b17d6f978e8524e328206"
+  },
+  "baseline_source_sha256": {
+    "transitions-v5.py": "70edf2170c9911fada013206e9c3a9627840144c51275fa02efe6cecab51f513",
+    "transition_models-v5.py": "817502371d63781333028453735156a4fe23b30a3cf405940f8df1de320beee7"
+  }
+}

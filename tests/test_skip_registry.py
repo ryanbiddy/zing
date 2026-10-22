@@ -28,6 +28,23 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "opt in with ZING_REAL_TRANSITIONS=1": (
+        "the real transition regression reads licensed, hash-pinned local media only. "
+        "PRODUCT SURFACE: tools/eval/TRANSITIONS.md documents the opt-in and media root; "
+        "the evaluator names the explicit download command. Production detection needs "
+        "only the user's video and FFmpeg, not these evaluation assets."
+    ),
+    "pinned real classroom clip absent": (
+        "evaluation media is deliberately excluded from Git and never downloaded by tests. "
+        "PRODUCT SURFACE: run_transition_eval reports the missing pinned clip and explicit "
+        "run_real_eval.py --download command; TRANSITIONS.md documents local setup."
+    ),
+    "real-media test needs ffmpeg and ffprobe": (
+        "the separately opted-in media regression needs the decoder binaries. "
+        "PRODUCT SURFACE: doctor names FFmpeg as required and the transition probe "
+        "raises an explicit executable-not-found error. The 204 mandatory FFmpeg "
+        "tests remain in the no-skip CI gate."
+    ),
     "caption geometry OCR models unavailable": (
         "real caption geometry acceptance requires pinned local OCR assets. PRODUCT "
         "SURFACE: doctor and study name the explicit caption_models --fetch command. "

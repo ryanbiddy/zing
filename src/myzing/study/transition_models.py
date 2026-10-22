@@ -1,10 +1,88 @@
 """Small endpoint reconstruction tests for experimental transition evidence.
 
-These deliberately require quiet handles. Moving shots that do not fit a model
-remain unknown; frame difference or radial flow alone is not an edit label.
+The exact endpoint models require quiet handles. The optical window model also
+tests noise-tolerant spatial features and a translation null model. Moving shots
+that do not fit remain unknown; frame difference alone is not an edit label.
 """
 
 from __future__ import annotations
+
+
+def pool(frame: bytes, width: int, height: int, step: int = 4) -> list[float]:
+    """Area means suppress grain without aliasing a single sampled pixel."""
+    return [sum(frame[j * width + i] for j in range(y, y + step)
+                for i in range(x, x + step)) / (step * step)
+            for y in range(0, height - step + 1, step)
+            for x in range(0, width - step + 1, step)]
+
+
+def structure_change(a: list[float], b: list[float], width: int, block: int = 6) -> float:
+    """Mean block SSIM contrast/structure loss, independent of luminance offset.
+
+    A stabilizer of (0.03 * 255)^2 keeps flat/noisy blocks from dominating.
+    Luminance and histogram change are measured separately.
+    """
+    height = len(a) // width
+    losses = []
+    for y in range(0, height, block):
+        for x in range(0, width, block):
+            indices = [j * width + i for j in range(y, min(y + block, height))
+                       for i in range(x, min(x + block, width))]
+            ma, mb = (sum(v[i] for i in indices) / len(indices) for v in (a, b))
+            va, vb = (sum((v[i] - m) ** 2 for i in indices) / len(indices)
+                      for v, m in ((a, ma), (b, mb)))
+            cov = sum((a[i] - ma) * (b[i] - mb) for i in indices) / len(indices)
+            losses.append(max(0, min(1, (1 - (2 * cov + 58.5225) / (va + vb + 58.5225)) / 2)))
+    return sum(losses) / len(losses)
+
+
+def edge_change(a: list[float], b: list[float], width: int) -> float:
+    """Symmetric unmatched edge fraction with a one-cell translation tolerance."""
+    height = len(a) // width
+
+    def edges(v):
+        return {(x, y) for y in range(1, height - 1) for x in range(1, width - 1)
+                if abs(v[y * width + x + 1] - v[y * width + x - 1])
+                + abs(v[(y + 1) * width + x] - v[(y - 1) * width + x]) >= 24}
+
+    ea, eb = edges(a), edges(b)
+    if not ea or not eb:
+        return float(bool(ea or eb))
+
+    def unmatched(left, right):
+        return sum(not any((x + dx, y + dy) in right for dx in (-1, 0, 1)
+                           for dy in (-1, 0, 1)) for x, y in left) / len(left)
+
+    return max(unmatched(ea, eb), unmatched(eb, ea))
+
+
+def blend_fit(a: list[float], b: list[float], frames: list[list[float]]) -> tuple[float, list[float]]:
+    """Worst optical-blend residual and projected fractions; no pixel selection."""
+    delta = [y - x for x, y in zip(a, b)]
+    norm = max(1, sum(d * d for d in delta))
+    fractions, errors = [], []
+    scale = max(distance(a, b), 1)
+    for frame in frames:
+        alpha = sum((v - x) * d for v, x, d in zip(frame, a, delta)) / norm
+        fractions.append(alpha)
+        errors.append(distance(frame, [x + alpha * d for x, d in zip(a, delta)]) / scale)
+    return max(errors, default=1), fractions
+
+
+def translation_error(a: list[float], b: list[float], width: int, radius: int = 4) -> float:
+    """Best offset-invariant translation residual, normalized to unaligned change."""
+    height = len(a) // width
+    scale = max(distance(a, b), 1)
+    best = 1.0
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            differences = [b[y * width + x] - a[(y + dy) * width + x + dx]
+                           for y in range(radius, height - radius)
+                           for x in range(radius, width - radius)]
+            offset = sum(differences) / len(differences)
+            best = min(best, sum(abs(d - offset) for d in differences) / len(differences) / scale)
+    return best
+
 
 def sample(frame: bytes, width: int, height: int) -> list[float]:
     return [frame[y * width + x] for y in range(0, height, 2) for x in range(0, width, 2)]
