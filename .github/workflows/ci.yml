@@ -63,7 +63,7 @@ jobs:
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 81
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 93
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -103,7 +103,7 @@ jobs:
           done
       - run: pip install -e .[dev,layout,color,audio,memes]
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 81
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 93
 
   # macOS smoke: frame extraction, six inspection tests, audio placement,
   # and the caption/ducking render oracle (Homebrew FFmpeg with libass).
@@ -134,8 +134,8 @@ jobs:
             exit 1
           fi
       - run: pip install -e .[dev,audio,memes]
-      - name: Real media and inspection gates (skips are failures)
-        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking --expected-ffmpeg-tests 9
+      - name: Real media, inspection, render audio and animated meme gates (skips are failures)
+        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking tests/test_memes_video.py -m ffmpeg --expected-ffmpeg-tests 21
 
   # S5 Lane B: fresh-host install gate — wheel -> bare venv -> first-run
   # surface, NO repo checkout on the tested path (packaged data must

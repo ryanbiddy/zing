@@ -42,6 +42,7 @@ EXPECTED_TOOLS = {
     "meme_ideas",
     "meme_check",
     "meme_render",
+    "meme_render_video",
 }
 TIMEOUT_SECONDS = 60
 

@@ -64,9 +64,9 @@ REGISTERED_SKIPS = {
         "user-visible capability."
     ),
     "install myzing[memes] for render tests": (
-        "meme rendering needs the optional Pillow extra; the skip is per test so "
-        "the CI FFmpeg gates (which forbid skips) never see it. PRODUCT SURFACE: "
-        "doctor.check_pillow and meme_render's install hint name myzing[memes]."
+        "meme rendering needs the optional Pillow extra; the skip is per test. "
+        "CI installs the memes extra, and required FFmpeg gates fail if it is missing. "
+        "PRODUCT SURFACE: doctor.check_pillow and both meme renderers' install hints name myzing[memes]."
     ),
     "Windows PowerShell mutation": (
         "the hermetic Chocolatey retry mutation creates Windows command "
