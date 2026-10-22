@@ -15,7 +15,8 @@ from myzing.study.proc import MediaError, ToolMissing
 from myzing.urls import is_http_url
 from .locking import LOCK_NAME, lock_description, project_lock
 from .models import Asset, ProjectError, ProjectManifest, Reference, SourceRecord
-from .probe import probe_file
+from .paths import resolve_path
+from .probe import probe_file, unsupported_extension
 
 MANIFEST_NAME = "project.json"
 
@@ -26,11 +27,6 @@ def stored_path(path: Path, project: Path) -> str:
         return resolved.relative_to(project).as_posix()
     except ValueError:
         return str(resolved)
-
-
-def resolve_path(value: str, project: Path) -> Path:
-    path = Path(value).expanduser()
-    return path if path.is_absolute() else project / path
 
 
 def hash_file(path: Path) -> str:
@@ -44,7 +40,7 @@ def hash_file(path: Path) -> str:
 def load_project(project: str | Path) -> ProjectManifest:
     path = Path(project).expanduser().resolve() / MANIFEST_NAME
     try:
-        return ProjectManifest.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        return ProjectManifest.from_dict(json.loads(path.read_text(encoding="utf-8")), path.parent)
     except FileNotFoundError as exc:
         raise ProjectError(f"No manifest at {path}. Run 'zing project init' first.") from exc
     except (ValueError, TypeError) as exc:
@@ -85,6 +81,8 @@ def _files(clips: Path, root: Path) -> list[Path]:
     for directory, dirs, names in os.walk(clips, followlinks=False, onerror=on_error):
         parent = Path(directory)
         dirs[:] = sorted(d for d in dirs if not (parent / d).is_symlink()
+                         and not (getattr((parent / d).lstat(), "st_file_attributes", 0)
+                                  & stat.FILE_ATTRIBUTE_REPARSE_POINT)
                          and (parent / d).resolve() != root)
         for name in sorted(names):
             path = parent / name
@@ -102,7 +100,7 @@ def _signature(path: Path) -> tuple[int, int]:
 
 
 def _scan(root: Path, manifest: ProjectManifest) -> ProjectManifest:
-    clips = resolve_path(manifest.clips_root, root)
+    clips = resolve_path(manifest.clips_root, root, entry="clips_root")
     files = _files(clips, root)
     by_path = defaultdict(list)
     for asset in sorted(manifest.assets, key=lambda a: (a.state == "missing", a.path, a.id)):
@@ -149,6 +147,7 @@ def _scan(root: Path, manifest: ProjectManifest) -> ProjectManifest:
     for path, key, signature, digest in observations:
         asset = assignments.get(key)
         stat_changed = asset is None or signature != (asset.size, asset.mtime_ns)
+        was_unlisted = asset is not None and unsupported_extension(Path(asset.path)) is not None
         if asset:
             if asset.path != key:
                 asset.previous_paths.append(asset.path)
@@ -169,7 +168,11 @@ def _scan(root: Path, manifest: ProjectManifest) -> ProjectManifest:
             manifest.assets.append(asset)
             existing_ids.add(asset.id)
         content_changed = asset.sha256 != digest
-        if content_changed or (asset.probe is None and (asset.error is None or stat_changed)):
+        unsupported = unsupported_extension(path)
+        if unsupported:
+            asset.probe = None
+            asset.error = unsupported
+        elif content_changed or was_unlisted or (asset.probe is None and (asset.error is None or stat_changed)):
             try:
                 asset.probe = probe_file(path)
                 asset.error = None
@@ -246,7 +249,7 @@ def project_status(project: str | Path) -> dict:
     for asset in manifest.assets:
         needs_scan, error = False, asset.error
         try:
-            path = resolve_path(asset.path, root)
+            path = resolve_path(asset.path, root, entry=f"asset {asset.id}.path")
             if not path.is_file() or (asset.state == "missing" and asset.path in occupied_paths):
                 state = "missing"
             elif _signature(path) != (asset.size, asset.mtime_ns) or asset.state == "missing":

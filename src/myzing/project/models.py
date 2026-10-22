@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 
@@ -119,7 +120,9 @@ class ProjectManifest(Record):
     version: int = 1
 
     @classmethod
-    def from_dict(cls, data: dict) -> ProjectManifest:
+    def from_dict(cls, data: dict, project: Path | None = None) -> ProjectManifest:
+        from .paths import resolve_path
+
         _version(data, cls.__name__)
         try:
             result = super().from_dict({
@@ -128,10 +131,21 @@ class ProjectManifest(Record):
                 "source": SourceRecord.from_dict(data["source"]),
                 "assets": [Asset.from_dict(a) for a in data["assets"]],
             })
-            if not isinstance(result.clips_root, str) or not result.clips_root:
-                raise ProjectError("Project clips_root must be a nonempty path.")
+            resolve_path(result.clips_root, project, entry="clips_root")
+            resolve_path(result.source.origin, project, entry="source.origin")
+            if result.reference.kind == "file":
+                resolve_path(result.reference.value, project, entry="reference.value")
+                resolve_path(result.reference.source.origin, project, entry="reference.source.origin")
             ids, paths = set(), set()
-            for asset in result.assets:
+            for index, asset in enumerate(result.assets):
+                entry = f"assets[{index}] ({asset.id})"
+                for name in ("path", "original_path"):
+                    resolve_path(getattr(asset, name), project, entry=f"{entry}.{name}")
+                resolve_path(asset.source.origin, project, entry=f"{entry}.source.origin")
+                if not isinstance(asset.previous_paths, list):
+                    raise ProjectError(f"Invalid {entry}.previous_paths: expected a list of paths.")
+                for previous_index, value in enumerate(asset.previous_paths):
+                    resolve_path(value, project, entry=f"{entry}.previous_paths[{previous_index}]")
                 if asset.id in ids or (asset.state != "missing" and asset.path in paths):
                     raise ProjectError("Project contains duplicate asset IDs or paths.")
                 ids.add(asset.id)

@@ -57,6 +57,35 @@ def lock_description(path: Path) -> str:
         return f"Project lock at {path} is unreadable or incomplete; its owner cannot be verified."
 
 
+def _release_lock(path: Path, identity: os.stat_result, token: str, written: bool) -> None:
+    # First detach the directory entry. Checking then unlinking the shared name
+    # could delete a new owner's lock created between those operations.
+    released = path.with_name(f".project-{uuid4().hex}.tmp")
+    try:
+        path.rename(released)
+    except FileNotFoundError:
+        return
+    owned = False
+    try:
+        owned = os.path.samestat(identity, released.stat()) and (
+            not written or json.loads(released.read_text(encoding="utf-8")).get("token") == token
+        )
+    except (OSError, ValueError, AttributeError):
+        pass
+    if owned:
+        released.unlink()
+        return
+    # A replacement was detached. Restore it atomically without overwriting
+    # another lock that may have appeared since the rename. On conflict, keep
+    # both files and report the recovery path; never discard an unknown owner.
+    try:
+        os.link(released, path)
+    except OSError as exc:
+        raise ProjectError(f"Project lock changed during release. The displaced lock is preserved at "
+                           f"{released}; check its owner before removing it. Current lock: {path}.") from exc
+    released.unlink()
+
+
 @contextmanager
 def project_lock(root: Path):
     path = root / LOCK_NAME
@@ -68,17 +97,15 @@ def project_lock(root: Path):
             lock_description(path) + " Wait for the scan to finish. If its owner has stopped, "
             "remove only this lock file and rerun 'zing project scan'."
         ) from exc
+    identity = os.fstat(handle.fileno())
+    written = False
     try:
         with handle:
             json.dump({"pid": os.getpid(), "host": socket.gethostname(),
                        "created_at": time.time(), "token": token}, handle)
             handle.flush()
             os.fsync(handle.fileno())
+        written = True
         yield
     finally:
-        # A manually replaced lock belongs to someone else.
-        try:
-            if json.loads(path.read_text(encoding="utf-8")).get("token") == token:
-                path.unlink()
-        except (FileNotFoundError, ValueError):
-            pass
+        _release_lock(path, identity, token, written)

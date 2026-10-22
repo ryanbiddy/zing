@@ -11,6 +11,26 @@ from myzing.study import proc
 from .models import Probe, Rational
 
 
+MEDIA_EXTENSIONS = frozenset({
+    ".mp4", ".mov", ".m4v", ".mkv", ".webm", ".avi", ".mpg", ".mpeg",
+    ".m2v", ".mts", ".m2ts", ".ts", ".vob", ".wmv", ".asf", ".flv",
+    ".3gp", ".3g2", ".ogv", ".ogg", ".mxf", ".mp3", ".wav", ".m4a",
+    ".aac", ".flac", ".opus", ".aif", ".aiff", ".wma",
+})
+# Exclude reference-following formats (concat, HLS, DASH, SDP, image2, ...),
+# even when a playlist has been renamed to an allowed media extension.
+MEDIA_DEMUXERS = (
+    "mov,mp4,m4a,3gp,3g2,mj2,matroska,webm,avi,mpeg,mpegvideo,mpegts,"
+    "asf,flv,ogg,mxf,mp3,wav,aac,flac,aiff"
+)
+
+
+def unsupported_extension(path: Path) -> str | None:
+    if path.suffix.lower() not in MEDIA_EXTENSIONS:
+        return f"Unsupported media extension {path.suffix or '(none)'!r}; file was not probed."
+    return None
+
+
 def _number(value) -> float | None:
     try:
         number = float(value)
@@ -93,8 +113,13 @@ def parse_probe(data: dict) -> Probe:
 
 
 def probe_file(path: Path) -> Probe:
+    unsupported = unsupported_extension(path)
+    if unsupported:
+        raise proc.MediaError(unsupported)
     result = proc.run([
-        "ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe",
+        "ffprobe", "-v", "error", "-protocol_whitelist", "file",
+        "-format_whitelist", MEDIA_DEMUXERS,
+        "-enable_drefs", "0", "-use_absolute_path", "0",
         "-show_streams", "-show_format", "-of", "json", str(path),
     ], timeout=120)
     if result.returncode:

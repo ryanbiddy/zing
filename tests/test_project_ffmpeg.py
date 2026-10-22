@@ -11,6 +11,8 @@ import pytest
 
 from myzing import cli
 from myzing.project import api
+from myzing.project.probe import probe_file
+from myzing.study.proc import MediaError
 
 pytestmark = pytest.mark.ffmpeg
 
@@ -187,3 +189,47 @@ def test_variable_frame_rate_metadata_is_flagged(tmp_path):
     assert "vfr_suspected" in manifest.assets[0].probe.flags
     assert api.project_status(root)["counts"]["unsupported"] == 1
     assert hashes(clips) == before
+
+
+@pytest.mark.parametrize("kind", ["concat", "hls", "sdp"])
+def test_disguised_reference_demuxers_are_rejected(tmp_path, kind):
+    clips = tmp_path / "clips"
+    clips.mkdir()
+    path = clips / "disguised.mp4"
+    contents = {
+        "concat": "ffconcat version 1.0\nfile 'referenced.mp4'\n",
+        "hls": "#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\n../outside.ts\n#EXT-X-ENDLIST\n",
+        "sdp": "v=0\no=- 0 0 IN IP4 127.0.0.1\ns=fixture\nc=IN IP4 127.0.0.1\n"
+               "t=0 0\nm=video 1234 RTP/AVP 96\na=rtpmap:96 H264/90000\n",
+    }
+    path.write_text(contents[kind], encoding="utf-8")
+    before = hashes(clips)
+    # Newer FFmpeg also rejects disguised HLS during format detection. Either
+    # rejection precedes attempts to open a referenced file or network socket.
+    rejection = "not on whitelist|Not detecting m3u8/hls"
+    with pytest.raises(MediaError, match=rejection):
+        probe_file(path)
+    root = tmp_path / "project"
+    asset, = api.init_project("uoink:fixture", clips, root).assets
+    assert asset.state == "unsupported" and asset.probe is None
+    assert "not on whitelist" in asset.error or "Not detecting m3u8/hls" in asset.error
+    assert api.project_status(root)["counts"]["unsupported"] == 1
+    assert hashes(clips) == before
+
+
+@pytest.mark.parametrize("suffix", [".webm", ".mkv", ".wav"])
+def test_restricted_probe_accepts_common_media_containers(tmp_path, suffix):
+    path = tmp_path / f"clip{suffix}"
+    if suffix == ".wav":
+        ffmpeg("-f", "lavfi", "-i", "sine=duration=0.5", path)
+    else:
+        codec = "libvpx-vp9" if suffix == ".webm" else "libx264"
+        ffmpeg("-f", "lavfi", "-i", "color=s=32x32:r=30:d=0.5", "-c:v", codec, path)
+    before = hashlib.sha256(path.read_bytes()).hexdigest()
+    metadata = probe_file(path)
+    assert metadata.duration == pytest.approx(0.5, abs=0.05)
+    assert metadata.has_audio == (suffix == ".wav")
+    if suffix != ".wav":
+        assert metadata.width == metadata.height == 32
+        assert metadata.flags == []
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == before
