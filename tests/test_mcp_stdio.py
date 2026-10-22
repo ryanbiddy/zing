@@ -138,6 +138,10 @@ def client(tmp_path):
 
 
 EXPECTED_TOOLS = {
+    "meme_templates",
+    "meme_ideas",
+    "meme_check",
+    "meme_render",
     "study_video",
     "study_uoink_item",
     "import_shot_list",
@@ -173,7 +177,7 @@ def test_connect_doc_names_every_tool():
     assert not undocumented, f"CONNECT.md is missing: {sorted(undocumented)}"
     spelled = {
         3: "three", 12: "twelve", 17: "seventeen", 18: "eighteen",
-        19: "nineteen", 20: "twenty",
+        19: "nineteen", 20: "twenty", 23: "twenty-three",
     }.get(len(EXPECTED_TOOLS))
     assert spelled and spelled in doc, (
         f"CONNECT.md's tool count is stale — the server serves "
@@ -210,6 +214,37 @@ def test_tools_list_and_zing_status_roundtrip(client):
 def test_prompts_list_answers_even_with_no_pack(client):
     result = client.send("prompts/list", {})
     assert result["prompts"] == []  # empty pack dir: honest empty, no crash
+
+
+def test_meme_tools_roundtrip_without_network(client):
+    def call(name, arguments):
+        result = client.send("tools/call", {"name": name, "arguments": arguments})
+        assert result.get("isError") in (False, None)
+        assert all(c["type"] == "text" for c in result["content"])
+        return json.loads(result["content"][0]["text"])
+
+    assert call("meme_templates", {"search": "drake"})["templates"][0]["id"] == "drake"
+    idea = call("meme_ideas", {"topic": "builds", "template": "db", "n": 1})["ideas"][0]
+    assert len(idea["texts"]) == 3
+    assert call("meme_check", {"texts": idea["texts"], "template": "db"})["valid"]
+    invalid = call("meme_check", {"texts": ["a" * 71]})
+    assert invalid["ok"] and invalid["problems"][0]["code"] == "line_too_long"
+    assert not call("meme_render", {"texts": ["hello"]})["ok"]
+
+
+def test_meme_render_stdio_returns_a_path(client, tmp_path):
+    image_module = pytest.importorskip("PIL.Image")
+    source = tmp_path / "photo.png"
+    target = tmp_path / "meme.png"
+    image_module.new("RGB", (200, 200), "#729168").save(source)
+    result = client.send("tools/call", {"name": "meme_render", "arguments": {
+        "texts": ["setup", "payoff"], "image": str(source), "out": str(target),
+    }})
+    assert result.get("isError") in (False, None)
+    assert all(c["type"] == "text" for c in result["content"])
+    payload = json.loads(result["content"][0]["text"])
+    assert payload["ok"] and Path(payload["path"]) == target
+    assert target.is_file()
 
 
 def test_tool_error_is_data_not_protocol_error(client):

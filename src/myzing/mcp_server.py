@@ -1357,6 +1357,59 @@ def h_push_to_uoink(slug: str) -> dict[str, Any]:
     return uoink_bridge.push_breakdown(slug)
 
 
+def h_meme_templates(search: str = "") -> dict[str, Any]:
+    """Catalog lookup is offline and does not fetch image files."""
+    from myzing.memes.templates import list_templates
+
+    try:
+        return _ok(templates=list_templates(search))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
+def h_meme_ideas(topic: str, template: str = "", n: int = 6,
+                 tone: str = "dry", audience: str = "") -> dict[str, Any]:
+    from myzing.memes.ideas import generate_ideas
+
+    try:
+        return _ok(ideas=generate_ideas(topic, template, n, tone, audience))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
+def h_meme_check(texts: list[str], template: str = "",
+                 box_count: int | None = None) -> dict[str, Any]:
+    from myzing.memes.templates import get_template
+    from myzing.memes.validate import check_texts
+
+    try:
+        count = get_template(template)["box_count"] if template else box_count
+        return _ok(**check_texts(texts, box_count=count))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
+def h_meme_render(texts: list[str], image: str = "", template: str = "",
+                  layout: str = "", aspect: str = "1:1", out: str = "",
+                  fit: str = "", font: str = "",
+                  regions: list[list[float]] | None = None,
+                  plate: bool = False, shadow: bool = False,
+                  rotation: float = 0, offline: bool = False,
+                  overwrite: bool = False) -> dict[str, Any]:
+    """Synchronous bounded still render: paths and metadata, never inline bytes."""
+    from myzing.memes.render import render_meme
+
+    try:
+        return _ok(**render_meme(
+            texts, image=image, template=template, layout=layout, aspect=aspect,
+            out=out, fit=fit, font=font, regions=regions, plate=plate,
+            shadow=shadow, rotation=rotation, offline=offline,
+            overwrite=overwrite,
+        ))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
 def h_get_prompt(name: str = "study") -> dict[str, Any]:
     loaded = load_prompt(name)
     if loaded is None:
@@ -1437,7 +1490,8 @@ def build_server():
             "your judgment turns into a style read. Typical flow: "
             "study_video(url) -> poll zing_status() -> get_breakdown(slug) "
             "-> judge it using the 'study' prompt (get_prompt) -> "
-            "save_judgment(slug, judgment)."
+            "save_judgment(slug, judgment). For still memes: get_prompt('meme-writer') "
+            "-> write text -> meme_check -> meme_render. Meme tools make no model calls."
         ),
     )
     # Final review P3-1: without this, initialize's serverInfo.version is
@@ -1664,6 +1718,23 @@ def build_server():
             "doesn't surface MCP prompts as commands."
         ),
     )(h_get_prompt)
+
+    mcp.tool(
+        name="meme_templates",
+        description="Search the offline classic meme catalog: ids, names, box counts, and normalized regions. No images are downloaded.",
+    )(h_meme_templates)
+    mcp.tool(
+        name="meme_ideas",
+        description="Generate 1-8 deterministic formula ideas for a topic and optional template. No model or network. Use get_prompt('meme-writer') for your own writing judgment.",
+    )(h_meme_ideas)
+    mcp.tool(
+        name="meme_check",
+        description="Check on-image texts: 70 characters per box, 110 total, beat count, banned filler. Returns valid and structured problems. Empty strings preserve template slots; box_count supports custom regions.",
+    )(h_meme_check)
+    mcp.tool(
+        name="meme_render",
+        description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path.",
+    )(h_meme_render)
 
     for prompt_name in available_prompts():
         def _make(nm: str):
