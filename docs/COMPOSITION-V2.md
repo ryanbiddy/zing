@@ -12,9 +12,11 @@ Run `zing render plan.json -o output.mp4 --keep-work render-work` for either
 EDL v1 or Composition v2. R9 adds `myzing.render.render_composition(plan, output,
 base_dir=plan_directory)`. V1 still uses its original compiler. V2 supports
 cuts, source audio, placed voiceover/music, v1 voiceover ducking, and positioned
-ASS captions. See [V2 rendering](RENDER-V2.md) for bounds, fonts and timing.
+ASS captions. R13 adds per-clip SDR LUT rendering before scaling, concat and
+caption compositing. See [V2 rendering](RENDER-V2.md) for bounds, fonts, timing
+and color-space requirements.
 
-LUTs, speed maps, non-cut transitions, HyperFrames captions, other audio roles,
+Speed maps, non-cut transitions, HyperFrames captions, other audio roles,
 audio trims, other ducking scopes and loudness targets fail before media work
 with a `not yet supported in this renderer: ...` list. Passing v2 JSON to
 `EDL.from_dict` still fails; use `load_composition` to load v2.
@@ -160,8 +162,8 @@ and v1 types and serialized bytes are unchanged.
 
 | ColorTransform field | Contract |
 |---|---|
-| `lut_path`, `sha256` | Local `.cube` reference and lowercase content hash. Loading does not open the LUT. |
-| `strength` | Blend strength in `[0,1]` applied to this cube. |
+| `lut_path`, `sha256` | Local `.cube` reference and lowercase content hash. Relative paths resolve from the composition directory. Loading does not open the LUT; rendering verifies the hash before parsing or media work. |
+| `strength` | Blend strength in `[0,1]` applied to this cube. R13 bakes the blend with identity into a hashed work-folder cube; zero bypasses grading after validation. |
 | `color_space` | Nonempty input-space assumption, such as SDR Rec.709 display-referred RGB. It is not camera-profile recovery. |
 | `baked_transform` | Existing color `Transform`, including `LookParameters`, or null. Describes controls already baked into the cube. |
 | `stage` | Always `before_captions`. Captions remain outside the footage grade. |
@@ -171,6 +173,13 @@ and v1 types and serialized bytes are unchanged.
 color-space assumption and chosen transform. It sets the external LUT strength
 to 1 because PC already bakes the chosen strength, exposure and white-balance
 controls into that cube. Applying those controls again would double the grade.
+
+The R13 renderer supports the color package's SDR Rec.709/sRGB assumption and
+rejects other declared spaces. Probed HDR/LOG sources require conversion to SDR
+with an explicit input transform before rendering, even if a creative LUT is
+present. Captions composite after the graded cut. Pass 10b's HyperFrames adapter
+must use that same cut and composite overlays afterward; see
+[the render stage order](RENDER-V2.md).
 
 | CompositionAudio field | Contract |
 |---|---|

@@ -79,6 +79,7 @@ def build_graph(
     caption_filter: str = "ass",
     fonts_dir: bool = False,
     fps_rate: str | None = None,
+    clip_luts: tuple[str | None, ...] = (),
 ) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
@@ -87,16 +88,26 @@ def build_graph(
 
     video_labels = []
     clip_audio_labels = []
+    if clip_luts and len(clip_luts) != len(validated.clips):
+        raise ValueError("clip LUTs must match the validated timeline order")
     for input_index, resolved in enumerate(validated.clips):
         input_paths.append(resolved.path)
         clip = resolved.spec
         label = f"clipv{input_index}"
         video_labels.append(label)
+        lut = clip_luts[input_index] if clip_luts else None
+        grade = (
+            "scale=in_color_matrix=bt709,format=rgb24,"
+            f"lut3d=file='{lut}':interp=trilinear,"
+            "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+            "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709,"
+        ) if lut else ""
         lines.append(
             f"[{input_index}:v:0]"
             f"trim=start={_number(clip.src_in)}:end={_number(clip.src_out)},"
             "setpts=PTS-STARTPTS,"
             f"fps={fps_rate or _number(edl.fps)},"
+            + grade +
             f"scale={edl.width}:{edl.height}:"
             "force_original_aspect_ratio=decrease:force_divisible_by=2,"
             f"pad={edl.width}:{edl.height}:(ow-iw)/2:(oh-ih)/2:color=black,"

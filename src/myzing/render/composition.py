@@ -10,6 +10,7 @@ from pathlib import Path
 
 from myzing.composition import Composition, load_composition
 from myzing.composition.timebase import rate_fraction
+from myzing.ffmpeg_capabilities import FFmpegCapabilityError, require_lut3d
 from myzing.schemas import AudioTrack, CaptionSpec, Clip, EDL
 from myzing.timing import TimingReviewError, prepare_words
 
@@ -28,8 +29,6 @@ def load_render_document(data: dict) -> EDL | Composition:
 def unsupported_features(composition: Composition) -> list[str]:
     problems = []
     for clip in composition.clips:
-        if clip.color is not None:
-            problems.append(f"clip {clip.id}: LUTs (color)")
         if clip.speed_map:
             problems.append(f"clip {clip.id}: speed maps")
     for transition in composition.transitions:
@@ -83,6 +82,8 @@ class PreparedComposition:
     fonts: dict[str, tuple[str, bytes]]
     input_paths: frozenset[Path]
     warnings: tuple[str, ...]
+    luts: dict
+    lut_paths: dict[str, Path]
 
 
 def prepare_composition(composition: Composition, base_dir: Path) -> PreparedComposition:
@@ -103,6 +104,15 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
     if composition.width % 2 or composition.height % 2:
         raise EDLValidationError("output width and height must be even for yuv420p")
     output_preset(composition.width, composition.height)
+    # Validate every cube before media hashes, font inspection or subprocesses.
+    # Imports stay lazy so ungraded renders remain stdlib-only (apart from ASS).
+    from .color import prepare_lut
+    lut_paths, luts = {}, {}
+    for clip in composition.clips:
+        if clip.color is not None:
+            path = _path(clip.color.lut_path, base_dir, f"clip {clip.id} LUT")
+            lut_paths[clip.id] = path
+            luts[clip.id] = prepare_lut(clip.color, path, clip.id)
     warnings = list(composition.warnings)
     for caption in composition.captions:
         layout = caption.layout
@@ -164,7 +174,8 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
         width=composition.width, height=composition.height, fps=float(rate_fraction(composition.fps)),
     )
     return PreparedComposition(composition, edl, paths, fonts,
-                               frozenset([*paths.values(), *font_paths.values()]), tuple(warnings))
+                               frozenset([*paths.values(), *font_paths.values(), *lut_paths.values()]),
+                               tuple(warnings), luts, lut_paths)
 
 
 def render_composition(
@@ -176,11 +187,17 @@ def render_composition(
     prepared = prepare_composition(composition, base_dir)
     output = Path(output).expanduser().resolve()
     if output in prepared.input_paths:
-        raise pipeline.RenderError("output path must not overwrite an input media or font file")
+        raise pipeline.RenderError("output path must not overwrite an input media, font or LUT file")
+    if prepared.luts:
+        try:
+            require_lut3d(ffmpeg)
+        except FFmpegCapabilityError as exc:
+            raise pipeline.RenderError(str(exc)) from exc
     caption_filter = pipeline.preflight_captions(prepared.edl, ffmpeg)
-    validated = validate_edl(prepared.edl, base_dir, lambda path: pipeline.probe_media(path, ffprobe),
+    validated = validate_edl(prepared.edl, base_dir, lambda path: pipeline.probe_media(path, ffprobe, include_color=True),
                              resolved_assets=prepared.assets)
-    validated = replace(validated, warnings=prepared.warnings + validated.warnings)
+    from .color import validate_source_colors, write_luts
+    validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated))
     c = prepared.composition
 
     def render(directory: Path):
@@ -188,12 +205,23 @@ def render_composition(
 
         # Internal filenames must never overwrite inputs, including in --keep-work.
         reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "filter graph.txt", "rendered.mp4")}
-        if reserved & prepared.input_paths or any(directory / "fonts" in p.parents for p in prepared.input_paths):
+        owned_dirs = [directory / "fonts"]
+        if prepared.luts:
+            reserved.add(directory / "color-transforms.json")
+            owned_dirs.append(directory / "luts")
+        if reserved & prepared.input_paths or any(d in p.parents for p in prepared.input_paths for d in owned_dirs):
             raise pipeline.RenderError("render work directory would overwrite an input; choose a separate --keep-work directory")
+        clip_luts = ()
+        if prepared.luts:
+            try:
+                clip_luts = write_luts(c, prepared.luts, prepared.lut_paths, directory)
+            except OSError as exc:
+                raise pipeline.RenderError(f"could not prepare composition LUTs: {exc}") from exc
         return pipeline._render_in_directory(
             validated, output, directory, ffmpeg, caption_filter,
             caption_writer=(lambda d: generate_positioned_ass(c, prepared.fonts, d, ffmpeg, caption_filter)) if c.captions else None,
             fps_rate=f"{c.fps.numerator}/{c.fps.denominator}",
+            clip_luts=clip_luts,
         )
 
     if work_dir is not None:

@@ -20,20 +20,84 @@ The existing MCP `render_edl` tool accepts both versions and returns the same
 job ID, paths and status metadata. Poll `get_render` for completion and warnings.
 No media bytes travel through the tool.
 
-V2 resolves media by `asset_id`; `AssetRef.path` and font paths are relative to
+V2 resolves media by `asset_id`; `AssetRef.path`, font paths and LUT paths are relative to
 the JSON file's directory. Every listed asset must exist, including unused
-assets. Supplied media and font SHA-256 hashes are checked before subprocesses,
+assets. Supplied media, font and LUT SHA-256 hashes are checked before subprocesses,
 work files or MCP job creation. A null legacy media hash is allowed with an
 unverified-identity warning. Queued MCP jobs recheck hashes when they run.
 
 The supported media graph is hard cuts, source audio, voiceover/music placement,
 gain and music ducking under voiceover. Rational FPS is retained in FFmpeg's
-filters and output rate. LUTs, speed maps, non-cut transitions, HyperFrames,
+filters and output rate. Per-clip SDR `.cube` LUTs are supported. Speed maps, non-cut transitions, HyperFrames,
 other audio roles, audio source trims, non-voiceover ducking scopes and loudness
 targets produce one `not yet supported in this renderer: ...` list. V2
 voiceover synthesis and OTIO export are also rejected; place an existing
 voiceover asset in the composition. Evidence, brief and warning metadata are
 preserved without inventing render effects.
+
+R13 renders each clip's `ColorTransform` before output-size scaling, padding,
+concat and captions. The order is:
+
+1. Verify the LUT's SHA-256, then validate the verified text with
+   `myzing.color.cube`. Check the selected FFmpeg for `lut3d` and probe source
+   color metadata before creating output directories or work files.
+2. Trim the source and set its timestamps/FPS. Convert footage to RGB using
+   the Rec.709 matrix, apply
+   [FFmpeg `lut3d` with `interp=trilinear`](https://ffmpeg.org/ffmpeg-filters.html#lut3d),
+   and convert back to limited-range Rec.709 `yuv420p`.
+3. Scale/pad each clip to the output size, then concatenate the clips.
+4. Composite captions on the graded cut. Encode the result with the existing
+   H.264/AAC settings. Caption fill, highlights, outlines and plates never pass
+   through the footage LUT.
+
+`strength` blends the cube with identity in display RGB code values. The
+renderer bakes that blend into a work-folder cube; trilinear interpolation
+then gives `rgb + strength * (apply_cube(rgb) - rgb)`. A zero strength still
+requires a valid hash, cube and input color space, but bypasses RGB conversion
+and grading, preserving the ungraded graph and decoded pixels. Recipe controls
+in `baked_transform` describe the original cube; they are never applied again.
+
+The accepted input assumption is the color package's `COLOR_SPACE` string,
+or the short names `SDR Rec.709/sRGB`, `SDR Rec.709 display-referred RGB`,
+`SDR Rec.709`, `Rec.709`, `bt709` and `sRGB` (case-insensitive). Other declared
+spaces fail. Source transfer, primaries, matrix and color/profile tags are
+checked for every v2 video clip, including clips without a LUT. HDR, LOG and
+non-Rec.709 metadata fail with a request to convert the source using an explicit
+camera/display transform first. A creative LUT does not declare that conversion.
+Missing metadata produces an SDR-assumption warning; untagged LOG cannot be
+identified reliably. The color package's sRGB display-value approximation is
+retained; this renderer does not perform scene-linear grading or tone mapping.
+
+For pass 10b, HyperFrames must receive the same graded, scaled, concatenated
+footage from step 3. Render its transparent caption overlays separately and
+composite them at step 4. Do not grade the overlay or the footage again in the
+sidecar. Timing and dimensions come from the same composition. This is the
+integration boundary; the HyperFrames backend remains unwired in R13.
+
+`--keep-work` retains `luts/clip-NNNN.cube` and `color-transforms.json` (version 1)
+with clip IDs, original paths/hashes, strengths, color-space assumptions,
+stage, interpolation, applied flags and baked cube hashes. The files use
+controlled relative names so Windows drives, spaces, apostrophes and filter
+punctuation in source paths never enter the filter expression. Input LUTs stay
+unchanged. LUT validation uses the existing optional `myzing[color]` extra;
+ungraded rendering does not import NumPy.
+
+The generated-media R13 tests require median Delta E 2000 <= 2 against
+`apply_cube` on evenly spaced native-resolution samples. Identity allows mean
+RGB error <= 2 and 99th-percentile error <= 8 code values (8-bit), including
+H.264 and YUV/RGB conversion. Half strength is checked against both the expected
+blend and the midpoint of rendered endpoints. Caption interior colors allow
+two code values of median difference; antialias and chroma boundaries are
+excluded. Clipping is checked against the expected eight-code endpoint envelope.
+These render checks are separate from the plan's broader color-selection
+release gate (median Delta E 2000 <= 3 plus review of unrelated real scenes).
+
+Frozen FFmpeg 6/9 command and graph fixtures cover v1 and v2 without LUTs.
+Generate a before/after pair and measured parity report locally with:
+
+```text
+python -m tools.eval.render_lut_fixture --out zing-workspace/r13-lut-sample
+```
 
 ASS captions need libass. The renderer preflights the selected FFmpeg through
 `myzing.ffmpeg_capabilities` before probing media or writing work files.
