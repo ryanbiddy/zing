@@ -20,6 +20,7 @@ from myzing.timing import prepare_words, transform_word
 
 from .models import shortage
 from .selection import EPS, first_caption, shot_lengths, tokens
+from .continuity import clauses, score
 
 REPORT_PREFIX = "P17 planning evidence: "
 STRATEGIES = {
@@ -83,12 +84,13 @@ def captions_for(sequence, studies, style, recipe, font, brief):
     lookup = {s.asset_id: s for s in studies}
     groups, cursor = [], 0.0
     for c in sequence:
+        source_clauses = clauses(lookup[c.asset_id].words)
+        clause_ends = {s.end for s in source_clauses}
         window = []
         for word in lookup[c.asset_id].words:
             if not (word.start >= c.start - EPS and word.end <= c.end + EPS):
                 continue
-            if window and (sum(len(w.text.split()) for w in window) >= style.words_visible
-                           or word.start - window[-1].end > .6):
+            if window and window[-1].end in clause_ends:
                 groups.append((window, cursor - c.start))
                 window = []
             window.append(word)
@@ -200,7 +202,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                         "Caption onset follows complete source words; words are not retimed to fake a match."),
         "words_visible": metric(style.words_visible if style.basis["caption_events"] else None,
                                 median([len(c.text.split()) for c in captions]) if captions else None, 0,
-                                "Speech gaps and clip endings leave shorter caption groups."),
+                                "Complete clauses override reference caption-group width; typography may differ."),
         "all_caps_rate": metric(style.all_caps_rate if style.basis["caption_events"] else None,
                                 sum(c.text.isupper() for c in captions) / len(captions) if captions else None,
                                 .5 / len(captions) if captions else 0,
@@ -212,6 +214,11 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
              "30 fps CFR and full-HD aspect dimensions are delivery defaults; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
+    continuity = score(sequence, studies, allow_reordering="[allow source reordering]" in brief.purpose.casefold())
+    if continuity["status"] != "pass":
+        notes.append("Continuity flagged: no better complete-clause trio found within the bounded search; review dangling source speech.")
+    if numbers["median_shot_seconds"]["status"] == "deviation":
+        notes.append("Pacing unmet: the selected complete-clause draft misses the reference envelope, including internal source cuts. The bounded search did not select a matching alternative.")
     if font is None:
         notes.append(font_report["reason"])
     for key in used:
@@ -228,12 +235,14 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             notes.append(f"Exact spelling {spelling!r} was not found verbatim; review ASR names before rendering.")
     report = {
         "version": 1, "draft": label, "seed": seed, "strategy": STRATEGIES[label],
+        "continuity": continuity,
         "opening": {"asset_id": sequence[0].asset_id, "src_in": sequence[0].start,
                     "src_out": sequence[0].end, "words": sequence[0].text,
                     "raw_keeper_support": sequence[0].keeper, "keyframe_available": sequence[0].keyframe},
         "match": numbers, "honored": [key for key, value in numbers.items() if value["status"] == "honored"],
         "deviations": [{"metric": key, **value} for key, value in numbers.items() if value["status"] == "deviation"],
         "pacing_evidence": {"shot_durations_seconds": durations,
+                            "status": "unmet" if numbers["median_shot_seconds"]["status"] == "deviation" else numbers["median_shot_seconds"]["status"],
                             "cut_positions_seconds": [sum(durations[:i]) for i in range(1, len(durations))],
                             "basis": "Measured internal source cuts plus discontinuous source selections; no artificial adjacent split cuts."},
         "font": font_report, "recipe_unknowns": [u.to_dict() for u in recipe.unknowns],
@@ -245,9 +254,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                     "src_out": c.src_out, "output_start": c.timeline_start,
                                     "output_end": c.timeline_end} for c in clips],
         "constraints": {"must_keep_word_safe": required, "forbidden_word_safe": forbidden,
-                        "speech_cuts": "validated word endpoints, or measured non-speech boundaries",
+                        "speech_cuts": "whole rule-derived clauses, or measured non-speech boundaries",
                         "repeated_source_ranges": False},
-        "scope": "Planned values only. No render, output analysis, semantic quality score or original-style recovery.",
+        "scope": "Planned values and structural continuity rules only. No semantic quality certification or original-style recovery.",
         "reference_match": brief.reference_match, "warnings": list(dict.fromkeys(notes)),
     }
     return plan, report

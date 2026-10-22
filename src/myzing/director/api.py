@@ -65,7 +65,7 @@ def _publish(out, payloads, report, protected):
         _atomic(previous, _json(report))
 
 
-def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0) -> dict:
+def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True) -> dict:
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
     root = Path(project).expanduser().resolve()
@@ -74,9 +74,12 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
     manifest = load_project(root)
     brief = load_brief(root / "brief.json")
     style_recipe = StyleRecipe.from_json(recipe_path.read_text(encoding="utf-8-sig"))
-    clips, inventory_notes = inventory(root)
+    if type(repair_asr) is not bool:
+        raise ValueError("repair_asr must be a boolean")
+    clips, inventory_notes = inventory(root, repair_asr=repair_asr)
     excluded = [f"Excluded {Path(c.path).name} ({c.asset_id}, {c.status}): {warning}"
                 for c in clips if c.status != "ready" for warning in c.warnings]
+    excluded += [w for c in clips for w in c.warnings if w.startswith(("ASR repair", "ASR quarantine"))]
     report = {"version": 1, "producer": PRODUCER, "seed": seed, "status": "shortage",
               "brief": brief.to_dict(), "inventory": [c.to_dict() for c in clips],
               "inventory_warnings": inventory_notes, "plans": {}, "shortages": []}
@@ -92,7 +95,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                      "Lengthen the brief or shorten its must-keep spans.")
         style = envelope(style_recipe)
         pool, required = candidates(clips, keep, forbidden, style, brief.target_length_seconds)
-        selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed)
+        selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed,
+                          allow_reordering="[allow source reordering]" in brief.purpose.casefold())
         report["envelope"] = style.to_dict()
         report["search"] = {"candidate_count": len(pool), "method": "deterministic bounded beam; 96 states per expansion",
                             "distinctness": "Different opening content with <50% overlap, or >=max(1s, reference median, 20% target) changed footage.",
@@ -134,6 +138,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                         if report["plans"][label]["v1"]["representable"]},
             "summary": {"drafts": len(report["plans"]), "shortages": report["shortages"],
                         "warnings": [*inventory_notes, *excluded],
+                        "source_asr": [{"asset_id": c.asset_id, "file": Path(c.path).name, **c.asr_repair}
+                                       for c in clips if c.asr_repair.get("repairs") or c.asr_repair.get("quarantined")],
                         "clips_needing_study": [c.asset_id for c in clips if c.status == "needs_study"],
                         "clips_needing_scan": [c.asset_id for c in clips if c.status == "needs_scan"],
                         "deviations": {label: p["deviations"] for label, p in report["plans"].items()}}}

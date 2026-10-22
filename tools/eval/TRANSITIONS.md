@@ -53,7 +53,7 @@ uv run --frozen pytest -q tests/test_transition_v6.py -m real_media
 
 `real_media` is registered separately from the mandatory FFmpeg marker so a
 machine without these local assets reports a named skip. Corrupt media fails.
-The mandatory CI FFmpeg baseline remains **211** tests; no new mandatory
+The mandatory CI FFmpeg baseline remains **212** tests; no new mandatory
 FFmpeg test was added.
 
 ## Synthetic regression gate

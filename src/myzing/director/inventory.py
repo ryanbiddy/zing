@@ -10,9 +10,10 @@ from myzing.audio.models import AudioMap
 from myzing.contracts import json_value
 from myzing.project.api import hash_file, load_project, project_status, resolve_path
 from myzing.schemas import Breakdown
-from myzing.timing import interval_problem, prepare_words
+from myzing.timing import interval_problem
 
 from .models import ClipStudy
+from .asr_repair import repair_words
 
 
 def _intervals(items, duration, label):
@@ -30,7 +31,7 @@ def _study_files(project: Path):
     return sorted({p.resolve() for root in roots for p in root.glob("*/breakdown.json")}, key=str)
 
 
-def inventory(project: str | Path) -> tuple[list[ClipStudy], list[str]]:
+def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[ClipStudy], list[str]]:
     """No model, decoder, or network. Studies may live in the project or ZING_HOME.
 
     Path matches use the study's original source URL/path, or its resolved media
@@ -43,7 +44,10 @@ def inventory(project: str | Path) -> tuple[list[ClipStudy], list[str]]:
     studies, notes = [], []
     for path in _study_files(root):
         try:
-            data = json_value(json.loads(path.read_text(encoding="utf-8-sig")))
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            # Malformed word times belong to the derived repair boundary;
+            # all other study fields remain strict JSON values.
+            json_value({**data, "words": []})
             b = Breakdown.from_dict(data)
             if type(b.schema_version) is not int or b.schema_version != 1:
                 raise ValueError("study schema_version must be 1")
@@ -103,8 +107,14 @@ def inventory(project: str | Path) -> tuple[list[ClipStudy], list[str]]:
             if abs(b.meta.duration - item.duration) > .05:
                 raise ValueError("study duration differs from project probe; rescan and restudy")
             item.duration = min(item.duration, b.meta.duration)
-            item.words, _ = prepare_words(b.words, item.duration, repair=False)
-            if asset.probe.has_audio and not item.words and not (
+            item.words, item.asr_repair = repair_words(b.words, item.duration, enabled=repair_asr)
+            if item.asr_repair["repairs"]:
+                item.warnings.append(f"ASR repair {source.name}: {len(item.asr_repair['repairs'])} word timings "
+                                     "interpolated within 2s windows; originals and per-word repairs retained in inventory.asr_repair.")
+            if item.asr_repair["quarantined"]:
+                item.warnings.append(f"ASR quarantine {source.name}: {len(item.asr_repair['quarantined'])} spans "
+                                     "excluded; other measured spans remain available. See inventory.asr_repair.")
+            if asset.probe.has_audio and not item.words and not item.asr_repair["quarantined"] and not (
                 b.provenance.get("vad") and b.audio.speech_ratio == 0
             ):
                 raise ValueError("audio has no validated words or measured absence of speech")
@@ -136,8 +146,20 @@ def inventory(project: str | Path) -> tuple[list[ClipStudy], list[str]]:
                 if (str(audio_source.resolve()) not in paths | {str((path.parent / b.meta.media_path).resolve())}
                         or abs(audio.duration_seconds - item.duration) > .05 or audio.truncated):
                     raise ValueError("audio-map source/duration does not match this complete study")
-                item.dead_air += _intervals([s.to_dict() for s in audio.segments if s.label == "silence"],
-                                           item.duration, "audio-map silence")
+                silence = []
+                for segment in audio.segments:
+                    if segment.label != "silence" or segment.start >= item.duration:
+                        continue
+                    row = segment.to_dict()
+                    if segment.end > item.duration:
+                        # AudioMap duration was checked within 50 ms above.
+                        # AAC's decoded tail may exceed the video clock; keep
+                        # that raw evidence and clip only the derived silence.
+                        row.update(end=item.duration, original={"start": segment.start, "end": segment.end},
+                                   method="clip_audio_tail_to_video")
+                        item.warnings.append("Audio-map silence clipped to the video duration; decoded audio tail and original interval retained in provenance.")
+                    silence.append(row)
+                item.dead_air += _intervals(silence, item.duration, "audio-map silence")
             if "source_sha256" not in b.provenance:
                 item.warnings.append("Study matched by exact source path and duration; historical source checksum unreported.")
             item.warnings.extend(b.warnings)

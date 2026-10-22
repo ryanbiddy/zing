@@ -55,7 +55,7 @@ def execute(options, *, progress=None, cancel=None, locked=False):
                 interrupted(root, status)
                 stream.write(f"{status}: {exc}\n")
                 result = {"version": 1, "project": str(root), "status": status, "ready": 0, "requested": 3,
-                          "summary": "0 of 3 ready (run interrupted; resume to validate completed drafts)",
+                          "summary": "0 of 3 render complete (run interrupted; resume to validate completed drafts)",
                           "drafts": {}, "shortages": [], "warnings": [],
                           "failures": [{"step": "worker", "error": str(exc), "log": str(log)}]}
                 write(root / "comparison.json", result)

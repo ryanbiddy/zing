@@ -26,9 +26,13 @@ class TimingProvenance:
     original: dict[str, float]
     adjustments: list[dict[str, Any]] = field(default_factory=list)
     version: int = 1
+    repaired: bool = False
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        result = asdict(self)
+        if not self.repaired:
+            result.pop("repaired")
+        return result
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "TimingProvenance":

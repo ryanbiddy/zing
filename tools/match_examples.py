@@ -63,7 +63,7 @@ def fixture_measurements():
         assert options.get("local_files_only") is True
         calls.append(str(path))
         words = [Word(text, shot * 2 + .25 + .5 * n, shot * 2 + .5 + .5 * n, .95)
-                 for shot in range(int(duration // 2)) for n, text in enumerate(("Make", "this", "style", "work"))]
+                 for shot in range(int(duration // 2)) for n, text in enumerate(("Make", "this", "style", "work."))]
         return TranscribeResult(words, {"fixture": "Authored words over synthetic audio; no ASR accuracy evidence."},
                                 ["Fixture ASR: authored words, not measured speech."])
 

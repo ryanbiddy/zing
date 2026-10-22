@@ -22,6 +22,7 @@ class ClipStudy(Record):
     keepers: list[dict[str, Any]] = field(default_factory=list)
     dead_air: list[dict[str, Any]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    asr_repair: dict[str, Any] = field(default_factory=dict)
     version: int = 1
 
 

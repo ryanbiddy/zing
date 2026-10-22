@@ -21,6 +21,7 @@ def run(argv: list[str]) -> int:
     drafts.add_argument("project", type=Path)
     drafts.add_argument("--recipe", type=Path, required=True)
     drafts.add_argument("--seed", type=int, default=0)
+    drafts.add_argument("--no-repair-asr", dest="repair_asr", action="store_false")
     drafts.add_argument("--out", type=Path, required=True,
                         help="output folder; <project>/drafts lets 'zing plan choose' find the plans")
     choose = sub.add_parser("choose", help="save an observed draft choice; never publish")
@@ -36,7 +37,7 @@ def run(argv: list[str]) -> int:
         from myzing.director.api import plan_drafts
 
         try:
-            result = plan_drafts(args.project, args.recipe, args.out, seed=args.seed)
+            result = plan_drafts(args.project, args.recipe, args.out, seed=args.seed, repair_asr=args.repair_asr)
         except (ValueError, OSError) as exc:
             print(f"zing plan: {exc}", file=sys.stderr)
             return 1
