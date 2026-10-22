@@ -41,6 +41,7 @@ PROBLEM = re.compile(
 # A warning is honest when it names a FIX, a CONSEQUENCE, or is itself the
 # consequence. Add new entries deliberately; that is the point of the file.
 REGISTERED: dict[str, str] = {
+    "face evidence unavailable at": "names the failed sample; face overlap remains unknown and other text evidence is required",
     # Keys are fragments as they appear in ONE source literal. Warnings
     # split across line-continuations are keyed on their first fragment —
     # a lesson from building this: the registry must describe the code as

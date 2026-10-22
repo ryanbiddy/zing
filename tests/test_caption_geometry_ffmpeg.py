@@ -85,7 +85,7 @@ def primary(result):
     (360, 640, 32, "Anton-Regular.ttf", "30", "420"),
     (640, 360, 46, "IBMPlexSans.ttf", "80", "100"),
 ])
-def test_static_center_height_and_iou(tmp_path, reader, width, height, size, font, x, y):
+def test_static_center_height_and_iou(tmp_path, reader, record_property, width, height, size, font, x, y):
     expected = truth_box(tmp_path, width=width, height=height, size=size, font=font, x=x, y=y)
     path = render(tmp_path / "static.mp4", [draw(size=size, font=font, x=x, y=y,
                   enable="between(t,0.25,1.15)")], width=width, height=height)
@@ -93,8 +93,11 @@ def test_static_center_height_and_iou(tmp_path, reader, width, height, size, fon
     track = primary(result)
     for axis in (0, 1):
         errors = [abs(cg._center(s["box"])[axis] - cg._center(expected)[axis]) for s in track.samples]
+        record_property(f"median_center_error_{axis}", median(errors))
         assert median(errors) <= .02
     assert track.median_text_height is not None
+    record_property("height_relative_error", abs(track.median_text_height / (expected[3] - expected[1]) - 1))
+    record_property("median_ink_iou", median(cg._iou(s["box"], expected) for s in track.samples))
     assert abs(track.median_text_height / (expected[3] - expected[1]) - 1) <= .10
     assert median(cg._iou(s["box"], expected) for s in track.samples) >= .8
     assert track.motion == "static"
@@ -103,7 +106,7 @@ def test_static_center_height_and_iou(tmp_path, reader, width, height, size, fon
                for f in result.frames for d in f.detections)
 
 
-def test_moving_fitted_path_tracks_drawn_centers(tmp_path, reader):
+def test_moving_fitted_path_tracks_drawn_centers(tmp_path, reader, record_property):
     expected = truth_box(tmp_path, text="MOVE WITH ME", x="50", y="180")
     path = render(tmp_path / "moving.mp4", [draw("MOVE WITH ME", x="50+100*t", y="180+15*t",
                   enable="between(t,0.125,1.3)")])
@@ -112,6 +115,7 @@ def test_moving_fitted_path_tracks_drawn_centers(tmp_path, reader):
     assert track.motion == "moving"
     assert len(track.samples) >= 7
     measured_times = {s["t"] for s in track.samples}
+    path_errors = []
     for run in track.path:
         assert run["keyframes"]
         for key in run["keyframes"]:
@@ -119,10 +123,12 @@ def test_moving_fitted_path_tracks_drawn_centers(tmp_path, reader):
             expected_center = [cg._center(expected)[0] + 100 * key["t"] / 640,
                                cg._center(expected)[1] + 15 * key["t"] / 360]
             assert max(abs(a - b) for a, b in zip(key["center"], expected_center)) <= .02
+            path_errors.append(max(abs(a - b) for a, b in zip(key["center"], expected_center)))
+    record_property("max_path_error", max(path_errors))
     assert result.coverage["sampled_fps"] == 8
 
 
-def test_fill_outline_colors_and_width(tmp_path, reader):
+def test_fill_outline_colors_and_width(tmp_path, reader, record_property):
     import cv2
     import numpy as np
     path = render(tmp_path / "colors.mp4", [draw(enable="between(t,0.25,1.15)")])
@@ -134,9 +140,11 @@ def test_fill_outline_colors_and_width(tmp_path, reader):
         lab = cv2.cvtColor(np.array([[rgb]], dtype=np.float32) / 255, cv2.COLOR_RGB2LAB)[0, 0]
         errors = [float(np.linalg.norm(np.array(e[role]["lab"]) - lab)) for e in estimates if e[role]]
         assert len(errors) >= len(estimates) * .8
+        record_property(f"median_{role}_delta_e76", median(errors))
         assert median(errors) <= 10
         assert all(e[role]["confidence"] > .4 for e in estimates if e[role])
     assert median(e["stroke_width_px"] for e in estimates if e["stroke_width_px"] is not None) == pytest.approx(3, abs=1.5)
+    record_property("median_stroke_width_px", median(e["stroke_width_px"] for e in estimates if e["stroke_width_px"] is not None))
 
 
 def test_corner_watermark_is_overlay(tmp_path, reader):

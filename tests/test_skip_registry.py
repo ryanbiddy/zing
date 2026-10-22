@@ -45,6 +45,11 @@ REGISTERED_SKIPS = {
         "raises an explicit executable-not-found error. The 204 mandatory FFmpeg "
         "tests remain in the no-skip CI gate."
     ),
+    "set ZING_CG2_REAL_ROOT": (
+        "the opt-in caption negative reads pinned real media from an explicitly supplied directory. "
+        "PRODUCT SURFACE: docs/CAPTION-GEOMETRY.md describes the offline real replay; "
+        "doctor and caption_models report missing local OCR assets. No product cap is hidden."
+    ),
     "caption geometry OCR models unavailable": (
         "real caption geometry acceptance requires pinned local OCR assets. PRODUCT "
         "SURFACE: doctor and study name the explicit caption_models --fetch command. "

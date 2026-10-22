@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "recorded_before_implementation": true,
+  "calibration": ["korky", "tos-dialogue", "tos-lab", "tos-memory", "tos-credits"],
+  "held_out": ["duck-titles", "duck-classroom", "duck-street", "nasa-opening", "nasa-montage"],
+  "unit": "clip; source works also kept together",
+  "method": "Korky and Tears of Steel for calibration; Duck and Cover and NASA for held-out evaluation. All labels for a clip stay together. Only declared caption frames are scored; unlabeled clips are not negatives.",
+  "limitations": "The V1 report and task already disclosed Duck title failures. Held-out means no CG2 threshold tuning on these clips, not an unseen benchmark. Five primary labeled frames, eleven lines and one separately reported post-hoc Korky negative cannot establish broad accuracy. No numeric fill-color ground truth exists in V1 labels."
+}

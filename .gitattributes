@@ -28,3 +28,9 @@ tools/eval/real/*.py text eol=lf
 # T6 decision freeze records include the detector source file hashes.
 src/myzing/study/transitions.py text eol=lf
 src/myzing/study/transition_models.py text eol=lf
+
+# CG2's pre-held-out freeze records these implementation bytes.
+src/myzing/study/caption_geometry.py text eol=lf
+src/myzing/study/caption_pixels.py text eol=lf
+src/myzing/study/caption_regions.py text eol=lf
+src/myzing/study/font_match.py text eol=lf

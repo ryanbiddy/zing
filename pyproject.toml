@@ -46,7 +46,10 @@ myzing = ["_data/prompts/*.md", "_data/presets/*.json", "_data/docs/*.md", "_dat
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["real_media: opt-in local pinned real-video regression; no downloads (ZING_REAL_TRANSITIONS=1)"]
+markers = [
+    "real_media: opt-in local pinned real-video regression; no downloads (ZING_REAL_TRANSITIONS=1)",
+    "real_caption: opt-in pinned real-video caption check (ZING_CG2_REAL_ROOT)",
+]
 
 [tool.uv]
 # RapidOCR uses cv2 but requests the GUI wheel. scenedetect-headless/layout

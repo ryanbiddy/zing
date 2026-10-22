@@ -29,6 +29,48 @@ def test_undefined_metrics_are_not_perfect():
     assert scoring.pr(0, 0, 2)["recall"] == 0
 
 
+def test_caption_scorer_respects_v2_rejections_and_corroborated_acceptance():
+    box = [.1, .6, .5, .7]
+    labels = {"c": {"caption_frames": [{"t": 1, "lines": [{"text": "hello", "box": box}]}]}}
+    detections = [
+        {"text": "hello", "box": box, "confidence": .72, "appearance": {"ink_box": None},
+         "validation": {"accepted": True}},
+        {"text": "face", "box": [.01, .01, .99, .99], "confidence": .99,
+         "validation": {"accepted": False}},
+    ]
+    actual = {"c": {"geometry": {"version": 2, "frames": [{"t": 1, "detections": detections}]}}}
+    thresholds = {"caption_sample_tolerance_seconds": .01, "caption_iou": .5}
+    result = scoring.captions_score({}, labels, actual, thresholds)
+    assert (result["tp"], result["fp"], result["fn"]) == (1, 0, 0)
+    assert result["median_ink_iou"] == 1
+    actual["c"]["geometry"]["version"] = 1
+    result = scoring.captions_score({}, labels, actual, thresholds)
+    assert (result["tp"], result["fp"], result["fn"]) == (0, 1, 1)
+
+
+def test_cg2_split_is_disjoint_and_keeps_source_works_together():
+    import json
+    root = Path(__file__).resolve().parents[1] / "tools/eval/real"
+    split = json.loads((root / "cg2-split.json").read_text())
+    manifest = json.loads((root / "manifest.json").read_text())
+    a, b = set(split["calibration"]), set(split["held_out"])
+    assert not a & b
+    assert a | b == {c["id"] for c in manifest["clips"]}
+    for prefix in ("tos-", "duck-", "nasa-"):
+        group = {c["id"] for c in manifest["clips"] if c["id"].startswith(prefix)}
+        assert group <= a or group <= b
+
+
+def test_cg2_missing_frame_counts_as_missed_and_color_without_label_is_unknown(monkeypatch):
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1]))
+    from tools.eval.real.cg2_eval import score_frames, summarize
+    from myzing.study.caption_geometry import CaptionGeometry
+    label = {"t": 1, "lines": [{"text": "hello", "box": [.1, .6, .5, .7]}]}
+    result = summarize(score_frames(CaptionGeometry(2), [label], "clip"))
+    assert result["fn"] == 1 and result["recall"] == 0
+    assert result["median_fill_delta_e76"] is None and result["fill_labeled_matches"] == 0
+
+
 def test_matching_does_not_count_duplicate_predictions_twice():
     pairs = scoring.assign([1], [1, 1], lambda a, b: 1 if a == b else -1)
     assert len(pairs) == 1
