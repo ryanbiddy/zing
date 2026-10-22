@@ -48,6 +48,21 @@ list — update both together):
 9. **layout (optional):** pinned OpenCV runtime and verified local YuNet model; fetch explicitly with `zing layout fetch-model`.
 10. **color (optional):** NumPy for local SDR look matching and LUT application; install with `python -m pip install "myzing[color]"`.
 11. **hyperframes (optional):** PH sidecar prerequisites: Node 24, the pinned npm install, a configured local browser, and FFmpeg. See [HyperFrames setup](HYPERFRAMES-SIDECAR.md); this adapter is not routed through `zing render`.
+12. **libass (optional):** FFmpeg caption burn-in needs the `ass` or `subtitles` filter. Captioned renders check before media probing, file creation, or voiceover synthesis; the filter probe is cached per executable for the process lifetime. Restart Zing after replacing a binary at the same path. The HyperFrames caption sidecar does not need libass.
+
+On macOS, install `brew install ffmpeg-full`, then select its binaries:
+
+```bash
+export PATH="$(brew --prefix ffmpeg-full)/bin:$PATH"
+ffmpeg -hide_banner -filters
+```
+
+Homebrew's regular `ffmpeg` 9.0.2 bottle lacks libass. The
+[ffmpeg-full formula](https://formulae.brew.sh/formula/ffmpeg-full) enables it,
+provides Apple Silicon bottles, and is keg-only, so the PATH step is required.
+Alternatively, `sudo port install ffmpeg` installs
+[MacPorts FFmpeg](https://ports.macports.org/port/ffmpeg/details/) with libass;
+put `/opt/local/bin` first on PATH. Both options were checked on October 21, 2026.
 
 ---
 

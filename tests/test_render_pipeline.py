@@ -7,9 +7,10 @@ from pathlib import Path
 import pytest
 
 from myzing.render import pipeline
+from myzing.ffmpeg_capabilities import FFmpegCapabilityError
 from myzing.render.pipeline import RenderError, probe_media, render_edl
 from myzing.render.validation import MediaInfo
-from myzing.schemas import Clip, EDL
+from myzing.schemas import CaptionSpec, Clip, EDL
 
 
 def test_renderer_refuses_to_overwrite_input_media(
@@ -40,6 +41,64 @@ def test_probe_wraps_subprocess_timeout(tmp_path: Path, monkeypatch) -> None:
 
     with pytest.raises(RenderError, match="could not run ffprobe"):
         probe_media(source)
+
+
+def test_caption_preflight_fails_before_media_or_files(tmp_path, monkeypatch):
+    output = tmp_path / "new-output" / "video.mp4"
+    work = tmp_path / "new-work"
+    edl = EDL(
+        clips=[Clip("missing.mp4", 0.0, 1.0, 0.0)],
+        captions=[CaptionSpec("hello", 0.0, 1.0, word_timed=False)],
+    )
+    selected = []
+
+    def missing(ffmpeg):
+        selected.append(ffmpeg)
+        raise FFmpegCapabilityError("this FFmpeg build has no libass support")
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("caption preflight must precede media probes and ASS authoring")
+
+    monkeypatch.setattr(pipeline, "caption_filter", missing)
+    monkeypatch.setattr(pipeline, "probe_media", unexpected)
+    monkeypatch.setattr(pipeline, "generate_ass", unexpected)
+    with pytest.raises(RenderError, match="no libass"):
+        render_edl(edl, output, work_dir=work, ffmpeg="chosen-ffmpeg")
+    assert selected == ["chosen-ffmpeg"]
+    assert not output.parent.exists()
+    assert not work.exists()
+
+
+def test_uncaptioned_render_does_not_probe_caption_filters(tmp_path, monkeypatch):
+    def unexpected(*args, **kwargs):
+        pytest.fail("uncaptioned renders do not need libass")
+
+    monkeypatch.setattr(pipeline, "caption_filter", unexpected)
+    edl = EDL(clips=[Clip("missing.mp4", 0.0, 1.0, 0.0)])
+    assert pipeline.preflight_captions(edl, "ffmpeg") == "ass"
+
+
+def test_subtitles_fallback_reaches_executed_graph(tmp_path, monkeypatch):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"source")
+    edl = EDL(
+        clips=[Clip(str(source), 0.0, 1.0, 0.0)],
+        captions=[CaptionSpec("hello", 0.0, 1.0, word_timed=False)],
+    )
+    monkeypatch.setattr(pipeline, "caption_filter", lambda _: "subtitles")
+    monkeypatch.setattr(pipeline, "probe_media", lambda *a: MediaInfo(1.0, True, False))
+    monkeypatch.setattr(pipeline.shutil, "which", lambda name: name)
+    monkeypatch.setattr(pipeline, "generate_ass", lambda *a: None)
+    monkeypatch.setattr(pipeline, "filter_script_args", lambda exe, path: ["-/filter_complex", str(path)])
+
+    def run(command, **kwargs):
+        Path(command[-1]).write_bytes(b"rendered")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(pipeline.subprocess, "run", run)
+    result = render_edl(edl, tmp_path / "out.mp4", work_dir=tmp_path / "work")
+    assert "[video_concat]subtitles=filename='captions.ass':" in result.filtergraph
+    assert result.output_path.read_bytes() == b"rendered"
 
 
 def test_directory_creation_translates_os_error_once(

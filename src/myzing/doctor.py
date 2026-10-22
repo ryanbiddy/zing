@@ -36,6 +36,10 @@ from datetime import date
 from importlib import metadata
 from pathlib import Path
 
+from myzing.ffmpeg_capabilities import (
+    FFmpegCapabilityError, LIBASS_REMEDY, caption_filter,
+)
+
 REQUIRED = "required"
 RECOMMENDED = "recommended"
 OPTIONAL = "optional"
@@ -151,6 +155,26 @@ def check_ffmpeg() -> Check:
         ok=False,
         detail=f"{missing} not found on PATH — Zing cannot measure anything without it",
         fix=fix,
+    )
+
+
+def check_libass() -> Check:
+    """Caption burn-in is optional; measurement and HyperFrames work without it."""
+    ffmpeg = _which("ffmpeg")
+    try:
+        if ffmpeg is None:
+            raise FFmpegCapabilityError("ffmpeg not found on PATH; captions need libass")
+        selected_filter = caption_filter(ffmpeg)
+    except FFmpegCapabilityError as exc:
+        return Check(
+            name="libass", tier=OPTIONAL, ok=False,
+            detail=str(exc), fix=LIBASS_REMEDY,
+            degraded_mode="FFmpeg captions need libass; HyperFrames captions do not",
+        )
+    return Check(
+        name="libass", tier=OPTIONAL, ok=True,
+        detail=f"FFmpeg captions have libass ({selected_filter} filter)",
+        data={"path": ffmpeg, "filter": selected_filter},
     )
 
 
@@ -792,6 +816,7 @@ def check_audio() -> Check:
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
+        check_libass(),
         check_ytdlp(today),
         check_scenedetect(),
         check_whisper(),
