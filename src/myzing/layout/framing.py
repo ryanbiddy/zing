@@ -590,11 +590,11 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 caption.text = "\n".join(textwrap.wrap(" ".join(original_text.split()), width=columns,
                                                      break_long_words=False, break_on_hyphens=False))
                 lines = caption.text.splitlines()
-                ink_width, ink_height = extent()
+                ink_width, ink_height = extent(lines, caption.style)
                 shrink = max(1, ink_width / (trial_width * plan.width), ink_height / (trial_height * plan.height))
                 caption.style = replace(caption.style, size=max(1, caption.style.size / shrink),
                                         outline_width=caption.style.outline_width / shrink)
-                ink_width, ink_height = extent()
+                ink_width, ink_height = extent(lines, caption.style)
                 trial = replace(event, width=min(trial_width, ink_width / plan.width),
                                 height=min(trial_height, ink_height / plan.height))
                 alternative = choose_layout([trial], obstacles, masks, allow_motion=False).events[0]
