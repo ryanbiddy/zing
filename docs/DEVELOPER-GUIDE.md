@@ -44,6 +44,7 @@ list — update both together):
 5. **ocr — rapidocr (recommended):** burned-caption text extraction from frames.
 6. **tts (optional):** voiceover synthesis (kokoro local, or ElevenLabs with an API key).
 7. **uoink (optional):** the suite peer on port 5179, probed per INTEGRATION-CONTRACT v1 (absent is calm; unhealthy names its code).
+8. **hyperframes (optional):** PH sidecar prerequisites: Node 24, the pinned npm install, a configured local browser, and FFmpeg. See [HyperFrames setup](HYPERFRAMES-SIDECAR.md); this adapter is not routed through `zing render`.
 
 ---
 

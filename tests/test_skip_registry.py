@@ -28,6 +28,11 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "optional real HyperFrames check": (
+        "requires explicit ZING_REQUIRE_HYPERFRAMES=1 plus Node, the sidecar, "
+        "Chrome, FFmpeg and a fetched OFL font. PRODUCT SURFACE: the adapter "
+        "and zing doctor check local prerequisites and give setup remedies."
+    ),
     "optional real Kokoro check": (
         "the real synthesis check needs the optional kokoro-onnx runtime and "
         "model assets. PRODUCT SURFACE: tts_status() checks runtime and asset "

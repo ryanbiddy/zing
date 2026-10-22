@@ -706,6 +706,26 @@ def check_uoink() -> Check:
     )
 
 
+def check_hyperframes() -> Check:
+    """PH is a separately installed, optional local caption adapter."""
+    from .render.hyperframes_adapter import HyperframesError, check_install
+
+    try:
+        data = check_install()
+    except HyperframesError as exc:
+        return Check(
+            name="hyperframes", tier=OPTIONAL, ok=False,
+            detail="local HyperFrames spike is unavailable",
+            fix=str(exc),
+            degraded_mode="HyperFrames adapter unavailable; existing zing render is unaffected",
+        )
+    return Check(
+        name="hyperframes", tier=OPTIONAL, ok=True,
+        detail="pinned local sidecar prerequisites found (render not exercised)",
+        data=data,
+    )
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -714,6 +734,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_whisper(),
         check_ocr(),
         check_tts(),
+        check_hyperframes(),
         check_uoink(),
     ]
 
