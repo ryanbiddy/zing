@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from myzing.ffmpeg_capabilities import FFmpegCapabilityError, caption_filter
 from myzing.schemas import EDL
@@ -72,7 +73,7 @@ def _publish_output(staged_output: Path, output_path: Path) -> None:
         ) from exc
 
 
-def probe_media(path: Path, ffprobe: str = "ffprobe") -> MediaInfo:
+def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = False) -> MediaInfo:
     if shutil.which(ffprobe) is None:
         raise RenderError(f"ffprobe executable not found: {ffprobe}")
     try:
@@ -84,7 +85,8 @@ def probe_media(path: Path, ffprobe: str = "ffprobe") -> MediaInfo:
                 "-show_entries",
                 "format=duration",
                 "-show_entries",
-                "stream=codec_type",
+                ("stream=codec_type,color_space,color_transfer,color_primaries,color_range,pix_fmt:stream_tags:format_tags"
+                 if include_color else "stream=codec_type"),
                 "-of",
                 "json",
                 str(path),
@@ -106,6 +108,15 @@ def probe_media(path: Path, ffprobe: str = "ffprobe") -> MediaInfo:
         stream_types = {
             stream.get("codec_type") for stream in payload.get("streams", [])
         }
+        metadata = {}
+        if include_color:
+            video = next((s for s in payload.get("streams", []) if s.get("codec_type") == "video"), {})
+            metadata = {key: str(video.get(key, "unknown")) for key in (
+                "color_space", "color_transfer", "color_primaries", "color_range", "pix_fmt",
+            )}
+            tags = {**payload.get("format", {}).get("tags", {}), **video.get("tags", {})}
+            metadata["profile_tags"] = json.dumps({k: v for k, v in tags.items()
+                if any(term in k.lower() for term in ("color", "gamma", "transfer", "profile"))}, sort_keys=True)
     except (KeyError, TypeError, ValueError) as exc:
         raise RenderError(f"ffprobe returned malformed metadata for {path}") from exc
     if not math.isfinite(duration) or duration <= 0:
@@ -114,6 +125,7 @@ def probe_media(path: Path, ffprobe: str = "ffprobe") -> MediaInfo:
         duration=duration,
         has_video="video" in stream_types,
         has_audio="audio" in stream_types,
+        color_metadata=metadata,
     )
 
 
@@ -150,6 +162,7 @@ def _ffmpeg_command(
     graph_path: Path,
     output_path: Path,
     validated: ValidatedEDL,
+    fps_rate: str | None = None,
 ) -> list[str]:
     command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
     for path in plan.input_paths:
@@ -172,7 +185,7 @@ def _ffmpeg_command(
             "-pix_fmt",
             "yuv420p",
             "-r",
-            f"{validated.edl.fps:.6f}",
+            fps_rate or f"{validated.edl.fps:.6f}",
             "-c:a",
             "aac",
             "-b:a",
@@ -203,6 +216,10 @@ def _render_in_directory(
     directory: Path,
     ffmpeg: str,
     caption_filter_name: str = "ass",
+    *,
+    caption_writer: Callable[[Path], None] | None = None,
+    fps_rate: str | None = None,
+    clip_luts: tuple[str | None, ...] = (),
 ) -> RenderResult:
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -212,7 +229,12 @@ def _render_in_directory(
         raise RenderError(f"ffmpeg executable not found: {ffmpeg}")
 
     include_captions = bool(validated.edl.captions)
-    if include_captions:
+    if caption_writer is not None:
+        try:
+            caption_writer(directory)
+        except OSError as exc:
+            raise RenderError(f"could not prepare composition captions: {exc}") from exc
+    elif include_captions:
         try:
             generate_ass(
                 validated.edl.captions,
@@ -225,6 +247,8 @@ def _render_in_directory(
 
     plan = build_graph(
         validated, include_captions, caption_filter=caption_filter_name,
+        fonts_dir=caption_writer is not None, fps_rate=fps_rate,
+        clip_luts=clip_luts,
     )
     graph_path = directory / "filter graph.txt"
     try:
@@ -232,7 +256,7 @@ def _render_in_directory(
     except OSError as exc:
         raise RenderError(f"could not write FFmpeg filtergraph: {exc}") from exc
     staged_output = directory / "rendered.mp4"
-    command = _ffmpeg_command(ffmpeg, plan, graph_path, staged_output, validated)
+    command = _ffmpeg_command(ffmpeg, plan, graph_path, staged_output, validated, fps_rate)
     try:
         result = subprocess.run(
             command,

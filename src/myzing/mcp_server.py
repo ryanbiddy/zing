@@ -1110,7 +1110,7 @@ def h_setup_taste(
 _RENDER_JOBS: dict[str, threading.Thread] = {}
 
 
-def _load_edl(edl_path: str):
+def _load_edl(edl_path: str, *, allow_composition: bool = False):
     """(edl, base_dir, err) — parse cheaply before any job spawns."""
     from myzing.schemas import EDL
 
@@ -1120,8 +1120,13 @@ def _load_edl(edl_path: str):
             f"EDL file not found: {edl_path} — pass a path to an edl.json"
         )
     try:
-        edl = EDL.from_json(p.read_text(encoding="utf-8"))
-    except (ValueError, KeyError, TypeError) as e:
+        text = p.read_text(encoding="utf-8")
+        if allow_composition:
+            from myzing.render.composition import load_render_document
+            edl = load_render_document(json.loads(text))
+        else:
+            edl = EDL.from_json(text)
+    except (OSError, ValueError, KeyError, TypeError) as e:
         return None, None, _err(
             f"could not parse EDL {p.name}: {e} — the EDL contract is in "
             "schemas.py (clips/captions/audio)"
@@ -1147,9 +1152,14 @@ def _run_render(
     with storage.use_workspace(root):
         d = storage.render_dir(render_id)
         try:
-            result = pipeline.render_edl(
-                edl, out_path, base_dir=base_dir, resolved_assets=resolved_assets,
-            )
+            if edl.schema_version == 2:
+                from myzing.render.composition import render_composition
+                # Rehash at execution time: a queued asset may have changed.
+                result = render_composition(edl, out_path, base_dir=base_dir)
+            else:
+                result = pipeline.render_edl(
+                    edl, out_path, base_dir=base_dir, resolved_assets=resolved_assets,
+                )
             storage.write_status_at(
                 d,
                 state="done",
@@ -1157,6 +1167,7 @@ def _run_render(
                 finished_at=_now(),
                 updated_at=_now(),
                 error="",
+                **({"warnings": list(result.warnings)} if edl.schema_version == 2 else {}),
             )
         except Exception as e:  # noqa: BLE001 — boundary: honest disk state
             storage.write_status_at(
@@ -1177,14 +1188,22 @@ def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
             "ffmpeg not found on PATH — run `zing doctor` for the install "
             "command."
         )
-    edl, base_dir, bad = _load_edl(edl_path)
+    edl, base_dir, bad = _load_edl(edl_path, allow_composition=True)
     if bad:
         return bad
     from myzing.render.validation import EDLValidationError, resolve_assets
 
     try:
-        resolved_assets = resolve_assets(edl, base_dir)
-    except EDLValidationError as exc:
+        if edl.schema_version == 2:
+            from myzing.render.composition import prepare_composition
+            from myzing.render.pipeline import preflight_captions
+            prepared = prepare_composition(edl, base_dir)
+            edl = prepared.composition
+            resolved_assets = prepared.assets
+            preflight_captions(prepared.edl, "ffmpeg")
+        else:
+            resolved_assets = resolve_assets(edl, base_dir)
+    except (EDLValidationError, RuntimeError) as exc:
         return _err(str(exc))
     render_id = _render_id_for(edl_path)
     root = storage.workspace_root()
@@ -1431,6 +1450,29 @@ def h_plan_drafts(project: str, recipe: str, out: str, seed: int = 0) -> dict[st
     except (ValueError, OSError) as exc:
         return _err(str(exc))
     return _ok(**result)
+
+
+def h_still_concepts(photos: str, topic: str, out: str, n: int = 6,
+                     aspect: str = "1:1", layout: str = "auto",
+                     lines: str | None = None) -> dict[str, Any]:
+    """Inventory local photos and render distinct concepts; no uploads/model calls."""
+    from myzing.still.api import create_stills
+
+    try:
+        return _ok(**create_stills(photos, topic, out, n=n, aspect=aspect, layout=layout, lines=lines))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
+def h_still_render(out_folder: str, concept_id: str, video: bool = False,
+                   gif: bool = False) -> dict[str, Any]:
+    """Render an indexed concept at full size, with optional MP4/GIF exports."""
+    from myzing.still.api import pick_still
+
+    try:
+        return _ok(**pick_still(out_folder, concept_id, video=video, gif=gif))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
 
 
 def h_meme_templates(search: str = "") -> dict[str, Any]:
@@ -1761,8 +1803,9 @@ def build_server():
     mcp.tool(
         name="render_edl",
         description=(
-            "Render an EDL json to a video file with ffmpeg (cuts, "
-            "word-timed captions, audio mix). Validates cheaply and returns "
+            "Render EDL v1 or Composition v2 JSON to a video with ffmpeg "
+            "(cuts, positioned ASS word captions, voiceover/music mix). V2 checks "
+            "asset/font SHA-256, supported features and layout safety before dispatch. Returns "
             "a render_id immediately; rendering runs in the background "
             "(seconds to a few minutes) — poll get_render(render_id). "
             "Renders without voiceover when no TTS is available (stated)."
@@ -1850,6 +1893,15 @@ def build_server():
             "doesn't surface MCP prompts as commands."
         ),
     )(h_get_prompt)
+
+    mcp.tool(
+        name="still_concepts",
+        description="Create 1-8 distinct meme concepts from a local photo folder and topic. Requires myzing[memes]. No model calls, network, or media uploads. Supply a new/empty out folder. Optional lines is a local JSON file of AI/user-written ideas; all text is validated. aspect: 1:1, 4:5, 9:16, 16:9. layout: auto, classic, caption, labels. Uses local YuNet when installed/cached; otherwise reports a center heuristic. Returns index_path, contact_sheet path, writer prompt, concept IDs, scores, alt text and warnings, never media bytes.",
+    )(h_still_concepts)
+    mcp.tool(
+        name="still_render",
+        description="Re-render a concept from still_concepts: supply its out_folder and concept_id. Verifies the source photo hash, writes a full-size PNG, and records the selection and alt text in index.json. video=true also exports a five-second MP4; gif=true adds MP4 and a bounded GIF (requires FFmpeg). No network. Returns file paths and metadata, never media bytes.",
+    )(h_still_render)
 
     mcp.tool(
         name="meme_templates",

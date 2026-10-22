@@ -406,6 +406,13 @@
     "myzing_composition_models_CompositionCaption": {
       "additionalProperties": false,
       "properties": {
+        "alignment": {
+          "enum": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
         "all_caps": {
           "type": "boolean"
         },
@@ -1124,6 +1131,12 @@
   "additionalProperties": false,
   "description": "Structural contract. Apply Python validation for cross-field time, geometry and reference constraints.",
   "properties": {
+    "accepted_unsafe_layouts": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "assets": {
       "items": {
         "$ref": "#/$defs/myzing_composition_models_AssetRef"

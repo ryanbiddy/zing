@@ -27,6 +27,7 @@ over nested JSON in native-command arguments.
 | `zing thumbs` | Thumbnail candidates for a studied slug. |
 | `zing inspect` | Timeline PNG with aligned frames/waveform/available timed text. |
 | `zing meme` | Template metadata, formula ideas, text checks and still rendering. |
+| `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 
 ## Study, brief and draft

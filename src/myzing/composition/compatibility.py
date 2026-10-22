@@ -100,6 +100,8 @@ def lowering_blockers(composition: Composition) -> list[str]:
     if composition.transitions:
         problems.append("transitions")
     for index, caption in enumerate(composition.captions):
+        if caption.alignment != "center":
+            problems.append(f"captions[{index}].alignment={caption.alignment}")
         for field in ("layout", "font", "style", "template"):
             if getattr(caption, field) is not None:
                 problems.append(f"captions[{index}].{field}")
@@ -118,6 +120,8 @@ def lowering_blockers(composition: Composition) -> list[str]:
         problems.append("loudness_target")
     if composition.warnings:
         problems.append("warnings")
+    if composition.accepted_unsafe_layouts:
+        problems.append("accepted_unsafe_layouts")
     if composition.brief is not None:
         problems.append("brief")
     return problems
@@ -161,7 +165,7 @@ def audio_from_map(audio_map: AudioMap, segment_index: int, *, id: str, asset: A
 
 
 def load_composition(data: dict, *, manifest: ProjectManifest | None = None) -> Composition:
-    """Read v2, or explicitly upgrade a v1 input; never used by the renderer."""
+    """Read v2, or explicitly upgrade a v1 input without performing media IO."""
     version = data.get("schema_version", 1) if isinstance(data, dict) else None
     if type(version) is int and version == 1:
         return upgrade_edl(EDL.from_dict(data), manifest=manifest)

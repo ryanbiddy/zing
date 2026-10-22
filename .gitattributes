@@ -10,3 +10,5 @@ src/myzing/_data/fonts/** -text
 src/myzing/_data/schemas/*.json text eol=lf
 docs/examples/composition-v2/*.json text eol=lf
 tests/fixtures/composition-v2/*.json text eol=lf
+tests/fixtures/render-v1-baseline.json text eol=lf
+tests/fixtures/render-v2-no-lut-baseline.json text eol=lf

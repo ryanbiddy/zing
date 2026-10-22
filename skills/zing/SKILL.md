@@ -23,7 +23,7 @@ not mean every optional extra or model is installed.
 
 Read [commands.md](references/commands.md) for CLI recipes, direction JSON,
 installation needs, and still/animated meme handling. Read
-[mcp.md](references/mcp.md) for the 28-tool surface and asynchronous job rules.
+[mcp.md](references/mcp.md) for the 30-tool surface and asynchronous job rules.
 The CLI also has project, layout, color, audio and assembly operations that do
 not have equivalent MCP tools. Switch to shell access for them; do not invent
 tools or imply that a connected MCP server grants shell access.
@@ -119,6 +119,13 @@ cannot open the image or play audio, name that limitation instead of claiming a
 visual/listening review. Return output paths, checked timings, warnings and gaps.
 
 ## Make memes
+
+For a photo folder and topic, use `zing still --photos <folder> --topic "<topic>"
+--out <new-folder>` or MCP `still_concepts`. Review the contact sheet and saved
+writer prompt; optionally supply better lines through `--lines <json-file>`.
+Use `zing still pick <out-folder> --id <concept-id>` or `still_render` to export
+the selection. Read face-detection/heuristic warnings and inspect placement.
+This workflow makes no model calls or uploads and uses local photos only.
 
 Use `zing meme templates` to browse metadata without downloading images and
 `zing meme ideas` for deterministic starting points. Write/judge the actual joke

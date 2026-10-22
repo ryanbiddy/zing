@@ -170,7 +170,10 @@ def _fit_filter(source: tuple[int, int], viewport: Rect, size: tuple[int, int], 
     w, h = size
     if viewport.y:
         fitted += f",pad={w}:{h}:0:{round(viewport.y)}:color=white"
-    return fitted
+    # Rounded contain dimensions can introduce a fractional sample aspect
+    # ratio. Text layers are square-pixel full canvases; normalize after the
+    # final scale/pad too (FFmpeg can reject successive overlays otherwise).
+    return fitted + ",setsar=1"
 
 
 def _publish(staged: Path, target: Path, overwrite: bool) -> None:

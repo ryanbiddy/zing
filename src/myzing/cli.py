@@ -46,6 +46,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
                 "review frames, waveform, cuts, and timed transcript in one PNG"),
     "meme": ("myzing.memes.command",
              "browse templates, draft ideas, check text, and render still memes"),
+    "still": ("myzing.still.command",
+              "turn local photos and a topic into concepts, a contact sheet, and finished stills"),
     "serve-mcp": ("myzing.mcp_server",
                   "run the MCP server (connects Claude and other AI clients)"),
 }

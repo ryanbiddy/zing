@@ -62,3 +62,16 @@ def caption_filter(ffmpeg: str = "ffmpeg") -> str:
         f"Caption burn-in needs libass: this FFmpeg build has no libass support "
         f"(missing ass/subtitles filters): {executable}. {LIBASS_REMEDY}"
     )
+
+
+def require_lut3d(ffmpeg: str = "ffmpeg") -> None:
+    """Check the selected binary before LUT render work files are created."""
+    executable = shutil.which(ffmpeg)
+    if executable is None:
+        raise FFmpegCapabilityError(f"ffmpeg executable not found: {ffmpeg}")
+    executable = str(Path(executable).resolve())
+    if "lut3d" not in _filters_for_executable(executable):
+        raise FFmpegCapabilityError(
+            f"LUT rendering requires the lut3d filter: {executable}. "
+            "Install an FFmpeg build with lut3d (on macOS use ffmpeg-full) and put it on PATH."
+        )

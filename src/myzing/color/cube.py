@@ -56,8 +56,13 @@ def read_cube(path: Path | str) -> Cube:
     path = Path(path)
     if path.stat().st_size > 32 * 1024 * 1024:
         raise ValueError("cube exceeds the 32 MiB SDR LUT limit")
+    return parse_cube(path.read_text(encoding="utf-8-sig"))
+
+
+def parse_cube(text: str) -> Cube:
+    """Validate cube text, including a render's already hash-verified snapshot."""
     headers, rows = {}, []
-    for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+    for number, line in enumerate(text.splitlines(), 1):
         line = line.strip()
         if not line.startswith("TITLE "):
             line = line.split("#", 1)[0].strip()

@@ -3,6 +3,7 @@
 from .assemble import AssembleResult, VoiceoverScript, render_assembled_edl
 from .otio_export import OTIOExportError, OTIOExportResult, export_otio
 from .pipeline import RenderError, RenderResult, render_edl
+from .composition import render_composition
 from .tts import (
     KokoroOnnxProvider,
     SynthesisRequest,
@@ -32,5 +33,6 @@ __all__ = [
     "export_otio",
     "render_assembled_edl",
     "render_edl",
+    "render_composition",
     "validate_edl",
 ]

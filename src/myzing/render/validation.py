@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -33,6 +33,7 @@ class MediaInfo:
     duration: float
     has_video: bool
     has_audio: bool
+    color_metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
