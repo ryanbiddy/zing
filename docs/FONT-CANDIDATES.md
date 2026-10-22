@@ -60,7 +60,7 @@ is independently versioned at 1 and round-trips through the P7 dataclass.
 
 | Field | Meaning |
 |---|---|
-| `available_fonts` | Exact compared files, hashes, licenses, local paths and weight choices. |
+| `available_fonts` | Verified files available for comparison, with hashes, licenses, local paths and weight choices; retained on failures. |
 | `tracks[].status` | `plausible candidate`, `best substitute`, or `unmeasured`. |
 | `tracks[].original_font` | Always `unknown`. |
 | `tracks[].candidates` | Families ranked by decreasing score; stable font ID breaks ties. The best aggregate weight per family is retained. |
@@ -68,13 +68,20 @@ is independently versioned at 1 and round-trips through the P7 dataclass.
 | `candidates[].metrics[i]` | Metrics for `evidence[i]`: line IoU, glyph-run IoU, width/height and ink-density ratios, stroke fractions, candidate cap/x heights and font size. |
 | `tracks[].gaps` | Missing frames, tiny/empty masks or uncertain text excluded from comparison. |
 | `tracks[].rejected_candidates` | Unsupported glyphs and font rendering failures, with the excluded weight. |
+| `tracks[].warnings` | Failures affecting this track, also included in the study warnings. |
 | `provenance` | Media/manifest hashes, runtime versions, score formula, threshold, unavailable/excluded font IDs and sample selection. |
 
 Up to eight evenly spaced observations per track are decoded by exact frame
-index. Every OCR line in those observations is cropped through its polygon.
+index. The decoder seeks to each selected index and reads shared frames once;
+it does not scan from frame zero to the last observation. Seeking can decode
+from the preceding codec keyframe. Failed or inaccurate seeks leave a gap.
+Every OCR line in those observations is cropped through its polygon.
 Nearest Lab color separates fill from backdrop, outline and plate. When the P7
 fill estimate collapses onto the backdrop, a deterministic Otsu luminance mask
 is used and named in the evidence. Solid or empty masks remain unmeasured.
+Font-matching failures, including OpenCV errors, become per-track warnings so
+study can save the breakdown. Available fonts and provenance remain recorded;
+unreadable provenance fields are identified in `provenance.errors`.
 
 Pillow/FreeType renders the same OCR text near its measured visible-ink height.
 Font size is a comparison parameter, not a recovered point size. Shape is
@@ -102,9 +109,15 @@ boundary; they do not retune it at runtime.
 
 The acceptance corpus uses six other phrases/styles at 24–68 pixels, including
 upper, lower and mixed case, digits, yellow/white fills, outlines and plates.
-The current expanded run ranks the generating font in the top three for
-**77/78 cases (98.7%)**. Montserrat Thin misses once; each other family passes
-6/6. Only 29/78 clear the conservative threshold. A correct top-three ranking
+`test_known_fonts_top_three` asserts **at least 90% top-three hits separately
+for each of the six phrase/style cases**, across that case's available fonts.
+That requires at least 12/13 hits per style with the expanded library, or 2/2
+with the bundled library. It does not assert 77/78 overall or 90% per family.
+
+The recorded Windows FFmpeg 8.1.2 expanded run measured **77/78 top-three hits
+(98.7%)**. Montserrat Thin misses once; each other family has 6/6 hits.
+Only 29/78 clear the conservative similarity threshold. These are measured
+results, separate from the per-style test assertion. A correct top-three ranking
 can therefore still be labeled `best substitute` when the evidence is weak.
 Similarity scores are not calibrated probabilities.
 
@@ -114,7 +127,9 @@ and known text to isolate font comparison; two additional tests run real OCR
 through the complete geometry-to-font path. This is not a claim of 98.7% OCR
 accuracy on real videos.
 
-Thirteen new FFmpeg tests bring the gate from 90 to **103**. Without an opt-in,
+P8's thirteen FFmpeg tests brought the gate from 90 to 103. The repair adds
+one test checking sparse seeks against sequentially decoded pixels across
+keyframes and B-frames, bringing the gate to **104**. Without an opt-in,
 tests use only the two bundled fonts. The expanded test library requires
 `ZING_TEST_FETCH_FONTS=1`, which explicitly permits the fixture to fetch pinned
 assets. CI also runs `zing fonts fetch --all` before testing. Required FFmpeg
@@ -125,7 +140,7 @@ $env:ZING_TEST_FETCH_FONTS = "1"
 $env:ZING_FONT_TEST_REPORT = "$PWD/zing-workspace/p8-accuracy"
 uv run --frozen pytest -q tests/test_font_match_ffmpeg.py
 $env:ZING_REQUIRE_FFMPEG = "1"
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 103
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 116
 ```
 
 Reruns are deterministic with the same files and runtime versions; different

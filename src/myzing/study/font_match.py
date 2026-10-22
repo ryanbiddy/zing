@@ -62,15 +62,17 @@ def crop_ink(frame, detection):
     right, bottom = np.minimum([width, height], np.ceil(points.max(axis=0)) + 1).astype(int)
     if right <= left or bottom <= top:
         return None, "empty polygon crop"
+    crop = frame[top:bottom, left:right]
+    polygon = np.zeros(crop.shape[:2], dtype=np.uint8)
+    cv2.fillPoly(polygon, [np.rint(points - [left, top]).astype(np.int32)], 1)
+    inside = polygon != 0
+    if not inside.any():
+        return None, "empty polygon interior"
     appearance = detection.appearance or measure(frame, detection.polygon)
     fill = appearance.get("fill")
     if not fill or fill.get("confidence", 0) < .25:
         return None, "fill color uncertain; no reliable glyph mask"
-    crop = frame[top:bottom, left:right]
     lab = cv2.cvtColor(crop.astype(np.float32) / 255, cv2.COLOR_BGR2LAB)
-    polygon = np.zeros(crop.shape[:2], dtype=np.uint8)
-    cv2.fillPoly(polygon, [np.rint(points - [left, top]).astype(np.int32)], 1)
-    inside = polygon != 0
     fill_color = np.asarray(fill["lab"])
     edge = inside & ~cv2.erode(polygon, np.ones((5, 5), np.uint8), borderType=cv2.BORDER_CONSTANT,
                               borderValue=0).astype(bool)
@@ -155,6 +157,9 @@ def compare_masks(observed, rendered):
     import cv2
     import numpy as np
 
+    for mask in (observed, rendered):
+        if mask.ndim != 2 or not mask.size or not mask.any():
+            raise ValueError("empty glyph mask; no reliable comparison")
     oh, ow = observed.shape
     rh, rw = rendered.shape
     ratio = (rw / rh) / (ow / oh)
@@ -214,6 +219,67 @@ def _selected(samples):
     return [samples[round(i * (len(samples) - 1) / (MAX_SAMPLES - 1))] for i in range(MAX_SAMPLES)]
 
 
+def _candidate_context(media, geometry, workspace=None, font_ids=None):
+    """Collect provenance independently of the optional comparison runtime."""
+    from importlib.metadata import version
+
+    result = FontCandidates(provenance={
+        "method": "glyph-mask-v1", "network_used": False,
+        "geometry_media_hash_verified": False,
+        "threshold": MATCH_THRESHOLD, "calibration": "synthetic-latin-v1; see docs/FONT-CANDIDATES.md",
+        "score": "0.78 shape + 0.17 exp(-3*abs(log(width ratio))) + 0.05 density similarity; shape = 0.75 glyph-run IoU + 0.25 line IoU when run counts agree, else line IoU",
+        "sample_selection": f"up to {MAX_SAMPLES} evenly spaced observations per track; every OCR line",
+        "renderer": "Pillow/FreeType BASIC; variable axes other than weight use file defaults",
+        "versions": {}, "confidence": "similarity, not probability or original-font identification"})
+    errors = {}
+    rows = []
+    try:
+        rows = library.inventory(workspace)
+        result.available_fonts = [{k: r[k] for k in ("id", "family", "sha256", "license", "weights", "path", "status")}
+                                  for r in rows if r["available"] and (font_ids is None or r["id"] in font_ids)]
+        result.provenance.update(
+            unavailable_font_ids=[r["id"] for r in rows if not r["available"]],
+            excluded_font_ids=[r["id"] for r in rows if font_ids is not None and r["id"] not in font_ids])
+    except Exception as exc:
+        errors["inventory"] = f"{type(exc).__name__}: {exc}"
+    for key, path in (("media_sha256", media), ("manifest_sha256", library.MANIFEST)):
+        try:
+            result.provenance[key] = library.sha256(path)
+        except Exception as exc:
+            result.provenance[key] = None
+            errors[key] = f"{type(exc).__name__}: {exc}"
+    try:
+        expected = geometry.provenance.get("media", {}).get("sha256")
+        result.provenance["geometry_media_hash_verified"] = bool(expected and expected == result.provenance["media_sha256"])
+    except Exception as exc:
+        errors["geometry_media_sha256"] = f"{type(exc).__name__}: {exc}"
+    for name, package in (("Pillow", "Pillow"), ("OpenCV", "opencv-python-headless"), ("NumPy", "numpy")):
+        try:
+            result.provenance["versions"][name] = version(package)
+        except Exception:
+            result.provenance["versions"][name] = None
+    if errors:
+        result.provenance["errors"] = errors
+    return result, rows
+
+
+def failed_candidates(media: Path, geometry: CaptionGeometry, error: Exception,
+                      workspace: Path | None = None) -> FontCandidates:
+    """Keep the available assets and per-track failure evidence when study continues."""
+    result, _ = _candidate_context(media, geometry, workspace)
+    reason = f"{type(error).__name__}: {error}; no font comparison was made; run zing doctor"
+    result.provenance["failure"] = {"type": type(error).__name__, "message": str(error)}
+    result.warnings.append(f"font candidates unavailable: {reason}")
+    for track in geometry.tracks:
+        warning = f"font candidates track {track.id}: {reason}"
+        result.warnings.append(warning)
+        result.tracks.append({"track_id": track.id, "kind": track.kind, "text": track.text,
+                              "status": "unmeasured", "original_font": "unknown", "reason": reason,
+                              "candidates": [], "evidence": [], "gaps": [], "rejected_candidates": [],
+                              "warnings": [warning]})
+    return result
+
+
 def match_geometry(media: Path, geometry: CaptionGeometry, workspace: Path | None = None,
                    *, font_ids: list[str] | None = None) -> FontCandidates:
     """Rank each track using existing, verified assets only. No OCR or network."""
@@ -223,32 +289,29 @@ def match_geometry(media: Path, geometry: CaptionGeometry, workspace: Path | Non
         import PIL
     except ImportError as exc:
         raise RuntimeError(f"font comparison runtime missing; install with {library.INSTALL_HINT}") from exc
-    rows = library.inventory(workspace)
-    known = {r["id"] for r in rows}
-    if font_ids is not None and set(font_ids) - known:
+    result, rows = _candidate_context(media, geometry, workspace, font_ids)
+    if result.provenance.get("errors"):
+        raise RuntimeError(f"font comparison provenance unavailable: {result.provenance['errors']}")
+    if font_ids is not None and set(font_ids) - {r["id"] for r in rows}:
         raise ValueError("unknown font IDs; run zing fonts list")
-    available = [r for r in rows if r["available"] and (font_ids is None or r["id"] in font_ids)]
-    digest = library.sha256(media)
     expected = geometry.provenance.get("media", {}).get("sha256")
-    if expected and digest != expected:
+    if expected and not result.provenance["geometry_media_hash_verified"]:
         raise ValueError("caption geometry media SHA-256 mismatch; repeat study --caption-geometry")
-    result = FontCandidates(
-        available_fonts=[{k: r[k] for k in ("id", "family", "sha256", "license", "weights", "path", "status")} for r in available],
-        provenance={"method": "glyph-mask-v1", "network_used": False, "media_sha256": digest,
-                    "geometry_media_hash_verified": bool(expected), "manifest_sha256": library.sha256(library.MANIFEST),
-                    "unavailable_font_ids": [r["id"] for r in rows if not r["available"]],
-                    "excluded_font_ids": [r["id"] for r in rows if font_ids is not None and r["id"] not in font_ids],
-                    "threshold": MATCH_THRESHOLD, "calibration": "synthetic-latin-v1; see docs/FONT-CANDIDATES.md",
-                    "score": "0.78 shape + 0.17 exp(-3*abs(log(width ratio))) + 0.05 density similarity; shape = 0.75 glyph-run IoU + 0.25 line IoU when run counts agree, else line IoU",
-                    "sample_selection": f"up to {MAX_SAMPLES} evenly spaced observations per track; every OCR line",
-                    "renderer": "Pillow/FreeType BASIC; variable axes other than weight use file defaults",
-                    "versions": {"Pillow": PIL.__version__, "OpenCV": cv2.__version__, "NumPy": np.__version__},
-                    "confidence": "similarity, not probability or original-font identification"})
+    result.provenance["versions"] = {"Pillow": PIL.__version__, "OpenCV": cv2.__version__, "NumPy": np.__version__}
+    available = result.available_fonts
     if not available:
         result.warnings.append("font candidates unavailable: run zing fonts list, then zing fonts fetch --all; tracks remain unmeasured")
     requests: dict[int, list] = {}
     observations = {t.id: [] for t in geometry.tracks}
     gaps = {t.id: [] for t in geometry.tracks}
+    track_warnings = {t.id: [] for t in geometry.tracks}
+
+    def warn(track_id, reason):
+        warning = f"font candidates track {track_id}: {reason}"
+        if warning not in track_warnings[track_id]:
+            track_warnings[track_id].append(warning)
+            result.warnings.append(warning)
+
     for track in geometry.tracks:
         for sample in _selected(track.samples):
             frame = geometry.frames[sample["sample_index"]]
@@ -260,18 +323,23 @@ def match_geometry(media: Path, geometry: CaptionGeometry, workspace: Path | Non
     if not cap.isOpened():
         cap.release()
         raise RuntimeError("font comparison could not decode study media; run zing doctor")
-    seen = set()
     try:
-        for index in range(max(requests, default=-1) + 1):
-            ok, pixels = cap.read()
-            if not ok:
-                break
-            if index not in requests:
+        for index in sorted(requests):
+            try:
+                if not cap.set(cv2.CAP_PROP_POS_FRAMES, index):
+                    raise RuntimeError("frame seek failed")
+                ok, pixels = cap.read()
+                if not ok:
+                    raise RuntimeError("frame unavailable")
+                if cap.get(cv2.CAP_PROP_POS_FRAMES) != index + 1:
+                    raise RuntimeError("frame seek did not reach the requested index")
+            except Exception as exc:
+                reason = f"{type(exc).__name__}: {exc}"
+                for track_id, frame, detection_index in requests[index]:
+                    gaps[track_id].append({"frame_index": index, "t": frame.t, "reason": reason})
+                    warn(track_id, reason)
                 continue
-            seen.add(index)
             for track_id, frame, detection_index in requests[index]:
-                if pixels.shape[:2] != (frame.height, frame.width):
-                    raise ValueError("caption geometry frame dimensions changed; repeat study --caption-geometry")
                 detection = frame.detections[detection_index]
                 evidence = {"frame_index": index, "t": frame.t, "detection_index": detection_index,
                             "text": detection.text, "ocr_confidence": detection.confidence,
@@ -280,16 +348,19 @@ def match_geometry(media: Path, geometry: CaptionGeometry, workspace: Path | Non
                         or detection.confidence is None or detection.confidence < .6):
                     gaps[track_id].append(dict(evidence, reason="unsupported or uncertain OCR text"))
                     continue
-                mask, detail = crop_ink(pixels, detection)
+                try:
+                    if pixels.shape[:2] != (frame.height, frame.width):
+                        raise ValueError("caption geometry frame dimensions changed; repeat study --caption-geometry")
+                    mask, detail = crop_ink(pixels, detection)
+                except Exception as exc:
+                    mask, detail = None, f"{type(exc).__name__}: {exc}"
                 if mask is None:
                     gaps[track_id].append(dict(evidence, reason=detail))
+                    warn(track_id, detail)
                 else:
                     observations[track_id].append((mask, dict(evidence, **detail)))
     finally:
         cap.release()
-    for index in sorted(set(requests) - seen):
-        for track_id, frame, detection_index in requests[index]:
-            gaps[track_id].append({"frame_index": index, "t": frame.t, "reason": "frame unavailable"})
     comparisons = {}
     for track in geometry.tracks:
         evidence = observations[track.id]
@@ -305,8 +376,10 @@ def match_geometry(media: Path, geometry: CaptionGeometry, workspace: Path | Non
                             rendered, render_detail = render_mask(row["path"], detail["text"], mask.shape[0], weight)
                             comparisons[key] = dict(compare_masks(mask, rendered), **render_detail)
                         scores.append(comparisons[key])
-                except (OSError, ValueError) as exc:
-                    rejected.append({"font_id": row["id"], "weight": weight, "reason": str(exc)})
+                except Exception as exc:
+                    reason = f"{type(exc).__name__}: {exc}"
+                    rejected.append({"font_id": row["id"], "weight": weight, "reason": reason})
+                    warn(track.id, f"{row['id']} weight {weight}: {reason}")
                     continue
                 variants.append({"font_id": row["id"], "family": row["family"], "weight": weight,
                                  "score": round(mean(s["score"] for s in scores), 6), "metrics": scores})
@@ -320,7 +393,8 @@ def match_geometry(media: Path, geometry: CaptionGeometry, workspace: Path | Non
                                          "no available font clears the similarity threshold; the source font may be absent or the pixels/text may differ" if status == "best substitute" else
                                          "similar glyphs in the available set; this does not establish the original font"),
                               "candidates": ranked, "evidence": [d for _, d in evidence],
-                              "gaps": gaps[track.id], "rejected_candidates": rejected})
+                              "gaps": gaps[track.id], "rejected_candidates": rejected,
+                              "warnings": track_warnings[track.id]})
     return result
 
 

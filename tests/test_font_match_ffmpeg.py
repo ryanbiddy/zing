@@ -91,6 +91,11 @@ CASES = [
 ]
 
 
+def assert_top_three(results):
+    """Apply the acceptance gate separately to each phrase/style's font set."""
+    assert sum(r["rank"] is not None and r["rank"] <= 3 for r in results) / len(results) >= .9, results
+
+
 @pytest.mark.parametrize("case,text,size,stroke,plate,fill", CASES, ids=[c[0] for c in CASES])
 def test_known_fonts_top_three(tmp_path, font_workspace, monkeypatch, case, text, size, stroke, plate, fill):
     rows = [r for r in library.inventory(font_workspace) if r["available"]]
@@ -121,7 +126,7 @@ def test_known_fonts_top_three(tmp_path, font_workspace, monkeypatch, case, text
         output = Path(os.environ["ZING_FONT_TEST_REPORT"])
         output.mkdir(parents=True, exist_ok=True)
         (output / f"{case}.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    assert sum(r["rank"] is not None and r["rank"] <= 3 for r in results) / len(results) >= .9, results
+    assert_top_three(results)
 
 
 @pytest.mark.parametrize("omitted", ["anton", "ibmplexsans"])
@@ -171,3 +176,63 @@ def test_real_ocr_geometry_to_font_candidates(tmp_path, font_workspace, font_id)
     assert geometry.tracks, geometry.to_dict()
     result = fm.match_geometry(video, geometry, font_workspace)
     assert any(font_id in [c["font_id"] for c in t["candidates"][:3]] for t in result.tracks), result.to_dict()
+
+
+def test_sparse_seek_returns_exact_frames_across_keyframes(tmp_path, monkeypatch):
+    """Seeked B-frame/GOP pixels must agree with an independent sequential decode."""
+    import hashlib
+    cv2 = pytest.importorskip("cv2")
+    pytest.importorskip("PIL.Image")
+    video = tmp_path / "seek.mp4"
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                    "testsrc2=s=320x240:r=24:d=6", "-an", "-c:v", "libx264", "-g", "48", "-bf", "3",
+                    "-pix_fmt", "yuv420p", str(video)], check=True, capture_output=True, timeout=60)
+    indices = [0, 35, 48, 73, 120, 143]
+    expected = []
+    cap = cv2.VideoCapture(str(video))
+    try:
+        for index in range(indices[-1] + 1):
+            ok, pixels = cap.read()
+            assert ok
+            if index in indices:
+                expected.append(hashlib.sha256(pixels.tobytes()).hexdigest())
+    finally:
+        cap.release()
+    detection = cg.Detection("SEEK", .99, [[0, 0], [1, 0], [1, 1], [0, 1]], [0, 0, 1, 1])
+    frames = [cg.FrameSample(i / 24, i / 24, 1 / 24, i, 320, 240, [detection]) for i in indices]
+    track = cg.CaptionTrack("seek", "SEEK", "caption",
+                            [{"sample_index": i, "detection_indices": [0]} for i in range(len(frames))],
+                            .1, 1, "center", 1., "static", [], {})
+    geometry = cg.CaptionGeometry(6, frames=frames, tracks=[track])
+    actual = []
+    def observe(pixels, detection):
+        actual.append(hashlib.sha256(pixels.tobytes()).hexdigest())
+        return None, "decoder pixel probe"
+    monkeypatch.setattr(fm, "crop_ink", observe)
+    capture = cv2.VideoCapture(str(video))
+    reads = []
+    seeks = []
+    class CountedCapture:
+        def isOpened(self):
+            return capture.isOpened()
+
+        def set(self, prop, index):
+            seeks.append(index)
+            return capture.set(prop, index)
+
+        def get(self, prop):
+            return capture.get(prop)
+
+        def read(self):
+            reads.append(capture.get(cv2.CAP_PROP_POS_FRAMES))
+            return capture.read()
+
+        def release(self):
+            capture.release()
+
+    monkeypatch.setattr(cv2, "VideoCapture", lambda *args: CountedCapture())
+    result = fm.match_geometry(video, geometry, tmp_path)
+    assert actual == expected
+    assert seeks == reads == indices
+    assert [g["frame_index"] for g in result.tracks[0]["gaps"]] == indices
+    assert not capture.isOpened()
