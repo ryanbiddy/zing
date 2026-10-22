@@ -4,7 +4,7 @@
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
 from local images. Measurement and rendering run on your machine; your AI supplies
-the creative judgment through the CLI or **26 MCP tools**. No Zing API key needed.
+the creative judgment through the CLI or **27 MCP tools**. No Zing API key needed.
 
 Today these are explicit steps you and your agent can run and review. A saved
 brief and project inventory keep the work organized; automatic style-match
@@ -63,12 +63,13 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Inventory a project | [Project inventory](docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
 | Save creative intent | [Briefs](docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
 | Match a color look | [Color](docs/color.md): SDR LUT approximation, recipe and before/reference/after preview; separate apply step. |
+| Measure a reference's captions | [Caption geometry](docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
 | Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; not wired into render. |
 | Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
-| Make memes | [Memes](docs/MEMES.md): local stills, template metadata, ideas and text checks. Animation currently uses the quickstart's separate FFmpeg recipe. |
+| Make memes | [Memes](docs/MEMES.md): local stills, template metadata, ideas and text checks; animated memes on a video, GIF or zooming still with timed captions (`zing meme render-video`). |
 | Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; silent output, not integrated with `zing render`. |
-| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 26 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 27 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |

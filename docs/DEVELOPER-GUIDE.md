@@ -64,6 +64,8 @@ Alternatively, `sudo port install ffmpeg` installs
 [MacPorts FFmpeg](https://ports.macports.org/port/ffmpeg/details/) with libass;
 put `/opt/local/bin` first on PATH. Both options were checked on October 21, 2026.
 
+13. **caption_geometry (optional):** study runtime packages and verified local OCR assets. See [caption geometry](CAPTION-GEOMETRY.md) for explicit model provisioning and the sidecar contract.
+
 ---
 
 ## 3. Running Tests
@@ -153,5 +155,5 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 81
+ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 90
 ```

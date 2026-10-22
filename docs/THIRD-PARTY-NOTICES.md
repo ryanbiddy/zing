@@ -31,3 +31,19 @@ uses the [ISC license](https://github.com/libass/libass/blob/master/COPYING).
 These remain external tools; no source or binaries are vendored and no Python
 dependency was added. The documented MacPorts alternative enables libass and
 defaults to GPL-2+; see its [port details](https://ports.macports.org/port/ffmpeg/details/).
+
+## P7 caption geometry
+
+No new Python dependency or font is added. Geometry reuses the optional study
+runtime: RapidOCR (Apache-2.0), ONNX Runtime (MIT), OpenCV (Apache-2.0), and NumPy
+(BSD-3-Clause). Acceptance videos use the already bundled Anton and IBM Plex
+Sans fonts under OFL-1.1; their files, licenses and hashes are in
+`src/myzing/_data/fonts/` and its `sources.json`.
+
+The explicit model provisioner pins RapidAI's v3.9.1 ONNX exports of
+`PP-OCRv6_det_small.onnx`, `PP-OCRv6_rec_small.onnx`, and
+`ch_ppocr_mobile_v2.0_cls_mobile.onnx`. URLs and SHA-256 hashes are recorded in
+`src/myzing/study/caption_models.py`; downloads are stored in the workspace and
+are never triggered by study. These are the same model families used by the
+existing caption reader. Licensing: [RapidOCR Apache-2.0 license at v3.9.1](https://github.com/RapidAI/RapidOCR/blob/v3.9.1/LICENSE)
+and [PaddleOCR Apache-2.0 license](https://github.com/PaddlePaddle/PaddleOCR/blob/main/LICENSE).

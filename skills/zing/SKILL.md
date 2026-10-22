@@ -23,7 +23,7 @@ not mean every optional extra or model is installed.
 
 Read [commands.md](references/commands.md) for CLI recipes, direction JSON,
 installation needs, and still/animated meme handling. Read
-[mcp.md](references/mcp.md) for the 26-tool surface and asynchronous job rules.
+[mcp.md](references/mcp.md) for the 27-tool surface and asynchronous job rules.
 The CLI also has project, layout, color, audio and assembly operations that do
 not have equivalent MCP tools. Switch to shell access for them; do not invent
 tools or imply that a connected MCP server grants shell access.

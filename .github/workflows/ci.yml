@@ -28,8 +28,8 @@ jobs:
   # for real. ZING_REQUIRE_FFMPEG=1 makes tests/conftest.py FAIL (never
   # skip or xfail) every selected test, while the exact count pin makes
   # any accidental deselection fatal — this job cannot silently degrade
-  # to mocked-only coverage. (run.py --study needs the
-  # heavy [study] extras and stays out of the PR gate per S1-REVIEW-lane-b.)
+  # to mocked-only coverage. P7 adds real OCR on generated caption videos;
+  # models are provisioned explicitly before the offline inference tests.
   ffmpeg-gates-ubuntu:
     timeout-minutes: 30
     runs-on: ubuntu-latest
@@ -57,13 +57,19 @@ jobs:
               exit 1
             fi
           done
-      - run: pip install -e .[dev,layout,color,audio,memes]
+      - run: pip install -e .[dev,layout,color,audio,memes,study] "rapidocr==3.9.1"
+      # pip cannot apply tool.uv.exclude-dependencies: RapidOCR requests the
+      # GUI cv2 wheel. Restore the single pinned headless runtime after install.
+      - run: pip uninstall -y opencv-python
+      - run: pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92
+      - name: Provision pinned caption OCR models (explicit download; study stays offline)
+        run: python -m myzing.study.caption_models --fetch
       - name: Golden generation (real ffmpeg fixtures, hostile paths)
         run: python -m tools.eval.make_goldens --output "tools/eval/goldens"
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 93
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 102
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -101,9 +107,13 @@ jobs:
               exit 1
             fi
           done
-      - run: pip install -e .[dev,layout,color,audio,memes]
+      - run: pip install -e .[dev,layout,color,audio,memes,study] "rapidocr==3.9.1"
+      - run: pip uninstall -y opencv-python
+      - run: pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92
+      - name: Provision pinned caption OCR models (explicit download; study stays offline)
+        run: python -m myzing.study.caption_models --fetch
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 93
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 102
 
   # macOS smoke: frame extraction, six inspection tests, audio placement,
   # and the caption/ducking render oracle (Homebrew FFmpeg with libass).

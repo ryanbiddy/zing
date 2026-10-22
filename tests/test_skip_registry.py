@@ -28,6 +28,11 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "caption geometry OCR models unavailable": (
+        "real caption geometry acceptance requires pinned local OCR assets. PRODUCT "
+        "SURFACE: doctor and study name the explicit caption_models --fetch command. "
+        "CI provisions them before the FFmpeg gate, which forbids these skips."
+    ),
     "set ZING_REQUIRE_YUNET=1": (
         "real YuNet inference requires an explicitly fetched model and public-domain "
         "fixture. PRODUCT SURFACE: layout and doctor name the optional runtime and "
@@ -79,7 +84,7 @@ REGISTERED_SKIPS = {
 # importorskip() names an optional MODULE rather than a constraint; the
 # module name IS the reason, and each is a declared optional extra.
 REGISTERED_IMPORTORSKIP = {
-    "numpy", "cv2", "scenedetect", "faster_whisper", "mcp",
+    "numpy", "cv2", "scenedetect", "faster_whisper", "mcp", "rapidocr", "onnxruntime",
     # Optional myzing[memes]; doctor.check_pillow and render's install hint
     # expose the same dependency gap to users.
     "PIL.Image",
