@@ -802,6 +802,21 @@ def check_pillow() -> Check:
     )
 
 
+def check_heic() -> Check:
+    """HEIC/HEIF photos decode through FFmpeg; probe its HEIF demuxer offline."""
+    from myzing.memes.photo import heif_support
+
+    ok, detail = heif_support()
+    return Check(
+        name="heic", tier=OPTIONAL, ok=ok,
+        detail=("HEIC/HEIF photos for memes and stills: " + detail +
+                ("" if ok else "; JPEG, PNG, WebP, BMP and TIFF photos are unaffected")),
+        fix="" if ok else ("convert HEIC photos to JPEG/PNG, or put FFmpeg 7.1 or newer first on PATH "
+                           "(Zing bundles no HEIC decoder)"),
+        degraded_mode="" if ok else "HEIC/HEIF photos are refused with this message; other photos work",
+    )
+
+
 def check_layout() -> Check:
     """Offline metadata/cache probe; never import native runtimes in MCP status."""
     from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
@@ -886,6 +901,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_fonts(),
         check_tts(),
         check_pillow(),
+        check_heic(),
         check_layout(),
         check_color(),
         check_hyperframes(),

@@ -67,6 +67,7 @@ put `/opt/local/bin` first on PATH. Both options were checked on October 21, 202
 13. **caption_geometry (optional):** study runtime packages and verified local OCR assets. See [caption geometry](CAPTION-GEOMETRY.md) for explicit model provisioning and the sidecar contract.
 14. **fonts (optional):** Pillow/OpenCV and verified local font/license pairs. In a checkout, run `uv sync --extra fonts`; `zing fonts fetch --all` explicitly provisions the library. See [font candidates](FONT-CANDIDATES.md).
 15. **audio (optional):** NumPy for beat, onset, role and loudness analysis; in a checkout, run `uv sync --extra audio`.
+16. **heic (optional):** HEIC/HEIF photos for `zing meme` and `zing still` decode through FFmpeg. Doctor probes a 248-byte HEIF header (no encoder or sample photo needed): FFmpeg 8.1.2 reads HEIF image items, 6.1.1 does not. Zing bundles no HEIC decoder; convert photos to JPEG/PNG or use FFmpeg 7.1 or newer.
 
 ---
 
@@ -157,7 +158,7 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 319
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 320
 ```
 
 Real-model tests require explicit opt-in even when models are already cached:

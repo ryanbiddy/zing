@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import os
 import tempfile
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,7 @@ from uuid import uuid4
 from myzing import storage
 from . import MemeError, PILLOW_HINT
 from .framing import FITS, REQUESTS, blur_background, fill_origin, photo_focus, resolve
+from .photo import load_photo
 from .score import viral_score
 from .templates import fetch_blank, get_template
 from .validate import check_texts
@@ -480,7 +480,7 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
         regions = selected["box_layout"]
     layout_boxes(layout, len(texts), (1080, 1080), regions=regions)
     font = resolve_font(font or ("sans" if layout == "caption" else "anton"))
-    Image, _, _, _, ImageOps = require_pillow()
+    Image = require_pillow()[0]
     target = (Path(out).expanduser() if out else storage.workspace_root() / "memes" / "renders" / f"meme-{uuid4().hex[:12]}.png").resolve()
     formats = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
     if target.suffix.lower() not in formats:
@@ -491,15 +491,15 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
     if target.exists() and not overwrite:
         raise MemeError(f"{target} already exists; choose another --out or pass overwrite.")
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(source_path) as opened:
-                if opened.width * opened.height > MAX_PIXELS:
-                    raise MemeError("Source exceeds the 40 megapixel limit; resize it first.")
-                source = ImageOps.exif_transpose(opened).convert("RGBA")
+        # Oriented working copy: large photos are reduced first, HEIC goes
+        # through FFmpeg, and the decode is bounded (myzing.memes.photo).
+        try:
+            source, origin = load_photo(source_path, mode="RGBA")
+        except MemeError as exc:
+            raise MemeError(f"Could not render {source_path}: {exc}") from exc
         size = output_size(aspect, source.size)
         w, h = size
-        requested, notes, basis = fit, [], "none"
+        requested, notes, basis = fit, [origin.note()] if origin.note() else [], "none"
         if focus is not None:
             basis = "explicit"  # a resolved fill (still workflow): use it exactly as planned
         else:
@@ -528,7 +528,8 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
         if isinstance(exc, MemeError):
             raise
         raise MemeError(f"Could not render {source_path}: {exc}") from exc
-    return {"path": str(target), "source_path": str(source_path), "width": w, "height": h,
+    return {"path": str(target), "source_path": str(source_path), "source": origin.to_dict(),
+            "width": w, "height": h,
             "layout": layout, "aspect": aspect, "fit": fit, "fit_requested": requested,
             "focus": focus, "focus_basis": basis, "boxes": reports,
             "validation": validation,

@@ -47,6 +47,9 @@ class Photo(Record):
     # Estimated subject box (normalized [x, y, w, h]) for crops when no
     # prominent face is found; None for flat photos or older indexes.
     subject: list[float] | None = None
+    # Decoding report (myzing.memes.photo.PhotoSource): original and working
+    # sizes, decoder and orientation source; None for older indexes.
+    source: dict | None = None
 
 
 @dataclass

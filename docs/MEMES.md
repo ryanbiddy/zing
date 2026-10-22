@@ -78,11 +78,36 @@ miss faces elsewhere. Text avoids faces only; pets and objects are not
 protected. Inspect placement before sharing, even when detection is available.
 
 The photo inventory reads one folder, without recursion or links. It accepts
-single-frame JPEG, PNG, WebP, BMP, and TIFF; other extensions are ignored.
-Limits: 64 supported files, 20 MiB per photo, 256 MiB combined, 8192 pixels
-per axis, 40 megapixels per photo, and 4096 folder entries. Invalid supported
-files are reported as errors. Byte-identical photos are deduplicated.
-Orientation follows EXIF. No photo, description, or topic is sent anywhere.
+single-frame JPEG, PNG, WebP, BMP, TIFF, and HEIC/HEIF; other extensions are
+ignored. Limits: 64 supported files, 64 MiB per photo, 256 MiB combined, and
+4096 folder entries; decoding is bounded as described in "HEIC and very large
+photos" below. Invalid supported files are reported as errors. Byte-identical
+photos are deduplicated. Orientation follows EXIF (HEIF: its rotation and
+mirror properties). No photo, description, or topic is sent anywhere.
+
+### HEIC and very large photos
+
+Every photo is decoded once into a working copy at most 4096 pixels on its
+long side, in display orientation, before face/subject analysis and rendering
+(outputs are at most 1920 pixels wide). A 50-megapixel phone JPEG is decoded
+at a reduced JPEG scale and never needs a full-size bitmap. The decode bound
+is explicit: at most 120 megapixels and 16384 pixels per side; larger photos
+are refused with "resize it first". Pillow's decompression-bomb warning is
+replaced by that bound, so a 90-megapixel photo no longer crashes. The still
+index records each photo's `source` (`original` and `working` sizes,
+megapixels, decoder, orientation source), its description names both sizes,
+and `meme render` returns the same `source` object plus a warning line when a
+photo was reduced.
+
+HEIC/HEIF photos are decoded by the installed FFmpeg (extension `.heic`,
+`.heif`, `.hif`, or a HEIF `ftyp` brand on a renamed file). FFmpeg 8.1.2
+reads single images, phone-style tile grids and HEIF rotation; FFmpeg 6.1.1
+cannot read HEIF image items. Then the command stops with the FFmpeg version
+and the remedy: convert the photo to JPEG or PNG, or put FFmpeg 7.1 or newer
+first on PATH. `zing doctor` reports HEIC support (`heic`) by probing a tiny
+HEIF header, without an encoder or sample photo. Zing adds no HEIC library:
+pillow-heif wheels bundle the GPL x265 encoder. Color profiles (for example
+Display P3) are not converted; colors are read as stored.
 
 ### Better lines from your own AI
 
@@ -183,9 +208,10 @@ For custom layouts with more than three regions, check with `--box-count`.
 
 Rendering defaults to a square. `--aspect` accepts `16:9` (1200x675), `1:1`
 (1080x1080), `4:5` (1080x1350), `9:16` (1080x1920), or `original` (1200-1920
-pixels wide, retaining the source ratio). Source and output images are
-limited to 40 megapixels. The still `render` command uses the first frame
-of animated inputs; use `render-video` to keep motion.
+pixels wide, retaining the source ratio). Photos are decoded as described in
+"HEIC and very large photos"; output images are limited to 40 megapixels.
+The still `render` command uses the first frame of animated inputs; use
+`render-video` to keep motion.
 
 - `--layout classic`: outlined Anton text at the top and bottom edges, in
   capitals. The outline is 8% of the font size, so it holds on bright skies.
@@ -239,10 +265,12 @@ be cached, or you can supply it as a local `--image`.
 `--start` and `--end` are source seconds. The selected interval must be at
 most 30 seconds; longer sources require an explicit trim. `--max-duration`
 can lower that limit. Missing or invalid durations, unsupported containers,
-files above 500 MiB, and sources above 8192 pixels on either axis or 40
-megapixels are refused before encoding. Supported containers are MP4/MOV,
-Matroska/WebM, AVI, MPEG/TS, and GIF; the installed FFmpeg must support their
-codecs. URLs, network shares, and playlist inputs are refused.
+files above 500 MiB, and videos above 8192 pixels on either axis or 40
+megapixels are refused before encoding. Still images (`--image`, cached
+blanks) use the photo decoder above, including HEIC and large photos.
+Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG/TS, and GIF; the
+installed FFmpeg must support their codecs. URLs, network shares, and playlist
+inputs are refused.
 
 The `classic`, `caption`, and `labels` layouts use the still renderer's text
 caps, fonts, wrapping, plates, shadows, rotation, and framing. `--fit` is
