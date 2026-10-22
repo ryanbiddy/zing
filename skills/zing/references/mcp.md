@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 28 tools. Inspect the connected client's tool schemas for
+The current server has 30 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -34,6 +34,8 @@ An MCP-only client cannot execute CLI-only operations without a separate shell.
 | `meme_check` | Check copy budgets/beat count/filler. |
 | `meme_render` | Still output path and layout metadata; local image or authorized template. |
 | `meme_render_video` | MP4 (and optional GIF) path and metadata; local video, GIF or still with timed captions. |
+| `still_concepts` | Local photo folder and topic to distinct concepts, a contact sheet, JSON index, and writer prompt; no model calls or uploads. |
+| `still_render` | Indexed concept ID and output folder to a full-size PNG, optionally MP4/GIF; records alt text and selection. |
 | `push_to_uoink` | Explicit library write; not part of default local editing. |
 | `import_shot_list` | Attach a local Writer-exported Markdown shot list to a studied slug. |
 

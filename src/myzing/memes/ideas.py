@@ -68,13 +68,15 @@ def _template_texts(key: str, count: int, topic: str, index: int, pair: list[str
 
 
 def generate_ideas(topic: str, template: str = "", n: int = 6,
-                   tone: str = "dry", audience: str = "") -> list[dict]:
+                   tone: str = "dry", audience: str = "", *, seed: str = "") -> list[dict]:
     if not isinstance(topic, str) or not topic.strip():
         raise MemeError("topic must be a non-empty string")
     if type(n) is not int or not 1 <= n <= 8:
         raise MemeError("n must be an integer from 1 to 8")
     if not isinstance(tone, str) or not isinstance(audience, str):
         raise MemeError("tone and audience must be strings")
+    if not isinstance(seed, str):
+        raise MemeError("seed must be a string")
     selected = get_template(template) if template else None
     short = _short(topic) or "trying to look productive"
     crowd = _short(audience, 18) or "people who get it"
@@ -90,6 +92,8 @@ def generate_ideas(topic: str, template: str = "", n: int = 6,
     ]
     # A fixed hash avoids Python's per-process hash salt and RNG-version drift.
     seed_text = f"{topic.strip()}\0{tone}\0{audience}\0{selected['id'] if selected else ''}"
+    if seed:
+        seed_text += f"\0{seed}"
     seed = hashlib.sha256(seed_text.encode("utf-8")).hexdigest()
     offset = int(seed[:8], 16) % len(formulas)
     ideas = []

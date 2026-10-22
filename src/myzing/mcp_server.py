@@ -1452,6 +1452,29 @@ def h_plan_drafts(project: str, recipe: str, out: str, seed: int = 0) -> dict[st
     return _ok(**result)
 
 
+def h_still_concepts(photos: str, topic: str, out: str, n: int = 6,
+                     aspect: str = "1:1", layout: str = "auto",
+                     lines: str | None = None) -> dict[str, Any]:
+    """Inventory local photos and render distinct concepts; no uploads/model calls."""
+    from myzing.still.api import create_stills
+
+    try:
+        return _ok(**create_stills(photos, topic, out, n=n, aspect=aspect, layout=layout, lines=lines))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
+def h_still_render(out_folder: str, concept_id: str, video: bool = False,
+                   gif: bool = False) -> dict[str, Any]:
+    """Render an indexed concept at full size, with optional MP4/GIF exports."""
+    from myzing.still.api import pick_still
+
+    try:
+        return _ok(**pick_still(out_folder, concept_id, video=video, gif=gif))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
 def h_meme_templates(search: str = "") -> dict[str, Any]:
     """Catalog lookup is offline and does not fetch image files."""
     from myzing.memes.templates import list_templates
@@ -1870,6 +1893,15 @@ def build_server():
             "doesn't surface MCP prompts as commands."
         ),
     )(h_get_prompt)
+
+    mcp.tool(
+        name="still_concepts",
+        description="Create 1-8 distinct meme concepts from a local photo folder and topic. Requires myzing[memes]. No model calls, network, or media uploads. Supply a new/empty out folder. Optional lines is a local JSON file of AI/user-written ideas; all text is validated. aspect: 1:1, 4:5, 9:16, 16:9. layout: auto, classic, caption, labels. Uses local YuNet when installed/cached; otherwise reports a center heuristic. Returns index_path, contact_sheet path, writer prompt, concept IDs, scores, alt text and warnings, never media bytes.",
+    )(h_still_concepts)
+    mcp.tool(
+        name="still_render",
+        description="Re-render a concept from still_concepts: supply its out_folder and concept_id. Verifies the source photo hash, writes a full-size PNG, and records the selection and alt text in index.json. video=true also exports a five-second MP4; gif=true adds MP4 and a bounded GIF (requires FFmpeg). No network. Returns file paths and metadata, never media bytes.",
+    )(h_still_render)
 
     mcp.tool(
         name="meme_templates",

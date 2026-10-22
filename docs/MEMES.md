@@ -1,5 +1,107 @@
 # Stills and animated memes
 
+## Photos and a topic
+
+Make six distinct concepts from a local photo folder, then pick a concept ID
+from the contact sheet:
+
+```sh
+python -m pip install "myzing[memes]"
+zing still --photos ./photos --topic "one quick bug fix" --out ./stills --n 6 --aspect 4:5
+zing still pick ./stills --id still-0123456789abcdef
+```
+
+Replace the example ID with one printed by your run. `--n` is the total
+number of concepts, from 1 to 8. Zing distributes them across candidate
+photos, seeds the existing formula engine with the topic and photo hash,
+and removes duplicate complete captions. The same photo bytes and topic
+produce the same concepts and IDs with the same local detector setup.
+Scores measure readability and compression; they do not predict popularity.
+
+The output folder must be new or empty. It receives full-size candidate
+PNGs, `contact-sheet.png`, `index.json`, and `meme-writer.md`. The index records
+photo hashes and measurements, every candidate's text, layout, regions,
+score, warnings, renderer box coordinates, and alt text. The contact sheet
+labels each candidate with its ID and includes every candidate in its index.
+`pick` re-renders `finished-<id>.png` and records the selection and output
+hash. It refuses changed source photos or previously exported files that
+have been modified. Source photos stay where they are; keep them available.
+
+`--aspect` sets exact PNG dimensions: `1:1` = 1080×1080, `4:5` = 1080×1350,
+`9:16` = 1080×1920, `16:9` = 1200×675. Photos use `contain` to preserve the
+whole image. `--layout auto` chooses a separate caption bar when sampled
+edge density is high, classic top/bottom text when those bands are clear,
+or labels when supplied regions/template metadata call for them. You can
+also request `classic`, `caption`, or `labels` directly. Placement checks
+the full text boxes against protected regions and other text; blocked
+layouts fall back to a caption bar, with a warning. More than three label
+slots require safe regions because the caption bar supports at most three.
+
+With `myzing[layout]` and the verified cached YuNet model, Zing detects face
+boxes locally and pads them by 2.5% on each side. It never downloads the
+model while generating concepts. To provision it explicitly, run
+`zing layout fetch-model`. Without the runtime/model, or if detection
+fails, Zing reports an unknown face count and reserves the central 60% of
+the source image as a subject heuristic. This can miss faces elsewhere.
+Inspect placement before sharing, even when detection is available.
+
+The photo inventory reads one folder, without recursion or links. It accepts
+single-frame JPEG, PNG, WebP, BMP, and TIFF; other extensions are ignored.
+Limits: 64 supported files, 20 MiB per photo, 256 MiB combined, 8192 pixels
+per axis, 40 megapixels per photo, and 4096 folder entries. Invalid supported
+files are reported as errors. Byte-identical photos are deduplicated.
+Orientation follows EXIF. No photo, description, or topic is sent anywhere.
+
+### Better lines from your own AI
+
+The command prints and saves the existing meme-writer prompt with your
+topic and locally computed orientation, sampled dominant colors, and face
+count (or unknown). JSON mode includes the prompt as a string. Copy it into
+your own AI if you want editorial help. Zing makes no model calls.
+
+Save the returned lines as a local JSON file, then render them:
+
+```json
+{"ideas": [
+  {"photo": "desk.jpg", "title": "Scope creep", "texts": ["one quick fix", "the sun came up"]},
+  {"photo": "desk.jpg", "title": "Wildcard", "texts": ["the bug has tenure now"]}
+]}
+```
+
+```sh
+zing still --photos ./photos --topic "one quick bug fix" --lines ./lines.json --out ./rewritten --json
+```
+
+Use a filename or photo ID from the index. Omit `photo` to distribute ideas
+across the selected photos. A top-level array is also accepted. The file's
+1–8 ideas replace `--n`; the same 70-character box cap, 110-character total
+cap, beat limits, and filler checks apply. Invalid or duplicate captions
+fail before output publication. Optional `regions` use normalized source
+coordinates `[x,y,width,height]`, one per text slot. An optional `template`
+ID supplies local catalog regions only; it never replaces or downloads the
+photo. `title` and `why` are optional strings. Alt text is generated from
+measured photo properties and the rendered caption text. Subject details
+remain explicitly unknown; this is a limited literal description, not
+semantic image recognition or a claim that no undetected faces exist.
+
+```sh
+zing still pick ./stills --id still-0123456789abcdef --video
+zing still pick ./stills --id still-0123456789abcdef --gif --json
+```
+
+These reuse the existing animated renderer: five-second MP4, with `--gif`
+also producing a companion GIF. Text remains fixed and no zoom is applied.
+FFmpeg and ffprobe are required. MP4 sizes follow the animated-meme rules
+below, including 1200×676 for `16:9`; GIFs are capped at 640 pixels wide and
+10 fps. Each PNG, MP4, GIF, and contact-sheet entry has alt text in the index.
+
+MCP `still_concepts(photos, topic, out, n=6, aspect="1:1", layout="auto", lines=None)`
+returns the index path, summary, writer prompt, and contact-sheet path.
+`still_render(out_folder, concept_id, video=False, gif=False)` renders a
+selection. Both return paths and metadata, never inline media bytes.
+
+## Individual memes
+
 Render your photo with text written by you or your AI:
 
 ```sh
