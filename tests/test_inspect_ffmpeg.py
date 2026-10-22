@@ -172,7 +172,8 @@ def test_real_ffmpeg_failure_is_clear_and_leaves_no_png(tmp_path, monkeypatch):
     original_run = Decoder.run
     def run(self, command, operation):
         if "waveform" in operation:
-            command[command.index("-af") + 1] = "zing_filter_does_not_exist"
+            at = command.index("-f")
+            command[at:at] = ["-af", "zing_filter_does_not_exist"]
         return original_run(self, command, operation)
     monkeypatch.setattr(Decoder, "run", run)
     out = tmp_path / "failed.png"

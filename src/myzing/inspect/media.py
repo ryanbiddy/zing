@@ -77,14 +77,19 @@ class Decoder:
 
     def envelope(self, video: Path, start: float, end: float, bins: int) -> list[float]:
         duration = end - start
-        data = self.run(self.input_args(video, start) + [
-            "-map", "0:a:0", "-vn", "-sn", "-dn", "-t", f"{duration:.9f}",
-            "-af", "aresample=8000:async=1:first_pts=0,apad",
+        # Seek on the output side (accurate for audio) and never pad: an input
+        # seek plus apad turned a failed AAC decode into a silent waveform on
+        # some FFmpeg builds, which hid the failure (macOS CI, Oct 2026).
+        data = self.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+            "-protocol_whitelist", "file,pipe", "-i", str(video),
+            "-ss", f"{start:.9f}", "-t", f"{duration:.9f}",
+            "-map", "0:a:0", "-vn", "-sn", "-dn",
             "-ac", "1", "-ar", str(SAMPLE_RATE), "-c:a", "pcm_s16le",
             "-f", "s16le", "pipe:1",
         ], f"waveform extraction at {start:.3f}-{end:.3f}s")
         if not data or len(data) % 2:
-            raise InspectionError("ffmpeg returned incomplete audio; check the input audio stream.")
+            raise InspectionError("ffmpeg decoded no audio for this range; check the input audio stream.")
         pcm = array.array("h")
         pcm.frombytes(data)
         if sys.byteorder != "little":
