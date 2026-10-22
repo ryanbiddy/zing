@@ -89,9 +89,13 @@ def score(sequence, studies, *, allow_reordering=False):
             endings += int(not ok)
             evidence.append({"asset_id": c.asset_id, **clause.to_dict(), "selected_whole": whole})
     total = complete + endings
-    value = max(0., (complete / total if total else 1.) - (0 if allow_reordering else order * .25))
-    return {"version": 1, "score": round(value, 4), "complete_clauses": complete,
+    # A selection with no speech has nothing to grade: report it as not
+    # applicable instead of a perfect score that would outrank real speech.
+    value = (None if not total else
+             round(max(0., complete / total - (0 if allow_reordering else order * .25)), 4))
+    return {"version": 1, "score": value, "complete_clauses": complete,
             "partial_clauses": partial, "dangling_endings": endings,
             "source_order_violations": order, "reordering_allowed": allow_reordering,
-            "status": "flagged" if endings or (order and not allow_reordering) else "pass",
+            "status": ("flagged" if endings or (order and not allow_reordering)
+                       else "pass" if total else "not_applicable"),
             "clauses": evidence, "basis": "Punctuation and pause rules; semantic coherence and ASR accuracy unverified."}

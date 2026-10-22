@@ -182,7 +182,7 @@ def report(recipe, rendered, geometry, color, verification, plan):
     dimensions["typography"] = {"status": "approximate", "reason": "Pinned substitutes or disclosed system defaults; original font unknown."}
     continuity = planning.get("continuity", {})
     if continuity:
-        dimensions["continuity"] = {"status": "miss" if continuity["status"] == "flagged" else "pass",
+        dimensions["continuity"] = {"status": {"flagged": "miss", "pass": "pass"}.get(continuity["status"], "not_applicable"),
                                     "reason": continuity["basis"], **{k: v for k, v in continuity.items() if k != "status"}}
     return {"version": 1, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
             "source_pacing": source_pacing, "text_roles": output_roles,

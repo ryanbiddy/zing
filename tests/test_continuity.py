@@ -112,6 +112,14 @@ def test_continuity_score_detects_partial_and_out_of_order():
     assert score([c(2, 2.35), c(0, .35)], [clip], allow_reordering=True)["status"] == "pass"
 
 
+def test_silent_selection_is_not_applicable_not_a_perfect_score():
+    w = words("We arrived.")
+    clip = ClipStudy("a", "a.mp4", "a" * 64, 4, "ready", words=w, shots=[Shot(0, 0, 4)])
+    silent = score([Candidate("a", clip.sha256, 3, 3.5, 0, 2, 0, "", False, False)], [clip])
+    assert silent["score"] is None and silent["status"] == "not_applicable"
+    assert silent["complete_clauses"] == silent["dangling_endings"] == 0
+
+
 def test_decoded_audio_tail_does_not_exclude_repaired_clip(tmp_path, zing_workspace):
     from myzing.audio.models import AudioMap, Loudness, Segment, Tempo
     root, _, _ = example_project(tmp_path / "project")

@@ -215,8 +215,10 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
     continuity = score(sequence, studies, allow_reordering="[allow source reordering]" in brief.purpose.casefold())
-    if continuity["status"] != "pass":
+    if continuity["status"] == "flagged":
         notes.append("Continuity flagged: no better complete-clause trio found within the bounded search; review dangling source speech.")
+    elif continuity["status"] == "not_applicable":
+        notes.append("Continuity not applicable: this draft selects no transcribed speech.")
     if numbers["median_shot_seconds"]["status"] == "deviation":
         notes.append("Pacing unmet: the selected complete-clause draft misses the reference envelope, including internal source cuts. The bounded search did not select a matching alternative.")
     if font is None:
