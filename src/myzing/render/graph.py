@@ -101,7 +101,14 @@ def build_graph(
             f"lut3d=file='{lut}':interp=trilinear,"
             "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
             "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709,"
-        ) if lut else ""
+        ) if lut else (
+            # When any clip is graded, convert ungraded clips with the same
+            # explicit Rec.709 limited-range matrix and tags. FFmpeg's default
+            # matrix for untagged input differs across versions (bt601 on 6.x),
+            # which shifted ungraded segments by ~2.5 dE next to graded ones.
+            "scale=in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+            "setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709,"
+        ) if any(clip_luts) else ""
         lines.append(
             f"[{input_index}:v:0]"
             f"trim=start={_number(clip.src_in)}:end={_number(clip.src_out)},"
