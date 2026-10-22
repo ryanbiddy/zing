@@ -1,0 +1,1508 @@
+{
+  "version": 1,
+  "clip_count": 10,
+  "source_work_count": 4,
+  "reviewed_transition_seconds": 45.75,
+  "transitions": {
+    "hard_cut": {
+      "tp": 15,
+      "fp": 0,
+      "fn": 7,
+      "precision": 1.0,
+      "recall": 0.6818181818181818,
+      "boundary_mae_seconds": 0.002222266666666665,
+      "per_clip": [
+        {
+          "clip": "korky",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 18
+        },
+        {
+          "clip": "tos-dialogue",
+          "tp": 1,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "boundary_errors_seconds": [
+            0.0
+          ],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 14
+        },
+        {
+          "clip": "tos-lab",
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "boundary_errors_seconds": [
+            0.0,
+            0.0
+          ],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 1
+        },
+        {
+          "clip": "tos-memory",
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "boundary_errors_seconds": [
+            0.0,
+            0.0
+          ],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 4
+        },
+        {
+          "clip": "tos-credits",
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0,
+          "boundary_errors_seconds": [],
+          "missed": [
+            {
+              "signature": "hard_cut",
+              "start_seconds": 18,
+              "end_seconds": 18,
+              "uncertainty_seconds": 0.041667
+            }
+          ],
+          "false_positives": [],
+          "abstentions": 1
+        },
+        {
+          "clip": "duck-titles",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 21
+        },
+        {
+          "clip": "duck-classroom",
+          "tp": 1,
+          "fp": 0,
+          "fn": 1,
+          "precision": 1.0,
+          "recall": 0.5,
+          "boundary_errors_seconds": [
+            0.0
+          ],
+          "missed": [
+            {
+              "signature": "hard_cut",
+              "start_seconds": 9.933333,
+              "end_seconds": 9.933333,
+              "uncertainty_seconds": 0.066667
+            }
+          ],
+          "false_positives": [],
+          "abstentions": 15
+        },
+        {
+          "clip": "duck-street",
+          "tp": 0,
+          "fp": 0,
+          "fn": 2,
+          "precision": null,
+          "recall": 0.0,
+          "boundary_errors_seconds": [],
+          "missed": [
+            {
+              "signature": "hard_cut",
+              "start_seconds": 5.6,
+              "end_seconds": 5.6,
+              "uncertainty_seconds": 0.066667
+            },
+            {
+              "signature": "hard_cut",
+              "start_seconds": 6.866667,
+              "end_seconds": 6.866667,
+              "uncertainty_seconds": 0.066667
+            }
+          ],
+          "false_positives": [],
+          "abstentions": 60
+        },
+        {
+          "clip": "nasa-opening",
+          "tp": 7,
+          "fp": 0,
+          "fn": 3,
+          "precision": 1.0,
+          "recall": 0.7,
+          "boundary_errors_seconds": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.033333999999999975,
+            0.0
+          ],
+          "missed": [
+            {
+              "signature": "hard_cut",
+              "start_seconds": 6.833333,
+              "end_seconds": 6.833333,
+              "uncertainty_seconds": 0.033333
+            },
+            {
+              "signature": "hard_cut",
+              "start_seconds": 7.166667,
+              "end_seconds": 7.166667,
+              "uncertainty_seconds": 0.033333
+            },
+            {
+              "signature": "hard_cut",
+              "start_seconds": 7.533333,
+              "end_seconds": 7.533333,
+              "uncertainty_seconds": 0.033333
+            }
+          ],
+          "false_positives": [],
+          "abstentions": 12
+        },
+        {
+          "clip": "nasa-montage",
+          "tp": 2,
+          "fp": 0,
+          "fn": 0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "boundary_errors_seconds": [
+            0.0,
+            0.0
+          ],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 16
+        }
+      ],
+      "unavailable": []
+    },
+    "dissolve": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 2,
+      "precision": null,
+      "recall": 0.0,
+      "boundary_mae_seconds": null,
+      "per_clip": [
+        {
+          "clip": "korky",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 18
+        },
+        {
+          "clip": "tos-dialogue",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 14
+        },
+        {
+          "clip": "tos-lab",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 1
+        },
+        {
+          "clip": "tos-memory",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 4
+        },
+        {
+          "clip": "tos-credits",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 1
+        },
+        {
+          "clip": "duck-titles",
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0,
+          "boundary_errors_seconds": [],
+          "missed": [
+            {
+              "signature": "dissolve",
+              "start_seconds": 12.233333,
+              "end_seconds": 12.766667,
+              "uncertainty_seconds": 0.1
+            }
+          ],
+          "false_positives": [],
+          "abstentions": 21
+        },
+        {
+          "clip": "duck-classroom",
+          "tp": 0,
+          "fp": 0,
+          "fn": 1,
+          "precision": null,
+          "recall": 0.0,
+          "boundary_errors_seconds": [],
+          "missed": [
+            {
+              "signature": "dissolve",
+              "start_seconds": 6.833333,
+              "end_seconds": 7.633333,
+              "uncertainty_seconds": 0.1
+            }
+          ],
+          "false_positives": [],
+          "abstentions": 15
+        },
+        {
+          "clip": "duck-street",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 60
+        },
+        {
+          "clip": "nasa-opening",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 12
+        },
+        {
+          "clip": "nasa-montage",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 16
+        }
+      ],
+      "unavailable": []
+    },
+    "wipe": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "boundary_mae_seconds": null,
+      "per_clip": [
+        {
+          "clip": "korky",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 18
+        },
+        {
+          "clip": "tos-dialogue",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 14
+        },
+        {
+          "clip": "tos-lab",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 1
+        },
+        {
+          "clip": "tos-memory",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 4
+        },
+        {
+          "clip": "tos-credits",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 1
+        },
+        {
+          "clip": "duck-titles",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 21
+        },
+        {
+          "clip": "duck-classroom",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 15
+        },
+        {
+          "clip": "duck-street",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 60
+        },
+        {
+          "clip": "nasa-opening",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 12
+        },
+        {
+          "clip": "nasa-montage",
+          "tp": 0,
+          "fp": 0,
+          "fn": 0,
+          "precision": null,
+          "recall": null,
+          "boundary_errors_seconds": [],
+          "missed": [],
+          "false_positives": [],
+          "abstentions": 16
+        }
+      ],
+      "unavailable": []
+    }
+  },
+  "shot_boundaries": {
+    "tp": 16,
+    "fp": 4,
+    "fn": 6,
+    "precision": 0.8,
+    "recall": 0.7272727272727273,
+    "boundary_mae_seconds": 0.0022498750000001233,
+    "per_clip": [
+      {
+        "clip": "korky",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "boundary_errors_seconds": [],
+        "missed": [],
+        "false_positives": [],
+        "abstentions": 18
+      },
+      {
+        "clip": "tos-dialogue",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "boundary_errors_seconds": [
+          0.0
+        ],
+        "missed": [],
+        "false_positives": [],
+        "abstentions": 14
+      },
+      {
+        "clip": "tos-lab",
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "boundary_errors_seconds": [
+          0.0003329999999994726,
+          0.0003329999999994726
+        ],
+        "missed": [],
+        "false_positives": [],
+        "abstentions": 1
+      },
+      {
+        "clip": "tos-memory",
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "boundary_errors_seconds": [
+          0.0,
+          0.0
+        ],
+        "missed": [],
+        "false_positives": [],
+        "abstentions": 4
+      },
+      {
+        "clip": "tos-credits",
+        "tp": 1,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "boundary_errors_seconds": [
+          0.0
+        ],
+        "missed": [],
+        "false_positives": [],
+        "abstentions": 1
+      },
+      {
+        "clip": "duck-titles",
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "boundary_errors_seconds": [],
+        "missed": [],
+        "false_positives": [],
+        "abstentions": 21
+      },
+      {
+        "clip": "duck-classroom",
+        "tp": 1,
+        "fp": 2,
+        "fn": 1,
+        "precision": 0.3333333333333333,
+        "recall": 0.5,
+        "boundary_errors_seconds": [
+          0.00033300000000124896
+        ],
+        "missed": [
+          {
+            "signature": "hard_cut",
+            "start_seconds": 9.933333,
+            "end_seconds": 9.933333,
+            "uncertainty_seconds": 0.066667
+          }
+        ],
+        "false_positives": [
+          {
+            "start_seconds": 6.767,
+            "end_seconds": 6.767
+          },
+          {
+            "start_seconds": 10.133,
+            "end_seconds": 10.133
+          }
+        ],
+        "abstentions": 15
+      },
+      {
+        "clip": "duck-street",
+        "tp": 0,
+        "fp": 2,
+        "fn": 2,
+        "precision": 0.0,
+        "recall": 0.0,
+        "boundary_errors_seconds": [],
+        "missed": [
+          {
+            "signature": "hard_cut",
+            "start_seconds": 5.6,
+            "end_seconds": 5.6,
+            "uncertainty_seconds": 0.066667
+          },
+          {
+            "signature": "hard_cut",
+            "start_seconds": 6.866667,
+            "end_seconds": 6.866667,
+            "uncertainty_seconds": 0.066667
+          }
+        ],
+        "false_positives": [
+          {
+            "start_seconds": 5.533,
+            "end_seconds": 5.533
+          },
+          {
+            "start_seconds": 6.733,
+            "end_seconds": 6.733
+          }
+        ],
+        "abstentions": 60
+      },
+      {
+        "clip": "nasa-opening",
+        "tp": 7,
+        "fp": 0,
+        "fn": 3,
+        "precision": 1.0,
+        "recall": 0.7,
+        "boundary_errors_seconds": [
+          0.0003329999999994726,
+          0.0003329999999994726,
+          0.0,
+          0.0,
+          0.00033300000000124896,
+          0.0,
+          0.033667000000001224
+        ],
+        "missed": [
+          {
+            "signature": "hard_cut",
+            "start_seconds": 7.533333,
+            "end_seconds": 7.533333,
+            "uncertainty_seconds": 0.033333
+          },
+          {
+            "signature": "hard_cut",
+            "start_seconds": 8.3,
+            "end_seconds": 8.3,
+            "uncertainty_seconds": 0.033333
+          },
+          {
+            "signature": "hard_cut",
+            "start_seconds": 9.833333,
+            "end_seconds": 9.833333,
+            "uncertainty_seconds": 0.033333
+          }
+        ],
+        "false_positives": [],
+        "abstentions": 12
+      },
+      {
+        "clip": "nasa-montage",
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "boundary_errors_seconds": [
+          0.0,
+          0.0003330000000003608
+        ],
+        "missed": [],
+        "false_positives": [],
+        "abstentions": 16
+      }
+    ],
+    "unavailable": []
+  },
+  "captions": {
+    "tp": 9,
+    "fp": 0,
+    "fn": 2,
+    "precision": 1.0,
+    "recall": 0.8181818181818182,
+    "frames_scored": 5,
+    "unavailable": [],
+    "per_frame": [
+      {
+        "clip": "korky",
+        "t": 1,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "matches": [],
+        "missed": []
+      },
+      {
+        "clip": "tos-dialogue",
+        "t": 0.5,
+        "tp": 2,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "matches": [
+          {
+            "truth": "This film is supported by",
+            "predicted": "This film is supported by",
+            "ink_iou": 0.6827868696505693,
+            "height_relative_error": 0.41177134951223304
+          },
+          {
+            "truth": "the Netherlands Film Fund",
+            "predicted": "the Netherlands Film Fund",
+            "ink_iou": 0.753150302506699,
+            "height_relative_error": 0.3043455576599008
+          }
+        ],
+        "missed": []
+      },
+      {
+        "clip": "duck-titles",
+        "t": 11,
+        "tp": 1,
+        "fp": 0,
+        "fn": 2,
+        "precision": 1.0,
+        "recall": 0.3333333333333333,
+        "matches": [
+          {
+            "truth": "Cover",
+            "predicted": "CoveR\"",
+            "ink_iou": 0.7340233924049853,
+            "height_relative_error": 0.22467132993315242
+          }
+        ],
+        "missed": [
+          "Duck",
+          "and"
+        ]
+      },
+      {
+        "clip": "duck-titles",
+        "t": 13.5,
+        "tp": 6,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "matches": [
+          {
+            "truth": "THIS IS AN OFFICIAL CIVIL DEFENSE FILM",
+            "predicted": "THIS I5AN FFIAL CIVL DEFENSEFLM",
+            "ink_iou": 0.8051076891393204,
+            "height_relative_error": 1.684238892485368e-05
+          },
+          {
+            "truth": "PRODUCED IN CO-OPERATION WITH THE",
+            "predicted": "PRODUCED IN CO-OPERATION WITH THE",
+            "ink_iou": 0.8477311713279856,
+            "height_relative_error": 0.05263157894736814
+          },
+          {
+            "truth": "FEDERAL CIVIL DEFENSE ADMINISTRATION",
+            "predicted": "FEDERAL CIVIL DEFENSE ADMINISTRATION",
+            "ink_iou": 0.7594031818741833,
+            "height_relative_error": 0.29728607752581704
+          },
+          {
+            "truth": "AND IN CONSULTATION WITH THE SAFETY",
+            "predicted": "AND IN CONSULTATION WITH THE SAFETY",
+            "ink_iou": 0.7552666167385879,
+            "height_relative_error": 0.2307591322327618
+          },
+          {
+            "truth": "COMMISSION OF THE NATIONAL EDUCATION",
+            "predicted": "COMSSION OFTHENATIONALEDUCATION",
+            "ink_iou": 0.6961490388405559,
+            "height_relative_error": 0.17947750172306431
+          },
+          {
+            "truth": "ASSOCIATION.",
+            "predicted": "ASSOCIATION.",
+            "ink_iou": 0.7449654033603472,
+            "height_relative_error": 0.28947368421052877
+          }
+        ],
+        "missed": []
+      },
+      {
+        "clip": "nasa-opening",
+        "t": 1,
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "matches": [],
+        "missed": []
+      }
+    ],
+    "median_ink_iou": 0.753150302506699,
+    "median_height_relative_error": 0.2307591322327618,
+    "median_center_error_xy": [
+      0.0030609897959184007,
+      0.006250000000000061
+    ],
+    "exact_text_matches": 7,
+    "matched_text_lines": 9,
+    "matched_line_cer": 0.053497942386831275,
+    "note": "Text/geometry errors condition on detected lines; missed lines remain false negatives. Text lowercased, punctuation removed; spaces retained."
+  },
+  "faces": {
+    "tp": 14,
+    "fp": 0,
+    "fn": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tn": 12,
+    "accuracy": 1.0,
+    "frames_scored": 26,
+    "unknown": [
+      [
+        "tos-lab",
+        6
+      ],
+      [
+        "nasa-opening",
+        7.5
+      ]
+    ],
+    "unavailable": [],
+    "per_frame": [
+      {
+        "clip": "korky",
+        "t": 1,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "korky",
+        "t": 5,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "korky",
+        "t": 10,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "tos-dialogue",
+        "t": 0.5,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "tos-dialogue",
+        "t": 6,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "tos-lab",
+        "t": 1,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "tos-memory",
+        "t": 2.5,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "tos-memory",
+        "t": 10.5,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "tos-memory",
+        "t": 19,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "tos-credits",
+        "t": 19.5,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "duck-titles",
+        "t": 11,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "duck-titles",
+        "t": 13.5,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "duck-classroom",
+        "t": 1,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "duck-classroom",
+        "t": 8,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "duck-classroom",
+        "t": 10,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "duck-classroom",
+        "t": 14,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "duck-street",
+        "t": 4,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "duck-street",
+        "t": 6,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "duck-street",
+        "t": 11.5,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "duck-street",
+        "t": 18.5,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "nasa-opening",
+        "t": 1,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "nasa-opening",
+        "t": 8.5,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "nasa-montage",
+        "t": 1,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "nasa-montage",
+        "t": 6,
+        "truth": true,
+        "predicted": true
+      },
+      {
+        "clip": "nasa-montage",
+        "t": 13,
+        "truth": false,
+        "predicted": false
+      },
+      {
+        "clip": "nasa-montage",
+        "t": 14,
+        "truth": true,
+        "predicted": true
+      }
+    ]
+  },
+  "fonts": {
+    "identity_accuracy": null,
+    "reason": "No verified source font identities",
+    "statuses": {
+      "unmeasured": 15,
+      "best substitute": 100
+    }
+  },
+  "audio": {
+    "accuracy": null,
+    "reason": "No independent listening labels; no beat-timing ground truth",
+    "clips": [
+      {
+        "clip": "korky",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 0,
+          "speech": 12.620000000000001,
+          "silence": 1.7510204081632659,
+          "uncertain": 4.639999999999997
+        }
+      },
+      {
+        "clip": "tos-dialogue",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 0.1400000000000028,
+          "speech": 11.099999999999998,
+          "silence": 0,
+          "uncertain": 8.775600907029478
+        }
+      },
+      {
+        "clip": "tos-lab",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "no supported cadence in 40-240 BPM",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 3.055600907029482,
+          "speech": 8.160000000000002,
+          "silence": 0,
+          "uncertain": 8.799999999999997
+        }
+      },
+      {
+        "clip": "tos-memory",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 1.399999999999995,
+          "speech": 5.86,
+          "silence": 0,
+          "uncertain": 12.755600907029486
+        }
+      },
+      {
+        "clip": "tos-credits",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 11.115600907029481,
+          "speech": 0,
+          "silence": 0,
+          "uncertain": 8.899999999999999
+        }
+      },
+      {
+        "clip": "duck-titles",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 0.140090702947845,
+          "speech": 10.16,
+          "silence": 0,
+          "uncertain": 4.700000000000001
+        }
+      },
+      {
+        "clip": "duck-classroom",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 1.93560090702948,
+          "speech": 15.200000000000001,
+          "silence": 0,
+          "uncertain": 2.8799999999999986
+        }
+      },
+      {
+        "clip": "duck-street",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "unknown",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "attacks mostly overlap supplied speech; independent music pulse is unconfirmed",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 3.5300000000000002,
+          "speech": 14.899999999999999,
+          "silence": 0,
+          "uncertain": 1.5856009070294808
+        }
+      },
+      {
+        "clip": "nasa-opening",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 0,
+          "speech": 9.11,
+          "silence": 1.9,
+          "uncertain": 9.000702947845804
+        }
+      },
+      {
+        "clip": "nasa-montage",
+        "truth": {
+          "music_present": null,
+          "steady_beat_present": null,
+          "status": "unreviewed"
+        },
+        "tempo": {
+          "status": "none",
+          "bpm": null,
+          "confidence": 0.0,
+          "evidence": "inter-onset intervals do not support a steady pulse",
+          "downbeat_status": "unknown",
+          "downbeats": [],
+          "version": 1
+        },
+        "beat_count": 0,
+        "segment_seconds": {
+          "music": 1.470702947845803,
+          "speech": 14.480000000000002,
+          "silence": 0,
+          "uncertain": 4.0600000000000005
+        }
+      }
+    ]
+  },
+  "color": {
+    "perceptual_accuracy": null,
+    "reason": "Unpaired scenes have no target pixels or original LUT labels",
+    "pairs": [
+      {
+        "reference": "tos-dialogue",
+        "clip": "tos-dialogue",
+        "match": {
+          "chosen": {
+            "transform": {
+              "look": "neutral",
+              "parameters": {
+                "contrast": 1.0,
+                "saturation": 1.0,
+                "gamma": 1.0,
+                "lift": 0.0,
+                "gain": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "shadows": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "highlights": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "version": 1
+              },
+              "strength": 0,
+              "exposure_ev": 0.0,
+              "temperature": 0.0,
+              "tint": 0.0,
+              "version": 1
+            },
+            "score": 0.0,
+            "components": {
+              "tone": 0.0,
+              "luma": 0.0,
+              "contrast": 0.0,
+              "chroma_distribution": 0.0,
+              "chroma_mean": 0.0,
+              "chroma_spread": 0.0,
+              "saturation": 0.0,
+              "split_tone": 0.0,
+              "palette": 0.0,
+              "clipping": 0.0
+            },
+            "reasons": [
+              "Exported LUT distribution distance 0.00000000; ungraded baseline 0.00000000.",
+              "Strength 0.0000; exposure +0.0000 EV; white-balance gains controlled by +0.0000/+0.0000.",
+              "Lowest measured distribution distance in the procedural bank and bounded search."
+            ],
+            "version": 1
+          },
+          "baseline_score": 0.0,
+          "confidence": 0.5,
+          "warnings": [
+            "Matched approximation. Different scenes need human review; this score is not pixel Delta E.",
+            "Several looks have similar scores; look identity is ambiguous."
+          ],
+          "version": 1
+        },
+        "visual_check": {
+          "preview": "E:\\AI\\projects\\zing\\worktrees\\v1-realeval\\zing-workspace\\real-eval\\run-01\\color-tos-dialogue-tos-dialogue\\comparison.png",
+          "time": 6,
+          "identity": true,
+          "mean_absolute_rgb8_error": 2.0210009022944058,
+          "p99_absolute_rgb8_error": 8,
+          "max_absolute_rgb8_error": 28
+        }
+      },
+      {
+        "reference": "tos-dialogue",
+        "clip": "tos-lab",
+        "match": {
+          "chosen": {
+            "transform": {
+              "look": "desaturated",
+              "parameters": {
+                "contrast": 1.04,
+                "saturation": 0.35,
+                "gamma": 1.0,
+                "lift": 0.0,
+                "gain": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "shadows": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "highlights": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "version": 1
+              },
+              "strength": 0.33125,
+              "exposure_ev": 0.5,
+              "temperature": -0.06,
+              "tint": 0.06,
+              "version": 1
+            },
+            "score": 0.01998858431397982,
+            "components": {
+              "tone": 0.007534341854846566,
+              "luma": 0.0025162091918038585,
+              "contrast": 0.00033294290745090654,
+              "chroma_distribution": 0.00401671179709217,
+              "chroma_mean": 0.0004158618491556312,
+              "chroma_spread": 0.0008107491048495743,
+              "saturation": 0.0009387720619662166,
+              "split_tone": 0.0025801326127225356,
+              "palette": 0.000831228107432207,
+              "clipping": 1.1634826660156251e-05
+            },
+            "reasons": [
+              "Exported LUT distribution distance 0.01998858; ungraded baseline 0.06553121.",
+              "Strength 0.3312; exposure +0.5000 EV; white-balance gains controlled by -0.0600/+0.0600.",
+              "Lowest measured distribution distance in the procedural bank and bounded search."
+            ],
+            "version": 1
+          },
+          "baseline_score": 0.06553121324650427,
+          "confidence": 0.5,
+          "warnings": [
+            "Matched approximation. Different scenes need human review; this score is not pixel Delta E.",
+            "Several looks have similar scores; look identity is ambiguous.",
+            "A correction reached its bound; review the input color space and lighting."
+          ],
+          "version": 1
+        },
+        "visual_check": {
+          "preview": "E:\\AI\\projects\\zing\\worktrees\\v1-realeval\\zing-workspace\\real-eval\\run-01\\color-tos-dialogue-tos-lab\\comparison.png",
+          "time": 6,
+          "identity": false
+        }
+      },
+      {
+        "reference": "duck-classroom",
+        "clip": "tos-dialogue",
+        "match": {
+          "chosen": {
+            "transform": {
+              "look": "desaturated",
+              "parameters": {
+                "contrast": 1.04,
+                "saturation": 0.35,
+                "gamma": 1.0,
+                "lift": 0.0,
+                "gain": [
+                  1.0,
+                  1.0,
+                  1.0
+                ],
+                "shadows": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "highlights": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "version": 1
+              },
+              "strength": 1.0,
+              "exposure_ev": -0.2734375,
+              "temperature": -0.06,
+              "tint": -0.06,
+              "version": 1
+            },
+            "score": 0.014074117783326446,
+            "components": {
+              "tone": 0.0022026315458185566,
+              "luma": 0.0006463739027157731,
+              "contrast": 0.003592266474361004,
+              "chroma_distribution": 0.003013556358302663,
+              "chroma_mean": 0.0007933124685094506,
+              "chroma_spread": 0.0005442644309735744,
+              "saturation": 0.001939947410329386,
+              "split_tone": 0.0010237369784678102,
+              "palette": 0.0003180282138482282,
+              "clipping": 0.0
+            },
+            "reasons": [
+              "Exported LUT distribution distance 0.01407412; ungraded baseline 0.10560024.",
+              "Strength 1.0000; exposure -0.2734 EV; white-balance gains controlled by -0.0600/-0.0600.",
+              "Lowest measured distribution distance in the procedural bank and bounded search."
+            ],
+            "version": 1
+          },
+          "baseline_score": 0.10560024111129471,
+          "confidence": 0.2,
+          "warnings": [
+            "Matched approximation. Different scenes need human review; this score is not pixel Delta E.",
+            "A correction reached its bound; review the input color space and lighting."
+          ],
+          "version": 1
+        },
+        "visual_check": {
+          "preview": "E:\\AI\\projects\\zing\\worktrees\\v1-realeval\\zing-workspace\\real-eval\\run-01\\color-duck-classroom-tos-dialogue\\comparison.png",
+          "time": 6,
+          "identity": false
+        }
+      }
+    ]
+  },
+  "commands": {
+    "total": 47,
+    "passed": 46,
+    "failures": [
+      {
+        "name": "match",
+        "returncode": 2
+      }
+    ]
+  },
+  "provenance": {
+    "version": 1,
+    "manifest_sha256": "09bf18567fdefc27a1335f3aaed253542d42c678a71101051b3741144a6fb369",
+    "labels_sha256": "e6b61c89028dca3e5cea2f8c9a2c0fadb4cc287ac5a3f2a577c37e274b011fb9",
+    "observations_sha256": "39cc532bff6abc1c8e58107060792d9c784eaabcdfda403a6b6fca46913922ad",
+    "scoring_sha256": "135b5213135f25da9506ebd8e09cdd42f0fdb960cdb340033cb3f2ebf3ad4de3"
+  },
+  "environment": {
+    "myzing": "0.1.0",
+    "faster-whisper": "1.2.1",
+    "ctranslate2": "4.8.1",
+    "rapidocr": "3.9.1",
+    "onnxruntime": "1.27.0",
+    "opencv-python-headless": "4.13.0.92",
+    "Pillow": "12.3.0",
+    "numpy": "2.4.6",
+    "pytest": "9.1.1"
+  },
+  "commit": "46a93c1646e6b5f5b8f9b44e8b86309a39019555"
+}

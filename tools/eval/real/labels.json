@@ -1,0 +1,737 @@
+{
+  "version": 1,
+  "annotator": "Codex visual inspection, 2026-10-21; not independently human-validated",
+  "method": {
+    "transitions": "First surveyed original FFmpeg overview PNGs, then inspected every normalized frame in the declared windows, using timestamped 8x10 sheets. Checked Zing inspect timeline PNGs as context. Cut = first fully new shot; isolated one/two-frame archival blends are treated as cut uncertainty, not a gradual dissolve. No detector outputs were used to place these boundaries.",
+    "captions": "Manually transcribed visible title lines and estimated tight visible-ink axis-aligned boxes from native-resolution FFmpeg PNGs, before inspecting OCR boxes. Normalized [left,top,right,bottom]. Full-frame labels exclude unreadable incidental scenery and the small archival calibration mark.",
+    "faces": "Visible human face presence at exact 0.5-second sample times; cartoon turtle, back of head, fully covered faces and opaque helmets are not visible human faces. Ambiguous tiny/profile faces are null. Presence scoring does not measure every-face recall or layout safety.",
+    "audio": "Audio cannot be reliably auditioned in this session. Music/beat labels remain null pending a listening review. Waveform, ASR and detector output are not independent music truth.",
+    "fonts": "Source font family is unknown; no identity labels fabricated.",
+    "color": "One identical-file pair is an identity invariant; unrelated-scene pairs have no known original grade or pixel correspondence."
+  },
+  "thresholds": {
+    "confidence": 0.8,
+    "cut_tolerance_frames": 2,
+    "interval_iou": 0.5,
+    "caption_iou": 0.5,
+    "caption_sample_tolerance_seconds": 0.01,
+    "face_sample_tolerance_seconds": 0.01
+  },
+  "clips": {
+    "korky": {
+      "media_sha256": "f11726ac7085f55a9d4f2a8a4c5ecb07c237a9639505ea0caae0802f4189a8d7",
+      "transition_windows": [
+        [
+          0,
+          6
+        ]
+      ],
+      "transition_events": [],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/korky-frames-0.png",
+        "zing-workspace/real-eval/review/korky-frames-1.png",
+        "zing-workspace/real-eval/review/korky-frames-2.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/korky-timeline.png",
+      "caption_frames": [
+        {
+          "t": 1,
+          "complete": true,
+          "png": "zing-workspace/real-eval/review/korky-at-1.png",
+          "uncertainty_pixels": 4,
+          "lines": []
+        }
+      ],
+      "face_frames": [
+        {
+          "t": 1,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/korky-at-1.png"
+        },
+        {
+          "t": 5,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/korky-at-5.png"
+        },
+        {
+          "t": 10,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/korky-at-10.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      },
+      "diagnostic_frames": [
+        {
+          "t": 2.4,
+          "visible_text": [],
+          "selection": "post-hoc false-positive audit; excluded from primary caption precision/recall",
+          "png": "zing-workspace/real-eval/review/korky-at-2.4.png"
+        }
+      ]
+    },
+    "tos-dialogue": {
+      "media_sha256": "852add1c626b0c2b4f5365a22eecd7b2e2558adad9fb933a54cd7d063f7251ad",
+      "transition_windows": [
+        [
+          3,
+          7
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 5,
+          "end_seconds": 5,
+          "uncertainty_seconds": 0.041667
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/tos-dialogue-frames-0.png",
+        "zing-workspace/real-eval/review/tos-dialogue-frames-1.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/tos-dialogue-timeline.png",
+      "caption_frames": [
+        {
+          "t": 0.5,
+          "complete": true,
+          "png": "zing-workspace/real-eval/review/tos-dialogue-at-0.5.png",
+          "uncertainty_pixels": 4,
+          "lines": [
+            {
+              "text": "This film is supported by",
+              "box": [
+                0.075406,
+                0.747222,
+                0.299304,
+                0.794444
+              ],
+              "font_family": null
+            },
+            {
+              "text": "the Netherlands Film Fund",
+              "box": [
+                0.075406,
+                0.8,
+                0.472158,
+                0.863889
+              ],
+              "font_family": null
+            }
+          ]
+        }
+      ],
+      "face_frames": [
+        {
+          "t": 0.5,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/tos-dialogue-at-0.5.png"
+        },
+        {
+          "t": 6,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/tos-dialogue-at-6.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      }
+    },
+    "tos-lab": {
+      "media_sha256": "5cfdd64418b759b40aff88a352da0d23e0c76199f451a031180f009a1f4a9674",
+      "transition_windows": [
+        [
+          3,
+          10
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 4.583333,
+          "end_seconds": 4.583333,
+          "uncertainty_seconds": 0.041667
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 8.666667,
+          "end_seconds": 8.666667,
+          "uncertainty_seconds": 0.041667
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/tos-lab-frames-0.png",
+        "zing-workspace/real-eval/review/tos-lab-frames-1.png",
+        "zing-workspace/real-eval/review/tos-lab-frames-2.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/tos-lab-timeline.png",
+      "caption_frames": [],
+      "face_frames": [
+        {
+          "t": 1,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/tos-lab-at-1.png"
+        },
+        {
+          "t": 6,
+          "present": null,
+          "confidence": "uncertain",
+          "png": "zing-workspace/real-eval/review/tos-lab-at-6.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      }
+    },
+    "tos-memory": {
+      "media_sha256": "41a9d08ecda09bc871e92f8911e1b4b6819eebce45f3b340b37e5dca6e7cd2e3",
+      "transition_windows": [
+        [
+          0,
+          6
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 2.125,
+          "end_seconds": 2.125,
+          "uncertainty_seconds": 0.041667
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 4.5,
+          "end_seconds": 4.5,
+          "uncertainty_seconds": 0.041667
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/tos-memory-frames-0.png",
+        "zing-workspace/real-eval/review/tos-memory-frames-1.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/tos-memory-timeline.png",
+      "caption_frames": [],
+      "face_frames": [
+        {
+          "t": 2.5,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/tos-memory-at-2.5.png"
+        },
+        {
+          "t": 10.5,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/tos-memory-at-10.5.png"
+        },
+        {
+          "t": 19,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/tos-memory-at-19.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      }
+    },
+    "tos-credits": {
+      "media_sha256": "67ed8cbf2b53932c21f8100461230772b048132adf0ab8e92921b0ca928f6fda",
+      "transition_windows": [
+        [
+          17,
+          18.75
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 18,
+          "end_seconds": 18,
+          "uncertainty_seconds": 0.041667
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/tos-credits-frames-0.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/tos-credits-timeline.png",
+      "caption_frames": [],
+      "face_frames": [
+        {
+          "t": 19.5,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/tos-credits-at-19.5.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      }
+    },
+    "duck-titles": {
+      "media_sha256": "9e859de69eec8f03c25877c0a6caf558e6772e62f26dd24345f9e8ca67874070",
+      "transition_windows": [
+        [
+          9,
+          14
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "dissolve",
+          "start_seconds": 12.233333,
+          "end_seconds": 12.766667,
+          "uncertainty_seconds": 0.1
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/duck-titles-frames-0.png",
+        "zing-workspace/real-eval/review/duck-titles-frames-1.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/duck-titles-timeline.png",
+      "caption_frames": [
+        {
+          "t": 11,
+          "complete": true,
+          "png": "zing-workspace/real-eval/review/duck-titles-at-11.png",
+          "uncertainty_pixels": 4,
+          "lines": [
+            {
+              "text": "Duck",
+              "box": [
+                0.055102,
+                0.09375,
+                0.895918,
+                0.521875
+              ],
+              "font_family": null
+            },
+            {
+              "text": "and",
+              "box": [
+                0.430612,
+                0.50625,
+                0.597959,
+                0.601562
+              ],
+              "font_family": null
+            },
+            {
+              "text": "Cover",
+              "box": [
+                0.085714,
+                0.55625,
+                0.928571,
+                0.910937
+              ],
+              "font_family": null
+            }
+          ]
+        },
+        {
+          "t": 13.5,
+          "complete": true,
+          "png": "zing-workspace/real-eval/review/duck-titles-at-13.5.png",
+          "uncertainty_pixels": 4,
+          "lines": [
+            {
+              "text": "THIS IS AN OFFICIAL CIVIL DEFENSE FILM",
+              "box": [
+                0.153061,
+                0.248438,
+                0.830612,
+                0.307812
+              ],
+              "font_family": null
+            },
+            {
+              "text": "PRODUCED IN CO-OPERATION WITH THE",
+              "box": [
+                0.153061,
+                0.35,
+                0.826531,
+                0.409375
+              ],
+              "font_family": null
+            },
+            {
+              "text": "FEDERAL CIVIL DEFENSE ADMINISTRATION",
+              "box": [
+                0.153061,
+                0.451562,
+                0.830612,
+                0.509375
+              ],
+              "font_family": null
+            },
+            {
+              "text": "AND IN CONSULTATION WITH THE SAFETY",
+              "box": [
+                0.155102,
+                0.55,
+                0.826531,
+                0.610938
+              ],
+              "font_family": null
+            },
+            {
+              "text": "COMMISSION OF THE NATIONAL EDUCATION",
+              "box": [
+                0.155102,
+                0.65,
+                0.834694,
+                0.710938
+              ],
+              "font_family": null
+            },
+            {
+              "text": "ASSOCIATION.",
+              "box": [
+                0.155102,
+                0.753125,
+                0.385714,
+                0.8125
+              ],
+              "font_family": null
+            }
+          ]
+        }
+      ],
+      "face_frames": [
+        {
+          "t": 11,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-titles-at-11.png"
+        },
+        {
+          "t": 13.5,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-titles-at-13.5.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      },
+      "notes": "9.73-10.10 is a title fading onto an unchanged turtle background; not a shot dissolve. 12.23-12.77 is a cross-dissolve between two distinct title cards."
+    },
+    "duck-classroom": {
+      "media_sha256": "c04f2b720d48fea0c4ec9ada3ab42e625246cc208d79e532427d4fbf2fafa2c4",
+      "transition_windows": [
+        [
+          6,
+          11
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 9.933333,
+          "end_seconds": 9.933333,
+          "uncertainty_seconds": 0.066667
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 10.966667,
+          "end_seconds": 10.966667,
+          "uncertainty_seconds": 0.066667
+        },
+        {
+          "signature": "dissolve",
+          "start_seconds": 6.833333,
+          "end_seconds": 7.633333,
+          "uncertainty_seconds": 0.1
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/duck-classroom-frames-0.png",
+        "zing-workspace/real-eval/review/duck-classroom-frames-1.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/duck-classroom-timeline.png",
+      "caption_frames": [],
+      "face_frames": [
+        {
+          "t": 1,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-classroom-at-1.png"
+        },
+        {
+          "t": 8,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-classroom-at-8.png"
+        },
+        {
+          "t": 10,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-classroom-at-10.png"
+        },
+        {
+          "t": 14,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-classroom-at-14.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      },
+      "notes": "9.90 is a blended boundary frame; first fully new teacher shot at 9.933333. Timing uncertainty is two normalized frames."
+    },
+    "duck-street": {
+      "media_sha256": "3fa59431a0dc6e4d74f944984091d23f586020aa7f1df97d50cf9e46d697e417",
+      "transition_windows": [
+        [
+          4,
+          8
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 5.6,
+          "end_seconds": 5.6,
+          "uncertainty_seconds": 0.066667
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 6.866667,
+          "end_seconds": 6.866667,
+          "uncertainty_seconds": 0.066667
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/duck-street-frames-0.png",
+        "zing-workspace/real-eval/review/duck-street-frames-1.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/duck-street-timeline.png",
+      "caption_frames": [],
+      "face_frames": [
+        {
+          "t": 4,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-street-at-4.png"
+        },
+        {
+          "t": 6,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-street-at-6.png"
+        },
+        {
+          "t": 11.5,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-street-at-11.5.png"
+        },
+        {
+          "t": 18.5,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/duck-street-at-18.5.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      },
+      "notes": "5.53-5.57 are blended frames; first fully new close shot at 5.60. This short blend is ambiguous; two-frame timing uncertainty, not a confident optical dissolve label."
+    },
+    "nasa-opening": {
+      "media_sha256": "3d9cf44cec35ddf9e4a1ade7cfb04d02e9de759adf07aa9c5cde4ffe4337e50c",
+      "transition_windows": [
+        [
+          6,
+          10
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 6.833333,
+          "end_seconds": 6.833333,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 7.166667,
+          "end_seconds": 7.166667,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 7.533333,
+          "end_seconds": 7.533333,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 8.1,
+          "end_seconds": 8.1,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 8.3,
+          "end_seconds": 8.3,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 8.5,
+          "end_seconds": 8.5,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 8.966667,
+          "end_seconds": 8.966667,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 9.4,
+          "end_seconds": 9.4,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 9.666667,
+          "end_seconds": 9.666667,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 9.833333,
+          "end_seconds": 9.833333,
+          "uncertainty_seconds": 0.033333
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/nasa-opening-frames-0.png",
+        "zing-workspace/real-eval/review/nasa-opening-frames-1.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/nasa-opening-timeline.png",
+      "caption_frames": [
+        {
+          "t": 1,
+          "complete": true,
+          "png": "zing-workspace/real-eval/review/nasa-opening-at-1.png",
+          "uncertainty_pixels": 4,
+          "lines": []
+        }
+      ],
+      "face_frames": [
+        {
+          "t": 1,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/nasa-opening-at-1.png"
+        },
+        {
+          "t": 7.5,
+          "present": null,
+          "confidence": "uncertain",
+          "png": "zing-workspace/real-eval/review/nasa-opening-at-7.5.png"
+        },
+        {
+          "t": 8.5,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/nasa-opening-at-8.5.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      }
+    },
+    "nasa-montage": {
+      "media_sha256": "72b196b82642985f05bbf8cc4652dbc46e82510dc28b17d6f978e8524e328206",
+      "transition_windows": [
+        [
+          0,
+          3
+        ]
+      ],
+      "transition_events": [
+        {
+          "signature": "hard_cut",
+          "start_seconds": 0.8,
+          "end_seconds": 0.8,
+          "uncertainty_seconds": 0.033333
+        },
+        {
+          "signature": "hard_cut",
+          "start_seconds": 2.066667,
+          "end_seconds": 2.066667,
+          "uncertainty_seconds": 0.033333
+        }
+      ],
+      "review_pngs": [
+        "zing-workspace/real-eval/review/nasa-montage-frames-0.png",
+        "zing-workspace/real-eval/review/nasa-montage-frames-1.png"
+      ],
+      "timeline_png": "zing-workspace/real-eval/run-01/nasa-montage-timeline.png",
+      "caption_frames": [],
+      "face_frames": [
+        {
+          "t": 1,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/nasa-montage-at-1.png"
+        },
+        {
+          "t": 6,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/nasa-montage-at-6.png"
+        },
+        {
+          "t": 13,
+          "present": false,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/nasa-montage-at-13.png"
+        },
+        {
+          "t": 14,
+          "present": true,
+          "confidence": "high",
+          "png": "zing-workspace/real-eval/review/nasa-montage-at-14.png"
+        }
+      ],
+      "audio": {
+        "music_present": null,
+        "steady_beat_present": null,
+        "status": "unreviewed"
+      }
+    }
+  }
+}

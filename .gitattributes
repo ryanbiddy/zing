@@ -20,3 +20,7 @@ tools/hyperframes-sidecar/plan.mjs text eol=lf
 tools/hyperframes-sidecar/templates.mjs text eol=lf
 tools/hyperframes-sidecar/offline.cjs text eol=lf
 tools/hyperframes-sidecar/package-lock.json text eol=lf
+
+# Real-evaluation provenance hashes these files byte-for-byte.
+tools/eval/real/*.json text eol=lf
+tools/eval/real/*.py text eol=lf
