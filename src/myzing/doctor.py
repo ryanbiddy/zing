@@ -711,9 +711,9 @@ def check_pillow() -> Check:
     present = _has_module("PIL")
     return Check(
         name="pillow", tier=OPTIONAL, ok=present,
-        detail="Pillow available for still memes" if present else "Pillow is not installed",
+        detail="Pillow available for still memes and timeline inspection" if present else "Pillow is not installed",
         fix='' if present else 'python -m pip install "myzing[memes]"',
-        degraded_mode="" if present else "meme rendering is unavailable; ideas, templates, and text checks still work",
+        degraded_mode="" if present else "meme rendering and timeline inspection are unavailable; ideas, templates, and text checks still work",
     )
 
 

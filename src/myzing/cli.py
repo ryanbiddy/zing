@@ -34,6 +34,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
               "measure local beats, onsets, audio roles, and loudness"),
     "thumbs": ("myzing.thumbs",
                "generate thumbnail candidates for a video"),
+    "inspect": ("myzing.inspect.command",
+                "review frames, waveform, cuts, and timed transcript in one PNG"),
     "meme": ("myzing.memes.command",
              "browse templates, draft ideas, check text, and render still memes"),
     "serve-mcp": ("myzing.mcp_server",

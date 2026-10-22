@@ -119,5 +119,5 @@ def test_clean_host_gate_launches_installed_mcp_smoke() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
 
     assert 'REPO / "packaging" / "mcp_stdio_smoke.py"' in source
-    assert 'mcp_payload["tool_count"] == 23' in source
+    assert 'mcp_payload["tool_count"] == 24' in source
     assert "require_mcp=True" in source

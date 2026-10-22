@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
                 mcp.returncode == 0
                 and mcp_payload["ok"] is True
                 and mcp_payload["server"]["name"] == "zing"
-                and mcp_payload["tool_count"] == 23
+                and mcp_payload["tool_count"] == 24
                 and mcp_payload["called"] == "zing_status"
             )
         except (KeyError, TypeError, json.JSONDecodeError):
