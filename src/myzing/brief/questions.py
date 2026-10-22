@@ -44,11 +44,18 @@ def brief_questions() -> dict:
             for topic, group in TOPICS
         ],
         "answer_examples": {
+            "framing": "auto",
+            "aspects": ["16:9", "1:1", "9:16"],
+            "framing_max_upscale": 2.5,
             "must_keep": [{"clip": "clip ID or path", "start": 0, "end": 2}, {"phrase": "exact words"}],
             "forbidden": [], "exact_spellings": ["Zoë", "Zing"],
             "music": {"source": "supplied files", "files": ["audio/bed.wav"]},
             "sfx": {"source": "none"},
         },
+        "optional_fields": [{"key": "framing", "default": "auto", "choices": ["auto", "fit", "fill", "reframe", "blurfill"],
+                             "description": "Auto crops only within loss, subject-coverage and enlargement limits; otherwise blurfill."},
+                            {"key": "aspects", "default": [], "description": "Delivery list: 16:9, 1:1, 9:16. Empty uses aspect."},
+                            {"key": "framing_max_upscale", "default": 2.5, "description": "Configurable auto crop enlargement limit, 1-16x."}],
     }
 
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import math
 import types
-from dataclasses import fields, is_dataclass
+from dataclasses import MISSING, fields, is_dataclass
 from functools import lru_cache
 from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
@@ -106,7 +106,9 @@ def encode(value: Any) -> Any:
         if post:
             post()
         return {f.name: encode(getattr(value, f.name)) for f in fields(value)
-                if not (f.name == "timing" and getattr(value, f.name) is None)}
+                if not (f.name == "timing" and getattr(value, f.name) is None)
+                and not (f.metadata.get("omit_default") and getattr(value, f.name) ==
+                         (f.default_factory() if f.default_factory is not MISSING else f.default))}
     if isinstance(value, list):
         return [encode(v) for v in value]
     if isinstance(value, dict):

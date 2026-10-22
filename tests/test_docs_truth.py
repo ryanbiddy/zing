@@ -32,6 +32,27 @@ def test_documented_ffmpeg_counts_match_full_ci_gate():
     assert quoted, "Keep a runnable full-gate example in the developer guide"
 
 
+def test_ci_ffmpeg_gate_counts_match_collected_tests():
+    """Lock every CI gate count (full gate and the macOS subset) to collection.
+
+    The conftest option fails collection unless exactly that many tests are
+    selected, so a stale count in ci.yml fails here, not only on its runner.
+    """
+    import shlex
+    import subprocess
+    import sys
+
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    commands = [line.split("run:", 1)[1] for line in workflow.splitlines()
+                if "run: pytest" in line and "--expected-ffmpeg-tests" in line]
+    assert len(commands) >= 3 and any("tests/" in c for c in commands)
+    for command in dict.fromkeys(commands):
+        args = shlex.split(command)[1:]
+        result = subprocess.run([sys.executable, "-m", "pytest", "--collect-only", "-p", "no:cacheprovider", *args],
+                                cwd=ROOT, capture_output=True, text=True, timeout=300)
+        assert result.returncode == 0, (command, (result.stdout + result.stderr)[-800:])
+
+
 def test_command_catalog_covers_cli_registry():
     text = (ROOT / "skills/zing/references/commands.md").read_text(encoding="utf-8")
     catalog = set(re.findall(r"^\| `zing ([a-z-]+)(?: [a-z-]+)?` \|", text, re.M))

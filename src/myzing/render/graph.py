@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from myzing.composition import Transition
 
 from .validation import ValidatedEDL
+from .framing import framing_filter
 
 
 DUCK_THRESHOLD = 0.03
@@ -92,6 +93,7 @@ def build_graph(
     clip_luts: tuple[str | None, ...] = (),
     transitions: tuple[Transition | None, ...] = (),
     caption_overlay: Path | None = None,
+    clip_framings: tuple = (),
 ) -> GraphPlan:
     edl = validated.edl
     duration = validated.duration
@@ -107,6 +109,8 @@ def build_graph(
         from . import transitions as effects
     if clip_luts and len(clip_luts) != len(validated.clips):
         raise ValueError("clip LUTs must match the validated timeline order")
+    if clip_framings and len(clip_framings) != len(validated.clips):
+        raise ValueError("clip framings must match the validated timeline order")
     for input_index, resolved in enumerate(validated.clips):
         input_paths.append(resolved.path)
         clip = resolved.spec
@@ -141,16 +145,18 @@ def build_graph(
             frames = video_frame(clip.timeline_start + clip.src_out - clip.src_in, rate) - video_frame(clip.timeline_start, rate)
             edge = (f",tpad=stop_mode=clone:stop_duration=1,trim=end_frame={frames},"
                     f"settb=expr=1/({rate}),setpts=N")
+        framing = clip_framings[input_index] if clip_framings else None
+        framing_clock = ""
+        if framing is not None and framing.mode != "fit" and not transitions and edge:
+            # Allocate the final frames before crop evaluation: even a cloned
+            # source frame gets the window for its own output-frame index.
+            framing_clock, edge = edge.removeprefix(",") + ",", ""
         lines.append(
             f"[{input_index}:v:0]"
             f"trim=start={_number(clip.src_in)}:end={_number(clip.src_out)},"
             "setpts=PTS-STARTPTS,"
             f"fps={fps_rate or _number(edl.fps)},"
-            + grade +
-            f"scale={edl.width}:{edl.height}:"
-            "force_original_aspect_ratio=decrease:force_divisible_by=2,"
-            f"pad={edl.width}:{edl.height}:(ow-iw)/2:(oh-ih)/2:color=black,"
-            "setsar=1,format=yuv420p"
+            + grade + framing_clock + framing_filter(framing, edl.width, edl.height, rate, label)
             + edge + f"[{label}]"
         )
         if transitions:

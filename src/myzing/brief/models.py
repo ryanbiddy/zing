@@ -81,6 +81,9 @@ class Brief:
     sfx: dict = field(default_factory=lambda: {"source": "none", "files": []})
     reference_match: str = "recommend"
     version: int = 1
+    framing: str = field(default="auto", metadata={"omit_default": True})
+    aspects: list[str] = field(default_factory=list, metadata={"omit_default": True})
+    framing_max_upscale: float = field(default=2.5, metadata={"omit_default": True})
 
     def __post_init__(self):
         if type(self.version) is not int or self.version != 1:
@@ -89,6 +92,14 @@ class Brief:
             setattr(self, name, text(getattr(self, name), name))
         if self.aspect not in ("9:16", "1:1", "16:9"):
             raise BriefError("aspect: choose 9:16, 1:1, or 16:9.")
+        if self.framing not in ("auto", "fit", "fill", "reframe", "blurfill"):
+            raise BriefError("framing: choose auto, fit, fill, reframe, or blurfill.")
+        if (not isinstance(self.aspects, list) or any(a not in ("16:9", "1:1", "9:16") for a in self.aspects)
+                or len(set(self.aspects)) != len(self.aspects)):
+            raise BriefError("aspects: use a unique list of 16:9, 1:1, and/or 9:16.")
+        self.framing_max_upscale = number(self.framing_max_upscale, "framing_max_upscale")
+        if not 1 <= self.framing_max_upscale <= 16:
+            raise BriefError("framing_max_upscale: choose a linear enlargement limit from 1 to 16.")
         self.target_length_seconds = number(self.target_length_seconds, "target_length_seconds")
         if not 0 < self.target_length_seconds <= 60:
             raise BriefError("target_length_seconds: choose more than 0 and at most 60 seconds for v0.1.")
@@ -113,7 +124,14 @@ class Brief:
                     raise BriefError("forbidden: this overlaps a must_keep moment. Change one of the constraints.")
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        result = asdict(self)
+        if self.framing == "auto":
+            result.pop("framing")
+        if not self.aspects:
+            result.pop("aspects")
+        if self.framing_max_upscale == 2.5:
+            result.pop("framing_max_upscale")
+        return result
 
     @classmethod
     def from_answers(cls, answers: dict) -> Brief:
@@ -135,7 +153,7 @@ class Brief:
     def from_dict(cls, data: dict) -> Brief:
         if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] != 1:
             raise BriefError("Unsupported Brief version; expected version 1. Use --answers for unversioned answers.")
-        missing = {f.name for f in fields(cls)} - set(data)
+        missing = {f.name for f in fields(cls)} - {"framing", "aspects", "framing_max_upscale"} - set(data)
         if missing:
             raise BriefError(f"Incomplete saved brief: missing {', '.join(sorted(missing))}. Use --answers to apply defaults.")
         return cls.from_answers({k: v for k, v in data.items() if k != "version"})

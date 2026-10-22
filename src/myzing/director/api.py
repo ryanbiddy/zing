@@ -97,13 +97,30 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         pool, required = candidates(clips, keep, forbidden, style, brief.target_length_seconds)
         selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed,
                           allow_reordering="[allow source reordering]" in brief.purpose.casefold())
+        # Decode used sources for framing and caption safety. This is local layout
+        # analysis, with no study/ASR, model downloads, or reference lookup.
+        from myzing.layout.framing import analyze_subjects
+        subject_evidence = {}
+        used = {c.asset_id for sequence in selected.values() for c in sequence}
+        for asset in manifest.assets:
+            probe = asset.probe
+            if asset.id not in used or probe is None or not probe.width or not probe.height:
+                continue
+            study = next(s for s in clips if s.asset_id == asset.id)
+            # Only the trims any draft uses (plus margins), so source length
+            # never exhausts the analysis budget or decodes unused footage.
+            ranges = [(c.start, c.end) for sequence in selected.values() for c in sequence if c.asset_id == asset.id]
+            subject_evidence[asset.id] = analyze_subjects(Path(study.path), study.duration, root / "framing-work",
+                                                         [s.start for s in study.shots], ranges=ranges)
+        report["subject_analysis"] = {key: {"tracks": [t.to_dict() for t in tracks], "warnings": notes}
+                                      for key, (tracks, notes) in subject_evidence.items()}
         report["envelope"] = style.to_dict()
         report["search"] = {"candidate_count": len(pool), "method": "deterministic bounded beam; 96 states per expansion",
                             "distinctness": "Different opening content with <50% overlap, or >=max(1s, reference median, 20% target) changed footage.",
                             "duration_tolerance_seconds": 2 / 30}
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
-                                       style, brief, manifest, root, seed, keep, forbidden)
+                                       style, brief, manifest, root, seed, keep, forbidden, subject_evidence)
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},

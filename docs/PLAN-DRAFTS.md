@@ -99,14 +99,24 @@ The output folder contains `plan-A.json`, `plan-B.json`, `plan-C.json`, and
 is in `brief`, and its versioned planning evidence is a JSON string prefixed
 `P17 planning evidence: ` in `warnings`. The comparison repeats that evidence
 in structured form, including source/output mappings, why drafts differ,
-honored facts, deviations, unknowns and lowering blockers. No contract fields
-were added to Composition.
+honored facts, deviations, unknowns and lowering blockers. Planning adds only
+optional, versioned Composition fields (clip `framing`, caption `layout` and
+`style`); see [FRAMING.md](FRAMING.md).
+
+Planning measures subjects in the used source trims, then writes as little new
+geometry as safety needs. A square-pixel source that fits the brief aspect keeps
+absent framing (the same default fit graph). An unstyled caption keeps no
+layout or style when its default box, measured with libass at the 118% word-pop
+size plus a small margin, clears measured subjects, the visible picture and the
+output reserves. Any other caption, or any caption that cannot be measured
+(no FFmpeg/libass), receives a placed layout and an output-scaled style, and
+other aspects receive explicit framing.
 
 For v1-representable edits, the command also writes `plan-A.edl.json` and its
 B/C counterparts. The full v2 documents retain their evidence. The derivative
 explicitly separates only `brief` and `warnings`, then calls the existing strict
-`lower_to_v1`; it never discards fonts, layouts, color, transitions or audio
-policy to force a renderable result. Those features are listed as blockers.
+`lower_to_v1`; it never discards fonts, layouts, framing, color, transitions or
+audio policy to force a renderable result. Those features are listed as blockers.
 
 ```powershell
 zing render C:\edit-project\drafts\plan-A.edl.json -o C:\edit-project\draft-A.mp4
