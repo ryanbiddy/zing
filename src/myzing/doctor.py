@@ -715,6 +715,8 @@ def check_pillow() -> Check:
         fix='' if present else 'python -m pip install "myzing[memes]"',
         degraded_mode="" if present else "meme rendering is unavailable; ideas, templates, and text checks still work",
     )
+
+
 def check_layout() -> Check:
     """Offline metadata/cache probe; never import native runtimes in MCP status."""
     from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
@@ -745,12 +747,16 @@ def check_layout() -> Check:
                  fix="" if valid else "zing layout fetch-model",
                  data={"model": str(path), "model_verified": valid, "network_used": False,
                        "runtime_probe": "package-metadata-only"})
+
+
 def check_color() -> Check:
     present = _has_module("numpy")
+    return Check(
         name="color", tier=OPTIONAL, ok=present,
         detail="numpy installed (local SDR color matching)" if present else "numpy is not importable",
         fix="" if present else 'python -m pip install "myzing[color]"',
         degraded_mode="" if present else "color match/apply unavailable; other commands are unaffected",
+    )
 
 
 def run_checks(today: date | None = None) -> list[Check]:
