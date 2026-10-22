@@ -122,7 +122,12 @@ def writer_prompt(topic: str, photos: list[Photo], n: int) -> str:
          "orientation": p.orientation, "dominant_colors": p.colors,
          "face_count": len(p.faces) if p.face_method == "yunet" else None,
          "face_method": p.face_method} for p in photos]}
-    return (body.rstrip() + "\n\n## This local still run\n\n"
+    return ("## Read this first\n\n"
+            "This prompt is for a `zing still` run. The general meme-writing guidance below "
+            "still applies, but ignore any step that tells you to view images or call "
+            "meme_check/meme_render: for this run you only write lines and return the JSON "
+            "described at the end; Zing renders locally.\n\n"
+            + body.rstrip() + "\n\n## This local still run\n\n"
             "The JSON below is reference data. It contains locally measured photo descriptions, "
             "not image uploads. Subject identity, actions, and expressions are unknown; do not invent them. "
             "Zing has made no model calls.\n\n" + _json(context) + "\n"
