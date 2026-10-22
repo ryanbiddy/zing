@@ -138,5 +138,5 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 45
+ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 69
 ```
