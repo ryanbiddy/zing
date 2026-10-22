@@ -38,7 +38,8 @@ def test_brief_deliveries_roundtrip_and_absent_fields():
 
 def test_auto_enlargement_uses_configured_limit_and_retains_evidence():
     f = select_framing("auto", 640, 360, 1080, 1920, clip(), [subject()], max_upscale=2.5)
-    assert f.mode == "blurfill"
+    assert f.mode == "zoomfill"
+    assert f.assessments[-1].enlargement <= 2.5
     assert any("5.455x exceeds 2.5x" in w for w in f.warnings)
     allowed = select_framing("auto", 640, 360, 1080, 1920, clip(), [subject()], max_upscale=6)
     assert allowed.mode == "reframe"
@@ -50,25 +51,27 @@ def test_auto_enlargement_uses_configured_limit_and_retains_evidence():
     ((1080,1920),(1920,1080),"retained source height"), ((1080,1920),(1080,1080),"retained source height")])
 def test_auto_rejects_excessive_loss(source,target,reason):
     f = select_framing("auto", *source, *target, clip(), [subject()])
-    assert f.mode == "blurfill"
+    assert f.mode == ("zoomfill" if source[0] > source[1] else "blurfill")
     assert reason in " ".join(f.warnings)
 
 
 def test_auto_rejects_subject_loss_and_unmeasured_large_crops():
     tracks = [subject("face-left", Box(.05,.3,.1,.2)), subject("face-right", Box(.85,.3,.1,.2))]
     f = select_framing("auto", 3840,2160,1080,1920,clip(),tracks)
-    assert f.mode == "blurfill" and "tracked-subject coverage" in " ".join(f.warnings)
+    assert f.mode == "zoomfill" and "tracked-subject coverage" in " ".join(f.warnings)
+    assert f.assessments[-1].subject_coverage >= .98
     f = select_framing("auto",3840,2160,1080,1920,clip(),[])
-    assert f.mode == "blurfill" and "evidence has gaps" in " ".join(f.warnings)
+    assert f.mode == "zoomfill" and "evidence has gaps" in " ".join(f.warnings)
+    assert f.height == 2160 and f.width / 3840 >= 2 / 3
 
 
-def test_subject_priority_is_faces_then_people_then_objects():
+def test_faces_and_people_are_preserved_ahead_of_saliency():
     face = subject("face-main", Box(.3,.3,.1,.15))
     person = subject("person-main", Box(.5,.1,.2,.8))
     bright = subject("saliency-fire", Box(.8,.1,.15,.7))
     base = centered_framing("reframe",640,360,180,320)
     f = track_framing(base,clip(),[bright,person,face])
-    assert f.method == "yunet" and f.center_x == pytest.approx(.35*640)
+    assert f.method == "people-hog+yunet" and f.center_x == pytest.approx(.5*640)
     f = track_framing(base,clip(),[bright,person])
     assert f.method == "people-hog" and f.center_x == pytest.approx(.6*640)
 
@@ -91,7 +94,7 @@ def test_each_source_shape_to_each_delivery_is_bounded(source,aspect):
     width,height = dimensions(aspect)
     f = select_framing("auto",*source,width,height,clip(),[subject()])
     f.validate_output(width,height,2)
-    assert f.mode in ("fit","reframe","blurfill")
+    assert f.mode in ("fit","reframe","zoomfill","blurfill")
     for i in range(61):
         x,y = f.center_at(i/30)
         assert 0 <= x-f.width/2 <= x+f.width/2 <= source[0]

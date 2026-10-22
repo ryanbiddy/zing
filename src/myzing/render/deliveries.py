@@ -86,8 +86,8 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
     if unsupported:
         raise EDLValidationError("Delivery renderer cannot adapt: " + "; ".join(unsupported))
     requested = framing or (plan.brief.framing if plan.brief else "auto")
-    if requested not in ("auto", "fit", "fill", "reframe", "blurfill"):
-        raise EDLValidationError("framing: choose auto, fit, fill, reframe, or blurfill")
+    if requested not in ("auto", "fit", "fill", "reframe", "zoomfill", "blurfill"):
+        raise EDLValidationError("framing: choose auto, fit, fill, reframe, zoomfill, or blurfill")
     limit = max_upscale if max_upscale is not None else plan.brief.framing_max_upscale if plan.brief else 2.5
     from myzing.brief.models import Brief
     Brief(framing_max_upscale=limit)  # Shared finite/range validation before IO.

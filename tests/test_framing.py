@@ -87,6 +87,10 @@ def test_smoothing_is_bounded_and_roundtrips_without_losing_instructions():
     p = Composition(assets=[AssetRef("s","s",None)], clips=[clip], width=180,height=320)
     assert "clips[0].framing" in lowering_blockers(p)
     assert f.upscale_warning(1080,1920)
+    constrained = Framing("reframe", 640, 360, CropBounds(100, 20, 440, 320), 180, 320,
+                          320, 180, [CropKeyframe(0, 320, 180)], max_velocity=90)
+    constrained = track_framing(constrained, clip, [track])
+    assert all(190 <= k.center_x <= 450 and k.center_y == 180 for k in constrained.keyframes)
 
 
 @pytest.mark.parametrize("mode", ["fit", "fill", "reframe"])
@@ -114,12 +118,12 @@ def test_display_geometry_accounts_for_sar_and_rotation():
     assert display_dimensions({"width":640,"height":360,"side_data_list":[{"rotation":90}]}) == (360,640)
 
 
-def test_prominent_face_wins_over_more_confident_background_face():
+def test_unknown_speaker_centers_the_two_shot_instead_of_guessing_from_confidence():
     clip=CompositionClip("s",0,2,0,id="c",asset_id="s")
     central=FaceTrack("face-main",[Keyframe(0,Box(.4,.2,.2,.3)),Keyframe(2,Box(.4,.2,.2,.3))],.85)
     background=FaceTrack("face-other",[Keyframe(0,Box(.75,.2,.08,.12)),Keyframe(2,Box(.75,.2,.08,.12))],.99)
     f=track_framing(centered_framing("reframe",640,360,180,320),clip,[central,background])
-    assert all(k.center_x==320 for k in f.keyframes)
+    assert all(k.center_x == pytest.approx((.4 + .83) / 2 * 640) for k in f.keyframes)
 
 
 def test_swept_subject_crossing_between_offscreen_endpoints_is_protected():

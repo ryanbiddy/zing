@@ -230,7 +230,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     for clip in clips:
         f = clip.framing
         cuts = [clip.src_in]
-        if f is not None and f.mode != "fit" and brief.framing in ("auto", "reframe"):
+        if f is not None and f.mode != "fit" and brief.framing in ("auto", "reframe", "zoomfill"):
             for shot in lookup[clip.asset_id].shots:
                 if shot.start - cuts[-1] >= 1 / 30 and clip.src_out - shot.start >= 1 / 30:
                     cuts.append(shot.start)

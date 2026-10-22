@@ -23,6 +23,7 @@ from myzing.study.transitions import TransitionEvidence
 from myzing.timing import interval_problem
 from .timebase import rate_fraction
 from .framing import Framing
+from .speakers import SpeechWord
 
 EPSILON = 1e-6  # Same seconds tolerance as the legacy renderer.
 TransitionKind = Literal["hard_cut", "dissolve", "wipe", "zoom_punch", "dip_to_black", "dip_to_white"]
@@ -343,6 +344,7 @@ class Composition(Record):
     captions: list[CompositionCaption] = field(default_factory=list)
     audio: list[CompositionAudio] = field(default_factory=list)
     transitions: list[Transition] = field(default_factory=list)
+    speech_words: list[SpeechWord] = field(default_factory=list, metadata={"omit_default": True})
     width: int = 1080
     height: int = 1920
     fps: Rational = field(default_factory=lambda: Rational(30, 1))
@@ -373,6 +375,13 @@ class Composition(Record):
                 or any(cid not in caption_ids for cid in self.accepted_unsafe_layouts)):
             raise ValueError("accepted_unsafe_layouts must contain unique existing caption ids")
         assets = {a.id: a for a in self.assets}
+        for word in self.speech_words:
+            word.__post_init__()
+            if word.asset_id not in assets:
+                raise ValueError(f"speech word: unknown asset_id {word.asset_id}")
+            duration = assets[word.asset_id].duration
+            if duration is not None and word.end > duration + EPSILON:
+                raise ValueError("speech word exceeds asset duration")
         for item in [*self.clips, *self.audio]:
             item.__post_init__()
             asset = assets.get(item.asset_id)

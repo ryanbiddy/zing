@@ -92,8 +92,8 @@ class Brief:
             setattr(self, name, text(getattr(self, name), name))
         if self.aspect not in ("9:16", "1:1", "16:9"):
             raise BriefError("aspect: choose 9:16, 1:1, or 16:9.")
-        if self.framing not in ("auto", "fit", "fill", "reframe", "blurfill"):
-            raise BriefError("framing: choose auto, fit, fill, reframe, or blurfill.")
+        if self.framing not in ("auto", "fit", "fill", "reframe", "zoomfill", "blurfill"):
+            raise BriefError("framing: choose auto, fit, fill, reframe, zoomfill, or blurfill.")
         if (not isinstance(self.aspects, list) or any(a not in ("16:9", "1:1", "9:16") for a in self.aspects)
                 or len(set(self.aspects)) != len(self.aspects)):
             raise BriefError("aspects: use a unique list of 16:9, 1:1, and/or 9:16.")

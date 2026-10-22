@@ -42,6 +42,7 @@ contract does not round timestamps to frames.
 | `captions` | Array of `CompositionCaption`, extending `CaptionSpec`. IDs are unique. |
 | `audio` | Array of `CompositionAudio`, extending `AudioTrack`. IDs are unique. |
 | `transitions` | Array of explicit `Transition` records between adjacent clips. Every positive clip overlap needs one. |
+| `speech_words` | Optional array of versioned source-clock `SpeechWord` records for speaker-aware framing. Empty is omitted. Contains asset, word timing, speaker/face association and confidence; see [framing](FRAMING.md). |
 | `width`, `height` | Positive integer output dimensions in pixels; defaults 1080 × 1920. Encoder-specific constraints still belong to rendering. |
 | `fps` | Existing inventory `Rational`: positive integer `numerator`, `denominator`, and `version: 1`. Default 30/1. |
 | `loudness_target` | `LoudnessTarget` or null. Null requests no new loudness policy. |
@@ -77,7 +78,7 @@ that a stored checksum still matches bytes on disk.
 | `id`, `asset_id` | Unique clip instance ID and an existing asset ID. Repeated uses of an asset have different clip IDs. |
 | `speed_map` | Ordered `SpeedSegment` array, default `[]` for rate 1. Segments must tile the complete source trim without gaps or overlaps. |
 | `color` | `ColorTransform` or null. |
-| `framing` | Optional versioned fit/fill/reframe/blurfill geometry. Omitted means legacy fit and is omitted from serialized bytes. See [framing](FRAMING.md). |
+| `framing` | Optional versioned fit/fill/reframe/zoomfill/blurfill geometry, with crop assessments and optional speaker turns. Omitted means legacy fit and is omitted from serialized bytes. See [framing](FRAMING.md). |
 | `version` | `1`. |
 
 Each `SpeedSegment` contains `src_in`, `src_out`, positive `rate` (source seconds
