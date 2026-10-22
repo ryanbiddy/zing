@@ -241,3 +241,24 @@ def test_mcp_matches_packaging_tool_inventory():
     names = {t.name for t in asyncio.run(build_server().list_tools())}
     assert names == module.EXPECTED_TOOLS
     assert {"match_start", "match_status"} <= names
+
+
+def test_comparison_disclosures_group_repeated_warnings():
+    from myzing.match.evidence import group_disclosures
+
+    warnings = [
+        "At 0.500000s: LOG-like/flat tonal range: confirm the input transform.",
+        "At 1.500000s: LOG-like/flat tonal range: confirm the input transform.",
+        "At 2.500000s: LOG-like/flat tonal range: confirm the input transform.",
+        "source E:/x/clips/take-0.mp4: Color metadata is incomplete.",
+        "source E:/x/clips/take-1.mp4: Color metadata is incomplete.",
+        "Fixture ASR: authored words, not measured speech.",
+        "Fixture ASR: authored words, not measured speech.",
+        "At 4.000000s: A one-off note.",
+    ]
+    assert group_disclosures(warnings) == [
+        "LOG-like/flat tonal range: confirm the input transform. (3x: 0.5s, 1.5s, 2.5s)",
+        "Color metadata is incomplete. (2x: take-0.mp4, take-1.mp4)",
+        "Fixture ASR: authored words, not measured speech.",
+        "4s: A one-off note.",
+    ]

@@ -3,11 +3,47 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from statistics import median
 
 from myzing.project.api import hash_file
 from myzing.study.proc import run
+
+
+_AT = re.compile(r"^At (\d+(?:\.\d+)?)s: (.*)$", re.S)
+_SOURCE = re.compile(r"^source (.+?): (.*)$", re.S)
+
+
+def group_disclosures(warnings: list[str], *, examples: int = 6) -> list[str]:
+    """Collapse warnings that differ only by a timestamp or source prefix.
+
+    comparison.json keeps every warning; the Markdown comparison is for a
+    person, so one line per distinct message with a count and examples.
+    """
+    groups: dict[str, list[str]] = {}
+    for warning in warnings:
+        context, message = None, warning
+        at = _AT.match(warning)
+        source = None if at else _SOURCE.match(warning)
+        if at:
+            context, message = f"{float(at.group(1)):g}s", at.group(2)
+        elif source:
+            context, message = Path(source.group(1)).name, source.group(2)
+        contexts = groups.setdefault(message, [])
+        if context and context not in contexts:
+            contexts.append(context)
+    lines = []
+    for message, contexts in groups.items():
+        if len(contexts) > 1:
+            shown = ", ".join(contexts[:examples])
+            more = f", +{len(contexts) - examples} more" if len(contexts) > examples else ""
+            lines.append(f"{message} ({len(contexts)}x: {shown}{more})")
+        elif contexts:
+            lines.append(f"{contexts[0]}: {message}")
+        else:
+            lines.append(message)
+    return lines
 
 
 def user_warnings(warnings):
@@ -147,6 +183,7 @@ def markdown(summary):
     for failure in summary.get("failures", []):
         lines += ["", f"Failed step `{failure['step']}`: {failure['error']}", f"Log: {failure['log']}"]
     if summary.get("warnings"):
-        lines += ["", "Disclosures:", "", *[f"- {w}" for w in summary["warnings"]]]
+        lines += ["", "Disclosures (grouped; comparison.json lists each one):", "",
+                  *[f"- {w}" for w in group_disclosures(summary["warnings"])]]
     lines += ["", "Choose after review: `zing plan choose <project-folder> --draft A`.", ""]
     return "\n".join(lines)
