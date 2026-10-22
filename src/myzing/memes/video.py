@@ -17,7 +17,8 @@ from uuid import uuid4
 from myzing import storage
 from myzing.render.pipeline import filter_script_args
 from . import MemeError
-from .render import (ASPECT_ALIASES, MAX_PIXELS, Rect, _draw_layer, fit_rect,
+from .framing import FITS, fill_origin
+from .render import (ASPECT_ALIASES, MAX_PIXELS, Rect, _draw_layer, fit_rect, normalized_regions,
                      layout_boxes, output_size, require_pillow, resolve_font, text_layers)
 from .templates import fetch_blank, get_template
 from .validate import check_texts
@@ -154,15 +155,31 @@ def _windows(count: int, duration: float, at: list[float] | None,
     return result
 
 
-def _fit_filter(source: tuple[int, int], viewport: Rect, size: tuple[int, int], fit: str) -> str:
+def _fit_filter(source: tuple[int, int], viewport: Rect, size: tuple[int, int], fit: str,
+                focus: list[float] | None = None) -> str:
     """Crop before scaling, as Pillow does, to bound intermediate allocations."""
     sw, sh = source
     vw, vh = round(viewport.width), round(viewport.height)
-    rect = fit_rect(source, viewport, fit)
-    if fit == "cover":
+    rect = fit_rect(source, viewport, fit, focus)
+    if fit in ("cover", "fill"):
         scale = rect.width / sw
         cw, ch = min(sw, round(vw / scale)), min(sh, round(vh / scale))
-        fitted = f"crop={max(1, cw)}:{max(1, ch)}:exact=1,scale={vw}:{vh}:flags=lanczos"
+        cw, ch = max(1, cw), max(1, ch)
+        # A subject-aware fill crops at the same source offset as the still.
+        origin = fill_origin(source, scale, (viewport.width, viewport.height), focus) if fit == "fill" else None
+        position = "" if origin is None else (
+            f":{min(max(0, round(origin[0])), sw - cw)}:{min(max(0, round(origin[1])), sh - ch)}")
+        fitted = f"crop={cw}:{ch}{position}:exact=1,scale={vw}:{vh}:flags=lanczos"
+    elif fit == "blur":
+        # The photo, contained, over a blurred and darkened full-bleed copy of
+        # itself (Pillow's blur_background: 1/8 scale, blur, 62% brightness).
+        rw, rh = max(1, round(rect.width)), max(1, round(rect.height))
+        bw, bh = max(8, math.ceil(vw / 8)), max(8, math.ceil(vh / 8))
+        fitted = (f"split=2[zfg][zbg];[zbg]scale={bw}:{bh}:force_original_aspect_ratio=increase:flags=bilinear,"
+                  f"crop={bw}:{bh},format=gbrap,boxblur=3:2,scale={vw}:{vh}:flags=bicubic,format=rgba,"
+                  "colorchannelmixer=rr=.62:gg=.62:bb=.62[zbb];"
+                  f"[zfg]scale={rw}:{rh}:flags=lanczos[zff];"
+                  f"[zbb][zff]overlay={round(rect.x - viewport.x)}:{round(rect.y - viewport.y)}:format=auto")
     else:
         rw, rh = max(1, round(rect.width)), max(1, round(rect.height))
         fitted = (f"scale={rw}:{rh}:flags=lanczos,"
@@ -199,11 +216,14 @@ def render_meme_video(texts: list[str], *, video: str = "", image: str = "", tem
                       duration: float = 5, zoom: float = 0, fps: int = 30, width: int | None = None,
                       gif: bool = False, gif_fps: int = 10, gif_width: int = 640,
                       gif_duration: float = 8, at: list[float] | None = None,
-                      until: list[float] | None = None, overwrite: bool = False) -> dict:
+                      until: list[float] | None = None, overwrite: bool = False,
+                      focus: list[float] | None = None) -> dict:
     """Return paths and measured metadata. All text times use output seconds.
 
     ``duration`` and ``zoom`` apply to stills; video trims use source start/end.
     GIF limits can be lowered but never exceed 8s, 10fps, or 640px width.
+    ``fit`` is cover, contain, or blur; ``fill`` crops at a precomputed
+    normalized ``focus`` box (the still workflow's subject-aware frame).
     """
     if sum(bool(v) for v in (video, image, template)) != 1:
         raise MemeError("Provide exactly one of video, image, or a cached template.")
@@ -234,8 +254,10 @@ def render_meme_video(texts: list[str], *, video: str = "", image: str = "", tem
     fit = fit or ("contain" if selected else "cover")
     aspect = ASPECT_ALIASES.get(aspect, aspect)
     output_size(aspect, (1200, 675))
-    if fit not in ("cover", "contain"):
-        raise MemeError("fit must be cover or contain")
+    if fit not in FITS:
+        raise MemeError("fit must be cover, contain, blur, or fill (fill needs a focus box)")
+    if focus is not None:
+        normalized_regions([focus])
     count = selected["box_count"] if selected else (len(regions) if isinstance(regions, list) else None)
     validation = check_texts(texts, box_count=count)
     if not validation["valid"]:
@@ -310,7 +332,7 @@ def render_meme_video(texts: list[str], *, video: str = "", image: str = "", tem
         raise MemeError("Selected duration must include at least one output frame; increase duration or fps.")
     viewport, layers = text_layers(texts, source_size=source_size, size=(w, h), layout=layout,
                                   fit=fit, font=font, regions=regions, plate=plate,
-                                  shadow=shadow, rotation=rotation)
+                                  shadow=shadow, rotation=rotation, focus=focus)
     target.parent.mkdir(parents=True, exist_ok=True)
     reports = []
     with tempfile.TemporaryDirectory(prefix=".meme-", dir=target.parent) as directory:
@@ -335,7 +357,7 @@ def render_meme_video(texts: list[str], *, video: str = "", image: str = "", tem
             frames = max(1, math.ceil(duration * fps) - 1)
             chain += (f",zoompan=z='1+{zoom}*min(on/{frames},1)':"
                       f"x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s={sw}x{sh}:fps={fps}")
-        chain += "," + _fit_filter(source_size, viewport, (w, h), fit)
+        chain += "," + _fit_filter(source_size, viewport, (w, h), fit, focus)
         graph = [f"[0:{info['stream'] if video else 0}]{chain}[base]"]
         previous = "base"
         for index, (layer, (a, b)) in enumerate(zip(layers, windows)):

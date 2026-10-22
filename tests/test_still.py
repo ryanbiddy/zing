@@ -108,7 +108,10 @@ def test_dimensions_and_supplied_face_never_overlaps_text(photos, tmp_path, monk
     w, h = ASPECTS[aspect]
     with Image.open(selected["path"]) as image:
         assert image.size == (w, h)
-    for face in output_faces(photo, aspect, concept.layout):
+    # Framing (fill/blur) and the text-fitted caption bar both move the
+    # photo, so map faces with the concept's own framing and texts.
+    for face in output_faces(photo, aspect, concept.layout, fit=concept.fit, focus=concept.focus,
+                             texts=concept.texts):
         for text in selected["boxes"]:
             x0, y0, x1, y1 = text["box"]
             assert (x1 <= face.x * w or x0 >= face.right * w or
