@@ -20,6 +20,8 @@ _COMMANDS: dict[str, tuple[str, str]] = {
               "measure a video (URL or local file) into a breakdown"),
     "project": ("myzing.project.command",
                 "inventory a reference and local clips; scan and inspect a project"),
+    "brief": ("myzing.brief.command",
+              "ask about the edit, save a brief, and recommend from known facts"),
     "prompt": ("myzing.prompt_pack",
                "print a judgment prompt (study, compare, direct, taste, meme-writer)"),
     "profile": ("myzing.profile.command",

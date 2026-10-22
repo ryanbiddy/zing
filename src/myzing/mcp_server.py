@@ -104,6 +104,27 @@ def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
 
 
+def h_brief_questions() -> dict[str, Any]:
+    """Return the terminal interview's questions, defaults, and answer examples."""
+    from myzing.brief.questions import brief_questions
+
+    return _ok(**brief_questions())
+
+
+def h_brief_save(project: str, answers: dict[str, Any]) -> dict[str, Any]:
+    """Validate complete replacement answers, save locally, and name evidence gaps."""
+    from myzing.brief.api import brief_result, save_brief
+    from myzing.brief.models import Brief
+
+    if not isinstance(project, str) or not project.strip():
+        return _err("project: supply the local folder created by 'zing project init'.")
+    try:
+        brief = save_brief(project, Brief.from_answers(answers))
+        return _ok(**brief_result(project, brief))
+    except (ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
 def _workspace_boundary(handler):
     """Pin the absolute workspace for one tool call and its dispatched jobs."""
     @wraps(handler)
@@ -1566,6 +1587,19 @@ def build_server():
     except AttributeError:
         pass
 
+    mcp.tool(
+        name="brief_questions",
+        description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",
+    )(h_brief_questions)
+    mcp.tool(
+        name="brief_save",
+        description=(
+            "Validate and atomically save answers to brief.json in an existing local project folder. "
+            "Replaces the whole brief; omitted fields use brief_questions defaults. "
+            "Returns answers, path, and a recommendation grounded in inventory and any attached reference breakdown. "
+            "No media bytes, downloads, or model calls."
+        ),
+    )(h_brief_save)
     mcp.tool(
         name="study_video",
         description=(

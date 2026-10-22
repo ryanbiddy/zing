@@ -22,7 +22,8 @@ The folder scan is recursive and includes regular files of any extension.
 Unprobeable files remain in the inventory as unsupported. Symlink files and
 directories are skipped. When the project folder is nested inside the clips
 folder, its entire subtree is excluded. When both folders are the same,
-`project.json`, `.project.lock`, and `.project-*.tmp` are reserved metadata names.
+`project.json`, `.project.lock`, `.project-*.tmp`, `brief.json`, and `.brief-*.tmp`
+are reserved metadata names.
 Keep rendered output outside the clips folder so it does not become an input.
 
 `project.json` uses version 1 dataclasses in `myzing.project.models`; each record
@@ -81,3 +82,6 @@ The later match pass can use `reference.study` (currently null) to attach its
 study provenance and results. Inventory does not resolve Uoink IDs or implement
 `zing match`. CLI and Python APIs are available; MCP scan tools are deferred
 until scans can use the server's background-job contract.
+
+After scanning, run `zing brief new ./project` to record the creative direction.
+See [Saved briefs](BRIEFS.md) for defaults, scripted answers, and reruns.

@@ -17,6 +17,8 @@ import threading
 
 EXPECTED_TOOLS = {
     "inspect_timeline",
+    "brief_questions",
+    "brief_save",
     "study_video",
     "study_uoink_item",
     "import_shot_list",

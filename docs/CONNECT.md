@@ -1,11 +1,12 @@
 # Connecting your AI to Zing
 
-Zing's MCP server gives any MCP client twenty-four tools, plus the prompt
+Zing's MCP server gives any MCP client twenty-six tools, plus the prompt
 pack as slash commands:
 
 - **Study:** `study_video`, `study_uoink_item`, `get_breakdown`,
   `list_breakdowns`, `get_frames`, `zing_status`
 - **Judge:** `get_prompt`, `save_judgment`, `setup_taste`
+- **Brief:** `brief_questions`, `brief_save`
 - **Profile:** `build_profile`, `get_profile`, `list_profiles`,
   `list_presets`
 - **Render:** `render_edl`, `get_render`, `export_otio`,
@@ -173,7 +174,7 @@ the server cold from the staged tree — initialize handshake, every tool
 listed, the four then-current prompts (study, compare, direct, taste)
 served via the `${__dirname}/prompts`
 pin. The served tool list follows the package (CI pins it), so bundles
-built today serve all twenty-four tools and all five prompt-pack prompts,
+built today serve all twenty-six tools and all five prompt-pack prompts,
 including `meme-writer`. **What still needs a
 human:** the Claude Desktop double-click dialog itself (GUI). If it
 fails, the fallback is the manual config above — same server, same
