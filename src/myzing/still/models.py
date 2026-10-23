@@ -53,6 +53,10 @@ class Photo(Record):
     # Model-free distinct-region estimate (myzing.memes.subject); protected
     # from text when confident and no prominent face. None for older indexes.
     subject_estimate: dict | None = None
+    # Mean luma 0..1 and text read by local OCR ("" = none found; None = OCR
+    # unavailable or an older index). Offline lines may use both.
+    brightness: float | None = None
+    text: str | None = None
 
 
 @dataclass

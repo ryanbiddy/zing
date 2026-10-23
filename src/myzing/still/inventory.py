@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import os
 import stat
 from pathlib import Path, PureWindowsPath
@@ -57,6 +58,37 @@ def read_photo(path: Path):
                         else f"Cannot read photo {path.name}: {message}") from exc
 
 
+@functools.lru_cache(maxsize=1)
+def _ocr_engine():
+    """The study pipeline's local RapidOCR engine, or None when its optional
+    runtime or verified local models are missing. Never downloads."""
+    try:
+        from myzing.study.caption_models import engine
+        return engine()[0]
+    except (ImportError, RuntimeError, OSError, ValueError):
+        return None
+
+
+def read_text(image) -> str | None:
+    """Confident text lines on the photo in reading order, '' when none,
+    None when local OCR is unavailable. Evidence for lines, not a caption."""
+    engine = _ocr_engine()
+    if engine is None:
+        return None
+    import numpy as np
+    from myzing.study.captions import _ocr
+
+    sample = image.convert("RGB")
+    sample.thumbnail((960, 960))
+    try:
+        lines = _ocr(engine, np.asarray(sample)[:, :, ::-1].copy())
+    except Exception:  # noqa: BLE001 - optional OCR must never fail an inventory
+        return None
+    words = [line.text for line in sorted(lines, key=lambda l: (round(l.y_center, 2), l.x_center))
+             if sum(c.isalpha() for c in line.text) >= 2]
+    return " ".join(" ".join(words).split())[:120]
+
+
 def detect_faces(image, detector) -> list[dict]:
     # numpy is supplied by the optional layout extra, never required for fallback.
     import numpy as np
@@ -100,6 +132,8 @@ def describe_photo(path: Path, detector=None) -> Photo:
         subject = saliency_box(source)
         estimate = estimate_subject(source)
         notes.append(describe_estimate(estimate))
+        brightness = round(ImageStat.Stat(small.convert("L")).mean[0] / 255, 3)
+        text = read_text(source)
     if before != (path.stat().st_size, path.stat().st_mtime_ns):
         raise MemeError(f"Photo changed during inventory: {path}; run again.")
     orientation = "square" if width == height else "landscape" if width > height else "portrait"
@@ -107,12 +141,13 @@ def describe_photo(path: Path, detector=None) -> Photo:
                  else "face count unknown (detector unavailable)")
     size_text = (f"{width} by {height} pixels" if not origin.downscaled else
                  f"{origin.original[0]} by {origin.original[1]} pixels ({width} by {height} working copy)")
+    text_part = f' Text read locally: "{text[:60]}".' if text else ""
     description = (f"{orientation.capitalize()} photo, {size_text}; "
-                   f"dominant sampled colors {', '.join(colors)}; {face_text}. "
+                   f"dominant sampled colors {', '.join(colors)}; {face_text}.{text_part} "
                    "Subject details have not been identified.")
     return Photo("photo-" + digest[:16], str(path), digest, width, height, before[0],
                  description, colors, orientation, round(density, 6), round(band_density, 6),
-                 faces, method, notes, subject, origin.to_dict(), estimate)
+                 faces, method, notes, subject, origin.to_dict(), estimate, brightness, text)
 
 
 def inventory(folder: str | Path) -> tuple[list[Photo], list[str]]:

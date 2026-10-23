@@ -121,6 +121,10 @@ def run(argv: list[str]) -> int:
             print(f"{idea['title']}: {' / '.join(idea['texts'])}")
             for problem in idea["validation"]["problems"]:
                 print(f"  check: {problem['message']}")
+        notes = {idea.get("note") for idea in result["ideas"]} - {None}
+        for note in sorted(notes):
+            print()
+            print(f"{note} Run: zing prompt meme-writer")
     elif args.command == "check":
         print(f"{'valid' if result['valid'] else 'invalid'}: {result['beats']} beats, {result['characters']} characters")
         for problem in result["problems"]:

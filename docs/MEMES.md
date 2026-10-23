@@ -19,8 +19,23 @@ Replace the example ID with one printed by your run. `--n` is the total
 number of concepts, from 1 to 8. Zing distributes them across candidate
 photos, seeds the existing formula engine with the topic and photo hash,
 and removes duplicate complete captions. The same photo bytes and topic
-produce the same concepts and IDs with the same local detector setup.
+produce the same concepts and IDs with the same local detector and OCR setup.
 Scores measure readability and compression; they do not predict popularity.
+
+Offline lines use each photo's measured facts before the topic formulas:
+the prominent face count ("all 3 of us after monday standup", or "me, five
+minutes into ..." for one face), text read by local OCR ('the sign said
+"EXIT"'), scene brightness (dark: "... at 2am"; bright: "... in broad
+daylight"), a saturated dominant color, and a confident subject estimate,
+which yields a label idea whose two labels sit beside the subject, never on
+it. Each idea lists its `evidence` (for example `faces=3`, `light=dark`).
+OCR runs only when the optional study OCR runtime and its verified local
+models are present (`index.json` `text` is `""` when none was found and
+`null` when OCR was unavailable); nothing is downloaded. Brightness is the
+photo's mean luma (`brightness`, 0 to 1). The writer prompt passes the same
+`measured_facts` to your AI. These lines are still template-based, and the
+result says so: an agent or LLM given the meme-writer prompt writes better
+ones.
 
 The output folder must be new or empty. It receives full-size candidate
 PNGs, `contact-sheet.png`, `index.json`, and `meme-writer.md`. The index records
@@ -207,14 +222,23 @@ uv run --frozen zing meme render --image desk.jpg --text "one quick fix" --text 
 
 Zing makes no model calls. Ideas are seeded formula substitutions; your AI
 writes and judges the joke using `zing prompt meme-writer` or MCP
-`get_prompt("meme-writer")`. A topic phrased as a situation ("when the build
-finally passes", "when you commit", "the deploy failed") gets situation
-formulas: the photo is the reaction, so lines read "when you commit" or "pov:
-the build finally passes / nobody move"; the subject after "when" is kept. A
-wh-clause ("how it works", "why the build broke") is used as a noun: "me
+`get_prompt("meme-writer")`. Every line is built from the topic's own words:
+its head noun ("monday standup" names "the standup", "my cat knocking things
+off the desk" names "my cat"), the clause subject ("the build", or the object
+when the subject is a pronoun: "you open the legacy code" names "the legacy
+code"), or the wh-clause itself. No payoff comes from a fixed list, so two
+topics never share a line. Formats cover top/bottom setups, one-line
+reactions, POV, labels and a "nobody asked about ..." explainer (the
+"nobody:" colon form stays banned filler). A topic phrased as a situation
+("when the build finally passes", "when you commit", "the deploy failed")
+gets situation formulas: the photo is the reaction, so lines read "when you
+commit" or "pov: the build finally passes / don't touch the build"; the
+subject after "when" is kept and verbs agree ("the tests deserve a raise").
+A wh-clause ("how it works", "why the build broke") is used as a noun: "me
 explaining how it works". Other topics are treated as a thing; tasks and "how
 to ..." become gerunds with standard spelling ("fix the flaky test" reads
 "fixing the flaky test", "commit" "committing", "be on call" "being on call").
+Each idea carries a `note` that it is a template-based offline line.
 Topics longer than 40 characters are shortened at a clause break or a word,
 never mid-word and never with an ellipsis. `zing doctor` reports the optional `pillow`
 dependency. Templates, ideas, and checks work without Pillow.

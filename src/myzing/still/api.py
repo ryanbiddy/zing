@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 from myzing.memes import MemeError
-from myzing.memes.ideas import generate_ideas
+from myzing.memes.ideas import HONESTY, generate_ideas, photo_facts
 from myzing.memes.render import ASPECTS, render_meme, require_pillow, resolve_font, wrap_text
 from myzing.memes.score import idea_score
 from myzing.memes.subject import user_boxes
@@ -95,8 +95,13 @@ def _import_lines(lines: str | Path, photos: list[Photo]) -> list[tuple[Photo, d
     return result
 
 
-def _offline(topic: str, photos: list[Photo], n: int) -> list[tuple[Photo, dict]]:
-    pools = [generate_ideas(topic, n=8, seed=p.sha256) for p in photos]
+def _offline(topic: str, photos: list[Photo], n: int, layout: str = "auto") -> list[tuple[Photo, dict]]:
+    # Each photo's measured facts (faces, OCR text, color, light, subject
+    # position) add photo-specific formulas ahead of the topic formulas.
+    pools = [generate_ideas(topic, n=8, seed=p.sha256, photo=p) for p in photos]
+    if layout not in ("auto", "labels"):
+        # Subject-label ideas carry regions, which only the labels layout uses.
+        pools = [[{k: v for k, v in idea.items() if k != "regions"} for idea in pool] for pool in pools]
     seen, selected = set(), []
     # Round robin across photos, exhausting distinct formulas before reusing text.
     while len(selected) < n:
@@ -125,7 +130,9 @@ def writer_prompt(topic: str, photos: list[Photo], n: int) -> str:
         {"photo": p.id, "description": p.description,
          "orientation": p.orientation, "dominant_colors": p.colors,
          "face_count": len(p.faces) if p.face_method == "yunet" else None,
-         "face_method": p.face_method} for p in photos]}
+         "face_method": p.face_method,
+         "measured_facts": {k: v for k, v in photo_facts(p).items() if k != "subject"}
+         | {"subject_position": (photo_facts(p)["subject"] or [None])[0]}} for p in photos]}
     return ("## Read this first\n\n"
             "This prompt is for a `zing still` run. The general meme-writing guidance below "
             "still applies, but ignore any step that tells you to view images or call "
@@ -230,7 +237,9 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
     # Content-based ordering keeps selection stable when photos are renamed.
     candidates = sorted(inventory_photos, key=lambda p: hashlib.sha256(
         (topic + "\0" + p.sha256).encode("utf-8")).hexdigest())
-    ideas = _import_lines(lines, candidates) if lines is not None else _offline(topic, candidates, n)
+    ideas = _import_lines(lines, candidates) if lines is not None else _offline(topic, candidates, n, layout)
+    if lines is None:
+        notes = [*notes, HONESTY]
     concepts = [_concept(topic, photo, idea, aspect, layout, fit, protect) for photo, idea in ideas]
     if len({_text_key(c.texts) for c in concepts}) != len(concepts):
         raise MemeError("Duplicate caption text across ideas; provide distinct lines for each concept.")
