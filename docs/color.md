@@ -76,6 +76,73 @@ at most 0.85, scaled by sample success, up to four usable samples, and shot
 coverage; capped at 0.6 for missing color metadata and 0.2 for flat/clipped samples.
 It is not a calibrated probability or a full-duration inspection.
 
+## COLOR2 match report bands
+
+`zing match` uses the existing CIELAB statistics on MATCH2's sharp picture
+regions. It crops before downsampling and excludes recorded mattes and fill.
+The following limits live together in `src/myzing/match/color.py` (`BANDS`).
+They are editorial distribution limits calibrated on generated differences,
+not just-noticeable differences, paired Delta E, or a guarantee of the same grade.
+
+| Component | Pass at or below | Miss above | Unit |
+|---|---:|---:|---|
+| Largest lightness percentile difference | 4 | 10 | L* |
+| Distance between mean a*/b* | 3 | 8 | a*/b* units |
+| Largest chroma percentile difference | 4 | 10 | Lab chroma |
+| Contrast difference (p95-p5) | 5 | 12 | L* |
+| Largest mean a*/b* distance in a lightness quartile | 4 | 8 | a*/b* units |
+| Face-interior cast (mean shift or worst nearest-face distance) | 2 | 5 | a*/b* units |
+
+Values between the limits are approximate. One measured miss makes color miss;
+every measured component must be within its pass band for color to pass. Sparse,
+incomplete or low-confidence sampling caps an otherwise passing result at
+approximate: both inputs need four usable samples, all requested samples and
+supplied shots covered, and measurement confidence at least 0.5. Confidence is
+the existing sampling/metadata/clipping heuristic, not a probability. Missing or
+legacy luma-only measurements remain unmeasured, represented as approximate in
+the dimension status for existing consumers. Studio counts only `pass` as a pass.
+
+Calibration uses the original RGB chart in `tools/eval/color2_fixture.py`, with
+headroom to avoid clipping. Blue/green shifts preserve encoded Rec.709 luma
+exactly before quantization. FFmpeg tests encode with explicit BT.709 matrices,
+limited YUV range, sRGB transfer and BT.709 primaries.
+
+| Generated difference | Expected status | Main measured difference before encoding |
+|---|---|---|
+| Same pixels | pass | zero |
+| RGB multiplied by 1.05 | pass | lightness 3.6; chroma 2.8 |
+| Equal-luma blue cast | miss | mean cast about 17 |
+| Equal-luma green cast | miss | mean cast about 17 |
+| Saturation reduced to 35% | miss | chroma about 43 |
+| Contrast multiplied by 1.4 about RGB 0.5 | miss | lightness 15; contrast 17 |
+| Full Zing teal-orange look versus neutral | miss | chroma 11; tonal cast 8.5 |
+| 35% of the blue cast above | approximate | mean cast about 6 |
+
+The same fixtures run as arrays in lean CI and as encoded media in the FFmpeg
+gate. A separate test fits and renders Zing's own LUT: the neutral-to-teal-orange
+case moves from miss to pass. Reproduce the calibration with:
+
+```sh
+uv run --frozen python -m tools.eval.color2_fixture --out zing-workspace/color2-calibration
+```
+
+Face protection uses supplied boxes or the existing verified local YuNet model;
+it never downloads a model. The central 60% of each face box reduces hair and
+background contamination. Each sampled face is compared with the nearest
+reference face color; the worst distance and the pooled mean shift use the
+tighter bands. Identical varied face colors can pass, while a small green face
+cannot disappear into a large wall. The generated
+face-patch test keeps the overall scene inside the pass bands while its green
+face misses the tighter limit. Pixels are not selected by skin hue. This remains
+a face-interior proxy: different people, lighting, hair and makeup can differ.
+No comparable boxes means skin protection is unmeasured, even if scene color
+passes. The 160-pixel sampling frame can miss small faces.
+
+Reports retain signed a*/b*, lightness/chroma percentile deltas, contrast and
+quartile distances alongside plain-language descriptions. A distribution pass
+does not identify a creator's LUT. Scene changes can exceed these bands without
+a grading error; compare sharp frame crops before changing a look.
+
 ## Look bank and search
 
 The eight original procedural looks are neutral, warm, cool, teal-orange,
@@ -136,7 +203,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 349
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 359
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.

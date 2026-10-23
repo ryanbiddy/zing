@@ -194,6 +194,13 @@ def _recipe(studied, audio, colors, path):
     )
     # Clip-fitted corrections are not a reusable LUT for arbitrary footage.
     recipe.approximations.looks = []
+    if colors:
+        from myzing.color.measure import measure_video
+        from .skin import measure_faces
+        measured, frames, _ = measure_video(studied["media"], count=6)
+        skin = measure_faces(frames, [s.timestamp for s in measured.samples])
+        recipe.measured.append(MeasuredFact("color.skin", skin, "CIELAB a*, b* in face interiors",
+                                           Coverage(len(skin["samples"]), None, skin["reason"]), None, recipe.reference))
     stats = evidence.geometry_stats(geometry)
     if stats:
         recipe.measured.append(MeasuredFact("caption_geometry.summary", stats, "normalized frame edges",
@@ -362,7 +369,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
         ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.2"],
                                      lambda: _audio(ref_study, caps["audio"]))
-        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2"],
+        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2-color2"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
         recipe = StyleRecipe.from_dict(read(recipe_result["path"]))
         summary["recipe"] = recipe_result["path"]
@@ -468,7 +475,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     path = video.with_suffix(".color.json")
                     write(path, measured)
                     return {"outputs": [str(path)], "measurement": measured}
-                output_color = checkpoints.step("color-report-" + label, [projects.hash_file(video), projects.hash_file(Path(prepared["path"])), caps, "sharp-picture-v1"], measure_color)
+                output_color = checkpoints.step("color-report-" + label, [projects.hash_file(video), projects.hash_file(Path(prepared["path"])), caps, "sharp-picture-color2-v1"], measure_color)
                 report_path = video.with_suffix(".match.json")
                 def report():
                     result = evidence.report(recipe, Breakdown.from_dict(read(output_study["path"])),
@@ -480,7 +487,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     write(report_path, result)
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"],
                             "music": result["music"], "audio_measurements": result["audio_measurements"]}
-                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected, "honest-ranges-v3"], report)
+                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected, "honest-ranges-color2-v2"], report)
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"],
                            music=matched.get("music"), audio_measurements=matched.get("audio_measurements"))

@@ -201,12 +201,13 @@ def test_finish_pick_never_counts_abstentions_disagreements_or_unmeasured_color_
     result = {"project": inputs["project"], "result": {"drafts": rows}, "warnings": []}
     summary = creator_summary(result, {"aspects": ["16:9"]}, {"clips": []})
     assert summary["recommendation"].startswith("Start with draft B (16:9) because it passes shot pace, first cut (0 ")
-    assert "Not passes" not in summary["recommendation"]
+    assert "Not passes: color approximate." in summary["recommendation"]
     a = next(r for r in summary["deliveries"] if r["draft"] == "A")
     assert a["status"] == "unverified" and "pass" not in a["measurements"].values()
     assert summary["style_summary"] == [
         "Draft A (16:9, 9:16): shot pace detector disagreement; first cut not applicable for this footage; color unmeasured.",
-        "Draft C (16:9, 9:16): first cut miss."]
+        "Draft B (16:9, 9:16): color approximate.",
+        "Draft C (16:9, 9:16): first cut miss; color approximate."]
     screen = io.StringIO()
     command.show_result({**result, "status": "ready", "creator_summary": summary}, screen)
     text = screen.getvalue()

@@ -143,8 +143,22 @@ Reports record each region and sample rectangle. Unrecorded baked-in bars cannot
 be inferred from a plan that declares the whole source as picture.
 
 Sparse OCR cannot certify one-frame switches or ASR accuracy. Color compares
-unpaired scene distributions with the unchanged 0.15 maximum luma-percentile
-delta, so it requires human review and makes no paired Delta E or original-LUT claim.
+CIELAB lightness, mean a*/b* cast, chroma, contrast and tonal cast on the sharp
+picture. Each component has an inner pass band and an outer miss band; values
+between them stay approximate. A miss in any component makes color miss. A pass
+requires all measured components inside their inner bands, at least four usable
+samples per input, complete requested/shot coverage and confidence at least 0.5.
+Legacy luma-only, missing, sparse or low-confidence matching evidence cannot pass.
+The report retains the luma delta for audits, but it does not determine status.
+
+When local face detection supplies boxes, central face interiors use tighter
+cast limits. No hue filter removes green faces. Missing comparable faces leaves
+skin protection explicitly unmeasured; a scene-color pass does not certify skin.
+Per-component deltas explain the direction and size of the difference. See
+[color calibration](color.md#color2-match-report-bands) for thresholds and fixtures.
+These are unpaired scene statistics, not paired Delta E or original-LUT recovery.
+Different subjects and lighting can produce a measured miss despite a similar
+grade; inspect the crops before attributing the difference to grading.
 “Ready” means playable and reported; it does not mean every style dimension passed.
 
 `comparison.md` includes abstentions, disagreements and their reasons. JSON has

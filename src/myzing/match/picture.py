@@ -54,7 +54,7 @@ def region_at(regions, timestamp):
     return (x, y, right - x, bottom - y) if right > x and bottom > y else None
 
 
-def measure_output_color(video, plan, *, count=6):
+def measure_output_color(video, plan, *, count=6, face_boxes_at=None):
     from myzing.color import ColorError
     from myzing.color.measure import measure_video
 
@@ -67,7 +67,7 @@ def measure_output_color(video, plan, *, count=6):
         return region_at(regions, timestamp)
 
     try:
-        measurement, _, _ = measure_video(video, count=count, region_at=lookup)
+        measurement, frames, _ = measure_video(video, count=count, region_at=lookup)
     except ColorError:
         if len(requested) < count or any(region_at(regions, t) is not None for t in requested):
             raise  # Probe, color-space or decode failure: a real error.
@@ -78,6 +78,8 @@ def measure_output_color(video, plan, *, count=6):
                 "picture_area": {"version": 1, "basis": basis, "regions": regions,
                                  "samples": [{"timestamp": t, "rect": region_at(regions, t)} for t in requested]}}
     result = measurement.to_dict()
+    from .skin import measure_faces
+    result["skin"] = measure_faces(frames, [s.timestamp for s in measurement.samples], boxes_at=face_boxes_at)
     result["picture_area"] = {"version": 1, "basis": basis, "regions": regions,
                               "samples": [{"timestamp": s.timestamp, "rect": region_at(regions, s.timestamp)}
                                           for s in measurement.samples]}

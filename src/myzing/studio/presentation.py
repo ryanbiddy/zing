@@ -186,8 +186,10 @@ def _disclosures(dimensions):
         label = name.replace("_", " ")
         if value.get("status") in DISCLOSED:
             found.append(f"{label} {status_label(value['status'])}")
-        elif name == "color" and value.get("status") == "approximate" and value.get("max_luma_percentile_delta") is None:
-            found.append("color unmeasured")
+        elif name == "color" and value.get("status") == "approximate":
+            unmeasured = value.get("measurement_status") == "unmeasured" or (
+                "measurement_status" not in value and value.get("max_luma_percentile_delta") is None)
+            found.append("color unmeasured" if unmeasured else "color approximate")
     return found
 
 
