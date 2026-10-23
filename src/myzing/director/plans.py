@@ -204,7 +204,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     # default); 30 CFR is an explicit delivery choice, not inferred.
     from myzing.composition.aspects import dimensions
     from myzing.layout.framing import select_framing, place_captions
-    from myzing.layout.resolution import chosen_short_side, resolution_advice
+    from myzing.layout.resolution import chosen_short_side, mark_auto_selected, resolution_advice
     from myzing.render.framing import display_dimensions
     source_dimensions, square_pixels, probe_notes = {}, set(), []
     subject_evidence = subject_evidence or {}
@@ -272,8 +272,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         first = resolution
         width, height = dimensions(brief.aspect, chosen_short_side(first, "auto"))
         clips, framing_notes, resolution = frame(width, height)
-        resolution["auto_selected"] = {"from": first["output"], "to": [width, height],
-                                       "reason": first["recommendation"]["reason"]}
+        mark_auto_selected(resolution, first)
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
     if source_dimensions:
@@ -301,8 +300,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     }
     resolution_note = []
     if resolution["limited"] or resolution.get("auto_selected"):
-        resolution_note = [resolution["summary"] + (
-            f" short_side auto delivered {width}x{height}." if resolution.get("auto_selected") else "")]
+        resolution_note = [resolution["summary"]]
     notes = [*resolution_note, *recipe.warnings, *audio_notes, *framing_notes,
              f"30 fps CFR and {width}x{height} ({brief.aspect}, short side {min(width, height)}) are delivery "
              "choices; framing needs review.",

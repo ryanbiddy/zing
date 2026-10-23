@@ -9,7 +9,7 @@ from pathlib import Path
 from myzing.composition.aspects import dimensions, requested_aspects
 from myzing.layout.delivery import adapt_plan
 from myzing.layout.framing import analyze_subjects
-from myzing.layout.resolution import chosen_short_side, resolution_advice
+from myzing.layout.resolution import chosen_short_side, mark_auto_selected, resolution_advice
 from myzing.layout.media import probe_duration
 from myzing.study.shots import detect_shots
 from .composition import _path, _verify, render_composition, unsupported_features
@@ -138,12 +138,10 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
             result = adapt_plan(plan, *size, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts)
             advice = resolution_advice(result.clips, sizes, *size, max_upscale=limit,
                                        command=f"zing render PLAN.json --aspect {aspect}")
-            advice["auto_selected"] = {"from": first["output"], "to": list(size),
-                                       "reason": first["recommendation"]["reason"]}
+            mark_auto_selected(advice, first)
         if advice["limited"] or advice.get("auto_selected"):
             # Up front: the first thing a reader of the delivery plan sees.
-            result.warnings.insert(0, advice["summary"] + (
-                f" short_side auto delivered {size[0]}x{size[1]}." if advice.get("auto_selected") else ""))
+            result.warnings.insert(0, advice["summary"])
         results[aspect], resolution[aspect] = result, advice
     for result in results.values():
         result.warnings.extend(w for item in evidence.values() for w in item["warnings"])

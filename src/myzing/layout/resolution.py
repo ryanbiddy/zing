@@ -142,6 +142,15 @@ def resolution_advice(clips, source_dimensions: dict, width: int, height: int, *
     return advice
 
 
+def mark_auto_selected(advice: dict, first: dict) -> dict:
+    """Record that short_side auto replaced ``first``'s size with this one."""
+    w, h = advice["output"]
+    advice["auto_selected"] = {"from": first["output"], "to": [w, h], "reason": first["recommendation"]["reason"]}
+    advice["summary"] = (f"short_side auto delivered {w}x{h} instead of {first['output'][0]}x{first['output'][1]}. "
+                         + first["summary"])
+    return advice
+
+
 def chosen_short_side(advice: dict, requested) -> int:
     """The short side a brief/flag of ``requested`` ('auto' or an int) resolves to."""
     if requested == "auto" and advice["recommendation"]["choice"] == "lower_resolution":

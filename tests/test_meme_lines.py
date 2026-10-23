@@ -66,6 +66,9 @@ def test_situation_subjects_and_agreement():
     texts = " | ".join(lines("when the build finally passes"))
     assert "(i never touched the build)" in texts and "the build deserves a raise" in texts
     assert "my cat can sense fear" in " | ".join(lines("my cat knocking things off the desk"))
+    dark = {"face_method": "yunet", "faces": [], "colors": [], "brightness": .1}
+    night = generate_ideas("duck and cover drills", n=8, seed="x", photo=dark)[0]["texts"]
+    assert night == ["duck and cover drills at 2am", "the drills never sleep"]  # real-check regression
 
 
 def photo(**overrides):

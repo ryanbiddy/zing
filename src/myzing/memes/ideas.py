@@ -461,7 +461,7 @@ def _evidence_formulas(shape: str, short: str, parts: dict, facts: dict) -> list
                          f'Text read locally from the photo by OCR: "{quoted}".', [f"ocr_text={quoted!r}"], None))
     if facts.get("light") == "dark":
         texts = {"situation": [f"{short} at 2am"], "wh": [f"googling {short} at 2am"]}.get(
-            shape, [f"{short} at 2am", f"{the} never sleeps"])
+            shape, [f"{short} at 2am", f"{the} never {'sleep' if _plural(the) else 'sleeps'}"])
         formulas.append((texts, "dark_scene", "Measured scene brightness is dark, so the line is set at night.",
                          ["light=dark"], None))
     elif facts.get("light") == "bright":

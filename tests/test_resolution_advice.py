@@ -102,6 +102,7 @@ def test_director_plan_reports_resolution_and_auto_replans(tmp_path, zing_worksp
     comparison = json.loads(Path(auto["comparison_path"]).read_text(encoding="utf-8"))
     selected = comparison["plans"]["A"]["resolution"]["auto_selected"]
     assert selected["from"] == [1920, 1080] and selected["to"] == [800, 450]
+    assert plan.warnings[0].startswith("short_side auto delivered 800x450 instead of 1920x1080.")
 
 
 def low_res_clip(path, size="640x360", seconds=2):
@@ -130,6 +131,7 @@ def test_low_res_delivery_renders_at_the_recommended_size(tmp_path):
     vertical, square = auto["deliveries"]["9:16"], auto["deliveries"]["1:1"]
     assert (vertical["width"], vertical["height"]) == (720, 1280)
     assert vertical["resolution"]["auto_selected"]["from"] == [1080, 1920]
+    assert vertical["resolution"]["summary"].startswith("short_side auto delivered 720x1280 instead of 1080x1920.")
     assert vertical["resolution"]["sources"][0]["sharp_height_share"] >= .69
     assert vertical["resolution"]["sources"][0]["enlargement"] <= 2.5 + 1e-9
     probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
