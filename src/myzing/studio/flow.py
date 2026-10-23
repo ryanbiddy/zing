@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import os
+import re
 from pathlib import Path
 
 from myzing.urls import is_http_url
@@ -34,18 +36,78 @@ def question(key, prompt, recommended, reason, facts, choices=(), required=False
 
 
 def default_project():
-    base = Path("zing-workspace/studio").resolve()
+    return default_project_in(Path("zing-workspace/studio"))
+
+
+def default_project_in(base):
+    """The first unused ``studio``/``studio-N`` folder name beside ``base``."""
+    base = Path(base).expanduser().resolve()
     path, suffix = base, 2
     while path.exists():
-        path = base.with_name(f"studio-{suffix}")
+        path = base.with_name(f"{base.name}-{suffix}")
         suffix += 1
     return str(path)
 
 
+def agent_default_project():
+    """MCP servers run from the client's working directory (often / or a system
+    folder), so agent sessions default inside the Zing workspace instead."""
+    from myzing import storage
+    return default_project_in(storage.resolve_workspace() / "studio")
+
+
+def reserve_project():
+    """Terminal sessions claim their default folder at once with an exclusive mkdir.
+
+    Two `zing studio` sessions started in one folder otherwise both choose the
+    same unused name and overwrite each other's saved session.
+    """
+    previous = None
+    while True:
+        path = Path(default_project())
+        try:
+            path.mkdir(parents=True, exist_ok=False)
+            return str(path)
+        except FileExistsError:
+            if path == previous:  # a pinned default name (tests or a wrapper) is reused as before
+                return str(path)
+            previous = path
+
+
+def _is_default_project(root):
+    from myzing import storage
+    bases = {Path("zing-workspace").resolve(), storage.resolve_workspace()}
+    return root.parent in bases and re.fullmatch(r"studio(-\d+)?", root.name) is not None
+
+
+def _inside(folder, parent):
+    return folder == parent or parent in folder.parents
+
+
+def clean_path_text(value, *, posix=None):
+    """Undo the quoting terminals add when a file is dragged in.
+
+    Windows Explorer/Terminal wraps a path with spaces in double quotes, GNOME
+    Terminal uses single quotes, and macOS Terminal escapes spaces with
+    backslashes. Backslash escapes are only undone on POSIX, where a backslash
+    is never a path separator, and only when the literal path does not exist.
+    """
+    text = value.strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
+        text = text[1:-1].strip()
+    else:
+        text = text.strip('"')
+    posix = os.name != "nt" if posix is None else posix
+    if posix and "\\" in text and not Path(text).expanduser().exists():
+        text = re.sub(r"\\(.)", r"\1", text)
+    return text
+
+
 def _path(value, key, *, folder=False, exists=True):
-    if not isinstance(value, str) or not value.strip() or "://" in value or value.startswith(("\\\\", "//")):
+    text = clean_path_text(value) if isinstance(value, str) else ""
+    if not text or "://" in text or text.startswith(("\\\\", "//")):
         raise ValueError(f"{key}: supply a local {'folder' if folder else 'file'} path.")
-    path = Path(value.strip().strip('"')).expanduser().resolve()
+    path = Path(text).expanduser().resolve()
     if exists and not (path.is_dir() if folder else path.is_file()):
         raise ValueError(f"{key}: {'folder' if folder else 'file'} does not exist: {path}")
     return str(path)
@@ -141,6 +203,17 @@ def next_step(answers=None, *, cache=None):
     for key in ("clips", "photos"):
         if key in a and root == Path(a[key]):
             raise ValueError("The output project must differ from the input folder.")
+    if path == "d" and "source" in a and _inside(root, Path(a["source"]).parent):
+        # Explain keeps its cards outside the video's folder. Move only the
+        # automatic default; an explicitly chosen folder gets a plain refusal.
+        if not _is_default_project(root):
+            raise ValueError(f"Style breakdown writes outside the video's folder; choose an output folder that is not inside {Path(a['source']).parent}.")
+        cwd = Path.cwd().resolve()
+        candidates = [agent_default_project(), *([default_project_in(cwd.with_name(cwd.name + "-zing-studio"))] if cwd.name else [])]
+        a["project"] = next((p for p in candidates if not _inside(Path(p), Path(a["source"]).parent)), a["project"])
+        if _inside(Path(a["project"]), Path(a["source"]).parent):
+            raise ValueError(f"Style breakdown writes outside the video's folder; choose an output folder that is not inside {Path(a['source']).parent}.")
+        root = Path(a["project"])
     facts = evidence.collect(a, cache)
     queue = []
 
@@ -178,6 +251,13 @@ def next_step(answers=None, *, cache=None):
             kind = "url" if is_http_url(a["reference"]) else "uoink" if a["reference"].startswith("uoink:") else "file"
             if "reference_kind" in a and kind != a["reference_kind"]:
                 raise ValueError("Reference does not match its selected source type; go back to change the source type.")
+            read = facts.get("reference", {})
+            if kind == "file" and read.get("no_video"):
+                raise ValueError(f"reference: {Path(a['reference']).name} has no video stream, so there is no picture style to match. "
+                                 "Choose a video file (option 5 checks music).")
+            if kind == "file" and read.get("unreadable"):
+                raise ValueError(f"reference: {Path(a['reference']).name} cannot be read as a video ({read['unreadable']}). "
+                                 "Choose a complete video file.")
             if kind == "url":
                 ask("allow_download", "Allow downloading this reference URL?", False,
                     "No download is allowed by default. Yes authorizes only this reference, never model downloads.", {False: "No", True: "Yes"})
@@ -209,8 +289,11 @@ def next_step(answers=None, *, cache=None):
         if path == "c":
             why = f"{len(facts.get('photos', []))} photos measured; square is a starting layout choice. Your publishing destination is unknown."
         if path == "a" and reference.get("aspect"):
-            orientation = {"16:9": "landscape", "9:16": "portrait", "1:1": "square"}.get(reference["aspect"], orientation)
-            why = f"Your reference is {reference['aspect']}. Keep its shape unless your destination needs another."
+            orientation = reference.get("orientation") or {"16:9": "landscape", "9:16": "portrait", "1:1": "square"}.get(reference["aspect"], orientation)
+            shape = {"portrait": "9:16", "landscape": "16:9", "square": "1:1"}.get(orientation)
+            why = (f"Your reference is {reference['aspect']}. Keep its shape unless your destination needs another."
+                   if reference["aspect"] == shape or shape is None else
+                   f"Your reference is {reference['aspect']} ({orientation}); keeping its shape delivers {shape}. Change it if your destination needs another.")
         ask("platform", "Where will this go?", default_platform, why,
             {"TikTok/Reels": "TikTok / Reels (9:16)", "YouTube": "YouTube (16:9)", "square": "Feed (1:1)", "all": "All three shapes", "original": "Keep source / reference shape", "custom": "Custom shapes"})
         aspect = {"portrait": "9:16", "landscape": "16:9", "square": "1:1"}.get(orientation, "1:1" if path == "c" else "16:9")
@@ -224,7 +307,9 @@ def next_step(answers=None, *, cache=None):
         if ref.get("duration"):
             seconds = min(60, max(1, round(ref["duration"])))
         ask("length", "How many seconds?", seconds,
-            f"The reference is {ref['duration']:g} s; recommend {seconds:g} s to follow it." if ref.get("duration") else
+            (f"The reference is {ref['duration']:g} s; recommend {seconds:g} s to follow it." if seconds == round(ref["duration"]) else
+             f"The reference is {ref['duration']:g} s; {seconds:g} s is the closest length studio supports (1-60 s).")
+            if ref.get("duration") else
             f"{facts['duration']:g} source seconds; {seconds:g} s is a starting target. Distinct usable moments are unknown."
             if facts["duration"] else "Usable duration is unknown; 15 seconds is a disclosed starting target.")
     if path in "ab":
@@ -247,6 +332,8 @@ def next_step(answers=None, *, cache=None):
                     text = ref.get("text_present")
                     q.reason = ("No text detected in sampled reference frames; start without added captions." if text is False else
                                 "Text and speech observed; try spoken captions. Sampled text may be titles." if text and ref.get("speech_present") else
+                                "Text observed but no speech detected; it is likely titles or signs, so start without spoken captions."
+                                if text and ref.get("speech_present") is False else
                                 "Spoken-caption evidence is unknown; start without added captions.")
                 elif q.id == "music":
                     q.recommended = "original" if ref.get("has_audio") and ref.get("music_present") is not False else "none"
@@ -284,9 +371,14 @@ def build_plan(a, facts):
         "e": ["Measure local music", "Rank tracks and write reasons"],
         "f": ["Load the plan or probe the finished edit", "Rebuild framing for each requested shape", "Render and decode deliveries"],
     }[path]
-    warnings = list(facts["warnings"])
+    # A style breakdown delivers no video; source resolution is not its risk.
+    warnings = [w for w in facts["warnings"] if not (path == "d" and w.startswith("Low-resolution source"))]
     if path in "ab":
         warnings.append("A/B/C can be blocked by footage shortages or invalid speech timing; no missing words or style measurements are invented.")
+        if facts.get("audio_streams"):
+            note = evidence.speech_model_note()
+            if note:
+                warnings.append(note)
     if path == "b":
         warnings.append("Style is a brief-based editorial choice, not a recovered reference look; source color stays unchanged.")
     if path == "c":

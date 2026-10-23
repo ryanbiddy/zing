@@ -59,7 +59,8 @@ def test_scripted_stdin_every_path(path, inputs, monkeypatch, capsys):
             break
         key = step["question"]["id"]
         value = answers[key]
-        transcript.append(";".join(value) if key == "tracks" else ",".join(value) if isinstance(value, list)
+        transcript.append(str("abcdef".index(value) + 1) if key == "path" else  # b always means back
+                          ";".join(value) if key == "tracks" else ",".join(value) if isinstance(value, list)
                           else "yes" if value is True else "no" if value is False else str(value))
         accepted[key] = value
     monkeypatch.setattr("sys.stdin", io.StringIO("\n".join(transcript) + "\nyes\n"))
@@ -198,7 +199,7 @@ def test_progress_translates_internal_asset_and_draft_ids(inputs, tmp_path):
 
 def test_back_explain_quit_and_resume(inputs, monkeypatch, capsys):
     # Back from topic changes clips, not the path; ? does not consume an answer.
-    text = f"b\n{inputs['clips']}\nb\n?\n{inputs['clips']}\nq\n"
+    text = f"2\n{inputs['clips']}\nb\n?\n{inputs['clips']}\nq\n"
     monkeypatch.setattr("sys.stdin", io.StringIO(text))
     assert command.run([]) == 0
     state = load_session(inputs["project"])
@@ -609,3 +610,237 @@ def test_explain_success_summary_and_all_cards_reach_finish(inputs, monkeypatch)
     for suffix in ("json", "md", "png"):
         assert f"card.{suffix}" in text
     assert "fallback" not in text
+
+
+# STUDIO1 review regressions (each reproduced against a7f33a7 first).
+
+def test_b_at_the_first_question_means_back_not_path_b(inputs, monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"b\n2\n{inputs['clips']}\nq\n"))
+    assert command.run([]) == 0
+    text = capsys.readouterr().out
+    opening = text.split("Which folder", 1)[0]
+    assert "Already at the first question" in opening and "b goes back" not in opening
+    state = load_session(inputs["project"])
+    assert state.answers["path"] == "b" and state.answers["clips"] == inputs["clips"]
+    assert state.history == ["path", "clips"]
+
+
+@pytest.mark.parametrize("typed, posix, expected", [
+    ('"C:\\My Clips\\ref.mp4"', False, "C:\\My Clips\\ref.mp4"),       # Windows Explorer drag
+    ('"C:\\My Clips\\ref.mp4" ', False, "C:\\My Clips\\ref.mp4"),
+    ("'/srv/footage/My Clips' ", True, "/srv/footage/My Clips"),        # GNOME Terminal drag
+    ("/Volumes/Footage/My\\ Clips/ref\\ 1.mp4 ", True, "/Volumes/Footage/My Clips/ref 1.mp4"),  # macOS Terminal drag
+    ("C:\\My\\ Clips", False, "C:\\My\\ Clips"),                        # Windows backslashes are separators
+])
+def test_dragged_paths_lose_terminal_quoting(typed, posix, expected):
+    assert flow.clean_path_text(typed, posix=posix) == expected
+
+
+def test_single_quoted_folder_is_accepted(inputs):
+    assert flow.normalize("clips", f"'{inputs['clips']}'") == inputs["clips"]
+    with pytest.raises(ValueError, match="local folder"):
+        flow.normalize("clips", '"\\\\server\\share\\clips"')
+
+
+def test_output_folder_that_collides_is_refused_and_not_written(inputs, monkeypatch, capsys):
+    clips = Path(inputs["clips"])
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"2\n{clips}\ndemo\n2\n8\n\n\n\no\n{clips}\nq\n"))
+    assert command.run([]) == 0
+    assert "Keeping " + inputs["project"] in capsys.readouterr().out
+    assert not (clips / "studio-session.json").exists()
+    assert load_session(inputs["project"]).answers["project"] == inputs["project"]
+
+
+def test_cancelled_match_saves_and_says_how_to_continue(inputs, monkeypatch, capsys):
+    cancelled = {"ok": False, "status": "cancelled", "project": inputs["project"], "outputs": [], "warnings": [],
+                 "result": {"drafts": {}}, "next_actions": []}
+    monkeypatch.setattr("myzing.studio.execute.run_confirmed", lambda answers, **_: cancelled)
+    a, _ = complete("a", inputs)
+    file = Path(inputs["project"]).parent / "answers.json"
+    file.write_text(json.dumps(a))
+    assert command.run(["--answers", str(file), "--yes"]) == 0
+    text = capsys.readouterr().out
+    assert "Continue: zing studio --resume" in text and "Studio: cancelled" not in text
+    state = load_session(inputs["project"])
+    assert state.status == "paused" and state.result["status"] == "cancelled"
+
+
+def test_shortage_notes_name_the_blocker_and_actions_point_at_resume(inputs, monkeypatch):
+    from myzing.studio.presentation import creator_summary
+    from myzing.studio.execute import run_confirmed
+    monkeypatch.setattr("myzing.studio.evidence.speech_model_note", lambda: "The speech model 'large-v2' is not downloaded, and studio never downloads models. More.")
+    study = {"code": "study_required", "missing": "No project clip has a usable study.", "remedy": "Run zing study."}
+    result = {"project": inputs["project"], "status": "shortage", "warnings": [], "result": {"shortages": [study]}}
+    notes = creator_summary(result, {"path": "b"}, {"clips": []})["notes"]
+    assert "not enough usable moments" not in notes[0] and "'large-v2' is not downloaded" in notes[0]
+    result["result"]["shortages"] = [{"code": "target_length", "missing": "Only 3s", "remedy": "Shorten."}]
+    assert "not enough usable moments" in creator_summary(result, {"path": "b"}, {})["notes"][0]
+    result["result"]["shortages"] = [{"code": "font_asset", "missing": "Font asset_0123abcd missing.", "remedy": "Restore it."}]
+    assert creator_summary(result, {"path": "b"}, {})["notes"][0] == "Planning stopped: Font missing. Restore it."
+    monkeypatch.setattr(adapters, "explain_video", lambda *a, **k: {"ok": False, "error": "no video stream"})
+    a, _ = complete("d", inputs)
+    failed = run_confirmed(a)
+    assert failed["next_actions"][0].startswith("Fix the error above, then retry: zing studio --resume")
+    assert not any("style card" in action for action in failed["next_actions"])
+
+
+def test_fallback_notes_hide_internal_ids_fields_and_pre_run_caveats(inputs):
+    from myzing.studio.presentation import creator_summary
+    warnings = ["A/B/C can be blocked by footage shortages or invalid speech timing; no missing words or style measurements are invented.",
+                "ASR repair tos.mp4: 1 word timings interpolated; originals retained in inventory.asr_repair.",
+                "caption geometry: 224 coverage gap(s); see caption-geometry.json",
+                "font candidates track text-0007: insufficient glyph pixels",
+                "captions[3] reads at 27.8 characters/second; guidance allows 20",
+                "Source audio follows each clip. 'none' adds no music/SFX; it does not remove embedded sounds."]
+    result = {"project": inputs["project"], "status": "ready", "warnings": warnings, "result": {}}
+    assert creator_summary(result, {"path": "e"}, {"clips": []})["notes"] == [warnings[-1]]
+    # A finished edit counts its disclaimers instead of listing engine jargon (V1 HD run: 81).
+    rows = {"A.16x9": {"status": "ready", "video": "A.mp4", "plan": "A.json", "dimensions": {"color": {"status": "pass"}}}}
+    result["result"] = {"drafts": rows}
+    assert creator_summary(result, {"path": "a"}, {"clips": []})["notes"] == [
+        "6 detailed notes on measurement limits, color and framing are in the full result."]
+    result["warnings"] = [*warnings, "clip clip-2: Selected zoomfill: crop enlargement 5.455x exceeds 2.5x"]
+    assert creator_summary(result, {"path": "a"}, {})["notes"] == [
+        "Some shots are enlarged more than 2.5x to fill the frame; check them for softness."]
+
+
+def test_agent_sessions_default_inside_the_zing_workspace(inputs, tmp_path, monkeypatch):
+    from myzing import storage
+    from myzing.mcp_server import h_zing_studio
+    elsewhere = tmp_path / "server-cwd"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    response = h_zing_studio(path="d", answers={"source": inputs["source"]})
+    assert response["ok"] and response["status"] == "plan"
+    project = Path(response["answers"]["project"])
+    assert project.parent == storage.resolve_workspace() and project.name == "studio"
+    assert not (elsewhere / "zing-workspace").exists() and not project.exists()
+
+
+def test_two_terminal_sessions_in_one_folder_claim_different_projects(tmp_path, monkeypatch, zing_workspace):
+    monkeypatch.chdir(tmp_path)
+    first, second = flow.reserve_project(), flow.reserve_project()
+    assert Path(first).name == "studio" and Path(second).name == "studio-2"
+    assert Path(first).is_dir() and Path(second).is_dir()
+
+
+def test_style_breakdown_default_output_moves_out_of_the_video_folder(tmp_path, monkeypatch, zing_workspace):
+    from myzing import storage
+    probe = {"duration": 8.0, "width": 1280, "height": 720, "orientation": "landscape", "has_audio": True,
+             "flags": [], "streams": [{"codec_type": "video"}], "notes": []}
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(to_dict=lambda: probe))
+    videos = tmp_path / "videos"
+    videos.mkdir()
+    (videos / "talk.mp4").write_bytes(b"stub")
+    monkeypatch.chdir(videos)
+    step = flow.next_step({"path": "d", "source": str(videos / "talk.mp4"), "project": flow.default_project()})
+    assert step["status"] == "plan" and Path(step["plan"]["output_folder"]).parent == storage.resolve_workspace()
+    assert not any("Low-resolution" in w for w in step["plan"]["warnings"])
+    with pytest.raises(ValueError, match="outside the video's folder"):
+        flow.next_step({"path": "d", "source": str(videos / "talk.mp4"), "project": str(videos / "mine")})
+
+
+def test_reference_shape_follows_display_rotation_and_bad_files_stop_early(inputs, monkeypatch, capsys):
+    from myzing.studio import reference
+    rotated = {"duration": 8.0, "width": 1280, "height": 720, "rotation": 90.0, "orientation": "portrait",
+               "has_audio": False, "flags": []}
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(to_dict=lambda: rotated))
+    def stop(*args, **kwargs):
+        raise RuntimeError("sample not needed")
+    monkeypatch.setattr("myzing.study.proc.run", stop)
+    with pytest.raises(RuntimeError):
+        reference._worker(inputs["source"], str(Path(inputs["project"]).parent))
+    first = json.loads(capsys.readouterr().out.splitlines()[0])["data"]
+    assert first["aspect"] == "9:16" and first["orientation"] == "portrait"
+    assert [reference.aspect_label(*size) for size in [(1920, 1080), (1920, 1088), (862, 360)]] == ["16:9", "about 16:9", "862x360"]
+    portrait = reference.describe({"duration": 8.0, "aspect": "9:16", "orientation": "portrait", "sample_seconds": 8})
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: portrait)
+    step = flow.next_step({"path": "a", "project": inputs["project"], "reference": inputs["source"],
+                           "clips": inputs["clips"], "topic": "t", "platform": "original", "length": 8,
+                           "captions": "none", "music": "original"})
+    assert step["answers"]["aspects"] == ["9:16"]
+    for read, message in [({"no_video": True}, "no video stream"), ({"unreadable": "moov atom not found"}, "cannot be read")]:
+        monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p, read=read: reference.describe(dict(read)))
+        with pytest.raises(ValueError, match=message):
+            flow.next_step({"path": "a", "project": inputs["project"], "reference": inputs["source"]})
+
+
+def test_long_reference_length_names_the_cap(inputs, monkeypatch):
+    from myzing.studio.reference import describe
+    monkeypatch.setattr("myzing.studio.reference.quick_read",
+                        lambda p: describe({"duration": 1200.0, "aspect": "16:9", "sample_seconds": 20}))
+    a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "clips": inputs["clips"],
+         "topic": "t", "platform": "original"}
+    q = flow.next_step(a)["question"]
+    assert q["id"] == "length" and q["recommended"] == 60
+    assert "closest length studio supports" in q["reason"] and "follow it" not in q["reason"]
+
+
+def test_caption_reason_reports_measured_speech_absence(inputs, monkeypatch):
+    from myzing.studio.reference import describe
+    read = describe({"duration": 8.0, "aspect": "16:9", "sample_seconds": 8, "has_audio": True,
+                     "speech_present": False, "speech_ratio": 0.0, "text_present": True, "text_samples": 3})
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: read)
+    a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "clips": inputs["clips"],
+         "topic": "t", "platform": "original", "length": 8}
+    q = flow.next_step(a)["question"]
+    assert q["id"] == "captions" and q["recommended"] == "none"
+    assert "speech 0%" in read["reason"] and "no speech detected" in q["reason"] and "unknown" not in q["reason"]
+
+
+def test_invalid_answers_json_names_the_file(tmp_path, monkeypatch, capsys):
+    file = tmp_path / "answers.json"
+    file.write_text("not json")
+    monkeypatch.chdir(tmp_path)
+    assert command.run(["--answers", str(file)]) == 1
+    assert "answers.json is not valid JSON" in capsys.readouterr().err
+    assert not (tmp_path / "zing-workspace").exists()
+
+
+def test_concurrent_sessions_wait_for_the_save_lock_and_get_a_studio_busy_message(inputs):
+    import threading
+    import time
+    from myzing.match.process import run_lock
+    from myzing.project.locking import project_lock
+    from myzing.studio import jobs
+    from myzing.studio.models import save_session
+    root = Path(inputs["project"])
+    root.mkdir()
+    held = threading.Event()
+    def hold():
+        with project_lock(root):
+            held.set()
+            time.sleep(.3)
+    thread = threading.Thread(target=hold)
+    thread.start()
+    held.wait(5)
+    save_session(root, Session(answers={"path": "d", "project": str(root)}))  # waits instead of failing
+    thread.join()
+    assert not (root / ".project.lock").exists()
+    with run_lock(root):
+        with pytest.raises(ValueError, match="Another studio session is already making something"):
+            jobs.execute({"path": "d", "project": str(root)})
+
+
+@pytest.mark.skipif(__import__("os").name != "nt", reason="Windows sharing violation on rename")
+def test_project_lock_release_retries_a_transient_sharing_violation(tmp_path, monkeypatch):
+    from myzing.project import locking
+    calls = []
+    original = Path.rename
+    def rename(self, target):
+        calls.append(self.name)
+        if self.name == locking.LOCK_NAME and len(calls) < 3:
+            raise PermissionError(32, "The process cannot access the file because it is being used by another process")
+        return original(self, target)
+    monkeypatch.setattr(Path, "rename", rename)
+    with locking.project_lock(tmp_path):
+        pass
+    assert len(calls) == 3 and not (tmp_path / locking.LOCK_NAME).exists()
+
+
+@pytest.mark.parametrize("cached, expected", [(True, False), (False, True)])
+def test_plan_warns_before_a_run_when_the_speech_model_is_missing(inputs, monkeypatch, cached, expected):
+    from myzing import doctor
+    monkeypatch.setattr(doctor, "check_whisper", lambda: SimpleNamespace(data={"model": "large-v2", "cached": cached}))
+    _, plan = complete("b", inputs)
+    assert any("'large-v2' is not downloaded" in w for w in plan["warnings"]) is expected

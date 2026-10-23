@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from myzing.contracts import Record
 from myzing.project.locking import project_lock
+from myzing.project.models import ProjectError
 
 SESSION_NAME = "studio-session.json"
 
@@ -76,13 +78,27 @@ def save_session(project, session):
         for value in values if isinstance(values, list) else [values]:
             if isinstance(value, str) and "://" not in value and Path(value).expanduser().resolve() == target:
                 raise ValueError(f"Session output would replace input {target}; use another project.")
-    with project_lock(root):
+    for attempt in range(100):
+        try:
+            lock = project_lock(root)
+            lock.__enter__()
+            break
+        except ProjectError as exc:
+            # The lock is held only for one small write. Wait out another
+            # session or scan briefly instead of failing with scan advice.
+            if attempt == 99:
+                raise ValueError(f"Another studio session or scan is writing to {root}; wait for it to finish, "
+                                 f"or use another output folder. ({exc})") from None
+            time.sleep(.02)
+    try:
         if target.exists():
             try:
                 Session.from_dict(read_json(target))
             except (ValueError, OSError) as exc:
                 raise ValueError(f"Existing {target} is not a studio session; use another project.") from exc
         write_json(target, session.to_dict())
+    finally:
+        lock.__exit__(None, None, None)
     return target
 
 

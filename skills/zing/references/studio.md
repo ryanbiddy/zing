@@ -7,12 +7,16 @@ without a reference, `c` photo meme/still, `d` style breakdown, `e` music advice
 
 Relay `question.prompt`, `options`, `recommended`, `reason` and `evidence`.
 When there is no recommended answer, ask plainly for the required input; do not
-offer Enter to accept an unknown. Use numbered menus; letters remain aliases.
+offer Enter to accept an unknown. Use numbered menus (`b` always means back in the
+terminal, so option 2 is typed as 2).
 Ask only what is missing; preserve the user's answers in your next call. A
 recommendation can be an editorial default or unknown. Audio-stream presence
 does not prove speech, and orientation does not prove a safe crop.
 
-The output folder defaults automatically. Ask about the destination once;
+The output folder defaults to `studio[-N]` in the Zing workspace, not the server's
+working directory; a style breakdown never writes inside the video's folder.
+A reference without video, or one FFprobe cannot read, returns an error at the
+reference question. Ask about the destination once;
 shapes follow it unless the creator chooses custom. A local reference receives
 an offline preview with an eight-second deadline: at most 20 seconds of video,
 three OCR frames, and existing cut/audio measurements. Quote the measured

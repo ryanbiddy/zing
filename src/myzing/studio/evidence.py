@@ -118,6 +118,29 @@ def collect(answers, cache=None):
     return result
 
 
+def speech_model_note():
+    """Studio studies never download models; say so before a long run that needs one.
+
+    Clips with speech need timed words (or measured silence) before the
+    director can cut them on word boundaries. Without a local speech model
+    they are excluded after the studies, which a creator should hear first.
+    """
+    try:
+        from myzing import doctor
+        check = doctor.check_whisper()
+    except Exception:  # an unreadable cache is not evidence either way
+        return None
+    data = check.data or {}
+    if data.get("cached"):
+        return None
+    if not data.get("model"):
+        return ("Speech transcription is not installed (myzing[study]), and studio never downloads models. "
+                "Clips with speech can be left out of A/B/C; run zing doctor before confirming.")
+    return (f"The speech model {data['model']!r} is not downloaded, and studio never downloads models. "
+            "Clips with speech can be left out of A/B/C. Download it once with zing study on one clip, "
+            "or set ZING_WHISPER_MODEL to a local model folder.")
+
+
 def saved_references_available():
     """Do not probe the default peer. An explicit URL or valid lease is required."""
     from myzing import uoink_bridge as bridge

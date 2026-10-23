@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import pathlib
 import sys
 import threading
 import time
@@ -23,7 +24,9 @@ def show_question(q, out):
     if value is not None:
         print(f"Recommended: {display}", file=out)
         print(q["reason"], file=out)
-    print(("Enter accepts | " if value is not None else "") + "? explains | b goes back | q saves and quits", file=out)
+    # Nothing precedes the opening menu, so it does not advertise b.
+    back = "" if q["id"] == "path" else "b goes back | "
+    print(("Enter accepts | " if value is not None else "") + "? explains | " + back + "q saves and quits", file=out)
     print("> ", end="", file=out, flush=True)
 
 
@@ -142,12 +145,34 @@ def run(argv):
         if args.json:
             print(json.dumps({"event": event, **data}, ensure_ascii=False, allow_nan=False), flush=True)
 
+    created, saved = set(), [None]  # folders this session made; where it last saved
+
+    def claim():
+        session.answers["project"] = flow.reserve_project()
+        created.add(session.answers["project"])
+
     def persist(status=None):
         if "project" not in session.answers:
-            session.answers["project"] = flow.default_project()
+            claim()
         if status:
             session.status = status
-        return save_session(session.answers["project"], session)
+        project = session.answers["project"]
+        if not pathlib.Path(project).exists():
+            created.add(project)
+        path = save_session(project, session)
+        if saved[0] not in (None, project) and saved[0] in created:
+            # The session moved (o, or path 4's move out of the video's folder).
+            # Remove the stale copy only from a folder studio made and that
+            # holds nothing else, so no one resumes the abandoned answers.
+            old = pathlib.Path(saved[0])
+            try:
+                if [p.name for p in old.iterdir()] == [SESSION_NAME]:
+                    (old / SESSION_NAME).unlink()
+                    old.rmdir()
+            except OSError:
+                pass
+        saved[0] = project
+        return path
 
     def pause():
         path = persist("paused")
@@ -176,7 +201,11 @@ def run(argv):
             from pathlib import Path
             session.answers["project"] = str(Path(args.resume).expanduser().resolve())
         if args.answers:
-            supplied = flow.normalize_answers(read_json(args.answers))
+            try:
+                raw_answers = read_json(args.answers)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{args.answers} is not valid JSON ({exc}); write one object keyed by question IDs.") from None
+            supplied = flow.normalize_answers(raw_answers)
             session.answers.update(supplied)
             session.result = {}
         if session.status == "ready" and session.result and not args.answers and session.answers.get("path") != "a":
@@ -189,6 +218,8 @@ def run(argv):
                     show_result(session.result, sys.stdout)
                 return 0
         while True:
+            if "path" in session.answers and "project" not in session.answers:
+                claim()  # before any question, so a second terminal picks another folder
             try:
                 step = flow.next_step(session.answers, cache=cache)
             except (ValueError, OSError, RuntimeError) as exc:
@@ -234,7 +265,11 @@ def run(argv):
                     print(q["reason"])
                     print(json.dumps(q["evidence"], indent=2, ensure_ascii=False))
                     continue
-                if raw == "b" and q["id"] != "path":
+                if raw == "b" and q["id"] == "path":
+                    # b always means back, even where a-f also name the menu rows.
+                    print("Already at the first question. Type 2 to edit clips without a reference.")
+                    continue
+                if raw == "b":
                     back()
                     continue
                 try:
@@ -274,9 +309,14 @@ def run(argv):
                     if not value or value.strip() == "q":
                         return pause()
                     try:
-                        session.answers[key] = flow.normalize(key, value.strip())
+                        chosen = flow.normalize(key, value.strip())
+                        if key == "project":
+                            # Check collisions now; a rejected folder must not
+                            # replace the working one or receive the session.
+                            flow.next_step({**session.answers, "project": chosen}, cache=cache)
+                        session.answers[key] = chosen
                     except (ValueError, OSError) as exc:
-                        print(str(exc))
+                        print(f"{exc} Keeping {session.answers[key]}." if key == "project" else str(exc))
                     continue
                 if line.strip().lower() not in {"", "y", "yes"}:
                     print("Enter yes to run, b to change an answer, or q to save.")
@@ -313,6 +353,8 @@ def run(argv):
             stop.set()
             beat.join(timeout=2)
         session.result = result
+        if result.get("status") == "cancelled":
+            return pause()  # Ctrl+C reached the match worker; say how to continue.
         persist(result["status"])
         emit("result", {**result, "questions_asked": session.questions_asked})
         if not args.json:

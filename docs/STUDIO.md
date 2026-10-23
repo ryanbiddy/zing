@@ -20,14 +20,20 @@ Choose what you want to make:
 
 Recommendations include their reason and evidence. Enter accepts a recommendation;
 required paths and topics ask plainly and repeat on an empty answer. `?` explains,
-`b` goes back and `q` saves. Menus use numbers; a-f remain opening-menu aliases.
+`b` goes back and `q` saves. Menus use numbers. At the opening menu a and c-f
+also pick their rows, but `b` always means back, so type 2 for clips without a
+reference. Dragged paths may keep the quotes Windows Explorer, Windows Terminal
+or GNOME Terminal add, or macOS Terminal's backslash-escaped spaces.
 
 A local reference match takes eight questions plus confirmation: reference,
 clips, topic, destination, length, captions and music after the opening choice.
 The reference supplies the pacing default. The output folder defaults to a fresh
-`zing-workspace/studio[-N]`; change it with `o` on the plan screen. Use `t` there
-to change an edit's tone. Destination determines shape; only custom asks another
-shape question.
+`zing-workspace/studio[-N]`, claimed as the session starts, so a second terminal
+in the same folder gets its own. Change it with `o` on the plan screen; a folder
+that would overwrite or equal an input is refused and the old one is kept. A
+style breakdown (option 4) moves the default out of the video's folder, because
+Explain writes its cards outside it. Use `t` on the plan screen to change an
+edit's tone. Destination determines shape; only custom asks another shape question.
 
 Studio probes local inputs and reads a local reference before style questions.
 The preview has an eight-second deadline, samples at most the first 20 seconds
@@ -35,20 +41,27 @@ at reduced resolution, and checks three text frames with locally installed OCR.
 It reuses the study cut detector and audio measurements. It reports speech,
 likely music and sampled text separately; unavailable measurements stay unknown.
 The full reference summary appears once; each question gives a reason specific
-to its choice. Path 4 uses Explain for the full style card after confirmation.
+to its choice. The shape is the displayed one, so a rotated phone video counts
+as portrait; uncommon shapes are named by their pixels. A reference with no video
+stream, or one FFprobe cannot read, is refused at its question instead of after
+confirmation. A reference longer than 60 seconds recommends 60, the studio maximum.
+Path 4 uses Explain for the full style card after confirmation.
 Remote and saved references are resolved by match after confirmation, so their
 interview style evidence remains unknown.
 
 Production studies, renders and downloads wait for plan confirmation. The plan
 lists steps, shapes, downloads and output folder. Runtime is unknown until
 measured on the machine; source duration is not an encoding-speed benchmark.
+Clips with speech need timed words from a local speech model. When clips have
+audio and that model is not downloaded, the plan says so before you confirm;
+studio never downloads models.
 
 ## A real photo session
 
-This excerpt is from the October 22, 2026 acceptance run. Three photos came from
-SHA-verified V1 clips (Korky Paul, Tears of Steel and NASA), with no downloads.
-Answers are shown after `>`; paths below are shortened relative to
-`zing-workspace/studio1-refined`. The full local capture is `c-transcript.txt`.
+This is the terminal output of an October 23, 2026 run on Windows, unedited
+except that answers are shown after `>` (an empty `>` is Enter) and the output
+folder is shortened to `<cwd>`. The three photos are frames from SHA-verified V1
+clips (Korky Paul, Tears of Steel and NASA), with no downloads.
 
 ```text
 What are we making?
@@ -58,12 +71,17 @@ What are we making?
   4. Break down a video's style
   5. Check music for an edit
   6. Re-deliver an existing edit or plan
+Recommended: 1 (Edit my clips to look like a reference video)
+Choose a reference match if you have a video to aim for; your intent is still unknown.
+Enter accepts | ? explains | q saves and quits
 > 3
 
 Which folder holds your photos?
+? explains | b goes back | q saves and quits
 > photos
 
 What's the meme or still topic?
+? explains | b goes back | q saves and quits
 > when the build finally passes
 
 Where will this go?
@@ -73,31 +91,43 @@ Where will this go?
   4. All three shapes
   5. Keep source / reference shape
   6. Custom shapes
-Recommended: square
-> square
+Recommended: 3 (Feed (1:1))
+3 photos measured; square is a starting layout choice. Your publishing destination is unknown.
+Enter accepts | ? explains | b goes back | q saves and quits
+>
 
 Plan: A meme or still from photos plus a topic
 Shapes: 1:1
   1. Measure photos and create six concepts per shape
   2. Render contact sheets
   3. Export the highest readability-scored concept per shape
+Estimated steps: 3. Time: Runtime is unknown on this machine; studies and renders depend on source duration, models and hardware.
 Downloads: none
-Output folder: c/zing-workspace/studio-2
-> yes
+Output folder: <cwd>\zing-workspace\studio
+Note: Readability scores do not judge the joke. Face coverage is sampled or unknown; review the contact sheet.
+
+Run this plan? Recommended: yes.
+Enter=yes | o changes output folder | ? explains | b goes back | q saves and quits
+>
+Working: Starting A meme or still from photos plus a topic
+Working: Measure photos and render six 1:1 concepts
+Working: Export the selected 1:1 still (highest readability score; humor needs your review)
 
 Studio: ready
-Finished still (1:1): stills-rpst7pnc/1x1/finished-still-57812695cd9c8fda.png
-Contact sheet (1:1): stills-rpst7pnc/1x1/contact-sheet.png
+Finished still (1:1): stills-vj2psxlg\1x1\finished-still-57812695cd9c8fda.png
+Contact sheet (1:1): stills-vj2psxlg\1x1\contact-sheet.png
 Note: Some photos need a blurred background to keep faces and subjects inside the frame.
 Note: Readability scores help with layout; you still need to judge the joke.
-Output folder: c/zing-workspace/studio-2
-Full result: c/zing-workspace/studio-2/studio-result.json
+Output folder: <cwd>\zing-workspace\studio
+Full result: <cwd>\zing-workspace\studio\studio-result.json
+Next: Open the contact sheet and check the joke and text placement.
+Next: Pick another concept with zing still pick <folder> --id <id>.
+Next: Try a more specific topic in a fresh studio session.
 ```
 
-Four questions plus confirmation replaced six questions plus confirmation.
-The scripted run took 4.156 seconds, with its first contact sheet at 3.484 seconds.
-These are local timings, not a speed promise. The two similar face/subject crop
-warnings now appear as one note; both source observations remain in the result.
+Four questions plus confirmation. The scripted run took 2.172 seconds; that is
+a local timing, not a speed promise. The two similar face/subject crop warnings
+appear as one note; both source observations remain in the result.
 
 For edits, the finish screen shows a drafts-by-shapes table with playable paths
 relative to the output folder. Status distinguishes rendered output, measured
@@ -105,6 +135,11 @@ style misses and unverified matches. One recommendation ranks completed drafts
 by fewest measured misses, then most passing checks; ties are stated. It does
 not infer artistic quality from that ranking. At most five merged notes appear,
 followed by the output folder, full result path and an exact draft-choice command.
+Notes never show producer IDs or field names. A shortage names its blocker: clips
+excluded for missing speech timing are not reported as too little footage. A
+finished edit whose remaining warnings are measurement disclaimers shows their
+count instead. Cancelled, failed and shortage results point at
+`zing studio --resume`; Ctrl+C during a reference match saves and prints it.
 All deliveries, warnings and the creator summary remain in `studio-result.json`.
 
 ## Save, resume and automate
@@ -191,7 +226,10 @@ project for a new edit.
   A flattened video retains its baked-in captions, cuts, color and mix; those
   elements cannot be edited separately. Each delivery is decoded for validation.
   The crop planner merges sub-microsecond duplicate track times before limiting
-  movement. If a motion-bound rejection still occurs, Studio retries full-picture blurfill and records that fallback in the delivery report.
+  movement, keeps a zero-length shot's single keyframe, and shrinks a clamped
+  step only when rounding would break the speed bound, so motion that already
+  validated is unchanged. If a motion-bound rejection still occurs, Studio
+  retries full-picture blurfill and records that fallback in the delivery report.
 - Style breakdown lazily calls `myzing.explain.api.explain_video(source,
   out_dir, transitions=True, offline=True)` and displays its summary and three
   card paths. Missing optional measurements remain unknown. If the module cannot
@@ -214,6 +252,9 @@ options, recommendation, reason and evidence; do not turn unknowns into claims.
 Pass the answers back until it returns a plan. This tool is stateless: it does
 not save a session or run production. It performs local read-only probes,
 a bounded local reference preview and only the requested configured-peer search.
+Without a `project` answer, agent sessions default to `studio[-N]` inside the
+Zing workspace (`ZING_HOME`, else `~/.zing`), never the MCP server's working
+directory, which clients often set to a system folder.
 
 After confirmation, follow the plan's `execution` metadata. Paths a, c and e
 reuse `match_start` / `match_status`, `still_concepts` / `still_render`, and

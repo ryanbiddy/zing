@@ -59,10 +59,28 @@ def describe(result):
     text = presence("text_present", "text")
     if result.get("text_samples"):
         text += f" in {result['text_samples']} sampled frames"
-    result["reason"] = (f"Your reference is {result['duration']:.1f} s, {result.get('aspect', 'aspect unknown')}; "
-                        f"{rate_text} in the first {result.get('sample_seconds', 0):g} s; "
+    duration = f"{result['duration']:.1f}" if result["duration"] >= 1 else f"{result['duration']:.2g}"
+    result["reason"] = (f"Your reference is {duration} s, {result.get('aspect', 'aspect unknown')}; "
+                        f"{rate_text} in the first {result.get('sample_seconds', 0):.3g} s; "
                         + ", ".join((speech, music, text)) + ".")
     return result
+
+
+COMMON_ASPECTS = ("16:9", "9:16", "1:1", "4:3", "3:4", "4:5", "5:4", "3:2", "2:3", "21:9", "2:1", "1:2")
+
+
+def aspect_label(width, height):
+    """Displayed shape: an exact common ratio, 'about' one within 1%, else pixels."""
+    from math import gcd
+    divisor = gcd(width, height)
+    exact = f"{width // divisor}:{height // divisor}"
+    if exact in COMMON_ASPECTS:
+        return exact
+    def error(label):
+        w, h = map(int, label.split(":"))
+        return abs(width * h / (height * w) - 1)
+    near = min(COMMON_ASPECTS, key=error)
+    return "about " + near if error(near) <= .01 else f"{width}x{height}"
 
 
 def _worker(source, workspace):
@@ -70,16 +88,26 @@ def _worker(source, workspace):
     from myzing.study import shots, audio, captions, proc
     def emit(data):
         print(json.dumps({"studio_reference": True, "data": data}), flush=True)
-    probe = probe_file(Path(source)).to_dict()
+    try:
+        probe = probe_file(Path(source)).to_dict()
+    except proc.ToolMissing:
+        raise  # a missing tool says nothing about the file
+    except proc.MediaError as exc:
+        emit({"unreadable": str(exc).strip().splitlines()[-1][:200]})
+        raise
+    if "no_video" in probe.get("flags", []):
+        emit({"no_video": True})
+        raise ValueError("Reference has no video stream")
     duration = probe.get("duration") or 0
     w, h = probe.get("width"), probe.get("height")
     if not w or not h or not duration:
         raise ValueError("Reference video dimensions or duration unavailable")
-    from math import gcd
-    divisor = gcd(w, h)
-    aspect = f"{w // divisor}:{h // divisor}"
+    if abs(probe.get("rotation") or 0) % 180 == 90:
+        w, h = h, w  # the displayed shape; FFmpeg autorotates the sample below too
+    aspect = aspect_label(w, h)
     seconds = min(duration, 20)
-    emit({"duration": duration, "aspect": aspect, "has_audio": probe.get("has_audio"), "sample_seconds": seconds,
+    emit({"duration": duration, "aspect": aspect, "orientation": probe.get("orientation"), "display_size": [w, h],
+          "has_audio": probe.get("has_audio"), "sample_seconds": seconds,
           "sample_width": 480, "scope": "first 20 seconds at most, reduced resolution; full study follows confirmation"})
     tmp = workspace
     sample = Path(tmp) / "sample.mp4"

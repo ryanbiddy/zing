@@ -120,7 +120,8 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
     for time in times[1:-1]:
         if time - distinct[-1] >= 1e-6 and clip.duration - time >= 1e-6:
             distinct.append(time)
-    times = [*distinct, clip.duration]
+    # A zero-length clip keeps its single t=0 sample, as before coalescing.
+    times = [*distinct, clip.duration] if clip.duration > 0 else distinct
     if len(times) > 256:
         times = [clip.duration * i / 255 for i in range(256)]
     confidences, methods = [], set()
@@ -196,10 +197,18 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
             if keys:
                 previous = keys[-1]
                 distance = math.hypot(x - previous.center_x, y - previous.center_y)
-                limit = framing.max_velocity * (time - previous.time) / 1.5 * (1 - 1e-9)
+                limit = framing.max_velocity * (time - previous.time) / 1.5
                 factor = min(1, limit / distance) if distance else 1
-                x = previous.center_x + (x - previous.center_x) * factor
-                y = previous.center_y + (y - previous.center_y) * factor
+                # Rounding can leave a clamped step a hair above the validator's
+                # bound. Shrink only then, so motion that already validated is
+                # bit-for-bit unchanged.
+                for margin in (0, 1e-9, 1e-6, 1e-3):
+                    nx = previous.center_x + (x - previous.center_x) * factor * (1 - margin)
+                    ny = previous.center_y + (y - previous.center_y) * factor * (1 - margin)
+                    speed = 1.5 * math.hypot(nx - previous.center_x, ny - previous.center_y) / (time - previous.time)
+                    if speed <= framing.max_velocity + 1e-6:
+                        break
+                x, y = nx, ny
             keys.append(CropKeyframe(time, x, y))
     warnings = ["Crop follows sampled geometric evidence; 2 fps sampling, smoothing and velocity limiting can lag fast motion."]
     if not methods <= {"yunet", "people-hog"}:

@@ -6,7 +6,7 @@ import json
 import os
 import sys
 import threading
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,12 +18,27 @@ _LOCK = threading.Lock()
 _JOBS = {}
 
 
+@contextmanager
+def busy_lock(root):
+    """The production lock, with a studio message instead of match_status advice."""
+    try:
+        lease = run_lock(root)
+        lease.__enter__()
+    except ValueError:
+        raise ValueError(f"Another studio session is already making something in {root}. Wait for it to "
+                         "finish, or use another output folder (o on the plan screen).") from None
+    try:
+        yield
+    finally:
+        lease.__exit__(None, None, None)
+
+
 def execute(answers, *, progress=None, cancel=None, locked=False):
     root = Path(answers["project"])
     root.mkdir(parents=True, exist_ok=True)
     run_id = uuid4().hex
     result_path = root / f"studio-job-{run_id}.json"
-    with nullcontext() if locked else run_lock(root):
+    with nullcontext() if locked else busy_lock(root):
         code = run_owned([sys.executable, "-m", "myzing.studio.worker"],
                          json.dumps({"answers": answers, "result_path": str(result_path)}),
                          progress=progress, cancel=cancel,

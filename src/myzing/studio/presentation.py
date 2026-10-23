@@ -59,7 +59,7 @@ def creator_summary(result, answers, facts):
                 rows.append(_row("Edit", label, value))
     recommendation = None
     chosen = None
-    candidates = [r for r in rows if r["rendered"] and r["draft"] in "ABC" and r["measurements"]]
+    candidates = [r for r in rows if r["rendered"] and r["draft"] in DRAFTS and r["measurements"]]
     if candidates:
         def rank(row):
             values = list(row["measurements"].values())
@@ -79,7 +79,11 @@ def creator_summary(result, answers, facts):
         recommendation = "Start with the rendered delivery and review the crop; no measured comparison establishes a better draft."
     notes = []
     counts = Counter((c["width"], c["height"]) for c in facts.get("clips", []) if min(c["width"], c["height"]) < 1080)
-    if counts:
+    if answers.get("path") == "d":
+        pass  # a style breakdown delivers no video, so resolution is not a delivery risk
+    elif counts and answers.get("path") == "f":
+        notes.append("Your video is " + ", ".join(f"{w}x{h}" for w, h in counts) + "; HD deliveries made from it can look soft.")
+    elif counts:
         notes.append("Your clips include " + ", ".join(f"{n} at {w}x{h}" for (w, h), n in counts.items()) + "; HD versions can look soft.")
     warnings = result.get("warnings", [])
     joined = "\n".join(warnings).lower()
@@ -89,22 +93,32 @@ def creator_summary(result, answers, facts):
         (("phone captions need review",), "Some captions were reduced to fit safely. Check their readability on a phone."),
         (("detected faces do not fit", "measured subject does not fit"), "Some photos need a blurred background to keep faces and subjects inside the frame."),
         (("saliency/center fallback", "subject evidence has gaps"), "Some crops rely on estimated subject positions. Check that faces and important details stay visible."),
+        (("exceeds 2.5x", "exceeds stated 2.5x"), "Some shots are enlarged more than 2.5x to fill the frame; check them for softness."),
     ]
     for needles, message in categories:
         if any(word in joined for word in needles):
             notes.append(message)
-    if detail.get("shortages") or result.get("status") == "shortage":
-        notes.insert(0, "There are not enough usable moments for the requested length. Add clips or shorten the edit.")
+    shortages = [s for s in detail.get("shortages") or [] if isinstance(s, dict)]
+    for message in reversed(list(dict.fromkeys(map(_shortage_note, shortages)))):
+        notes.insert(0, message)
+    if result.get("status") == "shortage" and not shortages:
+        notes.insert(0, "Planning stopped before any draft was made. The full result names what is missing.")
     if detail.get("failures"):
-        notes.insert(0, "Some drafts could not finish. Check their status below and the full result for the failure details.")
+        notes.insert(0, "Some drafts could not finish. Check their status in the table and the full result for the failure details."
+                     if rows else "Studio stopped before any draft was made. The full result has the failure details.")
     if "stills" in detail:
         notes.append("Readability scores help with layout; you still need to judge the joke.")
-    if not notes:
-        # Retain actionable unknowns without exposing producer identifiers.
-        notes = [w for w in warnings if not re.search(r"asset_|clip-|shot-|saliency-|confidence", w)][:5]
+    if not notes and any(r["rendered"] for r in rows):
+        # Finished edits carry dozens of measurement disclaimers (color tags,
+        # sampling limits); count them instead of listing engine jargon.
+        notes = [f"{len(warnings)} detailed notes on measurement limits, color and framing are in the full result."] if warnings else []
+    elif not notes:
+        # Retain actionable unknowns without exposing producer identifiers,
+        # internal field names or the pre-run planning caveats.
+        notes = [w for w in warnings if not re.search(INTERNAL, w) and not w.startswith(PRE_RUN)][:5]
     actions = list(result.get("next_actions", []))
-    if any(r["rendered"] and r["draft"] in "ABC" for r in rows):
-        chosen = chosen or next(r for r in rows if r["rendered"] and r["draft"] in "ABC")
+    if any(r["rendered"] and r["draft"] in DRAFTS for r in rows):
+        chosen = chosen or next(r for r in rows if r["rendered"] and r["draft"] in DRAFTS)
         if chosen.get("plan"):
             actions = [f'Pick this draft: zing plan choose "{root}" --draft {chosen["draft"]} --draft-file "{chosen["plan"]}"',
                        "Want another shape? Run zing studio and choose 6, using the chosen plan.",
@@ -123,6 +137,35 @@ def creator_summary(result, answers, facts):
             "notes": list(dict.fromkeys(notes))[:5], "highlights": highlights,
             "style_summary": detail.get("summary", []) if detail.get("card_json") else [],
             "output_folder": str(root), "full_result": str(root / "studio-result.json"), "next_actions": actions}
+
+
+DRAFTS = ("A", "B", "C")
+# Producer IDs (asset_..., clip-3, text-0007, captions[3]), field paths and file
+# names stay in the saved result, never in the five creator notes.
+INTERNAL = r"asset_|studio_music_|\bclip-|\bshot-|\btext-\d|\bcaption-\d|\w\[\d+\]|saliency-|confidence|\binventory\.|\.json\b"
+PRE_RUN = ("A/B/C can be blocked",)
+LENGTH_SHORTAGES = {"target_length", "distinct_edits", "edit_constraints", "must_keep_length",
+                    "must_keep_unavailable", "planner_capacity"}
+
+
+def _shortage_note(shortage):
+    """Name the producer's actual blocker; a missing study is not a length problem."""
+    code = shortage.get("code")
+    if code in LENGTH_SHORTAGES:
+        return "There are not enough usable moments for the requested length. Add clips or shorten the edit."
+    if code == "study_required":
+        from .evidence import speech_model_note
+        missing = speech_model_note()
+        return ("None of your clips could be used: clips with speech need timed words from a local speech model, "
+                "or measured silence. " + (
+                    "Speech transcription is not installed; install myzing[study], then resume." if missing and "not installed" in missing else
+                    missing.split(". ", 1)[0] + ". Download it once with zing study on one clip, "
+                    "or set ZING_WHISPER_MODEL to a local model folder, then resume." if missing else
+                    "Check the study warnings in the full result, then resume."))
+    if code in {"audio_asset", "audio_placement", "music_analysis"}:
+        return "A supplied music track could not be used. Check the track or choose original audio, then resume."
+    text = " ".join(str(shortage.get(key, "")) for key in ("missing", "remedy"))
+    return "Planning stopped: " + re.sub(r"\s*\(?\basset_[0-9a-f]+\)?", "", text).strip()
 
 
 def _row(draft, shape, row):

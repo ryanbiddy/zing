@@ -106,7 +106,7 @@ def _err(message: str) -> dict[str, Any]:
 
 def h_zing_studio(path: str | None = None, answers: dict[str, Any] | None = None) -> dict[str, Any]:
     """Stateless interview: a next question or a plan, never starts production."""
-    from myzing.studio.flow import next_step
+    from myzing.studio.flow import agent_default_project, next_step
     try:
         if answers is not None and not isinstance(answers, dict):
             return _err("answers must be an object")
@@ -115,6 +115,8 @@ def h_zing_studio(path: str | None = None, answers: dict[str, Any] | None = None
             if "path" in supplied and supplied["path"] != path:
                 return _err("path and answers.path disagree")
             supplied["path"] = path
+        if "path" in supplied and "project" not in supplied:
+            supplied["project"] = agent_default_project()  # never the server's working directory
         step = next_step(supplied)
         return _err(step["error"]) if step["status"] == "blocked" else _ok(**step)
     except (ValueError, OSError, RuntimeError, ImportError) as exc:
@@ -124,8 +126,11 @@ def h_zing_studio(path: str | None = None, answers: dict[str, Any] | None = None
 def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = False,
                       project: str | None = None, cancel: bool = False) -> dict[str, Any]:
     """Start/poll/cancel the studio operations without an existing job tool."""
+    from myzing.studio.flow import agent_default_project
     from myzing.studio.jobs import job
     try:
+        if isinstance(answers, dict) and "path" in answers and "project" not in answers:
+            answers = {**answers, "project": agent_default_project()}
         return _ok(**job(answers, confirmed=confirmed, project=project, cancel=cancel))
     except (ValueError, OSError, RuntimeError, ImportError) as exc:
         return _err(str(exc))

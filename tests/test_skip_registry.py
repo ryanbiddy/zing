@@ -121,6 +121,12 @@ REGISTERED_SKIPS = {
         "assertion still runs on every OS. PRODUCT SURFACE: none needed — "
         "this tests a Windows CI dependency installer, not a user capability."
     ),
+    "Windows sharing violation on rename": (
+        "only Windows refuses to rename a file another process has open, so only "
+        "there does project-lock release retry; POSIX renames never hit it. "
+        "windows-latest CI executes this case. PRODUCT SURFACE: none needed — a "
+        "platform detail of lock cleanup, not a user-visible capability."
+    ),
 }
 
 # importorskip() names an optional MODULE rather than a constraint; the

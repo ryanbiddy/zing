@@ -120,10 +120,13 @@ def run_confirmed(answers, *, progress=None):
     progress("Starting " + plan["title"])
     if path == "a":
         from myzing.match.jobs import execute
-        result = execute({"reference": a["reference"], "clips": a["clips"], "out": str(root),
-                          "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),
-                          "allow_download": a.get("allow_download", False),
-                          "studio_options": {"captions": a["captions"], "music": a["music"]}}, progress=progress)
+        from .jobs import busy_lock
+        with busy_lock(root):
+            result = execute({"reference": a["reference"], "clips": a["clips"], "out": str(root),
+                              "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),
+                              "allow_download": a.get("allow_download", False),
+                              "studio_options": {"captions": a["captions"], "music": a["music"]}},
+                             progress=progress, locked=True)
     elif path == "b":
         result = no_reference(a, root, progress)
     elif path == "c":
@@ -186,14 +189,22 @@ def run_confirmed(answers, *, progress=None):
         if small:
             warnings.append(f"Phone captions need review: {len(small)} delivered caption events were reduced below a 36px size at a 1080px short side (smallest {min(small):.1f}px). Placement safety can reduce readability; inspect the videos at phone size.")
     next_actions = {
-        "a": ["Review the draft videos and their match reports.", "Choose A, B or C with zing plan choose.", "Use studio path f for another shape."],
-        "b": ["Review A/B/C before choosing with zing plan choose.", "Use studio path e to try a music track.", "Use studio path f for another shape."],
+        "a": ["Review the draft videos and their match reports.", "Choose A, B or C with zing plan choose.", "Want another shape? Run zing studio and choose 6."],
+        "b": ["Review A/B/C before choosing with zing plan choose.", "Try a music track: run zing studio and choose 5.", "Want another shape? Run zing studio and choose 6."],
         "c": ["Open the contact sheet and check the joke and text placement.", "Pick another concept with zing still pick <folder> --id <id>.", "Try a more specific topic in a fresh studio session."],
-        "d": ["Open the style card and review its measured observations.", "Use studio path a with this video as the reference."],
-        "e": ["Compare the reasons and listen to the suggested excerpts.", "Try another local track.", "Use a chosen track in studio path a or b."],
+        "d": ["Open the style card and review its measured observations.", "Run zing studio and choose 1 to use this video as the reference."],
+        "e": ["Compare the reasons and listen to the suggested excerpts.", "Try another local track.", "Use a chosen track: run zing studio and choose 1 or 2."],
         "f": ["Watch the new delivery and check its crop.",
-              "Want another shape? Start path f with the original plan."],
+              "Want another shape? Run zing studio, choose 6 and give it the original plan."],
     }[path]
+    status = result.get("status", "failed")
+    if status in ("failed", "shortage", "cancelled"):
+        # Nothing finished to review: point at the blocker and the saved session.
+        resume = f'zing studio --resume "{root}"'
+        next_actions = [{"cancelled": f"Continue where you stopped: {resume}",
+                         "shortage": f"Fix the blocker named above, then continue: {resume}",
+                         "failed": f"Fix the error above, then retry: {resume}"}[status],
+                        "On the plan screen, b goes back to change an answer."]
     result = {"version": 1, "ok": result.get("status") == "ready", "status": result.get("status", "failed"),
               **({"error": result["error"]} if result.get("error") else {}),
               "project": str(root), "outputs": outputs, "warnings": warnings, "result": result,
