@@ -114,11 +114,13 @@ bound it and no NumPy is needed. Gated source loudness sets the pause bed
 Clips whose speech levels differ need their voices matched, not only their
 bed. A whispered clip next to a loud one leaves the quiet clauses about 11 LU
 over the bed and jumps at the cut. When the gated speech levels of the edit's
-clips span more than 6 LU, the director first matches the dialogue. It
+recordings span more than 6 LU, the director first matches the dialogue. It
 records `dialogue_gains` in the MUSIC1 evidence (output-time ranges, so
 per-aspect framing splits keep them), and the renderer applies them to each
-clip's source audio. Each quieter clip is raised toward the loudest clip's
-speech, by at most 18 dB. If that static gain would push the clip's peaks more
+clip's source audio. Each quieter recording is raised toward the loudest
+recording's speech, by at most 18 dB. Gains are per source asset: two
+sentences of one recording keep their natural difference, and a jump cut
+inside it gets no level step. If that static gain would push the clip's peaks more
 than 3 dB past the −2 dBFS limiter, a 4:1 peak compressor (5 ms attack, 120 ms
 release) follows the gain, with its threshold 6 dB above the target speech
 level; the limiter catches what remains. The gain covers the whole clip,
@@ -239,17 +241,27 @@ What listening found, and what it changed:
   two clauses sat 11 LU over the bed. A per-clip bed alone was then heard as a
   second jump: a 9 dB swell in the silent gap at the cut, which stayed
   noticeable even when moved under the louder voice. So the voices are now
-  matched first (+13.9 dB with a peak compressor). After that, all five
-  clauses measure 19.4–22.8 LU over one bed level, the mix measures
-  −13.1 LUFS and −1.9 dBTP, and the limiter takes up to 3.9 dB on one plosive.
+  matched first (+13.3 dB on the Tears of Steel recording, with a peak
+  compressor). After that, all five clauses measure 19.9–22.8 LU over one
+  bed level, the mix measures −13.7 LUFS and −1.7 dBTP, and the limiter takes
+  up to 3.4 dB on one plosive. A first version matched each clip and gave the
+  second Korky Paul trim a +1.3 dB step at its jump cut; the listener heard
+  it, so gains are now per recording.
 - The outgoing clip's audio stopping dead at the cut. Confirmed: its floor
-  fell about 30 dB at once. It now fades over its last 0.3 s.
+  fell about 30 dB at once. It now fades over its last 0.3 s. Fading the
+  Korky Paul jump cut as well dipped its continuous room tone (heard, and up
+  to 16 dB in the stem), so only source changes fade.
 
 What listening found that Zing cannot fix in the mix: the Tears of Steel clip
 carries its own film score, now louder along with the matched voice. Its
 speech is dark and reverberant beside Korky Paul's dry recording, and an
 untranscribed murmur trails "be honest". The edit also ends 0.33 s after the
-last word. These belong to the clips and the authored source ranges.
+last word. These belong to the clips and the authored source ranges. Three
+of the last four talking reviews called the bed buried, and two asked for
+4–6 dB more. It sits 20.8 LU under speech, inside both the 18–24 LU band and
+P17's 15–25 LU range for talking beds. Raising it that much would leave the
+documented band, so it stays a design decision (`speech_to_music_lu` in the
+evidence) rather than a fix.
 
 On the montage, the audio was identical in all three runs, yet Gemini placed
 the drop at 4.0 s, then at 3.6–3.7 s, then at 4.25 s. It also called the two
