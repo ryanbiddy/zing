@@ -130,11 +130,18 @@ lowering, the derivative keeps the picture, captions and source audio
 1, `kind: "zing.music_sidecar"`) then holds what an editor needs to rebuild
 the bed: track path and SHA-256, `timeline_start`/`timeline_end`, `source_in`
 and `source_out`, `gain_db`, the fade-in/out seconds the v2 renderer applies,
-and the duck: scope, depth, attack, release and hold, the known speech spans,
-the held passages, and `envelope_db` keyframes (timeline seconds, dB relative
-to the track gain) at every ramp start and end. Zing renders raised-cosine
-ramps between those keyframes. `cannot_carry` lists what the EDL cannot
-represent (source trim, ducking under source speech, fades and envelope,
+and the duck: scope, depth, attack, release, hold, plateau and the release
+gap, the speech-over-music target, the known speech spans, the passages the
+renderer ducks under (the same `duck_passages` rule, so short gaps and close
+edit edges stay ducked), the per-clip `bed_gain_points`, and `envelope_db`
+keyframes (timeline seconds, dB relative to the track gain, bed gain points
+included) at every ramp start and end. Zing renders raised-cosine ramps
+between those keyframes. `dialogue` lists, per clip, what the v2 renderer
+does to the clip's own audio and EDL v1 cannot: the dialogue-matching gain,
+its peak compressor (threshold dBFS, ratio, attack and release ms, knee dB)
+and the speech-free fades at source changes. `cannot_carry` lists what the
+EDL cannot represent (source trim, ducking under source speech, fades and
+envelope with bed gain points, dialogue gain, compressor and edge fades,
 MUSIC1 alignment evidence, the v2 measurement sidecar and peak limiter). The
 comparison's `v1` entry records `scope`, `music_removed`, `music_sidecar` and
 the full-plan `blockers`; `plan_drafts` returns `music_sidecars`. Any other

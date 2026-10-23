@@ -183,8 +183,8 @@ def test_source_speech_ducking_measured_stems_trims_and_peak(np, tmp_path):
     plan = MusicPlan(mode="speech-led", speech_spans=[[2, 5], [7, 10]], tracks=[{"id":"m1"}])
     attach(p, plan)
     from myzing.music.measurement import window_loudness
-    # Planning rule: the pause bed sits (21 - depth) LU under gated speech.
-    p.audio[0].gain_db = (window_loudness(source, [[2, 5], [7, 10]], 12) - (21 - plan.duck_depth_db)
+    # Planning rule: the pause bed sits (speech_to_music_lu - depth) LU under gated speech.
+    p.audio[0].gain_db = (window_loudness(source, [[2, 5], [7, 10]], 12) - (plan.speech_to_music_lu - plan.duck_depth_db)
                           - window_loudness(music, [[4, 7], [9, 12]], 16))
     rendered = render_composition(p, tmp_path / "mix.mp4", work_dir=tmp_path / "work")
     measured = rendered.audio_measurements
@@ -263,7 +263,7 @@ def speech_source(tmp_path, duration):
     return path
 
 
-def ducked_render(tmp_path, duration, spans, hold=None):
+def ducked_render(tmp_path, duration, spans, hold=None, **duck):
     source = speech_source(tmp_path, duration)
     bed = audio(tmp_path / "bed.wav", ".25*sin(2*PI*300*t)", duration + 2)
     p = Composition(assets=[AssetRef("v", str(source), hash_file(source)), AssetRef("m", str(bed), hash_file(bed))],
@@ -274,12 +274,16 @@ def ducked_render(tmp_path, duration, spans, hold=None):
     plan = MusicPlan(mode="speech-led", speech_spans=spans, tracks=[{"id": "m1"}])
     if hold is not None:
         plan.duck_hold_seconds = hold
+    for name, value in duck.items():
+        setattr(plan, name, value)
     attach(p, plan)
     return render_composition(p, tmp_path / "mix.mp4", work_dir=tmp_path / "work")
 
 
 def test_known_speech_ducking_holds_clause_gaps_and_recovers_in_pauses(np, tmp_path):
-    gaps = [.2, .3, .4, .6, 1.0]
+    # Gaps under 1.3 s (attack + release + 0.3 s plateau) stay ducked, including
+    # the 0.84 s sentence gap LISTEN1 measured lifting the bed 8.4 dB.
+    gaps = [.2, .3, .4, .84, 1.0, 1.6]
     spans, t = [], 1.0
     for gap in gaps:
         spans.append([t, t + 2.0])
@@ -295,10 +299,11 @@ def test_known_speech_ducking_holds_clause_gaps_and_recovers_in_pauses(np, tmp_p
     ducked = db(1.5, 2.5)
     for (a, b), gap in zip(spans, gaps):
         inside = [db(x, x + .02) for x in np.arange(b, b + gap - .019, .01)]
-        if gap < .8:  # held: the bed must not swell between clauses
+        if gap < 1.3:  # held: the bed must not swell between clauses
             assert max(abs(v - ducked) for v in inside) <= .5, (gap, inside)
-        else:         # a real pause: smooth, near-full recovery
-            assert max(inside) - ducked >= 7, (gap, inside)
+        else:          # a real pause: smooth, full recovery with an audible plateau
+            assert max(inside) - ducked >= 8.5, (gap, inside)
+            assert sum(v - ducked >= 8 for v in inside) * .01 >= .3, (gap, inside)
     # No step anywhere: 10 ms levels move at most 1 dB (raised-cosine ramps).
     levels = [db(x, x + .01) for x in np.arange(.2, 17.5, .01)]
     assert max(abs(a - b) for a, b in zip(levels, levels[1:])) <= 1.0
@@ -313,9 +318,10 @@ def test_known_speech_ducking_holds_clause_gaps_and_recovers_in_pauses(np, tmp_p
 
 def test_hundreds_of_speech_spans_render_and_measure(np, tmp_path):
     # 300 short clauses, beyond FFmpeg 8's flat-expression limit (~98 terms);
-    # hold 0 keeps every clause a separate passage in the envelope too.
+    # hold 0 with fast ramps and no plateau keeps every clause a separate passage.
     spans = [[round(.2 + i * .2, 3), round(.3 + i * .2, 3)] for i in range(300)]
-    rendered = ducked_render(tmp_path, 61, spans, hold=0.0)
+    rendered = ducked_render(tmp_path, 61, spans, hold=0.0, duck_attack_seconds=.02, duck_release_seconds=.05,
+                             duck_plateau_seconds=0.0)
     m = rendered.audio_measurements
     assert m["duck"]["passages"] == 300
     assert m["source_speech_lufs"] is not None and m["music_speech_lufs"] is not None
@@ -465,3 +471,91 @@ def test_every_aspect_delivery_carries_the_same_music_plan_and_mix(np, tmp_path,
                     "music_speech_rms_dbfs", "music_gap_rms_dbfs"):
             assert m[key] is not None and m[key] == pytest.approx(first[key], abs=.2), (aspect, key)
         assert m["integrated"]["integrated_lufs"] == pytest.approx(first["integrated"]["integrated_lufs"], abs=.2)
+
+
+def talker(path, amplitude, duration=6):
+    """A clip whose audio is steady pink 'speech' at a chosen level."""
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=gray:s=160x90:r=30:d={duration}",
+                    "-f", "lavfi", "-i", f"anoisesrc=c=pink:a={amplitude}:d={duration}:r=48000:s=7", "-c:v", "libx264",
+                    "-preset", "ultrafast", "-c:a", "aac", "-b:a", "192k", "-shortest", str(path)],
+                   check=True, capture_output=True, timeout=120)
+    return path
+
+
+def two_talkers(tmp_path, quiet_amplitude):
+    """Plan a loud and a quiet generated talker (two clauses each) over a steady bed."""
+    from myzing.brief.models import Brief
+    loud, quiet = talker(tmp_path / "loud.mp4", .2), talker(tmp_path / "quiet.mp4", quiet_amplitude)
+    words = [Word("First", .5, 1.5), Word("clause.", 1.5, 2.5), Word("Second", 3.5, 4.5), Word("clause.", 4.5, 5.5)]
+    studies = [ClipStudy(k, str(p), hash_file(p), 6, "ready", words=words, shots=[Shot(0, 0, 6)])
+               for k, p in (("loud", loud), ("quiet", quiet))]
+    sequence = [Candidate(s.asset_id, s.sha256, 0, 6, 0, 4, .5, "First clause. Second clause.", False, True) for s in studies]
+    bed = audio(tmp_path / "bed.wav", ".25*sin(2*PI*300*t)", 20)
+    asset = SimpleNamespace(id="m", path=str(bed), state="ready", sha256=hash_file(bed),
+                            probe=SimpleNamespace(has_audio=True, duration=20))
+    brief = Brief(purpose="Talking edit", target_length_seconds=12, music={"source": "supplied files", "files": ["m"]})
+    _, _, tracks, evidence = plan_music(sequence, studies, brief, SimpleNamespace(assets=[asset]), tmp_path, 2, {}, {})
+
+    def render(name, plan, audio=lambda tracks: tracks, reverse=False):
+        p = Composition(assets=[AssetRef(s.asset_id, s.path, s.sha256) for s in studies] + [AssetRef("m", str(bed), asset.sha256)],
+            clips=[CompositionClip(s.path, 0, 6, 6 * i, id=f"c{i}", asset_id=s.asset_id) for i, s in enumerate(studies[::-1] if reverse else studies)],
+            audio=audio(tracks), width=160, height=90)
+        attach(p, plan)
+        return render_composition(p, tmp_path / f"{name}.mp4", work_dir=tmp_path / name)
+    return evidence, render
+
+
+def test_clips_14_lu_apart_get_matched_dialogue_and_one_bed(np, tmp_path):
+    # LISTEN1: Gemini heard the quiet opening clip "brokenly quiet" next to
+    # the next speaker (13.9 LU apart); a bed that follows each clip added a
+    # second jump. The voices are matched first, so one bed level serves both.
+    evidence, render = two_talkers(tmp_path, .04)  # 20*log10(5) = 14 dB quieter
+    levels = {v["asset_id"]: v for v in evidence.clip_levels}
+    assert levels["loud"]["speech_lufs"] - levels["quiet"]["source_speech_lufs"] == pytest.approx(14, abs=1)
+    [row] = evidence.dialogue_gains
+    assert row["asset_id"] == "quiet" and row["gain_db"] == pytest.approx(14, abs=1) and (row["start"], row["end"]) == (6, 12)
+    assert evidence.bed_gain_points == []  # voices within 6 LU after matching: one bed gain
+    assert all(c["in_band"] for c in evidence.clauses), evidence.clauses
+    rendered = render("matched", evidence)
+    legs = {line.strip()[:7]: line for line in rendered.filtergraph.split(";") if line.strip().startswith(("[0:a:0]", "[1:a:0]"))}
+    assert "volume=" not in legs["[0:a:0]"] and f"volume={row['gain_db']:.6f}dB" in legs["[1:a:0]"]
+    # The source changes at the 6 s cut: speech-free edges fade (0.3 s out, 0.1 s in).
+    assert "afade=t=out:st=5.700000:d=0.300000" in legs["[0:a:0]"] and "afade=t=in:st=0:d=0.100000" in legs["[1:a:0]"]
+    rows = rendered.audio_measurements["clauses"]
+    assert all(18 <= r["separation_lu"] <= 24 for r in rows), rows
+    speech = [r["speech_lufs"] for r in rows]
+    assert abs((speech[0] + speech[1]) / 2 - (speech[2] + speech[3]) / 2) <= 1.5  # the jump is gone
+    assert rendered.audio_measurements["warnings"] == []
+    # The gains belong to that music mix. With the music track removed the
+    # clips keep their recorded levels and the render says why.
+    bare = render("no-music", evidence, audio=lambda tracks: [])
+    assert "volume=" not in bare.filtergraph and any("dialogue gains were not applied" in w for w in bare.warnings)
+    # With the bed kept but not ducked, a reordered timeline must not raise the
+    # wrong clip by 14 dB (it used to: no timeline check ran without ducking).
+    from dataclasses import replace
+    from myzing.render.validation import EDLValidationError
+    with pytest.raises(EDLValidationError, match="dialogue gains were planned for a different clip timeline"):
+        render("swapped", evidence, audio=lambda tracks: [replace(t, duck_under_speech=False) for t in tracks],
+               reverse=True)
+
+
+def test_a_capped_dialogue_match_leaves_the_rest_to_a_per_clip_bed(np, tmp_path):
+    evidence, render = two_talkers(tmp_path, .01)  # 26 dB quieter: boost caps at 18 dB
+    [row] = evidence.dialogue_gains
+    assert row["gain_db"] == 18 and any("raised it only 18 dB" in w for w in evidence.warnings)
+    # The remaining ~8 LU go to the bed, ramped over the loud voice's last second.
+    points = evidence.bed_gain_points
+    assert [p[0] for p in points] == [0, 4.5, 5.5, 12] and points[0][1] == points[1][1] == 0
+    assert points[2][1] == points[3][1] == pytest.approx(-8, abs=1.5)
+    assert next(d for d in evidence.decisions if d["kind"] == "bed_clip_gain")["clip_spread_lu"] > 6
+    assert all(c["in_band"] or c["bed_ramp"] for c in evidence.clauses), evidence.clauses
+    m = render("per-clip", evidence).audio_measurements
+    assert all(18 <= r["separation_lu"] <= 24 or (r["bed_ramp"] and r["separation_lu"] > 24) for r in m["clauses"]), m["clauses"]
+    assert m["clause_separation"]["outside_band"] == 0 and m["warnings"] == []
+    assert m["duck"]["gain_points"] == points
+    # One bed gain for both clips leaves the quiet clauses ~8 LU too close, and the sidecar says so.
+    flat = render("single-gain", MusicPlan.from_dict({**evidence.to_dict(), "bed_gain_points": []}))
+    rows = flat.audio_measurements["clauses"]
+    assert all(r["separation_lu"] < 16 for r in rows[2:]), rows
+    assert flat.audio_measurements["clause_separation"]["outside_band"] >= 2
+    assert any("clauses measure outside the 18-24 LU" in w for w in flat.warnings)

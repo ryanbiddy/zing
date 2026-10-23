@@ -201,3 +201,54 @@ def test_default_box_includes_the_stated_margin_and_rejects_off_frame_ink():
     assert margin == 6
     assert box.width * 1920 == pytest.approx(200 + 2 * margin) and box.height * 1080 == pytest.approx(80 + 2 * margin)
     assert default_caption_box(caption, 1920, 1080, (-961, -40, 961, 40)) is None
+
+
+def test_long_clause_in_a_narrow_fit_rewraps_instead_of_shrinking_unreadably():
+    # A 9:16 source fit into 16:9 leaves a narrow picture. Wrapping at the
+    # default size and then shrinking both axes made this clause 20 px tall
+    # on a 1080p frame (LISTEN1 replay); re-wrapping keeps it readable.
+    text = "my name is Corky Paul and I was born in Harari, Zimbabwe."
+    clip = CompositionClip("s", 0, 6, 0, id="c", asset_id="s")
+    plan = Composition(assets=[AssetRef("s", "s", None)], clips=[clip], width=1920, height=1080,
+                       captions=[CompositionCaption(id="cap", text=text, start=.5, end=4, word_timed=False)])
+    place_captions(plan, {"s": []}, {"s": (360, 640)})
+    caption = plan.captions[0]
+    old = 1080 / 18 / ((6 * 1080 / 18 * 1.4 + 2 * 2 + 6) / (.16 * 1080))  # one wrap, proportional shrink
+    assert old < 24 <= caption.style.size
+    assert caption.text.split() == text.split()
+    box = caption.layout.box
+    visible = visible_content(centered_framing("fit", 360, 640, 1920, 1080), 1920, 1080)
+    assert visible.x <= box.x and box.right <= visible.right
+    lines = caption.text.splitlines()
+    assert len(lines) * caption.style.size * 1.4 <= box.height * 1080
+    assert max(len(line) for line in lines) * caption.style.size * .8 <= box.width * 1920
+
+
+def test_zing_match_libass_fit_keeps_the_narrow_rewrap_readable(monkeypatch, tmp_path):
+    # Grok: fit_captions re-wrapped every caption at 52 characters, discarding
+    # place_captions' narrow wrap. On the 9:16-in-16:9 box a 52-character line
+    # needs about 22 px, so zing match refused the clause the layout had placed.
+    import myzing.match.caption_fit as fit
+
+    def ink(caption, style, font, runs, width, height, root, ffmpeg, kind, em):  # a libass-like estimate
+        lines = caption.text.splitlines()
+        w, h = max(map(len, lines)) * style.size * .55 + 2 * style.outline_width, len(lines) * style.size * 1.25
+        return -w / 2, -h / 2, w / 2, h / 2
+
+    monkeypatch.setattr(fit, "_measure", ink)
+    text = "my name is Corky Paul and I was born in Harari, Zimbabwe."
+
+    def fitted(source):
+        clip = CompositionClip("s", 0, 6, 0, id="c", asset_id="s")
+        plan = Composition(assets=[AssetRef("s", "s", None)], clips=[clip], width=1920, height=1080,
+                           captions=[CompositionCaption(id="cap", text=text, start=.5, end=4, word_timed=False)])
+        place_captions(plan, {"s": []}, {"s": source})
+        fit.fit_captions(plan, tmp_path)
+        return plan.captions[0]
+
+    narrow = fitted((360, 640))
+    assert narrow.style.size * narrow.layout.scale >= 24 and narrow.text.split() == text.split()
+    assert max(map(len, narrow.text.splitlines())) < 47  # shorter lines than the 52-character wrap
+    # A caption that already fits keeps the 52-character wrap.
+    wide = fitted((1920, 1080))
+    assert wide.text == fit._wrap(text.split(), 52)

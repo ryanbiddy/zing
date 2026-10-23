@@ -378,19 +378,24 @@ MUSIC_SIDECAR = "zing.music_sidecar"
 MUSIC_CANNOT_CARRY = [
     "the music track itself: EDL v1 plays each audio file from its first sample, so a source trim is impossible",
     "ducking under source speech: EDL v1 ducks music only under voiceover tracks",
-    "the duck envelope and music fades",
+    "the duck envelope (including per-clip bed gain points) and music fades",
+    "per-clip dialogue gain, its peak compressor and the speech-free audio fades at source changes: EDL v1 "
+    "plays each clip's audio unchanged (the sidecar lists them under dialogue)",
     "MUSIC1 evidence: track choice, drop/moment alignment, cut snapping and their reasons",
     "the v2 renderer's music measurement sidecar and final -2 dBFS peak limiter",
 ]
 
 
-def _duck_envelope(passages, duration, depth, attack, release):
+def _duck_envelope(passages, duration, depth, attack, release, gain_points=()):
     """Gain keyframes (seconds, dB) at every ramp start/end, in timeline time.
 
     Zing renders raised-cosine ramps (myzing.music.ducking); straight lines
-    between these keyframes approximate them, exactly at each keyframe.
+    between these keyframes approximate them, exactly at each keyframe. Bed
+    gain points (per-clip bed level) add to the duck at their own keyframes.
     """
     import math
+
+    from myzing.music.ducking import gain_at
 
     def weight(t):
         best = 0.0
@@ -404,13 +409,15 @@ def _duck_envelope(passages, duration, depth, attack, release):
         return best
 
     times = sorted({0.0, duration, *(max(0.0, min(duration, t)) for a, b in passages
-                                     for t in (a - attack, a, b, b + release))})
-    return [[round(t, 6), round(-depth * weight(t), 3) + 0.0] for t in times]
+                                     for t in (a - attack, a, b, b + release)),
+                    *(max(0.0, min(duration, float(t))) for t, _ in gain_points)})
+    return [[round(t, 6), round(-depth * weight(t) + gain_at(gain_points, t), 3) + 0.0] for t in times]
 
 
 def music_sidecar(plan, label: str) -> dict:
     """Everything a human editor needs to rebuild the plan's music bed."""
-    from myzing.music.ducking import passages
+    from myzing.music.dialogue import edge_fade_seconds, row_at
+    from myzing.music.ducking import duck_passages, release_gap
     from myzing.music.models import extract
 
     evidence = extract(plan)
@@ -424,16 +431,27 @@ def music_sidecar(plan, label: str) -> dict:
                  if planned is not None and length else {"fade_in_seconds": 0.0, "fade_out_seconds": 0.0})
         duck = None
         if audio.duck_under_speech and audio.duck_scope == "source_speech":
-            held = passages(evidence.speech_spans, evidence.duck_hold_seconds)
+            # The renderer's passages: gaps shorter than the release gap and
+            # close edit edges stay ducked (myzing.music.ducking.duck_passages).
+            held = duck_passages(evidence.speech_spans, duration, hold=evidence.duck_hold_seconds,
+                                 attack=evidence.duck_attack_seconds, release=evidence.duck_release_seconds,
+                                 plateau=evidence.duck_plateau_seconds)
             duck = {"scope": "source_speech", "depth_db": evidence.duck_depth_db,
                     "attack_seconds": evidence.duck_attack_seconds,
                     "release_seconds": evidence.duck_release_seconds,
                     "hold_seconds": evidence.duck_hold_seconds,
+                    "plateau_seconds": evidence.duck_plateau_seconds,
+                    "release_gap_seconds": release_gap(evidence.duck_hold_seconds, evidence.duck_attack_seconds,
+                                                       evidence.duck_release_seconds, evidence.duck_plateau_seconds),
+                    "speech_to_music_target_lu": evidence.speech_to_music_lu,
                     "speech_spans": evidence.speech_spans, "passages": held,
+                    "bed_gain_points": [list(p) for p in evidence.bed_gain_points],
                     "envelope_db": _duck_envelope(held, duration, evidence.duck_depth_db,
-                                                  evidence.duck_attack_seconds, evidence.duck_release_seconds),
-                    "envelope_note": ("Timeline seconds and gain in dB relative to the track gain; Zing renders "
-                                      "raised-cosine ramps between these keyframes.")}
+                                                  evidence.duck_attack_seconds, evidence.duck_release_seconds,
+                                                  evidence.bed_gain_points),
+                    "envelope_note": ("Timeline seconds and gain in dB relative to the track gain, per-clip bed "
+                                      "gain points included; Zing renders raised-cosine ramps between these "
+                                      "keyframes.")}
         elif audio.duck_under_speech:
             duck = {"scope": audio.duck_scope, "note": "Ducks under voiceover; EDL v1 can carry this track."}
         tracks.append({
@@ -443,12 +461,27 @@ def music_sidecar(plan, label: str) -> dict:
             "timeline_end": round(audio.timeline_start + length, 6) if length is not None else None,
             "source_in": audio.src_in, "source_out": source_out, "gain_db": audio.gain_db, **fades, "duck": duck,
             "reason": planned.get("reason") if planned else None})
+    # Dialogue matching and source-change fades act on the clips' own audio,
+    # which the v1 EDL plays unchanged; list them per clip for an editor.
+    ordered = sorted(plan.clips, key=lambda c: c.timeline_start)
+    scoped = any(a.role == "music" and a.duck_under_speech and a.duck_scope == "source_speech" for a in plan.audio)
+    fades = edge_fade_seconds(ordered, evidence.speech_spans) if scoped else [(0.0, 0.0)] * len(ordered)
+    dialogue = []
+    for clip, (fade_in, fade_out) in zip(ordered, fades):
+        row = row_at(evidence.dialogue_gains, clip.timeline_start + clip.duration / 2, clip.asset_id)
+        if row or fade_in or fade_out:
+            dialogue.append({"clip_id": clip.id, "asset_id": clip.asset_id, "timeline_start": clip.timeline_start,
+                             "timeline_end": clip.timeline_end, "gain_db": row["gain_db"] if row else 0.0,
+                             "compressor": row.get("compressor") if row else None,
+                             "fade_in_seconds": round(fade_in, 6), "fade_out_seconds": round(fade_out, 6)})
     return {"version": 1, "kind": MUSIC_SIDECAR, "plan": f"plan-{label}.json", "edl": f"plan-{label}.edl.json",
             "fps": [plan.fps.numerator, plan.fps.denominator], "timeline_duration": round(duration, 6),
-            "tracks": tracks, "cannot_carry": MUSIC_CANNOT_CARRY,
-            "rebuild": ("Import the EDL's picture and dialogue, then place each track at timeline_start using "
-                        "source_in..source_out of the file, apply gain_db, the fades, and the duck envelope "
-                        "keyframes. Rendering plan-" + label + ".json with zing render reproduces the full mix.")}
+            "tracks": tracks, "dialogue": dialogue, "cannot_carry": MUSIC_CANNOT_CARRY,
+            "rebuild": ("Import the EDL's picture and dialogue, apply each dialogue entry's clip gain, compressor "
+                        "(threshold dBFS, ratio, attack and release ms, knee dB) and fades to that clip's audio, "
+                        "then place each track at timeline_start using source_in..source_out of the file, apply "
+                        "gain_db, the fades, and the duck envelope keyframes. Rendering plan-" + label + ".json "
+                        "with zing render reproduces the full mix.")}
 
 
 def music_projection(plan, label: str):
