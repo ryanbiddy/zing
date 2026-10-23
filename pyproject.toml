@@ -26,7 +26,7 @@ study = [
 mcp = ["mcp>=2.3,<3"]
 render = ["pysubs2>=1.8.1"]
 audio = ["numpy>=1.24,<3"]
-audio-ml = ["myzing[audio]", "sherpa-onnx>=1.13,<3"]
+audio-ml = ["myzing[audio]", "sherpa-onnx>=2.0,<3"]
 memes = ["Pillow>=10.4"]
 fonts = ["Pillow>=10.4", "opencv-python-headless==4.13.0.92"]
 layout = ["opencv-python-headless==4.13.0.92"]

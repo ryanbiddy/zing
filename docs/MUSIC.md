@@ -347,8 +347,10 @@ peaks alone cannot trigger the learned vocal warning. See [Audio](AUDIO.md).
 Studied clips retain music-under-speech candidates. The director adds a
 `source_score` decision when a selected clip overlaps one, even without an
 extra bed. Explain reports that the clip already carries a candidate score,
-with confidence. Quiet scores can yield weak evidence: AUD1's Tears of Steel
-check needs the 0.02 candidate threshold. These tags warn that adding a bed may
+with confidence. On the licensed clips, Tears of Steel's lab scene (the clip
+LISTEN1 heard carrying its own film score) measures Music 0.75 under Speech
+0.88; its dialogue scene, with no score, stays below 0.05 and gets no
+candidate. These tags warn that adding a bed may
 stack music; they do not separate or lower the clip's existing score.
 Laughter/applause windows remain reviewable candidates in the director
 comparison, without automatic cuts.

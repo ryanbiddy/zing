@@ -83,9 +83,32 @@ def fetch_models(*, consent: bool = False) -> list[Path]:
     return paths
 
 
+# sherpa-onnx 1.x links espeak-ng (GPL-3.0-or-later) for TTS; 2.0.0 removed it.
+MIN_RUNTIME = (2, 0)
+
+
+def runtime_version() -> str | None:
+    from importlib import metadata
+    try:
+        return metadata.version("sherpa-onnx")
+    except metadata.PackageNotFoundError:
+        return None
+
+
+def runtime_supported(version: str | None) -> bool:
+    try:
+        return tuple(int(part) for part in version.split(".")[:2]) >= MIN_RUNTIME
+    except (AttributeError, ValueError):
+        return False
+
+
 def engine():
     import sherpa_onnx
 
+    version = runtime_version()
+    if not runtime_supported(version):
+        raise RuntimeError(f"sherpa-onnx {version or 'of unknown version'} predates 2.0 (1.x links GPL espeak-ng); "
+                           f"upgrade with {INSTALL_HINT}")
     paths = model_paths()
     config = sherpa_onnx.AudioTaggingConfig(
         model=sherpa_onnx.AudioTaggingModelConfig(

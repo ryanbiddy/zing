@@ -890,18 +890,22 @@ def check_audio() -> Check:
 
 
 def check_audio_ml() -> Check:
-    from .audio.tag_models import model_paths, INSTALL_HINT, FETCH_HINT, REVISION
+    from .audio.tag_models import model_paths, runtime_supported, runtime_version, INSTALL_HINT, FETCH_HINT, REVISION
     present = _has_module("sherpa_onnx")
+    version = runtime_version() if present else None
+    supported = present and runtime_supported(version)
     try:
         paths = model_paths()
         valid, detail = True, "CED weights verified"
     except (OSError, RuntimeError) as exc:
         paths, valid, detail = {}, False, str(exc)
-    return Check("audio-ml", OPTIONAL, present and valid,
-                 ("sherpa-onnx installed; " if present else "sherpa-onnx absent; ") + detail,
-                 fix="" if present and valid else f"{INSTALL_HINT}; {FETCH_HINT}",
-                 degraded_mode="" if present and valid else "vocal/music heuristics remain active; learned tags unavailable",
-                 data={"paths": {k: str(v) for k, v in paths.items()}, "revision": REVISION,
+    runtime = (f"sherpa-onnx {version} installed; " if supported else
+               f"sherpa-onnx {version or 'of unknown version'} predates 2.0 (1.x links GPL espeak-ng); " if present else
+               "sherpa-onnx absent; ")
+    return Check("audio-ml", OPTIONAL, supported and valid, runtime + detail,
+                 fix="" if supported and valid else f"{INSTALL_HINT}; {FETCH_HINT}",
+                 degraded_mode="" if supported and valid else "vocal/music heuristics remain active; learned tags unavailable",
+                 data={"paths": {k: str(v) for k, v in paths.items()}, "revision": REVISION, "runtime_version": version,
                        "model_verified": valid, "network_used": False, "runtime_probe": "package-metadata-only"})
 
 

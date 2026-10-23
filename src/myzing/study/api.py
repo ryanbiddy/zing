@@ -173,15 +173,9 @@ def study(
             except (RuntimeError, OSError) as exc:
                 tags.warnings.append(f"Learned audio tagging unavailable; heuristic fallback: {exc}")
             else:
-                try:
-                    from myzing.audio.media import decode_mono, SAMPLE_RATE
-                    from myzing.audio.tagging import tag_samples
-                    samples, truncated = decode_mono(ing.media_path)
-                    tags = tag_samples(samples, SAMPLE_RATE,
-                                       speech=[(w.start, w.end) for w in words_r.words])
-                    tags.provenance.update(analyzed_seconds=len(samples) / SAMPLE_RATE, truncated=truncated)
-                except Exception as exc:
-                    tags.warnings.append(f"Learned audio tagging unavailable; heuristic fallback: {exc}")
+                # 16 kHz decode inside; at most 600 s, the analysis cap.
+                from myzing.audio.tagging import tag_file
+                tags = tag_file(ing.media_path, speech=[(w.start, w.end) for w in words_r.words])
         provenance["audio_tags"] = tags.to_dict()
         warnings.extend(tags.warnings)
 

@@ -2,9 +2,15 @@
 
 ## AUD1 audio tagging and ASR hygiene
 
-The optional `audio-ml` extra adds `sherpa-onnx>=1.13,<3`; the lock resolves
+The optional `audio-ml` extra adds `sherpa-onnx>=2.0,<3`; the lock resolves
 `sherpa-onnx` and its native `sherpa-onnx-core` distribution to 2.0.0.
 Both use Apache-2.0. No third-party training or inference code is vendored.
+The floor is 2.0 because sherpa-onnx 1.x wheels link espeak-ng and
+piper-phonemize for text-to-speech (espeak-ng is GPL-3.0-or-later); 2.0.0
+removed both (upstream changelog, #4055), and its binaries carry only
+sherpa-onnx and ONNX Runtime (MIT). Wheel downloads for 2.0.0 (CPython 3.12,
+`sherpa-onnx` plus `sherpa-onnx-core`): Windows x64 2.2 + 16.6 MB, macOS arm64
+2.1 + 9.5 MB, macOS x86_64 2.3 + 10.8 MB, Linux x86_64 4.2 + 10.5 MB.
 The runtime's [Apache license](https://github.com/k2-fsa/sherpa-onnx/blob/88204440c2ad19158fe77dbf470bb1fe7fdee613/LICENSE)
 is pinned at revision `88204440c2ad19158fe77dbf470bb1fe7fdee613`, with SHA-256
 `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`.
@@ -15,8 +21,9 @@ pinned at `26c3ebcae85d4330f4fc26763f029539a3afcda0`; card SHA-256:
 `0fbd9dd64fffc22211d63b22689e38a81446d5e37db6148e3ac42667d3c22882`.
 The [sherpa conversion repository](https://huggingface.co/k2-fsa/sherpa-onnx-ced-mini-audio-tagging-2024-04-19/tree/4da6df50dc47b25f91074b5ef7df4c1cc0dd7d4d)
 is pinned at `4da6df50dc47b25f91074b5ef7df4c1cc0dd7d4d`. Its README identifies
-the CED origin; the original weight card supplies the weight license. The GPL
-CED training repository is not imported, vendored, or downloaded.
+the CED origin; the conversion repository itself carries no license tag, so the
+original weight card supplies the weight license. The GPL CED training
+repository is not imported, vendored, or downloaded.
 
 | Explicitly fetched asset | Bytes | SHA-256 |
 |---|---:|---|

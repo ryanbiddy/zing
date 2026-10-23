@@ -45,7 +45,7 @@ def test_generated_tag_consumers(monkeypatch, kind, scores, status, under, event
     calls = []
     fake_engine(monkeypatch, scores, calls)
     tags = tagging.tag_samples(generated(np, kind), 16000)
-    assert tags.status == "measured" and len(tags.windows) == 3
+    assert tags.status == "measured" and len(tags.windows) == 8  # 5 s windows, 1 s hops over 12 s
     assert all(row["waveform"].dtype == np.float32 and row["sample_rate"] == 16000 for row in calls)
     assert bool(tags.music_under_speech) == under
     assert bool(tags.moment_candidates) == events
@@ -139,15 +139,76 @@ def test_doctor_reports_missing_model_without_inference(monkeypatch, tmp_path):
 
 def test_weak_singing_requires_heuristic_corroboration():
     tags = tagging.AudioTags(status="measured", method="sherpa-onnx/ced-mini-int8",
-                             labels=[{"label": "Singing", "confidence": .03}])
+                             labels=[{"label": "Singing", "confidence": .15}])
     assert tagging.vocal_evidence(tags, {"status": "unknown"})["status"] == "unknown"
     assert tagging.vocal_evidence(tags, {"status": "possible"})["status"] == "possible"
+
+
+def test_noise_floor_singing_is_not_corroborated():
+    # Speech-over-music clips reach 0.08 on the singing family; 0.03 is noise.
+    tags = tagging.AudioTags(status="measured", method="sherpa-onnx/ced-mini-int8",
+                             labels=[{"label": "Singing", "confidence": .03}])
+    assert tagging.vocal_evidence(tags, {"status": "possible"})["status"] == "not_detected"
+
+
+@pytest.mark.parametrize("label", ["Mantra", "Yodeling", "Synthetic singing", "A capella"])
+def test_whole_audioset_singing_subtree_counts_as_vocals(monkeypatch, label):
+    # The Charm 68's wordless vocal reads as Mantra (0.30) and Duck and Cover's
+    # chant as Yodeling (0.38); the first family left both out.
+    np = pytest.importorskip("numpy")
+    fake_engine(monkeypatch, {"Music": .85, label: .3, "Piano": .1})
+    tags = tagging.tag_samples(np.zeros(16000 * 6, dtype=np.float32), 16000)
+    evidence = tagging.vocal_evidence(tags, {"status": "unknown"})
+    assert evidence["status"] == "possible" and evidence["label"] == label
+    assert tags.vocal_spans and tags.vocal_spans[0]["label"] == label
+
+
+def test_family_names_follow_the_audioset_ontology():
+    assert {"Singing", "Choir", "Yodeling", "Chant", "Mantra", "Male singing", "Female singing",
+            "Child singing", "Synthetic singing", "Rapping"} <= tagging.VOCALS
+    assert {"Baby laughter", "Giggle", "Snicker", "Belly laugh", "Chuckle, chortle"} <= tagging.LAUGHTER
+    assert not tagging.VOCALS & (tagging.SPEECH | tagging.MUSIC)
+
+
+def test_music_at_the_noise_floor_is_not_a_score_under_speech(monkeypatch):
+    # Tears of Steel "dialogue" (speech and an explosion) peaks at Music 0.04.
+    np = pytest.importorskip("numpy")
+    fake_engine(monkeypatch, {"Speech": .83, "Music": .043})
+    tags = tagging.tag_samples(np.zeros(16000 * 20, dtype=np.float32), 16000, speech=[(4, 16)])
+    assert tags.music_under_speech == []
+
+
+def test_windows_merge_into_located_spans_with_compact_rows(monkeypatch):
+    # A three-second sung phrase at 20-23 s in a minute of quiet backing.
+    np = pytest.importorskip("numpy")
+    class Engine:
+        def create_stream(self):
+            return SimpleNamespace(accept_waveform=lambda **k: setattr(self, "loud", float(np.abs(k["waveform"]).max())))
+        def compute(self, stream):
+            return [SimpleNamespace(name="Music", prob=.8), SimpleNamespace(name="Female singing", prob=.35 if self.loud > .5 else .01)]
+    monkeypatch.setattr(tagging.tag_models, "engine", Engine)
+    samples = np.full(16000 * 60, .01, dtype=np.float32)
+    samples[16000 * 20:16000 * 23] = .9
+    tags = tagging.tag_samples(samples, 16000)
+    assert [(s["start"], s["end"], s["label"]) for s in tags.vocal_spans] == [(16, 27.0, "Female singing")]
+    assert tags.vocal_spans[0]["windows"] == 7 and tags.vocal_spans[0]["confidence"] == .35
+    assert set(tags.windows[0]) == {"start", "end", "vocals", "vocal_label", "music", "speech", "instrument", "laughter", "applause"}
+    assert len(tags.windows) == 56 and tags.provenance["window_seconds"] == 5.0
+
+
+def test_tagging_never_asks_sherpa_to_resample(monkeypatch):
+    # sherpa-onnx logs a resampler for every non-16 kHz stream (4,728 stderr lines per 10 minutes).
+    np = pytest.importorskip("numpy")
+    calls = []
+    fake_engine(monkeypatch, {"Music": .9}, calls)
+    tags = tagging.tag_samples(np.zeros(22050 * 6, dtype=np.float32), 22050)
+    assert tags.status == "unavailable" and not calls and "16000 Hz" in tags.warnings[0]
 
 
 def test_source_score_reaches_plan_without_added_music(tmp_path):
     from myzing.brief.models import Brief
     from myzing.music.planning import plan_music
-    tags = {"music_under_speech": [{"start": 1, "end": 8, "confidence": .03}]}
+    tags = {"music_under_speech": [{"start": 1, "end": 8, "confidence": .75}]}
     study = SimpleNamespace(asset_id="clip", audio_tags=tags)
     clip = SimpleNamespace(asset_id="clip", start=2, end=5)
     sequence, assets, tracks, evidence = plan_music([clip], [study], Brief(music={"source": "none"}),
@@ -160,11 +221,11 @@ def test_source_score_reaches_plan_without_added_music(tmp_path):
 def test_explain_retains_candidate_scores():
     from myzing.explain.sections import audio_section
     tags = {"status": "measured", "method": "sherpa-onnx/ced-mini-int8",
-            "music_under_speech": [{"start": 0, "end": 10, "confidence": .03}],
+            "music_under_speech": [{"start": 0, "end": 10, "confidence": .75}],
             "moment_candidates": [{"start": 0, "end": 10, "kind": "laughter", "confidence": .8}]}
     result = audio_section({"audio": {}, "provenance": {"audio_tags": tags}}, None)
     payload = result.to_dict()
-    assert "0.030" in str(payload) and "already carries" in str(payload)
+    assert "0.750" in str(payload) and "already carries" in str(payload)
     assert "laughter" in str(payload)
 
 
@@ -177,7 +238,8 @@ def test_generated_file_tags_reach_audio_map_and_advice(monkeypatch, tmp_path, k
     np = pytest.importorskip("numpy")
     scores = {"piano": {"Music": .9, "Piano": .8}, "voice": {"Singing": .8},
               "mixed": {"Music": .8, "Speech": .8}, "events": {"Laughter": .8, "Applause": .7}}[kind]
-    fake_engine(monkeypatch, scores)
+    calls = []
+    fake_engine(monkeypatch, scores, calls)
     path = tmp_path / (kind + ".wav")
     with wave.open(str(path), "wb") as out:
         out.setnchannels(1)
@@ -186,7 +248,23 @@ def test_generated_file_tags_reach_audio_map_and_advice(monkeypatch, tmp_path, k
         out.writeframes((generated(np, kind) * 32767).astype("<i2").tobytes())
     result = analyze(path)
     assert result.tags.status == "measured"
+    assert calls and {row["sample_rate"] for row in calls} == {16000}  # decoded at CED's rate
     assert AudioMap.from_dict(result.to_dict()) == result
     advice = rate(result, length=10, speech=True, pace=2, purpose="interview")
     assert advice.measurements["tags"]["status"] == "measured"
     assert result.structure.vocals["status"] == ("possible" if kind == "voice" else "not_detected")
+
+
+@pytest.mark.parametrize("version,supported", [("2.0.0", True), ("2.3.1", True), ("1.13.8", False),
+                                               ("1.12.40", False), (None, False), ("garbage", False)])
+def test_runtime_floor_excludes_gpl_linked_sherpa(version, supported):
+    # sherpa-onnx 1.x links espeak-ng (GPL-3.0-or-later); 2.0.0 removed it.
+    assert tag_models.runtime_supported(version) is supported
+
+
+def test_old_runtime_degrades_to_the_labeled_heuristic(monkeypatch):
+    import sys
+    monkeypatch.setitem(sys.modules, "sherpa_onnx", SimpleNamespace())
+    monkeypatch.setattr(tag_models, "runtime_version", lambda: "1.13.8")
+    tags = tagging.tag_samples([0.0] * 16000, 16000)
+    assert tags.status == "unavailable" and "predates 2.0" in tags.warnings[0]

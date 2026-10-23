@@ -4,8 +4,10 @@ Run `zing doctor --json` for availability and remedies, or `zing doctor` for
 the terminal summary. The checklist is in the [developer guide](DEVELOPER-GUIDE.md).
 
 The `audio` check reports NumPy availability. The optional `audio-ml` check
-reports sherpa-onnx package presence and verifies both CED assets against
-pinned SHA-256 and byte size. It exposes the revision, paths, and
+reports sherpa-onnx package presence and version, and verifies both CED assets
+against pinned SHA-256 and byte size. It requires sherpa-onnx 2.0 or newer,
+because 1.x wheels link GPL espeak-ng; tagging falls back to the heuristic on
+an older runtime. It exposes the revision, runtime version, paths, and
 `network_used: false`. This is a package/cache check; it does not start native
 inference or promise that inference will succeed.
 

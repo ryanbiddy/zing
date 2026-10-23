@@ -79,36 +79,67 @@ def transcribe(
     from .asr_hygiene import vocabulary_context
     context = vocabulary_context(vocabulary)
     options = {"vocabulary": context["terms"]} if context["terms"] else {}
-    pipeline = "sequential"
     use_batched = duration > formats.SHORT_FORM_MAX_S
-    try:
+
+    def decode(options):
         if use_batched:
             try:
-                run = _run_model_batched(
-                    model, media_path, **options
-                )
-                pipeline = f"batched(batch_size={BATCH_SIZE})"
+                return _run_model_batched(model, media_path, **options), f"batched(batch_size={BATCH_SIZE})"
             except Exception as e:
                 result.warnings.append(
                     f"batched transcription failed ({e}); fell back to "
                     "sequential"
                 )
-                run = _run_model(
-                    model, media_path, **options
-                )
-        else:
-            run = _run_model(model, media_path, **options)
+        return _run_model(model, media_path, **options), "sequential"
+
+    try:
+        run, pipeline = decode(options)
     except Exception as e:
         result.warnings.append(f"transcription failed: {e}")
         return result
 
+    vocabulary_check = None
+    if options:
+        # Hints must not cost recall. A prompt can end a chunk early or skip a
+        # window (measured: a quarter of a file's words), leaving VAD speech
+        # without words. Only then decode again without hints and keep
+        # whichever transcript covers the detected speech better.
+        from .asr_hygiene import coverage_margin, speech_coverage
+        regions = (run[3] if len(run) > 3 else {}).get("speech_regions")
+        if regions is None:
+            vocabulary_check = {"status": "unchecked", "reason": "no VAD speech regions"}
+        else:
+            hinted = speech_coverage(run[0], regions)
+            margin = coverage_margin(hinted["speech_seconds"])
+            vocabulary_check = {"status": "kept hinted", "hinted": hinted, "margin_seconds": round(margin, 3)}
+            if hinted["uncovered_seconds"] > margin:
+                try:
+                    plain, plain_pipeline = decode({})
+                except Exception as e:
+                    vocabulary_check.update(status="kept hinted", unhinted_error=str(e))
+                else:
+                    unhinted = speech_coverage(plain[0], regions)
+                    vocabulary_check["unhinted"] = unhinted
+                    if unhinted["uncovered_seconds"] + margin < hinted["uncovered_seconds"]:
+                        run, pipeline = plain, plain_pipeline
+                        vocabulary_check["status"] = "kept unhinted"
+                        result.warnings.append(
+                            f"Vocabulary hints left {hinted['uncovered_seconds']:.1f} s of detected speech without "
+                            f"words ({unhinted['uncovered_seconds']:.1f} s without hints); kept the unhinted transcript. "
+                            "Limit the vocabulary to names spoken in this clip.")
+
     words, language, language_probability = run[:3]
     timing = run[3] if len(run) > 3 else {}
+    prompt = run[4] if len(run) > 4 else {}
+    if vocabulary_check and vocabulary_check["status"] == "kept unhinted":
+        prompt = {**prompt, "applied": False}
     if timing.get("status") == "unavailable":
         result.warnings.append("VAD word-edge clamp unavailable; raw word times retained: " + timing["reason"])
     result.words = words
     result.provenance = {
         "asr_vocabulary": context,
+        "asr_prompt": prompt,
+        "vocabulary_check": vocabulary_check,
         "timing": timing,
         "whisper_model": name,
         "device": device,
@@ -180,18 +211,18 @@ def _collect_words(segments) -> list[Word]:
 
 def _run_model(model, media_path: Path, *, vocabulary=()):
     """Sequential transcription (tests mock this)."""
-    from .asr_hygiene import vocabulary_context, finish_timing
-    context = vocabulary_context(vocabulary)
+    from .asr_hygiene import vocabulary_context, finish_timing, fit_prompt
+    prompt = fit_prompt(vocabulary_context(vocabulary)["terms"], getattr(model, "hf_tokenizer", None))
     segments, info = model.transcribe(
         str(media_path),
         word_timestamps=True,
         vad_filter=True,
-        hotwords=context["hotwords"] or None,
-        initial_prompt=context["initial_prompt"] or None,
+        hotwords=prompt["hotwords"],
+        initial_prompt=prompt["initial_prompt"],
         condition_on_previous_text=False,
     )
     words, timing = finish_timing(_collect_words(segments), media_path, info)
-    return words, info.language, info.language_probability, timing
+    return words, info.language, info.language_probability, timing, prompt
 
 
 def _run_model_batched(model, media_path: Path, *, vocabulary=()):
@@ -200,16 +231,17 @@ def _run_model_batched(model, media_path: Path, *, vocabulary=()):
     from faster_whisper import BatchedInferencePipeline
 
     pipeline = BatchedInferencePipeline(model)
-    from .asr_hygiene import vocabulary_context, finish_timing
-    context = vocabulary_context(vocabulary)
+    from .asr_hygiene import vocabulary_context, finish_timing, fit_prompt
+    prompt = fit_prompt(vocabulary_context(vocabulary)["terms"], getattr(model, "hf_tokenizer", None),
+                        initial_prompt=False)
     segments, info = pipeline.transcribe(
         str(media_path),
         word_timestamps=True,
         vad_filter=True,
-        hotwords=context["hotwords"] or None,
-        initial_prompt=context["initial_prompt"] or None,
+        hotwords=prompt["hotwords"],
+        initial_prompt=prompt["initial_prompt"],
         batch_size=BATCH_SIZE,
         condition_on_previous_text=False,
     )
     words, timing = finish_timing(_collect_words(segments), media_path, info)
-    return words, info.language, info.language_probability, timing
+    return words, info.language, info.language_probability, timing, prompt

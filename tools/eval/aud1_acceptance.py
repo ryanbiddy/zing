@@ -51,7 +51,7 @@ def main(argv=None):
     from myzing.music.advice import rate
     from myzing.study.transcribe import transcribe, _load_model, _collect_words
     for name, filename in [(r["id"], Path(r["file"]).name) for r in copies
-                           if r["id"] in {"electric", "calm", "vocals", "tos-dialogue", "korky"}]:
+                           if r["id"] in {"electric", "calm", "vocals", "tos-dialogue", "tos-lab", "tos-memory", "duck-titles", "korky"}]:
         start = time.perf_counter()
         audio = analyze(root / filename)
         data = audio.to_dict()

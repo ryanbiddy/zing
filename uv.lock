@@ -1010,7 +1010,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
     { name = "rapidocr", marker = "extra == 'study'", specifier = ">=3.9" },
     { name = "scenedetect-headless", marker = "extra == 'study'", specifier = ">=0.7" },
-    { name = "sherpa-onnx", marker = "extra == 'audio-ml'", specifier = ">=1.13,<3" },
+    { name = "sherpa-onnx", marker = "extra == 'audio-ml'", specifier = ">=2.0,<3" },
     { name = "yt-dlp", extras = ["default"], marker = "extra == 'study'", specifier = ">=2026.6" },
 ]
 provides-extras = ["dev", "study", "mcp", "render", "audio", "audio-ml", "memes", "fonts", "layout", "color", "all"]

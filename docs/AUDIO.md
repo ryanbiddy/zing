@@ -211,27 +211,40 @@ version 1 `tags` record. Both expose label scores, windows,
 `music_under_speech`, and laughter/applause `moment_candidates`. The director
 retains the candidates for review without automatically cutting on them.
 
-CED receives 10-second windows at one-second hops, plus an end-aligned window.
-Clips below one second are zero-padded for inference; reported bounds remain
-source bounds. Sherpa extracts features and resamples. Each retained label has
-its raw confidence per window and maximum across the excerpt. The singing,
-speech, instrument, music, laughter, and applause families are listed in
-`audio/tagging.py`.
+CED receives 5-second windows at one-second hops, plus an end-aligned window,
+decoded by FFmpeg at CED's own 16 kHz (sherpa-onnx never resamples, so it logs
+nothing). Five seconds, not ten: CED pools over its input, and at ten seconds a
+sung phrase or chant was diluted below every threshold. Clips below one second
+are zero-padded for inference; reported bounds remain source bounds. Each window
+keeps its family scores (vocals with the strongest label, music, speech,
+instrument, laughter, applause); `labels` keeps each label's maximum across the
+excerpt. The families are listed in `audio/tagging.py`. Vocals use the whole
+AudioSet Singing subtree (Choir, Yodeling, Chant and Mantra, male, female, child
+and synthetic singing, Rapping) plus Humming and vocal music. Wordless or
+chant-like voices often score on Mantra or Yodeling rather than Singing.
+Overlapping windows at or above a threshold merge into spans that keep their
+peak: `vocal_spans`, `music_under_speech` and `moment_candidates`.
 
-Singing scores at least 0.2 yield `possible` vocals. Scores at least 0.02 also
-yield `possible` when the harmonic/formant heuristic agrees; these are labeled
-**weak corroborated candidates**. Below 0.02 means `not_detected`, which cannot
-rule out masked voices. Intermediate evidence without corroboration is
-`unknown`. Instrument tags cannot veto singing over accompaniment. The old
-heuristic remains in the record for comparison.
+A singing-family window at least 0.2 yields `possible` vocals (a **candidate**).
+A peak of 0.1 to 0.2 yields `possible` only when the harmonic/formant heuristic
+agrees (a **weak corroborated candidate**), otherwise `unknown`. Below 0.1 means
+`not_detected`, which cannot rule out masked voices. Instrument tags cannot veto
+singing over accompaniment. The old heuristic remains in the record.
 
-Music scores at least 0.02 in a window containing supplied words or a speech
-score at least 0.2 produce score-under-speech candidates. Music scores below
-0.2 are explicitly weak. Laughter/applause use 0.2. These are sensitivity rules,
-not calibrated probabilities. The weak threshold was selected on the licensed
-AUD1 media; independent precision and recall remain unmeasured. Overlapping
-windows neither prove simultaneity at every word nor locate event boundaries.
-This pass does not separate or duck embedded music.
+Music at least 0.1 in a window with supplied words, or with a speech score at
+least 0.2, gives a score-under-speech span; below 0.2 it is a weak candidate.
+Laughter/applause use 0.2. These are sensitivity rules, not calibrated
+probabilities. On the licensed AUD1 media (all thirteen clips and tracks), the
+singing family reached at most 0.08 on speech and instrumental windows and
+0.30 to 0.38 on the two sung or chanted sources; music under plain speech
+reached 0.05, and clips carrying a score 0.53 to 0.88. These are development
+measurements, not held-out precision or recall. Overlapping windows neither
+prove simultaneity at every word nor locate event boundaries. This pass does
+not separate or duck embedded music.
+
+Measured on this PC, tagging a 600-second file takes about 11 seconds and adds
+about 105 KB of JSON. Study and audio analysis each tag their file, so a match
+clip is tagged twice.
 
 ## ASR vocabulary and word edges
 
@@ -242,17 +255,46 @@ zing study clip.mp4 --raw --brief brief.json --vocabulary "Korky Paul,NASA"
 Repeat `--vocabulary` or comma-separate names and terms. The API also accepts
 `vocabulary`, `brief`, and `reference_metadata`. Project studies load their
 saved brief when present. Terms come from the user first, then the saved brief's
-`exact_spellings` and purpose, then available reference title/tags. API brief
-mappings may also supply names/topic.
-Reference resolution passes Uoink's title when available. Vocabulary gathering
-makes no library search or network call. No name is inferred or autocorrected.
+`exact_spellings` (API brief mappings may also supply `names`/`vocabulary`
+lists), then available reference title/names/tags. A brief's purpose or topic
+is never sent: it describes the edit, and a default brief's placeholder purpose
+changed recognized words when it was. Reference resolution passes Uoink's title
+when available. Vocabulary gathering makes no library search or network call.
+No name is inferred or autocorrected.
 
-Whitespace is normalized and case-insensitive duplicates removed. Limits:
-64 terms, 80 characters per term, and 500 UTF-8 bytes total including separators.
-Oversize terms are omitted whole and counted. The same string reaches
-faster-whisper's `hotwords` and `initial_prompt`, including batching and
-sequential fallback. Provenance `asr_vocabulary` retains terms, origins, limits,
-and cache key. Match checkpoints include vocabulary and the hygiene revision.
+Reference metadata is untrusted data, not instructions. Malformed entries are
+skipped and counted; links, email addresses and strings over eight words are
+omitted. Every term is NFC-normalized with control, format (zero-width, bidi)
+and private-use characters removed; whitespace is collapsed and case-insensitive
+duplicates dropped. Limits: 64 terms, 80 characters per term, and 500 UTF-8
+bytes total including separators. Oversize terms are omitted whole; provenance
+records each omission's source and reason, not its text.
+
+The decoder receives a token-fitted prompt. Whisper holds 448 tokens per window,
+prompt included, and faster-whisper caps `hotwords` and `initial_prompt` at 223
+tokens each, so the full 500-byte vocabulary in both fields could overflow the
+window and fail transcription. Zing sends whole terms, in priority order, up to
+64 tokens of `hotwords` and, for sequential decoding, 64 tokens of
+`initial_prompt` (first window only), counted with the loaded model's tokenizer
+or by UTF-8 bytes, a strict upper bound. The batched long-form pipeline gets
+hotwords only: it would prepend `initial_prompt` to every chunk as previous
+text, which ended a 33-second chunk at 18 seconds on large-v2. At 150 hotword
+tokens large-v2 dropped about a fifth of a test file's words and tiny repeated
+prompt names as speech; at 64 neither happened on that file.
+
+Hints must not cost recall. After a hinted decode, Zing measures detected VAD
+speech left more than 0.5 s from any word. If that exceeds 1 s plus 2% of the
+speech, it decodes again without hints and keeps whichever transcript leaves
+less speech uncovered (beyond the same margin), with a warning when the
+unhinted one wins. On a looped 237-second test file (batched decoding), tiny
+with one hint left 43.5 s of speech uncovered against 24.7 s without, and
+large-v2 with 17 names 14.2 s against 8.3 s: both kept the unhinted transcript.
+Large-v2 with only "Korky Paul" left 0.1 s, kept the hint and fixed "Corky".
+A rechecked hint costs one extra decode.
+Provenance `asr_vocabulary` retains terms, origins, omissions, limits and cache
+key; `asr_prompt` records exactly what was sent, its token counts and dropped
+terms; `vocabulary_check` records both coverage measurements and the choice.
+Match checkpoints include vocabulary and the hygiene revision.
 
 Recognition keeps faster-whisper's existing VAD defaults. An edge-only pass
 uses the same bundled Silero VAD after recognition, with 200 ms minimum silence

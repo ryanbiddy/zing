@@ -89,12 +89,13 @@ def capabilities():
     cached = [Path(model) / "model.bin"] if Path(model).is_dir() else list(cache.glob(f"models--*faster-whisper-{model}/snapshots/*/model.bin"))
     whisper = [(str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in cached if p.is_file()]
     from myzing.audio.tag_models import model_paths, REVISION
+    from myzing.audio.tagging import ALGORITHM as TAG_ALGORITHM
     try:
         tag_assets = {name: str(path) for name, path in model_paths().items()}
     except (RuntimeError, OSError):
         tag_assets = {}
-    return {"audio_tagging": {"revision": REVISION, "verified_assets": tag_assets},
-            "asr_hygiene": "vad-edge-snap-v2",
+    return {"audio_tagging": {"revision": REVISION, "algorithm": TAG_ALGORITHM, "verified_assets": tag_assets},
+            "asr_hygiene": "vad-edge-snap-v2+prompt-tokens-v1+recall-guard-v1",
             "fonts": present("PIL") and present("cv2"), "color": present("numpy"),
             "audio": present("numpy"), "layout": present("cv2") and verified_model(model_path()),
             "versions": versions, "ocr_models": ocr, "font_files": font_files, "whisper_model": model,
@@ -371,14 +372,14 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             sha = projects.hash_file(source)
             clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, context["cache_key"]],
                                                       lambda source=source: _study(str(source), root, raw=True, **({"vocabulary": terms} if terms else {})))
-            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.3"],
+            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.4"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             if caps["color"]:
                 colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, "sdr-matrix-v1"],
                                                     lambda source=source, a=asset.id: _color(ref_study["media"], source, root / "color" / a))
         if not caps["color"]:
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
-        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.3"],
+        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.4"],
                                      lambda: _audio(ref_study, caps["audio"]))
         recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
