@@ -75,7 +75,12 @@ measurement limits and footage constraints visible:
 Shot pace and first cut use reference-derived ranges. Their half-width is half
 the reference shot-length IQR plus the larger of 0.25 seconds or 20% of the target.
 Quartiles use inclusive linear interpolation; one shot supplies zero spread.
-The lower edge stops at zero. This is a documented editorial policy, not a
+The half-width is capped at the larger of 0.25 seconds or half the target, so
+for targets of 0.5 s or more a band never extends past 0.5–1.5 times the target.
+Shot lengths are heavy-tailed: without the cap, a montage mixing 0.4 s cuts
+with 6 s holds had a 0–2.2 s band around its 1 s median, which passed drafts
+cut at a third or double the reference pace. Below a 0.5 s target the 0.25 s
+floor applies and the lower edge stops at zero. This is a documented editorial policy, not a
 perceptual confidence interval. Reports say how many seconds the observation is
 shorter or longer than the band. A continuous reference has no first-cut timing
 target; the presence of cuts is compared separately. Missing detection stays
@@ -87,8 +92,10 @@ a 3.057 s opening is outside. If that longer opening is a protected continuous
 speech clause with no natural cut inside the band, first cut is not applicable.
 Pace abstains only when a majority of the selected shots contain uninterrupted
 protected clauses longer than the band's upper edge. Speech over existing
-montage cuts remains applicable. Speech elsewhere in a draft cannot excuse a
-non-speech opening.
+montage cuts is judged shot by shot: it remains applicable when those picture
+cuts keep each speech piece inside the band, and abstains only when the pieces
+between them are themselves longer than the upper edge. Speech elsewhere in a
+draft cannot excuse a non-speech opening.
 
 The director constrains both openings and pace with these same bands during
 candidate generation, beam pruning and selection of the three drafts. It tries
@@ -106,6 +113,10 @@ completed edits by the number of timing violations, then total seconds outside
 the bands. Selection evidence records the distances, completed choices examined,
 and the number of jointly in-band choices found. A fallback says **outside band
 because** and identifies its natural cut or whole-clause/duration constraint.
+It says whether the draft is the closest completed edit found, or whether closer
+edits existed but could not form three meaningfully distinct drafts. Planned
+values and reasons describe the final edit after music snapping; when snapping
+moved a timing value, the reason gives both numbers.
 This is a search result, not proof that no human edit of the footage could work.
 The reason appears in the match JSON and `comparison.md`, including when the
 dimension is not applicable for the selected footage.
@@ -124,6 +135,10 @@ clip's framing geometry and output frame interval. It excludes blurfill and
 zoomfill bands, fit letterboxing/pillarboxing, and source mattes recorded in
 the framing bounds. Cropped pictures fill their own measurement area. Overlaps
 use the common sharp rectangle; an empty intersection is a disclosed sample gap.
+Edges next to a recorded matte step two pixels inside it, because scaling and
+4:2:0 chroma blend the matte into the neighboring rows. If every sample is a
+gap, color is unmeasured (`approximate`, with that reason); the delivery is not
+failed and nothing passes.
 Reports record each region and sample rectangle. Unrecorded baked-in bars cannot
 be inferred from a plan that declares the whole source as picture.
 

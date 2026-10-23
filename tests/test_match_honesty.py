@@ -39,14 +39,41 @@ def compare(reference, pixels, mapped=None, *, clauses=(), clips=(), warnings=()
 
 
 def test_reference_spread_and_policy_floor_define_band():
-    band = timing_band(.8, [.4, .7, .8, 1.1, 1.6])
-    assert band["reference_iqr_seconds"] == pytest.approx(.4)
-    assert (band["lower"], band["upper"]) == pytest.approx((.35, 1.25))
+    band = timing_band(.8, [.6, .7, .8, .9, 1.0])
+    assert band["reference_iqr_seconds"] == pytest.approx(.2)
+    assert (band["lower"], band["upper"]) == pytest.approx((.45, 1.15)) and not band["capped"]
     assert timing_band(2, [2])["tolerance"] == .4
     assert timing_band(.8, [.8])["tolerance"] == .25
-    assert "0.150 s shorter" in timing_distance(.2, band)
-    assert "0.250 s longer" in timing_distance(1.5, band)
+    assert "0.250 s shorter" in timing_distance(.2, band)
+    assert "0.350 s longer" in timing_distance(1.5, band)
     assert "Inside" in timing_distance(.467, band)
+    # The NASA audit reference (0.800 s median, 0.267 s IQR) is below the cap.
+    nasa = timing_band(.8, [.8, 1.267, 1.3, 1.366, .834, .833, .467, .433, .633, 1.6, .967, .767, 1.0,
+                            1.0, .766, .867, 1.2, .767, .8, .7, .633, .8, .2])
+    assert not nasa["capped"]
+    assert nasa["reference_iqr_seconds"] == pytest.approx(.267, abs=1e-3)
+    assert (nasa["lower"], nasa["upper"]) == pytest.approx((.4165, 1.1835), abs=1e-3)
+
+
+@pytest.mark.parametrize("reference", [[.4, .5, .6, .8, 1.0, 1.5, 2.5, 4.0, 6.0], [5, 50, 5], [.5, 8.0],
+                                       [.4, .7, .8, 1.1, 1.6]])
+def test_spread_cannot_stretch_a_band_to_half_or_double_the_target(reference):
+    """Heavy-tailed references once gave 0-2.2 s around a 1 s median."""
+    from statistics import median
+    for target in (median(reference), reference[0]):
+        band = timing_band(target, reference)
+        assert band["lower"] >= min(target / 2, target - .25) - 1e-9 and band["lower"] > 0
+        assert band["upper"] < 2 * target
+        assert band["tolerance"] <= max(.25, target / 2) + 1e-9
+
+
+def test_heavy_tailed_reference_still_fails_off_pace_drafts():
+    reference = [1.0, .4, 2.5, .5, 6.0, .6, .8, 4.0, 1.5]
+    slow, fast = [2 * x for x in reference], [x / 3 for x in reference]
+    for lengths in (slow, fast):
+        dims = compare(reference, lengths, lengths)["dimensions"]
+        assert dims["shot_pace"]["status"] == "miss" and dims["first_cut"]["status"] == "miss"
+    assert compare(reference, reference, reference)["dimensions"]["shot_pace"]["status"] == "pass"
 
 
 def test_detector_disagreement_is_not_a_style_miss_or_pass():
@@ -122,3 +149,38 @@ def test_overlap_uses_intersection_and_gaps_are_explicit():
                {"start": 1, "end": 3, "rect": [100, 0, 120, 180]}]
     assert region_at(regions, 1.5) == (100, 40, 120, 100)
     assert region_at(regions, 4) is None
+
+
+def test_matte_edges_are_inset_and_an_all_gap_sample_set_is_unmeasured(monkeypatch, tmp_path):
+    from myzing.color import measure
+    from myzing.composition import CropBounds, Framing
+    from myzing.match import picture
+    framing = Framing("fit", 320, 180, CropBounds(0, 24, 320, 132), 320, 132, 160, 90)
+    plan = Composition(width=240, height=240, assets=[AssetRef("a", "a.mp4", "a" * 64)], clips=[CompositionClip(
+        id="c", asset_id="a", src="a.mp4", src_in=0, src_out=1, timeline_start=0, framing=framing)])
+    # Foreground 240x134 at y=52; the bars map to rows 52-69 and 169-185.
+    # Scaling and 4:2:0 chroma blend each matte edge into the next row pair.
+    assert picture.picture_regions(plan)[0]["rect"] == [0, 72, 240, 94]
+    # Two layers with no common sharp area for the whole video: every sample
+    # is a gap. That leaves color unmeasured; it must not fail the delivery.
+    monkeypatch.setattr(picture, "picture_regions", lambda plan: [
+        {"start": 0, "end": 1, "rect": [0, 0, 60, 90], "clip_id": "x"},
+        {"start": 0, "end": 1, "rect": [100, 0, 60, 90], "clip_id": "y"}])
+    monkeypatch.setattr(measure, "local_video", lambda path: path)
+    monkeypatch.setattr(measure, "probe", lambda path: (1.0, 160, 90, {}))
+    monkeypatch.setattr(measure, "check_color_space", lambda metadata: [])
+    monkeypatch.setattr(measure, "frame", lambda *a, **k: pytest.fail("a gap must not be decoded"))
+    color = picture.measure_output_color(tmp_path / "out.mp4", plan)
+    assert color["status"] == "unmeasured" and color["aggregate"] is None
+    assert len(color["picture_area"]["samples"]) == 6
+    assert all(s["rect"] is None for s in color["picture_area"]["samples"])
+    recipe = build_style_recipe(breakdown([.8] * 4))
+    from dataclasses import replace
+    recipe.measured.append(replace(recipe.measured[0], name="color.luma_percentiles", value=[.1] * 7))
+    dimension = report(recipe, breakdown([.8] * 4), {}, color, {}, plan)["dimensions"]["color"]
+    assert dimension["status"] == "approximate" and dimension["max_luma_percentile_delta"] is None
+    assert dimension["reason"].startswith("No sample had a usable sharp picture area")
+    # A failure before sampling (probe/color space) is still a real error.
+    monkeypatch.setattr(measure, "probe", lambda path: (_ for _ in ()).throw(measure.ColorError("probe failed")))
+    with pytest.raises(measure.ColorError, match="probe failed"):
+        picture.measure_output_color(tmp_path / "out.mp4", plan)

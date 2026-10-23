@@ -89,3 +89,76 @@ def test_music_trim_cannot_undo_timing_constraints(lengths, beat, dimension):
                                  timing_bands=bands, locked=1)
     assert selected == sequence
     assert any(d["kind"] == "cut_kept" and dimension in d["reason"] for d in decisions)
+
+
+def test_music_snapping_reasons_and_planned_values_describe_the_final_edit(tmp_path, zing_workspace, monkeypatch):
+    """Selection evidence predates music snapping; plans must describe what renders."""
+    import sys
+    from dataclasses import replace
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tools.plan_examples import example_project, write_json
+    from test_director import stub_default_ink
+    from myzing.director.api import plan_drafts
+    from myzing.layout import framing as layout_framing
+    from myzing.music import planning
+    from myzing.music.models import MusicPlan
+    from myzing.schemas import CaptionEvent
+
+    monkeypatch.setattr(layout_framing, "measure_default_ink", stub_default_ink)
+    project, _, _ = example_project(tmp_path / "project")
+    # 1.4 s reference shots: band 1.12-1.68 s. The footage's natural openings
+    # are 1.75-1.87 s, so some selections start outside the band.
+    shots = [Shot(i, i * 1.4, (i + 1) * 1.4) for i in range(4)]
+    words = [Word("two words", .25 + i, .75 + i) for i in range(5)]
+    write_json(project / "recipe.json", build_style_recipe(Breakdown(
+        VideoMeta("fixture:style", "file", duration=5.6, width=320, height=180, fps=30), shots=shots, words=words,
+        captions=[CaptionEvent("two words", .25 + i, .75 + i, "lower", i % 2 == 0, 2) for i in range(5)])).to_dict())
+
+    def snap(sequence, studies, brief, manifest, root, pace, required, forbidden, cache=None, **kwargs):
+        # A stand-in for MUSIC1 retiming: pull the opening out-point 0.35 s
+        # earlier (the montage limit), toward or into the band.
+        a = sequence[0]
+        moved = [replace(a, end=a.end - .35), *sequence[1:]] if a.duration > .6 else sequence
+        return moved, [], [], MusicPlan(mode="speech-led", timeline=planning.timeline_of(moved))
+
+    monkeypatch.setattr(planning, "plan_music", snap)
+    result = plan_drafts(project, project / "recipe.json", tmp_path / "plans", seed=17)
+    assert result["status"] == "ready", result
+    moved = 0
+    for path in result["plans"].values():
+        plan = Composition.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
+        planning_report = next(json.loads(w[len(REPORT_PREFIX):]) for w in plan.warnings if w.startswith(REPORT_PREFIX))
+        durations = planning_report["pacing_evidence"]["shot_durations_seconds"]
+        for key, value in (("first_cut_seconds", durations[0]), ("median_shot_seconds", None)):
+            item = planning_report["match"][key]
+            assert item["selection"]["planned"] == item["planned"]
+            if value is not None:
+                assert item["planned"] == pytest.approx(value)
+            inside = item["band"]["lower"] - 1e-9 <= item["planned"] <= item["band"]["upper"] + 1e-9
+            # One cut, one duration, one verdict.
+            assert ("Outside band because" in item["reason"]) == (not inside), item["reason"]
+            assert item["reason"].startswith("Inside" if inside else f"{item['selection']['distance_outside_seconds']:.3f} s")
+            if "selected_before_music_seconds" in item["selection"]:
+                moved += 1
+                assert f"moved it from {item['selection']['selected_before_music_seconds']:.3f} s to {item['planned']:.3f} s" in item["reason"]
+    assert moved >= 2  # Both the opening and the median moved in at least one draft.
+
+
+def test_fallback_wording_names_closer_edits_left_out_of_the_trio():
+    from myzing.director.selection import selection_timing_evidence
+    studies = [ClipStudy(k, f"{k}.mp4", k * 64, n, "ready", shots=[Shot(0, 0, n)]) for k, n in (("a", 3), ("b", 1))]
+    sequence = [Candidate(s.asset_id, s.sha256, 0, s.duration, 0, 0, None, "", False, False) for s in studies]
+    band = timing_band(.8, [.8] * 5)  # 0.55-1.05 s: the 3 s opening is 1.95 s out, the 2 s median 0.95 s.
+    closest = {"feasible_edits_examined": 9, "jointly_in_band_edits": 0, "closest_violations": 2,
+               "closest_seconds_outside": 2.9, "scope": "completed edits in the bounded search"}
+    own = selection_timing_evidence(sequence, studies, band, band, closest)["median_shot_seconds"]
+    assert own["closest_in_search"] and "No completed edit in the bounded search is closer" in own["reason"]
+    nearer = {**closest, "closest_violations": 1, "closest_seconds_outside": .5}
+    later = selection_timing_evidence(sequence, studies, band, band, nearer)["median_shot_seconds"]
+    assert not later["closest_in_search"]
+    assert "Completed edits closer to the bands exist (1 timing dimension(s), 0.500 s outside" in later["reason"]
+    assert "No completed edit" not in later["reason"] and "this edit completes the trio" in later["reason"]
+    in_band = {**closest, "jointly_in_band_edits": 4, "closest_violations": 0, "closest_seconds_outside": 0.0}
+    text = selection_timing_evidence(sequence, studies, band, band, in_band)["median_shot_seconds"]["reason"]
+    assert "4 completed edits inside both bands were found" in text and "closest" not in text

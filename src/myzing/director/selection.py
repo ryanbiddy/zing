@@ -552,46 +552,78 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
     result = (trio(in_band) if prefer_bands else None) or trio(clean) or trio(complete.values())
     if result is not None:
         if timing_evidence is not None:
+            examined = clean or list(complete.values())
+            closest = min(timing_rank(seq) for seq in examined)
+            search = {"feasible_edits_examined": len(examined), "jointly_in_band_edits": len(in_band),
+                      "closest_violations": closest[0],
+                      # JSON has no infinity: a missing first cut is an unbounded distance.
+                      "closest_seconds_outside": closest[1] if closest[1] != float("inf") else None,
+                      "scope": "completed edits in the bounded search"}
             for label, seq in result.items():
-                timing_evidence[label] = selection_timing_evidence(
-                    seq, studies, opening_band, pace_band, clean or list(complete.values()), len(in_band))
+                timing_evidence[label] = selection_timing_evidence(seq, studies, opening_band, pace_band, search)
         return result
     shortage("distinct_edits", "Studied footage supports fewer than three meaningfully distinct feasible choices in this search.",
              "Film an alternate opening line and a separate visual shot near the reference pace, or relax must-keeps/forbidden spans.")
 
 
-def selection_timing_evidence(sequence, studies, opening_band, pace_band, feasible, in_band_count):
-    """Disclose bounded-search evidence without claiming footage impossibility."""
+def selection_timing_evidence(sequence, studies, opening_band, pace_band, search, *, selected=None):
+    """Disclose bounded-search evidence for this edit without claiming footage impossibility.
+
+    The director calls this again on the final edit after music snapping, so
+    every planned value and reason describes the edit that is rendered.
+    ``selected`` holds the values chosen before snapping, when they differ.
+    """
     lengths = shot_lengths(sequence, studies)
     first = sequence[0]
     study = next(c for c in studies if c.asset_id == first.asset_id)
     internal = [s.start for s in study.shots if first.start + EPS < s.start < first.end - EPS]
     protected = [s for s in clauses(study.words) if overlaps((first.start, first.end), (s.start, s.end))]
+    values = {"first_cut_seconds": (lengths[0] if len(lengths) > 1 else None, opening_band),
+              "median_shot_seconds": (median(lengths), pace_band)}
+    distances = {name: band_distance(value, band) for name, (value, band) in values.items()}
+    violations, outside = sum(d > EPS for d in distances.values()), sum(distances.values())
+    best = search["closest_seconds_outside"]
+    closest = (violations, outside) <= (search["closest_violations"], float("inf") if best is None else best + EPS)
     result = {}
-    for name, value, band in (("first_cut_seconds", lengths[0] if len(lengths) > 1 else None, opening_band),
-                              ("median_shot_seconds", median(lengths), pace_band)):
-        distance = band_distance(value, band)
-        reason = ("Selected a feasible edit inside the reference band." if band["lower"] is not None
+    for name, (value, band) in values.items():
+        distance = distances[name]
+        reason = ("This edit is inside the reference band." if band["lower"] is not None
                   else "Reference timing is unmeasured; no band constraint applied.")
         if distance > EPS:
             if name == "first_cut_seconds":
-                event = (f"the opening reaches its natural source cut at {internal[0]:.3f} s "
-                         f"after {internal[0] - first.start:.3f} s" if internal else
+                event = (f"the opening reaches its natural cut at source {internal[0]:.3f} s, "
+                         f"{internal[0] - first.start:.3f} s into the edit" if internal else
                          f"the opening's whole selected span runs {first.duration:.3f} s before an edit" if value is not None
                          else "the selected footage has no natural or edit cut in this completed draft")
-                speech = ("; protected clauses at " + ", ".join(f"{s.start:.3f}-{s.end:.3f} s" for s in protected)
+                speech = ("; protected clauses at source " + ", ".join(f"{s.start:.3f}-{s.end:.3f} s" for s in protected)
                           + " must remain whole" if protected else "")
                 reason = f"Outside band because {event}{speech}."
             else:
                 reason = (f"Outside band because the selected footage supplies {len(lengths)} natural/edit shots "
                           f"with a {median(lengths):.3f} s median under the whole-clause, source-order and duration constraints.")
-            reason += (" This is the closest timing choice found for this distinct draft in the bounded search; "
-                       "it does not prove that every possible edit of the footage is outside band.")
-            if in_band_count:
-                reason += (f" {in_band_count} completed in-band edits were found, but no complete, "
-                           "meaningfully distinct in-band trio was selected.")
-        result[name] = {"band": band, "planned": value,
-                        "distance_outside_seconds": distance if distance != float("inf") else None,
-                        "feasible_edits_examined": len(feasible), "jointly_in_band_edits": in_band_count,
-                        "reason": reason, "scope": "completed edits in the bounded search"}
+            if closest:
+                reason += " No completed edit in the bounded search is closer to both bands."
+            elif search["jointly_in_band_edits"]:
+                reason += (f" {search['jointly_in_band_edits']} completed edits inside both bands were found, but "
+                           "they did not form three meaningfully distinct drafts; this edit completes the trio.")
+            else:
+                reason += (f" Completed edits closer to the bands exist ({search['closest_violations']} timing "
+                           f"dimension(s), {'an unbounded distance' if best is None else f'{best:.3f} s'} outside in total), but they did "
+                           "not form three meaningfully distinct drafts; this edit completes the trio.")
+            reason += " This does not prove that every possible edit of the footage is outside band."
+        entry = {"band": band, "planned": value,
+                 "distance_outside_seconds": distance if distance != float("inf") else None,
+                 "feasible_edits_examined": search["feasible_edits_examined"],
+                 "jointly_in_band_edits": search["jointly_in_band_edits"],
+                 "closest_in_search": closest, "search": dict(search),
+                 "reason": reason, "scope": search["scope"]}
+        before = (selected or {}).get(name)
+        if selected is not None and name in selected and (
+                (before is None) != (value is None) or
+                (before is not None and value is not None and abs(before - value) > EPS)):
+            entry["selected_before_music_seconds"] = before
+            entry["reason"] = (reason + " Music cut snapping moved it from "
+                               + ("no cut" if before is None else f"{before:.3f} s") + " to "
+                               + ("no cut" if value is None else f"{value:.3f} s") + ".")
+        result[name] = entry
     return result

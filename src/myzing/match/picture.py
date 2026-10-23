@@ -2,6 +2,8 @@
 
 import math
 
+MATTE_INSET = 2
+
 
 def picture_regions(plan):
     from myzing.render.framing import probe_dimensions
@@ -24,10 +26,14 @@ def picture_regions(plan):
                 # A fit/blurfill foreground retains the whole source. Its
                 # measured bounds may exclude baked-in letter/pillarboxing.
                 b = f.bounds
-                left = math.ceil(x + b.x * w / f.source_width)
-                top = math.ceil(y + b.y * h / f.source_height)
-                right = math.floor(x + (b.x + b.width) * w / f.source_width)
-                bottom = math.floor(y + (b.y + b.height) * h / f.source_height)
+                # Scaling and 4:2:0 chroma blend a matte edge into the next
+                # output row/column pair, so step two pixels inside each one.
+                left = math.ceil(x + b.x * w / f.source_width) + (MATTE_INSET if b.x > 0 else 0)
+                top = math.ceil(y + b.y * h / f.source_height) + (MATTE_INSET if b.y > 0 else 0)
+                right = math.floor(x + (b.x + b.width) * w / f.source_width) - (
+                    MATTE_INSET if b.x + b.width < f.source_width else 0)
+                bottom = math.floor(y + (b.y + b.height) * h / f.source_height) - (
+                    MATTE_INSET if b.y + b.height < f.source_height else 0)
                 x, y, w, h = left, top, right - left, bottom - top
         else:
             x, y, w, h = 0, 0, plan.width, plan.height
@@ -49,13 +55,30 @@ def region_at(regions, timestamp):
 
 
 def measure_output_color(video, plan, *, count=6):
+    from myzing.color import ColorError
     from myzing.color.measure import measure_video
 
     regions = picture_regions(plan)
-    measurement, _, _ = measure_video(video, count=count, region_at=lambda t: region_at(regions, t))
+    basis = "Sharp picture only, cropped before downsampling from framing-plan geometry."
+    requested = []
+
+    def lookup(timestamp):
+        requested.append(timestamp)
+        return region_at(regions, timestamp)
+
+    try:
+        measurement, _, _ = measure_video(video, count=count, region_at=lookup)
+    except ColorError:
+        if len(requested) < count or any(region_at(regions, t) is not None for t in requested):
+            raise  # Probe, color-space or decode failure: a real error.
+        # Every sample was a gap (no common sharp area). That is a measurement
+        # limit, not a failed render: color stays unmeasured and says why.
+        return {"version": 1, "status": "unmeasured", "path": str(video), "samples": [], "aggregate": None,
+                "warnings": ["No sample had a usable sharp picture area; color is unmeasured, not passed."],
+                "picture_area": {"version": 1, "basis": basis, "regions": regions,
+                                 "samples": [{"timestamp": t, "rect": region_at(regions, t)} for t in requested]}}
     result = measurement.to_dict()
-    result["picture_area"] = {"version": 1, "basis": "Sharp picture only, cropped before downsampling from framing-plan geometry.",
-                              "regions": regions,
+    result["picture_area"] = {"version": 1, "basis": basis, "regions": regions,
                               "samples": [{"timestamp": s.timestamp, "rect": region_at(regions, s.timestamp)}
                                           for s in measurement.samples]}
     return result

@@ -307,6 +307,15 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         "target_length_seconds": metric(brief.target_length_seconds, cursor, 2 / 30,
                                         "The brief supplies the duration; two output frames are allowed."),
     }
+    if timing_selection:
+        # Selection evidence was captured before music snapping, which can move
+        # a join toward or away from a band. Describe the final edit only.
+        from .selection import selection_timing_evidence
+        reference = style.basis.get("shot_durations", [])
+        timing_selection = selection_timing_evidence(
+            sequence, studies, timing_band(style.first_cut, reference), timing_band(style.median_shot, reference),
+            next(iter(timing_selection.values()))["search"],
+            selected={key: value["planned"] for key, value in timing_selection.items()})
     for key in ("median_shot_seconds", "first_cut_seconds"):
         item = numbers[key]
         item["band"] = timing_band(item["target"], style.basis.get("shot_durations", []))

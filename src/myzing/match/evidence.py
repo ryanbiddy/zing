@@ -147,12 +147,14 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
                          reason="Different text and sparse samples: box IoU is a style proxy, not known-font fidelity.")
     dimensions["caption_placement"] = placement
     target_color = facts.get("color.luma_percentiles")
-    output_color = color.get("aggregate", {}).get("luma_percentiles") if color else None
+    output_color = (color.get("aggregate") or {}).get("luma_percentiles") if color else None
     delta = max(abs(a - b) for a, b in zip(target_color, output_color)) if target_color and output_color else None
     dimensions["color"] = {"status": "miss" if delta is not None and delta > .15 else "approximate",
                            "target": target_color, "observed": output_color, "max_luma_percentile_delta": delta,
                            "picture_area": color.get("picture_area") if color else None,
-                           "tolerance": .15, "reason": "Unpaired scene distributions in encoded Rec.709; human review required. "
+                           "tolerance": .15, "reason": ("No sample had a usable sharp picture area; color is unmeasured. "
+                                                        if color and color.get("status") == "unmeasured" else "")
+                           + "Unpaired scene distributions in encoded Rec.709; human review required. "
                            "This is not a paired Delta E 2000 test or recovery of an original LUT."}
     dimensions["typography"] = {"status": "approximate", "reason": "Pinned substitutes or disclosed system defaults; original font unknown."}
     continuity = planning.get("continuity", {})

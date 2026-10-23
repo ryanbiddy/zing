@@ -73,9 +73,13 @@ def detect_shots(media_path: Path, duration: float, fps: float, *, min_scene_len
     result.provenance = {
         "shot_detector": f"scenedetect-{version} AdaptiveDetector",
         "adaptive_threshold": ADAPTIVE_THRESHOLD,
-        "min_scene_len_s": min_scene_len_frames / (fps or 30.0),
-        "min_scene_len_frames": min_scene_len_frames,
+        "min_scene_len_s": MIN_SCENE_LEN_S,
     }
+    if min_scene_len_s != MIN_SCENE_LEN_S:
+        # Only an explicit floor (match verification) records the effective
+        # frame count; the generic study's breakdown stays byte-identical.
+        result.provenance.update(min_scene_len_s=min_scene_len_frames / (fps or 30.0),
+                                 min_scene_len_frames=min_scene_len_frames)
     return result
 
 
