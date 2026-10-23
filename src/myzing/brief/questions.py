@@ -44,6 +44,7 @@ def brief_questions() -> dict:
             for topic, group in TOPICS
         ],
         "answer_examples": {
+            "caption_mode": "punch",
             "framing": "auto",
             "aspects": ["16:9", "1:1", "9:16"],
             "framing_max_upscale": 2.5,
@@ -53,7 +54,8 @@ def brief_questions() -> dict:
             "music": {"source": "supplied files", "files": ["audio/bed.wav"]},
             "sfx": {"source": "none"},
         },
-        "optional_fields": [{"key": "framing", "default": "auto", "choices": ["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"],
+        "optional_fields": [{"key": "caption_mode", "default": "reference", "choices": ["reference", "phone", "punch", "box", "clean", "none"],
+                             "description": "Punch: bold one-line pop for vertical clips. Box: sliding yellow highlight. Clean: up to two lines for dialogue and 16:9. Explicit reference styles stay unchanged."}, {"key": "framing", "default": "auto", "choices": ["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"],
                              "description": "Auto chooses full reframe, intermediate zoomfill, or full-picture fallback within subject and enlargement limits."},
                             {"key": "aspects", "default": [], "description": "Delivery list: 16:9, 1:1, 9:16. Empty uses aspect."},
                             {"key": "framing_max_upscale", "default": 2.5, "description": "Configurable auto crop enlargement limit, 1-16x."},

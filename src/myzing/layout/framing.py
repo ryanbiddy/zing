@@ -577,6 +577,10 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
     placement, which keeps such plans representable as v1 EDLs. Without
     FFmpeg/libass the caption is placed.
     """
+    if plan.captions and all(c.preset for c in plan.captions):
+        from myzing.captions.rail import place_presets
+        place_presets(plan, subjects, source_dimensions or {})
+        return
     from myzing.composition.timebase import frame_index, frame_time
     from myzing.render.positioned_captions import caption_frame_timing
     from myzing.composition.aspects import aspect_for, SAFE_INSETS

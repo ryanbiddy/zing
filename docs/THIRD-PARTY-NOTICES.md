@@ -151,3 +151,35 @@ Whisper. Downloads require explicit consent and remain outside the repository.
 Small.en is English-only; large-v2 supports multiple languages. Zing recommends
 small.en for first-run download size and speed, with a caption-review warning.
 No new Python dependency is required; inference uses the existing `study` extra.
+
+
+## CAPTION2 grouping: AutoSubs (MIT)
+
+The sentence/pause grouping, punctuation break priorities, balanced-target tolerance and non-overlapping minimum-duration scheduling in `src/myzing/captions/grouping.py` are adapted from [AutoSubs formatting.rs](https://github.com/tmoroney/auto-subs/blob/main/AutoSubs-App/src-tauri/crates/transcription-engine/src/formatting.rs), retrieved 2026-10-23. Zing adds measured advances, a dynamic program and protected English pairs. No AutoSubs runtime is included.
+
+MIT License
+
+Copyright (c) 2023 Tom Moroney
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+## CAPTION2 font derivatives (OFL-1.1)
+
+`ZingCaption-700.ttf` and `ZingCaption-800.ttf` are static, renamed derivatives of the existing pinned Inter source (Google Fonts revision `45e3d5269e4a17d823f6d84470bc084dc5ae46f6`), at optical size 32. Optional kerning and ligatures are disabled for fixed word slots. Copyright, designer and license records remain in the fonts; the complete license is `src/myzing/_data/fonts/ZingCaption-OFL.txt`. Source and derived SHA-256 pins are in `caption-presets.json`; `tools/eval/caption2_fonts.py` reproduces them with fontTools 4.62.1 (MIT, build tool only). No runtime dependency was added.

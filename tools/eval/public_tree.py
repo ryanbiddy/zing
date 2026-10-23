@@ -50,6 +50,8 @@ def allowed_assets(root: Path) -> set[str]:
         "tools/eval/fixtures/speech/ripe-figs-like.wav",
         "src/myzing/_data/fonts/Anton-Regular.ttf",
         "src/myzing/_data/fonts/IBMPlexSans.ttf",
+        "src/myzing/_data/fonts/ZingCaption-700.ttf",
+        "src/myzing/_data/fonts/ZingCaption-800.ttf",
     })
     return allowed
 
