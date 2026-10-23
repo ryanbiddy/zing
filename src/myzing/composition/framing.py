@@ -78,6 +78,9 @@ class Framing(Record):
     assessments: list[CropAssessment] = field(default_factory=list, metadata={"omit_default": True})
     speaker_turns: list[SpeakerTurn] = field(default_factory=list, metadata={"omit_default": True})
     picture: dict = field(default_factory=dict, metadata={"omit_default": True})
+    # Blurfill/zoomfill sharp-picture top as a share of output height. None
+    # centers it; caption planning raises it to open a lower caption band.
+    foreground_top: float | None = field(default=None, metadata={"omit_default": True})
     version: int = 1
 
     def __post_init__(self):
@@ -118,6 +121,10 @@ class Framing(Record):
             raise ValueError("only reframe and zoomfill accept keyframes")
         if any(a.end > b.start for a, b in zip(self.speaker_turns, self.speaker_turns[1:])):
             raise ValueError("speaker turns must be ordered without overlap")
+        if self.foreground_top is not None:
+            bounded(self.foreground_top, 0, 1, "framing foreground_top")
+            if self.mode not in ("blurfill", "zoomfill"):
+                raise ValueError("foreground_top applies to blurfill and zoomfill only")
 
     def center_at(self, time: float) -> tuple[float, float]:
         if not self.keyframes:
@@ -157,11 +164,13 @@ class Framing(Record):
     def foreground_origin(self, width: int, height: int) -> tuple[int, int]:
         """Top-left of the blurfill/zoomfill sharp picture in output pixels.
 
-        Centered, then rounded down to even: FFmpeg's 4:2:0 overlay does that
-        to any odd position, so the graph receives this exact origin.
+        Centered (or at foreground_top), then rounded down to even: FFmpeg's
+        4:2:0 overlay does that to any odd position, so the graph receives
+        this exact origin.
         """
         w, h = self.foreground_size(width, height)
-        return (width - w) // 2 // 2 * 2, (height - h) // 2 // 2 * 2
+        y = (height - h) // 2 if self.foreground_top is None else min(height - h, round(self.foreground_top * height))
+        return (width - w) // 2 // 2 * 2, max(0, y) // 2 * 2
 
     def upscale_warning(self, width: int, height: int) -> list[str]:
         scale = (min(width / self.bounds.width, height / self.bounds.height) if self.mode in ("fit", "blurfill")

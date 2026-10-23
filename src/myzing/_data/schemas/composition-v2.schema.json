@@ -438,6 +438,18 @@
           "minimum": 0,
           "type": "number"
         },
+        "foreground_top": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "height": {
           "minimum": 1,
           "type": "integer"

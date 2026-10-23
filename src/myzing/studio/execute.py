@@ -185,13 +185,10 @@ def run_confirmed(answers, *, progress=None):
                     p = Composition.from_dict(read_json(output))
                     if not p.captions:
                         warnings.append(f"Blocked captions: {output} contains no timed caption events. Speech is unknown or unavailable; review the studies.")
-                    from myzing.layout.readability import phone_size
-                    from myzing.layout.framing import visible_content
-                    picture_width = min((visible_content(c.framing, p.width, p.height).width*p.width
-                                         for c in p.clips if c.framing), default=p.width)
-                    floor = phone_size(p.width, p.height, picture_width)
+                    from myzing.layout.readability import phone_minimum
                     small.extend(c.style.size * (c.layout.scale if c.layout else 1) for c in p.captions
-                                 if c.style and c.style.size * (c.layout.scale if c.layout else 1) < floor-.01)
+                                 if c.style and c.style.size * (c.layout.scale if c.layout else 1)
+                                 < phone_minimum(p, c) - .01)
                 except ValueError:
                     pass
         if small:

@@ -40,15 +40,20 @@ def apply_plan(plan, values):
         plan.captions = []
         plan.accepted_unsafe_layouts = []
     elif values.get("caption_mode") == "phone":
+        from myzing.layout.readability import hold_short_events, phone_word_groups
         groups = []
         for caption in plan.captions:
-            if len(caption.words) <= 4:
+            parts = phone_word_groups(caption.words)
+            if len(parts) <= 1:
                 groups.append(caption)
                 continue
-            for index in range(0, len(caption.words), 4):
-                words = caption.words[index:index+4]
-                groups.append(replace(caption, id=f"{caption.id}-phone-{index//4+1}",
-                    text=" ".join(w.text for w in words), words=words, start=words[0].start, end=words[-1].end, layout=None))
+            for index, words in enumerate(parts):
+                groups.append(replace(caption, id=f"{caption.id}-phone-{index+1}",
+                    text=" ".join(w.text for w in words), words=words,
+                    start=caption.start if index == 0 else words[0].start,
+                    end=caption.end if index == len(parts) - 1 else words[-1].end, layout=None))
+        if plan.clips:
+            hold_short_events(groups, max(c.timeline_end for c in plan.clips))
         plan.captions = groups
         plan.accepted_unsafe_layouts = []
     for caption in plan.captions:

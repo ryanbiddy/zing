@@ -53,6 +53,8 @@ def _constraints(cls: type, properties: dict) -> None:
         properties["max_upscale"]["minimum"] = 1
         properties["confidence"].update(minimum=0, maximum=1)
         properties["keyframes"]["maxItems"] = 256
+        top = next(s for s in properties["foreground_top"]["anyOf"] if s.get("type") == "number")
+        top.update(minimum=0, maximum=1)
     if name == "CropAssessment":
         for key in ("sharp_height_share", "sharp_area_share", "retained_area", "subject_coverage"):
             properties[key].update(minimum=0, maximum=1)

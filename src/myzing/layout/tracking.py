@@ -96,6 +96,9 @@ def appearance(image, box):
             for v in np.histogram(crop[:, :, channel], bins=8, range=(0, 256))[0]]
 
 
+AMBIGUITY_MARGIN = .05  # Heuristic-confidence units; see stitch_tracks.
+
+
 def stitch_tracks(tracks, *, max_gap=1.25):
     """Conservative fragment links within one shot, using raw observations.
 
@@ -137,20 +140,23 @@ def stitch_tracks(tracks, *, max_gap=1.25):
         return {"version": 1, "fragments": [t.id for t in [*a, *b]], "gap_seconds": gap,
                 "appearance_similarity": similarity, "size_ratio": size_ratio,
                 "center_distance_face_units": distance, "confidence": confidence,
-                "co_visible_conflicts": 0, "method": "raw-observation position/size/RGB-histogram; not biometric identity"}
+                "covisibility": "no equal-time or interleaved raw detections",
+                "method": "raw-observation position/size/RGB-histogram; not biometric identity"}
 
     while True:
         candidates = [(e["confidence"], i, j, e) for i, a in enumerate(groups) for j, b in enumerate(groups)
                       if i < j and (e := link(a, b)) is not None]
         if not candidates:
             break
-        # An equally plausible alternative is uncertainty, not an arbitrary identity.
+        # An equally plausible alternative is uncertainty, not an arbitrary
+        # identity: a link is refused while another candidate sharing either
+        # endpoint scores within AMBIGUITY_MARGIN (.05) of its confidence.
         candidates.sort(key=lambda c: (-c[0], c[1], c[2]))
         def endpoints(candidate):
             i, j = candidate[1:3]
             return (i, j) if observations(groups[i])[0].time < observations(groups[j])[0].time else (j, i)
         selected = next((c for c in candidates if not any(
-            other is not c and abs(other[0]-c[0]) < .05 and
+            other is not c and abs(other[0]-c[0]) < AMBIGUITY_MARGIN and
             (endpoints(c)[0] == endpoints(other)[0] or endpoints(c)[1] == endpoints(other)[1])
             for other in candidates)), None)
         if selected is None:

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from myzing.composition.framing import CropBounds, CropKeyframe, Framing
 from .crop_planner import select_framing, track_framing
-from .chooser import choose_layout, check_overlap
+from .chooser import choose_layout, choose_stable, check_overlap
 from .detector import LayoutError, YuNetDetector, load_cv2
 from .tracking import build_tracks, appearance, stitch_tracks
 from .types import (Box, CaptionEvent, Detection, FaceTrack, FrameDetections,
@@ -450,8 +450,119 @@ def measure_styled_ink(caption, width, height):
                         directory, "ffmpeg", caption_filter("ffmpeg"), em)
 
 
-def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False):
+HOME_BOTTOM = .75  # Baseline (share of output height) when no survey anchor exists.
+
+
+def _vertical_style(style, plan, minimum_size=0):
+    """The style place_captions gives a vertical caption, without mutating it."""
+    from myzing.composition import CaptionStyle
+    short = min(plan.width, plan.height)
+    style = style or CaptionStyle(max(1, short / 18))
+    style = replace(style, outline_width=max(style.outline_width, min(20, short / 270)),
+                    box_color=style.box_color or "#111111")
+    return replace(style, size=max(style.size, minimum_size)) if minimum_size else style
+
+
+def _band_requirement(lines, style, plan):
+    """Estimated band height share for a complete wrapped event, outline and plates."""
+    plate = max(14, 2 * style.highlight_box_padding + 6 if style.highlight_box_color else 0)
+    return (max(1, len(lines)) * style.size * 1.4 + style.outline_width * 2 + plate) / plan.height / .8
+
+
+def _plate_padding(style):
+    return style.outline_width * 2 + max(14 if style.box_color else 6,
+                                         2 * style.highlight_box_padding + 6 if style.highlight_box_color else 0)
+
+
+def _styled_ink(caption, text, style, plan, cache):
+    key = (text, style.size, style.outline_width, str(caption.font), caption.all_caps)
+    if key not in cache:
+        try:
+            cache[key] = measure_styled_ink(replace(caption, text=text, style=style), plan.width, plan.height)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+            cache[key] = None
+    return cache[key]
+
+
+def _wrap(caption, style, plan, max_width, cache=None):
+    """Wrap words for a box max_width wide (share of output width).
+
+    With a measurement cache (phone captions), try fuller lines and keep them
+    when the libass ink plus plate fits, then balance the line lengths. Without
+    one, or when ink is unmeasurable (no FFmpeg), keep the conservative
+    0.8 em-per-character estimate.
+    """
+    import textwrap
+    words = " ".join(caption.text.split())
+
+    def at(columns):
+        return textwrap.wrap(words, width=max(1, columns), break_long_words=False, break_on_hyphens=False)
+
+    if cache is not None:
+        for factor in (.55, .65):
+            lines = at(int(max_width * plan.width / (style.size * factor)))
+            ink = _styled_ink(caption, "\n".join(lines), style, plan, cache)
+            if ink is None:
+                break
+            if ink[2] - ink[0] + _plate_padding(style) <= max_width * plan.width:
+                columns = max(len(line) for line in lines)
+                while columns > 1 and len(at(columns - 1)) == len(lines):
+                    columns -= 1
+                return at(columns)
+    return at(int(max_width * plan.width / (style.size * .8)))
+
+
+def raise_for_lower_band(plan, insets, source_dimensions=None, cache=None):
+    """Raise a vertical blurfill/zoomfill sharp picture to open its lower caption band.
+
+    The lower blur band below a centered picture mostly sits inside the bottom
+    platform-UI reserve. When every caption shown over a clip would fit the
+    band after lifting the picture by the smallest even amount, and the
+    picture top stays below the top reserve, lift it; otherwise leave it.
+    """
+    from .readability import phone_minimum
+    phone = plan.brief is not None and plan.brief.caption_mode == "phone"
+    inset_left, inset_top, inset_right, inset_bottom = insets
+    band_width = min(.84, (1 - inset_left - inset_right) * .94)
+    cache = {} if cache is None else cache
+
+    def requirement(caption):
+        style = _vertical_style(caption.style, plan, phone_minimum(plan, caption, source_dimensions) if phone else 0)
+        return _band_requirement(_wrap(caption, style, plan, band_width, cache if phone else None), style, plan)
+
+    for clip in plan.clips:
+        f = clip.framing
+        if f is None or f.mode not in ("blurfill", "zoomfill") or f.foreground_top is not None:
+            continue
+        w, h = f.foreground_size(plan.width, plan.height)
+        captions = [c for c in plan.captions if c.start < clip.timeline_end and c.end > clip.timeline_start]
+        if w < plan.width * .99 or not captions:
+            continue
+        need = max(requirement(c) for c in captions)
+        _, y = f.foreground_origin(plan.width, plan.height)
+        band = 1 - inset_bottom - (y + h) / plan.height
+        if band >= need:
+            continue
+        lift = math.ceil((need - band) * plan.height / 2) * 2
+        if y - lift < math.ceil(inset_top * plan.height / 2) * 2:
+            continue
+        clip.framing = replace(f, foreground_top=(y - lift) / plan.height, warnings=[
+            *f.warnings, f"Sharp picture raised {lift}px so complete captions fit the lower blur band "
+            f"above the {inset_bottom:.0%} bottom UI reserve."])
+
+
+def _anchor(box, region):
+    """(center x, edge y): the top edge hangs in the lower band, else the baseline."""
+    return box.center[0], box.y if region == "lower blur band" else box.bottom
+
+
+def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False, _survey=False):
     """Static caption boxes avoid swept subject envelopes on the output clock.
+
+    Captions keep one alignment, and one anchor per shot and placement region:
+    the median of where each event would sit on its own (nearest free space to
+    the lower third), or the lower band's top edge. An event moves off it only
+    when a subject or reserve would be covered, and then by the smallest move.
 
     Conservative source envelopes plus crop extrema enclose motion continuously,
     including between samples; this checks supplied tracks, not detector recall.
@@ -471,9 +582,42 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
     inset_left, inset_top, inset_right, inset_bottom = SAFE_INSETS[aspect_for(plan.width, plan.height)]
     frame_limit = frame_index(max(c.timeline_end for c in plan.clips), plan.fps, rounding="nearest")
     source_dimensions = source_dimensions or {}
+    if len({c.alignment for c in plan.captions}) > 1:
+        # Snapping between left and centered phrases reads as jitter.
+        for caption in plan.captions:
+            caption.alignment = "center"
+        plan.warnings.append("Mixed caption alignments were centered so every event shares one anchor.")
+
+    def shot(caption):
+        return next((i for i, c in enumerate(plan.clips) if c.timeline_start <= caption.start < c.timeline_end),
+                    len(plan.clips) - 1)
+
+    homes = {}
+    if not _survey and len(plan.captions) > 1:
+        # Survey pass: place each event independently on a copy, then anchor
+        # every event at the typical free position instead of a fixed point.
+        from copy import deepcopy
+        from statistics import median
+        survey = deepcopy(plan)
+        points = {}
+        try:
+            place_captions(survey, subjects, source_dimensions, keep_safe_defaults=keep_safe_defaults, _survey=True)
+        except ValueError:
+            survey.captions = []  # The stable pass below reports the problem.
+        for caption in survey.captions:
+            if caption.layout is not None and caption.layout.overlap.safe and caption.layout.box is not None:
+                region = caption.layout.overlap.scope.split("; ")[1]
+                points.setdefault((shot(caption), region), []).append(_anchor(caption.layout.box, region))
+        homes = {region: (median(x for x, _ in values), median(y for _, y in values))
+                 for region, values in points.items()}
+    stable = not _survey
     layouts = []
     ink_cache = {}
     vertical = plan.height > plan.width
+    insets = (inset_left, inset_top, inset_right, inset_bottom)
+    if vertical:
+        raise_for_lower_band(plan, insets, source_dimensions, ink_cache)
+    previous_anchor, previous_key = None, None
 
     def reserve(region):
         # Include a small output edge inset as well as every padding bar.
@@ -530,15 +674,12 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                                                      obstacles, masks).safe:
                 continue
         if vertical:
-            short = min(plan.width, plan.height)
-            style = caption.style or CaptionStyle(max(1, short / 18))
-            caption.style = replace(style, outline_width=max(style.outline_width, min(20, short / 270)),
-                                    box_color=style.box_color or "#111111")
+            caption.style = _vertical_style(caption.style, plan)
         phone = plan.brief is not None and plan.brief.caption_mode == "phone"
         minimum_size = 0
         if phone:
-            from .readability import phone_size
-            minimum_size = phone_size(plan.width, plan.height, content.width * plan.width)
+            from .readability import phone_minimum
+            minimum_size = phone_minimum(plan, caption, source_dimensions)
             style = caption.style or CaptionStyle(minimum_size, outline_width=2, box_color="#111111")
             caption.style = replace(style, size=max(style.size, minimum_size))
         placement_region = "sharp picture"
@@ -546,11 +687,9 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
             # Prefer a band only when the entire static caption can fit there
             # throughout its event. A caption spanning differently framed shots
             # uses the intersection of their bands, never crosses the seam.
-            columns = max(1, int((1 - inset_left - inset_right) * .94 * plan.width /
-                                (caption.style.size * .8)))
-            line_count = max(1, len(textwrap.wrap(" ".join(caption.text.split()), width=columns,
-                                                break_long_words=False, break_on_hyphens=False)))
-            required = (line_count * caption.style.size * 1.4 + caption.style.outline_width * 2 + 14) / plan.height / .8
+            band_width = min(.84, (1 - inset_left - inset_right) * .94)
+            required = _band_requirement(_wrap(caption, caption.style, plan, band_width, ink_cache if phone else None),
+                                         caption.style, plan)
             bands = [(max(b.bottom for b in contents), 1 - inset_bottom, "lower blur band"),
                      (inset_top, min(b.y for b in contents), "upper blur band")]
             if phone:
@@ -576,29 +715,20 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
         # word. Oversized empty boxes make otherwise safe close-ups infeasible.
         words = " ".join(caption.text.split())
 
-        def wrap(size):
-            return textwrap.wrap(words, width=max(1, int(max_width * plan.width / (size * .8))),
-                                 break_long_words=False, break_on_hyphens=False)
+        def wrap(style):
+            return _wrap(caption, style, plan, max_width, ink_cache if phone else None)
 
         def extent(lines, style):
-            padding = style.outline_width * 2 + max(14 if style.box_color else 6,
-                         2 * style.highlight_box_padding + 6 if style.highlight_box_color else 0)
+            padding = _plate_padding(style)
             if phone:
-                text = "\n".join(lines)
-                key = (text, style.size, style.outline_width, str(caption.font), caption.all_caps)
-                if key not in ink_cache:
-                    try:
-                        ink_cache[key] = measure_styled_ink(replace(caption, text=text, style=style), plan.width, plan.height)
-                    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
-                        ink_cache[key] = None
-                ink = ink_cache[key]
+                ink = _styled_ink(caption, "\n".join(lines), style, plan, ink_cache)
                 if ink:
                     return ink[2]-ink[0]+padding, ink[3]-ink[1]+padding
             return (max(len(line) for line in lines) * style.size * .8 + padding,
                     len(lines) * style.size * 1.4 + padding)
 
         base = caption.style
-        lines = wrap(base.size)
+        lines = wrap(base)
         ink_width, ink_height = extent(lines, base)
         shrink = max(1, ink_width / (max_width * plan.width), ink_height / (max_height * plan.height))
         if shrink > 1:
@@ -612,7 +742,7 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 if candidate <= scale:
                     break
                 style = replace(base, size=max(1, base.size * candidate), outline_width=base.outline_width * candidate)
-                trial = wrap(style.size)
+                trial = wrap(style)
                 trial_width, trial_height = extent(trial, style)
                 if trial_width <= max_width * plan.width and trial_height <= max_height * plan.height:
                     scale, lines = candidate, trial
@@ -624,20 +754,46 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                              min(max_width, ink_width / plan.width), min(max_height, ink_height / plan.height), "lower-third")
         prior = caption.layout
         checked = check_overlap(prior.as_path(), obstacles, masks) if prior else None
+        # A stable anchor: centered in the region, hanging below the picture
+        # in the lower band, else on one baseline. Move only when a face or
+        # reserve would be covered, and then by the smallest move.
+        edge = "top" if placement_region == "lower blur band" else "bottom"
+        home = ((left + right) / 2, top if edge == "top" else min(bottom, max(top, HOME_BOTTOM)))
+        key = (shot(caption), placement_region)
+        if edge == "bottom" and key in homes:
+            home = homes[key]
+        previous = previous_anchor if previous_key == key else None
+
         def choose(event):
             scales = tuple(s for s in (.85, .7, .55) if not phone or caption.style.size*s >= minimum_size)
-            return choose_layout([event], obstacles, masks, allow_motion=False, shrink_scales=scales).events[0]
+            chosen = choose_stable(event, obstacles, masks, home=home, previous=previous, edge=edge,
+                                   aspect=plan.height / plan.width, shrink_scales=scales,
+                                   shrink_penalty=min(plan.width, plan.height) / plan.width) if stable else None
+            return chosen or choose_layout([event], obstacles, masks, allow_motion=False, shrink_scales=scales).events[0]
         if prior and checked.safe:
             layout = replace(prior, overlap=checked)
             boxes = [key.box for key in prior.as_path()]
             event = replace(event, width=min(b.width for b in boxes), height=min(b.height for b in boxes))
         else:
             layout = choose(event)
-        if not layout.overlap.safe:
+        def moved(candidate):
+            """Distance from where the caption is (or home), in output-width units."""
+            if candidate.box is None:
+                return math.inf
+            point = previous or home
+            y = candidate.box.y if edge == "top" else candidate.box.bottom
+            return math.hypot(candidate.box.center[0] - point[0], (y - point[1]) * plan.height / plan.width)
+
+        # A move larger than a 15%-smaller box is worth (see choose_stable)
+        # first tries narrower reflows that may fit beside the subject.
+        far = .15 * min(plan.width, plan.height) / plan.width
+        if not layout.overlap.safe or (stable and moved(layout) > far):
             # A long single line can block a usable side gap on a close-up.
-            # Reflow into narrower boxes before declaring the layout infeasible.
-            # Every alternative still receives the same continuous safety check.
+            # Reflow into narrower boxes before declaring the layout infeasible
+            # or jumping across the frame. Every alternative still receives the
+            # same continuous safety check.
             original_text, original_style = caption.text, caption.style
+            best = (layout, original_text, original_style) if layout.overlap.safe else None
             for fraction in (.7, .5, .35):
                 trial_width = max_width * fraction
                 trial_height = min(.32, (bottom - top) * .8)
@@ -656,11 +812,18 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 trial = replace(event, width=min(trial_width, ink_width / plan.width),
                                 height=min(trial_height, ink_height / plan.height))
                 alternative = choose(trial)
-                if alternative.overlap.safe:
-                    layout = alternative
-                    break
-            else:
+                # A safe layout is only traded for a closer one that stays
+                # readable: at most three lines and no deeper than one shrink step.
+                readable = best is None or (alternative.scale >= .85 - 1e-9 and len(lines) <= 3
+                                            and caption.style.size >= original_style.size * .85 - 1e-9)
+                if alternative.overlap.safe and readable and (best is None or moved(alternative) < moved(best[0]) - 1e-9):
+                    best = (alternative, caption.text, caption.style)
+                    if moved(alternative) <= far:
+                        break
+            if best is None:
                 caption.text, caption.style = original_text, original_style
+            else:
+                layout, caption.text, caption.style = best
         scope = (f"output crop; {placement_region}; aspect UI insets, swept supplied subject tracks and "
                  "visible-content bounds; detector recall unverified")
         if not obstacles:
@@ -676,6 +839,9 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 pass  # Unmeasurable here (custom font, no FFmpeg/libass): the renderer still measures.
         layout = replace(layout, overlap=replace(layout.overlap, scope=scope))
         caption.layout = layout
+        if layout.overlap.safe and layout.box is not None:
+            previous_anchor = (layout.box.center[0], layout.box.y if edge == "top" else layout.box.bottom)
+            previous_key = key
         if phone and caption.style.size * layout.scale < minimum_size - .01:
             raise ValueError(f"Phone captions need review: {caption.id} cannot fit safely at the minimum "
                              f"{minimum_size:.1f}px ({minimum_size/plan.width:.1%} of output width). "

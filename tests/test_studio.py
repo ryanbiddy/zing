@@ -537,7 +537,7 @@ def test_phone_captions_preserve_words_and_times_in_short_groups():
     ordinary = captions_for(sequence, studies, style, recipe, None, brief)
     phone = captions_for(sequence, studies, style, recipe, None, brief, phone=True)
     assert [len(c.words) for c in ordinary] == [9]
-    assert [len(c.words) for c in phone] == [4, 4, 1]
+    assert [len(c.words) for c in phone] == [3, 3, 3]  # balanced: never a one-word orphan
     assert [(w.text, w.start, w.end) for c in phone for w in c.words] == [(w.text, w.start, w.end) for w in words]
     assert all(c.style.size == 60 and c.font is None and c.layout is None for c in phone)
 

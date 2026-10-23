@@ -57,13 +57,55 @@ def detect_picture(frames):
     inside_motion = float(moving[y0:y1, x0:x1].mean())
     retained = (x1-x0)*(y1-y0)/(w*h)
     confidence = min(static_share, float(support[y0-1]), float(support[y1-1]))
-    confident = static_share >= .98 and inside_motion >= .03 and .25 <= retained <= .94 and confidence >= .8
-    return {"version": 1, "confident": bool(confident), "confidence": confidence,
+    geometric = static_share >= .98 and inside_motion >= .03 and .25 <= retained <= .94 and confidence >= .8
+    surround = _surround(mean, (x0, y0, x1, y1))
+    confident = geometric and surround["kind"] == "chrome"
+    reason = ("persistent borders, low temporal variance outside, motion inside, structured flat graphics outside"
+              if confident else surround["reason"] if geometric else "candidate below conservative confidence thresholds")
+    return {"version": 1, "confident": bool(confident), "confidence": confidence if confident else 0.,
+            "geometric_confidence": confidence, "surround": surround,
             "bounds_normalized": [x0/w, y0/h, (x1-x0)/w, (y1-y0)/h],
             "sample_count": len(data), "static_outside_fraction": static_share,
             "outside_mean_std": float(temporal[outside].mean()), "live_moving_fraction": inside_motion,
             "border_support": [float(support[y0-1]), float(support[y1-1])], "retained_area": retained,
-            "reason": "persistent borders, low temporal variance outside, motion inside" if confident else "candidate below conservative confidence thresholds"}
+            "reason": reason}
+
+
+# A plain matte (letterbox/pillarbox bars or a flat frame) has almost no
+# spatial variation. Broadcast chrome carries structure: text, logos, bars or
+# color changes, drawn as mostly flat graphics. Camera scenery around a static
+# shot (desk, wall, shelf) is textured: many small gradients. Thresholds are
+# in 8-bit gray levels of the 320-wide temporal mean image.
+MATTE_MAX_STD = 6.0
+CHROME_MIN_FLAT = .75
+
+
+def _surround(mean, rectangle):
+    """Classify the static region outside the picture: matte, chrome or scenery."""
+    import numpy as np
+    x0, y0, x1, y1 = rectangle
+    h, w = mean.shape
+    core = np.ones((h, w), dtype=bool)
+    # Ignore two sample rows/columns beside the picture: they can blend
+    # picture and bar pixels, and codec ringing sits there.
+    core[max(0, y0-2):min(h, y1+2), max(0, x0-2):min(w, x1+2)] = False
+    if core.sum() < 16:
+        return {"kind": "unknown", "reason": "too few static surround pixels to classify"}
+    values = mean[core]
+    gx = np.zeros_like(mean)
+    gy = np.zeros_like(mean)
+    gx[:, 1:] = np.abs(np.diff(mean, axis=1))
+    gy[1:] = np.abs(np.diff(mean, axis=0))
+    gradient = np.maximum(gx, gy)[core]
+    std, flat = float(values.std()), float((gradient <= 2).mean())
+    evidence = {"spatial_std": std, "flat_fraction": flat, "edge_fraction": float((gradient > 12).mean())}
+    if std < MATTE_MAX_STD:
+        return {**evidence, "kind": "matte", "reason": "uniform outer bars (letterbox/pillarbox matte or flat frame), "
+                "not broadcast chrome; existing framing keeps the source"}
+    if flat < CHROME_MIN_FLAT:
+        return {**evidence, "kind": "scenery", "reason": "static surround is textured like camera scenery "
+                "(desk, wall or shelf), not flat broadcast graphics; existing framing keeps the source"}
+    return {**evidence, "kind": "chrome", "reason": "structured flat graphics outside the picture"}
 
 
 def analyze_picture(path, ranges, size, *, ffmpeg="ffmpeg"):
@@ -72,7 +114,9 @@ def analyze_picture(path, ranges, size, *, ffmpeg="ffmpeg"):
     except ImportError:
         return {"version": 1, "confident": False, "confidence": 0.,
                 "reason": 'picture detection needs NumPy; install it with pip install "myzing[color]"'}
-    width = 320
+    # Area averaging confines each chrome/picture boundary to one sample row
+    # or column; never upsample a small source.
+    width = max(16, min(320, size[0] // 2 * 2))
     height = max(16, round(size[1]*width/size[0]))
     evidence = []
     merged = []
@@ -90,7 +134,7 @@ def analyze_picture(path, ranges, size, *, ffmpeg="ffmpeg"):
                 return {"version": 1, "confident": False, "confidence": 0., "reason": "used trim shorter than one second"}
             result = subprocess.run([ffmpeg, "-v", "error", "-nostdin", "-ss", str(start), "-t", str(span),
                 "-protocol_whitelist", "file,pipe", "-i", str(path), "-vf",
-                f"fps={12/span},scale={width}:{height},format=gray", "-frames:v", "12", "-threads", "1",
+                f"fps={12/span},scale={width}:{height}:flags=area,format=gray", "-frames:v", "12", "-threads", "1",
                 "-f", "rawvideo", "-pix_fmt", "gray", "pipe:1"], capture_output=True, timeout=60, check=False)
             if result.returncode or len(result.stdout) % (width*height):
                 raise ValueError("frame sampling failed")
@@ -99,18 +143,31 @@ def analyze_picture(path, ranges, size, *, ffmpeg="ffmpeg"):
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         return {"version": 1, "confident": False, "confidence": 0., "reason": f"picture detection unavailable: {exc}"}
     if not evidence or not all(e["confident"] for e in evidence):
+        failed = next((e for e in evidence if not e["confident"]), {})
         return {"version": 1, "confident": False, "confidence": 0., "ranges": evidence,
-                "reason": "not every used range has a confident static frame"}
+                "reason": "not every used range has a confident static frame" +
+                          (f" ({failed['reason']})" if failed.get("reason") else "")}
     first = evidence[0]
     if any(max(abs(a-b) for a, b in zip(e["bounds_normalized"], first["bounds_normalized"])) > .01 for e in evidence):
         return {"version": 1, "confident": False, "confidence": 0., "ranges": evidence, "reason": "picture bounds change between used ranges"}
     x, y, w, h = first["bounds_normalized"]
-    # Round inward to even pixels; never retain a sampled chrome boundary row.
+    # A border can fall inside one area-averaged sample row/column, which then
+    # blends chrome and picture. Step one sample inward on every side that has
+    # chrome, then round inward to even pixels: no chrome row survives.
     import math
-    left, top = math.ceil(x*size[0]/2)*2, math.ceil(y*size[1]/2)*2
-    right, bottom = math.floor((x+w)*size[0]/2)*2, math.floor((y+h)*size[1]/2)*2
+    sx, sy = size[0] / width, size[1] / height
+    inset_left = sx if x > 0 else 0
+    inset_right = sx if x + w < 1 - 1e-9 else 0
+    left = math.ceil((x*size[0] + inset_left)/2)*2
+    top = math.ceil((y*size[1] + sy)/2)*2
+    right = math.floor(((x+w)*size[0] - inset_right)/2)*2
+    bottom = math.floor(((y+h)*size[1] - sy)/2)*2
+    if right - left < 16 or bottom - top < 16:
+        return {"version": 1, "confident": False, "confidence": 0., "ranges": evidence,
+                "reason": f"live picture collapses to {max(0, right-left)}x{max(0, bottom-top)} px after inward "
+                          "rounding; keeping the full frame"}
     return {**first, "bounds_pixels": [left, top, right-left, bottom-top], "ranges": evidence,
-            "method": "static-picture-v1", "decision": "crop to live picture"}
+            "method": "static-picture-v2", "decision": "crop to live picture"}
 
 
 def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, picture=None, policy="auto", **kwargs):

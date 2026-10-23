@@ -79,7 +79,7 @@ that a stored checksum still matches bytes on disk.
 | `id`, `asset_id` | Unique clip instance ID and an existing asset ID. Repeated uses of an asset have different clip IDs. |
 | `speed_map` | Ordered `SpeedSegment` array, default `[]` for rate 1. Segments must tile the complete source trim without gaps or overlaps. |
 | `color` | `ColorTransform` or null. |
-| `framing` | Optional versioned fit/fill/reframe/zoomfill/blurfill geometry, with crop assessments and optional speaker turns. Omitted means legacy fit and is omitted from serialized bytes. See [framing](FRAMING.md). |
+| `framing` | Optional versioned fit/fill/reframe/zoomfill/blurfill geometry, with crop assessments and optional speaker turns, live-picture evidence (`picture`) and, for blurfill/zoomfill, an optional sharp-picture top `foreground_top` (0–1 of output height; null centers it). Omitted means legacy fit and is omitted from serialized bytes. See [framing](FRAMING.md). |
 | `version` | `1`. |
 
 Each `SpeedSegment` contains `src_in`, `src_out`, positive `rate` (source seconds

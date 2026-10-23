@@ -90,13 +90,17 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         for word in lookup[c.asset_id].words:
             if not (word.start >= c.start - EPS and word.end <= c.end + EPS):
                 continue
-            if window and (window[-1].end in clause_ends or (phone and len(window) >= 4)):
+            if window and window[-1].end in clause_ends:
                 groups.append((window, cursor - c.start))
                 window = []
             window.append(word)
         if window:
             groups.append((window, cursor - c.start))
         cursor += c.duration
+    if phone:
+        # Balanced groups of up to four words; no one-word flashes.
+        from myzing.layout.readability import phone_word_groups
+        groups = [(part, offset) for window, offset in groups for part in phone_word_groups(window)]
     result = []
     caps_count = round(style.all_caps_rate * len(groups))
     layout = recipe.approximations.layout
@@ -133,6 +137,9 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         if not phone and layout and layout.events:
             caption.layout = _layout(caption, layout.events[i % len(layout.events)], layout.masks)
         result.append(caption)
+    if phone and result:
+        from myzing.layout.readability import hold_short_events
+        hold_short_events(result, cursor)
     prepare_words([w for c in result for w in c.words], cursor, repair=False)
     return result
 

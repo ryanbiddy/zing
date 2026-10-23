@@ -329,8 +329,14 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
             offset = math.ceil(a_time * 1000) - start * 10
             finish = math.ceil(b_time * 1000) - start * 10
             active = next((i for i, (a, b) in enumerate(word_frames) if a <= start_frame < b), None)
-            position = _motion(anchor(a_time), anchor(b_time), finish, offset)
             completed = {i for i, (_, b) in enumerate(word_frames) if b <= start_frame}
+            if style.highlight_box_color and word_frames:
+                # The active-word plate holds through pauses until the next
+                # word starts (and to the event end), so it never blinks off
+                # mid-phrase. Only colors change; glyph geometry never does.
+                active = max((i for i, (a, _) in enumerate(word_frames) if a <= start_frame), default=None)
+                completed = set(range(active)) if active is not None else set()
+            position = _motion(anchor(a_time), anchor(b_time), finish, offset)
             text = "{" + _tags(caption, style, font, font_scale) + position + "}" + _text(runs, style, active, completed)
             lines.append(_dialogue(start, end, text, layer=2 if style.highlight_box_color else 1))
             if active in word_bounds:
