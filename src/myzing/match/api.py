@@ -94,12 +94,13 @@ def capabilities():
             "whisper_cache": whisper}
 
 
-def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False):
+def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False, speech_model=None):
     before = projects.hash_file(Path(source))
     b = study(str(source), workspace=workspace, raw_mode=raw, caption_geometry=True,
               fonts=fonts, detect_transitions=not raw, local_models_only=True,
               model_workspace=storage.resolve_workspace(),
-              **({"shot_min_scene_len_s": 0.0} if verification else {}))
+              **({"shot_min_scene_len_s": 0.0} if verification else {}),
+              **({"speech_model": speech_model} if speech_model is not None else {}))
     if projects.hash_file(Path(source)) != before:
         raise ValueError("Source changed during study; wait for writes to finish and --resume.")
     if max_seconds and b.meta.duration > max_seconds:
@@ -333,9 +334,15 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 raise ValueError(resolution.reason)
             return {"path": resolution.path, "sha256": resolution.sha256, "outputs": [resolution.path]}
 
+        speech = {"speech_model": studio_options["speech_model"]} if studio_options and "speech_model" in studio_options else {}
+        if speech:
+            from myzing.study.speech_models import local_path
+            name = speech["speech_model"]
+            local = local_path(name) if name != "skip" else None
+            caps["studio_speech"] = {"model": name, "path": str(local) if local else None}
         resolved = checkpoints.step("reference-resolve", ref_key, resolve)
         ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps],
-                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60.05))
+                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60.05, **speech))
         # Keep the existing brief recommendation and reference contracts useful.
         from myzing.project.locking import project_lock
         with project_lock(root):
@@ -352,7 +359,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             source = resolve_path(asset.path, root)
             sha = projects.hash_file(source)
             clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps],
-                                                      lambda source=source: _study(str(source), root, raw=True))
+                                                      lambda source=source: _study(str(source), root, raw=True, **speech))
             audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.2"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             if caps["color"]:
@@ -455,7 +462,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     return {"path": str(path), "outputs": [str(path)], "verification": result}
                 verified = checkpoints.step("decode-" + label, projects.hash_file(video), verify)
                 output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps, "short-shot-verification-v1"],
-                                                lambda: _study(str(video), root / "verification", verification=True))
+                                                lambda: _study(str(video), root / "verification", verification=True, **speech))
                 timeline = video.with_suffix(".png")
                 inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v1"],
                     lambda: _inspect(video, timeline, output_study, root / "verification", verified["verification"]["duration"]))

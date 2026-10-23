@@ -55,7 +55,8 @@ tools or imply that a connected MCP server grants shell access.
   use a local viewer. That tool returns image content, unlike the path-only
   inspectors.
 - Ask before downloads unless the user already authorized that exact acquisition.
-  Package installs, uncached Whisper/OCR models, layout model fetching, video URLs,
+  Package installs, Whisper setup (`zing doctor --speech-model`; study never fetches
+  one), uncached OCR models, layout model fetching, video URLs,
   preset setup and uncached meme templates can require network access. A local
   video does not make a first study offline. Use local assets/caches when possible;
   `--offline` on meme rendering forbids template fetching, not all Zing networking.

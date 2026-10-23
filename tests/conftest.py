@@ -68,6 +68,17 @@ def isolated_uoink_transport(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_model_downloads(monkeypatch):
+    """Model bytes have one network seam; a test that reaches it must fake it."""
+    from myzing import model_fetch
+
+    def refuse(url, *args, **kwargs):
+        raise AssertionError(f"unmocked model download attempted: {url}")
+
+    monkeypatch.setattr(model_fetch, "open_url", refuse)
+
+
+@pytest.fixture(autouse=True)
 def preserve_v1_contract_bytes(monkeypatch):
     """Check every existing fixture/golden that constructs or serializes v1."""
     from myzing.schemas import Breakdown, EDL, StyleProfile

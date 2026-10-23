@@ -134,10 +134,10 @@ def speech_model_note():
     if data.get("cached"):
         return None
     if not data.get("model"):
-        return ("Speech transcription is not installed (myzing[study]), and studio never downloads models. "
+        return ("Speech transcription is not installed (myzing[study]), and needs explicit setup consent. "
                 "Clips with speech can be left out of A/B/C; run zing doctor before confirming.")
-    return (f"The speech model {data['model']!r} is not downloaded, and studio never downloads models. "
-            "Clips with speech can be left out of A/B/C. Download it once with zing study on one clip, "
+    return (f"The speech model {data['model']!r} is not downloaded, and needs explicit setup consent. "
+            "Clips with speech can be left out of A/B/C. Choose speech setup in studio or run zing doctor --speech-model small.en, "
             "or set ZING_WHISPER_MODEL to a local model folder.")
 
 

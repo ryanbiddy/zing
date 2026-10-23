@@ -49,8 +49,12 @@ uv run --frozen zing serve-mcp --print-config
 `zing doctor` reports feature gaps and returns 1 if a required dependency is
 missing. An MCP-only install without FFmpeg can still serve the tools below;
 the doctor's video-readiness verdict is not an MCP connection test. Do not
-start an uncached study just to check installation. Study can download speech
-or OCR weights, even for a local video. Ask before downloading models or media.
+start an uncached study just to check installation. Study never downloads a
+speech model; an uncached one leaves the transcript empty. After the user
+approves the download, prepare one with `zing doctor --speech-model small.en`
+(or `large-v2`; add `--yes` when non-interactive). Study can still fetch
+missing OCR weights, even for a local video. Ask before downloading models or
+media.
 
 ## Connect over MCP
 

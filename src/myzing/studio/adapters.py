@@ -8,8 +8,11 @@ from .models import read_json, write_json
 
 
 def validate_options(value):
-    if not isinstance(value, dict) or set(value) - {"captions", "music", "tone", "no_reference"}:
-        raise ValueError("studio_options must contain only captions, music, tone and no_reference")
+    if not isinstance(value, dict) or set(value) - {"captions", "music", "tone", "no_reference", "speech_model"}:
+        raise ValueError("studio_options must contain only captions, music, tone, no_reference and speech_model")
+    if "speech_model" in value:
+        from .flow import normalize
+        normalize("speech_model", value["speech_model"])
     if "captions" in value and value["captions"] not in {"none", "phone"}:
         raise ValueError("studio_options.captions: choose none or phone")
     if "no_reference" in value and type(value["no_reference"]) is not bool:

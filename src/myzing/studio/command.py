@@ -47,6 +47,10 @@ def show_plan(plan, out):
 
 def show_result(result, out):
     print("\nStudio: " + result.get("status", "failed"), file=out)
+    if result.get("speech_setup"):
+        setup = result["speech_setup"]
+        print(setup.get("note") or f"Speech model: {setup['model']}; downloaded {setup['downloaded_bytes'] / 1e6:.1f} MB; "
+              + ("SHA-256 verified" if setup.get("verified") else "existing local cache"), file=out)
     if result.get("error"):
         print(result["error"], file=out)
     if "creator_summary" in result:
@@ -186,7 +190,16 @@ def run(argv):
             print("Already at the first question.", file=sys.stderr)
             return
         key = session.history.pop()
-        session.answers.pop(key, None)
+        value = session.answers.pop(key, None)
+        if key == "speech_download" and value is False and session.history[-1:] == ["speech_model"]:
+            # After a declined download, b means "choose another model", not
+            # "ask the same download question again".
+            key = session.history.pop()
+            session.answers.pop(key, None)
+        if key == "speech_model":
+            session.answers.pop("speech_download", None)
+            if "speech_download" in session.history:
+                session.history.remove("speech_download")
         if key == "platform":
             session.answers.pop("aspects", None)
         if key == "reference" and "tone" not in session.history:
@@ -196,6 +209,7 @@ def run(argv):
 
     try:
         if args.resume:
+            jobs.reconcile(args.resume)
             session = load_session(args.resume)
             # A moved folder remains the home of the resumed session.
             from pathlib import Path
@@ -206,6 +220,10 @@ def run(argv):
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{args.answers} is not valid JSON ({exc}); write one object keyed by question IDs.") from None
             supplied = flow.normalize_answers(raw_answers)
+            if "speech_model" in supplied and supplied["speech_model"] != session.answers.get("speech_model"):
+                session.answers.pop("speech_download", None)
+                if "speech_download" in session.history:
+                    session.history.remove("speech_download")
             session.answers.update(supplied)
             session.result = {}
         if session.status == "ready" and session.result and not args.answers and session.answers.get("path") != "a":
@@ -273,7 +291,10 @@ def run(argv):
                     back()
                     continue
                 try:
-                    session.answers[q["id"]] = flow.normalize(q["id"], _answer(q, raw))
+                    value = _answer(q, raw)
+                    if q["id"] == "speech_download":
+                        value = value if type(value) is bool else str(value).lower() in {"yes", "y"}
+                    session.answers[q["id"]] = flow.normalize(q["id"], value)
                 except (ValueError, OSError) as exc:
                     print(str(exc))
                     continue
@@ -354,6 +375,8 @@ def run(argv):
             beat.join(timeout=2)
         session.result = result
         if result.get("status") == "cancelled":
+            if not args.json:
+                print("Studio run cancelled", flush=True)
             return pause()  # Ctrl+C reached the match worker; say how to continue.
         persist(result["status"])
         emit("result", {**result, "questions_asked": session.questions_asked})
