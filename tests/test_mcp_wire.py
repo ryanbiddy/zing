@@ -31,14 +31,14 @@ def without_protect(tool):
 
 
 def assert_wire(actual, expected):
-    # The SDK1 capture is immutable historical evidence. MUSIC1 adds one tool;
+    # The SDK1 capture is immutable historical evidence. MUSIC1/CARD1 add tools;
     # continue comparing every original tool byte, and test the addition via
     # the current registry/stdio pins and test_music.py. POLISH1's protect
     # argument is stripped the same way and tested in test_meme_protect.py.
     actual = copy.deepcopy(actual)
     if isinstance(actual, dict) and isinstance(actual.get("result"), dict) and "tools" in actual["result"]:
         actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
-                                     if t["name"] != "music_check"]
+                                     if t["name"] not in {"music_check", "zing_explain"}]
     actual, expected = canonical(actual), canonical(expected)
     assert actual == expected, "".join(difflib.unified_diff(
         expected.splitlines(True), actual.splitlines(True),
@@ -62,7 +62,7 @@ def test_sdk1_fixture_provenance():
     from test_mcp_stdio import EXPECTED_TOOLS
     tools = GOLDEN[2]["response"]["result"]["tools"]
     assert len(tools) == 32
-    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check"}
+    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_explain"}
     assert len(GOLDEN[3]["response"]["result"]["prompts"]) == 5
 
 

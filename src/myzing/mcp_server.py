@@ -104,6 +104,14 @@ def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
 
 
+def h_zing_explain(source: str, out_dir: str, transitions: bool = True,
+                   offline: bool = True, against: str | None = None) -> dict[str, Any]:
+    """Write local card files and return paths/metadata only."""
+    from myzing.explain.api import _explain
+    return _explain(source, out_dir, transitions=transitions, offline=offline,
+                    against=against, allow_download=not offline)
+
+
 def h_brief_questions() -> dict[str, Any]:
     """Return the terminal interview's questions, defaults, and answer examples."""
     from myzing.brief.questions import brief_questions
@@ -1793,6 +1801,7 @@ def build_server():
             "-> write text -> meme_check -> meme_render. Meme tools make no model calls."
         ),
     )
+    mcp.tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
     mcp.tool(
         name="brief_questions",
         description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",

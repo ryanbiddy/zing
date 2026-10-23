@@ -59,6 +59,12 @@ def test_command_catalog_covers_cli_registry():
     assert catalog == set(_COMMANDS)
 
 
+def test_explain_documented_surface():
+    assert "zing_explain" in (ROOT / "docs/CONNECT.md").read_text(encoding="utf-8")
+    assert "zing explain" in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "explain_video(source, out_dir, *, transitions=True, offline=True)" in (ROOT / "docs/EXPLAIN.md").read_text(encoding="utf-8")
+
+
 def test_extras_tables_match_package():
     project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     section = project.split("[project.optional-dependencies]", 1)[1].split("\n[", 1)[0]
