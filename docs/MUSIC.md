@@ -233,7 +233,9 @@ compares their sidecars within 0.2 LU.
 
 `zing plan drafts` still writes a v1 EDL derivative for a music plan: picture,
 captions and dialogue, with the music bed (trim, gain, fades, duck envelope
-keyframes and speech spans) in `plan-A.edl.music.json` for a human editor.
+keyframes with bed gain points, and speech spans) and each clip's dialogue
+gain, compressor and source-change fades in `plan-A.edl.music.json` for a
+human editor; EDL v1 plays the clips' audio unchanged.
 See [Three draft plans](PLAN-DRAFTS.md) for the sidecar fields and what EDL v1
 cannot carry.
 

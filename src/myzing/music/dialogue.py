@@ -135,6 +135,28 @@ def validate(rows) -> None:
 TAIL_FADE_SECONDS, HEAD_FADE_SECONDS, WORD_GUARD_SECONDS = 0.3, 0.1, 0.02
 
 
+def edge_fade_seconds(clips, spans) -> list[tuple[float, float]]:
+    """(fade-in, fade-out) seconds of each clip's own audio; 0 where none (see edge_fades)."""
+    out = []
+    for i, clip in enumerate(clips):
+        start, end = clip.timeline_start, clip.timeline_start + clip.duration
+        mine = [(a, b) for a, b in spans if a < end and b > start]
+
+        def changes(other):
+            return other is not None and other.asset_id != clip.asset_id
+        fade_in = fade_out = 0.0
+        if changes(clips[i - 1] if i else None):
+            head = min((a for a, _ in mine), default=end) - start - WORD_GUARD_SECONDS
+            if head >= .03:
+                fade_in = min(HEAD_FADE_SECONDS, head)
+        if changes(clips[i + 1] if i + 1 < len(clips) else None):
+            tail = end - max((b for _, b in mine), default=start) - WORD_GUARD_SECONDS
+            if tail >= .03:
+                fade_out = min(TAIL_FADE_SECONDS, tail)
+        out.append((fade_in, fade_out))
+    return out
+
+
 def edge_fades(clips, spans) -> list[tuple[str, ...]]:
     """Speech-free audio fades where the source changes at a hard cut.
 
@@ -148,21 +170,11 @@ def edge_fades(clips, spans) -> list[tuple[str, ...]]:
     the known speech spans in output seconds.
     """
     out = []
-    for i, clip in enumerate(clips):
-        start, end = clip.timeline_start, clip.timeline_start + clip.duration
-        mine = [(a, b) for a, b in spans if a < end and b > start]
-
-        def changes(other, before):
-            return other is not None and other.asset_id != clip.asset_id
+    for clip, (fade_in, fade_out) in zip(clips, edge_fade_seconds(clips, spans)):
         filters = []
-        if changes(clips[i - 1] if i else None, True):
-            head = min((a for a, _ in mine), default=end) - start - WORD_GUARD_SECONDS
-            if head >= .03:
-                filters.append(f"afade=t=in:st=0:d={min(HEAD_FADE_SECONDS, head):.6f}")
-        if changes(clips[i + 1] if i + 1 < len(clips) else None, False):
-            tail = end - max((b for _, b in mine), default=start) - WORD_GUARD_SECONDS
-            if tail >= .03:
-                d = min(TAIL_FADE_SECONDS, tail)
-                filters.append(f"afade=t=out:st={clip.duration - d:.6f}:d={d:.6f}")
+        if fade_in:
+            filters.append(f"afade=t=in:st=0:d={fade_in:.6f}")
+        if fade_out:
+            filters.append(f"afade=t=out:st={clip.duration - fade_out:.6f}:d={fade_out:.6f}")
         out.append(tuple(filters))
     return out
