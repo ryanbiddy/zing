@@ -48,6 +48,8 @@ class ReferenceResolution(Record):
     provenance: dict[str, Any] = field(default_factory=dict)
     reason: str | None = None
     version: int = 1
+    # The Uoink corpus item's title (corpus.read/1 get), when it answered.
+    title: str | None = None
 
     def __post_init__(self):
         if self.state not in {"resolved", "unresolved"}:

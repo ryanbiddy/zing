@@ -17,7 +17,8 @@ def run(argv: list[str]) -> int:
         description="Plan three edits from local studies and a saved brief, then record your choice.",
     )
     sub = parser.add_subparsers(dest="action", required=True)
-    drafts = sub.add_parser("drafts", help="write Composition v2 plans, v1 derivatives where supported, and comparison.json")
+    drafts = sub.add_parser("drafts", help="write Composition v2 plans, v1 derivatives where supported (music plans: picture and "
+                                       "dialogue plus a music sidecar), and comparison.json")
     drafts.add_argument("project", type=Path)
     drafts.add_argument("--recipe", type=Path, required=True)
     drafts.add_argument("--seed", type=int, default=0)

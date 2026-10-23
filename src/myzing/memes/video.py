@@ -8,7 +8,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import warnings
 from dataclasses import asdict, dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -18,6 +17,7 @@ from myzing import storage
 from myzing.render.pipeline import filter_script_args
 from . import MemeError
 from .framing import FITS, fill_origin
+from .photo import load_photo
 from .render import (ASPECT_ALIASES, MAX_PIXELS, Rect, _draw_layer, fit_rect, normalized_regions,
                      layout_boxes, output_size, require_pillow, resolve_font, text_layers)
 from .templates import fetch_blank, get_template
@@ -269,7 +269,7 @@ def render_meme_video(texts: list[str], *, video: str = "", image: str = "", tem
         regions = selected["box_layout"]
     layout_boxes(layout, len(texts), (1080, 1080), regions=regions)
     font = resolve_font(font or ("sans" if layout == "caption" else "anton"))
-    Image, _, _, _, ImageOps = require_pillow()
+    Image = require_pillow()[0]
     ffmpeg, ffprobe = shutil.which("ffmpeg"), shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
         raise MemeError("Animated memes require FFmpeg and ffprobe on PATH; install FFmpeg and run zing doctor.")
@@ -295,22 +295,21 @@ def render_meme_video(texts: list[str], *, video: str = "", image: str = "", tem
             raise MemeError(f"{dest} already exists; choose another --out or pass overwrite.")
     if target.suffix.lower() != ".mp4":
         raise MemeError("Animated output must end in .mp4; use gif=true / --gif for a companion GIF.")
-    info = _probe(source, ffprobe)
-    source_size = (info["width"], info["height"])
     still = None
-    if not video:
+    if video:
+        info = _probe(source, ffprobe)
+        source_size = (info["width"], info["height"])
+    else:
+        # Stills share the meme decoder: EXIF/HEIF orientation, HEIC through
+        # FFmpeg, and large photos reduced to a bounded working copy.
         try:
-            with warnings.catch_warnings():
-                warnings.simplefilter("error", Image.DecompressionBombWarning)
-                with Image.open(source) as opened:
-                    if getattr(opened, "n_frames", 1) != 1:
-                        raise MemeError("Animated image supplied as a still; use --video for GIF motion.")
-                    if opened.width * opened.height > MAX_PIXELS or max(opened.size) > 8192:
-                        raise MemeError("Source exceeds the 8192px / 40 megapixel limit; resize it first.")
-                    still = ImageOps.exif_transpose(opened).convert("RGB")
-            source_size = still.size
-        except (OSError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-            raise MemeError(f"Could not decode still image: {exc}; resize or re-encode it.") from exc
+            still, _origin = load_photo(source, single_frame=True, ffmpeg=ffmpeg, ffprobe=ffprobe)
+        except MemeError as exc:
+            if "single-frame" in str(exc):
+                raise MemeError("Animated image supplied as a still; use --video for GIF motion.") from exc
+            raise MemeError(f"Could not decode still image: {exc}") from exc
+        source_size = still.size
+        info = {"duration": None, "stream": 0, "format": "", "has_audio": False}
     if video:
         if info["duration"] is None:
             raise MemeError("Video/GIF has no finite duration; re-encode it before rendering.")

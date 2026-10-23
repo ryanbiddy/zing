@@ -84,6 +84,10 @@ class Brief:
     framing: str = field(default="auto", metadata={"omit_default": True})
     aspects: list[str] = field(default_factory=list, metadata={"omit_default": True})
     framing_max_upscale: float = field(default=2.5, metadata={"omit_default": True})
+    # Delivery short side in pixels (1080 = 1080x1920 at 9:16), or "auto":
+    # lower it when a low-resolution source cannot reach its sharp target
+    # within framing_max_upscale (see docs/FRAMING.md, "Low-resolution sources").
+    short_side: int | str = field(default=1080, metadata={"omit_default": True})
 
     def __post_init__(self):
         if type(self.version) is not int or self.version != 1:
@@ -97,6 +101,10 @@ class Brief:
         if (not isinstance(self.aspects, list) or any(a not in ("16:9", "1:1", "9:16") for a in self.aspects)
                 or len(set(self.aspects)) != len(self.aspects)):
             raise BriefError("aspects: use a unique list of 16:9, 1:1, and/or 9:16.")
+        if self.short_side != "auto" and (type(self.short_side) is not int or not 18 <= self.short_side <= 4320
+                                          or self.short_side % 18):
+            raise BriefError('short_side: use "auto" or a multiple of 18 from 18 to 4320 (1080 = full HD; '
+                             '720 = 720x1280 at 9:16).')
         self.framing_max_upscale = number(self.framing_max_upscale, "framing_max_upscale")
         if not 1 <= self.framing_max_upscale <= 16:
             raise BriefError("framing_max_upscale: choose a linear enlargement limit from 1 to 16.")
@@ -131,6 +139,8 @@ class Brief:
             result.pop("aspects")
         if self.framing_max_upscale == 2.5:
             result.pop("framing_max_upscale")
+        if self.short_side == 1080:
+            result.pop("short_side")
         return result
 
     @classmethod
@@ -153,7 +163,7 @@ class Brief:
     def from_dict(cls, data: dict) -> Brief:
         if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] != 1:
             raise BriefError("Unsupported Brief version; expected version 1. Use --answers for unversioned answers.")
-        missing = {f.name for f in fields(cls)} - {"framing", "aspects", "framing_max_upscale"} - set(data)
+        missing = {f.name for f in fields(cls)} - {"framing", "aspects", "framing_max_upscale", "short_side"} - set(data)
         if missing:
             raise BriefError(f"Incomplete saved brief: missing {', '.join(sorted(missing))}. Use --answers to apply defaults.")
         return cls.from_answers({k: v for k, v in data.items() if k != "version"})

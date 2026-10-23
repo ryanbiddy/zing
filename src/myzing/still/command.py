@@ -37,6 +37,9 @@ def run(argv: list[str]) -> int:
                                  "ran and the faces (or a measured subject) fit with margin, else "
                                  "blur-fills and warns why; contain letterboxes")
         parser.add_argument("--lines", help="local JSON file of AI/user-written ideas; its length overrides --n")
+        parser.add_argument("--protect", action="append", metavar="X,Y,W,H",
+                            help="normalized box text must avoid on every photo (repeatable), "
+                                 "in addition to faces and the subject estimate")
     args = parser.parse_args(argv[1:] if picking else argv, namespace=workspace_args)
     try:
         with storage.use_workspace(args.workspace or storage.workspace_root()):
@@ -45,7 +48,7 @@ def run(argv: list[str]) -> int:
             else:
                 result = {"ok": True, **create_stills(args.photos, args.topic, args.out, n=args.n,
                                                      aspect=args.aspect, layout=args.layout, lines=args.lines,
-                                                     fit=args.fit)}
+                                                     fit=args.fit, protect=args.protect)}
     except (OSError, ValueError) as exc:
         result = {"ok": False, "error": str(exc)}
     if args.json:

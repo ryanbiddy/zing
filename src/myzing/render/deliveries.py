@@ -9,6 +9,8 @@ from pathlib import Path
 from myzing.composition.aspects import dimensions, requested_aspects
 from myzing.layout.delivery import adapt_plan
 from myzing.layout.framing import analyze_subjects
+from myzing.layout.resolution import (auto_gain, chosen_short_side, mark_auto_declined, mark_auto_selected,
+                                      resolution_advice)
 from myzing.layout.media import probe_duration
 from myzing.study.shots import detect_shots
 from .composition import _path, _verify, render_composition, unsupported_features
@@ -67,19 +69,23 @@ def used_ranges(plan):
 
 
 def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=None, max_upscale=None,
-                   short_side=1080, ffprobe="ffprobe", measured=None):
+                   short_side=None, ffprobe="ffprobe", measured=None):
     """Hash local inputs first, measure once, then independently adapt each plan.
 
     measured may carry measure_sources results shared with other plans; any
-    source it lacks is measured here over this plan's own trims.
+    source it lacks is measured here over this plan's own trims. short_side
+    is an int, "auto", or None for the brief's value (default 1080); auto
+    lowers an aspect's size when its resolution advice recommends it.
     """
     base_dir = Path(base_dir or Path.cwd()).resolve()
     directory = Path(directory).resolve()
     selected = requested_aspects(composition, aspects)
     if not selected:
         raise EDLValidationError("No delivery aspects supplied; use --aspect all or a brief aspects list")
+    if short_side is None:
+        short_side = getattr(composition.brief, "short_side", 1080) if composition.brief else 1080
     for aspect in selected:
-        dimensions(aspect, short_side)
+        dimensions(aspect, 1080 if short_side == "auto" else short_side)
     plan = deepcopy(composition)
     plan.__post_init__()
     unsupported = unsupported_features(plan)
@@ -121,15 +127,35 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
         evidence[asset_id] = {"display_dimensions": sizes[asset_id], "tracks": [t.to_dict() for t in tracks[asset_id]],
                               "cuts": cuts[asset_id], "analyzed_ranges": [list(r) for r in item["ranges"]],
                               "warnings": item["warnings"]}
-    results = {aspect: adapt_plan(plan, *dimensions(aspect, short_side), sizes, tracks,
-                                 requested=requested, max_upscale=limit, cuts=cuts) for aspect in selected}
+    results, resolution = {}, {}
+    for aspect in selected:
+        size = dimensions(aspect, 1080 if short_side == "auto" else short_side)
+        result = adapt_plan(plan, *size, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts)
+        advice = resolution_advice(result.clips, sizes, *size, max_upscale=limit,
+                                   command=f"zing render PLAN.json --aspect {aspect}")
+        lower = chosen_short_side(advice, short_side)
+        if lower != min(size):
+            trial = dimensions(aspect, lower)
+            lowered = adapt_plan(plan, *trial, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts)
+            second = resolution_advice(lowered.clips, sizes, *trial, max_upscale=limit,
+                                       command=f"zing render PLAN.json --aspect {aspect}")
+            if auto_gain(advice, second):
+                # Keep the lower size only when its planned picture improves.
+                advice, size, result = mark_auto_selected(second, advice), trial, lowered
+            else:
+                mark_auto_declined(advice, second)
+        if advice["limited"] or advice.get("auto_selected"):
+            # Up front: the first thing a reader of the delivery plan sees.
+            result.warnings.insert(0, advice["summary"])
+        results[aspect], resolution[aspect] = result, advice
     for result in results.values():
         result.warnings.extend(w for item in evidence.values() for w in item["warnings"])
-    return results, {"version": 1, "sources": evidence, "framing": requested, "max_upscale": limit}
+    return results, {"version": 1, "sources": evidence, "framing": requested, "max_upscale": limit,
+                     "short_side": short_side, "resolution": resolution}
 
 
 def render_deliveries(composition, output, *, aspects=None, base_dir=None, work_dir=None,
-                      framing=None, max_upscale=None, short_side=1080, ffmpeg="ffmpeg", ffprobe="ffprobe",
+                      framing=None, max_upscale=None, short_side=None, ffmpeg="ffmpeg", ffprobe="ffprobe",
                       inputs=()):
     """Render each aspect; inputs are extra read-only paths (e.g. the source plan).
 
@@ -176,7 +202,8 @@ def _render_deliveries(composition, output, work, selected, report_path, base_di
             stem = output.stem + "." + aspect.replace(":", "x")
             video, saved = output.with_name(stem + ".mp4"), output.with_name(stem + ".json")
             row = rows[aspect] = {"status": "rendering", "video": str(video), "plan": str(saved),
-                                  "width": plan.width, "height": plan.height}
+                                  "width": plan.width, "height": plan.height,
+                                  "resolution": evidence["resolution"][aspect]}
             _write(saved, plan.to_dict())
             result = render_composition(plan, video, base_dir=saved.parent, work_dir=work / aspect.replace(":", "x"),
                                         ffmpeg=ffmpeg, ffprobe=ffprobe)

@@ -132,6 +132,12 @@ timeline, so each 16:9, 1:1 and 9:16 delivery ducks under the same speech
 spans and measures the same mix; a generated test renders all three and
 compares their sidecars within 0.2 LU.
 
+`zing plan drafts` still writes a v1 EDL derivative for a music plan: picture,
+captions and dialogue, with the music bed (trim, gain, fades, duck envelope
+keyframes and speech spans) in `plan-A.edl.music.json` for a human editor.
+See [Three draft plans](PLAN-DRAFTS.md) for the sidecar fields and what EDL v1
+cannot carry.
+
 Match JSON includes the music choice and measured mix. `zing inspect timeline`
 reads a matching sidecar, returns its measurements and draws pink moment
 markers beside amber planned cuts. A mismatched SHA-256 is reported as stale.

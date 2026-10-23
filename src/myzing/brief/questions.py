@@ -47,6 +47,7 @@ def brief_questions() -> dict:
             "framing": "auto",
             "aspects": ["16:9", "1:1", "9:16"],
             "framing_max_upscale": 2.5,
+            "short_side": "auto",
             "must_keep": [{"clip": "clip ID or path", "start": 0, "end": 2}, {"phrase": "exact words"}],
             "forbidden": [], "exact_spellings": ["Zoë", "Zing"],
             "music": {"source": "supplied files", "files": ["audio/bed.wav"]},
@@ -55,7 +56,8 @@ def brief_questions() -> dict:
         "optional_fields": [{"key": "framing", "default": "auto", "choices": ["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"],
                              "description": "Auto chooses full reframe, intermediate zoomfill, or full-picture fallback within subject and enlargement limits."},
                             {"key": "aspects", "default": [], "description": "Delivery list: 16:9, 1:1, 9:16. Empty uses aspect."},
-                            {"key": "framing_max_upscale", "default": 2.5, "description": "Configurable auto crop enlargement limit, 1-16x."}],
+                            {"key": "framing_max_upscale", "default": 2.5, "description": "Configurable auto crop enlargement limit, 1-16x."},
+                            {"key": "short_side", "default": 1080, "description": "Delivery short side (multiple of 18, 18-4320; 720 = 720x1280 at 9:16), or auto: lower it when a low-resolution source cannot stay sharp within framing_max_upscale."}],
     }
 
 

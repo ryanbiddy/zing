@@ -121,6 +121,17 @@ REGISTERED_SKIPS = {
         "assertion still runs on every OS. PRODUCT SURFACE: none needed — "
         "this tests a Windows CI dependency installer, not a user capability."
     ),
+    "local OCR runtime/models are not installed": (
+        "photo text is optional evidence for offline meme lines; it needs the study OCR runtime and "
+        "verified local models, and the test never downloads them. PRODUCT SURFACE: doctor's ocr and "
+        "caption_geometry checks; the still index records text=null when OCR was unavailable, and "
+        "docs/MEMES.md says so."
+    ),
+    "FFmpeg is not on PATH": (
+        "the real HEIC round trip encodes its fixture with the local FFmpeg (libx265). PRODUCT SURFACE: "
+        "doctor's required ffmpeg check and optional heic check; HEIC decoding names the missing FFmpeg "
+        "and the remedy. The no-skip FFmpeg gate runs the HEIF support test, which never skips."
+    ),
 }
 
 # importorskip() names an optional MODULE rather than a constraint; the

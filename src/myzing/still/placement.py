@@ -7,6 +7,7 @@ from myzing.layout.types import Box, CaptionEvent, FaceTrack, Keyframe, Mask
 from myzing.memes import MemeError
 from myzing.memes.framing import focus_box, resolve
 from myzing.memes.render import Rect, caption_bar, fit_rect, normalized_regions, output_size, text_layers
+from myzing.memes.subject import protected_regions
 from .models import Photo
 
 LAYOUTS = ("auto", "classic", "caption", "labels")
@@ -35,21 +36,27 @@ def frame(photo: Photo, aspect: str, layout: str, fit: str = "contain",
     return resolve(fit, (photo.width, photo.height), (w, h - bar), focus, basis)
 
 
-def protected_boxes(photo: Photo) -> list[Box]:
-    if photo.face_method == "center_heuristic":
+def protected_boxes(photo: Photo, protect: list[list[float]] | None = None) -> list[Box]:
+    """Faces (or the center heuristic), the subject estimate, and user boxes."""
+    if photo.face_method == "center_heuristic" and photo.subject_estimate is None and not protect:
         return [Box(.2, .2, .6, .6)]
-    return [Box.from_dict(face).pad(.025) for face in photo.faces]
+    if photo.face_method != "center_heuristic" and photo.subject_estimate is None and not protect:
+        return [Box.from_dict(face).pad(.025) for face in photo.faces]
+    faces = [[f["x"], f["y"], f["width"], f["height"]] for f in photo.faces]
+    return [Box(*region["box"]) for region in
+            protected_regions(faces, photo.face_method, photo.subject_estimate, protect)]
 
 
 def output_faces(photo: Photo, aspect: str, layout: str,
                  size: tuple[int, int] | None = None, fit: str = "contain",
-                 focus: list[float] | None = None, texts: list[str] | None = None) -> list[Box]:
+                 focus: list[float] | None = None, texts: list[str] | None = None,
+                 protect: list[list[float]] | None = None) -> list[Box]:
     """Protected boxes in output coordinates, clipped to the visible image."""
     w, h = size or output_size(aspect, (photo.width, photo.height))
     bar = _bar(layout, texts, (w, h))
     rect = fit_rect((photo.width, photo.height), Rect(0, bar, w, h - bar), fit, focus)
     boxes = []
-    for b in protected_boxes(photo):
+    for b in protected_boxes(photo, protect):
         left, top = max(rect.x + b.x * rect.width, 0), max(rect.y + b.y * rect.height, bar)
         right = min(rect.x + b.right * rect.width, w)
         bottom = min(rect.y + b.bottom * rect.height, h)
@@ -64,7 +71,8 @@ def _tracks(boxes: list[Box]) -> list[FaceTrack]:
 
 def safe_geometry(photo: Photo, texts: list[str], aspect: str, layout: str,
                   regions: list[list[float]] | None, *, size: tuple[int, int] | None = None,
-                  fit: str = "contain", focus: list[float] | None = None) -> bool:
+                  fit: str = "contain", focus: list[float] | None = None,
+                  protect: list[list[float]] | None = None) -> bool:
     """Text boxes avoid protected boxes for this framing. ``fit`` is either a
     resolved fit (with its focus) or a request such as ``auto`` to resolve."""
     size = size or output_size(aspect, (photo.width, photo.height))
@@ -77,7 +85,7 @@ def safe_geometry(photo: Photo, texts: list[str], aspect: str, layout: str,
                                regions=regions, focus=focus)
     except MemeError:
         return False
-    tracks = _tracks(output_faces(photo, aspect, layout, size, fit, focus, texts))
+    tracks = _tracks(output_faces(photo, aspect, layout, size, fit, focus, texts, protect))
     masks = []
     for layer in layers:
         if not layer.text:
@@ -92,7 +100,8 @@ def safe_geometry(photo: Photo, texts: list[str], aspect: str, layout: str,
 
 def place(photo: Photo, texts: list[str], aspect: str, requested: str = "auto",
           regions: list[list[float]] | None = None,
-          fit: str = "contain") -> tuple[str, list[list[float]] | None, list[str]]:
+          fit: str = "contain",
+          protect: list[list[float]] | None = None) -> tuple[str, list[list[float]] | None, list[str]]:
     """Choose a layout whose text avoids protected areas under ``fit``
     (resolved per layout with :func:`frame`)."""
     if fit not in FIT_REQUESTS:
@@ -114,7 +123,7 @@ def place(photo: Photo, texts: list[str], aspect: str, requested: str = "auto",
     if chosen == "labels":
         desired = normalized_regions(regions) if regions else [
             Rect(.05, .04 + i * .86 / len(texts), .9, .23) for i in range(len(texts))]
-        tracks, masks, planned = _tracks(protected_boxes(photo)), [], []
+        tracks, masks, planned = _tracks(protected_boxes(photo, protect)), [], []
         for i, region in enumerate(desired):
             event = CaptionEvent(str(i), 0, 1, region.width, region.height,
                                  [region.x + region.width / 2, region.y + region.height / 2])
@@ -125,13 +134,25 @@ def place(photo: Photo, texts: list[str], aspect: str, requested: str = "auto",
             planned.append([b.x, b.y, b.width, b.height])
             if texts[i]:
                 masks.append(Mask(str(i), b))
-        if len(planned) == len(texts) and safe_geometry(photo, texts, aspect, chosen, planned, fit=fit):
+        if len(planned) == len(texts) and safe_geometry(photo, texts, aspect, chosen, planned, fit=fit,
+                                                         protect=protect):
             if regions is not None and planned != regions:
                 notes.append("Label regions moved to avoid protected areas and other text.")
             return chosen, planned, notes
-    elif safe_geometry(photo, texts, aspect, chosen, None, fit=fit):
+    elif safe_geometry(photo, texts, aspect, chosen, None, fit=fit, protect=protect):
         return chosen, None, notes
     if len(texts) > 3:
         raise MemeError("No safe label placement found; use at most three beats for an external caption bar.")
-    notes.append(f"{chosen} placement was blocked; using a separate caption bar to keep text off protected areas.")
+    kinds = []
+    if photo.faces or photo.face_method == "center_heuristic":
+        kinds.append("faces" if photo.face_method != "center_heuristic" else "the central-60% face heuristic")
+    if photo.subject_estimate is not None and any(
+            r["kind"] == "subject_estimate" for r in protected_regions(
+                [[f["x"], f["y"], f["width"], f["height"]] for f in photo.faces],
+                photo.face_method, photo.subject_estimate)):
+        kinds.append("the estimated subject")
+    if protect:
+        kinds.append("your protect boxes")
+    notes.append(f"{chosen} placement was blocked; using a separate caption bar to keep text off protected areas"
+                 + (f" ({', '.join(kinds)})." if kinds else "."))
     return "caption", None, notes

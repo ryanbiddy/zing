@@ -35,5 +35,5 @@ Visible summaries say **render complete** beside failed style dimensions. Existi
 Regression coverage is in `tests/test_continuity.py` and `tests/test_continuity_ffmpeg.py`. Media is generated locally; authored ASR and labeled OCR negatives need no downloaded models. The full gate is:
 
 ```text
-ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 327
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 330
 ```

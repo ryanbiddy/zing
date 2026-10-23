@@ -60,6 +60,9 @@ def run(argv: list[str]) -> int:
         command.add_argument("--rotation", type=float, default=0)
         command.add_argument("--overwrite", action="store_true", help="replace existing outputs")
     render.add_argument("--offline", action="store_true", help="use cached templates only")
+    render.add_argument("--protect", action="append", metavar="X,Y,W,H",
+                        help="normalized source box text must avoid (repeatable); faces and a confident "
+                             "subject estimate are protected too")
     motion.add_argument("--start", type=float, default=0, help="source trim start in seconds")
     motion.add_argument("--end", type=float, help="source trim end in seconds")
     motion.add_argument("--max-duration", type=float, default=30, help="reject longer selections (at most 30s)")
@@ -96,7 +99,7 @@ def run(argv: list[str]) -> int:
                         "video", "start", "end", "max_duration", "duration", "zoom", "fps", "width",
                         "gif", "gif_fps", "gif_width", "gif_duration", "at", "until")}
                 else:
-                    renderer, options = render_meme, {"offline": args.offline}
+                    renderer, options = render_meme, {"offline": args.offline, "protect": args.protect}
                 result = {"ok": True, **renderer(
                     args.text, image=args.image, template=args.template, layout=args.layout,
                     aspect=args.aspect, out=args.out, fit=args.fit, font=args.font,
@@ -118,6 +121,10 @@ def run(argv: list[str]) -> int:
             print(f"{idea['title']}: {' / '.join(idea['texts'])}")
             for problem in idea["validation"]["problems"]:
                 print(f"  check: {problem['message']}")
+        notes = {idea.get("note") for idea in result["ideas"]} - {None}
+        for note in sorted(notes):
+            print()
+            print(f"{note} Run: zing prompt meme-writer")
     elif args.command == "check":
         print(f"{'valid' if result['valid'] else 'invalid'}: {result['beats']} beats, {result['characters']} characters")
         for problem in result["problems"]:
@@ -129,4 +136,6 @@ def run(argv: list[str]) -> int:
             print(f"{g['path']} ({g['width']}x{g['height']}, {g['duration']:g}s, {g['fps']} fps, {g['size_bytes']:,} bytes)")
         for warning in result["warnings"]:
             print(f"  {warning}")
+        if result.get("protection"):
+            print(f"  {result['protection']['summary']}")
     return code

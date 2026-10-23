@@ -42,6 +42,8 @@ def _constraints(cls: type, properties: dict) -> None:
         properties["aspects"]["items"] = {"enum": ["16:9", "1:1", "9:16"]}
         properties["aspects"]["uniqueItems"] = True
         properties["framing_max_upscale"].update(minimum=1, maximum=16)
+        properties["short_side"] = {"anyOf": [{"type": "integer", "minimum": 18, "maximum": 4320, "multipleOf": 18},
+                                              {"const": "auto"}]}
     if name == "Framing":
         for key in ("source_width", "source_height", "width", "height"):
             properties[key]["minimum"] = 1
