@@ -120,6 +120,17 @@ def frame_powers(path, duration, *, start=0.0):
     return out
 
 
+def peak_dbfs(path, duration, *, start=0.0):
+    """Sample peak (dBFS) of a decoded range, or None when it is silent."""
+    np = numpy()
+    r = run_ffmpeg(["-v", "error", "-protocol_whitelist", "file,pipe", "-ss", f"{max(0.0, start):.6f}",
+                    "-t", f"{duration:.6f}", "-i", str(local_file(path)), "-map", "0:a:0", "-ac", "2",
+                    "-ar", str(KWEIGHT_RATE), "-f", "f32le", "pipe:1"], timeout=max(30, duration * 2))
+    samples = np.frombuffer(r.stdout, dtype="<f4")
+    peak = float(np.abs(samples).max()) if samples.size else 0.0
+    return round(20 * math.log10(peak), 1) if peak > 1e-9 else None
+
+
 def window_levels(powers, windows, *, offset=0.0):
     """Ungated K-weighted LUFS of each window from frame powers (None if silent).
 
@@ -140,16 +151,29 @@ def window_levels(powers, windows, *, offset=0.0):
     return out
 
 
-def clause_report(speech, music, spans, band=CLAUSE_BAND_LU):
-    """Per-clause speech-over-music rows, a summary and the out-of-band rows."""
+def clause_report(speech, music, spans, band=CLAUSE_BAND_LU, ramps=(), compressed=()):
+    """Per-clause speech-over-music rows, a summary and the rows to warn about.
+
+    A clause under a planned bed level ramp (``ramps``) hears the bed between
+    two balanced levels; it can only sit further under the speech, so being
+    above the band there is reported but not warned about. A planned clause in
+    a compressed dialogue clip (``compressed`` windows) is an upper estimate:
+    compression only lowers the speech, so the same exemption applies.
+    """
     rows = []
     for (a, b), s, m in zip(spans, speech, music):
         sep = None if s is None or m is None else round(s - m, 1)
         rows.append({"start": a, "end": b, "speech_lufs": s, "music_lufs": m, "separation_lu": sep,
-                     "in_band": None if sep is None else band[0] <= sep <= band[1]})
+                     "in_band": None if sep is None else band[0] <= sep <= band[1],
+                     "bed_ramp": any(a < y and b > x for x, y in ramps),
+                     "compressed": any(a < y and b > x for x, y in compressed)})
     known = [r for r in rows if r["separation_lu"] is not None]
-    outside = [r for r in known if not r["in_band"]]
+    outside = [r for r in known if not r["in_band"]
+               and not ((r["bed_ramp"] or r["compressed"]) and r["separation_lu"] > band[1])]
     summary = {"band_lu": list(band), "clauses": len(rows), "measured": len(known), "outside_band": len(outside),
+               "above_band_under_bed_ramp": sum(1 for r in known if r["bed_ramp"] and r["separation_lu"] > band[1]),
+               "above_band_upper_estimate": sum(1 for r in known if r["compressed"] and not r["bed_ramp"]
+                                                and r["separation_lu"] > band[1]),
                "min_separation_lu": min((r["separation_lu"] for r in known), default=None),
                "max_separation_lu": max((r["separation_lu"] for r in known), default=None)}
     return rows, summary, outside
@@ -178,7 +202,7 @@ def complement(windows, duration):
     return gaps
 
 
-def measure_mix(output, music, source, spans, duration, *, passages=None):
+def measure_mix(output, music, source, spans, duration, *, passages=None, ramps=()):
     """Speech windows are the known spans; pauses lie outside duck passages.
 
     Held gaps are clause gaps inside a passage, where the bed stays ducked.
@@ -214,7 +238,7 @@ def measure_mix(output, music, source, spans, duration, *, passages=None):
         ordered = sorted([float(a), float(b)] for a, b in spans)
         clause_rows, clause_summary, outside = clause_report(
             window_levels(frame_powers(source, duration), ordered), window_levels(frame_powers(music, duration), ordered),
-            ordered)
+            ordered, ramps=ramps)
         warning = band_warning(outside, len(clause_rows), "measure")
         if warning:
             warnings.append(warning)

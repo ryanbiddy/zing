@@ -32,6 +32,9 @@ class MusicPlan(Record):
     # Per-clip bed level on top of the duck: [output seconds, dB <= 0] points,
     # raised-cosine between them. Empty unless clip speech levels differ.
     bed_gain_points: list[list[float]] = field(default_factory=list)
+    # Per-clip dialogue gain (and peak compressor) when clip speech levels
+    # differ; output-time ranges, so framing splits keep them (dialogue.py).
+    dialogue_gains: list[dict] = field(default_factory=list)
     # Planning estimates per clip and per clause (speech, music, separation).
     clip_levels: list[dict] = field(default_factory=list)
     clauses: list[dict] = field(default_factory=list)
@@ -61,6 +64,8 @@ class MusicPlan(Record):
                 raise ValueError("bed_gain_points need ascending [seconds >= 0, -60 <= dB <= 0] pairs")
             previous = point[0]
         check_span_count(len(self.bed_gain_points) // 2, "bed gain changes")
+        from .dialogue import validate
+        validate(self.dialogue_gains)
 
     def duck(self) -> dict:
         return {"hold": self.duck_hold_seconds, "depth_db": self.duck_depth_db,

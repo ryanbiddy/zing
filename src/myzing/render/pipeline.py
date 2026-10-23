@@ -244,6 +244,7 @@ def _render_in_directory(
     transitions: tuple[Transition | None, ...] = (),
     caption_overlay: Path | None = None,
     clip_framings: tuple = (),
+    clip_audio_filters: tuple = (),
     composition_audio: tuple = (),
     speech_spans: tuple = (),
     music_fades: dict | None = None,
@@ -298,6 +299,7 @@ def _render_in_directory(
         transitions=transitions,
         caption_overlay=caption_overlay,
         clip_framings=clip_framings,
+        clip_audio_filters=clip_audio_filters,
         composition_audio=composition_audio,
         music_fades=music_fades, measure_stems=measure_music,
         duck_envelope=duck_envelope,
@@ -337,7 +339,8 @@ def _render_in_directory(
         try:
             measurements = measure_mix(staged_output, directory / "music-stem.wav",
                 directory / "source-stem.wav" if plan.source_label else None, speech_spans, validated.duration,
-                passages=duck_passages or None)
+                passages=duck_passages or None,
+                ramps=ducking.ramp_windows((duck or {}).get("gain_points")) if duck_passages else ())
             if duck_passages:
                 measurements["duck"] = {**(duck or {}), "passages": len(duck_passages),
                                         "method": "known-speech gain envelope: raised-cosine pre-duck before each passage, "

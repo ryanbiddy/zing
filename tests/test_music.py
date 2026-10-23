@@ -134,7 +134,7 @@ def test_bed_gain_points_ramp_smoothly_and_never_raise_the_bed(tmp_path):
     assert MusicPlan(bed_gain_points=points).duck()["gain_points"] == points
 
 
-def test_quiet_clips_get_their_own_bed_level_inside_the_clause_gap():
+def test_quiet_clips_get_their_own_bed_level_moved_under_the_louder_voice():
     from myzing.music.planning import clip_offsets, gain_points
     levels = [{"asset_id": "loud", "output_start": 0, "output_end": 6, "speech_lufs": -14.0, "has_speech": True},
               {"asset_id": "broll", "output_start": 6, "output_end": 7, "speech_lufs": None, "has_speech": False},
@@ -143,8 +143,11 @@ def test_quiet_clips_get_their_own_bed_level_inside_the_clause_gap():
     assert offsets == [0.0, 0.0, -14.0] and notes == []  # B-roll follows its neighbour
     spans = [[.5, 5.5], [7.6, 12.0]]
     points = gain_points(levels, offsets, spans, 13)
-    # The ramp sits in the 5.5-7.6 s gap around the 7.0 s cut, not under a word.
-    assert points == [[0.0, 0.0], [6.8, 0.0], [7.2, -14.0], [13, -14.0]]
+    # LISTEN1: a 0.4 s, 9 dB ramp in the silent gap at the cut was heard as a
+    # swell. The drop now ends at the loud voice's last word (5.5 s), over 1 s.
+    assert points == [[0.0, 0.0], [4.5, 0.0], [5.5, -14.0], [13, -14.0]]
+    # Quiet to loud: the rise starts at the louder clip's first word (7.6 s).
+    assert gain_points(levels[::-1], offsets[::-1], spans, 13) == [[0.0, -14.0], [7.6, -14.0], [8.6, 0.0], [13, 0.0]]
     assert gain_points(levels, [0.0, 0.0, 0.0], spans, 13) == []
     capped, notes = clip_offsets([{**levels[0]}, {**levels[2], "speech_lufs": -44.0}], -14.0)
     assert capped == [0.0, -24.0] and "only 24 dB" in notes[0]
@@ -282,3 +285,58 @@ def test_framing_splits_keep_the_planned_speech_timeline():
     assert stale_timeline(plan, list(reversed(split))) is None  # composition order is by timeline
     split[3].src_in, split[3].src_out = 3.2, 5.2  # a retrimmed piece is a different timeline
     assert stale_timeline(plan, split) is not None
+
+
+def test_clauses_under_a_bed_ramp_report_but_do_not_warn_for_a_quieter_bed():
+    from myzing.music.ducking import ramp_windows
+    from myzing.music.measurement import band_warning, clause_report
+    ramps = ramp_windows([[0, -10], [3.44, -10], [4.44, 0], [12, 0]])
+    assert ramps == [[3.44, 4.44]]
+    spans = [[.33, 1.85], [3.44, 4.12], [4.64, 8.08], [8.92, 9.5]]
+    rows, summary, outside = clause_report([-27, -11, -14, -14], [-48, -40, -35, -30], spans, ramps=ramps)
+    assert [r["bed_ramp"] for r in rows] == [False, True, False, False]
+    assert summary["outside_band"] == 1 and summary["above_band_under_bed_ramp"] == 1 and outside == [rows[3]]  # 29 LU in the ramp is reported, not warned
+    assert "16 LU at 8.92-9.50s (the bed sits too close to the speech)" in band_warning(outside, 4, "measure")
+
+
+def test_quiet_dialogue_is_matched_per_recording_with_a_compressor_only_where_peaks_need_it():
+    from myzing.music.dialogue import filters, plan_gains, row_at
+    # LISTEN1's talking edit: Tears of Steel at -26.7 LUFS with -4.2 dBFS peaks
+    # ("be honest"); two trims of one Korky Paul recording at -12.8 and -14.1 LUFS.
+    levels = [{"asset_id": "tos-lab", "output_start": 0, "output_end": 3.2, "speech_lufs": -26.7, "speech_seconds": 1.88},
+              {"asset_id": "korky", "output_start": 3.2, "output_end": 8.5, "speech_lufs": -12.8, "speech_seconds": 4.12},
+              {"asset_id": "korky", "output_start": 8.5, "output_end": 12.95, "speech_lufs": -14.1, "speech_seconds": 3.7}]
+    rows, notes = plan_gains(levels, [-4.2, -3.1, -3.1])
+    # One gain per recording: the Korky jump cut gets no +1.3 dB step (heard in LISTEN1).
+    [row] = rows
+    assert row["asset_id"] == "tos-lab" and row["gain_db"] == pytest.approx(13.33, abs=.02)
+    assert row["asset_speech_lufs"] == pytest.approx(-26.7) and row["target_lufs"] == pytest.approx(-13.37, abs=.01)
+    assert row["compressor"]["threshold_db"] == pytest.approx(-7.37, abs=.01)
+    assert len(notes) == 1 and "raised 13.3 dB" in notes[0] and "pumping" in notes[0]
+    assert row_at(rows, 1.0) is row and row_at(rows, 5.0) is None and row_at(rows, 9.0) is None
+    chain = filters(row)
+    assert chain[0] == "volume=13.330000dB" and chain[1].startswith("acompressor=threshold=0.428")
+    assert filters(None) == ()
+    # Within 6 LU nothing changes; beyond 18 dB the boost caps and says so.
+    assert plan_gains(levels[1:], [-3.1, -3.1]) == ([], [])
+    capped, notes = plan_gains([levels[1], {**levels[0], "speech_lufs": -38.8}], [-3.1, -20.0])
+    assert capped[0]["gain_db"] == 18 and capped[0]["compressor"] is None and "raised it only 18 dB" in notes[0]
+    with pytest.raises(ValueError, match="dialogue_gains"):
+        MusicPlan(dialogue_gains=[{"start": 0, "end": 1, "gain_db": 30}])
+
+
+def test_audio_fades_only_over_speech_free_edges_where_the_source_changes():
+    from types import SimpleNamespace
+    from myzing.music.dialogue import edge_fades
+    clip = lambda asset, start, duration, src_in: SimpleNamespace(asset_id=asset, timeline_start=start, duration=duration,
+                                                                  src_in=src_in, src_out=src_in + duration)
+    # LISTEN1 talking edit: Tears of Steel's score stopped dead at the 3.2 s cut.
+    clips = [clip("tos-lab", 0, 3.2, 9.5), clip("korky", 3.2, 2.0, .1), clip("korky", 5.2, 3.3, 2.1), clip("korky", 8.5, 4.45, 5.5)]
+    spans = [[.33, 1.85], [2.29, 2.65], [3.44, 4.12], [4.64, 8.08], [8.92, 12.62]]
+    fades = edge_fades(clips, spans)
+    assert fades[0] == ("afade=t=out:st=2.900000:d=0.300000",)    # 0.55 s speech-free tail
+    assert fades[1] == ("afade=t=in:st=0:d=0.100000",)            # 0.24 s before "Hello"
+    assert fades[2] == fades[3] == ()  # 5.4 -> 5.5 s jump cut in one recording: room tone continues (a fade dipped it)
+    # A word right at the cut gets no fade.
+    assert edge_fades([clip("a", 0, 2, 0), clip("b", 2, 2, 0)], [[.5, 1.99], [2.01, 3]]) == [(), ()]
+

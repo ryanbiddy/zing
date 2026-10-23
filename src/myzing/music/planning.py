@@ -18,7 +18,11 @@ from .models import MusicPlan, timeline_of
 # quiet clip's clauses do not sit 10 LU over a bed set for a loud one.
 CLIP_SPREAD_LU = 6.0
 MAX_BED_CUT_DB = 24.0
-BED_RAMP_SECONDS = 0.4
+# Bed level changes move under the louder clip's speech, where the voice
+# masks them (LISTEN1: a 0.4 s, 9 dB rise in the silent gap at a cut was heard
+# as a swell): a rise starts at the louder clip's first word, a drop ends at
+# its last word.
+BED_RAMP_SECONDS = 1.0
 
 
 def speech_spans(sequence, studies):
@@ -169,25 +173,29 @@ def refine_offsets(levels, offsets, rows, target=21.0):
     return [min(0.0, o) for o in filled], shift
 
 
-def ramp_start(cut, spans, duration, ramp=BED_RAMP_SECONDS):
-    """Start of a bed level ramp at ``cut``: inside the clause gap around it when one fits."""
-    before = max((b for a, b in spans if b <= cut + 1e-6), default=cut - ramp)
-    after = min((a for a, b in spans if a >= cut - 1e-6), default=cut + ramp)
-    low, high = max(before, cut - 1.5, 0.0), min(after, cut + 1.5, duration)
-    if high - low >= ramp:
-        return min(max(cut - ramp / 2, low), high - ramp)
-    return max(0.0, min(duration - ramp, cut - ramp / 2))
+def ramp_start(cut, rising, spans, duration, ramp=BED_RAMP_SECONDS):
+    """Start of the bed ramp for the change at ``cut``, under the louder speech.
+
+    A rise (the next clip is louder) starts at its first word after the cut;
+    a drop (the next clip is quieter) ends at the last word before it. Without
+    such a word the ramp starts (rise) or ends (drop) at the cut.
+    """
+    if rising:
+        start = min((a for a, b in spans if a >= cut - 1e-6), default=cut)
+        return max(0.0, min(duration - ramp, start))
+    end = max((b for a, b in spans if b <= cut + 1e-6), default=cut)
+    return max(0.0, min(duration - ramp, end - ramp))
 
 
 def gain_points(levels, offsets, spans, duration, ramp=BED_RAMP_SECONDS):
-    """[time, dB] points for per-clip bed offsets; raised-cosine ramps between clips."""
+    """[time, dB] points for per-clip bed offsets; raised-cosine ramps under the louder voice."""
     if all(abs(o) < 1e-9 for o in offsets):
         return []
     points = [[0.0, round(offsets[0], 3)]]
     for i in range(1, len(levels)):
         if abs(offsets[i] - offsets[i - 1]) < 1e-9:
             continue
-        start = max(points[-1][0], ramp_start(levels[i]["output_start"], spans, duration, ramp))
+        start = max(points[-1][0], ramp_start(levels[i]["output_start"], offsets[i] > offsets[i - 1], spans, duration, ramp))
         points += [[round(start, 4), round(offsets[i - 1], 3)], [round(min(duration, start + ramp), 4), round(offsets[i], 3)]]
     points.append([round(max(points[-1][0], duration), 4), round(offsets[-1], 3)])
     return points
@@ -196,7 +204,7 @@ def gain_points(levels, offsets, spans, duration, ramp=BED_RAMP_SECONDS):
 def planned_clauses(sequence, studies, music_path, offset, music_seconds, gain, evidence):
     """Estimated speech-over-music separation per clause before rendering."""
     from myzing.director.continuity import clauses
-    from .ducking import gain_at
+    from .ducking import mean_gain, ramp_windows
     from .measurement import clause_report, frame_powers, window_levels
     lookup = {s.asset_id: s for s in studies}
     spans, speech, cursor = [], [], 0.0
@@ -208,10 +216,14 @@ def planned_clauses(sequence, studies, music_path, offset, music_seconds, gain, 
             speech += window_levels(powers, mine, offset=cursor)
             spans += mine
         cursor += c.duration
+    from .dialogue import row_at
+    speech = [None if v is None else v + ((row_at(evidence.dialogue_gains, (a + b) / 2) or {}).get("gain_db", 0.0))
+              for (a, b), v in zip(spans, speech)]
     music = window_levels(frame_powers(music_path, music_seconds, start=offset), spans)
-    under = [None if m is None else round(m + gain - evidence.duck_depth_db + gain_at(evidence.bed_gain_points, (a + b) / 2), 1)
+    under = [None if m is None else round(m + gain - evidence.duck_depth_db + mean_gain(evidence.bed_gain_points, a, b), 1)
              for (a, b), m in zip(spans, music)]
-    return clause_report(speech, under, spans)
+    return clause_report(speech, under, spans, ramps=ramp_windows(evidence.bed_gain_points),
+                         compressed=[[r["start"], r["end"]] for r in evidence.dialogue_gains if r.get("compressor")])
 
 
 def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidden, cache=None):
@@ -300,6 +312,24 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
     from .ducking import release_gap
     from .measurement import band_warning, clip_speech_levels, combine_levels, window_loudness
     levels = clip_speech_levels(sequence, studies) if spans else []
+    if spans:
+        # Match the voices first (dialogue.py); the bed then follows only what remains.
+        from .dialogue import plan_gains, row_at
+        from .measurement import peak_dbfs
+        lookup = {s.asset_id: s for s in studies}
+        peaks = [peak_dbfs(lookup[c.asset_id].path, c.duration, start=c.start) if v["speech_lufs"] is not None else None
+                 for c, v in zip(sequence, levels)]
+        evidence.dialogue_gains, notes = plan_gains(levels, peaks)
+        evidence.warnings += notes
+        if evidence.dialogue_gains:
+            evidence.decisions.append({"kind": "dialogue_level", "output_time": 0.0, "evidence_time": None,
+                "gains": evidence.dialogue_gains,
+                "reason": "Clip speech levels differ by more than 6 LU; quieter clips are raised toward the loudest "
+                          "clip's speech (at most 18 dB), with a peak compressor where the gain would reach the limiter."})
+            levels = [{**v, "source_speech_lufs": v["speech_lufs"],
+                       "speech_lufs": None if v["speech_lufs"] is None else
+                       v["speech_lufs"] + (row_at(evidence.dialogue_gains, (v["output_start"] + v["output_end"]) / 2) or {}).get("gain_db", 0.0)}
+                      for v in levels]
     speech_lufs = combine_levels(levels) if spans else None
     measured = [v["speech_lufs"] for v in levels if v["speech_lufs"] is not None]
     spread = max(measured) - min(measured) if len(measured) > 1 else 0.0
@@ -321,8 +351,8 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
                 "clip_spread_lu": round(spread, 2), "gain_points": evidence.bed_gain_points,
                 "reason": f"Clip speech levels differ by {spread:.1f} LU (more than {CLIP_SPREAD_LU:g}); the bed drops "
                           f"under quieter clips, centred so each clip's planned clauses sit about "
-                          f"{evidence.speech_to_music_lu:g} LU under its speech, ramping {BED_RAMP_SECONDS:g}s inside "
-                          "the clause gap at each cut."})
+                          f"{evidence.speech_to_music_lu:g} LU under its speech, ramping {BED_RAMP_SECONDS:g}s under "
+                          "the louder voice at each change."})
         if excerpt_lufs is not None:
             rows, summary, outside = planned_clauses(sequence, studies, path, offset, end - offset, gain, evidence)
             if per_clip:

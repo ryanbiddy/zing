@@ -197,6 +197,7 @@ def render_composition(
     c = prepared.composition
     if any(a.duck_under_speech and a.duck_scope == "source_speech" and a.kind != "music" for a in c.audio):
         raise EDLValidationError("source_speech ducking applies to music tracks only")
+    from myzing.music import dialogue
     from myzing.music.models import extract, stale_timeline
     music_evidence = extract(c)
     scoped = any(a.duck_under_speech and a.duck_scope == "source_speech" for a in c.audio)
@@ -328,6 +329,10 @@ def render_composition(
             transitions=joins,
             caption_overlay=caption_overlay,
             clip_framings=tuple(clip.framing for clip in ordered),
+            clip_audio_filters=tuple(
+                dialogue.filters(dialogue.row_at(music_evidence.dialogue_gains, clip.timeline_start + clip.duration / 2))
+                + fades for clip, fades in zip(ordered, dialogue.edge_fades(ordered, music_evidence.speech_spans)
+                                                if scoped else [()] * len(ordered))),
             composition_audio=tuple(c.audio),
             speech_spans=tuple(tuple(s) for s in music_evidence.speech_spans),
             music_fades={t["id"]: {"fade_in": min(.15, (a.src_out - a.src_in) / 4),

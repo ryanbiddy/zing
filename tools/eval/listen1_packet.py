@@ -154,6 +154,7 @@ def build(folder, out, tracks):
     from myzing.audio import analyze
     from myzing.composition import Composition
     from myzing.music.ducking import duck_passages, passages, release_gap
+    from myzing.music.dialogue import edge_fades
     from myzing.music.models import extract, timeline_of
     np = _np()
     video, plan_path, sidecar_path, work = case_files(folder)
@@ -227,6 +228,11 @@ def build(folder, out, tracks):
         "cuts": cut_report, "planned_alignments": alignments, "drop_checks": drop_checks,
         "moments": moments, "beats": beats,
         "speech_spans": evidence.speech_spans, "duck": duck, "duck_passages": held,
+        "dialogue_gains": evidence.dialogue_gains,
+        "edge_fades": [[round(c.timeline_start, 3), list(f)] for c, f in zip(
+            sorted(plan.clips, key=lambda c: c.timeline_start),
+            edge_fades(sorted(plan.clips, key=lambda c: c.timeline_start), evidence.speech_spans)) if f]
+        if evidence.speech_spans and any(a.duck_scope == "source_speech" for a in plan.audio) and not legacy else [],
         "release_gap": duck["hold"] if legacy else release_gap(duck["hold"], duck["attack"], duck["release"], duck["plateau"]),
         "fades": {"in": [0, fade_in], "out": [end - offset - fade_out, end - offset]},
         "sidecar": {k: v for k, v in sidecar.items() if k not in ("curve", "music_plan")},
@@ -295,6 +301,14 @@ def timing_sheet(m):
             end = ("held to the edit end" if b >= m["duration"] - 1e-6 else
                    f"recovering {b:.3f}-{min(m['duration'], b + d['release']):.3f}")
             lines.append(f"- ducked passage {a:.3f}-{b:.3f} ({start}, {end})")
+    if m.get("dialogue_gains"):
+        lines += ["", "## Dialogue gain per clip (source audio)", ""]
+        lines += [f"- {r['start']:.3f}-{r['end']:.3f}: {r['gain_db']:+.1f} dB"
+                  + (f", then a {r['compressor']['ratio']:g}:1 peak compressor above {r['compressor']['threshold_db']:.1f} dBFS"
+                     if r.get("compressor") else "") for r in m["dialogue_gains"]]
+    if m.get("edge_fades"):
+        lines += ["", "## Source audio edge fades at cuts (clip start: filters)", ""]
+        lines += [f"- clip at {t:.3f}: {', '.join(f)}" for t, f in m["edge_fades"]]
     points = m["duck"].get("gain_points") or []
     if points:
         lines += ["", "## Per-clip bed level (dB, on top of ducking)", ""]

@@ -482,9 +482,10 @@ def talker(path, amplitude, duration=6):
     return path
 
 
-def test_clips_14_lu_apart_each_keep_speech_in_the_band(np, tmp_path):
+def two_talkers(tmp_path, quiet_amplitude):
+    """Plan a loud and a quiet generated talker (two clauses each) over a steady bed."""
     from myzing.brief.models import Brief
-    loud, quiet = talker(tmp_path / "loud.mp4", .2), talker(tmp_path / "quiet.mp4", .04)  # 20*log10(5) = 14 dB
+    loud, quiet = talker(tmp_path / "loud.mp4", .2), talker(tmp_path / "quiet.mp4", quiet_amplitude)
     words = [Word("First", .5, 1.5), Word("clause.", 1.5, 2.5), Word("Second", 3.5, 4.5), Word("clause.", 4.5, 5.5)]
     studies = [ClipStudy(k, str(p), hash_file(p), 6, "ready", words=words, shots=[Shot(0, 0, 6)])
                for k, p in (("loud", loud), ("quiet", quiet))]
@@ -493,17 +494,7 @@ def test_clips_14_lu_apart_each_keep_speech_in_the_band(np, tmp_path):
     asset = SimpleNamespace(id="m", path=str(bed), state="ready", sha256=hash_file(bed),
                             probe=SimpleNamespace(has_audio=True, duration=20))
     brief = Brief(purpose="Talking edit", target_length_seconds=12, music={"source": "supplied files", "files": ["m"]})
-    seq, _, tracks, evidence = plan_music(sequence, studies, brief, SimpleNamespace(assets=[asset]), tmp_path, 2, {}, {})
-    levels = [v["speech_lufs"] for v in evidence.clip_levels]
-    assert levels[0] - levels[1] == pytest.approx(14, abs=1)
-    # The track follows the loud clip; the bed drops ~14 dB under the quiet one,
-    # ramping 0.4 s inside the 5.5-6.5 s clause gap around the 6 s cut.
-    points = evidence.bed_gain_points
-    assert [p[0] for p in points] == [0, 5.8, 6.2, 12] and points[0][1] == points[1][1] == 0
-    assert points[2][1] == points[3][1] == pytest.approx(levels[1] - levels[0], abs=.3)  # refined per clause
-    assert next(d for d in evidence.decisions if d["kind"] == "bed_clip_gain")["clip_spread_lu"] > 6
-    assert len(evidence.clauses) == 4 and all(c["in_band"] for c in evidence.clauses), evidence.clauses
-    assert not [w for w in evidence.warnings if "band" in w]
+    _, _, tracks, evidence = plan_music(sequence, studies, brief, SimpleNamespace(assets=[asset]), tmp_path, 2, {}, {})
 
     def render(name, plan):
         p = Composition(assets=[AssetRef(s.asset_id, s.path, s.sha256) for s in studies] + [AssetRef("m", str(bed), asset.sha256)],
@@ -511,17 +502,49 @@ def test_clips_14_lu_apart_each_keep_speech_in_the_band(np, tmp_path):
             audio=tracks, width=160, height=90)
         attach(p, plan)
         return render_composition(p, tmp_path / f"{name}.mp4", work_dir=tmp_path / name)
+    return evidence, render
 
-    m = render("per-clip", evidence).audio_measurements
-    rows = m["clauses"]
-    assert [r["start"] for r in rows] == [.5, 3.5, 6.5, 9.5]
+
+def test_clips_14_lu_apart_get_matched_dialogue_and_one_bed(np, tmp_path):
+    # LISTEN1: Gemini heard the quiet opening clip "brokenly quiet" next to
+    # the next speaker (13.9 LU apart); a bed that follows each clip added a
+    # second jump. The voices are matched first, so one bed level serves both.
+    evidence, render = two_talkers(tmp_path, .04)  # 20*log10(5) = 14 dB quieter
+    levels = {v["asset_id"]: v for v in evidence.clip_levels}
+    assert levels["loud"]["speech_lufs"] - levels["quiet"]["source_speech_lufs"] == pytest.approx(14, abs=1)
+    [row] = evidence.dialogue_gains
+    assert row["asset_id"] == "quiet" and row["gain_db"] == pytest.approx(14, abs=1) and (row["start"], row["end"]) == (6, 12)
+    assert evidence.bed_gain_points == []  # voices within 6 LU after matching: one bed gain
+    assert all(c["in_band"] for c in evidence.clauses), evidence.clauses
+    rendered = render("matched", evidence)
+    legs = {line.strip()[:7]: line for line in rendered.filtergraph.split(";") if line.strip().startswith(("[0:a:0]", "[1:a:0]"))}
+    assert "volume=" not in legs["[0:a:0]"] and f"volume={row['gain_db']:.6f}dB" in legs["[1:a:0]"]
+    # The source changes at the 6 s cut: speech-free edges fade (0.3 s out, 0.1 s in).
+    assert "afade=t=out:st=5.700000:d=0.300000" in legs["[0:a:0]"] and "afade=t=in:st=0:d=0.100000" in legs["[1:a:0]"]
+    rows = rendered.audio_measurements["clauses"]
     assert all(18 <= r["separation_lu"] <= 24 for r in rows), rows
+    speech = [r["speech_lufs"] for r in rows]
+    assert abs((speech[0] + speech[1]) / 2 - (speech[2] + speech[3]) / 2) <= 1.5  # the jump is gone
+    assert rendered.audio_measurements["warnings"] == []
+
+
+def test_a_capped_dialogue_match_leaves_the_rest_to_a_per_clip_bed(np, tmp_path):
+    evidence, render = two_talkers(tmp_path, .01)  # 26 dB quieter: boost caps at 18 dB
+    [row] = evidence.dialogue_gains
+    assert row["gain_db"] == 18 and any("raised it only 18 dB" in w for w in evidence.warnings)
+    # The remaining ~8 LU go to the bed, ramped over the loud voice's last second.
+    points = evidence.bed_gain_points
+    assert [p[0] for p in points] == [0, 4.5, 5.5, 12] and points[0][1] == points[1][1] == 0
+    assert points[2][1] == points[3][1] == pytest.approx(-8, abs=1.5)
+    assert next(d for d in evidence.decisions if d["kind"] == "bed_clip_gain")["clip_spread_lu"] > 6
+    assert all(c["in_band"] or c["bed_ramp"] for c in evidence.clauses), evidence.clauses
+    m = render("per-clip", evidence).audio_measurements
+    assert all(18 <= r["separation_lu"] <= 24 or (r["bed_ramp"] and r["separation_lu"] > 24) for r in m["clauses"]), m["clauses"]
     assert m["clause_separation"]["outside_band"] == 0 and m["warnings"] == []
     assert m["duck"]["gain_points"] == points
-    # One bed gain for both clips leaves the quiet clip's clauses ~7 LU over the bed, and the sidecar says so.
-    single = MusicPlan.from_dict({**evidence.to_dict(), "bed_gain_points": []})
-    flat = render("single-gain", single)
+    # One bed gain for both clips leaves the quiet clauses ~8 LU too close, and the sidecar says so.
+    flat = render("single-gain", MusicPlan.from_dict({**evidence.to_dict(), "bed_gain_points": []}))
     rows = flat.audio_measurements["clauses"]
-    assert all(18 <= r["separation_lu"] <= 24 for r in rows[:2]) and all(r["separation_lu"] < 12 for r in rows[2:]), rows
-    assert flat.audio_measurements["clause_separation"]["outside_band"] == 2
-    assert any("2 of 4 clauses measure outside the 18-24 LU" in w for w in flat.warnings)
+    assert all(r["separation_lu"] < 16 for r in rows[2:]), rows
+    assert flat.audio_measurements["clause_separation"]["outside_band"] >= 2
+    assert any("clauses measure outside the 18-24 LU" in w for w in flat.warnings)

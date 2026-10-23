@@ -73,13 +73,13 @@ def video_edge(clip, following: Transition | None, width: int, height: int, rate
     return filters + f",{normalize_video(rate)},trim=end_frame={frames}"
 
 
-def clip_audio(index: int, resolved, label: str) -> str:
+def clip_audio(index: int, resolved, label: str, extra: tuple[str, ...] = ()) -> str:
     clip = resolved.spec
     count = sample_span(clip.timeline_start, clip.timeline_start + clip.src_out - clip.src_in)
     if resolved.media.has_audio:
         source = (f"[{index}:a:0]atrim=start={clip.src_in:.9f}:end={clip.src_out:.9f},"
                   "asetpts=PTS-STARTPTS,aresample=48000,"
-                  "aformat=sample_fmts=fltp:channel_layouts=stereo")
+                  "aformat=sample_fmts=fltp:channel_layouts=stereo" + "".join("," + f for f in extra))
     else:
         source = "anullsrc=r=48000:cl=stereo,aformat=sample_fmts=fltp"
     return f"{source},asetpts=N/SR/TB,apad=whole_len={count},atrim=end_sample={count}[{label}]"

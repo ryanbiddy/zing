@@ -104,6 +104,21 @@ def gain_at(points, t: float) -> float:
     return points[-1][1]
 
 
+def ramp_windows(points) -> list[list[float]]:
+    """Intervals where the bed gain points change level."""
+    points = sorted((float(t), float(g)) for t, g in points or [])
+    return [[a, b] for (a, ga), (b, gb) in zip(points, points[1:]) if abs(ga - gb) > 1e-9 and b > a]
+
+
+def mean_gain(points, start: float, end: float, step: float = .05) -> float:
+    """Energy-mean dB of the gain points over [start, end] (for planning a clause)."""
+    if not points or end <= start:
+        return gain_at(points, start)
+    count = max(1, int(math.ceil((end - start) / step)))
+    times = [start + (i + .5) * (end - start) / count for i in range(count)]
+    return 10 * math.log10(sum(10 ** (gain_at(points, t) / 10) for t in times) / count)
+
+
 def gain_curve(points, count: int, rate: int = ENVELOPE_RATE):
     """dB per control sample from (time, dB) points; raised-cosine between points.
 
