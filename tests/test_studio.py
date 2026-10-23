@@ -640,6 +640,9 @@ def test_single_quoted_folder_is_accepted(inputs):
     assert flow.normalize("clips", f"'{inputs['clips']}'") == inputs["clips"]
     with pytest.raises(ValueError, match="local folder"):
         flow.normalize("clips", '"\\\\server\\share\\clips"')
+    # POSIX unescaping must not turn a pasted share path into a relative one.
+    assert flow.clean_path_text("\\\\server\\share\\clips", posix=True) == "\\\\server\\share\\clips"
+    assert flow.clean_path_text("/tmp/my\\ clips", posix=True) == "/tmp/my clips"
 
 
 def test_output_folder_that_collides_is_refused_and_not_written(inputs, monkeypatch, capsys):
