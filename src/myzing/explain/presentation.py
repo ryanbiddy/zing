@@ -87,13 +87,14 @@ def comparison_text(comparison):
         return "unknown" if v is None else str(v)
     parts = []
     for name, m in comparison["metrics"].items():
-        label = METRIC_NAMES.get(name, name.replace("_", " ") + " per minute")
+        label = METRIC_NAMES.get(name, name.replace("_", " ") + "s per minute")
         if name == "luma":
             parts.append(f"{label} {value(m.get('max_delta'))} (limit 0.15, {m['status']})")
         elif name == "placement":
             parts.append(f"{label} {value(m.get('observed'))} (needs 0.8, {m['status']})")
         else:
-            parts.append(f"{label} {value(m.get('target'))} vs {value(m.get('observed'))} ({m['status']})")
+            why = f": {m['reason'].split(';')[0].rstrip('.').lower()}" if m["status"] == "unknown" and m.get("reason") else ""
+            parts.append(f"{label} {value(m.get('target'))} vs {value(m.get('observed'))} ({m['status']}{why})")
     if not parts:
         return comparison["status"] + ": " + comparison.get("reason", "nothing measurable in either video.")
     return comparison["status"] + ". " + "; ".join(parts) + "."

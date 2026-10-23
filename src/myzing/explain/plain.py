@@ -15,6 +15,11 @@ def seconds(value: float) -> str:
     return f"{value:.2f}s" if value < 10 else f"{value:.1f}s"
 
 
+def signed(value: float) -> str:
+    """'+7.0' / '-10.8'; a value that rounds to zero never prints as '-0.0'."""
+    return f"{round(value, 1) + 0.0:+.1f}"
+
+
 def time_span(start: float, end: float) -> str:
     """A zero-length event is a moment, not a range: 'at 0.80s'."""
     if end - start < 0.05:

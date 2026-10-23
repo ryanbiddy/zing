@@ -470,3 +470,26 @@ def test_default_output_guard_resolves_a_linked_cwd(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "_measure", stop)
     assert api.explain_video(clips / "a.mp4", None)["error"] == "stop"
     assert clips.resolve() not in chosen[0].resolve().parents
+
+
+def test_one_unreadable_caption_role_track_is_hedged(monkeypatch):
+    import myzing.study.text_roles as text_roles
+    def roles(b, geometry):
+        return {"events": [{"role": "caption", "features": {"matched_tracks": ["t1"]}}], "counts": {"caption": 1}}
+    monkeypatch.setattr(text_roles, "classify_text", roles)
+    monkeypatch.setattr(text_roles, "caption_geometry", lambda geometry, r: {"tracks": []})
+    section = captions(breakdown(), geometry_with('CoveR"', [.86, .88]))
+    text = " ".join(section.lines)
+    assert "1 speech caption," in text or "1 speech caption." in text
+    assert "Caption-like text (role uncertain) style" in text
+    sections = build_sections(breakdown())
+    sections["captions"] = section
+    assert "uncertain" in viewer_notices(sections, 12)[2]
+
+
+def test_ranges_and_signs_read_cleanly():
+    b = breakdown()
+    b["provenance"]["transition_evidence"] = [dict(signature="dissolve", start_seconds=7, end_seconds=7.7, confidence=.83, reason="x")]
+    assert transitions(b).lines[0] == "1 dissolve (7.00-7.70s, score 0.83)."
+    assert plain.signed(-0.04) == "+0.0" and plain.signed(-10.84) == "-10.8"
+    assert "b* +0.0" in color(lab(0.2, -0.0001)).lines[1]

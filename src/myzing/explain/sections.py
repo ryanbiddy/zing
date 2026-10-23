@@ -10,7 +10,7 @@ from statistics import median
 from myzing.match.evidence import geometry_stats
 from .models import Section
 from .plain import (ZONE_PHRASES, aspect_name, color_cast, contrast_word, pace_word, plausible_text, quote,
-                    saturation_word, seconds, time_span, word_count)
+                    saturation_word, seconds, signed, time_span, word_count)
 
 NOT_KNOWABLE = {
     "pacing": "the editor's timeline and any cut hidden inside fast motion.",
@@ -109,7 +109,8 @@ def transitions(b):
         name = kind.replace("_", " ")
         low = min(e["confidence"] for e in items)
         if len(items) == 1:
-            lines.append(f"1 {name} {time_span(items[0]['start_seconds'], items[0]['end_seconds'])} (score {low:.2f}).")
+            span = time_span(items[0]["start_seconds"], items[0]["end_seconds"])
+            lines.append(f"1 {name} {span} (score {low:.2f})." if span.startswith("at ") else f"1 {name} ({span}, score {low:.2f}).")
             continue
         shown = ", ".join(time_span(e["start_seconds"], e["end_seconds"]).removeprefix("at ") for e in items[:3])
         more = f" and {len(items)-3} more" if len(items) > 3 else ""
@@ -138,9 +139,10 @@ def _track_confidence(track, frames):
     return median(values) if values else None
 
 
-ROLE_WORDS = {"caption": "speech captions", "title": "titles", "credit": "credits",
-              "scene_text": "not matched to speech (signs, screens or titles)",
-              "persistent overlay": "persistent overlays", "unclassified text": "unclassified text"}
+ROLE_WORDS = {"caption": ("speech caption", "speech captions"), "title": ("title", "titles"), "credit": ("credit", "credits"),
+              "scene_text": ("not matched to speech (signs, screens or titles)",) * 2,
+              "persistent overlay": ("persistent overlay", "persistent overlays"),
+              "unclassified text": ("unclassified text",) * 2}
 STYLED_ROLES = ("caption", "title", "credit", "persistent overlay")
 
 
@@ -211,11 +213,14 @@ def captions(b, geometry):
         for r in rows:
             counts[r["kind"]] = counts.get(r["kind"], 0) + 1
         lines = [f"{len(rows)} text region{'s' if len(rows) != 1 else ''} read: " + ", ".join(
-            f"{n} {ROLE_WORDS.get(k, k)}" for k, n in sorted(counts.items(), key=lambda kv: -kv[1])) + "."]
+            f"{n} {ROLE_WORDS.get(k, (k, k))[n != 1]}" for k, n in sorted(counts.items(), key=lambda kv: -kv[1])) + "."]
+        spoken = [r for r in rows if r["kind"] == "caption"]
+        weak_captions = len(spoken) < 2 and not any(r["quotable"] for r in spoken)
         styled = [r for r in rows if r["kind"] in STYLED_ROLES]
         for r in sorted(styled, key=lambda r: -len(r["samples"]))[:2]:
             size = f", ink about {r['size_percent_short_side']:.0f}% of the short side" if r["size_percent_short_side"] is not None else ""
-            lines.append(f"{r['kind'].capitalize()} style: {ZONE_PHRASES[r['zone']]}, {r['case']} case, {r['display']}{size}.")
+            label = "Caption-like text (role uncertain)" if r["kind"] == "caption" and weak_captions else r["kind"].capitalize()
+            lines.append(f"{label} style: {ZONE_PHRASES[r['zone']]}, {r['case']} case, {r['display']}{size}.")
         quotes = quotable_rows(rows)
         if quotes:
             lines.append("Clearly read: " + ", ".join(quote(r["text"]) for r in quotes[:3]) + ".")
@@ -246,7 +251,7 @@ def color(measurement, error=None):
     saturation = saturation_word(chroma)
     lines = [f"{contrast_word(a['contrast']).capitalize()} contrast (L* spread {a['contrast']:.0f}); "
              + (f"{saturation} (median chroma {chroma:.0f})." if saturation.startswith("black") else f"{saturation} color (median chroma {chroma:.0f})."),
-             f"Sampled colors are {cast['phrase']} (Lab a* {a['ab_mean'][0]:+.1f}, b* {a['ab_mean'][1]:+.1f})."]
+             f"Sampled colors are {cast['phrase']} (Lab a* {signed(a['ab_mean'][0])}, b* {signed(a['ab_mean'][1])})."]
     return Section("Color look", {**a, "swatches": measurement.get("swatches", []), "coverage": measurement["coverage"],
                                   "cast": cast, "contrast_word": contrast_word(a["contrast"]), "saturation_word": saturation_word(chroma)},
                    {"score": measurement["confidence"], "kind": "assumes SDR video; scene objects and lighting count"}, unknowns + measurement.get("warnings", []),
