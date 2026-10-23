@@ -91,6 +91,8 @@ def clean_path_text(value, *, posix=None):
     Terminal uses single quotes, and macOS Terminal escapes spaces with
     backslashes. Backslash escapes are only undone on POSIX, where a backslash
     is never a path separator, and only when the literal path does not exist.
+    A leading double backslash is a pasted Windows share path, not an escape,
+    so it is kept for the local-path check to refuse.
     """
     text = value.strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "\"'":
@@ -98,7 +100,7 @@ def clean_path_text(value, *, posix=None):
     else:
         text = text.strip('"')
     posix = os.name != "nt" if posix is None else posix
-    if posix and "\\" in text and not Path(text).expanduser().exists():
+    if posix and "\\" in text and not text.startswith("\\\\") and not Path(text).expanduser().exists():
         text = re.sub(r"\\(.)", r"\1", text)
     return text
 
