@@ -178,7 +178,7 @@ def test_moment_events_print_one_time_not_a_zero_range():
 @pytest.mark.parametrize("a, b, words, banned", [
     (7.0, -10.8, ("cool", "blue"), ("red", "warm")),     # Korky: a* > 0 with b* < 0 is blue, not red
     (20.2, 2.8, ("warm", "red"), ("cool",)),
-    (4.7, -1.6, ("magenta",), ("warm", "cool")),
+    (4.7, -1.6, ("have a noticeable magenta",), ("warm", "cool")),
     (0.5, -0.4, ("neutral",), ("warm", "cool", "tint")),
     (-8, 9, ("green",), ("warm", "cool")),
 ])

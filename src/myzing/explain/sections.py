@@ -251,7 +251,8 @@ def color(measurement, error=None):
     saturation = saturation_word(chroma)
     lines = [f"{contrast_word(a['contrast']).capitalize()} contrast (L* spread {a['contrast']:.0f}); "
              + (f"{saturation} (median chroma {chroma:.0f})." if saturation.startswith("black") else f"{saturation} color (median chroma {chroma:.0f})."),
-             f"Sampled colors are {cast['phrase']} (Lab a* {signed(a['ab_mean'][0])}, b* {signed(a['ab_mean'][1])})."]
+             f"Sampled colors {'have' if cast['temperature'] == 'tint' else 'are'} {cast['phrase']} "
+             f"(Lab a* {signed(a['ab_mean'][0])}, b* {signed(a['ab_mean'][1])})."]
     return Section("Color look", {**a, "swatches": measurement.get("swatches", []), "coverage": measurement["coverage"],
                                   "cast": cast, "contrast_word": contrast_word(a["contrast"]), "saturation_word": saturation_word(chroma)},
                    {"score": measurement["confidence"], "kind": "assumes SDR video; scene objects and lighting count"}, unknowns + measurement.get("warnings", []),
