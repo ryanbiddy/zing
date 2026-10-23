@@ -1,84 +1,79 @@
 # Style card: korky.mp4
 
-Shot detector: 0 cuts; 0.0 per minute. Typical shot: 19.00s.
-Detector ran; no supported transition signature found.
-Text style is unknown.
-Contrast 84.1 L*; median chroma 13.2.
-360 x 640; aspect 0.562:1.
-Speech activity covers 77% of the clip (VAD).
+19.0s, 360 x 640. Measured from the exported video; the original project settings are unknown.
 
-Confidence scores are heuristic evidence, not probabilities. Full samples and gaps: card.json.
+## What a viewer notices
 
-## Cuts and pacing
-
-Shot detector: 0 cuts; 0.0 per minute. Typical shot: 19.00s.
-Pace: 0-10s 0.0/min (steady); 10-19s 0.0/min (steady).
-Shot lengths span 19.00-19.00s.
-
-Confidence: scenedetect-0.7 AdaptiveDetector
-
-Unknown: Shot detection can miss gradual changes and very short shots. No supported beat grid; cuts on beats are unknown.
-1 further limitations in card.json.
-
-## Transitions
-
-Detector ran; no supported transition signature found.
-
-Confidence: heuristic; not probability
-
-Unknown: Signatures describe pixels, not the original effect or editor. Whip/flash reconstruction is unsupported. Unclassified change at 0.07-0.47s: continuous motion or missing quiet handles; edit type unknown
-64 further limitations in card.json.
-
-## Captions and on-screen text
-
-Text style is unknown.
-
-Confidence: no accepted text tracks; absence unproven
-
-Unknown: Original font, drop shadow and highlight timing/color are unknown. Sparse OCR cannot prove word-by-word switching or distinguish every title from a caption.
-3 further limitations in card.json.
-
-## Color look
-
-Contrast 84.1 L*; median chroma 13.2.
-Sampled colors lean blue/cool, red (Lab a* +7.0, b* -10.8).
-
-Confidence: 0.60; heuristic; SDR assumption
-
-Unknown: Original LUT/preset and skin-specific treatment are unknown. Scene colors include lighting, objects and text. A clip-specific LUT approximation can be fitted with zing color match.
-4 further limitations in card.json.
-
-## Framing
-
-360 x 640; aspect 0.562:1.
-Sampled face height 38.9% of frame; top-of-face gap 19.3%.
-
-Confidence: Probed dimensions; sampled face evidence where available.
-
-Unknown: Punch-ins cannot be distinguished reliably from camera/subject movement. Top-of-face gap is not hair/head clearance. Unsampled subjects and app UI safety remain unknown.
-
-## Audio and music
-
-Speech activity covers 77% of the clip (VAD).
-Music presence: candidate detected (gap-floor heuristic).
-Tempo none; no global beat grid.
-Loudness -13.5 LUFS; true peak -3.0 dBTP.
-Detected moments: section_change at 5.00s, section_change at 10.50s, section_change at 17.25s.
-
-Confidence: heuristics; loudness is EBU R128
-
-Unknown: Ducking is unknown from a mixed source; separate stems are needed to establish music gain under speech. Music labels can also describe steady voices or machinery.
-5 further limitations in card.json.
+- One continuous vertical 9:16 talking-head shot, 19.0s with no cuts, full frame.
+- No on-screen text read in the sampled frames.
+- Speech-led audio (talking 77% of the time); music not confirmed.
+- Natural color leaning strongly cool (blue); strong contrast.
 
 ## Get this look
 
-Reusable StyleRecipe: `style-recipe.json`.
-Use local clips you have permission to edit. Match makes a new project; color fits a clip-specific approximation.
-
 ```sh
-zing match ./clips/korky.mp4 --clips ./clips --out ./project --answers '{}'
-zing color match --reference ./clips/korky.mp4 --clip ./clips/input.mp4 --out ./look
-zing color apply --lut ./look/look.cube --in ./clips/input.mp4 --out ./graded.mp4
+# Three drafts in this style from your clips (measures the reference again):
+zing match './clips/korky.mp4' --clips ./my-clips --out ./my-edit --answers '{}'
+# Already have a Zing project? Plan drafts from this card's recipe:
+zing plan drafts ./my-edit --recipe './style-card/style-recipe.json' --out ./my-edit/drafts
+# Approximate this color on one of your clips:
+zing color match --reference './clips/korky.mp4' --clip ./my-clips/clip1.mp4 --out ./my-look
+# Apply that look:
+zing color apply --lut ./my-look/look.cube --in ./my-clips/clip1.mp4 --out ./clip1-graded.mp4
 ```
 
-The original font, LUT, preset, editor project, hidden source layers and exact caption animation cannot be recovered from this export.
+Replace `./my-clips`, `./my-edit` and `clip1.mp4` with your own folder, project and clip. The reusable StyleRecipe is `./style-card/style-recipe.json`. Drafts approximate the look; they do not copy the original edit.
+
+## Cuts and pacing
+
+One continuous shot: no cuts detected in 19.0s.
+
+Confidence: shot boundaries from scenedetect-0.7 AdaptiveDetector; no detector is ground truth
+Not knowable from pixels: the editor's timeline and any cut hidden inside fast motion.
+
+## Transitions
+
+No dissolves, wipes or other transition effects detected.
+65 other image changes could not be classified as an edit; motion or lighting can cause these.
+
+Confidence: heuristic; not probability
+Not knowable from pixels: which effect, preset or plugin made a transition.
+
+## Captions and on-screen text
+
+No on-screen text was read in the sampled frames.
+
+Confidence: no accepted text tracks; absence unproven
+Not knowable from pixels: the original font, shadow settings and word-highlight timing.
+
+## Color look
+
+Strong contrast (L* spread 84); natural color (median chroma 13).
+Sampled colors are strongly cool, toward blue (Lab a* +7.0, b* -10.8).
+
+Confidence: 0.60 heuristic score; assumes SDR video; scene objects and lighting count
+Not knowable from pixels: the original LUT, preset or skin-specific grade.
+
+## Framing
+
+360 x 640, vertical 9:16.
+Full frame used: no letterbox or pillarbox bars in 7 sampled frames.
+A face appears in 100% of sampled frames, about 39% of the frame height, its top 19% below the top edge.
+
+Confidence: probed display size (rotation and pixel aspect applied); sampled YuNet boxes; no identity; solid-bar check on sampled frames
+Not knowable from pixels: whether a zoom was a punch-in or a camera move, and the app safe-zone intent.
+
+## Audio and music
+
+Speech for about 77% of the clip (voice activity detection).
+Sound continues between spoken phrases (room tone, ambience or a music bed); music not confirmed.
+No steady beat found.
+Loudness -13.5 LUFS integrated; true peak -3.0 dBTP.
+Mix level shifts at 5.0s, 10.5s, 17.2s (loudness changes, not identified song sections).
+
+Confidence: music evidence weak; loudness is EBU R128; other audio values are heuristics
+Not knowable from pixels: the music level under speech (that needs separate stems) and what the track is.
+
+---
+
+Scores are heuristic evidence, not probabilities. card.json keeps every measurement, sample and limitation.
