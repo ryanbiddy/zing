@@ -22,6 +22,8 @@ MIN_CONFIDENCE = .5
 GRID = 96  # analysis thumbnail, long side
 MARGIN = .03  # grown on every side: thumbnail quantization and soft edges
 CENTER_HEURISTIC = [.2, .2, .6, .6]
+# More similar-sized distinct regions than this reads as a pattern, not a subject.
+MAX_PEERS = 4
 
 
 def _otsu(values: list[int]) -> tuple[int, float]:
@@ -143,7 +145,11 @@ def estimate_subject(image) -> dict | None:
     spans_width = right - left >= .95 * width and (top == 0 or bottom == height)
     spans_height = bottom - top >= .95 * height and (left == 0 or right == width)
     band = .3 if spans_width or spans_height else 1.0
-    confidence = round(min(1.0, separability * contrast * (.6 + .4 * fill) * size_factor * band * 1.25), 2)
+    # A repeated pattern (stripes, a fence, tiles) has many regions as large
+    # as the strongest one: no single region stands out.
+    peers = sum(1 for members in components if len(members) >= .5 * len(main))
+    pattern = 1.0 if peers <= MAX_PEERS else MAX_PEERS / peers
+    confidence = round(min(1.0, separability * contrast * (.6 + .4 * fill) * size_factor * band * pattern * 1.25), 2)
     x0 = max(0.0, left / width - MARGIN)
     y0 = max(0.0, top / height - MARGIN)
     x1 = min(1.0, right / width + MARGIN)
@@ -152,6 +158,7 @@ def estimate_subject(image) -> dict | None:
     stats = ImageStat.Stat(small.convert("L"))
     return {"version": 1, "box": box, "confidence": confidence, "method": METHOD,
             "evidence": {"area_share": round(area, 4), "separability": round(separability, 3),
+                         "similar_regions": peers,
                          "contrast": round(contrast, 3), "fill": round(fill, 3),
                          "position": _position(box),
                          "border_color": "#%02x%02x%02x" % _rgb(background),
@@ -170,6 +177,8 @@ def user_boxes(values) -> list[list[float]]:
     """Validate explicit ``--protect`` boxes: normalized [x, y, width, height]."""
     if values is None:
         return []
+    if isinstance(values, str):
+        values = [values]  # one "x,y,w,h" box, not a sequence of characters
     if isinstance(values, (list, tuple)) and len(values) == 4 and all(
             isinstance(v, (int, float)) and not isinstance(v, bool) for v in values):
         values = [values]

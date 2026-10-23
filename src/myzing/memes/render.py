@@ -443,15 +443,37 @@ def text_layers(texts: list[str], *, source_size: tuple[int, int], size: tuple[i
     return viewport, layers
 
 
+# Alpha above this counts as drawn (text ink, its stroke, a plate or a
+# shadow); fainter anti-aliased fringe pixels do not.
+COVER_ALPHA = 32
+
+
+def layer_coverage(layer: TextLayer, size: tuple[int, int]):
+    """What a layer actually draws, as an 8-bit mask of the output ("L"):
+    text ink and stroke, plus its plate and shadow. None if it cannot be drawn."""
+    Image = require_pillow()[0]
+    canvas = Image.new("RGBA", (round(size[0]), round(size[1])), (0, 0, 0, 0))
+    try:
+        _draw_layer(canvas, layer)
+    except MemeError:
+        return None
+    return canvas.getchannel("A").point(lambda value: 255 if value > COVER_ALPHA else 0)
+
+
 def protection_hits(layers: list[TextLayer], protection: list[dict], source_size: tuple[int, int],
-                    viewport: Rect, fit: str, focus: list[float] | None) -> list[tuple[int, dict]]:
-    """(text index, protected region) pairs whose output boxes intersect.
+                    viewport: Rect, fit: str, focus: list[float] | None,
+                    size: tuple[int, int] | None = None) -> list[tuple[int, dict]]:
+    """(text index, protected region) pairs where the text covers the region.
 
     Regions are normalized source boxes; a crop can remove one entirely.
-    Text boxes are the layout boxes (classic boxes hug their text), so the
-    check is conservative: a box can count as touching where its ink does not.
+    With ``size`` (the output size) each layer is drawn once and only its
+    rendered ink, stroke, plate and shadow count: a short line centered in a
+    full-width classic band does not touch a face at the band's edge.
+    Without it, or when a layer cannot be drawn, the layout box is used,
+    which can count as touching where the ink does not.
     """
     rect = fit_rect(source_size, viewport, fit, focus)
+    masks = [layer_coverage(layer, size) if size and layer.text.strip() else None for layer in layers]
     hits = []
     for region in protection:
         x, y, bw, bh = region["box"]
@@ -462,8 +484,15 @@ def protection_hits(layers: list[TextLayer], protection: list[dict], source_size
         if right - left <= 1 or bottom - top <= 1:
             continue
         for index, layer in enumerate(layers):
+            if not layer.text.strip():
+                continue
+            if masks[index] is not None:
+                window = (math.floor(left), math.floor(top), math.ceil(right), math.ceil(bottom))
+                if masks[index].crop(window).getbbox() is not None:
+                    hits.append((index, region))
+                continue
             box = layer.box
-            if (layer.text.strip() and min(right, box.x + box.width) - max(left, box.x) > 1
+            if (min(right, box.x + box.width) - max(left, box.x) > 1
                     and min(bottom, box.y + box.height) - max(top, box.y) > 1):
                 hits.append((index, region))
     return hits
@@ -573,7 +602,7 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
             viewport, layers = text_layers(texts, source_size=source.size, size=size, layout=current,
                                           fit=fit, font=current_font, regions=regions, plate=plate,
                                           shadow=shadow, rotation=rotation, focus=focus)
-            hits = protection_hits(layers, protection, source.size, viewport, fit, focus)
+            hits = protection_hits(layers, protection, source.size, viewport, fit, focus, size)
             if not hits or attempt == len(attempts) - 1:
                 break
             notes.append(f"{current.capitalize()} text would cover {_kinds(hits)}; used a caption bar "

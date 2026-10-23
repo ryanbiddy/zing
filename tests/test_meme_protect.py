@@ -175,3 +175,43 @@ def test_stills_keep_text_off_the_subject_and_pick_rechecks_protect_boxes(tmp_pa
     assert any("your protect boxes" in w for c in index["concepts"] for w in c["warnings"])
     picked = pick_still(out, index["concepts"][0]["id"])
     assert picked["protection"]["text_clear"]
+
+
+def test_only_rendered_ink_moves_text_not_the_full_width_band(tmp_path):
+    """Review fix: classic layout boxes span 92% of the width, so a short
+    centered line used to count as covering a box at the band's edge."""
+    path = tmp_path / "flat.png"
+    Image.new("RGB", (1000, 1000), (90, 140, 200)).save(path)
+    corner = [[0.04, 0.02, 0.16, 0.2]]  # top-left, inside the classic top band
+    short = render_meme(["me", "also me"], image=str(path), out=str(tmp_path / "short.png"), protect=corner)
+    assert short["layout"] == "classic" and short["protection"]["text_clear"]
+    left = .2 * short["width"]
+    assert all(b["text_bbox"][0] > left for b in short["boxes"])  # the ink really is clear of the box
+    wide = render_meme(["when the build passes locally on the first try", "ok"], image=str(path),
+                       out=str(tmp_path / "wide.png"), protect=corner)
+    assert wide["layout"] == "caption" and wide["protection"]["text_clear"]
+    kept = render_meme(["when the build passes locally on the first try", "ok"], image=str(path),
+                       layout="classic", out=str(tmp_path / "kept.png"), protect=corner)
+    assert kept["protection"]["text_clear"] is False
+    assert any("Text box 1 overlaps a protect box" in w for w in kept["warnings"])
+
+
+def test_repeated_stripes_are_a_pattern_not_a_subject(tmp_path):
+    """Review fix: one stripe of a regular pattern scored 0.53 and pushed every
+    classic caption into a bar."""
+    image = Image.new("RGB", (1080, 1080))
+    draw = ImageDraw.Draw(image)
+    for x in range(0, 1080, 30):
+        draw.rectangle([x, 0, x + 15, 1080], fill=(255, 200, 0))
+    estimate = estimate_subject(image)
+    assert estimate is None or estimate["confidence"] < MIN_CONFIDENCE
+    if estimate is not None:
+        assert estimate["evidence"]["similar_regions"] > 4
+    path = tmp_path / "stripes.png"
+    image.save(path)
+    result = render_meme(["when the build passes", "first try"], image=str(path), out=str(tmp_path / "m.png"))
+    assert result["layout"] == "classic" and result["protection"]["text_clear"]
+
+
+def test_a_single_protect_string_is_one_box():
+    assert user_boxes("0.1,0.2,0.3,0.4") == [[0.1, 0.2, 0.3, 0.4]]

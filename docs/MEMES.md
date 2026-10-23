@@ -123,9 +123,18 @@ its default classic layout would cover one, it uses a caption bar above the
 photo and says why. An explicitly requested `--layout` (or `--regions`) is
 kept, and the overlap is stated in `warnings` and in the result's
 `protection` object (`regions`, `text_clear`, `subject_estimate`, `summary`).
-The check uses layout boxes, which are wider than the ink, so it errs toward
-moving text. Templates check only explicit protect boxes. `render-video`
-does not run face or subject protection.
+The check draws each text layer once and tests what it actually covers
+(text ink, stroke, and any plate or shadow), not its layout box: a short line
+centered in the full-width classic band stays in place when a face sits at
+the band's edge. On 40 frames from the licensed review clips (YuNet cached;
+four caption sets, 1:1 and 9:16) the default moved to a caption bar in 32 of
+320 renders, against 44 of 320 with the earlier layout-box check; every
+remaining move was real ink over a padded face box. Repeated patterns
+(stripes, tiles) are not a subject estimate: when more than four regions are
+as large as the strongest, its confidence is scaled down. Templates check
+only explicit protect boxes. `render-video` does not run face or subject
+protection. The still workflow (`zing still`) keeps its layout-box placement
+check.
 
 The photo inventory reads one folder, without recursion or links. It accepts
 single-frame JPEG, PNG, WebP, BMP, TIFF, and HEIC/HEIF; other extensions are
