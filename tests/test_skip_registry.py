@@ -58,7 +58,7 @@ REGISTERED_SKIPS = {
     "SEC1-OCR: original OCR text is not redistributed": (
         "five historical fuzzy-clustering cases require third-party transcript "
         "text without recorded redistribution permission. PUBLIC SURFACE: NOTICE.md, "
-        "handoff/research/ocr-calibration/README.md and tests/PRIVATE-FIXTURES.md "
+        "tests/fixtures/research/README.md and tests/PRIVATE-FIXTURES.md "
         "state that lexical accuracy is not rerun. Generated overlay tests cover "
         "behavior; token counts/hashes keep the baseline scorer reproducible. "
         "No production capability is disabled. Restore empirical checks only "
@@ -126,6 +126,12 @@ REGISTERED_SKIPS = {
         "there does project-lock release retry; POSIX renames never hit it. "
         "windows-latest CI executes this case. PRODUCT SURFACE: none needed — a "
         "platform detail of lock cleanup, not a user-visible capability."
+    ),
+    "Windows status-reader sharing": (
+        "Windows can briefly refuse replacement while a Studio status reader has the "
+        "old JSON file open; POSIX permits that replacement. windows-latest runs this "
+        "regression. PRODUCT SURFACE: studio.models.write_json retries the transient "
+        "sharing failure so polling does not turn a running Studio job into a failure."
     ),
     "local OCR runtime/models are not installed": (
         "photo text is optional evidence for offline meme lines; it needs the study OCR runtime and "

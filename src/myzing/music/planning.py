@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from statistics import median
 
 from myzing.audio import analyze
 from myzing.audio.media import numpy, run_ffmpeg
 from myzing.composition import AssetRef, CompositionAudio
 from myzing.director.continuity import clauses
-from myzing.director.selection import overlaps
+from myzing.director.selection import band_distance, overlaps, shot_lengths
 from myzing.director.models import shortage
 from myzing.project.api import hash_file, resolve_path
 from .advice import rate
@@ -56,7 +57,7 @@ def visual_changes(sequence, studies, cache):
     return scores
 
 
-def retime(sequence, studies, beats, phrases, offset, *, speech, required, forbidden, locked=None):
+def retime(sequence, studies, beats, phrases, offset, *, speech, required, forbidden, locked=None, timing_bands=None):
     """Move a join by at most 80ms for speech or 350ms for montage.
 
     End of outgoing and start of incoming move together, preserving total
@@ -101,6 +102,14 @@ def retime(sequence, studies, beats, phrases, offset, *, speech, required, forbi
                 if not any(s.start <= c.start + 1e-8 and s.end >= c.end - 1e-8 for s in study.shots):
                     blocked.append(f"{c.asset_id}: no single observed source shot covers proposed trim {c.start:.3f}–{c.end:.3f}s; insufficient safe shot handles")
             proposed = result[:i] + changed + result[i + 2:]
+            if timing_bands:
+                before, after = shot_lengths(result, studies), shot_lengths(proposed, studies)
+                for name, old, new in (("first_cut", before[0] if len(before) > 1 else None,
+                                        after[0] if len(after) > 1 else None),
+                                       ("shot_pace", median(before), median(after))):
+                    band = timing_bands[name]
+                    if band_distance(new, band) > band_distance(old, band) + 1e-8:
+                        blocked.append(f"{name}: proposed trim moves farther outside the reference timing band")
             for j, c in enumerate(proposed):
                 if any(c.content == d.content and overlaps((c.start, c.end), (d.start, d.end)) for d in proposed[j + 1:]):
                     blocked.append(f"{c.asset_id}: proposed trim reuses source footage")
@@ -261,7 +270,7 @@ def planned_clauses(sequence, studies, music_path, offset, music_seconds, gain, 
                          compressed=[[r["start"], r["end"]] for r in evidence.dialogue_gains if r.get("compressor")])
 
 
-def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidden, cache=None):
+def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidden, cache=None, *, timing_bands=None):
     cache = cache if cache is not None else {}
     evidence = MusicPlan()
     if brief.music["source"] != "supplied files":
@@ -312,7 +321,7 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
         else:
             locked = None
     sequence, decisions = retime(sequence, studies, beats, phrases, offset, speech=bool(spans),
-                                required=required, forbidden=forbidden, locked=locked)
+                                required=required, forbidden=forbidden, locked=locked, timing_bands=timing_bands)
     evidence.decisions += decisions
     evidence.cut_summary = {"total": len(sequence) - 1,
         "snapped": sum(d["kind"] == "cut_snap" and abs(d["delta_seconds"]) > 1e-8 for d in decisions),

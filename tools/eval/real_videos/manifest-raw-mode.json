@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_document": "handoff/research/RAW-MODE-SOURCE.md",
+  "source_document": "tests/fixtures/real-video-sources/RAW-MODE-SOURCE.md",
   "media_policy": {
     "committed": false,
     "reason": "The CC0 source video stays outside Git. Frozen measurements, provenance, and downscaled analysis thumbnails are committed.",
@@ -33,7 +33,7 @@
       "creator": "Mvolz",
       "human_truth": {
         "available": true,
-        "path": "handoff/research/RAW-MODE-SOURCE.md",
+        "path": "tests/fixtures/real-video-sources/RAW-MODE-SOURCE.md",
         "section": "Human truth for the regression"
       },
       "rights": {

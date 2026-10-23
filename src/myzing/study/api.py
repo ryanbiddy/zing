@@ -48,6 +48,8 @@ def study(
     fonts: bool = False,
     local_models_only: bool = False,
     model_workspace: Path | None = None,
+    speech_model: str | None = None,
+    shot_min_scene_len_s: float | None = None,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -86,7 +88,8 @@ def study(
 
         _phase(phase_callback, "shots")
         shots_r = shots_mod.detect_shots(
-            ing.media_path, ing.meta.duration, ing.meta.fps
+            ing.media_path, ing.meta.duration, ing.meta.fps,
+            **({"min_scene_len_s": shot_min_scene_len_s} if shot_min_scene_len_s is not None else {}),
         )
         warnings += shots_r.warnings
         provenance.update(shots_r.provenance)
@@ -98,10 +101,12 @@ def study(
         )
 
         _phase(phase_callback, "transcribe")
-        words_r = transcribe_mod.transcribe(
-            ing.media_path, duration=ing.meta.duration,
-            **({"local_files_only": True} if local_models_only else {}),
-        )
+        with _workspace_override(model_workspace):
+            words_r = transcribe_mod.transcribe(
+                ing.media_path, duration=ing.meta.duration,
+                **({"model_name": speech_model} if speech_model is not None else {}),
+                **({"local_files_only": True} if local_models_only else {}),
+            )
         warnings += words_r.warnings
         provenance.update(words_r.provenance)
 

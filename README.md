@@ -1,5 +1,7 @@
 # Zing
 
+<!-- mcp-name: io.github.ryanbiddy/zing -->
+
 **“Make my clips look like that video.”** Zing is a terminal-first creative studio
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
@@ -18,11 +20,24 @@ Start with “What are we making?” Choose a reference edit, an edit from your
 clips, a photo meme, a style breakdown, music advice, or another delivery shape.
 Studio reads a local reference for up to eight seconds, then recommends length,
 pacing, captions, audio and shape from what it measured. A local reference edit
-takes eight questions plus confirmation. Enter accepts a recommendation; paths
+adds a speech-setup question when clips have audio. Enter accepts a recommendation; paths
 and topics need your answer. `?` explains, `b` goes back and `q` saves.
 The plan shows the default output folder, with an option to change it. The
 finish screen compares playable drafts by shape and recommends where to start.
 Continue with `zing studio --resume <project>`.
+
+On a first install, choose **small.en (~486 MB)** for a faster English draft,
+**large-v2 (~3.09 GB)** for multilingual speech and better accuracy, or **skip
+speech (0 MB)**. Enter recommends small.en for the shorter first download;
+you must then type **yes** to authorize it. Small.en can miss names, accents and
+quiet words, so review its captions. Large-v2 remains the `zing study` default.
+Studio verifies the download's SHA-256 and caches it under `ZING_HOME`.
+Skipping disables spoken captions and whole-line continuity; clips without safe
+speech timing may be excluded. The finish screen reports the model and download.
+
+`zing doctor` and `zing setup` list cached speech models. To prepare one before
+editing, run `zing doctor --speech-model small.en` and confirm the download.
+See [speech setup](docs/DOCTOR.md) for unattended use and cache details.
 
 See [Studio](docs/STUDIO.md) for a real transcript, JSON answers and agent use.
 Downloads are off by default. Missing evidence, failed drafts and blocked
@@ -51,6 +66,10 @@ Run `uv run --frozen zing doctor` to diagnose missing prerequisites.
 Use the current source checkout for these features. Zing is not on PyPI; the
 [connection guide](docs/CONNECT.md) also covers the published prerelease wheel.
 See [developer setup](docs/DEVELOPER-GUIDE.md) for environment details.
+
+For agent setup, see [install from source](llms-install.md). The
+[directory submission kit](docs/DIRECTORY-SUBMISSIONS.md) is preparation only;
+its future PyPI registry entry is not an available package or a submitted listing.
 
 ## Give your agent the skill
 
@@ -104,6 +123,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Connect an AI or Uoink | [Connect](docs/CONNECT.md): 36 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
+| Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
 | Check asset provenance | [Third-party notices](docs/THIRD-PARTY-NOTICES.md): model pins, hashes and licenses. |
@@ -141,11 +161,14 @@ feature-specific gaps. The HyperFrames page documents its own pinned setup.
 ## Local work and network boundaries
 
 Zing itself needs no API key and opens no listening network service. It fetches
-a video URL only when you supply one. On the first `zing study`, faster-whisper
-downloads the selected speech model from Hugging Face if it is not already
-cached (the default `large-v2` model uses about 3.1 GB; select another with
-`ZING_WHISPER_MODEL`). RapidOCR may fetch missing weights too. Ask before an
-uncached study; a local input alone does not guarantee an offline run.
+a video URL only when you supply one. Speech models come from Hugging Face
+only through the consented, SHA-256-pinned setup: choose one in `zing studio`,
+or run `zing doctor --speech-model small.en` (or `large-v2`) and confirm. Even
+the first `zing study` never downloads one; without a cached model it leaves the
+transcript empty and names that command (the default `large-v2` model uses about
+3.1 GB; select another cached model or a local folder with `ZING_WHISPER_MODEL`).
+RapidOCR may fetch missing weights too. Ask before an uncached study; a local
+input alone does not guarantee an offline run.
 
 `zing match` uses local models only and requires `--allow-download` before
 acquiring a reference URL. Missing models remain warnings or planning shortages.

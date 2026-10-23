@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-QUEUE = Path(__file__).resolve().parents[1] / "handoff" / "QUEUE.md"
+QUEUE = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "historical-evidence" / "QUEUE.md"
 PROPOSAL_HEADING = (
     "- **P-C2 (Lane C, SG-5, 2026-07-19) · "
     "warning-only caption-evidence calibration.**"

@@ -165,7 +165,7 @@ No first-party source publishes genre-specific winning durations or retention
 bars. The patterns below come from the R3 Grok/X sweep and remain **T3**
 cross-account synthesis or **T4** single-example evidence. They are editing
 hypotheses to test, not algorithm facts.
-[R3 Grok/X findings](../../handoff/research/R3-grok-x-findings.md)
+R3 Grok/X findings (internal research, July 2026)
 
 | Genre / intent | Working shape | Primary success read | Editing implications |
 | --- | --- | --- | --- |
@@ -243,7 +243,7 @@ validation across genres and account sizes.
 - **T2:** [Buffer’s 2026 engagement report](https://buffer.com/resources/state-of-social-media-engagement-2026/).
   It is large and method-documented, but limited to Buffer-published posts and
   not a platform-wide causal study.
-- **T3/T4:** [R3 Grok/X findings](../../handoff/research/R3-grok-x-findings.md).
+- **T3/T4:** R3 Grok/X findings (internal research, July 2026).
   The source explicitly caps Grok synthesis at T3/T4. None of its approximate
   post IDs, engagement counts, payout claims, encoding claims, or
   anti-recycling claims were promoted here.

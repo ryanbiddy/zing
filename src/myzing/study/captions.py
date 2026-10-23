@@ -1,8 +1,7 @@
 """Caption OCR -> `CaptionEvent[]`: what text is on screen, when, and
 roughly how it looks.
 
-Pipeline per R1-A pick 4 (shipping-tool consensus, sources in
-handoff/research/R1-lane-a-measurement.md):
+Pipeline from the R1-A measurement review:
 
 - Sample 8 fps in the 0-3s hook window, 4 fps after (binding resolution
   A#9); the schedule is recorded in warnings so downstream knows the
@@ -192,8 +191,8 @@ def read_captions(media_path: Path, duration: float, *, local_models_only: bool 
 # alone: track_regions merges a static watermark with the changing
 # counter beside it, so the region's joined text differs almost every
 # frame (978 observations, 972 distinct texts) and events never age.
-# Evidence + regression fixture: handoff/research/
-# P-C2-BASELINE-2026-07-20.md, tests/test_overlay_rule_against_labels.py.
+# Regression fixture: tests/test_overlay_rule_against_labels.py;
+# measurements: tests/fixtures/research/ocr-calibration/.
 # Fix is queued (region-merge proposal), NOT to be tweaked quietly —
 # the current silence costs 0 captions, measured.
 

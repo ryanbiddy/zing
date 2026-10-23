@@ -74,7 +74,12 @@ def creator_summary(result, answers, facts):
         recommendation += f"Start with draft {chosen['draft']} ({chosen['shape']}) because "
         recommendation += (f"it passes {', '.join(passed[:3])}" if passed else "it has the fewest measured style misses")
         noun = "miss" if best_rank[0] == 1 else "misses"
-        recommendation += f" ({best_rank[0]} measured {noun}). Unverified checks are not passes; watch it before choosing."
+        recommendation += f" ({best_rank[0]} measured {noun})."
+        if chosen["disclosures"]:
+            # Abstentions and detector disagreements rank neither as passes nor
+            # as misses; name them so the pick is not read as a certified match.
+            recommendation += " Not passes: " + ", ".join(chosen["disclosures"]) + "."
+        recommendation += " Unverified checks are not passes; watch it before choosing."
     elif any(r["rendered"] for r in rows):
         recommendation = "Start with the rendered delivery and review the crop; no measured comparison establishes a better draft."
     notes = []
@@ -135,7 +140,7 @@ def creator_summary(result, answers, facts):
         highlights = [{"label": "Output", "file": p} for p in result.get("outputs", [])[:3]]
     return {"version": 1, "deliveries": rows, "recommendation": recommendation,
             "notes": list(dict.fromkeys(notes))[:5], "highlights": highlights,
-            "style_summary": detail.get("summary", []) if detail.get("card_json") else [],
+            "style_summary": detail.get("summary", []) if detail.get("card_json") else _style_disclosures(rows),
             "output_folder": str(root), "full_result": str(root / "studio-result.json"), "next_actions": actions}
 
 
@@ -159,13 +164,41 @@ def _shortage_note(shortage):
         return ("None of your clips could be used: clips with speech need timed words from a local speech model, "
                 "or measured silence. " + (
                     "Speech transcription is not installed; install myzing[study], then resume." if missing and "not installed" in missing else
-                    missing.split(". ", 1)[0] + ". Download it once with zing study on one clip, "
+                    missing.split(". ", 1)[0] + ". Choose speech setup in studio or run zing doctor --speech-model small.en, "
                     "or set ZING_WHISPER_MODEL to a local model folder, then resume." if missing else
                     "Check the study warnings in the full result, then resume."))
     if code in {"audio_asset", "audio_placement", "music_analysis"}:
         return "A supplied music track could not be used. Check the track or choose original audio, then resume."
     text = " ".join(str(shortage.get(key, "")) for key in ("missing", "remedy"))
     return "Planning stopped: " + re.sub(r"\s*\(?\basset_[0-9a-f]+\)?", "", text).strip()
+
+
+DISCLOSED = ("miss", "not_applicable", "detector_disagreement")
+
+
+def _disclosures(dimensions):
+    """Plain names for misses, abstentions, detector disagreements and unmeasured color."""
+    from myzing.match.timing import status_label
+    found = []
+    for name, value in dimensions.items():
+        if not isinstance(value, dict):
+            continue
+        label = name.replace("_", " ")
+        if value.get("status") in DISCLOSED:
+            found.append(f"{label} {status_label(value['status'])}")
+        elif name == "color" and value.get("status") == "approximate" and value.get("max_luma_percentile_delta") is None:
+            found.append("color unmeasured")
+    return found
+
+
+def _style_disclosures(rows):
+    """One line per draft (shapes grouped) for the finish screen; full reasons stay in the result."""
+    grouped = {}
+    for row in rows:
+        if row["rendered"] and row["disclosures"]:
+            grouped.setdefault((row["draft"], tuple(row["disclosures"])), []).append(row["shape"])
+    return [f"Draft {draft} ({', '.join(shapes)}): " + "; ".join(found) + "."
+            for (draft, found), shapes in grouped.items()]
 
 
 def _row(draft, shape, row):
@@ -177,4 +210,5 @@ def _row(draft, shape, row):
     if not video or row.get("status", "ready") != "ready":
         status = "render failed"
     return {"draft": draft, "shape": shape, "file": video, "plan": row.get("plan"),
-            "status": status, "rendered": bool(video) and status != "render failed", "measurements": measurements}
+            "status": status, "rendered": bool(video) and status != "render failed", "measurements": measurements,
+            "disclosures": _disclosures(row.get("dimensions", {}))}

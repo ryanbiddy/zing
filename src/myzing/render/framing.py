@@ -76,7 +76,9 @@ def _expression(framing, axis, rate):
 
 def framing_filter(framing, width, height, rate, label="framing"):
     normal = "" if framing is None else f"scale={framing.source_width}:{framing.source_height},setsar=1,"
-    if framing is not None and framing.mode in ("fit", "blurfill"):
+    if framing is not None and framing.mode in ("fit", "blurfill") and framing.picture:
+        # Only a detected live picture is cropped; other fit/blurfill bounds
+        # describe the source (for example a matte) and keep the full frame.
         b = framing.bounds
         if (b.x, b.y, b.width, b.height) != (0, 0, framing.source_width, framing.source_height):
             normal += f"crop={_number(b.width)}:{_number(b.height)}:{_number(b.x)}:{_number(b.y)}:exact=1,"

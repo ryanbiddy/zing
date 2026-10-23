@@ -300,6 +300,9 @@ def visible_content(framing, output_width, output_height):
 def output_box(box, framing, time, output_width, output_height):
     if framing.mode in ("fit", "blurfill"):
         content = visible_content(framing, output_width, output_height)
+        if not framing.picture:
+            return Box(content.x + box.x * content.width, content.y + box.y * content.height,
+                       box.width * content.width, box.height * content.height)
         b = framing.bounds
         left, top = max(b.x, box.x*framing.source_width), max(b.y, box.y*framing.source_height)
         right, bottom = min(b.x+b.width, box.right*framing.source_width), min(b.y+b.height, box.bottom*framing.source_height)

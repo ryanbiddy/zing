@@ -44,7 +44,7 @@ FILLER_BIGRAMS = {("you", "know"), ("i", "mean"), ("sort", "of"), ("kind", "of")
 
 # "like" is the one filler candidate that is ALSO an ordinary verb,
 # preposition and comparative. Measured on a real 62-min interview
-# (handoff/research/RAW-FILLER-PRECISION-2026-07-20.md), ~25% of raw
+# (filler-precision audit, 2026-07-20), ~25% of raw
 # "like" hits were non-filler uses. These guards skip only the
 # unambiguous ones — a word BEFORE "like" that makes it a verb or
 # preposition, or a word AFTER it that makes it a comparative. Genuine

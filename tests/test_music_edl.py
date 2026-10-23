@@ -39,7 +39,7 @@ def music_project(tmp_path, zing_workspace, monkeypatch, request):
     bed = root / "clips" / "bed.wav"
     bed.write_bytes(b"RIFF stub")
 
-    def fake_plan_music(sequence, studies, brief, manifest, root_, pace, required, forbidden, cache=None):
+    def fake_plan_music(sequence, studies, brief, manifest, root_, pace, required, forbidden, cache=None, **kwargs):
         duration = sum(c.duration for c in sequence)
         track = CompositionAudio(id="music-1", asset_id="bed", src=str(bed), kind="music", role="music",
                                  src_in=3.0, src_out=3.0 + duration, gain_db=-14.5, duck_under_speech=True,

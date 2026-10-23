@@ -106,13 +106,18 @@ def input_matrix(metadata):
     return "bt601" if metadata.get("color_space", "").lower() in ("bt470bg", "smpte170m") else "bt709"
 
 
-def frame(path, timestamp, width=160, height=90, *, lut_dir=None):
+def frame(path, timestamp, width=160, height=90, *, lut_dir=None, region=None):
     from . import require_numpy
     np = require_numpy()
     # Default FFmpeg autorotation; probe reports display-oriented dimensions.
     metadata = probe(path)[3]
     check_color_space(metadata)
     filters = f"scale={width}:{height}:flags=area:in_color_matrix={input_matrix(metadata)},format=rgb24"
+    if region is not None:
+        x, y, w, h = region
+        if any(type(v) is not int for v in region) or min(x, y) < 0 or min(w, h) <= 0:
+            raise ColorError("Picture region must contain nonnegative integer origins and positive integer dimensions.")
+        filters = f"crop={w}:{h}:{x}:{y}:exact=1," + filters
     if lut_dir is not None:
         filters += ",lut3d=file=look.cube:interp=trilinear,format=rgb24"
     data = run_media([

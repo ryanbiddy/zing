@@ -31,7 +31,7 @@ def inputs(tmp_path, monkeypatch, zing_workspace):
 def complete(path, inputs):
     a = {"path": path, "project": inputs["project"]}
     supplied = {"reference_kind": "file", "reference": inputs["source"], "clips": inputs["clips"],
-                "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix"}
+                "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix", "speech_model": "skip"}
     while True:
         step = flow.next_step(a)
         if step["status"] == "plan":
@@ -76,7 +76,7 @@ def test_scripted_stdin_every_path(path, inputs, monkeypatch, capsys):
     assert Session.from_dict(state.to_dict()).to_dict() == state.to_dict()
     assert "1. a." not in output
     if path == "a":
-        assert state.questions_asked <= 8
+        assert state.questions_asked <= 9
 
 
 def test_required_path_empty_reprompts_without_enter_acceptance(inputs, monkeypatch, capsys):
@@ -104,8 +104,8 @@ def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs
             break
         q = step["question"]
         questions.append(q)
-        a[q["id"]] = q["recommended"]
-    assert [q["id"] for q in questions] == ["platform", "length", "captions", "music"]
+        a[q["id"]] = "skip" if q["id"] == "speech_model" else q["recommended"]
+    assert [q["id"] for q in questions] == ["platform", "length", "captions", "music", "speech_model"]
     assert ["9:16" in questions[0]["reason"], "19.7 s" in questions[1]["reason"],
             "No text detected" in questions[2]["reason"], "Music observed" in questions[3]["reason"]] == [True] * 4
     assert all("66 cuts/min" not in q["reason"] for q in questions)
@@ -184,6 +184,41 @@ def test_finish_summary_merges_notes_and_uses_measured_results(inputs):
     assert all(len(line) <= 120 for line in text.splitlines() if " | " in line)
     rows["A.9x16"]["dimensions"]["color"]["status"] = "pass"
     assert "No draft is clearly better" in creator_summary(result, {}, {})["recommendation"]
+
+
+def test_finish_pick_never_counts_abstentions_disagreements_or_unmeasured_color_as_passes(inputs):
+    """MATCH2 statuses rank as neither passes nor misses, and are named on the finish screen."""
+    from myzing.studio.presentation import creator_summary
+    unmeasured = {"status": "approximate", "max_luma_percentile_delta": None,
+                  "reason": "No sample had a usable sharp picture area; color is unmeasured."}
+    measured = {"status": "approximate", "max_luma_percentile_delta": .08}
+    grades = {"A": {"shot_pace": {"status": "detector_disagreement"}, "first_cut": {"status": "not_applicable"},
+                    "color": unmeasured},
+              "B": {"shot_pace": {"status": "pass"}, "first_cut": {"status": "pass"}, "color": measured},
+              "C": {"shot_pace": {"status": "pass"}, "first_cut": {"status": "miss"}, "color": measured}}
+    rows = {f"{d}.{shape}": {"status": "ready", "video": f"drafts/draft-{d}.{shape}.mp4", "plan": f"{d}.json",
+                             "dimensions": dims} for d, dims in grades.items() for shape in ("16x9", "9x16")}
+    result = {"project": inputs["project"], "result": {"drafts": rows}, "warnings": []}
+    summary = creator_summary(result, {"aspects": ["16:9"]}, {"clips": []})
+    assert summary["recommendation"].startswith("Start with draft B (16:9) because it passes shot pace, first cut (0 ")
+    assert "Not passes" not in summary["recommendation"]
+    a = next(r for r in summary["deliveries"] if r["draft"] == "A")
+    assert a["status"] == "unverified" and "pass" not in a["measurements"].values()
+    assert summary["style_summary"] == [
+        "Draft A (16:9, 9:16): shot pace detector disagreement; first cut not applicable for this footage; color unmeasured.",
+        "Draft C (16:9, 9:16): first cut miss."]
+    screen = io.StringIO()
+    command.show_result({**result, "status": "ready", "creator_summary": summary}, screen)
+    text = screen.getvalue()
+    assert "Draft A (16:9, 9:16): shot pace detector disagreement" in text and "Note:" not in text
+    # Without B, A has no misses but no passes either: the pick says so and names
+    # every non-pass instead of implying a certified match.
+    for shape in ("16x9", "9x16"):
+        rows.pop(f"B.{shape}")
+    pick = creator_summary(result, {"aspects": ["16:9"]}, {})["recommendation"]
+    assert pick.startswith("Start with draft A (16:9) because it has the fewest measured style misses (0 measured misses).")
+    assert ("Not passes: shot pace detector disagreement, first cut not applicable for this footage, "
+            "color unmeasured.") in pick and "it passes" not in pick
 
 
 def test_progress_translates_internal_asset_and_draft_ids(inputs, tmp_path):
@@ -287,7 +322,7 @@ def test_mcp_question_flow_is_stateless(path, inputs):
 
 def test_existing_jobs_are_reused_and_runner_requires_confirmation(inputs):
     from myzing.mcp_server import h_zing_studio_run
-    for path, tool in [("a", "match_start"), ("c", "still_concepts"), ("e", "music_check")]:
+    for path, tool in [("c", "still_concepts"), ("e", "music_check")]:
         a, plan = complete(path, inputs)
         assert plan["execution"][0]["tool"] == tool
         assert not h_zing_studio_run(a, confirmed=True)["ok"]
@@ -389,6 +424,20 @@ def test_style_preferences_are_not_measurements():
     assert recipe.measured == []
 
 
+def test_studio_pace_preference_is_never_a_reference_band():
+    """MATCH2 bands come from measured reference shots only."""
+    from myzing.director.selection import envelope, reference_band
+    from myzing.schemas import Breakdown, Shot, VideoMeta
+    from myzing.style_recipe import StyleRecipe, ObservationProvenance, build_style_recipe
+    preference = adapters.style_envelope(envelope(StyleRecipe(ObservationProvenance("brief.json"))),
+                                         {"no_reference": True, "tone": "calm"})
+    assert preference.median_shot == 4 and reference_band(preference.median_shot, preference)["lower"] is None
+    measured = envelope(build_style_recipe(Breakdown(VideoMeta("ref", "file", duration=4, fps=30),
+                                                     shots=[Shot(i, i * .8, (i + 1) * .8) for i in range(5)])))
+    band = reference_band(measured.median_shot, measured)
+    assert (band["lower"], band["upper"]) == pytest.approx((.55, 1.05))
+
+
 def test_failed_drafts_shortages_and_next_actions_remain_visible(capsys):
     command.show_result({"status": "partial", "outputs": ["A.mp4"], "warnings": ["Blocked captions"],
                          "result": {"summary": "1 of 3 ready", "failures": [{"step": "render-B", "error": "failed"}],
@@ -417,7 +466,7 @@ def test_no_reference_delegates_inventory_brief_study_and_director(inputs, monke
     result = no_reference(a, root, lambda _: None)
     assert (root / "project.json").is_file() and (root / "brief.json").is_file()
     assert calls[0][1]["local_models_only"] and calls[0][1]["raw_mode"]
-    assert calls[-1]["studio_options"] == {"no_reference": True, "tone": "calm", "captions": "none"}
+    assert calls[-1]["studio_options"] == {"no_reference": True, "tone": "calm", "captions": "none", "speech_model": "skip"}
     assert result["shortages"][0]["code"] == "not_enough_distinct_footage"
 
 
@@ -561,8 +610,8 @@ def test_studio_cannot_cancel_a_foreign_job(inputs, monkeypatch, owner_alive):
     monkeypatch.setattr("myzing.project.locking._pid_alive", lambda pid: owner_alive)
     result = h_zing_studio_run(project=str(root), cancel=True)
     assert result["ok"] and result["cancellation_requested"] is False
-    assert result["status"] == ("running" if owner_alive else "failed")
-    assert "owning server" in result["hint"]
+    assert result["status"] == ("running" if owner_alive else "interrupted")
+    assert ("owning server" if owner_alive else "--resume") in result["hint"]
     assert "pid" not in result
     assert read_json(root / "studio-job.json")["status"] == result["status"]
 
@@ -583,7 +632,7 @@ def test_reference_summary_once_and_recommended_option_labels(inputs, monkeypatc
     assert "Recommended: 1 (No added captions)" in text
     assert "Recommended: 1 (Keep my clips' audio)" in text
     assert "Recommended: original" not in text and "Recommended: none" not in text
-    assert load_session(inputs["project"]).questions_asked == 8
+    assert load_session(inputs["project"]).questions_asked == 9
 
 
 def test_explain_success_summary_and_all_cards_reach_finish(inputs, monkeypatch):
@@ -647,7 +696,7 @@ def test_single_quoted_folder_is_accepted(inputs):
 
 def test_output_folder_that_collides_is_refused_and_not_written(inputs, monkeypatch, capsys):
     clips = Path(inputs["clips"])
-    monkeypatch.setattr("sys.stdin", io.StringIO(f"2\n{clips}\ndemo\n2\n8\n\n\n\no\n{clips}\nq\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"2\n{clips}\ndemo\n2\n8\n\n\n\nskip\no\n{clips}\nq\n"))
     assert command.run([]) == 0
     assert "Keeping " + inputs["project"] in capsys.readouterr().out
     assert not (clips / "studio-session.json").exists()
@@ -841,9 +890,6 @@ def test_project_lock_release_retries_a_transient_sharing_violation(tmp_path, mo
     assert len(calls) == 3 and not (tmp_path / locking.LOCK_NAME).exists()
 
 
-@pytest.mark.parametrize("cached, expected", [(True, False), (False, True)])
-def test_plan_warns_before_a_run_when_the_speech_model_is_missing(inputs, monkeypatch, cached, expected):
-    from myzing import doctor
-    monkeypatch.setattr(doctor, "check_whisper", lambda: SimpleNamespace(data={"model": "large-v2", "cached": cached}))
+def test_plan_reports_explicit_skip(inputs):
     _, plan = complete("b", inputs)
-    assert any("'large-v2' is not downloaded" in w for w in plan["warnings"]) is expected
+    assert any("captions and whole-line continuity are unavailable" in w for w in plan["warnings"])

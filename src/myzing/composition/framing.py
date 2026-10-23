@@ -148,6 +148,12 @@ class Framing(Record):
         if self.speaker_turns and self.speaker_turns[-1].end > duration + 1e-6:
             raise ValueError("speaker turn exceeds the clip duration")
 
+    @property
+    def fit_source(self) -> tuple[float, float]:
+        """Source size a fit/blurfill foreground scales: the live picture after a
+        picture crop, else the whole source (bounds then only describe it)."""
+        return (self.bounds.width, self.bounds.height) if self.picture else (self.source_width, self.source_height)
+
     def foreground_size(self, width: int, height: int) -> tuple[int, int]:
         """Even sharp-picture size in output pixels for fit, blurfill and zoomfill.
 
@@ -157,7 +163,7 @@ class Framing(Record):
         enlargement. Fit keeps the legacy graph (FFmpeg can round one row
         pair larger), so this is a conservative fit content box.
         """
-        sw, sh = ((self.width, self.height) if self.mode == "zoomfill" else (self.bounds.width, self.bounds.height))
+        sw, sh = ((self.width, self.height) if self.mode == "zoomfill" else self.fit_source)
         scale = min(width / sw, height / sh)
         return max(2, math.floor(sw * scale / 2) * 2), max(2, math.floor(sh * scale / 2) * 2)
 
@@ -173,7 +179,7 @@ class Framing(Record):
         return (width - w) // 2 // 2 * 2, max(0, y) // 2 * 2
 
     def upscale_warning(self, width: int, height: int) -> list[str]:
-        scale = (min(width / self.bounds.width, height / self.bounds.height) if self.mode in ("fit", "blurfill")
+        scale = (min(width / self.fit_source[0], height / self.fit_source[1]) if self.mode in ("fit", "blurfill")
                  else width / self.width if self.mode == "zoomfill"
                  else max(width / self.width, height / self.height))
         return ([f"Framing upscale {scale:.3f}x exceeds stated {self.max_upscale:g}x limit; source detail cannot be recovered."]

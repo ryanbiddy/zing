@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "human_truth": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
-  "source_document": "handoff/research/EXAMPLE-DATASET.md",
+  "human_truth": "tests/fixtures/real-video-sources/EXAMPLE-DATASET-TRUTH.md",
+  "source_document": "tests/fixtures/real-video-sources/EXAMPLE-DATASET.md",
   "media_policy": {
     "committed": false,
     "reason": "The Uoink corpus deletes source media after extraction.",

@@ -57,6 +57,11 @@ def transcribe(
 ) -> TranscribeResult:
     result = TranscribeResult()
     name = model_name or os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
+    if name == "skip":
+        from .speech_models import SKIP_NOTE
+        result.warnings.append(SKIP_NOTE)
+        result.provenance = {"speech_setup": "skipped", "captions": "unavailable", "continuity": "unavailable"}
+        return result
     try:
         model, device, compute_type, version = (
             _load_model(name, local_files_only=True) if local_files_only else _load_model(name)
@@ -113,24 +118,40 @@ def transcribe(
     return result
 
 
-def _load_model(name: str, *, local_files_only: bool = False):
+def _load_model(name: str, *, local_files_only: bool = True):
     """Import + construct the model (tests mock this). GPU with int8_float16
-    when available, plain int8 otherwise — the R1-A compute picks."""
+    when available, plain int8 otherwise — the R1-A compute picks.
+
+    Loading never downloads, whatever ``local_files_only`` says (kept for
+    callers): weights come from Zing's verified cache, a local folder or an
+    existing hub snapshot. The only download path is the consented, pinned
+    fetch in zing studio / zing doctor / zing setup --speech-model.
+    """
     import faster_whisper
 
+    from .speech_models import local_path
+    # Load exactly the folder inventory reported (Zing's verified cache, a local
+    # directory, or an existing hub snapshot). A bare name makes faster-whisper
+    # resolve its own repo id, which misses snapshots from other publishers.
+    requested = name
+    path = local_path(name) or Path(name)
     version = getattr(faster_whisper, "__version__", "unknown")
-    options = {"local_files_only": True} if local_files_only else {}
-    if local_files_only:
-        # local_files_only only covers the weights: a model directory without
-        # tokenizer.json makes faster-whisper fetch the tokenizer from the hub.
-        path = Path(name)
-        if not path.is_dir():
-            from faster_whisper.utils import download_model
+    options = {"local_files_only": True}
+    if not path.is_dir():
+        from faster_whisper.utils import download_model
+        try:
             path = Path(download_model(name, local_files_only=True))
-        if not (path / "tokenizer.json").is_file():
+        except Exception as exc:  # not cached, or not a faster-whisper model name
             raise FileNotFoundError(
-                f"local model '{name}' has no tokenizer.json; loading it would download one")
-        name = str(path)
+                f"speech model '{requested}' is not available locally ({type(exc).__name__}), and study never "
+                "downloads models. Run zing doctor --speech-model small.en (or large-v2) and confirm the "
+                "download, or set ZING_WHISPER_MODEL to a cached model or local model folder") from None
+    # local_files_only only covers the weights: a model directory without
+    # tokenizer.json makes faster-whisper fetch the tokenizer from the hub.
+    if not (path / "tokenizer.json").is_file():
+        raise FileNotFoundError(
+            f"local model '{name}' has no tokenizer.json; loading it would download one")
+    name = str(path)
     try:
         model = faster_whisper.WhisperModel(
             name, device="auto", compute_type="int8_float16", **options
