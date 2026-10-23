@@ -432,3 +432,13 @@ def test_speech_free_trims_of_a_raised_recording_count_toward_its_peak():
     assert "can still meet the final limiter with up to about 14 dB" in notes[0]
     # Within 6 LU nothing is decoded at all.
     assert clip_peaks(sequence[:1], levels[:1], lambda c: 1 / 0) == [None]
+
+
+def test_the_default_bed_sits_at_the_loud_end_of_the_band():
+    # Ryan's call after LISTEN1 (the 21 LU bed was heard as buried): the
+    # loudest bed that keeps every talking acceptance clause >= 18 LU under
+    # its speech. One default feeds the plan, the clause report and match.
+    from myzing.music.ducking import DEFAULT_SPEECH_TO_MUSIC_LU
+    from myzing.music.measurement import CLAUSE_BAND_LU, CLAUSE_TARGET_LU
+    assert MusicPlan().speech_to_music_lu == DEFAULT_SPEECH_TO_MUSIC_LU == CLAUSE_TARGET_LU == 19.2
+    assert CLAUSE_BAND_LU == (18.0, 24.0)
