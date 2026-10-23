@@ -370,6 +370,100 @@ def attach_report(plan, report):
     return Composition.from_dict(plan.to_dict())
 
 
+MUSIC_SIDECAR = "zing.music_sidecar"
+MUSIC_CANNOT_CARRY = [
+    "the music track itself: EDL v1 plays each audio file from its first sample, so a source trim is impossible",
+    "ducking under source speech: EDL v1 ducks music only under voiceover tracks",
+    "the duck envelope and music fades",
+    "MUSIC1 evidence: track choice, drop/moment alignment, cut snapping and their reasons",
+    "the v2 renderer's music measurement sidecar and final -2 dBFS peak limiter",
+]
+
+
+def _duck_envelope(passages, duration, depth, attack, release):
+    """Gain keyframes (seconds, dB) at every ramp start/end, in timeline time.
+
+    Zing renders raised-cosine ramps (myzing.music.ducking); straight lines
+    between these keyframes approximate them, exactly at each keyframe.
+    """
+    import math
+
+    def weight(t):
+        best = 0.0
+        for a, b in passages:
+            if a <= t <= b:
+                return 1.0
+            if attack > 0 and a - attack <= t < a:
+                best = max(best, (1 - math.cos(math.pi * (t - (a - attack)) / attack)) / 2)
+            if release > 0 and b < t <= b + release:
+                best = max(best, (1 + math.cos(math.pi * (t - b) / release)) / 2)
+        return best
+
+    times = sorted({0.0, duration, *(max(0.0, min(duration, t)) for a, b in passages
+                                     for t in (a - attack, a, b, b + release))})
+    return [[round(t, 6), round(-depth * weight(t), 3) + 0.0] for t in times]
+
+
+def music_sidecar(plan, label: str) -> dict:
+    """Everything a human editor needs to rebuild the plan's music bed."""
+    from myzing.music.ducking import passages
+    from myzing.music.models import extract
+
+    evidence = extract(plan)
+    duration = max((c.timeline_end for c in plan.clips), default=0.0)
+    tracks = []
+    for audio in (a for a in plan.audio if a.role == "music"):
+        source_out = audio.src_out
+        length = (source_out - audio.src_in) if source_out is not None else None
+        planned = next((t for t in evidence.tracks if t["id"] == audio.id), None)
+        fades = ({"fade_in_seconds": round(min(.15, length / 4), 6), "fade_out_seconds": round(min(1.0, length / 4), 6)}
+                 if planned is not None and length else {"fade_in_seconds": 0.0, "fade_out_seconds": 0.0})
+        duck = None
+        if audio.duck_under_speech and audio.duck_scope == "source_speech":
+            held = passages(evidence.speech_spans, evidence.duck_hold_seconds)
+            duck = {"scope": "source_speech", "depth_db": evidence.duck_depth_db,
+                    "attack_seconds": evidence.duck_attack_seconds,
+                    "release_seconds": evidence.duck_release_seconds,
+                    "hold_seconds": evidence.duck_hold_seconds,
+                    "speech_spans": evidence.speech_spans, "passages": held,
+                    "envelope_db": _duck_envelope(held, duration, evidence.duck_depth_db,
+                                                  evidence.duck_attack_seconds, evidence.duck_release_seconds),
+                    "envelope_note": ("Timeline seconds and gain in dB relative to the track gain; Zing renders "
+                                      "raised-cosine ramps between these keyframes.")}
+        elif audio.duck_under_speech:
+            duck = {"scope": audio.duck_scope, "note": "Ducks under voiceover; EDL v1 can carry this track."}
+        tracks.append({
+            "id": audio.id, "asset_id": audio.asset_id, "path": audio.src,
+            "sha256": next((a.sha256 for a in plan.assets if a.id == audio.asset_id), None),
+            "timeline_start": audio.timeline_start,
+            "timeline_end": round(audio.timeline_start + length, 6) if length is not None else None,
+            "source_in": audio.src_in, "source_out": source_out, "gain_db": audio.gain_db, **fades, "duck": duck,
+            "reason": planned.get("reason") if planned else None})
+    return {"version": 1, "kind": MUSIC_SIDECAR, "plan": f"plan-{label}.json", "edl": f"plan-{label}.edl.json",
+            "fps": [plan.fps.numerator, plan.fps.denominator], "timeline_duration": round(duration, 6),
+            "tracks": tracks, "cannot_carry": MUSIC_CANNOT_CARRY,
+            "rebuild": ("Import the EDL's picture and dialogue, then place each track at timeline_start using "
+                        "source_in..source_out of the file, apply gain_db, the fades, and the duck envelope "
+                        "keyframes. Rendering plan-" + label + ".json with zing render reproduces the full mix.")}
+
+
+def music_projection(plan, label: str):
+    """For a music plan: (picture-and-dialogue v1 EDL, music sidecar, blockers).
+
+    Music is the only thing separated, and only when it is the sole reason
+    lowering fails; every other v2 feature still blocks the derivative.
+    """
+    if not any(w.startswith(REPORT_PREFIX) for w in plan.warnings):
+        raise ValueError("Expected a P17 plan with retained planning evidence.")
+    if not any(a.role == "music" for a in plan.audio):
+        return None, None, []
+    projected = replace(plan, warnings=[], brief=None, audio=[a for a in plan.audio if a.role != "music"])
+    blockers = lowering_blockers(projected)
+    if blockers:
+        return None, None, blockers
+    return lower_to_v1(projected), music_sidecar(plan, label), []
+
+
 def render_projection(plan):
     """Explicitly separate P17 evidence for a legacy render derivative.
 

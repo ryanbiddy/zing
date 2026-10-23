@@ -122,6 +122,25 @@ explicitly separates only `brief` and `warnings`, then calls the existing strict
 `lower_to_v1`; it never discards fonts, layouts, framing, color, transitions or
 audio policy to force a renderable result. Those features are listed as blockers.
 
+Plans with a music bed are the one exception, because EDL v1 cannot carry a
+trimmed, speech-ducked track: when music is the only thing that blocks
+lowering, the derivative keeps the picture, captions and source audio
+(dialogue) and drops only the music tracks. `plan-A.edl.music.json` (version
+1, `kind: "zing.music_sidecar"`) then holds what an editor needs to rebuild
+the bed: track path and SHA-256, `timeline_start`/`timeline_end`, `source_in`
+and `source_out`, `gain_db`, the fade-in/out seconds the v2 renderer applies,
+and the duck: scope, depth, attack, release and hold, the known speech spans,
+the held passages, and `envelope_db` keyframes (timeline seconds, dB relative
+to the track gain) at every ramp start and end. Zing renders raised-cosine
+ramps between those keyframes. `cannot_carry` lists what the EDL cannot
+represent (source trim, ducking under source speech, fades and envelope,
+MUSIC1 alignment evidence, the v2 measurement sidecar and peak limiter). The
+comparison's `v1` entry records `scope`, `music_removed`, `music_sidecar` and
+the full-plan `blockers`; `plan_drafts` returns `music_sidecars`. Any other
+blocker (framing, layout, fonts, color, SFX, transitions) still blocks the
+derivative, and no sidecar is written. Render `plan-A.json` for the complete
+mix.
+
 ```powershell
 zing render C:\edit-project\drafts\plan-A.edl.json -o C:\edit-project\draft-A.mp4
 ```
