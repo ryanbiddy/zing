@@ -1,7 +1,7 @@
 name: ci
 on:
   push:
-    branches: [main, fix/libass-0174]  # TEMP: branch trigger for CI1 (remove before merge)
+    branches: [main]
   pull_request:
 jobs:
   # Fast mocked-unit matrix. The ffmpeg-marked subset is excluded here
