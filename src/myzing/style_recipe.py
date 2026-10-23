@@ -188,6 +188,17 @@ def build_style_recipe(
     recipe.unknowns = [Unknown(f"original_{name}", "Cannot uniquely recover this from a studied reference.", "unsupported")
                        for name in ("font", "LUT", "preset", "project")]
 
+    def compact(details):
+        # Per-fact provenance points at the transition evidence instead of
+        # copying the whole list into every fact: the copies grew with the
+        # square of the event count (13.6 MB for a 20 s montage). Each item
+        # stays in full as its own transitions[i] fact or unknown value.
+        if isinstance(details, dict) and isinstance(details.get("transition_evidence"), list):
+            return {**details, "transition_evidence": {
+                "count": len(details["transition_evidence"]),
+                "see": "transitions[i] facts and unknowns in this recipe"}}
+        return details
+
     def evidence(scope, timestamps=(), *, ref=None, sha=None, detector=None,
                  detector_version=None, model=None, model_version=None, details=None,
                  basis="reported source intervals; exact sampling unavailable"):
@@ -199,7 +210,7 @@ def build_style_recipe(
             reference=ref or source, sha256=known_hash,
             sample_timestamps=list(timestamps), detector=detector,
             detector_version=detector_version, model=model, model_version=model_version,
-            timestamp_basis=basis, details=deepcopy(metadata if details is None else details),
+            timestamp_basis=basis, details=deepcopy(compact(metadata if details is None else details)),
         )
 
     def add(name, value, unit, prov, count=1, confidence=None, fraction=None,

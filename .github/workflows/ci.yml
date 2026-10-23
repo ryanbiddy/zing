@@ -32,7 +32,7 @@ jobs:
   # models are provisioned explicitly before the offline inference tests.
   ffmpeg-gates-ubuntu:
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: this gate covers apt FFmpeg 6.x; ubuntu-latest moved to 26.04 (FFmpeg 8, libass 0.17.4)
     env:
       ZING_REQUIRE_FFMPEG: "1"
       ZING_REQUIRE_OCR: "1"
@@ -73,7 +73,7 @@ jobs:
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 319
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 327
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -121,7 +121,7 @@ jobs:
       - name: Provision pinned caption OCR models (explicit download; study stays offline)
         run: python -m myzing.study.caption_models --fetch
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 319
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 327
 
   # macOS smoke: frame extraction, six inspection tests, audio placement,
   # and the caption/ducking render oracle (Homebrew FFmpeg with libass).

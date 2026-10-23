@@ -23,7 +23,7 @@ not mean every optional extra or model is installed.
 
 Read [commands.md](references/commands.md) for CLI recipes, direction JSON,
 installation needs, and still/animated meme handling. Read
-[mcp.md](references/mcp.md) for the 32-tool surface and asynchronous job rules.
+[mcp.md](references/mcp.md) for the 34-tool surface and asynchronous job rules.
 The CLI also has project, layout, color, audio and assembly operations that do
 not have equivalent MCP tools. Switch to shell access for them; do not invent
 tools or imply that a connected MCP server grants shell access.
@@ -179,3 +179,10 @@ Match reports use rendered observations. Sparse OCR, sampled face detection and
 unpaired color statistics leave limits that must remain visible. Current director
 plans use cuts; uncertain reference effects are warnings. Missing footage returns
 the director's named shortage, and a failed draft prevents “three ready.”
+
+## Explain a reference
+
+For "how was this made?", use `zing explain VIDEO --out DIR` or `zing_explain`.
+Read the card's facts, confidence and unknowns separately. Add `--against DRAFT`
+for a measured comparison. See [Explain](references/explain.md). Do not call a
+substitute font or fitted LUT the original.
