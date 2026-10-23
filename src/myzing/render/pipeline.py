@@ -244,6 +244,7 @@ def _render_in_directory(
     transitions: tuple[Transition | None, ...] = (),
     caption_overlay: Path | None = None,
     clip_framings: tuple = (),
+    clip_audio_filters: tuple = (),
     composition_audio: tuple = (),
     speech_spans: tuple = (),
     music_fades: dict | None = None,
@@ -278,14 +279,17 @@ def _render_in_directory(
     duck_envelope = None
     duck_passages: list[list[float]] = []
     if any(a.duck_under_speech and a.duck_scope == "source_speech" for a in composition_audio):
-        from myzing.music.ducking import passages, write_envelope
+        from myzing.music import ducking
         settings = duck or {}
-        duck_passages = passages(speech_spans, settings.get("hold", .8))
+        attack, release = settings.get("attack", ducking.DEFAULT_ATTACK_SECONDS), settings.get("release", ducking.DEFAULT_RELEASE_SECONDS)
+        duck_passages = ducking.duck_passages(speech_spans, validated.duration,
+                                              hold=settings.get("hold", ducking.DEFAULT_HOLD_SECONDS), attack=attack,
+                                              release=release, plateau=settings.get("plateau", ducking.DEFAULT_PLATEAU_SECONDS))
         duck_envelope = directory / "music-duck.wav"
         try:
-            write_envelope(duck_envelope, duck_passages, validated.duration,
-                           depth_db=settings.get("depth_db", 9.0), attack=settings.get("attack", .2),
-                           release=settings.get("release", .8))
+            ducking.write_envelope(duck_envelope, duck_passages, validated.duration,
+                                   depth_db=settings.get("depth_db", ducking.DEFAULT_DEPTH_DB), attack=attack,
+                                   release=release, gain_points=settings.get("gain_points"))
         except OSError as exc:
             raise RenderError(f"could not write the music ducking envelope: {exc}") from exc
     plan = build_graph(
@@ -295,6 +299,7 @@ def _render_in_directory(
         transitions=transitions,
         caption_overlay=caption_overlay,
         clip_framings=clip_framings,
+        clip_audio_filters=clip_audio_filters,
         composition_audio=composition_audio,
         music_fades=music_fades, measure_stems=measure_music,
         duck_envelope=duck_envelope,
@@ -334,11 +339,13 @@ def _render_in_directory(
         try:
             measurements = measure_mix(staged_output, directory / "music-stem.wav",
                 directory / "source-stem.wav" if plan.source_label else None, speech_spans, validated.duration,
-                passages=duck_passages or None)
+                passages=duck_passages or None,
+                ramps=ducking.ramp_windows((duck or {}).get("gain_points")) if duck_passages else ())
             if duck_passages:
                 measurements["duck"] = {**(duck or {}), "passages": len(duck_passages),
                                         "method": "known-speech gain envelope: raised-cosine pre-duck before each passage, "
-                                                  "held through clause gaps shorter than the hold, slow raised-cosine recovery"}
+                                                  "held through gaps shorter than max(hold, attack + release + plateau) "
+                                                  "and at close edit edges, slow raised-cosine recovery"}
         except (AudioError, SpanLimitError) as exc:
             raise RenderError(f"could not measure music mix: {exc}") from exc
         from myzing.project.api import hash_file
@@ -350,7 +357,7 @@ def _render_in_directory(
     return RenderResult(
         output_path=output_path,
         duration=validated.duration,
-        warnings=validated.warnings,
+        warnings=validated.warnings + tuple((measurements or {}).get("warnings", ())),
         command=tuple(command),
         filtergraph=plan.graph,
         work_dir=directory,

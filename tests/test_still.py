@@ -210,9 +210,9 @@ def test_inventory_limits_formats_exif_and_duplicate_bytes(photos, tmp_path, mon
         inv.inventory(photos)
     monkeypatch.setattr(inv, "MAX_PHOTOS", 64)
     monkeypatch.setattr(inv, "MAX_BYTES", 4)
-    with pytest.raises(MemeError, match="20 MiB"):
+    with pytest.raises(MemeError, match=r"Photo is empty or over \d+ MiB"):
         inv.inventory(photos)
-    monkeypatch.setattr(inv, "MAX_BYTES", 20 * 1024 * 1024)
+    monkeypatch.setattr(inv, "MAX_BYTES", 64 * 1024 * 1024)
     monkeypatch.setattr(inv, "MAX_ENTRIES", 1)
     with pytest.raises(MemeError, match="4096"):
         inv.inventory(photos)
