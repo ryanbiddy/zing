@@ -54,6 +54,7 @@ REGISTERED: dict[str, str] = {
     "caption geometry sample {t:.6f}s failed": "states that the observation becomes a coverage gap",
     "faster-whisper not installed": "names pip install myzing[study]",
     "scenedetect not installed": "names pip install myzing[study]",
+    "Fine source map unavailable:": "names myzing[study] and restudy; states fallback to public study shots",
     "backend failed to start": "names zing doctor + likely cause",
     "whisper model '{name}' could not be": "names zing doctor + download/disk cause",
     "shot detection failed: {e} — scenedetect is installed but": "names zing doctor",

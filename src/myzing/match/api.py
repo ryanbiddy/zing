@@ -351,7 +351,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 continue
             source = resolve_path(asset.path, root)
             sha = projects.hash_file(source)
-            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps],
+            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, "source-map-adaptive-content-v1"],
                                                       lambda source=source: _study(str(source), root, raw=True))
             audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.2"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
@@ -454,7 +454,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     write(path, result)
                     return {"path": str(path), "outputs": [str(path)], "verification": result}
                 verified = checkpoints.step("decode-" + label, projects.hash_file(video), verify)
-                output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps, "short-shot-verification-v1"],
+                output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps, "confirmed-cut-verification-v1"],
                                                 lambda: _study(str(video), root / "verification", verification=True))
                 timeline = video.with_suffix(".png")
                 inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v1"],

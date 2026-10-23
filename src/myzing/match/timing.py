@@ -3,6 +3,7 @@
 from statistics import median
 
 from myzing.style_ranges import timing_band, timing_distance
+from myzing.study.source_map import planning_shots
 
 
 STATUS_LABELS = {"not_applicable": "not applicable for this footage",
@@ -54,9 +55,10 @@ def _protected_spans(plan, planning):
 def timing_dimensions(durations, rendered, source_pacing, planning, plan, unmeasured):
     target = median(durations) if durations else None
     first_target = durations[0] if len(durations) > 1 else None
-    pixel_durations = [s.duration for s in rendered.shots]
+    measured_shots = planning_shots(rendered)
+    pixel_durations = [s.duration for s in measured_shots]
     mapped_durations = source_pacing.get("shot_durations_seconds", [])
-    pixel_cuts = [s.start for s in rendered.shots[1:]]
+    pixel_cuts = [s.start for s in measured_shots[1:]]
     mapped_cuts = source_pacing.get("cut_positions_seconds")
     if mapped_cuts is None:
         mapped_cuts = [sum(mapped_durations[:i]) for i in range(1, len(mapped_durations))]

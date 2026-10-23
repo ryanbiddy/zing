@@ -93,6 +93,14 @@ def study(
         warnings += shots_r.warnings
         provenance.update(shots_r.provenance)
 
+        # Keep public shots/pacing/keyframes stable. Planning consumes a separate
+        # versioned map; verification still measures the rendered pixels itself.
+        if shots_r.shots and ing.meta.fps > 0:
+            from .source_map import build_source_map
+            source_map = build_source_map(ing.media_path, ing.meta.duration, ing.meta.fps, shots_r.shots)
+            provenance["source_map"] = source_map.to_dict()
+            warnings += source_map.warnings
+
         _phase(phase_callback, "keyframes")
         keyframes_mod.extract_keyframes(
             ing.media_path, ing.breakdown_dir, shots_r.shots,

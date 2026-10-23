@@ -87,6 +87,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | First local edit | [Quickstart](docs/QUICKSTART.md): generated clip, explicit EDL, rendered draft and review artifacts. |
 | Explain how a video was made | [Explain](docs/EXPLAIN.md): `zing explain reference.mp4 --out ./style-card`; measured JSON, plain English, phone-readable PNG and a reusable recipe. Add `--against draft.mp4` to compare. |
 | Match a reference with your clips | [Match](docs/MATCH.md): `zing match reference.mp4 --clips ./clips --out ./project --brief brief.json`; resumable A/B/C rendering, full decode, PNGs and measured reports. |
+| Find short cuts inside source clips | [Source map](docs/SOURCE-MAP.md): confirmed extra boundaries for planning, with frame evidence and unchanged public study shots. |
 | Study and direct footage | [Direct flow](docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v6. |
 | Inventory a project | [Project inventory](docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
 | Reuse saved references and remember a choice | [Uoink memory](docs/UOINK-MEMORY.md): verified local media, optional peer search, and durable draft-choice receipts. |

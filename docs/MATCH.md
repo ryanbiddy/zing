@@ -1,5 +1,8 @@
 # Match a reference with your clips
 
+Source timing uses the [confirmed source map](SOURCE-MAP.md). Public study
+shots remain unchanged; extra planning cuts carry frame evidence and confidence.
+
 ```sh
 zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --answers '{"target_length_seconds":6,"aspect":"16:9"}'
 zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --resume --json
