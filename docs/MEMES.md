@@ -235,8 +235,11 @@ writes and judges the joke using `zing prompt meme-writer` or MCP
 its head noun ("monday standup" names "the standup", "my cat knocking things
 off the desk" names "my cat"), the clause subject ("the build", or the object
 when the subject is a pronoun: "you open the legacy code" names "the legacy
-code"), or the wh-clause itself. No payoff comes from a fixed list, so two
-topics never share a line. Formats cover top/bottom setups, one-line
+code"), or the wh-clause itself. No payoff comes from a fixed list, so
+topics with different head nouns never share a line. Topics about the same
+noun can share a payoff ("the build broke" and "the build passed" both get
+"the build deserves a raise"); each setup line still names its own topic.
+Formats cover top/bottom setups, one-line
 reactions, POV, labels and a "nobody asked about ..." explainer (the
 "nobody:" colon form stays banned filler). A topic phrased as a situation
 ("when the build finally passes", "when you commit", "the deploy failed")

@@ -60,11 +60,11 @@ def test_lines_stay_grammatical_and_budgeted(topic):
 
 def test_situation_subjects_and_agreement():
     texts = " | ".join(lines("the tests pass"))
-    assert "the tests deserve a raise" in texts and "don't touch the tests" in texts
+    assert "the tests deserve a raise" in texts and "nobody jinx the tests" in texts
     texts = " | ".join(lines("you open the legacy code"))
-    assert "don't touch the legacy code" in texts
+    assert "nobody jinx the legacy code" in texts
     texts = " | ".join(lines("when the build finally passes"))
-    assert "(i never touched the build)" in texts and "the build deserves a raise" in texts
+    assert "(it was the build, not me)" in texts and "the build deserves a raise" in texts
     assert "my cat can sense fear" in " | ".join(lines("my cat knocking things off the desk"))
     dark = {"face_method": "yunet", "faces": [], "colors": [], "brightness": .1}
     night = generate_ideas("duck and cover drills", n=8, seed="x", photo=dark)[0]["texts"]
@@ -146,3 +146,37 @@ def test_local_ocr_text_becomes_line_evidence_when_available(tmp_path, zing_work
     assert record.text == "EXIT" and 'Text read locally: "EXIT"' in record.description
     idea = generate_ideas("monday standup", n=8, seed="x", photo=record)
     assert any(i["texts"] == ['the sign said "EXIT"', "monday standup anyway"] for i in idea)
+
+
+def test_review_regressions_people_counts_clips_and_compound_names():
+    """Review fixes: "touch" payoffs read as abuse with person nouns ("don't
+    touch the kids"); "all 2 of us"; a clipped topic ending on "without";
+    "hell week" -> "the hell"; "looking productive" -> "the productive"."""
+    for topic in ("the kids are asleep", "when my little sister finally sleeps", "the baby is quiet"):
+        for line in lines(topic):
+            assert "touch" not in line.casefold(), (topic, line)
+    two = photo(faces=[{"x": i / 3, "y": .2, "width": .15, "height": .2} for i in range(2)])
+    assert generate_ideas("monday standup", n=8, seed="s", photo=two)[0]["texts"] == ["both of us after monday standup"]
+    long_topic = ("when the intern pushes to main without telling anyone and the whole site goes down "
+                  "for six hours on launch day")
+    for line in lines(long_topic):
+        assert not re.search(r"(without|to|on|for|and)$", line), line
+    hell = " | ".join(lines("hell week"))
+    assert not re.search(r"the hell(?! week)", hell) and "define hell week" in hell
+    assert "the release day" in " | ".join(lines("release day"))
+    for topic, bad in (("looking productive", "the productive"), ("feeling cute", "the cute")):
+        assert bad not in " | ".join(lines(topic)), topic
+
+
+def test_plural_agreement_for_singular_nouns_ending_in_s():
+    """Review fix: "the canvas deserve a raise", "the news never sleep"."""
+    texts = " | ".join(lines("when the canvas finally loads"))
+    assert "the canvas deserves a raise" in texts
+    dark = photo(brightness=.1, colors=[])
+    for topic, line in (("the news", "the news never sleeps"), ("the tests", "the tests never sleep")):
+        assert generate_ideas(topic, n=8, seed="x", photo=dark)[0]["texts"][1] == line
+
+
+def test_same_noun_topics_still_differ_in_every_setup():
+    a, b = generate_ideas("the build broke", n=8), generate_ideas("the build passed", n=8)
+    assert not {i["texts"][0] for i in a} & {i["texts"][0] for i in b}

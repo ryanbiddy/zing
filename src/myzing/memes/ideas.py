@@ -248,7 +248,8 @@ def _template_texts(key: str, count: int, topic: str, index: int, pair: list[str
 
 # Offline lines are built from the topic's own words (its head noun, clause
 # subject or wh-clause) and from measured photo facts. No payoff line comes
-# from a fixed list, so two topics never share a line. They remain templates:
+# from a fixed list, so topics with different head nouns never share a line
+# (same-noun topics can share a payoff; setups still differ). They remain templates:
 # an agent or LLM with the meme-writer prompt writes better jokes.
 PREPOSITIONS = {"from", "on", "in", "at", "with", "for", "about", "after", "before", "during",
                 "to", "into", "without", "that", "who", "which", "while", "until", "off", "over",
@@ -257,6 +258,7 @@ POSSESSIVES = {"my", "our", "your", "their", "his", "her"}
 GENERIC_HEADS = {"energy", "day", "days", "time", "week", "night", "mode", "season", "vibes", "life",
                  "stuff", "things", "situation", "moment", "era", "feeling", "plan", "thing"}
 ARTICLES = DETERMINERS | {"a", "an"}
+DANGLING_END |= PREPOSITIONS | {"but", "so", "because", "nor", "yet"}
 HONESTY = ("Template-based offline line: topic words and measured photo facts in fixed formulas. "
            "An agent or LLM given the meme-writer prompt writes better ones.")
 
@@ -292,21 +294,40 @@ def _thing_parts(words: list[str]) -> dict:
         # itself; the prepositional object is its head word.
         whole = " ".join(words) if len(" ".join(words)) <= 24 else None
         content = [w for w in words[len(phrase):] if _bare(w) not in ARTICLES | PREPOSITIONS] or content
+    if (whole is None and len(content) == 2 and content[0].casefold().endswith("ing")
+            and len(phrase) == 2 and not _plural(content[1])):
+        # "looking productive", "feeling cute": no article, so the second word
+        # may be a complement, not a noun ("the productive"); the phrase names it.
+        whole = " ".join(phrase) if len(" ".join(phrase)) <= 24 else None
     if len(content) > 1 and content[0].casefold().endswith("ing"):
         content = content[1:]  # "fixing the flaky test" -> the test
-    head = next((w for w in reversed(content) if _bare(w) not in GENERIC_HEADS),
-                content[-1] if content else words[-1])
+    if len(content) > 1 and _bare(content[-1]) in GENERIC_HEADS:
+        # "release day", "hell week", "spooky season": the generic last word
+        # needs its modifier ("the hell", "the spooky" are not the topic).
+        head = " ".join(w.strip(",.!?;:\"'") for w in content[-2:])
+    else:
+        head = content[-1] if content else words[-1]
     head = head.strip(",.!?;:\"'")
-    owner = _bare(phrase[0]) if phrase and _bare(phrase[0]) in POSSESSIVES and head in phrase else None
+    owner = (_bare(phrase[0]) if phrase and _bare(phrase[0]) in POSSESSIVES and head.split()[-1] in
+             [w.strip(",.!?;:\"'") for w in phrase] else None)
     the = whole or (head if _proper(head) else f"{phrase[0] if owner else 'the'} {head}")
     return {"head": _clip_words(head, 18), "the": _clip_words(the, 24)}
 
 
+# Singular nouns that end in a plain -s ("the canvas deserves a raise").
+SINGULAR_S = {"alias", "atlas", "bias", "canvas", "gas", "christmas", "chaos", "kudos", "news", "series",
+              "species", "lens", "kubernetes", "postgres", "jenkins", "redis", "aws", "ios", "macos", "dos",
+              "measles", "mumps", "diabetes", "pancreas", "rabies", "herpes", "plus", "minus", "corps",
+              "headquarters", "whereabouts", "https", "cosmos", "ethos", "pathos", "logos", "thermos", "texas",
+              "vegas", "paris", "brussels", "athens", "wales"}
+
+
 def _plural(phrase: str) -> bool:
-    """'the tests' is plural; 'the build', 'prod', 'AWS', 'the bus' are not."""
+    """'the tests' is plural; 'the build', 'prod', 'AWS', 'the bus', 'the
+    canvas', 'the news' are not."""
     word = phrase.split()[-1] if phrase.split() else ""
-    return (word.islower() and len(word) > 3 and word.endswith("s")
-            and not word.endswith(("ss", "us", "is", "ics")))
+    return (word.islower() and len(word) > 3 and word.endswith("s") and word not in SINGULAR_S
+            and not word.endswith(("ss", "us", "is", "ics", "'s")))
 
 def _verb_index(words: list[str]) -> int | None:
     """First verb of a clause. A word after an article is a noun ("the
@@ -447,8 +468,9 @@ def _evidence_formulas(shape: str, short: str, parts: dict, facts: dict) -> list
     formulas = []
     faces = facts.get("faces")
     if faces and faces >= 2:
-        line = {"situation": f"all {faces} of us when {short}", "wh": f"all {faces} of us pretending to know {short}"}
-        formulas.append(([line.get(shape, f"all {faces} of us after {short}")], "face_count",
+        group = "both of us" if faces == 2 else f"all {faces} of us"
+        line = {"situation": f"{group} when {short}", "wh": f"{group} pretending to know {short}"}
+        formulas.append(([line.get(shape, f"{group} after {short}")], "face_count",
                          f"{faces} prominent faces detected locally; the photo is the group reaction.",
                          [f"faces={faces}"], None))
     elif faces == 1:
@@ -507,9 +529,9 @@ def _formulas(shape: str, short: str, parts: dict, asked: str) -> list[tuple]:
         np = parts["np"]
         return [
             ([f"when {short}"], "reaction", "One line; the photo is the reaction."),
-            ([f"pov: {short}", f"don't touch {np}"], "understatement", "A frozen beat adds tension."),
+            ([f"pov: {short}", f"nobody jinx {np}"], "understatement", "A frozen beat adds tension."),
             ([short, f"nobody knows why, not even {np}"], "mystery", "Shared confusion is the joke."),
-            ([f"me explaining why {short}", f"(i never touched {np})"], "confession",
+            ([f"me explaining why {short}", f"(it was {np}, not me)"], "confession",
              "The aside undercuts the explanation."),
             ([short, f"me, taking credit for {np}"], "self_own", "Taking credit for luck."),
             ([f"me acting surprised that {short}"], "deadpan", "One line of feigned surprise."),
