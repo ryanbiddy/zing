@@ -47,6 +47,16 @@ class Photo(Record):
     # Estimated subject box (normalized [x, y, w, h]) for crops when no
     # prominent face is found; None for flat photos or older indexes.
     subject: list[float] | None = None
+    # Decoding report (myzing.memes.photo.PhotoSource): original and working
+    # sizes, decoder and orientation source; None for older indexes.
+    source: dict | None = None
+    # Model-free distinct-region estimate (myzing.memes.subject); protected
+    # from text when confident and no prominent face. None for older indexes.
+    subject_estimate: dict | None = None
+    # Mean luma 0..1 and text read by local OCR ("" = none found; None = OCR
+    # unavailable or an older index). Offline lines may use both.
+    brightness: float | None = None
+    text: str | None = None
 
 
 @dataclass
@@ -80,6 +90,8 @@ class StillIndex(Record):
     prompt_path: str = "meme-writer.md"
     warnings: list[str] = field(default_factory=list)
     selected: str | None = None
+    # Explicit user protect boxes (normalized source [x, y, w, h]); pick re-checks them.
+    protect: list[list[float]] | None = None
 
     @classmethod
     def from_dict(cls, data: dict):
