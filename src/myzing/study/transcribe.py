@@ -57,6 +57,11 @@ def transcribe(
 ) -> TranscribeResult:
     result = TranscribeResult()
     name = model_name or os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
+    if name == "skip":
+        from .speech_models import SKIP_NOTE
+        result.warnings.append(SKIP_NOTE)
+        result.provenance = {"speech_setup": "skipped", "captions": "unavailable", "continuity": "unavailable"}
+        return result
     try:
         model, device, compute_type, version = (
             _load_model(name, local_files_only=True) if local_files_only else _load_model(name)
@@ -118,6 +123,10 @@ def _load_model(name: str, *, local_files_only: bool = False):
     when available, plain int8 otherwise — the R1-A compute picks."""
     import faster_whisper
 
+    from .speech_models import managed_path
+    managed = managed_path(name)
+    if managed:
+        name = str(managed)
     version = getattr(faster_whisper, "__version__", "unknown")
     options = {"local_files_only": True} if local_files_only else {}
     if local_files_only:

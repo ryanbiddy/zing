@@ -18,11 +18,24 @@ Start with “What are we making?” Choose a reference edit, an edit from your
 clips, a photo meme, a style breakdown, music advice, or another delivery shape.
 Studio reads a local reference for up to eight seconds, then recommends length,
 pacing, captions, audio and shape from what it measured. A local reference edit
-takes eight questions plus confirmation. Enter accepts a recommendation; paths
+adds a speech-setup question when clips have audio. Enter accepts a recommendation; paths
 and topics need your answer. `?` explains, `b` goes back and `q` saves.
 The plan shows the default output folder, with an option to change it. The
 finish screen compares playable drafts by shape and recommends where to start.
 Continue with `zing studio --resume <project>`.
+
+On a first install, choose **small.en (~486 MB)** for a faster English draft,
+**large-v2 (~3.09 GB)** for multilingual speech and better accuracy, or **skip
+speech (0 MB)**. Enter recommends small.en for the shorter first download;
+you must then type **yes** to authorize it. Small.en can miss names, accents and
+quiet words, so review its captions. Large-v2 remains the `zing study` default.
+Studio verifies the download's SHA-256 and caches it under `ZING_HOME`.
+Skipping disables spoken captions and whole-line continuity; clips without safe
+speech timing may be excluded. The finish screen reports the model and download.
+
+`zing doctor` and `zing setup` list cached speech models. To prepare one before
+editing, run `zing doctor --speech-model small.en` and confirm the download.
+See [speech setup](docs/DOCTOR.md) for unattended use and cache details.
 
 See [Studio](docs/STUDIO.md) for a real transcript, JSON answers and agent use.
 Downloads are off by default. Missing evidence, failed drafts and blocked

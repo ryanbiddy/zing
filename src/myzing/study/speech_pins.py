@@ -1,0 +1,22 @@
+"""Systran faster-whisper MIT assets; immutable Hugging Face revisions."""
+
+MODELS = {'small.en': {'revision': 'd1d751a5f8271d482d14ca55d9e2deeebbae577f',
+              'license': 'mit',
+              'files': {'config.json': {'sha256': '666a9605530ac1f61fa8177f3702b4dacec9966749e42610839fcc32661d5fae',
+                                        'size': 2657},
+                        'model.bin': {'sha256': '62b2a45b05ee59acb4a5341b33ee35e041395d378d418a18acfe4c9e768ee37a',
+                                      'size': 483545366},
+                        'tokenizer.json': {'sha256': '929c5252409436dce1b38a75d1abbcb5e132d170d8e324e4e04ed915fa2d22df',
+                                           'size': 2128466},
+                        'vocabulary.txt': {'sha256': 'ff77588746d3a2595d32ab5b69ffd7b95ce2441ac57533cb66fc3eb575a115cf',
+                                           'size': 422309}}},
+ 'large-v2': {'revision': 'f0fe81560cb8b68660e564f55dd99207059c092e',
+              'license': 'mit',
+              'files': {'config.json': {'sha256': 'd86b7a7664a12559d644aa210a32ce9a7e03913e794b7ea4fb7182de69e273a7',
+                                        'size': 2796},
+                        'model.bin': {'sha256': 'bf2a9746382e1aa7ffff6b3a0d137ed9edbd9670c3b87e5d35f5e85e70d0333a',
+                                      'size': 3086912962},
+                        'tokenizer.json': {'sha256': 'fb7b63191e9bb045082c79fd742a3106a12c99513ab30df4a0d47fa6cb6fd0ab',
+                                           'size': 2203239},
+                        'vocabulary.txt': {'sha256': '34ce3fe1c5041027b3f8d42912270993f986dbc4bb34cf27f951e34a1e453913',
+                                           'size': 459861}}}}

@@ -330,7 +330,22 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--genre", default="", help="rubric genre key")
     parser.add_argument("--platform", default="", help="tiktok|youtube|instagram|x")
     parser.add_argument("--list", action="store_true", help="list preset packs")
+    parser.add_argument("--speech-model", choices=["small.en", "large-v2", "skip"], help="set up speech without starting a taste study")
+    parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected speech model download")
     args = parser.parse_args(argv)
+    from myzing.study import speech_models
+    speech_models.print_inventory()
+    if args.yes and not args.speech_model:
+        print("--yes requires --speech-model")
+        return 2
+    if args.speech_model:
+        try:
+            receipt = speech_models.setup(args.speech_model, yes=args.yes)
+        except (ValueError, OSError, RuntimeError) as exc:
+            print(str(exc))
+            return 2
+        print(json.dumps(receipt, indent=2))
+        return 0
 
     if args.list or (not args.pack and not args.links):
         packs = list_packs()

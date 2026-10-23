@@ -3,7 +3,7 @@
 Zing's MCP server gives any MCP client thirty-six tools, plus the prompt
 pack as slash commands:
 
-- **Start here:** `zing_studio` (stateless questions and a plan), `zing_studio_run` (confirmed b/d/f jobs; poll or cancel by project). See [Studio](STUDIO.md).
+- **Start here:** `zing_studio` (stateless questions and a plan), `zing_studio_run` (confirmed a/b/d/f jobs with separate speech-download consent; poll or cancel by project). See [Studio](STUDIO.md).
 - **Study:** `study_video`, `study_uoink_item`, `get_breakdown`,
   `list_breakdowns`, `get_frames`, `zing_status`
 - **Judge:** `get_prompt`, `save_judgment`, `setup_taste`

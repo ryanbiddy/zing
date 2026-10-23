@@ -31,7 +31,7 @@ def inputs(tmp_path, monkeypatch, zing_workspace):
 def complete(path, inputs):
     a = {"path": path, "project": inputs["project"]}
     supplied = {"reference_kind": "file", "reference": inputs["source"], "clips": inputs["clips"],
-                "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix"}
+                "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix", "speech_model": "skip"}
     while True:
         step = flow.next_step(a)
         if step["status"] == "plan":
@@ -76,7 +76,7 @@ def test_scripted_stdin_every_path(path, inputs, monkeypatch, capsys):
     assert Session.from_dict(state.to_dict()).to_dict() == state.to_dict()
     assert "1. a." not in output
     if path == "a":
-        assert state.questions_asked <= 8
+        assert state.questions_asked <= 9
 
 
 def test_required_path_empty_reprompts_without_enter_acceptance(inputs, monkeypatch, capsys):
@@ -104,8 +104,8 @@ def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs
             break
         q = step["question"]
         questions.append(q)
-        a[q["id"]] = q["recommended"]
-    assert [q["id"] for q in questions] == ["platform", "length", "captions", "music"]
+        a[q["id"]] = "skip" if q["id"] == "speech_model" else q["recommended"]
+    assert [q["id"] for q in questions] == ["platform", "length", "captions", "music", "speech_model"]
     assert ["9:16" in questions[0]["reason"], "19.7 s" in questions[1]["reason"],
             "No text detected" in questions[2]["reason"], "Music observed" in questions[3]["reason"]] == [True] * 4
     assert all("66 cuts/min" not in q["reason"] for q in questions)
@@ -287,7 +287,7 @@ def test_mcp_question_flow_is_stateless(path, inputs):
 
 def test_existing_jobs_are_reused_and_runner_requires_confirmation(inputs):
     from myzing.mcp_server import h_zing_studio_run
-    for path, tool in [("a", "match_start"), ("c", "still_concepts"), ("e", "music_check")]:
+    for path, tool in [("c", "still_concepts"), ("e", "music_check")]:
         a, plan = complete(path, inputs)
         assert plan["execution"][0]["tool"] == tool
         assert not h_zing_studio_run(a, confirmed=True)["ok"]
@@ -417,7 +417,7 @@ def test_no_reference_delegates_inventory_brief_study_and_director(inputs, monke
     result = no_reference(a, root, lambda _: None)
     assert (root / "project.json").is_file() and (root / "brief.json").is_file()
     assert calls[0][1]["local_models_only"] and calls[0][1]["raw_mode"]
-    assert calls[-1]["studio_options"] == {"no_reference": True, "tone": "calm", "captions": "none"}
+    assert calls[-1]["studio_options"] == {"no_reference": True, "tone": "calm", "captions": "none", "speech_model": "skip"}
     assert result["shortages"][0]["code"] == "not_enough_distinct_footage"
 
 
@@ -561,8 +561,8 @@ def test_studio_cannot_cancel_a_foreign_job(inputs, monkeypatch, owner_alive):
     monkeypatch.setattr("myzing.project.locking._pid_alive", lambda pid: owner_alive)
     result = h_zing_studio_run(project=str(root), cancel=True)
     assert result["ok"] and result["cancellation_requested"] is False
-    assert result["status"] == ("running" if owner_alive else "failed")
-    assert "owning server" in result["hint"]
+    assert result["status"] == ("running" if owner_alive else "interrupted")
+    assert ("owning server" if owner_alive else "--resume") in result["hint"]
     assert "pid" not in result
     assert read_json(root / "studio-job.json")["status"] == result["status"]
 
@@ -583,7 +583,7 @@ def test_reference_summary_once_and_recommended_option_labels(inputs, monkeypatc
     assert "Recommended: 1 (No added captions)" in text
     assert "Recommended: 1 (Keep my clips' audio)" in text
     assert "Recommended: original" not in text and "Recommended: none" not in text
-    assert load_session(inputs["project"]).questions_asked == 8
+    assert load_session(inputs["project"]).questions_asked == 9
 
 
 def test_explain_success_summary_and_all_cards_reach_finish(inputs, monkeypatch):
@@ -647,7 +647,7 @@ def test_single_quoted_folder_is_accepted(inputs):
 
 def test_output_folder_that_collides_is_refused_and_not_written(inputs, monkeypatch, capsys):
     clips = Path(inputs["clips"])
-    monkeypatch.setattr("sys.stdin", io.StringIO(f"2\n{clips}\ndemo\n2\n8\n\n\n\no\n{clips}\nq\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"2\n{clips}\ndemo\n2\n8\n\n\n\nskip\no\n{clips}\nq\n"))
     assert command.run([]) == 0
     assert "Keeping " + inputs["project"] in capsys.readouterr().out
     assert not (clips / "studio-session.json").exists()
@@ -841,9 +841,6 @@ def test_project_lock_release_retries_a_transient_sharing_violation(tmp_path, mo
     assert len(calls) == 3 and not (tmp_path / locking.LOCK_NAME).exists()
 
 
-@pytest.mark.parametrize("cached, expected", [(True, False), (False, True)])
-def test_plan_warns_before_a_run_when_the_speech_model_is_missing(inputs, monkeypatch, cached, expected):
-    from myzing import doctor
-    monkeypatch.setattr(doctor, "check_whisper", lambda: SimpleNamespace(data={"model": "large-v2", "cached": cached}))
+def test_plan_reports_explicit_skip(inputs):
     _, plan = complete("b", inputs)
-    assert any("'large-v2' is not downloaded" in w for w in plan["warnings"]) is expected
+    assert any("captions and whole-line continuity are unavailable" in w for w in plan["warnings"])

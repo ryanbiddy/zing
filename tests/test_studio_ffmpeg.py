@@ -24,7 +24,7 @@ def test_studio_match_answers_json_generated_media(tmp_path, monkeypatch, zing_w
     monkeypatch.setattr("myzing.match.jobs.worker_command", lambda: [sys.executable, "-m", "tools.match_examples", "--worker", str(trace)])
     answers = {"path": "a", "project": str(out), "reference_kind": "file", "reference": str(reference),
                "clips": str(clips), "topic": "a generated style test", "platform": "YouTube", "aspects": ["16:9"],
-               "length": 6, "tone": "natural", "captions": "none", "music": "original", "draft": "B"}
+               "length": 6, "tone": "natural", "captions": "none", "music": "original", "draft": "B", "speech_model": "skip"}
     file = tmp_path / "answers.json"
     file.write_text(json.dumps(answers))
     assert run(["--answers", str(file), "--yes", "--json"]) == 0

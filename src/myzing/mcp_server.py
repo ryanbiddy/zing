@@ -129,6 +129,8 @@ def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = F
     from myzing.studio.flow import agent_default_project
     from myzing.studio.jobs import job
     try:
+        if type(confirmed) is not bool or type(cancel) is not bool:
+            return _err("confirmed and cancel must be real booleans; start with confirmed: true after reviewing the plan.")
         if isinstance(answers, dict) and "path" in answers and "project" not in answers:
             answers = {**answers, "project": agent_default_project()}
         return _ok(**job(answers, confirmed=confirmed, project=project, cancel=cancel))
@@ -1817,7 +1819,7 @@ def mcp_sdk_defect() -> str | None:
 def build_server():
     from mcp.server.mcpserver import MCPServer
     from mcp.server.mcpserver.prompts import Prompt
-    from pydantic import StrictFloat
+    from pydantic import StrictBool, StrictFloat
 
     mcp = MCPServer(
         "zing",
@@ -1840,9 +1842,11 @@ def build_server():
         name="zing_studio",
         description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Local probes and a bounded offline reference preview; saved-reference search only with a configured reachable peer. No production or downloads.",
     )(h_zing_studio)
+    h_zing_studio_run.__annotations__["confirmed"] = StrictBool
+    h_zing_studio_run.__annotations__["cancel"] = StrictBool
     mcp.tool(
         name="zing_studio_run",
-        description="Start a confirmed studio plan for b (no-reference edit), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For a/c/e reuse match_start, still_concepts/still_render and music_check. Local models only; paths and metadata out.",
+        description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For c/e reuse still_concepts/still_render and music_check. Speech downloads require speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
     )(h_zing_studio_run)
     mcp.tool(
         name="brief_questions",

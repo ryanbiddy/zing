@@ -131,7 +131,12 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
                                        style, brief, manifest, root, seed, keep, forbidden,
                                        subject_evidence=subject_evidence, music_cache=music_cache,
-                                       **({"caption_mode": studio_options.get("captions")} if studio_options is not None else {}))
+                                       **({"caption_mode": "none" if studio_options.get("speech_model") == "skip" else studio_options.get("captions")} if studio_options is not None else {}))
+            if studio_options and studio_options.get("speech_model") == "skip":
+                from myzing.study.speech_models import SKIP_NOTE
+                evidence["continuity"] = {"version": 1, "status": "unavailable", "score": None, "basis": SKIP_NOTE}
+                evidence["captions"] = {"status": "unavailable", "basis": SKIP_NOTE}
+                plan.warnings.append(SKIP_NOTE)
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},
