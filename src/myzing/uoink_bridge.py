@@ -427,6 +427,140 @@ def _search_item_valid(item: Any) -> bool:
     )
 
 
+_GET_DATA_KEYS = {"item", "content", "attachments"}
+_GET_CONTENT_KEYS = {"available", "media_type", "text", "byte_length", "truncated"}
+_ATTACHMENT_KEYS = {"id", "kind", "role", "media_type", "label", "byte_length", "href"}
+
+
+def parse_get_response(body: Any, item_id: str) -> dict[str, Any]:
+    """Validate a corpus.read/1 ``get`` envelope; keep only item metadata.
+
+    The item has the same exact-key shape as a search item. Markdown content
+    and attachments are validated and dropped: Zing needs the title only.
+    """
+    invalid = _err("Uoink item response is not uoink.corpus.read v1 get.", code="contract_mismatch")
+    if (not isinstance(body, dict) or body.get("contract") != "uoink.corpus.read"
+            or type(body.get("version")) is not int or body["version"] != 1 or body.get("operation") != "get"):
+        return invalid
+    if body.get("ok") is False:
+        if set(body) != _HANDOFF_ERROR_KEYS or not isinstance(body["error"], dict):
+            return invalid
+        return _err(f"Uoink item lookup failed: {body['error'].get('code', '')}", code=str(body["error"].get("code", "")))
+    if set(body) != _HANDOFF_TOP_KEYS or body["ok"] is not True:
+        return invalid
+    data = body["data"]
+    if not isinstance(data, dict) or set(data) != _GET_DATA_KEYS:
+        return invalid
+    item, content, attachments = data["item"], data["content"], data["attachments"]
+    if (not _search_item_valid(item) or item["id"] != item_id
+            or not isinstance(content, dict) or set(content) != _GET_CONTENT_KEYS
+            or not isinstance(attachments, list)
+            or any(not isinstance(a, dict) or set(a) != _ATTACHMENT_KEYS for a in attachments)):
+        return invalid
+    result = {"item_ref": _ITEM_REF_PREFIX + urllib.parse.quote(item["id"], safe=""), "title": item["title"],
+              "author": item["author"], "source_url": item["source_url"]}
+    if any(isinstance(value, str) and redact(value) != value for value in result.values()):
+        return invalid
+    return {"ok": True, **result}
+
+
+def item_metadata(item_ref: str) -> dict[str, Any]:
+    """Title/author/source of one corpus item via corpus.read/1 ``get``.
+
+    Same discovery, capability check and token header as reference search;
+    GET /api/corpus/v1/items/<id> sends no query or body. Best effort: the
+    caller falls back to local titles on any error.
+    """
+    item_id = _item_id_from_ref(item_ref)
+    if item_id is None:
+        return _err("item_ref must identify one corpus item.", code="invalid_ref")
+    token = _token()
+    if not token:
+        return _err("Uoink item lookup unavailable: configure UOINK_TOKEN.", code="unconfigured")
+    try:
+        base = credential_safe_url(helper_url())
+        status, manifest = suite_peer._get_json(base + "/.well-known/suite-service.json")
+        if status != 200 or suite_peer._manifest_defect(manifest) is not None:
+            return _err("Uoink item lookup unavailable: peer service manifest is nonconformant.", code="contract_mismatch")
+        service = manifest["service"]
+        if service["id"] != "uoink" or SEARCH_CAPABILITY not in service["capabilities"]:
+            return _err("Uoink item lookup unavailable: peer does not advertise uoink.corpus.read/1.",
+                        code="unsupported_capability")
+        request = urllib.request.Request(
+            credential_safe_url(base + "/api/corpus/v1/items/" + urllib.parse.quote(item_id, safe="")), method="GET")
+        request.add_unredirected_header("X-Uoink-Token", token)
+        with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
+            raw = response.read(4 * 1024 * 1024 + 1)
+        if len(raw) > 4 * 1024 * 1024:
+            raise ValueError("oversized item response")
+        body = json.loads(raw.decode("utf-8"))
+    except suite_peer.UoinkResolutionError as error:
+        return _err("Uoink item lookup unavailable: " + str(error), code=error.code)
+    except urllib.error.HTTPError as error:
+        try:
+            body = json.loads(error.read().decode("utf-8"))
+        except (OSError, ValueError):
+            return _err(f"Uoink item lookup unavailable (HTTP {error.code}).", code="peer_error")
+    except (OSError, ValueError):
+        return _err("Uoink item lookup unavailable: peer offline or response invalid.", code="unavailable")
+    return parse_get_response(body, item_id)
+
+
+def _container_title(path) -> str | None:
+    """The media container's title tag, when FFmpeg can read one."""
+    import shutil
+    import subprocess
+
+    if path is None or shutil.which("ffprobe") is None:
+        return None
+    try:
+        result = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format_tags=title", "-of", "json",
+                                 str(path)], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                timeout=15, check=False)
+        title = (json.loads(result.stdout or "{}").get("format", {}).get("tags", {}) or {}).get("title")
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
+        return None
+    title = " ".join(str(title or "").split())
+    return title or None
+
+
+def note_title(slug: str) -> tuple[str, str]:
+    """(best real title, its source) for a pushed breakdown note.
+
+    Order: the Uoink corpus item's title (recorded when the project resolved
+    uoink:<id>, else looked up now); the platform title of a URL study; the
+    container's title tag; the project name; the file name; the slug.
+    """
+    try:
+        breakdown = storage.load_breakdown(slug)
+    except (FileNotFoundError, ValueError, KeyError, TypeError):
+        return slug, "slug"
+    meta, provenance = breakdown.meta, breakdown.provenance or {}
+    reference = provenance.get("project_reference") if isinstance(provenance.get("project_reference"), dict) else {}
+    if reference.get("title"):
+        return str(reference["title"]), "uoink_item"
+    value = str(reference.get("reference") or "")
+    if value.startswith("uoink:"):
+        canonical = value if value.startswith(_ITEM_REF_PREFIX) else _ITEM_REF_PREFIX + urllib.parse.quote(value[6:], safe="")
+        looked_up = item_metadata(canonical)
+        if looked_up.get("ok") and looked_up.get("title", "").strip():
+            return looked_up["title"].strip(), "uoink_item"
+    if meta.title and is_http_url(meta.source_url or ""):
+        return meta.title, "platform"
+    try:
+        media = storage.resolve_relpath(slug, meta.media_path) if meta.media_path else None
+    except (ValueError, OSError):
+        media = None
+    tag = _container_title(media)
+    if tag:
+        return tag, "container"
+    if reference.get("project_name"):
+        return str(reference["project_name"]), "project"
+    if meta.title:
+        return meta.title, "filename"
+    return slug, "slug"
+
+
 def push_breakdown(slug: str) -> dict[str, Any]:
     """Send a slug's breakdown.md to uoink as a note.
 
@@ -445,13 +579,9 @@ def push_breakdown(slug: str) -> dict[str, Any]:
         )
     text = md_path.read_text(encoding="utf-8")
 
-    title = f"Zing breakdown: {slug}"
-    try:
-        meta = storage.load_breakdown(slug).meta
-        if meta.title:
-            title = f"Zing breakdown: {meta.title}"
-    except (FileNotFoundError, ValueError, KeyError, TypeError):
-        pass  # markdown alone is still worth pushing; slug title suffices
+    # A Uoink-kept file is named media.mp4, so its stem is not a title.
+    best, title_source = note_title(slug)
+    title = f"Zing breakdown: {redact(best)[:200]}"
 
     try:
         base = helper_url()
@@ -506,5 +636,6 @@ def push_breakdown(slug: str) -> dict[str, Any]:
         "uoink_slug": body.get("slug", ""),
         "uoink_id": body.get("video_id", ""),
         "title": body.get("title", title),
+        "title_source": title_source,
         "hint": "the breakdown is now a note in your uoink corpus",
     }
