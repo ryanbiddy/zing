@@ -146,10 +146,10 @@ def run(root):
         project = ProjectManifest(Reference(str(root / "clips/nasa-montage.mp4"), "file", SourceRecord(str(root / "clips/nasa-montage.mp4"))),
                                   str(root / "clips"), SourceRecord(str(root / "clips")), list(inputs.values()))
         write(folder / "project.json", project.to_dict())
-        plan, evidence = make_plan("A", sequence, list(studies.values()), recipe, folder, envelope(recipe), brief, project, folder, 17, {}, {}, music_cache)
+        plan, evidence = make_plan("A", sequence, list(studies.values()), recipe, folder, envelope(recipe), brief, project, folder, 17, {}, {},
+                                   music_cache=music_cache)
         assert evidence["music"]["tracks"][0]["asset_id"] == track_id, "Real candidate ranking selected a different track; review the advice"
         plan = attach_report(plan, evidence)
-        plan.width, plan.height = 640, 360
         fit_captions(plan, folder / "caption-fit")
         plan_path = folder / "plan.json"
         write(plan_path, plan.to_dict())

@@ -25,7 +25,10 @@ from . import evidence
 from .state import Checkpoints, StepFailed, read, write
 
 
-def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, **_):
+def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, studio_options=None, **_):
+    if studio_options is not None:
+        from myzing.studio.adapters import validate_options
+        validate_options(studio_options)
     if not isinstance(reference, str) or not reference.strip():
         raise ValueError("Supply a reference URL, local file, or uoink:<id>.")
     if type(drafts) is not int or drafts != 3:
@@ -285,9 +288,10 @@ def _layout(plan, folder, recipe):
 
 
 def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
-          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True):
+          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None):
     """Synchronous worker API. CLI/MCP run this inside an owned process tree."""
-    validate(reference, clips, out, brief=brief, answers=answers, drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    validate(reference, clips, out, brief=brief, answers=answers, drafts=drafts, seed=seed, resume=resume, allow_download=allow_download,
+             **({"studio_options": studio_options} if studio_options is not None else {}))
     if type(repair_asr) is not bool:
         raise ValueError("repair_asr must be a boolean")
     started = time.monotonic()
@@ -307,6 +311,9 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             manifest = init(reference, clips, root)
             return {"manifest": manifest.to_dict(), "outputs": []}
         checkpoints.step("project-scan", {"run": time.time()}, scan)
+        if studio_options is not None:
+            from myzing.studio.adapters import register_music
+            register_music(root, studio_options.get("music"))
         manifest = projects.load_project(root)
         caps = capabilities()
         local = not is_http_url(reference) and not reference.startswith("uoink:")
@@ -368,12 +375,13 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                    "saved": projects.hash_file(root / "brief.json") if brief is None and answers is None else None}, get_brief)
         from myzing.director.api import plan_drafts
         def direct():
-            result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed, repair_asr=repair_asr)
+            result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed, repair_asr=repair_asr,
+                                 **({"studio_options": studio_options} if studio_options is not None else {}))
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
                                                  "continuity-v4", repair_asr, "aspect-zoomfill-speakers-v6", caps["layout"],
-                                                 "music1-review-v3", "reference-timing-constraints-v4"], direct)
+                                                 "music1-review-v3", "reference-timing-constraints-v4", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["source_asr"] = planned["summary"].get("source_asr", [])

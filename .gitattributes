@@ -43,3 +43,10 @@ tests/fixtures/uoink_corpus_v1/provider.json -text
 tests/fixtures/uoink_corpus_v1/LICENSE.txt -text
 tests/fixtures/uoink_corpus_v1/provider.source.json text eol=lf
 skills/uoink-zing/references/uoink-tools.json text eol=lf
+
+# HYG1: preserve relocated evidence bytes and their existing hash pins.
+tests/fixtures/research/** -text
+tests/fixtures/real-video-sources/** -text
+tests/fixtures/historical-evidence/** -text
+tools/eval/research/** -text
+tools/eval/fixtures/transitions/S2-GATE-PACK-2026-07-18.md -text

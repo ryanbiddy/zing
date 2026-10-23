@@ -162,7 +162,8 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
         dimensions["continuity"] = {"status": {"flagged": "miss", "pass": "pass"}.get(continuity["status"], "not_applicable"),
                                     "reason": continuity["basis"], **{k: v for k, v in continuity.items() if k != "status"}}
     if any(a.kind == "music" for a in plan.audio):
-        target = planning.get("music", {}).get("speech_to_music_lu", 21) if planning.get("music") else 21
+        from myzing.music.ducking import DEFAULT_SPEECH_TO_MUSIC_LU as default
+        target = planning.get("music", {}).get("speech_to_music_lu", default) if planning.get("music") else default
         measured = (audio_measurements or {}).get("speech_to_music_lu")
         dimensions["music_mix"] = _metric(target if measured is not None else None, measured, 3,
             "Isolated music and source stems in director speech windows; target 18-24 LU under speech.")

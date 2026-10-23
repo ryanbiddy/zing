@@ -10,7 +10,7 @@
   },
   "human_truth": {
     "available": true,
-    "path": "handoff/research/RAW-MODE-SOURCE.md",
+    "path": "tests/fixtures/real-video-sources/RAW-MODE-SOURCE.md",
     "section": "Human truth for the regression",
     "sha256": "8fbc0ba806bc114ecdfaed8158dea2afc31ac7e524d1d453609b380539f72ff5"
   },
@@ -118,7 +118,7 @@
       },
       "human_truth": {
         "available": true,
-        "path": "handoff/research/RAW-MODE-SOURCE.md",
+        "path": "tests/fixtures/real-video-sources/RAW-MODE-SOURCE.md",
         "section": "Human truth for the regression"
       }
     }
@@ -187,14 +187,14 @@
   },
   "manifest": {
     "path": "tools/eval/real_videos/manifest-raw-mode.json",
-    "sha256": "ed855446702f1219cba0b4d0f5a9077c6e4f9cbd747c31a9f02318ad4e6dce5d"
+    "sha256": "c3a35ea454f1d5670d494a15c3364f69cade2efaeb703e6492eb7ee88f22d0b4"
   },
   "source_document": {
-    "path": "handoff/research/RAW-MODE-SOURCE.md",
+    "path": "tests/fixtures/real-video-sources/RAW-MODE-SOURCE.md",
     "sha256": "8fbc0ba806bc114ecdfaed8158dea2afc31ac7e524d1d453609b380539f72ff5"
   },
   "artifacts": {
-    "breakdown.json": "50dad3ee0970695a9060123052b5ebd95b0614958ae86ad2809580c16d271d3a",
+    "breakdown.json": "3fdc6434266fd7e110d1d5c38bc3b9c0f17e9125ee5e2e3d349d9252f0e5e98b",
     "frames/shot_000.jpg": "3342a4f4bb1243d0b57216e76acc03129c4be8c84c1c868c5f64f0787faa24e4",
     "frames/hook_0s.jpg": "3342a4f4bb1243d0b57216e76acc03129c4be8c84c1c868c5f64f0787faa24e4",
     "frames/hook_1s.jpg": "93411b1b7b261d80187ee1eb0502f69487759ec0d91d99d92de8563375df3c8f",

@@ -150,11 +150,13 @@ delta, so it requires human review and makes no paired Delta E or original-LUT c
 `comparison.md` includes abstentions, disagreements and their reasons. JSON has
 `not_applicable_style_dimensions`, `detector_disagreements` and `style_notes` for
 finish-screen consumers; only `miss` enters `failed_style_dimensions`.
-The Studio implementation is on the separate STUDIO1 branch at this base.
-Its finish-screen integration is supplied in
-[the merge patch](../handoff/match2-studio-finish.patch), using the same
-`myzing.match.timing.dimension_notes` formatter. Apply that patch when combining
-the branches; it prints these disclosures separately from ranked passes.
+`zing studio` ranks drafts by measured misses, then measured passes. Not
+applicable, detector disagreement, approximate and unmeasured color count as
+neither. Its finish screen prints one line per draft naming them (for example
+`Draft B (16:9, 1:1): shot pace detector disagreement.`), and when the
+recommended draft has any, the "Start with draft X because ..." line lists them
+as not passes. A studio run without a reference uses its pace choice as a search
+preference, never as a reference band.
 
 Over MCP, call `match_start(reference, clips, out, answers=..., resume=...)` and
 poll `match_status(project)`. URL consent is `allow_download=true`. Results contain

@@ -10,6 +10,7 @@ over nested JSON in native-command arguments.
 
 | Command | Use and boundary |
 |---|---|
+| `zing studio` | Guided creative session; recommendations, confirmation, saved answers and resume. |
 | `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |

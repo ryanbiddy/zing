@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -14,13 +15,31 @@ from tools.eval import public_tree
 from tools.eval.content_policy import text_measurements
 
 
-CALIB = ROOT / "handoff/research/ocr-calibration"
+CALIB = ROOT / "tests/fixtures/research/ocr-calibration"
 
 
 def test_public_tree_has_only_reviewed_assets_and_no_detected_secrets_or_home_paths():
+    assert subprocess.check_output(
+        ["git", "ls-files", "-z", "--", "handoff"], cwd=ROOT
+    ) == b"", "Untrack internal coordination with git rm -r --cached handoff"
     report = public_tree.scan(ROOT)
     assert report["scanned_files"] > 700
     assert report["issues"] == []
+
+
+@pytest.mark.parametrize("exists", [False, True])
+def test_scanner_rejects_tracked_coordination_even_when_missing(tmp_path, monkeypatch, exists):
+    name = "handoff/notes.md"
+    if exists:
+        path = tmp_path / name
+        path.parent.mkdir()
+        path.write_text("Internal notes", encoding="utf-8")
+    monkeypatch.setattr(public_tree.subprocess, "check_output", lambda *a, **kw: name.encode() + b"\0")
+    monkeypatch.setattr(public_tree, "allowed_assets", lambda root: set())
+    report = public_tree.scan(tmp_path)
+    assert report["issues"] == [
+        {"path": name, "reason": "internal coordination must not be tracked"}
+    ]
 
 
 def test_scanner_reports_locations_without_echoing_sensitive_values():
@@ -61,7 +80,7 @@ def test_ocr_records_keep_anchored_geometry_labels_and_no_text():
 def test_ocr_freezer_emits_hashes_without_original_text(tmp_path, monkeypatch):
     from myzing.schemas import Breakdown, VideoMeta
     from myzing.study.captions import Line
-    spec = importlib.util.spec_from_file_location("ocr_freeze", CALIB / "freeze.py")
+    spec = importlib.util.spec_from_file_location("ocr_freeze", ROOT / "tools/eval/research/ocr_freeze.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(module.storage, "load_breakdown", lambda _: Breakdown(
@@ -94,7 +113,7 @@ def test_v1_corpus_keeps_metadata_and_source_licenses():
 
 
 def test_calibration_scores_remain_reproducible_without_text():
-    from handoff.research import pc2_baseline as baseline
+    from tools.eval.research import pc2_baseline as baseline
     rows = baseline.load()
     baseline.annotate_persistence(rows)
     assert len(rows) == 15999

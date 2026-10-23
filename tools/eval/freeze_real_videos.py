@@ -189,7 +189,7 @@ def _portable_breakdown(
         fixture_provenance["human_truth"] = dict(case["human_truth"])
     else:
         fixture_provenance["human_truth"] = (
-            "handoff/research/EXAMPLE-DATASET-TRUTH.md"
+            "tests/fixtures/real-video-sources/EXAMPLE-DATASET-TRUTH.md"
         )
         fixture_provenance["truth_section"] = case["truth_section"]
     frozen.provenance["regression_fixture"] = fixture_provenance

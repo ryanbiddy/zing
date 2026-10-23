@@ -161,13 +161,18 @@ def test_ass_special_characters_are_literal_like_independent_drawtext(tmp_path, 
     e = caption(text=text, all_caps=False, style=CaptionStyle(28, outline_width=0),
                 layout=EventLayout("caption", 0, 2, "fixture", OverlapCheck(True), box=Box(.05, .15, .9, .7)))
     actual = crop(frames(render(tmp_path, composition(source, [e])).output_path)[15].min(axis=2) > 150)
-    expected = crop(drawtext_mask(tmp_path, text, e.font, 28))
     # Compare each line separately: drawtext and ASS use different line gaps.
     def lines(mask):
         rows = np.flatnonzero(mask.any(axis=1))
         breaks = np.where(np.diff(rows) > 3)[0]
         return [crop(mask[part[0]:part[-1] + 1]) for part in np.split(rows, breaks + 1)]
-    a_lines, b_lines = lines(actual), lines(expected)
+    # The independent reference renders one line at a time, so no newline
+    # reaches drawtext. FFmpeg 6.1.4, 7.1.3, 8.0.1 and 8.1.0 drawtext shape the
+    # "\n" itself and draw a .notdef box at the end of every non-final line
+    # (FFmpeg issue #21565, fixed in 7.1.4, 8.0.2 and 8.1.1). Ubuntu 26.04
+    # apt ships 8.0.1: the box made reference line 1 11 px wider than ASS.
+    a_lines = lines(actual)
+    b_lines = [crop(drawtext_mask(tmp_path, line, e.font, 28)) for line in text.split("\n")]
     assert len(a_lines) == len(b_lines) == 2
     for a, b in zip(a_lines, b_lines):
         assert abs(a.shape[0] - b.shape[0]) <= 2 and abs(a.shape[1] - b.shape[1]) <= 3

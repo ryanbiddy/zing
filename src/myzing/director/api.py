@@ -12,12 +12,11 @@ from myzing.brief.api import load_brief
 from myzing.project.api import load_project
 from myzing.project.locking import project_lock
 from myzing.style_recipe import StyleRecipe
-from myzing.style_ranges import timing_band
 
 from .inventory import inventory
 from .models import PlanningShortage, shortage
 from .plans import MUSIC_CANNOT_CARRY, attach_report, make_plan, music_projection, render_projection
-from .selection import band_distance, candidates, choose, constraints, envelope, shot_lengths
+from .selection import band_distance, candidates, choose, constraints, envelope, reference_band, shot_lengths
 
 PRODUCER = "myzing.director/1"
 MANAGED = {"comparison.json", *(f"plan-{label}{suffix}.json" for label in "ABC"
@@ -68,9 +67,13 @@ def _publish(out, payloads, report, protected):
         _atomic(previous, _json(report))
 
 
-def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True) -> dict:
+def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True,
+                studio_options: dict | None = None) -> dict:
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
+    if studio_options is not None:
+        from myzing.studio.adapters import validate_options
+        validate_options(studio_options)
     root = Path(project).expanduser().resolve()
     recipe_path = Path(recipe).expanduser().resolve()
     output = Path(out).expanduser().resolve()
@@ -97,6 +100,9 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             shortage("must_keep_length", f"Whole-word must-keeps require {required_seconds:.3f}s, beyond the brief target.",
                      "Lengthen the brief or shorten its must-keep spans.")
         style = envelope(style_recipe)
+        if studio_options is not None:
+            from myzing.studio.adapters import style_envelope
+            style = style_envelope(style, studio_options)
         # Keep a previously feasible A when adding timing-aware trims. Expanding
         # the search should repair failed alternatives without replacing a
         # passing primary edit merely because its candidate beam changed.
@@ -111,7 +117,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             values = ((style.first_cut, lengths[0] if len(lengths) > 1 else None),
                       (style.median_shot, median(lengths)))
             if not any(c.dangling_clauses for c in initial) and all(
-                band_distance(value, timing_band(target, style.basis.get("shot_durations", []))) <= 1e-8
+                band_distance(value, reference_band(target, style)) <= 1e-8
                 for target, value in values
             ):
                 preferred_a = initial
@@ -148,7 +154,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
                                        style, brief, manifest, root, seed, keep, forbidden,
                                        subject_evidence=subject_evidence, music_cache=music_cache,
-                                       timing_selection=timing_evidence[label])
+                                       timing_selection=timing_evidence[label],
+                                       **({"caption_mode": studio_options.get("captions")} if studio_options is not None else {}))
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},

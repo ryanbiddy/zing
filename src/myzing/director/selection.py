@@ -201,8 +201,7 @@ def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
     required = [(key, a, b) for key, spans in sorted(keep.items()) for a, b in spans]
     available = 0.0
     pace = style.median_shot or 2.0
-    reference = style.basis.get("shot_durations", [])
-    bands = [timing_band(value, reference) for value in (style.first_cut, style.median_shot)]
+    bands = [reference_band(value, style) for value in (style.first_cut, style.median_shot)]
     lengths = {pace, style.first_cut or pace}
     # Keep new trims one delivery frame inside the band: source times are
     # fractional, but the director emits 30 fps plans.
@@ -384,6 +383,16 @@ def different(a, b, target, pace):
     return changed >= max(1.0, pace, target * .2) - EPS
 
 
+def reference_band(target, style):
+    """Bands come only from measured reference shots.
+
+    A studio pace preference (no reference) stays a search target; it is
+    never presented or enforced as a reference band.
+    """
+    durations = style.basis.get("shot_durations", [])
+    return timing_band(target if durations else None, durations)
+
+
 def band_distance(value, band):
     """Seconds outside a measured band; missing cuts cannot satisfy a target."""
     if band["lower"] is None:
@@ -404,9 +413,8 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
     needed = (1 << len(required)) - 1
     pace = style.median_shot or 2.0
     by_id = {c.asset_id: c for c in studies}
-    reference = style.basis.get("shot_durations", [])
-    pace_band = timing_band(style.median_shot, reference)
-    opening_band = timing_band(style.first_cut, reference)
+    pace_band = reference_band(style.median_shot, style)
+    opening_band = reference_band(style.first_cut, style)
 
     def timing(seq, *, partial=False):
         durations = shot_lengths(seq, studies)

@@ -15,7 +15,7 @@
           "fixture_id": "reference-cleo-antarctica",
           "source_url": "https://www.youtube.com/shorts/nlGYV0bmddI",
           "media_sha256": "840c39d46aa4587ce99fb6743a947a76e88b4056af7ae9ab250038ca64b8a226",
-          "evidence": "handoff/research/EXAMPLE-DATASET-TRUTH.md section 1",
+          "evidence": "tests/fixtures/real-video-sources/EXAMPLE-DATASET-TRUTH.md section 1",
           "annotation": {
             "status": "coarse-only",
             "exhaustive_transition_events": false,
@@ -26,7 +26,7 @@
           "fixture_id": "raw-editing-practice",
           "source_url": "https://www.youtube.com/watch?v=FHMXO_VikdA",
           "media_sha256": "0450698edfaea9004aab37f1c57f5dfd2e4324bfd5e9f1b373ea33199459d031",
-          "evidence": "handoff/research/EXAMPLE-DATASET-TRUTH.md section 2",
+          "evidence": "tests/fixtures/real-video-sources/EXAMPLE-DATASET-TRUTH.md section 2",
           "annotation": {
             "status": "coarse-only",
             "exhaustive_transition_events": false,
@@ -70,7 +70,7 @@
           "fixture_id": "raw-talking-head-korky-paul",
           "source_url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
           "media_sha256": "8243758381ebca3f4ab75c714ecca8e02f60dee67037b3508301d89aa17da574",
-          "evidence": "handoff/research/RAW-MODE-SOURCE.md",
+          "evidence": "tests/fixtures/real-video-sources/RAW-MODE-SOURCE.md",
           "annotation": {
             "status": "coarse-only",
             "exhaustive_transition_events": false,
@@ -82,7 +82,7 @@
     {
       "id": "sprint-2-gate-pack",
       "source_documents": [
-        "handoff/S2-GATE-PACK-2026-07-18.md",
+        "tools/eval/fixtures/transitions/S2-GATE-PACK-2026-07-18.md",
         "tools/eval/fixtures/transitions/real-gate-candidates.json"
       ],
       "sources": [

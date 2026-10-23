@@ -159,7 +159,12 @@ def run_lock(root):
     directory.mkdir(parents=True, exist_ok=True)
     with (directory / "run.lock").open("a+b") as stream:
         stream.seek(0)
-        if stream.read(1) == b"":
+        try:
+            empty = stream.read(1) == b""
+        except PermissionError as exc:
+            # Windows denies reading a byte another handle has locked.
+            raise ValueError("A match already owns this output folder; poll match_status or wait.") from exc
+        if empty:
             stream.write(b"0")
             stream.flush()
         stream.seek(0)

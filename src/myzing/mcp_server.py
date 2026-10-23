@@ -104,6 +104,37 @@ def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
 
 
+def h_zing_studio(path: str | None = None, answers: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Stateless interview: a next question or a plan, never starts production."""
+    from myzing.studio.flow import agent_default_project, next_step
+    try:
+        if answers is not None and not isinstance(answers, dict):
+            return _err("answers must be an object")
+        supplied = dict(answers or {})
+        if path is not None:
+            if "path" in supplied and supplied["path"] != path:
+                return _err("path and answers.path disagree")
+            supplied["path"] = path
+        if "path" in supplied and "project" not in supplied:
+            supplied["project"] = agent_default_project()  # never the server's working directory
+        step = next_step(supplied)
+        return _err(step["error"]) if step["status"] == "blocked" else _ok(**step)
+    except (ValueError, OSError, RuntimeError, ImportError) as exc:
+        return _err(str(exc))
+
+
+def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = False,
+                      project: str | None = None, cancel: bool = False) -> dict[str, Any]:
+    """Start/poll/cancel the studio operations without an existing job tool."""
+    from myzing.studio.flow import agent_default_project
+    from myzing.studio.jobs import job
+    try:
+        if isinstance(answers, dict) and "path" in answers and "project" not in answers:
+            answers = {**answers, "project": agent_default_project()}
+        return _ok(**job(answers, confirmed=confirmed, project=project, cancel=cancel))
+    except (ValueError, OSError, RuntimeError, ImportError) as exc:
+        return _err(str(exc))
+
 def h_zing_explain(source: str, out_dir: str, transitions: bool = True,
                    offline: bool = True, against: str | None = None) -> dict[str, Any]:
     """Write local card files and return paths/metadata only."""
@@ -1154,12 +1185,15 @@ def _run_match(options, root, workspace, stop, lease):
 @_workspace_boundary
 def h_match_start(reference: str, clips: str, out: str, brief: str | None = None,
                   answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
-                  resume: bool = False, allow_download: bool = False) -> dict[str, Any]:
+                  resume: bool = False, allow_download: bool = False,
+                  studio_options: dict[str, Any] | None = None) -> dict[str, Any]:
     """Start the same supervised pipeline as the CLI; no media bytes returned."""
     from myzing.match.api import validate
     from myzing.match.process import run_lock
     options = dict(reference=reference, clips=clips, out=out, brief=brief, answers=answers,
                    drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    if studio_options is not None:
+        options["studio_options"] = studio_options
     try:
         validate(**options)
         root = Path(out).expanduser().resolve()
@@ -1442,7 +1476,7 @@ def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# get_frames (B-Q8, built to handoff/research/B-Q3-get-frames-design.md)
+# get_frames: bounded frame extraction for visual inspection
 # ---------------------------------------------------------------------------
 
 FRAMES_RECOMMENDED = 6
@@ -1802,6 +1836,14 @@ def build_server():
         ),
     )
     mcp.tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
+    mcp.tool(
+        name="zing_studio",
+        description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Local probes and a bounded offline reference preview; saved-reference search only with a configured reachable peer. No production or downloads.",
+    )(h_zing_studio)
+    mcp.tool(
+        name="zing_studio_run",
+        description="Start a confirmed studio plan for b (no-reference edit), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For a/c/e reuse match_start, still_concepts/still_render and music_check. Local models only; paths and metadata out.",
+    )(h_zing_studio_run)
     mcp.tool(
         name="brief_questions",
         description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",

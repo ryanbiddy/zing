@@ -47,7 +47,7 @@ REGISTERED_SKIPS = {
     "real-media test needs ffmpeg and ffprobe": (
         "the separately opted-in media regression needs the decoder binaries. "
         "PRODUCT SURFACE: doctor names FFmpeg as required and the transition probe "
-        "raises an explicit executable-not-found error. The 327 mandatory FFmpeg "
+        "raises an explicit executable-not-found error. The 332 mandatory FFmpeg "
         "tests remain in the no-skip CI gate."
     ),
     "set ZING_CG2_REAL_ROOT": (
@@ -58,7 +58,7 @@ REGISTERED_SKIPS = {
     "SEC1-OCR: original OCR text is not redistributed": (
         "five historical fuzzy-clustering cases require third-party transcript "
         "text without recorded redistribution permission. PUBLIC SURFACE: NOTICE.md, "
-        "handoff/research/ocr-calibration/README.md and tests/PRIVATE-FIXTURES.md "
+        "tests/fixtures/research/README.md and tests/PRIVATE-FIXTURES.md "
         "state that lexical accuracy is not rerun. Generated overlay tests cover "
         "behavior; token counts/hashes keep the baseline scorer reproducible. "
         "No production capability is disabled. Restore empirical checks only "
@@ -120,6 +120,12 @@ REGISTERED_SKIPS = {
         "shims. windows-latest CI executes both cases; the workflow-shape "
         "assertion still runs on every OS. PRODUCT SURFACE: none needed — "
         "this tests a Windows CI dependency installer, not a user capability."
+    ),
+    "Windows sharing violation on rename": (
+        "only Windows refuses to rename a file another process has open, so only "
+        "there does project-lock release retry; POSIX renames never hit it. "
+        "windows-latest CI executes this case. PRODUCT SURFACE: none needed — a "
+        "platform detail of lock cleanup, not a user-visible capability."
     ),
     "local OCR runtime/models are not installed": (
         "photo text is optional evidence for offline meme lines; it needs the study OCR runtime and "

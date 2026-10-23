@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INDEX = ROOT / "handoff" / "reviews" / "CX-5-LAUNCH-DRY-RUN-INDEX.md"
+INDEX = ROOT / "tests" / "fixtures" / "historical-evidence" / "reviews" / "CX-5-LAUNCH-DRY-RUN-INDEX.md"
 
 
 def test_cx5_indexes_one_bounded_launch_rehearsal_packet() -> None:

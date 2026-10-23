@@ -61,10 +61,19 @@ def _release_lock(path: Path, identity: os.stat_result, token: str, written: boo
     # First detach the directory entry. Checking then unlinking the shared name
     # could delete a new owner's lock created between those operations.
     released = path.with_name(f".project-{uuid4().hex}.tmp")
-    try:
-        path.rename(released)
-    except FileNotFoundError:
-        return
+    for attempt in range(100):
+        try:
+            path.rename(released)
+            break
+        except FileNotFoundError:
+            return
+        except PermissionError:
+            # Windows refuses to rename a file another process has open, and a
+            # waiting process briefly opens this lock to describe its owner.
+            # Retry instead of leaving a lock that blocks every later run.
+            if os.name != "nt" or attempt == 99:
+                raise
+            time.sleep(.02)
     owned = False
     try:
         owned = os.path.samestat(identity, released.stat()) and (

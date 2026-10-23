@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 PRIOR_ART = (
-    Path(__file__).resolve().parents[1] / "handoff" / "research" / "PRIOR-ART-OSS.md"
+    Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "historical-evidence" / "research" / "PRIOR-ART-OSS.md"
 )
 SCAN_HEADING = "## SG-4 creator-pipeline scan · 2026-07-19 · Lane C"
 EXPECTED_REPOSITORIES = (

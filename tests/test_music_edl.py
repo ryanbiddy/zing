@@ -14,6 +14,7 @@ from tools.plan_examples import example_project  # noqa: E402
 from myzing.composition import AssetRef, CompositionAudio  # noqa: E402
 from myzing.director.api import plan_drafts  # noqa: E402
 from myzing.music import planning  # noqa: E402
+from myzing.music.ducking import duck_passages  # noqa: E402
 from myzing.music.models import MusicPlan  # noqa: E402
 from myzing.schemas import EDL  # noqa: E402
 from test_director import stub_default_ink  # noqa: E402
@@ -75,15 +76,57 @@ def test_music_plans_export_v1_picture_and_dialogue_and_a_sidecar(music_project)
         assert track["fade_in_seconds"] == .15 and track["fade_out_seconds"] == 1.0
         duck = track["duck"]
         assert duck["scope"] == "source_speech" and duck["depth_db"] == 9.0
-        # Clause gaps under the 0.8 s hold stay ducked: two passages, not three.
-        assert duck["passages"] == [[0.2, 3.1], [4.5, 5.2]]
+        # The renderer's passages (MIX2): the 0.5 s gap is held, the 1.4 s
+        # pause releases, and the 0.2 s lead-in and 0.8 s tail stay ducked.
+        assert duck["passages"] == [[0.0, 3.1], [4.5, 6.0]]
+        assert duck["passages"] == duck_passages([[0.2, 1.4], [1.9, 3.1], [4.5, 5.2]], 6.0)
+        assert duck["release_gap_seconds"] == pytest.approx(1.3) and duck["plateau_seconds"] == .3
+        assert duck["speech_to_music_target_lu"] == 19.2 and duck["bed_gain_points"] == []
         envelope = dict(map(tuple, duck["envelope_db"]))
-        assert envelope[0.2] == -9.0 and envelope[3.1] == -9.0 and envelope[4.5] == -9.0
-        assert envelope[0.0] == 0.0 and envelope[3.9] == pytest.approx(0.0)
+        assert envelope[0.0] == -9.0 and envelope[3.1] == -9.0 and envelope[4.5] == -9.0 and envelope[6.0] == -9.0
+        assert envelope[3.9] == pytest.approx(0.0) and envelope[4.3] == pytest.approx(0.0)
         assert all(-9.0 <= gain <= 0.0 for _, gain in duck["envelope_db"])
+        # No dialogue gain in this plan; source changes still fade speech-free edges.
+        assert all(d["gain_db"] == 0 and d["compressor"] is None and
+                   (d["fade_in_seconds"] or d["fade_out_seconds"]) for d in sidecar["dialogue"])
         assert any("source trim" in item for item in sidecar["cannot_carry"])
         assert any("source speech" in item for item in sidecar["cannot_carry"])
         assert track["reason"] == "stub: highest score"
+
+
+def test_sidecar_carries_dialogue_matching_and_per_clip_bed_gain():
+    """LISTEN1 levels live in MUSIC1 evidence, which the v1 EDL drops: the
+    sidecar lists each clip's dialogue gain, compressor and source-change
+    fades, and folds the per-clip bed gain points into the duck envelope."""
+    from myzing.composition import Composition, CompositionClip
+    from myzing.director.plans import MUSIC_CANNOT_CARRY, music_sidecar
+    from myzing.music.models import attach
+
+    clips = [CompositionClip("loud.mp4", 0, 6, 0, id="c1", asset_id="loud"),
+             CompositionClip("quiet.mp4", 0, 6, 6, id="c2", asset_id="quiet")]
+    track = CompositionAudio(id="music-1", asset_id="bed", src="bed.wav", kind="music", role="music", src_in=0,
+                             src_out=12, gain_db=-20.0, duck_under_speech=True, duck_scope="source_speech")
+    compressor = {"threshold_db": -7.4, "ratio": 4.0, "attack_ms": 5.0, "release_ms": 120.0, "knee_db": 6.0}
+    points = [[0.0, 0.0], [4.5, 0.0], [5.5, -8.0], [12.0, -8.0]]
+    evidence = MusicPlan(mode="speech-led", speech_spans=[[.5, 2.5], [3.5, 5.5], [6.5, 8.5], [9.5, 11.5]],
+                         tracks=[{"id": "music-1"}], bed_gain_points=points,
+                         dialogue_gains=[{"asset_id": "quiet", "start": 6.0, "end": 12.0, "gain_db": 18.0,
+                                          "compressor": compressor}])
+    plan = Composition(assets=[AssetRef("loud", "loud.mp4", None), AssetRef("quiet", "quiet.mp4", None),
+                               AssetRef("bed", "bed.wav", None)], clips=clips, audio=[track])
+    sidecar = music_sidecar(attach(plan, evidence), "A")
+    assert sidecar["dialogue"] == [
+        {"clip_id": "c1", "asset_id": "loud", "timeline_start": 0, "timeline_end": 6, "gain_db": 0.0,
+         "compressor": None, "fade_in_seconds": 0.0, "fade_out_seconds": .3},
+        {"clip_id": "c2", "asset_id": "quiet", "timeline_start": 6, "timeline_end": 12, "gain_db": 18.0,
+         "compressor": compressor, "fade_in_seconds": .1, "fade_out_seconds": 0.0}]
+    duck = sidecar["tracks"][0]["duck"]
+    assert duck["bed_gain_points"] == points and duck["passages"] == [[0.0, 12.0]]
+    envelope = dict(map(tuple, duck["envelope_db"]))
+    assert envelope[0.0] == -9.0 and envelope[4.5] == -9.0 and envelope[5.5] == -17.0 and envelope[12.0] == -17.0
+    assert sidecar["cannot_carry"] == MUSIC_CANNOT_CARRY
+    assert any("dialogue gain" in item and "compressor" in item for item in MUSIC_CANNOT_CARRY)
+    assert any("bed gain points" in item for item in MUSIC_CANNOT_CARRY)
 
 
 def test_other_blockers_still_block_the_derivative(music_project, monkeypatch):

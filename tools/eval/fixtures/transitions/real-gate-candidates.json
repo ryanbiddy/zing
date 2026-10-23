@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "corpus": "Sprint 2 gate-pack talking-head sources",
-  "source_document": "handoff/S2-GATE-PACK-2026-07-18.md",
+  "source_document": "tools/eval/fixtures/transitions/S2-GATE-PACK-2026-07-18.md",
   "prior_detector_version": 2,
   "annotation": {
     "status": "unjudged",

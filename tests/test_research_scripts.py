@@ -24,7 +24,7 @@ from pathlib import Path
 
 import pytest
 
-RESEARCH = Path(__file__).resolve().parents[1] / "handoff" / "research"
+RESEARCH = Path(__file__).resolve().parents[1] / "tools" / "eval" / "research"
 
 
 def _load(script: str):
