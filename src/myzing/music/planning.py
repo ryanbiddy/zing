@@ -273,6 +273,16 @@ def planned_clauses(sequence, studies, music_path, offset, music_seconds, gain, 
 def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidden, cache=None, *, timing_bands=None):
     cache = cache if cache is not None else {}
     evidence = MusicPlan()
+    lookup = {s.asset_id: s for s in studies}
+    for clip in sequence:
+        tags = getattr(lookup[clip.asset_id], "audio_tags", {})
+        matches = [row for row in tags.get("music_under_speech", [])
+                   if max(clip.start, row["start"]) < min(clip.end, row["end"])]
+        if matches:
+            evidence.decisions.append({"kind": "source_score", "asset_id": clip.asset_id,
+                "source_start": clip.start, "source_end": clip.end, "tags": matches,
+                "reason": "Clip already carries a candidate score under speech (CED context tags)."})
+            evidence.warnings.append(f"{clip.asset_id}: clip already carries a candidate score under speech; adding a bed can stack music. Source score is not separated or ducked.")
     if brief.music["source"] != "supplied files":
         return sequence, [], [], evidence
     spans = speech_spans(sequence, studies)

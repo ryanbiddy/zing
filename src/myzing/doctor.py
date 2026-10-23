@@ -889,6 +889,22 @@ def check_audio() -> Check:
     )
 
 
+def check_audio_ml() -> Check:
+    from .audio.tag_models import model_paths, INSTALL_HINT, FETCH_HINT, REVISION
+    present = _has_module("sherpa_onnx")
+    try:
+        paths = model_paths()
+        valid, detail = True, "CED weights verified"
+    except (OSError, RuntimeError) as exc:
+        paths, valid, detail = {}, False, str(exc)
+    return Check("audio-ml", OPTIONAL, present and valid,
+                 ("sherpa-onnx installed; " if present else "sherpa-onnx absent; ") + detail,
+                 fix="" if present and valid else f"{INSTALL_HINT}; {FETCH_HINT}",
+                 degraded_mode="" if present and valid else "vocal/music heuristics remain active; learned tags unavailable",
+                 data={"paths": {k: str(v) for k, v in paths.items()}, "revision": REVISION,
+                       "model_verified": valid, "network_used": False, "runtime_probe": "package-metadata-only"})
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -906,6 +922,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_color(),
         check_hyperframes(),
         check_audio(),
+        check_audio_ml(),
         check_uoink(),
     ]
 

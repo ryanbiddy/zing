@@ -82,12 +82,12 @@ def test_explain_documented_surface():
 def test_extras_tables_match_package():
     project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     section = project.split("[project.optional-dependencies]", 1)[1].split("\n[", 1)[0]
-    extras = set(re.findall(r"^([a-z]+) =", section, re.M))
+    extras = set(re.findall(r"^([a-z][a-z-]*) =", section, re.M))
     assert extras
     for name in ("README.md", "skills/zing/references/commands.md"):
         text = (ROOT / name).read_text(encoding="utf-8")
         table = text.split("| Extra | Enables |", 1)[1].split("\n\n", 1)[0]
-        documented = set(re.findall(r"^\| `?([a-z]+)`? \|", table, re.M))
+        documented = set(re.findall(r"^\| `?([a-z][a-z-]*)`? \|", table, re.M))
         assert documented == extras, (name, documented ^ extras)
 
 

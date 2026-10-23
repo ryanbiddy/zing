@@ -156,6 +156,11 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                                        subject_evidence=subject_evidence, music_cache=music_cache,
                                        timing_selection=timing_evidence[label],
                                        **({"caption_mode": studio_options.get("captions")} if studio_options is not None else {}))
+            evidence["audio_moment_candidates"] = [
+                {"asset_id": c.asset_id, **moment}
+                for c in clips if c.status == "ready"
+                for moment in c.audio_tags.get("moment_candidates", [])
+            ]
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},

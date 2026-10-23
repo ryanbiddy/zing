@@ -158,7 +158,7 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 349
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 353
 ```
 
 CI (`.github/workflows/ci.yml`) runs that gate on four FFmpeg stacks, with
@@ -192,3 +192,7 @@ the ASR loader and hub download functions to prove the default skips first.
 The opted-in Whisper test also sets `local_files_only=True`: provision a model
 explicitly outside the tests before running it. The mandatory FFmpeg gate
 opts into OCR with pre-provisioned assets; missing assets still fail the gate.
+
+The optional audio-ml doctor check verifies the CED asset hashes and sherpa-onnx package presence without inference or network access.
+
+AUD1 real-model replay: set ZING_AUD1_REAL=1, ZING_AUD1_MEDIA to hash-verified acceptance copies, and ZING_AUD1_WHISPER to a complete local tiny model directory; run pytest -q tests/test_audio_tagging_real.py. See [Audio](AUDIO.md). Tests never download these assets.

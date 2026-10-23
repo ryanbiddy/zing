@@ -1,4 +1,47 @@
-# PF layout dependencies and assets
+# Third-party dependencies and assets
+
+## AUD1 audio tagging and ASR hygiene
+
+The optional `audio-ml` extra adds `sherpa-onnx>=1.13,<3`; the lock resolves
+`sherpa-onnx` and its native `sherpa-onnx-core` distribution to 2.0.0.
+Both use Apache-2.0. No third-party training or inference code is vendored.
+The runtime's [Apache license](https://github.com/k2-fsa/sherpa-onnx/blob/88204440c2ad19158fe77dbf470bb1fe7fdee613/LICENSE)
+is pinned at revision `88204440c2ad19158fe77dbf470bb1fe7fdee613`, with SHA-256
+`cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`.
+Installed wheel notices cover native components, including ONNX Runtime.
+
+CED-mini weights are Apache-2.0 according to the [original model card](https://huggingface.co/mispeech/ced-mini/blob/26c3ebcae85d4330f4fc26763f029539a3afcda0/README.md),
+pinned at `26c3ebcae85d4330f4fc26763f029539a3afcda0`; card SHA-256:
+`0fbd9dd64fffc22211d63b22689e38a81446d5e37db6148e3ac42667d3c22882`.
+The [sherpa conversion repository](https://huggingface.co/k2-fsa/sherpa-onnx-ced-mini-audio-tagging-2024-04-19/tree/4da6df50dc47b25f91074b5ef7df4c1cc0dd7d4d)
+is pinned at `4da6df50dc47b25f91074b5ef7df4c1cc0dd7d4d`. Its README identifies
+the CED origin; the original weight card supplies the weight license. The GPL
+CED training repository is not imported, vendored, or downloaded.
+
+| Explicitly fetched asset | Bytes | SHA-256 |
+|---|---:|---|
+| `model.int8.onnx` | 10,451,715 | `ff29f39f9fbe637f72535160e9d006d61d872fdab0fce838672265b9b38cf946` |
+| `class_labels_indices.csv` | 14,675 | `cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429` |
+
+Immutable URLs are constructed in `src/myzing/audio/tag_models.py`. These
+assets remain in the user's ignored workspace, with no implicit model fetch.
+The label vocabulary is the AudioSet class index distributed with the conversion.
+No AudioSet recordings are included.
+
+The VAD edge algorithm is an independent stdlib implementation of stable-ts's
+silence-suppression idea, using faster-whisper's existing bundled Silero VAD.
+It introduces no package dependency. [stable-ts's MIT license](https://github.com/jianfch/stable-ts/blob/e312072cc024ae9fceb25b057d7d18524873a02b/LICENSE)
+is pinned at `e312072cc024ae9fceb25b057d7d18524873a02b`, SHA-256
+`69ac6d54d38598c96443b5314597568bb8fa21726c46168fcec98764de33dc23`.
+No stable-ts source is copied. Its archived status does not affect the runtime.
+
+Acceptance reuses V1 media from the manifest above and MUSIC1 CC0 tracks:
+Electric (Sudocolon), Calm Piano / Vaporware (The Cynic Project), and The Charm
+68 (The Cynic Project; vocals by Julie). Hashes and license URLs are retained
+with the acceptance copies. The existing cached MIT faster-whisper-tiny model
+at `d90ca5fe260221311c53c58e660288d3deb8d356` was copied locally, not downloaded.
+
+## PF layout dependencies and assets
 
 No model, image, media binary or third-party source is vendored in this pass.
 Downloaded evidence belongs under the ignored `zing-workspace/` directory.

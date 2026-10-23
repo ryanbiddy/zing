@@ -33,7 +33,7 @@ def analyze(
     if breakdown is None:
         warnings.append("No breakdown supplied; speech cannot be confirmed by this energy/flatness heuristic.")
     else:
-        warnings.append("Supplied word timings are assumed to use this file's time origin; ASR can be wrong and music under speech is unresolved.")
+        warnings.append("Supplied word timings are assumed to use this file's time origin; ASR can be wrong.")
         if abs(breakdown.meta.duration - duration) > 0.25 and not truncated:
             warnings.append("Breakdown duration differs from decoded audio by more than 250 ms; verify source and timing alignment.")
     if truncated:
@@ -83,12 +83,16 @@ def analyze(
         warnings.append("Loudness range is not meaningful for excerpts shorter than three seconds.")
     warnings.append("Role and tempo confidence are heuristic evidence scores, not calibrated probabilities; onsets are attacks, not identified SFX.")
     warnings.append("Meter requires repeated four-beat accents; otherwise downbeats/bars/phrases are unknown. Metric phrases are candidates, not recovered song form.")
+    from .tagging import tag_samples, vocal_evidence
+    tags = tag_samples(samples, SAMPLE_RATE, speech=[(a, b) for a, b, _ in words])
+    structure.vocals = vocal_evidence(tags, structure.vocals)
+    warnings.extend(tags.warnings)
     warnings.append(structure.vocals["limits"])
     return AudioMap(
         source=str(path), duration_seconds=duration, sample_rate=SAMPLE_RATE,
         max_seconds=max_seconds, truncated=truncated, tempo=tempo, beats=beats,
         onsets=onsets, segments=segments, loudness=loudness, warnings=warnings,
-        tool_versions={"zing": __version__, "audio_algorithm": "2.2", "numpy": numpy().__version__, "ffmpeg": ffmpeg_version()},
+        tool_versions={"zing": __version__, "audio_algorithm": "2.3", "numpy": numpy().__version__, "ffmpeg": ffmpeg_version()},
         breakdown_source=breakdown_source,
-        structure=structure,
+        structure=structure, tags=tags,
     )

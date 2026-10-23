@@ -54,6 +54,7 @@ def transcribe(
     model_name: str | None = None,
     duration: float = 0.0,
     local_files_only: bool = False,
+    vocabulary=(),
 ) -> TranscribeResult:
     result = TranscribeResult()
     name = model_name or os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
@@ -75,13 +76,16 @@ def transcribe(
         )
         return result
 
+    from .asr_hygiene import vocabulary_context
+    context = vocabulary_context(vocabulary)
+    options = {"vocabulary": context["terms"]} if context["terms"] else {}
     pipeline = "sequential"
     use_batched = duration > formats.SHORT_FORM_MAX_S
     try:
         if use_batched:
             try:
-                words, language, language_probability = _run_model_batched(
-                    model, media_path
+                run = _run_model_batched(
+                    model, media_path, **options
                 )
                 pipeline = f"batched(batch_size={BATCH_SIZE})"
             except Exception as e:
@@ -89,17 +93,23 @@ def transcribe(
                     f"batched transcription failed ({e}); fell back to "
                     "sequential"
                 )
-                words, language, language_probability = _run_model(
-                    model, media_path
+                run = _run_model(
+                    model, media_path, **options
                 )
         else:
-            words, language, language_probability = _run_model(model, media_path)
+            run = _run_model(model, media_path, **options)
     except Exception as e:
         result.warnings.append(f"transcription failed: {e}")
         return result
 
+    words, language, language_probability = run[:3]
+    timing = run[3] if len(run) > 3 else {}
+    if timing.get("status") == "unavailable":
+        result.warnings.append("VAD word-edge clamp unavailable; raw word times retained: " + timing["reason"])
     result.words = words
     result.provenance = {
+        "asr_vocabulary": context,
+        "timing": timing,
         "whisper_model": name,
         "device": device,
         "compute_type": compute_type,
@@ -159,36 +169,47 @@ def _collect_words(segments) -> list[Word]:
             words.append(
                 Word(
                     text=text,
-                    start=round(w.start, 3),
-                    end=round(w.end, 3),
-                    confidence=round(w.probability, 3),
+                    start=round(float(w.start), 3),
+                    end=round(float(w.end), 3),
+                    confidence=round(float(w.probability), 3),
                 )
             )
     words.sort(key=lambda w: (w.start, w.end))
     return words
 
 
-def _run_model(model, media_path: Path):
+def _run_model(model, media_path: Path, *, vocabulary=()):
     """Sequential transcription (tests mock this)."""
+    from .asr_hygiene import vocabulary_context, finish_timing
+    context = vocabulary_context(vocabulary)
     segments, info = model.transcribe(
         str(media_path),
         word_timestamps=True,
         vad_filter=True,
+        hotwords=context["hotwords"] or None,
+        initial_prompt=context["initial_prompt"] or None,
         condition_on_previous_text=False,
     )
-    return _collect_words(segments), info.language, info.language_probability
+    words, timing = finish_timing(_collect_words(segments), media_path, info)
+    return words, info.language, info.language_probability, timing
 
 
-def _run_model_batched(model, media_path: Path):
+def _run_model_batched(model, media_path: Path, *, vocabulary=()):
     """Batched long-form transcription (tests mock this): VAD-segmented
     batches through the same model — same weights, better utilization."""
     from faster_whisper import BatchedInferencePipeline
 
     pipeline = BatchedInferencePipeline(model)
+    from .asr_hygiene import vocabulary_context, finish_timing
+    context = vocabulary_context(vocabulary)
     segments, info = pipeline.transcribe(
         str(media_path),
         word_timestamps=True,
         vad_filter=True,
+        hotwords=context["hotwords"] or None,
+        initial_prompt=context["initial_prompt"] or None,
         batch_size=BATCH_SIZE,
+        condition_on_previous_text=False,
     )
-    return _collect_words(segments), info.language, info.language_probability
+    words, timing = finish_timing(_collect_words(segments), media_path, info)
+    return words, info.language, info.language_probability, timing

@@ -20,12 +20,22 @@ def run(argv: list[str]) -> int:
     analysis.add_argument("--workspace", help="workspace containing the breakdown (defaults to ZING_HOME)")
     analysis.add_argument("--max-seconds", type=float, default=MAX_SECONDS, help="analyze at most this many seconds (maximum 600)")
     analysis.add_argument("--json", action="store_true", help="print the complete versioned audio map")
+    fetch = sub.add_parser("fetch-model", help="explicitly download pinned Apache-2.0 CED weights")
+    fetch.add_argument("--consent", action="store_true", required=True)
+    fetch.add_argument("--workspace")
+    fetch.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     try:
         with storage.use_workspace(args.workspace or storage.workspace_root()):
+            if args.command == "fetch-model":
+                from .tag_models import fetch_models, REVISION, ASSETS
+                paths = fetch_models(consent=args.consent)
+                print(json.dumps({"paths": [str(p) for p in paths], "revision": REVISION,
+                                  "assets": ASSETS, "license": "Apache-2.0"}, indent=2))
+                return 0
             breakdown = storage.load_breakdown(args.breakdown) if args.breakdown else None
             result = analyze(args.file, breakdown=breakdown, max_seconds=args.max_seconds)
-    except (AudioError, OSError, ValueError, TypeError, KeyError) as exc:
+    except (AudioError, OSError, ValueError, TypeError, KeyError, RuntimeError) as exc:
         if args.json:
             print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         else:

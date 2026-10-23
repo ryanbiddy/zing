@@ -243,6 +243,7 @@ itself may use the network; ask first when not already authorized.
 | fonts | Pillow and pinned headless OpenCV for font comparison; expanded font assets need an explicit fetch. |
 | layout | Pinned headless OpenCV; explicit MIT YuNet model fetch still required. |
 | color | NumPy for SDR look matching. |
+| audio-ml | Optional CED audio tags via sherpa-onnx; explicit weight download. |
 | audio | NumPy for audio measurements. |
 | all | All feature extras above. |
 | dev | pytest, MCP and render support for development. |

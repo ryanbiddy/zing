@@ -152,7 +152,7 @@ def test_run_model_extracts_and_strips_words(monkeypatch):
             assert kw["condition_on_previous_text"] is False
             return iter([seg, empty_seg]), info
 
-    words, language, prob = transcribe._run_model(Model(), Path("m.mp4"))
+    words, language, prob, timing = transcribe._run_model(Model(), Path("m.mp4"))
 
     assert [w.text for w in words] == ["stop", "scrolling!"]  # blank dropped
     assert words[0].confidence == 0.995  # rounded to 3

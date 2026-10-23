@@ -20,7 +20,7 @@ The map has `version: 2`; its nested records have `version: 1` and `to_dict()` /
 methods in `myzing.audio`. Version 1 maps still load with unknown structure. Unsupported versions are rejected. `schemas.py` is
 unchanged. The top-level fields are `source`, `duration_seconds`, `sample_rate`,
 `max_seconds`, `truncated`, `tempo`, `beats`, `onsets`, `segments`, `loudness`,
-`warnings`, `tool_versions`, `breakdown_source`, and `structure`.
+`warnings`, `tool_versions`, `breakdown_source`, `structure`, and optional `tags`.
 
 All timestamps are seconds from the first decoded audio sample at zero. Use a
 breakdown of the same file with the same time origin; an arbitrary trim or
@@ -179,7 +179,7 @@ the median onset. Sections are sustained energy partitions, not recovered
 song labels. Intro length is the first one-second level near the 85th
 percentile energy; this can differ from a listener's idea of an intro.
 
-Vocal presence checks multiple midrange harmonic peaks and formant-region
+Without learned tags, vocal presence checks multiple midrange harmonic peaks and formant-region
 energy. At least 30% eligible-frame coverage gives `possible`; 18–30% gives
 `unknown`, and less gives `not_detected`. It cannot distinguish instruments
 from voices, identify words, or rule out masked vocals. True peak comes from
@@ -187,3 +187,92 @@ the existing EBU meter. Stereo correlation, mono fold-down loss and near-full-
 scale samples use bounded 22.05 kHz stereo PCM; clipping is a risk indicator,
 not proof of past distortion. At the 600-second cap, stereo decoding uses
 about 106 MB of float32 PCM, plus bounded working arrays.
+
+## Learned tags (AUD1)
+
+Install `myzing[audio-ml]` for sherpa-onnx, then explicitly fetch the Apache-2.0
+CED-mini int8 weights:
+
+```sh
+zing audio fetch-model --consent --workspace ./zing-workspace/home
+zing audio analyze clip.mp4 --workspace ./zing-workspace/home --json
+```
+
+The fetch verifies HTTPS (including redirects), an immutable revision, exact
+byte limits, and SHA-256 before atomically installing each file. Verified
+files are reused. The 10,451,715-byte ONNX and 14,675-byte label file live in
+`models/ced-mini` under that workspace. No training code is downloaded.
+[Notices](THIRD-PARTY-NOTICES.md) records pins; [Doctor](DOCTOR.md) explains readiness.
+
+Analysis and study use only verified local assets. Missing assets, runtime,
+or failed inference produce `status: unavailable` and `heuristic_fallback`,
+without a fetch. Study stores `audio_tags` in provenance; audio maps store a
+version 1 `tags` record. Both expose label scores, windows,
+`music_under_speech`, and laughter/applause `moment_candidates`. The director
+retains the candidates for review without automatically cutting on them.
+
+CED receives 10-second windows at one-second hops, plus an end-aligned window.
+Clips below one second are zero-padded for inference; reported bounds remain
+source bounds. Sherpa extracts features and resamples. Each retained label has
+its raw confidence per window and maximum across the excerpt. The singing,
+speech, instrument, music, laughter, and applause families are listed in
+`audio/tagging.py`.
+
+Singing scores at least 0.2 yield `possible` vocals. Scores at least 0.02 also
+yield `possible` when the harmonic/formant heuristic agrees; these are labeled
+**weak corroborated candidates**. Below 0.02 means `not_detected`, which cannot
+rule out masked voices. Intermediate evidence without corroboration is
+`unknown`. Instrument tags cannot veto singing over accompaniment. The old
+heuristic remains in the record for comparison.
+
+Music scores at least 0.02 in a window containing supplied words or a speech
+score at least 0.2 produce score-under-speech candidates. Music scores below
+0.2 are explicitly weak. Laughter/applause use 0.2. These are sensitivity rules,
+not calibrated probabilities. The weak threshold was selected on the licensed
+AUD1 media; independent precision and recall remain unmeasured. Overlapping
+windows neither prove simultaneity at every word nor locate event boundaries.
+This pass does not separate or duck embedded music.
+
+## ASR vocabulary and word edges
+
+```sh
+zing study clip.mp4 --raw --brief brief.json --vocabulary "Korky Paul,NASA"
+```
+
+Repeat `--vocabulary` or comma-separate names and terms. The API also accepts
+`vocabulary`, `brief`, and `reference_metadata`. Project studies load their
+saved brief when present. Terms come from the user first, then the saved brief's
+`exact_spellings` and purpose, then available reference title/tags. API brief
+mappings may also supply names/topic.
+Reference resolution passes Uoink's title when available. Vocabulary gathering
+makes no library search or network call. No name is inferred or autocorrected.
+
+Whitespace is normalized and case-insensitive duplicates removed. Limits:
+64 terms, 80 characters per term, and 500 UTF-8 bytes total including separators.
+Oversize terms are omitted whole and counted. The same string reaches
+faster-whisper's `hotwords` and `initial_prompt`, including batching and
+sequential fallback. Provenance `asr_vocabulary` retains terms, origins, limits,
+and cache key. Match checkpoints include vocabulary and the hygiene revision.
+
+Recognition keeps faster-whisper's existing VAD defaults. An edge-only pass
+uses the same bundled Silero VAD after recognition, with 200 ms minimum silence
+and 80 ms padding; other options come from the decoder. These are source-clock
+VAD regions, not ASR segment bounds. Edges extending more than 20 ms into
+silence shrink inward, with a 100 ms minimum word duration. First-word ends and
+last-word starts in each region are protected; a lone word may shrink both.
+Words wholly in silence or with too little overlap remain unchanged and flagged.
+The edge pass leaves recognized text unchanged. Vocabulary hints can change
+text and remain suggestions, not transcript truth.
+
+Provenance `timing` retains all original and adjusted times, VAD regions, decoder and edge-pass
+parameters, `vad_edge_snap` changes, and unresolved cases. Failure retains raw
+times with a warning. This stdlib implementation follows stable-ts's MIT
+silence-suppression idea; stable-ts is not a dependency. VAD consistency is not
+human-labeled accuracy. No timing MAE or clipped-phoneme claim is made.
+
+Default tests mock CED and generate harmonic, formant, mixed, and burst-noise
+signals. For local real tests, set `ZING_AUD1_REAL=1`, `ZING_AUD1_MEDIA` to the
+verified acceptance copies (including `verified-media.json`), and
+`ZING_AUD1_WHISPER` to a complete local tiny model. Run
+`pytest -q tests/test_audio_tagging_real.py`. Missing requested assets fail;
+the tests never download anything.

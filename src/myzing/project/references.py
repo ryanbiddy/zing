@@ -105,7 +105,13 @@ def study_reference(project: str | Path, *, workspace: Path | None = None) -> di
         verify()
         # Passing the local path, never source_url, makes web fallback impossible.
         workspace = storage.resolve_workspace(workspace)
-        breakdown = study(str(path), workspace=workspace, local_models_only=True)
+        options = {}
+        if resolution.title:
+            options["reference_metadata"] = {"title": resolution.title}
+        if (root / "brief.json").is_file():
+            from myzing.brief.api import load_brief
+            options["brief"] = load_brief(root / "brief.json")
+        breakdown = study(str(path), workspace=workspace, local_models_only=True, **options)
         verify()
         breakdown.provenance["project_reference"] = {
             "version": 1, "reference": manifest.reference.value,

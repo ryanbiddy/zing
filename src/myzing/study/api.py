@@ -49,6 +49,9 @@ def study(
     local_models_only: bool = False,
     model_workspace: Path | None = None,
     shot_min_scene_len_s: float | None = None,
+    vocabulary=(),
+    brief=None,
+    reference_metadata: dict | None = None,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -99,13 +102,25 @@ def study(
             ing.meta.duration, warnings,
         )
 
+        from .asr_hygiene import vocabulary_context
+        if brief is None:
+            brief_file = storage.workspace_root() / "brief.json"
+            if brief_file.is_file():
+                from myzing.brief.api import load_brief
+                brief = load_brief(brief_file)
+        metadata = reference_metadata or {}
+        if not metadata and handoff and isinstance(handoff.get("metadata"), dict):
+            metadata = handoff["metadata"]
+        context = vocabulary_context(vocabulary, brief=brief, metadata=metadata)
         _phase(phase_callback, "transcribe")
         words_r = transcribe_mod.transcribe(
             ing.media_path, duration=ing.meta.duration,
             **({"local_files_only": True} if local_models_only else {}),
+            **({"vocabulary": context["terms"]} if context["terms"] else {}),
         )
         warnings += words_r.warnings
         provenance.update(words_r.provenance)
+        provenance["asr_vocabulary"] = context
 
         _phase(phase_callback, "ocr")
         if caption_geometry:
@@ -148,6 +163,27 @@ def study(
         audio_r = audio_mod.measure_audio(ing.media_path, ing.meta.duration)
         warnings += audio_r.warnings
         provenance.update(audio_r.provenance)
+
+        from myzing.audio.tagging import AudioTags
+        tags = AudioTags()
+        with _workspace_override(model_workspace):
+            from myzing.audio.tag_models import model_paths
+            try:
+                model_paths()
+            except (RuntimeError, OSError) as exc:
+                tags.warnings.append(f"Learned audio tagging unavailable; heuristic fallback: {exc}")
+            else:
+                try:
+                    from myzing.audio.media import decode_mono, SAMPLE_RATE
+                    from myzing.audio.tagging import tag_samples
+                    samples, truncated = decode_mono(ing.media_path)
+                    tags = tag_samples(samples, SAMPLE_RATE,
+                                       speech=[(w.start, w.end) for w in words_r.words])
+                    tags.provenance.update(analyzed_seconds=len(samples) / SAMPLE_RATE, truncated=truncated)
+                except Exception as exc:
+                    tags.warnings.append(f"Learned audio tagging unavailable; heuristic fallback: {exc}")
+        provenance["audio_tags"] = tags.to_dict()
+        warnings.extend(tags.warnings)
 
         transitions = []
         if detect_transitions:
