@@ -32,17 +32,29 @@ Without `--yes`, non-interactive setup refuses an uncached download. `--yes`
 alone is invalid. Plain `zing doctor --json` remains read-only.
 
 Downloads use immutable Systran model revisions with SHA-256 verification for
-the weights, configuration, tokenizer and vocabulary. Progress reports bytes
+the weights, configuration, tokenizer and vocabulary. They use HTTPS only, on
+the first request and on every redirect; a redirect to plain HTTP or another
+scheme is refused before any bytes are read. Redirects to other HTTPS hosts are
+followed, because Hugging Face serves files from its CDN, so the pinned size and
+SHA-256 are the integrity guarantee, not the host name. Progress reports bytes
 received; the receipt names verified hashes and bytes downloaded. The cache is
 `ZING_HOME/models/speech/<model>/<revision>`. Temporary download files live beside
-their destination and are removed on failure. A failed verification never
-replaces a cached file. Zing checks the complete model before using it.
+their destination and are removed on failure; a file left by a killed or crashed
+download is removed when Studio stops its worker, or else by the next attempt,
+which starts that file again. Only one process downloads into a model folder at
+a time, and a second one waits for it.
+Setup checks free space where `ZING_HOME` lives before downloading, and doctor
+reports that drive's free space. A failed verification never replaces a cached
+file. Zing checks the complete model before using it.
 
 Existing complete local model directories and Hugging Face snapshots can also
 be used offline. Doctor distinguishes these from Zing's verified cache and does
-not claim to have tested native loading. `ZING_WHISPER_MODEL` selects the model
+not claim to have tested native loading. Study loads the exact folder doctor
+lists, read-only, so a snapshot from another publisher is used as reported. `ZING_WHISPER_MODEL` selects the model
 for ordinary study; Studio stores its choice per session. Downloading small.en
-does not change the large-v2 default for other commands.
+does not change the large-v2 default for other commands. `zing study` never
+downloads a speech model: an uncached one leaves the transcript empty, with a
+warning that names this setup command.
 
 If inference is unavailable, install `myzing[study]`, inspect the study warnings,
 and resume the saved Studio session. Missing timed words remain missing evidence;

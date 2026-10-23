@@ -362,11 +362,14 @@ def next_step(answers=None, *, cache=None):
     if path == "e" and a.get("context", "none") == "none":
         ask("speech", "Will someone be speaking over the music?", True,
             "Speech is unknown without an edit plan; checking as a speech bed is the conservative default.", {True: "Yes", False: "No"})
-    if path in "ab" and facts.get("audio_streams"):
+    if path in "ab":
         from myzing.study import speech_models
-        recommended, reason = speech_models.recommendation()
-        ask("speech_model", "Speech setup: to keep spoken lines whole and place captions, choose a local speech model.",
-            recommended, reason, speech_models.choices(), required=True)
+        if facts.get("audio_streams"):
+            recommended, reason = speech_models.recommendation()
+            ask("speech_model", "Speech setup: to keep spoken lines whole and place captions, choose a local speech model.",
+                recommended, reason, speech_models.choices(), required=True)
+        # A supplied model is used (reference and output studies) even when no
+        # clip has audio, so its download needs the same consent before the plan.
         chosen = a.get("speech_model")
         if chosen and chosen != "skip" and speech_models.local_path(chosen) is None:
             ask("speech_download", "Download and SHA-256 verify " + speech_models.CHOICES[chosen] + "?",

@@ -153,11 +153,14 @@ feature-specific gaps. The HyperFrames page documents its own pinned setup.
 ## Local work and network boundaries
 
 Zing itself needs no API key and opens no listening network service. It fetches
-a video URL only when you supply one. On the first `zing study`, faster-whisper
-downloads the selected speech model from Hugging Face if it is not already
-cached (the default `large-v2` model uses about 3.1 GB; select another with
-`ZING_WHISPER_MODEL`). RapidOCR may fetch missing weights too. Ask before an
-uncached study; a local input alone does not guarantee an offline run.
+a video URL only when you supply one. Speech models come from Hugging Face
+only through the consented, SHA-256-pinned setup: choose one in `zing studio`,
+or run `zing doctor --speech-model small.en` (or `large-v2`) and confirm. Even
+the first `zing study` never downloads one; without a cached model it leaves the
+transcript empty and names that command (the default `large-v2` model uses about
+3.1 GB; select another cached model or a local folder with `ZING_WHISPER_MODEL`).
+RapidOCR may fetch missing weights too. Ask before an uncached study; a local
+input alone does not guarantee an offline run.
 
 `zing match` uses local models only and requires `--allow-download` before
 acquiring a reference URL. Missing models remain warnings or planning shortages.

@@ -427,16 +427,20 @@ def check_whisper() -> Check:
     elif row["cached"]:
         detail += f"; model '{model}' is downloaded; native loading not probed"
     else:
-        cache, _ = _whisper_cache()
-        data["cache"] = str(cache) if cache else None
+        # The remedy below downloads into ZING_HOME, so measure that drive,
+        # not the Hugging Face cache (often another volume, or absent).
+        cache = speech_models.speech_root()
+        data["cache"] = str(cache)
         detail += f"; configured model '{model}' is not cached. Choose speech setup in zing studio or zing doctor --speech-model small.en"
         fix = fix or "Run zing doctor --speech-model small.en (English, ~486 MB), or --speech-model large-v2 (multilingual, ~3.09 GB); confirm the download."
-        if cache is None:
-            detail += "; no cache directory yet, so its free space could not be checked"
+        where = speech_models.existing_ancestor(cache)
+        try:
+            free = shutil.disk_usage(where).free / 1e9
+        except OSError:
+            detail += f"; free space at {where} could not be checked"
         else:
-            free = shutil.disk_usage(cache).free / 1e9
             data["free_gb"] = round(free, 1)
-            detail += f"; {free:.1f} GB is free at {cache}"
+            detail += f"; {free:.1f} GB is free at {where} for Zing's speech cache"
             if free < (row["download_bytes"] or 4e9) / 1e9 + .1:
                 ok = False
                 fix += " Free space, move ZING_HOME, or choose a smaller model."
@@ -956,7 +960,8 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--speech-model", choices=["small.en", "large-v2", "skip"])
     parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected speech model download")
-    unknown = [a for a in argv if a.startswith("--") and a not in {"--json", "--speech-model", "--yes", "--help"}]
+    unknown = [a for a in argv if a.startswith("--") and a not in {"--json", "--yes", "--help"}
+               and a.split("=", 1)[0] != "--speech-model"]  # --speech-model=small.en is the same option
     if unknown:
         print("unrecognized arguments: " + " ".join(unknown), file=sys.stderr)
         return 2

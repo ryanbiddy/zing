@@ -2,13 +2,16 @@
 
 from functools import lru_cache
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
+import re
+import shutil
 import sys
 
 from myzing import storage
 from myzing.model_fetch import fetch_verified, verified
 from .speech_pins import MODELS
 
+SPACE_MARGIN = 64_000_000  # bytes kept free beyond the pinned model sizes
 RECOMMENDED = "small.en"
 REASON = "small.en is a faster first draft for English speech. It can miss names, accents and quiet words; review captions. Choose large-v2 for other languages or more accurate speech."
 SKIP_NOTE = "Speech skipped: spoken captions and whole-line continuity are unavailable. Clips with unverified speech may be excluded; no transcript is invented."
@@ -19,8 +22,36 @@ CHOICES = {
 }
 
 
+def speech_root():
+    """Where Zing's consented speech downloads land (ZING_HOME/models/speech)."""
+    return storage.resolve_workspace() / "models" / "speech"
+
+
+def _component(value):
+    """A single plain file or folder name: no separators, drives, streams or dot segments."""
+    return (isinstance(value, str) and value not in ("", ".", "..") and not any(c in value for c in "/\\:\0")
+            and PurePosixPath(value).name == value and PureWindowsPath(value).name == value)
+
+
+def pinned(name):
+    """The pin for name, refusing any revision or file name that could leave its cache folder."""
+    spec = MODELS[name]
+    if not _component(name) or not re.fullmatch(r"[0-9a-f]{40}", str(spec.get("revision", ""))):
+        raise ValueError(f"Speech pin for {name!r} has an invalid name or revision.")
+    unsafe = [file for file in spec["files"] if not _component(file)]
+    if unsafe:
+        raise ValueError(f"Speech pin for {name!r} has unsafe file names: {unsafe!r}")
+    return spec
+
+
 def cache_dir(name):
-    return storage.resolve_workspace() / "models" / "speech" / name / MODELS[name]["revision"]
+    return speech_root() / name / pinned(name)["revision"]
+
+
+def existing_ancestor(path):
+    """The nearest folder that exists, so free space is measured on the right drive."""
+    path = Path(path)
+    return next((p for p in (path, *path.parents) if p.exists()), path)
 
 
 @lru_cache(maxsize=64)
@@ -118,6 +149,15 @@ def fetch_model(name, *, consent=False, progress=None):
     if name not in MODELS:
         raise ValueError("Choose small.en or large-v2 for a pinned speech download.")
     spec, root = MODELS[name], cache_dir(name)
+    needed = sum(pin["size"] for file, pin in spec["files"].items()
+                 if not ((root / file).is_file() and (root / file).stat().st_size == pin["size"]))
+    if needed:
+        where = existing_ancestor(root)
+        free = shutil.disk_usage(where).free
+        if free < needed + SPACE_MARGIN:
+            raise RuntimeError(f"Speech model {name} needs {needed / 1e9:.2f} GB free at {where}; only "
+                               f"{free / 1e9:.2f} GB is free. Free space, move ZING_HOME to a roomier drive, "
+                               "or choose small.en or skip.")
     downloaded = 0
     for file, pin in spec["files"].items():
         url = f"https://huggingface.co/Systran/faster-whisper-{name}/resolve/{spec['revision']}/{file}"

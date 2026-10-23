@@ -776,16 +776,40 @@ def test_no_room_for_the_model_is_a_fixable_failure(
     assert "--speech-model small.en" in check.fix
 
 
-def test_a_missing_cache_directory_is_unknown_never_asserted_absent(
+def test_free_space_is_measured_where_zing_downloads_not_the_hub_cache(
     monkeypatch, tmp_path
 ):
-    """No cache dir yet means Zing cannot tell whether the weights fit —
-    say that, do not report a size check that never happened."""
+    """The doctor remedy downloads into ZING_HOME/models/speech, so its free
+    space decides whether the weights fit. An absent or roomy Hugging Face
+    cache on another drive must not answer for it."""
+    from myzing.study import speech_models
+
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "nothing-here"))
+    target = speech_models.speech_root()
+    measured = []
+
+    def usage(path):
+        measured.append(Path(path))
+        return _Usage(free=int(0.2e9))
+
+    monkeypatch.setattr(doctor.shutil, "disk_usage", usage)
+    check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
+    assert measured and all(p == target or p in target.parents for p in measured)
+    assert not check.ok and "0.2 GB is free" in check.detail
+    assert check.data["cache"] == str(target)
+
+
+def test_unmeasurable_free_space_is_unknown_never_asserted(monkeypatch, tmp_path):
+    """If the drive cannot be measured, say so; never report a check that did not happen."""
+    def broken(path):
+        raise PermissionError("denied")
+
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "nothing-here"))
+    monkeypatch.setattr(doctor.shutil, "disk_usage", broken)
     check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
     assert check.ok
     assert "could not be checked" in check.detail
-    assert check.data["cache"] is None
+    assert "free_gb" not in check.data
 
 
 def test_the_model_checked_is_the_model_transcribe_will_load(

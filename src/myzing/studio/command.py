@@ -190,7 +190,12 @@ def run(argv):
             print("Already at the first question.", file=sys.stderr)
             return
         key = session.history.pop()
-        session.answers.pop(key, None)
+        value = session.answers.pop(key, None)
+        if key == "speech_download" and value is False and session.history[-1:] == ["speech_model"]:
+            # After a declined download, b means "choose another model", not
+            # "ask the same download question again".
+            key = session.history.pop()
+            session.answers.pop(key, None)
         if key == "speech_model":
             session.answers.pop("speech_download", None)
             if "speech_download" in session.history:

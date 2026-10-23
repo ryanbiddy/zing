@@ -33,6 +33,17 @@ def busy_lock(root):
         lease.__exit__(None, None, None)
 
 
+def _discard_abandoned_speech(answers):
+    """A killed worker cannot run its download cleanup; do it for the chosen model."""
+    from myzing.model_fetch import discard_abandoned
+    from myzing.study import speech_models
+    if answers.get("speech_model") in speech_models.MODELS:
+        try:
+            discard_abandoned(speech_models.cache_dir(answers["speech_model"]))
+        except (OSError, ValueError):
+            pass  # the next download attempt removes them under its lock
+
+
 def execute(answers, *, progress=None, cancel=None, locked=False):
     root = Path(answers["project"])
     root.mkdir(parents=True, exist_ok=True)
@@ -47,6 +58,8 @@ def execute(answers, *, progress=None, cancel=None, locked=False):
                               "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "PYTHONIOENCODING": "utf-8"})
         except Cancelled:
             raise Cancelled("Studio run cancelled; owned processes stopped.") from None
+        finally:
+            _discard_abandoned_speech(answers)
     if code not in (0, 1) or not result_path.is_file():
         raise RuntimeError(f"Studio worker exited {code}; resume the saved session to retry.")
     result = read_json(result_path)

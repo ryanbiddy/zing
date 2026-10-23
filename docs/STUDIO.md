@@ -204,7 +204,9 @@ Example `answers.json` for a reference match:
 For audio clips, `--answers` and `--json` require an explicit `speech_model`.
 Use `speech_download: true` only after approving that model's download; it must
 be a JSON boolean. `--yes` confirms the plan and grants no download consent.
-For `speech_model: "skip"` or a cached model, omit `speech_download`.
+For `speech_model: "skip"` or a cached model, omit `speech_download`. A supplied
+uncached model needs the same consent even when no clip has audio: Studio still
+uses it for the run's studies, such as the reference's speech.
 
 Paths in an answers file resolve from the working directory. Saved answers use
 absolute paths. Moving source media requires updating those answers. `aspects`
@@ -229,7 +231,7 @@ message. Download it yourself or remove the credentials.
 
 `q`, EOF and Ctrl+C save the interview. An orphaned MCP job updates both its job
 record and saved session to `interrupted` on status, cancel or resume, with a
-resume command. Cancellation reports ?Studio run cancelled.? Reference matches retain the existing
+resume command. Cancellation reports "Studio run cancelled." Reference matches retain the existing
 hash-checked match checkpoints. Other interrupted operations retry into fresh
 attempt folders, leaving earlier artifacts available for diagnosis. A finished
 non-match session returns its saved result on resume after checking output hashes;
