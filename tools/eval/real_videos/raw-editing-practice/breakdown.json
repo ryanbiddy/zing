@@ -1838,7 +1838,7 @@
       "fixture_id": "raw-editing-practice",
       "video_id": "FHMXO_VikdA",
       "role": "raw-proxy",
-      "human_truth": "handoff/research/EXAMPLE-DATASET-TRUTH.md",
+      "human_truth": "tests/fixtures/real-video-sources/EXAMPLE-DATASET-TRUTH.md",
       "truth_section": "2. RAW VIDEO"
     }
   },

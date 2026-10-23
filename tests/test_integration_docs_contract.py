@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 CONNECT = ROOT / "docs" / "CONNECT.md"
 UX_SKETCH = ROOT / "docs" / "taste" / "UX-STUDY-AND-SURFACE.md"
-AUDIT = ROOT / "handoff" / "reviews" / "CX-4-INTEGRATION-DOCS-QA.md"
+AUDIT = ROOT / "tests" / "fixtures" / "historical-evidence" / "reviews" / "CX-4-INTEGRATION-DOCS-QA.md"
 
 
 def test_zing_connect_uses_ratified_credential_and_peer_language() -> None:

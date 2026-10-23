@@ -49,7 +49,7 @@ Public-domain status can vary outside the United States; this repository makes
 no broader claim. Full provenance, source hashes, and the exact `ffmpeg`
 extraction commands are in `tools/eval/fixtures/speech/provenance.json`.
 
-## OCR calibration data (`handoff/research/ocr-calibration/`)
+## OCR calibration data (`tests/fixtures/research/ocr-calibration/`)
 
 The seven cells have no recorded redistribution license. Their source URLs,
 frame hashes, timings, geometry, confidence and labels remain; OCR text has

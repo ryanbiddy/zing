@@ -1,0 +1,356 @@
+{
+ "contract": "lane-a.filler-corpus-counts",
+ "version": 1,
+ "generated_from": "zing study breakdowns (word text only; no transcript text is reproduced here)",
+ "min_words": 100,
+ "transcripts": 29,
+ "total_words": 25516,
+ "note": "Derived counts ONLY \u2014 enough to verify the hits/spread figures in RAW-FILLER-RECALL without redistributing third-party transcripts. Regenerate from a workspace with filler_corpus_audit.py.",
+ "corpus": [
+  {
+   "slug": "x-1875286149788573873",
+   "source_url": "https://x.com/ShawnRyanShow/status/1875286149788573873",
+   "word_count": 10088,
+   "duration_s": 3702.8,
+   "counts": {
+    "literally": 3,
+    "basically": 10,
+    "obviously": 12,
+    "actually": 10,
+    "just": 39,
+    "well": 28,
+    "right": 19,
+    "yeah": 33,
+    "like": 36,
+    "um": 1,
+    "uh": 3,
+    "hmm": 1,
+    "you know": 34,
+    "i mean": 11,
+    "kind of": 15
+   }
+  },
+  {
+   "slug": "youtube-22wlly7hkp4",
+   "source_url": "https://www.youtube.com/watch?v=22wlLy7hKP4",
+   "word_count": 3110,
+   "duration_s": 1529.9,
+   "counts": {
+    "actually": 1,
+    "just": 21,
+    "right": 2,
+    "like": 13,
+    "kind of": 1
+   }
+  },
+  {
+   "slug": "youtube-c25g53pc5qq",
+   "source_url": "https://www.youtube.com/watch?v=C25g53PC5QQ",
+   "word_count": 2052,
+   "duration_s": 672.1,
+   "counts": {
+    "literally": 1,
+    "basically": 1,
+    "obviously": 1,
+    "actually": 4,
+    "just": 25,
+    "well": 1,
+    "right": 3,
+    "yeah": 1,
+    "like": 13,
+    "i mean": 1,
+    "sort of": 1,
+    "kind of": 3
+   }
+  },
+  {
+   "slug": "youtube-xn-gthdsapy",
+   "source_url": "https://www.youtube.com/watch?v=Xn-gtHDsaPY",
+   "word_count": 1339,
+   "duration_s": 374.4,
+   "counts": {
+    "basically": 1,
+    "actually": 5,
+    "just": 4,
+    "well": 3,
+    "right": 2,
+    "yeah": 1,
+    "like": 16,
+    "you know": 2
+   }
+  },
+  {
+   "slug": "youtube-uc6b5owmca",
+   "source_url": "https://www.youtube.com/watch?v=-UC6b5owmCA",
+   "word_count": 1215,
+   "duration_s": 430.4,
+   "counts": {
+    "just": 4,
+    "right": 2,
+    "like": 7,
+    "kind of": 2
+   }
+  },
+  {
+   "slug": "youtube-rybj0x8elh0",
+   "source_url": "https://www.youtube.com/watch?v=Rybj0X8eLH0",
+   "word_count": 1198,
+   "duration_s": 433.7,
+   "counts": {
+    "basically": 2,
+    "actually": 2,
+    "just": 7,
+    "well": 8,
+    "like": 8,
+    "you know": 3,
+    "i mean": 3,
+    "sort of": 1,
+    "kind of": 3
+   }
+  },
+  {
+   "slug": "youtube-01zctt-cjw",
+   "source_url": "https://www.youtube.com/watch?v=-01ZCTt-CJw",
+   "word_count": 1046,
+   "duration_s": 314.7,
+   "counts": {
+    "basically": 1,
+    "actually": 4,
+    "just": 4,
+    "well": 1,
+    "like": 9,
+    "kind of": 1
+   }
+  },
+  {
+   "slug": "youtube-kiid5fdi2jq",
+   "source_url": "https://www.youtube.com/watch?v=kIID5FDi2JQ",
+   "word_count": 967,
+   "duration_s": 360.0,
+   "counts": {
+    "just": 1,
+    "right": 5,
+    "like": 1,
+    "kind of": 1
+   }
+  },
+  {
+   "slug": "youtube-jg7dsxcfvqe",
+   "source_url": "https://www.youtube.com/watch?v=jG7dSXcfVqE",
+   "word_count": 540,
+   "duration_s": 232.4,
+   "counts": {
+    "right": 2,
+    "like": 5,
+    "you know": 1
+   }
+  },
+  {
+   "slug": "youtube-eciwfilikty",
+   "source_url": "https://www.youtube.com/shorts/ecIwfilIkTY",
+   "word_count": 503,
+   "duration_s": 150.2,
+   "counts": {
+    "actually": 3,
+    "just": 1,
+    "right": 2,
+    "like": 3
+   }
+  },
+  {
+   "slug": "youtube-ykb7prmdfu0",
+   "source_url": "https://www.youtube.com/watch?v=YKB7pRmdFU0",
+   "word_count": 421,
+   "duration_s": 211.3,
+   "counts": {
+    "just": 6,
+    "well": 2,
+    "yeah": 1,
+    "like": 1,
+    "um": 1
+   }
+  },
+  {
+   "slug": "youtube-m8eeuqdjzoa",
+   "source_url": "https://www.youtube.com/shorts/M8eeuqdjZoA",
+   "word_count": 238,
+   "duration_s": 72.3,
+   "counts": {
+    "basically": 1,
+    "just": 1,
+    "well": 1,
+    "like": 1
+   }
+  },
+  {
+   "slug": "youtube-bpwo7jlmii",
+   "source_url": "https://www.youtube.com/watch?v=_Bpwo7JlmII",
+   "word_count": 228,
+   "duration_s": 143.6,
+   "counts": {
+    "just": 1,
+    "well": 1,
+    "right": 1,
+    "like": 1
+   }
+  },
+  {
+   "slug": "youtube-oyaneh0joqi",
+   "source_url": "https://www.youtube.com/shorts/oYAnEH0JoqI",
+   "word_count": 209,
+   "duration_s": 60.8,
+   "counts": {
+    "just": 2,
+    "right": 1,
+    "yeah": 1,
+    "like": 3
+   }
+  },
+  {
+   "slug": "youtube-j-pcgdplubq",
+   "source_url": "https://www.youtube.com/shorts/j-pCGdPlubQ",
+   "word_count": 194,
+   "duration_s": 58.1,
+   "counts": {
+    "basically": 1,
+    "like": 2,
+    "you know": 2
+   }
+  },
+  {
+   "slug": "fhmxo-vikda-d0285d29",
+   "source_url": "",
+   "word_count": 184,
+   "duration_s": 55.1,
+   "counts": {
+    "literally": 2
+   }
+  },
+  {
+   "slug": "youtube-fhmxo-vikda",
+   "source_url": "https://www.youtube.com/watch?v=FHMXO_VikdA",
+   "word_count": 178,
+   "duration_s": 55.1,
+   "counts": {
+    "literally": 2
+   }
+  },
+  {
+   "slug": "youtube-2z0geysuxak",
+   "source_url": "https://www.youtube.com/shorts/2z0GeYSUxak",
+   "word_count": 174,
+   "duration_s": 54.6,
+   "counts": {
+    "basically": 1,
+    "actually": 1,
+    "just": 1,
+    "yeah": 2,
+    "like": 1
+   }
+  },
+  {
+   "slug": "youtube-8ey3-9n089k",
+   "source_url": "https://www.youtube.com/shorts/8Ey3_9N089k",
+   "word_count": 173,
+   "duration_s": 53.8,
+   "counts": {
+    "just": 2,
+    "well": 1,
+    "like": 1
+   }
+  },
+  {
+   "slug": "youtube-dteceuuead8",
+   "source_url": "https://www.youtube.com/shorts/DTeceUUeAd8",
+   "word_count": 164,
+   "duration_s": 53.0,
+   "counts": {}
+  },
+  {
+   "slug": "youtube-pppmj7xq9vm",
+   "source_url": "https://www.youtube.com/shorts/PPPMJ7xq9vM",
+   "word_count": 159,
+   "duration_s": 42.9,
+   "counts": {
+    "just": 1
+   }
+  },
+  {
+   "slug": "youtube-bze-imaegzq",
+   "source_url": "https://www.youtube.com/watch?v=bzE-IMaegzQ",
+   "word_count": 158,
+   "duration_s": 183.4,
+   "counts": {
+    "just": 2,
+    "right": 1,
+    "yeah": 2
+   }
+  },
+  {
+   "slug": "youtube-rnt-19xm6tq",
+   "source_url": "https://www.youtube.com/shorts/rNT_19XM6tQ",
+   "word_count": 157,
+   "duration_s": 41.0,
+   "counts": {}
+  },
+  {
+   "slug": "nlgyv0bmddi-b26572e3",
+   "source_url": "",
+   "word_count": 147,
+   "duration_s": 42.5,
+   "counts": {
+    "basically": 1,
+    "just": 1,
+    "like": 2
+   }
+  },
+  {
+   "slug": "youtube-nlgyv0bmddi",
+   "source_url": "https://www.youtube.com/shorts/nlGYV0bmddI",
+   "word_count": 146,
+   "duration_s": 42.6,
+   "counts": {
+    "basically": 1,
+    "just": 1,
+    "like": 2
+   }
+  },
+  {
+   "slug": "youtube-wxfzkmm3wcg",
+   "source_url": "https://www.youtube.com/watch?v=WxfZkMm3wcg",
+   "word_count": 144,
+   "duration_s": 277.7,
+   "counts": {
+    "just": 1,
+    "right": 2
+   }
+  },
+  {
+   "slug": "youtube-8rjjufkezvi",
+   "source_url": "https://www.youtube.com/shorts/8rJJUfkeZvI",
+   "word_count": 139,
+   "duration_s": 55.3,
+   "counts": {}
+  },
+  {
+   "slug": "youtube-8ldaf6c-amo",
+   "source_url": "https://www.youtube.com/shorts/8LDAF6C_aMo",
+   "word_count": 123,
+   "duration_s": 38.0,
+   "counts": {
+    "actually": 1,
+    "just": 1,
+    "like": 2
+   }
+  },
+  {
+   "slug": "youtube-fuxm3vz-keo",
+   "source_url": "https://www.youtube.com/shorts/FUxM3vz-keo",
+   "word_count": 122,
+   "duration_s": 37.8,
+   "counts": {
+    "like": 3
+   }
+  }
+ ]
+}

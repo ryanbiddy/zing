@@ -1442,7 +1442,7 @@ def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# get_frames (B-Q8, built to handoff/research/B-Q3-get-frames-design.md)
+# get_frames: bounded frame extraction for visual inspection
 # ---------------------------------------------------------------------------
 
 FRAMES_RECOMMENDED = 6

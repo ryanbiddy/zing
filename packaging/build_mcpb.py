@@ -9,8 +9,7 @@ with the official MCPB CLI:
 The bundle is `server.type: "uv"`: the host runs
 ``uv run --frozen --directory <bundle> --extra mcp python -m myzing.cli serve-mcp``,
 so dependencies install from the audited uv.lock — nothing
-compiled is bundled (the pydantic-doesn't-bundle landmine from
-handoff/research/R1-lane-b-surface-judgment.md §1a). The prompt pack rides
+compiled is bundled. The prompt pack rides
 inside the bundle and is pinned via ZING_PROMPTS_DIR, so prompt lookup
 never depends on how uv materializes the package.
 

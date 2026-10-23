@@ -414,7 +414,7 @@
       },
       "human_truth": {
         "available": true,
-        "path": "handoff/research/RAW-MODE-SOURCE.md",
+        "path": "tests/fixtures/real-video-sources/RAW-MODE-SOURCE.md",
         "section": "Human truth for the regression"
       }
     }

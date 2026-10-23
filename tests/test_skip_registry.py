@@ -58,7 +58,7 @@ REGISTERED_SKIPS = {
     "SEC1-OCR: original OCR text is not redistributed": (
         "five historical fuzzy-clustering cases require third-party transcript "
         "text without recorded redistribution permission. PUBLIC SURFACE: NOTICE.md, "
-        "handoff/research/ocr-calibration/README.md and tests/PRIVATE-FIXTURES.md "
+        "tests/fixtures/research/README.md and tests/PRIVATE-FIXTURES.md "
         "state that lexical accuracy is not rerun. Generated overlay tests cover "
         "behavior; token counts/hashes keep the baseline scorer reproducible. "
         "No production capability is disabled. Restore empirical checks only "

@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 LANE_NOTES = (
-    Path(__file__).resolve().parents[1] / "handoff" / "NOTES-lane-c.md"
+    Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "historical-evidence" / "NOTES-lane-c.md"
 )
 REVIEW_MARKER = (
     "- **2026-07-19 (Lane C, SG-1 cross-review complete — "
