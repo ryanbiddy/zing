@@ -186,6 +186,41 @@ def test_finish_summary_merges_notes_and_uses_measured_results(inputs):
     assert "No draft is clearly better" in creator_summary(result, {}, {})["recommendation"]
 
 
+def test_finish_pick_never_counts_abstentions_disagreements_or_unmeasured_color_as_passes(inputs):
+    """MATCH2 statuses rank as neither passes nor misses, and are named on the finish screen."""
+    from myzing.studio.presentation import creator_summary
+    unmeasured = {"status": "approximate", "max_luma_percentile_delta": None,
+                  "reason": "No sample had a usable sharp picture area; color is unmeasured."}
+    measured = {"status": "approximate", "max_luma_percentile_delta": .08}
+    grades = {"A": {"shot_pace": {"status": "detector_disagreement"}, "first_cut": {"status": "not_applicable"},
+                    "color": unmeasured},
+              "B": {"shot_pace": {"status": "pass"}, "first_cut": {"status": "pass"}, "color": measured},
+              "C": {"shot_pace": {"status": "pass"}, "first_cut": {"status": "miss"}, "color": measured}}
+    rows = {f"{d}.{shape}": {"status": "ready", "video": f"drafts/draft-{d}.{shape}.mp4", "plan": f"{d}.json",
+                             "dimensions": dims} for d, dims in grades.items() for shape in ("16x9", "9x16")}
+    result = {"project": inputs["project"], "result": {"drafts": rows}, "warnings": []}
+    summary = creator_summary(result, {"aspects": ["16:9"]}, {"clips": []})
+    assert summary["recommendation"].startswith("Start with draft B (16:9) because it passes shot pace, first cut (0 ")
+    assert "Not passes" not in summary["recommendation"]
+    a = next(r for r in summary["deliveries"] if r["draft"] == "A")
+    assert a["status"] == "unverified" and "pass" not in a["measurements"].values()
+    assert summary["style_summary"] == [
+        "Draft A (16:9, 9:16): shot pace detector disagreement; first cut not applicable for this footage; color unmeasured.",
+        "Draft C (16:9, 9:16): first cut miss."]
+    screen = io.StringIO()
+    command.show_result({**result, "status": "ready", "creator_summary": summary}, screen)
+    text = screen.getvalue()
+    assert "Draft A (16:9, 9:16): shot pace detector disagreement" in text and "Note:" not in text
+    # Without B, A has no misses but no passes either: the pick says so and names
+    # every non-pass instead of implying a certified match.
+    for shape in ("16x9", "9x16"):
+        rows.pop(f"B.{shape}")
+    pick = creator_summary(result, {"aspects": ["16:9"]}, {})["recommendation"]
+    assert pick.startswith("Start with draft A (16:9) because it has the fewest measured style misses (0 measured misses).")
+    assert ("Not passes: shot pace detector disagreement, first cut not applicable for this footage, "
+            "color unmeasured.") in pick and "it passes" not in pick
+
+
 def test_progress_translates_internal_asset_and_draft_ids(inputs, tmp_path):
     from myzing.studio.presentation import progress_label
     root = Path(inputs["project"])
@@ -387,6 +422,20 @@ def test_style_preferences_are_not_measurements():
         result = adapters.style_envelope(envelope(recipe), {"no_reference": True, "tone": tone})
         assert result.median_shot == pace and "not a measurement" in result.basis["pacing"]
     assert recipe.measured == []
+
+
+def test_studio_pace_preference_is_never_a_reference_band():
+    """MATCH2 bands come from measured reference shots only."""
+    from myzing.director.selection import envelope, reference_band
+    from myzing.schemas import Breakdown, Shot, VideoMeta
+    from myzing.style_recipe import StyleRecipe, ObservationProvenance, build_style_recipe
+    preference = adapters.style_envelope(envelope(StyleRecipe(ObservationProvenance("brief.json"))),
+                                         {"no_reference": True, "tone": "calm"})
+    assert preference.median_shot == 4 and reference_band(preference.median_shot, preference)["lower"] is None
+    measured = envelope(build_style_recipe(Breakdown(VideoMeta("ref", "file", duration=4, fps=30),
+                                                     shots=[Shot(i, i * .8, (i + 1) * .8) for i in range(5)])))
+    band = reference_band(measured.median_shot, measured)
+    assert (band["lower"], band["upper"]) == pytest.approx((.55, 1.05))
 
 
 def test_failed_drafts_shortages_and_next_actions_remain_visible(capsys):

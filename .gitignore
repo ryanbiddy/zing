@@ -62,3 +62,6 @@ Thumbs.db
 *.sqlite3-wal
 *.sqlite3-shm
 id_ed25519*
+
+# Internal coordination stays local; never publish it in the product tree.
+handoff/

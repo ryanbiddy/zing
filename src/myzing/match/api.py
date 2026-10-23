@@ -94,11 +94,12 @@ def capabilities():
             "whisper_cache": whisper}
 
 
-def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, speech_model=None):
+def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False, speech_model=None):
     before = projects.hash_file(Path(source))
     b = study(str(source), workspace=workspace, raw_mode=raw, caption_geometry=True,
               fonts=fonts, detect_transitions=not raw, local_models_only=True,
               model_workspace=storage.resolve_workspace(),
+              **({"shot_min_scene_len_s": 0.0} if verification else {}),
               **({"speech_model": speech_model} if speech_model is not None else {}))
     if projects.hash_file(Path(source)) != before:
         raise ValueError("Source changed during study; wait for writes to finish and --resume.")
@@ -387,7 +388,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
                                                  "continuity-v4", repair_asr, "aspect-zoomfill-speakers-v6", caps["layout"],
-                                                 "music1-review-v3", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
+                                                 "music1-review-v3", "reference-timing-constraints-v4", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["source_asr"] = planned["summary"].get("source_asr", [])
@@ -460,8 +461,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     write(path, result)
                     return {"path": str(path), "outputs": [str(path)], "verification": result}
                 verified = checkpoints.step("decode-" + label, projects.hash_file(video), verify)
-                output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps],
-                                                lambda: _study(str(video), root / "verification", **speech))
+                output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps, "short-shot-verification-v1"],
+                                                lambda: _study(str(video), root / "verification", verification=True, **speech))
                 timeline = video.with_suffix(".png")
                 inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v1"],
                     lambda: _inspect(video, timeline, output_study, root / "verification", verified["verification"]["duration"]))
@@ -469,12 +470,12 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 def measure_color():
                     if not caps["color"]:
                         return {"outputs": [], "measurement": None}
-                    from myzing.color.measure import measure_video
-                    measured, _, _ = measure_video(video, count=6)
+                    from .picture import measure_output_color
+                    measured = measure_output_color(video, plan)
                     path = video.with_suffix(".color.json")
-                    write(path, measured.to_dict())
-                    return {"outputs": [str(path)], "measurement": measured.to_dict()}
-                output_color = checkpoints.step("color-report-" + label, [projects.hash_file(video), caps], measure_color)
+                    write(path, measured)
+                    return {"outputs": [str(path)], "measurement": measured}
+                output_color = checkpoints.step("color-report-" + label, [projects.hash_file(video), projects.hash_file(Path(prepared["path"])), caps, "sharp-picture-v1"], measure_color)
                 report_path = video.with_suffix(".match.json")
                 def report():
                     result = evidence.report(recipe, Breakdown.from_dict(read(output_study["path"])),
@@ -486,7 +487,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     write(report_path, result)
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"],
                             "music": result["music"], "audio_measurements": result["audio_measurements"]}
-                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected, "continuity-status-v3"], report)
+                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, verified, prepared, rendered_result, inspected, "honest-ranges-v3"], report)
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"],
                            music=matched.get("music"), audio_measurements=matched.get("audio_measurements"))
@@ -505,6 +506,11 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         row["render_status"] = "render complete" if row["status"] == "ready" else row["status"]
         row["failed_style_dimensions"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "miss"]
         row["unverified_style_dimensions"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "approximate"]
+        from .timing import dimension_notes
+        row["not_applicable_style_dimensions"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "not_applicable"]
+        row["detector_disagreements"] = [k for k, v in row.get("dimensions", {}).items() if v["status"] == "detector_disagreement"]
+        row["style_notes"] = dimension_notes(row.get("dimensions", {}))
+        row["unverified_style_dimensions"].extend(row["detector_disagreements"])
         row["style_match"] = "failed" if row["failed_style_dimensions"] else "unverified"
     summary["summary"] = f"{summary['ready']} of {summary['requested']} render complete"
     details = [f"{label}: style match {r['style_match']}" +

@@ -1,5 +1,7 @@
 # Zing
 
+<!-- mcp-name: io.github.ryanbiddy/zing -->
+
 **“Make my clips look like that video.”** Zing is a terminal-first creative studio
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
@@ -65,6 +67,10 @@ Use the current source checkout for these features. Zing is not on PyPI; the
 [connection guide](docs/CONNECT.md) also covers the published prerelease wheel.
 See [developer setup](docs/DEVELOPER-GUIDE.md) for environment details.
 
+For agent setup, see [install from source](llms-install.md). The
+[directory submission kit](docs/DIRECTORY-SUBMISSIONS.md) is preparation only;
+its future PyPI registry entry is not an available package or a submitted listing.
+
 ## Give your agent the skill
 
 Copy the entire [skills/zing](skills/zing/SKILL.md) folder, including `references/`,
@@ -116,6 +122,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Connect an AI or Uoink | [Connect](docs/CONNECT.md): 36 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
+| Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
 | Check asset provenance | [Third-party notices](docs/THIRD-PARTY-NOTICES.md): model pins, hashes and licenses. |

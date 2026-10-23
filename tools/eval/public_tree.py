@@ -62,6 +62,8 @@ def scan(root: Path = ROOT) -> dict:
     issues = []
     scanned = 0
     for name in sorted(set(paths) - {""}):
+        if name.startswith("handoff/"):
+            issues.append({"path": name, "reason": "internal coordination must not be tracked"})
         path = root / name
         if not path.is_file():  # an intentional current-tree deletion
             continue

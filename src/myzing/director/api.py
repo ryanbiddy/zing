@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from statistics import median
 
 from myzing.brief.api import load_brief
 from myzing.project.api import load_project
@@ -15,7 +16,7 @@ from myzing.style_recipe import StyleRecipe
 from .inventory import inventory
 from .models import PlanningShortage, shortage
 from .plans import MUSIC_CANNOT_CARRY, attach_report, make_plan, music_projection, render_projection
-from .selection import candidates, choose, constraints, envelope
+from .selection import band_distance, candidates, choose, constraints, envelope, reference_band, shot_lengths
 
 PRODUCER = "myzing.director/1"
 MANAGED = {"comparison.json", *(f"plan-{label}{suffix}.json" for label in "ABC"
@@ -102,9 +103,31 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         if studio_options is not None:
             from myzing.studio.adapters import style_envelope
             style = style_envelope(style, studio_options)
+        # Keep a previously feasible A when adding timing-aware trims. Expanding
+        # the search should repair failed alternatives without replacing a
+        # passing primary edit merely because its candidate beam changed.
+        preferred_a = None
+        initial_pool, initial_required = candidates(clips, keep, forbidden, style, brief.target_length_seconds,
+                                                    expand_timing=False)
+        try:
+            initial = choose(initial_pool, initial_required, clips, style, brief.target_length_seconds, 30, seed,
+                             allow_reordering="[allow source reordering]" in brief.purpose.casefold(),
+                             prefer_bands=False)["A"]
+            lengths = shot_lengths(initial, clips)
+            values = ((style.first_cut, lengths[0] if len(lengths) > 1 else None),
+                      (style.median_shot, median(lengths)))
+            if not any(c.dangling_clauses for c in initial) and all(
+                band_distance(value, reference_band(target, style)) <= 1e-8
+                for target, value in values
+            ):
+                preferred_a = initial
+        except PlanningShortage:
+            pass  # New timing trims may make a previously unavailable trio feasible.
         pool, required = candidates(clips, keep, forbidden, style, brief.target_length_seconds)
+        timing_evidence = {}
         selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed,
-                          allow_reordering="[allow source reordering]" in brief.purpose.casefold())
+                          allow_reordering="[allow source reordering]" in brief.purpose.casefold(),
+                          timing_evidence=timing_evidence, preferred_a=preferred_a)
         # Decode used sources for framing and caption safety. This is local layout
         # analysis, with no study/ASR, model downloads, or reference lookup.
         from myzing.layout.framing import analyze_subjects
@@ -131,6 +154,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
                                        style, brief, manifest, root, seed, keep, forbidden,
                                        subject_evidence=subject_evidence, music_cache=music_cache,
+                                       timing_selection=timing_evidence[label],
                                        **({"caption_mode": "none" if studio_options.get("speech_model") == "skip" else studio_options.get("captions")} if studio_options is not None else {}))
             if studio_options and studio_options.get("speech_model") == "skip":
                 from myzing.study.speech_models import SKIP_NOTE

@@ -26,7 +26,7 @@ ROADMAP_BUDGET = {
     "cpu_fallback": "must remain honest",
     "failure_example": "20 minutes is a failed gate",
     "status": "gated",
-    "source": "handoff/ROADMAP.md#done-criteria",
+    "source": "docs/EVAL.md#performance-budget",
 }
 REFERENCE_DURATION_MAX = 60.0
 
