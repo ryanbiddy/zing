@@ -87,19 +87,22 @@ edit adds a plan warning naming how many seconds have no music.
 
 The v2 renderer supports audio source trims and `duck_scope="source_speech"`.
 It needs the director's known speech spans; sound outside them cannot move
-the bed. Spans closer than `duck_hold_seconds` (default 0.8 s) form one
-speech passage. Clause splitting already calls a 600 ms silence a pause, and
-a gap under 0.8 s leaves no audible time at a recovered level once the
-pre-duck is counted, so the bed stays down through clause and sentence gaps
-inside a passage. A gap between 0.8 s and attack + release (1.0 s) is
-released but never settles at the recovered level: the bed rises and is
-pre-ducked again (about 8 dB for half a second in a measured 0.84 s gap; see
-Listening below). It ducks `duck_depth_db` (default 9 dB) with a
+the bed. It ducks `duck_depth_db` (default 9 dB) with a
 `duck_attack_seconds` (0.2 s) raised-cosine pre-duck that ends at the first
-word, and recovers over `duck_release_seconds` (0.8 s) after the last word
-only in longer pauses. These follow the slow-recovery ducking practice in
+word, and recovers over `duck_release_seconds` (0.8 s) after the last word.
+A pause releases only when the bed can recover and stay up before the next
+pre-duck. The gap must be at least `duck_hold_seconds` (0.8 s) and at least
+attack + release + `duck_plateau_seconds` (0.3 s), which is 1.3 s with the
+defaults. Shorter clause and sentence gaps stay ducked. Under the old
+hold-only rule, a 0.84 s gap released, lifted the bed 8.4 dB for about half a
+second and ducked it again; that is pumping. The edges follow the same idea.
+When the first word comes within max(hold, attack + plateau) of the edit
+start, the bed starts ducked and its 0.15 s fade-in rises only to the ducked
+level. When the last word ends within max(hold, release + plateau) of the
+edit end, the bed stays ducked into its fade. These follow the
+slow-recovery ducking practice in
 [the mix research](taste/TRANSITIONS-AND-MIX.md) (P15/P17: down within about
-200 ms, back over 500 ms or more, no pumping between phrases). All four
+200 ms, back over 500 ms or more, no pumping between phrases). All five
 values live in the plan's MUSIC1 evidence and can be edited there. The
 renderer turns the passages into a 1 kHz gain envelope file multiplied into
 the music (`amultiply`), so neither span count nor FFmpeg expression limits
@@ -107,6 +110,23 @@ bound it and no NumPy is needed. Gated source loudness sets the pause bed
 21 − depth = 12 LU below speech, targeting 21 LU below speech in phrases
 (18–24 LU acceptance band). With no known speech, the planning target is
 −16 LUFS for music. These are gain targets; the renderer measures the result.
+
+One bed gain cannot serve clips whose speech levels differ: a whispered clip
+next to a loud one leaves the quiet clip's clauses about 11 LU over the bed.
+When the gated speech levels of the edit's clips span more than 6 LU, the
+director gives each clip its own bed level. It records `bed_gain_points`
+(`[seconds, dB <= 0]` pairs in the MUSIC1 evidence), which the renderer adds
+to the duck envelope. A 0.4 s raised-cosine ramp sits inside the clause gap
+around each cut when one fits, and is centred on the cut otherwise. The first
+pass offsets each clip by its speech level against the loudest clip. A second
+pass then centres each clip's planned clauses on 21 LU, so the music's own
+level changes along the excerpt are accounted for. The track gain carries the
+loudest wanted bed, because the envelope only lowers the bed. A bed cut is
+capped at 24 dB, and a clip whose speech is below the loudness gate follows its
+neighbour; both cases add a plan warning. Edits within 6 LU keep one gain.
+The evidence lists `clip_levels` (speech LUFS and bed offset per clip) and
+`clauses` (planned speech, music and separation per clause), and warns when
+any clause is planned outside 18–24 LU.
 It retains E2E1's oversampled −2 dBFS peak limiter before AAC. On the two
 real acceptance renders the encoded AAC measured −2.2 and −2.8 dBTP; other
 material still needs its own check. Source-speech ducking is refused when the clip
@@ -120,9 +140,15 @@ install without measurement. When measurement is wanted but NumPy is
 missing, the render still succeeds and warns that no sidecar was written.
 A measured render produces a `.music.json` sidecar tied to the MP4 SHA-256.
 It reports isolated post-duck music RMS and LUFS in speech windows, held
-clause gaps and pauses outside passages, source-speech LUFS, their
-difference, integrated mix LUFS and true peak, the duck settings and passage
-count, and a quarter-second music level curve. Work directories retain
+gaps between words and pauses outside passages, source-speech LUFS, their
+difference, integrated mix LUFS and true peak, the duck settings, gain points
+and passage count, and a quarter-second music level curve. Its `clauses` rows
+give speech LUFS, music LUFS and separation for every clause, measured on the
+stems with K-weighted 50 ms frames and no gate (within 0.2 LU of FFmpeg's
+meter on steady tones and noise; short clauses are approximate).
+`clause_separation` summarises them. A render whose clauses fall outside
+18–24 LU carries a warning that names the furthest clause, in the sidecar
+and in the render's warnings. Work directories retain
 music/source WAV stems and the duck envelope; renders without music to
 measure write no stems. Stems precede the final limiter; the source stem can
 contain embedded music. Below-gate or short windows may have null LUFS. The
@@ -148,52 +174,60 @@ return after a pad-only break), unknown meter for equal accents/drones,
 zero attacks for steady pads, reasons consistent with their numbers,
 regional pace for 12–30 s excerpts, vowel-like harmonic warnings,
 constructed advice rankings, offset alignment and clause protection. Rendered
-ducking holds within 0.5 dB through 0.2–0.6 s clause gaps, recovers at least
-7 dB in a 1.0 s pause, never moves more than 1 dB per 10 ms, and renders and
-measures 300 spans. These are bounded tests, not a real-world accuracy
+ducking holds within 0.5 dB through 0.2–1.0 s gaps (including 0.84 s), and
+recovers at least 8.5 dB in a 1.6 s pause, with at least 0.3 s within 1 dB of
+full level. It never moves more than 1 dB per 10 ms, and it renders and
+measures 300 spans. A director test with two generated talkers 14 LU apart
+plans a bed about 14 dB lower under the quiet clip. Every rendered clause then
+measures 18–24 LU, while the same mix with one bed gain puts the quiet clauses
+under 12 LU and warns. These are bounded tests, not a real-world accuracy
 estimate. The acceptance report under
 `zing-workspace/MUSIC1-REPORT.md` records the real-media evidence and failures.
 
 ## Listening
 
 No one has listened to these mixes yet. The LISTEN1 pass prepared a
-listening review and could not run it, because the Gemini CLI on the
-build machine was not signed in. The defaults above are therefore still
-untested by ear; nothing was retuned without a listener.
+listening review with Gemini and could not run it, because the Gemini CLI on
+the build machine was not signed in. The ducking changes above fix problems
+that break this page's own targets, measured on the real acceptance media;
+they were not tuned by ear.
 `uv run --frozen python -m tools.eval.listen1_packet --root <acceptance root>
---out <dir> <case>...` exports, for each rendered case, the final mix (48 kHz WAV and
-320k MP3), the isolated pre-limiter music bed, a timing sheet without local
-paths, and `measurements.json`. That file holds 50 ms RMS and 400 ms
-momentary loudness curves, the planned duck gain, limiter gain reduction
-(final mix against the sum of its stems), the largest bed level steps
-outside planned ramps, onsets and beats near each cut, peaks, stereo
-correlation and per-clause speech-to-music separation. Use it to check a listener's claims, which can be wrong about
+--out <dir> <case>...` exports, for each rendered case:
+
+- the final mix (48 kHz WAV and 320k MP3)
+- the isolated pre-limiter music bed
+- a timing sheet without local paths
+- `measurements.json`: 50 ms RMS and 400 ms momentary loudness curves, the
+  planned duck gain, limiter gain reduction (the final mix against the sum of
+  its stems), the largest bed level steps outside planned ramps, onsets and
+  beats near each cut, peaks, stereo correlation, and per-clause separation
+  (the renderer's rows plus a gated FFmpeg cross-check)
+
+Use the measurements to check a listener's claims, which can be wrong about
 timing.
 
-On the real acceptance media replayed with this code, the measurements
-show:
+On the real acceptance media (MUSIC1's tracks and V1 clips), before and after
+these changes:
 
-- Montage (The Charm 68): the drop's bass enters within 5 ms of the 4.000 s
-  cut (a 40 dB rise below 150 Hz). A stronger broadband transient sits
-  300 ms earlier, at 3.70 s, off the beat grid; only a listener can say
-  which one reads as the hit. The two retained cuts sit 281 ms and 264 ms
-  off the nearest beat. Peak −2.2 dBTP, no samples above −1 dBFS, limiter
-  reduction under 1 dB.
-- Talking (Vaporware piano): the bed sits 21.8 LU under speech in phrases
-  overall, but 10.8–23.7 LU per clause. The two quieter Tears of Steel
-  clauses sit about 11 LU over the bed, below the 18–24 LU band, because
-  one bed gain serves sources whose speech differs by 14 LU. The sidecar's
-  aggregate hides this; the packet reports each clause. The duck envelope
-  stays at −9 dB through the 0.44–0.79 s clause gaps.
-  MUSIC1's earlier sidechain render lifted the bed up to 15 dB in those gaps.
-  Remaining movement: the envelope lifts the bed 8.4 dB at 8.1–8.9 s, in a
-  0.84 s sentence gap just over the hold, and the bed plays unducked for
-  about 0.25 s at the start, because the first word comes 0.33 s in. The
-  source's own ambience drops 27 dB at the 3.2 s hard cut; that comes from
-  the clips, not the bed. The 16:9 and 9:16 deliveries have bit-identical
-  audio.
+- Talking edit (Vaporware piano under Tears of Steel and Korky Paul): the
+  0.84 s sentence gap at 8.08–8.92 s now holds at −9 dB, where the envelope
+  used to rise to −0.6 dB. The bed starts ducked: it fades in to −63 to
+  −50 dBFS, where it once played about 0.25 s at up to −33 dBFS before the first
+  word. The tail stays ducked into the fade. The clips' speech differs by
+  13.9 LU, so the bed sits 9.3 dB lower under the Tears of Steel clip. Per
+  clause, speech now stands 21.2, 20.4, 23.2, 20.5 and 21.4 LU over the bed;
+  it was 11.3, 10.8, 23.7, 20.6 and 21.2 LU. The gated cross-check reads
+  20.3–23.4 LU. The aggregate went from 21.8 to 21.3 LU, the mix from −13.9 to
+  −13.8 LUFS, and the true peak stayed at −2.8 dBTP. The 16:9 and 9:16
+  deliveries have bit-identical audio.
+- Montage (The Charm 68): unchanged and bit-identical, since it has no
+  speech. The drop's bass enters within 5 ms of the 4.000 s cut (a 40 dB
+  rise below 150 Hz). A stronger broadband transient sits 300 ms earlier, at
+  3.70 s, off the beat grid; only a listener can say which one reads as the
+  hit. The two retained cuts sit 281 and 264 ms off the nearest beat.
+  Measured: −2.2 dBTP, no samples above −1 dBFS, limiter reduction under 1 dB.
 
-Whether those lifts sound like pumping is a listening question. The likely
-fix, if a listener confirms it, is a hold of at least attack + release plus
-a short audible plateau, and starting the bed ducked when the first word
-falls within the hold.
+Still open for a listener: whether the bed under fully held speech is
+audible at all on a phone speaker, the montage pickup at 3.70 s, and the
+27 dB drop in the clips' own ambience at the 3.2 s hard cut, which comes from
+the sources, not the bed.

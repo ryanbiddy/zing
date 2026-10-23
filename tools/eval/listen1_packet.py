@@ -153,7 +153,7 @@ def build(folder, out, tracks):
     """Export one case and return its measurement record."""
     from myzing.audio import analyze
     from myzing.composition import Composition
-    from myzing.music.ducking import passages
+    from myzing.music.ducking import duck_passages, passages, release_gap
     from myzing.music.models import extract, timeline_of
     np = _np()
     video, plan_path, sidecar_path, work = case_files(folder)
@@ -196,9 +196,17 @@ def build(folder, out, tracks):
     alignments = [d for d in evidence.decisions if d["kind"] in ("drop_alignment", "moment_alignment")]
     drop_checks = [{"planned_output_time": d["output_time"], "low_band_rise": low_band_rise(bed, d["output_time"])}
                    for d in alignments]
-    duck = evidence.duck()
-    duck_passages = passages(evidence.speech_spans, duck["hold"]) if evidence.speech_spans else []
-    ramps = [(a - duck["attack"], a) for a, _ in duck_passages] + [(b, b + duck["release"]) for _, b in duck_passages]
+    # Describe what the render did: sidecars written before the plateau rule
+    # (no "plateau" key) used the plain hold merge and no edge rule.
+    duck = {**evidence.duck(), **{k: v for k, v in (sidecar.get("duck") or {}).items() if k != "method"}}
+    legacy = bool(sidecar.get("duck")) and "plateau" not in sidecar["duck"]
+    if legacy:
+        duck.update(plateau=0.0, gain_points=[])
+    held = (passages(evidence.speech_spans, duck["hold"]) if legacy else
+            duck_passages(evidence.speech_spans, duration, hold=duck["hold"], attack=duck["attack"],
+                          release=duck["release"], plateau=duck["plateau"])) if evidence.speech_spans else []
+    ramps = [(a - duck["attack"], a) for a, _ in held] + [(b, b + duck["release"]) for _, b in held]
+    ramps += [(a, b) for (a, ga), (b, gb) in zip(duck["gain_points"], duck["gain_points"][1:]) if ga != gb]
     fade_in, fade_out = min(.15, (end - offset) / 4), min(1., (end - offset) / 4)
     ramps += [(0, fade_in), (end - offset - fade_out, end - offset)]
     bed_curve = rms_curve(bed)
@@ -218,7 +226,8 @@ def build(folder, out, tracks):
                   "source_offset": offset, "source_end": end, "gain_db": next(a.gain_db for a in plan.audio if a.id == track["id"])},
         "cuts": cut_report, "planned_alignments": alignments, "drop_checks": drop_checks,
         "moments": moments, "beats": beats,
-        "speech_spans": evidence.speech_spans, "duck": duck, "duck_passages": duck_passages,
+        "speech_spans": evidence.speech_spans, "duck": duck, "duck_passages": held,
+        "release_gap": duck["hold"] if legacy else release_gap(duck["hold"], duck["attack"], duck["release"], duck["plateau"]),
         "fades": {"in": [0, fade_in], "out": [end - offset - fade_out, end - offset]},
         "sidecar": {k: v for k, v in sidecar.items() if k not in ("curve", "music_plan")},
         "mix_loudness": momentary(out / "mix.wav"), "bed_loudness": momentary(out / "music-bed.wav"),
@@ -245,7 +254,8 @@ def build(folder, out, tracks):
             music = window_loudness(work / "music-stem.wav", [[a, b]], duration)
             clauses.append({"span": [a, b], "speech_lufs": speech, "music_lufs": music,
                             "separation_lu": None if speech is None or music is None else round(speech - music, 1)})
-        record_out["clause_separation"] = clauses
+        record_out["clause_separation"] = clauses  # gated FFmpeg meter per clause, a cross-check
+        record_out["sidecar_clauses"] = sidecar.get("clauses", [])  # renderer's ungated per-clause rows
     if (work / "music-duck.wav").is_file():
         record_out["duck_gain_10ms"] = duck_gain(work / "music-duck.wav", duration)
     (out / "measurements.json").write_text(json.dumps(record_out, indent=1, allow_nan=False), encoding="utf-8")
@@ -271,15 +281,24 @@ def timing_sheet(m):
     lines += [f"- {x['kind']} at {x['time']:.3f}" for x in m["moments"]] or ["- none"]
     lines += ["", "## Speech clauses (source speech)", ""]
     separation = {tuple(c["span"]): c["separation_lu"] for c in m.get("clause_separation", [])}
+    separation.update({(c["start"], c["end"]): c["separation_lu"] for c in m.get("sidecar_clauses", [])})
     lines += [f"- {a:.3f}-{b:.3f}" + (f" (speech {separation[(a, b)]} LU above the bed)" if separation.get((a, b)) is not None else "")
               for a, b in m["speech_spans"]] or ["- none (music only)"]
     if m["duck_passages"]:
         d = m["duck"]
         lines += ["", f"## Music ducking: {d['depth_db']:g} dB", "",
-                  f"Clause gaps shorter than {d['hold']:g} s stay ducked. The bed starts going down {d['attack']:g} s "
-                  f"before a passage and recovers over {d['release']:g} s after it.", ""]
-        lines += [f"- ducked passage {a:.3f}-{b:.3f} (down from {max(0, a - d['attack']):.3f}, recovering "
-                  f"{b:.3f}-{min(m['duration'], b + d['release']):.3f})" for a, b in m["duck_passages"]]
+                  f"Gaps shorter than {m['release_gap']:g} s stay ducked. The bed starts going down {d['attack']:g} s "
+                  f"before a passage and recovers over {d['release']:g} s after it. A passage that starts at 0.000 or "
+                  "ends at the edit end keeps the bed ducked at that edge.", ""]
+        for a, b in m["duck_passages"]:
+            start = "ducked from the start" if a <= 1e-6 else f"down from {a - d['attack']:.3f}"
+            end = ("held to the edit end" if b >= m["duration"] - 1e-6 else
+                   f"recovering {b:.3f}-{min(m['duration'], b + d['release']):.3f}")
+            lines.append(f"- ducked passage {a:.3f}-{b:.3f} ({start}, {end})")
+    points = m["duck"].get("gain_points") or []
+    if points:
+        lines += ["", "## Per-clip bed level (dB, on top of ducking)", ""]
+        lines += [f"- {a:.3f}: {g:+.1f} dB" for a, g in points]
     f = m["fades"]
     lines += ["", "## Music fades", "", f"- fade in {f['in'][0]:.3f}-{f['in'][1]:.3f}", f"- fade out {f['out'][0]:.3f}-{f['out'][1]:.3f}",
               "", "## Measured loudness", ""]
@@ -289,7 +308,8 @@ def timing_sheet(m):
     lines.append(f"- music bed alone: {s['music_integrated']['integrated_lufs']} LUFS integrated")
     if s.get("speech_to_music_lu") is not None:
         lines.append(f"- music under speech {s['music_speech_lufs']} LUFS vs source speech {s['source_speech_lufs']} LUFS "
-                     f"({s['speech_to_music_lu']} LU apart); music in pauses {s['music_gap_lufs']} LUFS")
+                     f"({s['speech_to_music_lu']} LU apart); music in pauses "
+                     + (f"{s['music_gap_lufs']} LUFS" if s.get("music_gap_lufs") is not None else "n/a (no released pause)"))
     return "\n".join(lines) + "\n"
 
 

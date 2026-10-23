@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from myzing.contracts import Record
-from .ducking import (DEFAULT_ATTACK_SECONDS, DEFAULT_DEPTH_DB, DEFAULT_HOLD_SECONDS,
+from .ducking import (DEFAULT_ATTACK_SECONDS, DEFAULT_DEPTH_DB, DEFAULT_HOLD_SECONDS, DEFAULT_PLATEAU_SECONDS,
                       DEFAULT_RELEASE_SECONDS, check_span_count)
 
 PREFIX = "MUSIC1 evidence: "
@@ -27,6 +27,14 @@ class MusicPlan(Record):
     duck_depth_db: float = DEFAULT_DEPTH_DB
     duck_attack_seconds: float = DEFAULT_ATTACK_SECONDS
     duck_release_seconds: float = DEFAULT_RELEASE_SECONDS
+    # A pause releases only with this much time at the recovered level.
+    duck_plateau_seconds: float = DEFAULT_PLATEAU_SECONDS
+    # Per-clip bed level on top of the duck: [output seconds, dB <= 0] points,
+    # raised-cosine between them. Empty unless clip speech levels differ.
+    bed_gain_points: list[list[float]] = field(default_factory=list)
+    # Planning estimates per clip and per clause (speech, music, separation).
+    clip_levels: list[dict] = field(default_factory=list)
+    clauses: list[dict] = field(default_factory=list)
     # The clip timeline the spans were planned against; empty means unrecorded.
     timeline: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -41,14 +49,23 @@ class MusicPlan(Record):
                 raise ValueError("music speech spans require finite 0 <= start < end")
         check_span_count(len(self.speech_spans))
         for name, low, high in (("duck_hold_seconds", 0, 5), ("duck_depth_db", 0, 30),
-                                ("duck_attack_seconds", .02, 2), ("duck_release_seconds", .05, 5)):
+                                ("duck_attack_seconds", .02, 2), ("duck_release_seconds", .05, 5),
+                                ("duck_plateau_seconds", 0, 2)):
             value = getattr(self, name)
             if not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(f"{name} must be in [{low}, {high}]")
+        previous = -math.inf
+        for point in self.bed_gain_points:
+            if (len(point) != 2 or not all(type(x) in (int, float) and math.isfinite(x) for x in point)
+                    or point[0] < max(0, previous) or not -60 <= point[1] <= 0):
+                raise ValueError("bed_gain_points need ascending [seconds >= 0, -60 <= dB <= 0] pairs")
+            previous = point[0]
+        check_span_count(len(self.bed_gain_points) // 2, "bed gain changes")
 
     def duck(self) -> dict:
         return {"hold": self.duck_hold_seconds, "depth_db": self.duck_depth_db,
-                "attack": self.duck_attack_seconds, "release": self.duck_release_seconds}
+                "attack": self.duck_attack_seconds, "release": self.duck_release_seconds,
+                "plateau": self.duck_plateau_seconds, "gain_points": [list(p) for p in self.bed_gain_points]}
 
 
 def _contiguous(a: dict, b: dict) -> bool:

@@ -75,17 +75,81 @@ def test_music_ends_at_supported_phrase_with_fade(tmp_path, monkeypatch):
 
 
 def test_known_speech_envelope_holds_clause_gaps_with_smooth_ramps():
-    from myzing.music.ducking import passages, weights
-    spans = [[1.0, 3.0], [3.2, 5.2], [5.5, 7.5], [7.9, 9.9], [10.5, 12.5], [13.5, 15.5]]
-    held = passages(spans, .8)
-    # Gaps of 0.2-0.6 s join one passage; the 1.0 s pause stays a real pause.
-    assert held == [[1.0, 12.5], [13.5, 15.5]]
-    w = weights(held, 17, .2, .8)
-    assert min(w[1000:12501]) == 1.0  # fully ducked through every held clause gap
-    assert min(w[12500:13500]) < .01  # recovered inside the 1.0 s pause
+    from myzing.music.ducking import duck_passages, release_gap, weights
+    assert release_gap() == pytest.approx(1.3)  # 0.2 attack + 0.8 release + 0.3 s audible plateau
+    spans = [[1.0, 3.0], [3.2, 5.2], [5.5, 7.5], [7.9, 9.9], [10.5, 12.5], [13.5, 15.5], [17.0, 19.0]]
+    held = duck_passages(spans, 21)
+    # Gaps of 0.2-1.0 s join one passage; only the 1.5 s pause is a real pause.
+    assert held == [[1.0, 15.5], [17.0, 19.0]]
+    w = weights(held, 21, .2, .8)
+    assert min(w[1000:15501]) == 1.0  # fully ducked through every held gap, including 1.0 s
+    plateau = sum(1 for v in w[15500:17000] if v < 1e-9) / 1000
+    assert plateau >= .3 - 1e-9  # the released pause really settles at the recovered level
     assert w[800] < 1e-9 and w[1000] == 1.0 and 0 < w[900] < 1  # pre-duck ends at the first word
     # Raised-cosine ramps: no step larger than the steepest attack slope allows.
     assert max(abs(a - b) for a, b in zip(w, w[1:])) <= math.pi / 2 / 200 + 1e-9
+
+
+def test_a_sentence_gap_just_over_the_hold_no_longer_pumps():
+    # LISTEN1: a 0.84 s gap released under the hold-only rule and lifted the
+    # bed 8.4 dB for half a second before the next pre-duck.
+    from myzing.music.ducking import duck_passages, passages, weights
+    spans = [[4.64, 8.08], [8.92, 12.62]]
+    assert len(passages(spans, .8)) == 2  # the old rule
+    held = duck_passages(spans, 14)
+    assert held == [[4.64, 12.62]]
+    assert min(weights(held, 14, .2, .8)[4640:12621]) == 1.0
+    # A user can still ask for faster ducking; the plateau rule follows the settings.
+    assert len(duck_passages(spans, 14, hold=0, attack=.05, release=.2, plateau=.3)) == 2
+
+
+def test_the_bed_starts_and_ends_ducked_when_speech_is_close_to_the_edges(tmp_path):
+    import array
+    import wave
+    from myzing.music.ducking import duck_passages, write_envelope
+    # First word 0.33 s in (LISTEN1 talking edit): no 0.25 s at pause level first.
+    held = duck_passages([[.33, 8.08], [8.92, 12.62]], 12.95)
+    assert held == [[0.0, 12.95]]
+    path = write_envelope(tmp_path / "duck.wav", held, 12.95, depth_db=9, attack=.2, release=.8)
+    with wave.open(str(path)) as w:
+        gains = array.array("i", w.readframes(w.getnframes()))
+    assert max(gains) == pytest.approx((2 ** 31 - 1) * 10 ** (-9 / 20), rel=1e-6)  # ducked from sample 0 to the end
+    # A real intro and outro keep their full-level music.
+    assert duck_passages([[1.2, 5.0]], 7.0) == [[1.2, 5.0]]
+    assert duck_passages([[.5, 5.0]], 5.9) == [[0.0, 5.9]]
+
+
+def test_bed_gain_points_ramp_smoothly_and_never_raise_the_bed(tmp_path):
+    from myzing.music.ducking import gain_at, gain_curve, write_envelope
+    points = [[0, 0], [5.8, 0], [6.2, -14], [12, -14]]
+    assert gain_at(points, 3) == 0 and gain_at(points, 6.0) == pytest.approx(-7) and gain_at(points, 9) == -14
+    curve = gain_curve(points, 12001)
+    assert curve[5800] == 0 and curve[6200] == pytest.approx(-14) and curve[-1] == -14
+    assert all(b <= a + 1e-12 for a, b in zip(curve, curve[1:]))
+    assert max(abs(a - b) for a, b in zip(curve, curve[1:])) < .06  # 14 dB over 0.4 s, raised cosine
+    with pytest.raises(ValueError, match="<= 0 dB"):
+        write_envelope(tmp_path / "x.wav", [], 2, depth_db=9, attack=.2, release=.8, gain_points=[[0, 3]])
+    with pytest.raises(ValueError, match="bed_gain_points"):
+        MusicPlan(bed_gain_points=[[0, 0], [1, 2]])
+    assert MusicPlan(bed_gain_points=points).duck()["gain_points"] == points
+
+
+def test_quiet_clips_get_their_own_bed_level_inside_the_clause_gap():
+    from myzing.music.planning import clip_offsets, gain_points
+    levels = [{"asset_id": "loud", "output_start": 0, "output_end": 6, "speech_lufs": -14.0, "has_speech": True},
+              {"asset_id": "broll", "output_start": 6, "output_end": 7, "speech_lufs": None, "has_speech": False},
+              {"asset_id": "quiet", "output_start": 7, "output_end": 13, "speech_lufs": -28.0, "has_speech": True}]
+    offsets, notes = clip_offsets(levels, -14.0)
+    assert offsets == [0.0, 0.0, -14.0] and notes == []  # B-roll follows its neighbour
+    spans = [[.5, 5.5], [7.6, 12.0]]
+    points = gain_points(levels, offsets, spans, 13)
+    # The ramp sits in the 5.5-7.6 s gap around the 7.0 s cut, not under a word.
+    assert points == [[0.0, 0.0], [6.8, 0.0], [7.2, -14.0], [13, -14.0]]
+    assert gain_points(levels, [0.0, 0.0, 0.0], spans, 13) == []
+    capped, notes = clip_offsets([{**levels[0]}, {**levels[2], "speech_lufs": -44.0}], -14.0)
+    assert capped == [0.0, -24.0] and "only 24 dB" in notes[0]
+    _, notes = clip_offsets([{**levels[0]}, {**levels[2], "speech_lufs": None}], -14.0)
+    assert "below the loudness gate" in notes[0]
 
 
 def test_span_count_is_validated_with_a_clear_message():
