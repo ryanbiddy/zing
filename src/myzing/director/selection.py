@@ -386,13 +386,16 @@ def different(a, b, target, pace):
     return changed_footage(a, b) >= max(1.0, pace, target * .2) - EPS
 
 
-def edit_key(sequence):
-    """Trims that differ only by floating-point noise are the same edit."""
-    return tuple((c.content, round(c.start, 6), round(c.end, 6)) for c in sequence)
+def edit_key(sequence, fps=30):
+    """Trims that land on the same delivery frames are the same edit."""
+    return tuple((c.content, round(c.start * fps), round(c.end * fps)) for c in sequence)
 
 
-def distinctness_reason(in_band_count, similar_pairs, repeats):
-    """Plain disclosure for a trio that kept the timing bands over distinctness."""
+ALTERNATIVE = "alternative outside the reference timing"
+
+
+def distinctness_reason(in_band_count, similar_pairs, alternatives, missing):
+    """Plain disclosure for a selection that kept the timing bands before distinctness."""
     edits = f"{in_band_count} distinct completed edit{'s' if in_band_count != 1 else ''}"
     parts = []
     if similar_pairs:
@@ -400,10 +403,14 @@ def distinctness_reason(in_band_count, similar_pairs, repeats):
         parts.append(f"{pairs} are similar because the footage allows few in-band openings: the bounded search "
                      f"found {edits} inside both timing bands, and they do not form three meaningfully distinct "
                      "drafts.")
-    if repeats:
-        copies = "; ".join(f"{label} repeats {source}'s edit" for label, source in repeats.items())
-        parts.append(f"{copies} because only {edits} fit{'s' if in_band_count == 1 else ''} both timing bands.")
-    parts.append("Distinctness was relaxed before the timing bands.")
+    if alternatives:
+        names = ", ".join(alternatives)
+        kind = f"is an {ALTERNATIVE}" if len(alternatives) == 1 else "are alternatives outside the reference timing"
+        parts.append(f"Only {edits} fit{'s' if in_band_count == 1 else ''} both timing bands, so {names} {kind}: "
+                     f"the most different remaining edit{'' if len(alternatives) == 1 else 's'}, never a pass.")
+    if missing:
+        parts.append(f"No further distinct edit exists, so {', '.join(missing)} "
+                     f"{'is' if len(missing) == 1 else 'are'} not delivered; drafts are never duplicated.")
     return " ".join(parts)
 
 
@@ -580,49 +587,61 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                 if c is not None:
                     return dict(zip("ABC", (a, b, c)))
     def in_band_first(in_band):
-        """Relax A/B/C distinctness, never the timing bands, while any in-band edit exists.
+        """Keep every distinct in-band edit, then add the most different alternatives.
 
-        Each draft takes the most different unused in-band edit. Once every
-        distinct in-band edit is used, a draft repeats one (disclosed) rather
-        than leave the reference timing.
+        A slot left after every distinct in-band edit is used takes the most
+        different remaining edit even outside the bands, labeled as an
+        alternative. No edit is ever repeated; with nothing distinct left,
+        fewer drafts are delivered.
         """
-        chosen = {}
+        chosen, alternatives = {}, []
         for mode in "ABC":
             used = list(chosen.values())
-            options = [s for s in in_band if edit_key(s) not in {edit_key(u) for u in used}] or in_band
-            if mode == "A" and preferred_a is not None and preferred_a in options:
-                chosen[mode] = preferred_a
+            taken = {edit_key(u, fps) for u in used}
+            options = [s for s in in_band if edit_key(s, fps) not in taken]
+            if options:
+                if mode == "A" and preferred_a is not None and preferred_a in options:
+                    chosen[mode] = preferred_a
+                    continue
+                # Timing and caption gates first, then the most different choice.
+                chosen[mode] = min(options, key=lambda s: (
+                    *final_rank(s, mode)[:4], -sum(different(u, s, target, pace) for u in used),
+                    -sum(different_opening(u, s) for u in used),
+                    -min((changed_footage(u, s) for u in used), default=0.0), final_rank(s, mode)))
                 continue
-            # Timing and caption gates first, then the most different choice.
+            rest = [s for s in complete.values() if edit_key(s, fps) not in taken]
+            options = [s for s in rest if not any(c.dangling_clauses for c in s)] or rest
+            if not options:
+                break
+            # Most different first, then nearest the bands.
             chosen[mode] = min(options, key=lambda s: (
-                *final_rank(s, mode)[:4], -sum(different(u, s, target, pace) for u in used),
-                -sum(different_opening(u, s) for u in used),
-                -min((changed_footage(u, s) for u in used), default=0.0), final_rank(s, mode)))
-        return chosen
+                -sum(different(u, s, target, pace) for u in used), -sum(different_opening(u, s) for u in used),
+                -min((changed_footage(u, s) for u in used), default=0.0), *timing_rank(s), final_rank(s, mode)))
+            alternatives.append(mode)
+        return chosen, alternatives
 
     clean = [seq for seq in complete.values() if not any(c.dangling_clauses for c in seq)]
     in_band, seen = [], set()
     for seq in clean:
-        if timing_rank(seq)[0] == 0 and edit_key(seq) not in seen:
-            seen.add(edit_key(seq))
+        if timing_rank(seq)[0] == 0 and edit_key(seq, fps) not in seen:
+            seen.add(edit_key(seq, fps))
             in_band.append(seq)
     result = trio(in_band) if prefer_bands else None
     relaxed = None
     measured_bands = opening_band["lower"] is not None or pace_band["lower"] is not None
     if result is None and prefer_bands and measured_bands and in_band:
-        # Fewer than three distinct in-band edits: keep the reference timing
-        # and disclose similar or repeated drafts, rather than leave a band.
-        result = in_band_first(in_band)
-        repeats = {}
-        for i, label in enumerate("ABC"):
-            earlier = next((x for x in "ABC"[:i] if edit_key(result[x]) == edit_key(result[label])), None)
-            if earlier is not None:
-                repeats[label] = earlier
-        similar = [[x, y] for i, x in enumerate("ABC") for y in "ABC"[i + 1:]
-                   if edit_key(result[x]) != edit_key(result[y]) and not different(result[x], result[y], target, pace)]
-        relaxed = {"policy": "timing bands before A/B/C distinctness", "distinct_in_band_edits": len(in_band),
-                   "similar_pairs": similar, "repeats": repeats,
-                   "reason": distinctness_reason(len(in_band), similar, repeats)}
+        # Fewer than three distinct in-band edits: keep them, label any
+        # out-of-band alternative, and never repeat an edit.
+        result, alternatives = in_band_first(in_band)
+        labels = list(result)
+        similar = [[x, y] for i, x in enumerate(labels) for y in labels[i + 1:]
+                   if x not in alternatives and y not in alternatives
+                   and not different(result[x], result[y], target, pace)]
+        missing = [label for label in "ABC" if label not in result]
+        relaxed = {"policy": "timing bands before A/B/C distinctness; never a duplicate draft",
+                   "distinct_in_band_edits": len(in_band), "in_band_drafts": [x for x in labels if x not in alternatives],
+                   "alternatives": alternatives, "similar_pairs": similar, "missing_drafts": missing,
+                   "reason": distinctness_reason(len(in_band), similar, alternatives, missing)}
     result = result or trio(clean) or trio(complete.values())
     if result is not None:
         if timing_evidence is not None:
@@ -678,11 +697,15 @@ def selection_timing_evidence(sequence, studies, opening_band, pace_band, search
                 reason = (f"Outside band because the selected footage supplies {len(lengths)} natural/edit shots "
                           f"with a {median(lengths):.3f} s median under the whole-clause, source-order and duration constraints.")
             before = (selected or {}).get(name)
-            if search.get("distinctness_relaxed") and before is not None and band_distance(before, band) <= EPS:
-                # In-band-first selection only leaves a band through music snapping.
+            relaxed = search.get("distinctness_relaxed")
+            if relaxed and before is not None and band_distance(before, band) <= EPS:
                 reason += " The selected edit was inside this band before music cut snapping."
             elif closest:
                 reason += " No completed edit in the bounded search is closer to both bands."
+            elif relaxed:
+                count = relaxed["distinct_in_band_edits"]
+                reason += (f" Only {count} distinct completed edit{'s' if count != 1 else ''} fit both bands and "
+                           f"each is another draft; this is an {ALTERNATIVE}, the most different remaining edit.")
             elif search["jointly_in_band_edits"]:
                 reason += (f" {search['jointly_in_band_edits']} completed edits inside both bands were found, but "
                            "they did not form three meaningfully distinct drafts; this edit completes the trio.")

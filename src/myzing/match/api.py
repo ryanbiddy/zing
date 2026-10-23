@@ -19,6 +19,7 @@ from myzing.project.references import resolve_reference
 from myzing.schemas import Breakdown
 from myzing.study.api import study
 from myzing.study.source_map import METHOD as SOURCE_MAP_METHOD
+from myzing.director.selection import ALTERNATIVE
 from myzing.style_recipe import StyleRecipe, build_style_recipe
 from myzing.urls import is_http_url
 
@@ -392,18 +393,26 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
                                                  "continuity-v4", repair_asr, "aspect-zoomfill-speakers-v6", caps["layout"],
-                                                 "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v1", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
+                                                 "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["source_asr"] = planned["summary"].get("source_asr", [])
         summary["director_comparison"] = planned["comparison_path"]
+        # An alternative outside the reference timing is labeled on every row
+        # and never counts as a pass; undelivered drafts are named, not copied.
+        alternatives = planned.get("alternatives") or {}
+        summary["alternatives"] = alternatives
+        if planned.get("missing_drafts"):
+            summary["missing_drafts"] = planned["missing_drafts"]
+        if planned["plans"]:
+            summary["requested"] = len(planned["plans"])
         plans_to_render = dict(planned["plans"])
         delivery_aspects = load_brief(root / "brief.json").aspects
         if delivery_aspects:
             from myzing.render.composition import _path
             from myzing.render.deliveries import delivery_plans, measure_sources
             plans_to_render = {}
-            summary["requested"] = drafts * len(delivery_aspects)
+            summary["requested"] = (len(planned["plans"]) or drafts) * len(delivery_aspects)
             shared = {}
 
             def measurements():
@@ -442,6 +451,9 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 plans_to_render.update(adapted["plans"])
         for label, plan_path in plans_to_render.items():
             row = {"status": "failed"}
+            if label.split(".")[0] in alternatives:
+                row["alternative"] = {"outside_reference_timing": True, "label": ALTERNATIVE,
+                                      "reason": alternatives[label.split(".")[0]]}
             summary["drafts"][label] = row
             try:
                 prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "clause-fit-v1", "aspect-safe-layout-v3"],
@@ -524,12 +536,16 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         row["style_notes"] = dimension_notes(row.get("dimensions", {}))
         row["unverified_style_dimensions"].extend(row["detector_disagreements"])
         row["style_match"] = "failed" if row["failed_style_dimensions"] else "unverified"
+        if row.get("alternative"):
+            row["style_match"] = ALTERNATIVE
     summary["summary"] = f"{summary['ready']} of {summary['requested']} render complete"
-    details = [f"{label}: style match {r['style_match']}" +
+    details = [f"{label}: " + (r["style_match"] if r.get("alternative") else f"style match {r['style_match']}") +
                (" (" + ", ".join(r["failed_style_dimensions"]) + ")" if r["failed_style_dimensions"] else "")
                for label, r in summary["drafts"].items()]
     if details:
         summary["summary"] += "; " + "; ".join(details)
+    if summary.get("missing_drafts"):
+        summary["summary"] += "; " + ", ".join(summary["missing_drafts"]["drafts"]) + " not delivered: no further distinct edit"
     summary["reused_steps"] = checkpoints.reused
     summary["seconds"] = round(time.monotonic() - started, 3)
     summary["warnings"] = evidence.user_warnings(summary["warnings"])

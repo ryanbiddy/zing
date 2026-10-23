@@ -176,6 +176,12 @@ def few_in_band_openings(extra_trims=True):
     return studies, pool
 
 
+def no_duplicates(selected):
+    from myzing.director.selection import edit_key
+    keys = [edit_key(sequence) for sequence in selected.values()]
+    assert len(set(keys)) == len(keys), "a duplicate draft was emitted"
+
+
 def test_similar_in_band_drafts_beat_distinct_out_of_band_openings():
     from myzing.director.selection import different
     studies, pool = few_in_band_openings()
@@ -183,32 +189,53 @@ def test_similar_in_band_drafts_beat_distinct_out_of_band_openings():
     band = timing_band(.8, [.8] * 5)
     evidence = {}
     selected = choose(pool, [], studies, style, 2.4, 30, 0, timing_evidence=evidence)
+    no_duplicates(selected)
     for label, sequence in selected.items():
         assert sequence[0].asset_id == "x"
         assert band["lower"] <= shot_lengths(sequence, studies)[0] <= band["upper"]
         assert all(v["distance_outside_seconds"] == 0 for v in evidence[label].values())
     assert not different(selected["B"], selected["C"], 2.4, .8)
     relaxed = evidence["C"]["first_cut_seconds"]["search"]["distinctness_relaxed"]
-    assert relaxed["distinct_in_band_edits"] == 3 and not relaxed["repeats"]
+    assert relaxed["distinct_in_band_edits"] == 3 and not relaxed["alternatives"] and not relaxed["missing_drafts"]
     assert relaxed["similar_pairs"] == [["A", "B"], ["A", "C"], ["B", "C"]]
     assert "B and C are similar because the footage allows few in-band openings" in relaxed["reason"]
     assert "3 distinct completed edits inside both timing bands" in relaxed["reason"]
 
 
-def test_too_few_in_band_edits_repeat_rather_than_leave_the_band():
+def test_too_few_in_band_edits_add_labeled_distinct_alternatives():
+    from myzing.director.selection import different
     studies, pool = few_in_band_openings(extra_trims=False)
-    style = envelope(reference())
     band = timing_band(.8, [.8] * 5)
     evidence = {}
-    selected = choose(pool, [], studies, style, 2.4, 30, 0, timing_evidence=evidence)
-    # Distinct openings exist (y, z) but start on a 0.2 s shot, outside the band.
-    for label, sequence in selected.items():
-        assert band["lower"] <= shot_lengths(sequence, studies)[0] <= band["upper"], label
-        assert selected[label] == selected["A"]
+    selected = choose(pool, [], studies, envelope(reference()), 2.4, 30, 0, timing_evidence=evidence)
+    no_duplicates(selected)
+    firsts = {label: shot_lengths(sequence, studies)[0] for label, sequence in selected.items()}
+    assert band["lower"] <= firsts["A"] <= band["upper"]
+    # The remaining drafts open on y and z: different, and outside the band.
+    assert firsts["B"] < band["lower"] and firsts["C"] < band["lower"]
+    assert all(different(selected[x], selected[y], 2.4, .8) for x, y in (("A", "B"), ("A", "C"), ("B", "C")))
     relaxed = evidence["B"]["first_cut_seconds"]["search"]["distinctness_relaxed"]
-    assert relaxed["repeats"] == {"B": "A", "C": "A"} and not relaxed["similar_pairs"]
-    assert ("B repeats A's edit; C repeats A's edit because only 1 distinct completed edit fits both "
-            "timing bands") in relaxed["reason"]
+    assert relaxed["in_band_drafts"] == ["A"] and relaxed["alternatives"] == ["B", "C"]
+    assert ("Only 1 distinct completed edit fits both timing bands, so B, C are alternatives outside the "
+            "reference timing") in relaxed["reason"]
+    text = evidence["B"]["first_cut_seconds"]["reason"]
+    assert "this is an alternative outside the reference timing, the most different remaining edit" in text
+
+
+def test_no_distinct_edit_left_delivers_fewer_drafts():
+    from dataclasses import replace
+    studies, _ = few_in_band_openings()
+    x = Candidate("x", "x" * 64, 0, .8, 0, 0, None, "", False, False)
+    y = Candidate("y", "y" * 64, .2, 1.0, 1, 0, None, "", False, False)
+    # Only [x, y] and [y, x] exist; a float-noise copy of x is not a third edit.
+    pool = [x, replace(x, end=x.end + 2e-15), y]
+    evidence = {}
+    selected = choose(pool, [], studies, envelope(reference()), 1.6, 30, 0, timing_evidence=evidence)
+    assert set(selected) == {"A", "B"}
+    no_duplicates(selected)
+    relaxed = evidence["A"]["first_cut_seconds"]["search"]["distinctness_relaxed"]
+    assert relaxed["missing_drafts"] == ["C"] and relaxed["distinct_in_band_edits"] == 2
+    assert "C is not delivered; drafts are never duplicated" in relaxed["reason"]
 
 
 def test_float_noise_trims_are_one_edit():
@@ -218,10 +245,76 @@ def test_float_noise_trims_are_one_edit():
     pool.append(replace(pool[0], end=pool[0].end + 2e-15))
     evidence = {}
     selected = choose(pool, [], studies, envelope(reference()), 2.4, 30, 0, timing_evidence=evidence)
+    no_duplicates(selected)
     relaxed = evidence["A"]["first_cut_seconds"]["search"]["distinctness_relaxed"]
     assert evidence["A"]["first_cut_seconds"]["jointly_in_band_edits"] == 1
-    assert relaxed["distinct_in_band_edits"] == 1 and relaxed["repeats"] == {"B": "A", "C": "A"}
-    assert "similar" not in relaxed["reason"]
+    assert relaxed["distinct_in_band_edits"] == 1 and relaxed["alternatives"] == ["B", "C"]
+
+
+def test_alternative_is_labeled_in_plans_director_report_and_summary(tmp_path, zing_workspace, monkeypatch):
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from tools.plan_examples import example_project
+    from test_director import stub_default_ink
+    from myzing.director import api as director_api
+    from myzing.layout import framing as layout_framing
+
+    monkeypatch.setattr(layout_framing, "measure_default_ink", stub_default_ink)
+    project, _, _ = example_project(tmp_path / "project")
+    real = director_api.choose
+    relaxed = {"policy": "test", "distinct_in_band_edits": 2, "in_band_drafts": ["A", "B"], "alternatives": ["C"],
+               "similar_pairs": [], "missing_drafts": [], "reason": "Only 2 distinct completed edits fit both timing bands."}
+
+    def labeled(*args, **kwargs):
+        result = real(*args, **kwargs)
+        for rows in (kwargs.get("timing_evidence") or {}).values():
+            for item in rows.values():
+                item["search"]["distinctness_relaxed"] = relaxed
+        return result
+    monkeypatch.setattr(director_api, "choose", labeled)
+    result = director_api.plan_drafts(project, project / "recipe.json", tmp_path / "plans", seed=17)
+    assert result["status"] == "ready" and set(result["alternatives"]) == {"C"}
+    assert result["alternatives"]["C"].endswith("only 2 distinct completed edits fit both timing bands")
+    assert any(w.startswith("C: alternative outside the reference timing: ") for w in result["summary"]["warnings"])
+    report = json.loads((tmp_path / "plans" / "comparison.json").read_text(encoding="utf-8"))
+    assert report["alternatives"] == result["alternatives"]
+    assert report["plans"]["C"]["alternative"]["outside_reference_timing"] is True
+    assert "alternative" not in report["plans"]["A"]
+    plan_c = Composition.from_dict(json.loads(Path(result["plans"]["C"]).read_text(encoding="utf-8")))
+    assert plan_c.warnings[0].startswith("C: alternative outside the reference timing: ")
+    plan_a = Composition.from_dict(json.loads(Path(result["plans"]["A"]).read_text(encoding="utf-8")))
+    assert not any("alternative outside" in w for w in plan_a.warnings)
+
+
+def test_alternative_never_counts_as_a_pass_on_match_and_studio_screens(tmp_path):
+    import io
+    from myzing.studio import command
+    from myzing.studio.presentation import creator_summary
+    alternative = {"outside_reference_timing": True, "label": "alternative outside the reference timing",
+                   "reason": "first cut 0.367 s is outside the 0.416-1.184 s reference band"}
+    passing = {"shot_pace": {"status": "pass"}, "first_cut": {"status": "pass"}, "color": {"status": "pass"}}
+    rows = {"A.16x9": {"status": "ready", "video": "a.mp4", "plan": "a.json", "timeline": "a.png", "report": "a.json",
+                       "dimensions": {**passing, "color": {"status": "miss"}}},
+            "C.16x9": {"status": "ready", "video": "c.mp4", "plan": "c.json", "timeline": "c.png", "report": "c.json",
+                       "dimensions": passing, "alternative": alternative}}
+    text = markdown({"project": str(tmp_path), "summary": "2 ready", "drafts": rows})
+    assert "C.16x9: alternative outside the reference timing: first cut 0.367 s" in text
+    assert "render complete; alternative outside the reference timing" in text
+    summary = creator_summary({"project": str(tmp_path), "result": {"drafts": rows}, "warnings": []},
+                              {"aspects": ["16:9"]}, {"clips": []})
+    # A has a miss and C passes every measurement, yet the in-band draft is the pick.
+    assert summary["recommendation"].startswith("Start with draft A (16:9)")
+    c = next(r for r in summary["deliveries"] if r["draft"] == "C")
+    assert c["status"] == ("alternative outside the reference timing: first cut 0.367 s is outside the "
+                           "0.416-1.184 s reference band")
+    assert summary["style_summary"][0].startswith("C: alternative outside the reference timing: first cut 0.367 s")
+    screen = io.StringIO()
+    command.show_result({"status": "ready", "creator_summary": summary}, screen)
+    assert "C: alternative outside the reference timing" in screen.getvalue()
+    del rows["A.16x9"]
+    only = creator_summary({"project": str(tmp_path), "result": {"drafts": rows}, "warnings": []}, {}, {})
+    assert "It is an alternative outside the reference timing" in only["recommendation"]
 
 
 def test_unmeasured_bands_keep_the_distinctness_shortage():

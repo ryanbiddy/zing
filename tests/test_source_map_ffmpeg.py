@@ -119,7 +119,7 @@ def test_fine_opening_cuts_keep_similar_drafts_in_band(tmp_path):
     if not shutil.which("ffmpeg"):
         pytest.skip("FFmpeg not installed")
     from myzing.director.models import ClipStudy
-    from myzing.director.selection import Candidate, choose, different, envelope, shot_lengths
+    from myzing.director.selection import Candidate, choose, different, edit_key, envelope, shot_lengths
     from myzing.schemas import Breakdown, Shot, VideoMeta
     from myzing.style_recipe import build_style_recipe
     from myzing.style_ranges import timing_band
@@ -150,5 +150,7 @@ def test_fine_opening_cuts_keep_similar_drafts_in_band(tmp_path):
         assert band["lower"] <= shot_lengths(sequence, studies)[0] <= band["upper"], label
         assert all(v["distance_outside_seconds"] == 0 for v in evidence[label].values())
     assert not different(selected["B"], selected["C"], 2.4, .8)
+    # Similar is allowed; a duplicate draft never is.
+    assert len({edit_key(s) for s in selected.values()}) == 3
     reason = evidence["C"]["first_cut_seconds"]["search"]["distinctness_relaxed"]["reason"]
     assert reason.startswith("A and B, A and C, B and C are similar because the footage allows few in-band openings")

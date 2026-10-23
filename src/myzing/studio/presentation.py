@@ -60,6 +60,9 @@ def creator_summary(result, answers, facts):
     recommendation = None
     chosen = None
     candidates = [r for r in rows if r["rendered"] and r["draft"] in DRAFTS and r["measurements"]]
+    # Drafts inside the reference timing come first; an alternative is a pick
+    # only when nothing else rendered, and it is never presented as a pass.
+    candidates = [r for r in candidates if not r["alternative"]] or candidates
     if candidates:
         def rank(row):
             values = list(row["measurements"].values())
@@ -79,6 +82,8 @@ def creator_summary(result, answers, facts):
             # Abstentions and detector disagreements rank neither as passes nor
             # as misses; name them so the pick is not read as a certified match.
             recommendation += " Not passes: " + ", ".join(chosen["disclosures"]) + "."
+        if chosen["alternative"]:
+            recommendation += f" It is an {chosen['alternative']['label']}: {chosen['alternative']['reason']}."
         recommendation += " Unverified checks are not passes; watch it before choosing."
     elif any(r["rendered"] for r in rows):
         recommendation = "Start with the rendered delivery and review the crop; no measured comparison establishes a better draft."
@@ -123,7 +128,8 @@ def creator_summary(result, answers, facts):
         notes = [w for w in warnings if not re.search(INTERNAL, w) and not w.startswith(PRE_RUN)][:5]
     actions = list(result.get("next_actions", []))
     if any(r["rendered"] and r["draft"] in DRAFTS for r in rows):
-        chosen = chosen or next(r for r in rows if r["rendered"] and r["draft"] in DRAFTS)
+        rendered = [r for r in rows if r["rendered"] and r["draft"] in DRAFTS]
+        chosen = chosen or next((r for r in rendered if not r["alternative"]), rendered[0])
         if chosen.get("plan"):
             actions = [f'Pick this draft: zing plan choose "{root}" --draft {chosen["draft"]} --draft-file "{chosen["plan"]}"',
                        "Want another shape? Run zing studio and choose 6, using the chosen plan.",
@@ -140,7 +146,9 @@ def creator_summary(result, answers, facts):
         highlights = [{"label": "Output", "file": p} for p in result.get("outputs", [])[:3]]
     return {"version": 1, "deliveries": rows, "recommendation": recommendation,
             "notes": list(dict.fromkeys(notes))[:5], "highlights": highlights,
-            "style_summary": detail.get("summary", []) if detail.get("card_json") else _style_disclosures(rows),
+            "style_summary": detail.get("summary", []) if detail.get("card_json") else [
+                *dict.fromkeys(f"{r['draft']}: {r['alternative']['label']}: {r['alternative']['reason']}."
+                               for r in rows if r["alternative"]), *_style_disclosures(rows)],
             "output_folder": str(root), "full_result": str(root / "studio-result.json"), "next_actions": actions}
 
 
@@ -206,9 +214,12 @@ def _row(draft, shape, row):
     misses = [k.replace("_", " ") for k, v in measurements.items() if v == "miss"]
     unknown = any(v != "pass" for v in measurements.values()) or not measurements
     status = "style match failed: " + ", ".join(misses) if misses else "unverified" if unknown else "rendered"
+    alternative = row.get("alternative") or None
+    if alternative:
+        status = f"{alternative['label']}: {alternative['reason']}"
     video = row.get("video")
     if not video or row.get("status", "ready") != "ready":
         status = "render failed"
     return {"draft": draft, "shape": shape, "file": video, "plan": row.get("plan"),
             "status": status, "rendered": bool(video) and status != "render failed", "measurements": measurements,
-            "disclosures": _disclosures(row.get("dimensions", {}))}
+            "disclosures": _disclosures(row.get("dimensions", {})), "alternative": alternative}

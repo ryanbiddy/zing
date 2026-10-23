@@ -112,15 +112,18 @@ snapping also rejects trims that move either timing dimension farther outside
 its band.
 
 If the bounded search finds in-band edits but fewer than three meaningfully
-distinct ones, it relaxes A/B/C distinctness, never the timing bands: each
-draft takes the most different unused in-band edit, and once every distinct
-in-band edit is used a draft repeats one rather than leave the bands. Trims
-that differ only by floating-point noise count as one edit. Similar and
-repeated drafts are disclosed in the plan notes, `comparison.md` and
-`search.distinctness_relaxed` (for example, "B and C are similar because the
-footage allows few in-band openings" or "C repeats B's edit"). Drafts leave the
-bands only when no in-band edit exists at all. Without a measured reference
-band nothing is relaxed, so unmeasured timing still requires distinct drafts.
+distinct ones, it keeps every distinct in-band edit, most different first, even
+when two are similar ("B and C are similar because the footage allows few
+in-band openings"). Each remaining draft is the most different edit left, even
+outside the bands, and is labeled `C: alternative outside the reference timing:
+<reason>` in the plan notes, the director's and match's `comparison.json`
+(`alternatives`, and `alternative` on each delivery row), `comparison.md`, the
+MCP results and studio's finish table. An alternative never counts as a style
+pass, and studio's pick prefers in-band drafts. A draft is never a duplicate:
+edits that land on the same 30 fps frames are one edit, and when no further
+distinct edit exists fewer drafts are delivered with the reason
+(`missing_drafts`). Without a measured reference band nothing is relaxed, so
+unmeasured timing still requires three distinct drafts or a named shortage.
 
 Outside-band drafts are ranked by the number of timing violations, then total
 seconds outside the bands. Selection evidence records the distances, completed
