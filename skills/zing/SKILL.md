@@ -10,6 +10,19 @@ which moment opens the cut, which evidence supports a style choice, and what
 footage is missing. Keep measured facts, chosen approximations and unknowns
 separate. Never claim to recover an original font, LUT, preset or editor project.
 
+## Start with the creator's goal
+
+Use `zing_studio` to ask the user the right questions. Pass the path choice and
+answers so far; relay the returned question, recommended answer, reason and
+evidence. Keep unknowns visible. Show the returned plan and get confirmation
+before executing its tool calls. Reuse match, still and music tools when listed;
+`zing_studio_run` covers b/d/f and returns a project to poll. Read
+[studio.md](references/studio.md) for the flow and boundaries.
+
+With shell access, `zing studio` provides the same interview. Use
+`--answers <file> --json` to review a plan and add `--yes` only after confirmation.
+That flag never grants reference-download consent.
+
 ## Start with the available tools
 
 Use connected MCP tools when they cover the task. Otherwise use the CLI on the
@@ -23,7 +36,7 @@ not mean every optional extra or model is installed.
 
 Read [commands.md](references/commands.md) for CLI recipes, direction JSON,
 installation needs, and still/animated meme handling. Read
-[mcp.md](references/mcp.md) for the 32-tool surface and asynchronous job rules.
+[mcp.md](references/mcp.md) for the 35-tool surface and asynchronous job rules.
 The CLI also has project, layout, color, audio and assembly operations that do
 not have equivalent MCP tools. Switch to shell access for them; do not invent
 tools or imply that a connected MCP server grants shell access.

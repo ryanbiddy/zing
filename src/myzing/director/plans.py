@@ -80,7 +80,7 @@ def _layout(caption, template, masks):
                        fallback=template.fallback, scale=template.scale)
 
 
-def captions_for(sequence, studies, style, recipe, font, brief):
+def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
     lookup = {s.asset_id: s for s in studies}
     groups, cursor = [], 0.0
     for c in sequence:
@@ -90,7 +90,7 @@ def captions_for(sequence, studies, style, recipe, font, brief):
         for word in lookup[c.asset_id].words:
             if not (word.start >= c.start - EPS and word.end <= c.end + EPS):
                 continue
-            if window and window[-1].end in clause_ends:
+            if window and (window[-1].end in clause_ends or (phone and len(window) >= 4)):
                 groups.append((window, cursor - c.start))
                 window = []
             window.append(word)
@@ -120,9 +120,12 @@ def captions_for(sequence, studies, style, recipe, font, brief):
             id=f"caption-{i + 1}", text=" ".join(w.text.strip() for w in mapped),
             start=mapped[0].start, end=mapped[-1].end, words=mapped,
             position=style.position, all_caps=all_caps, word_timed=style.words_visible == 1,
-            font=deepcopy(font),
+            font=None if phone else deepcopy(font),
         )
-        if layout and layout.events:
+        if phone:
+            from myzing.composition import CaptionStyle
+            caption.style = CaptionStyle(60, outline_width=4, box_color="#111111")
+        if not phone and layout and layout.events:
             caption.layout = _layout(caption, layout.events[i % len(layout.events)], layout.masks)
         result.append(caption)
     prepare_words([w for c in result for w in c.words], cursor, repair=False)
@@ -171,7 +174,7 @@ def audio_for(brief, manifest, root, duration, first_cut, *, include_music=True)
 
 
 def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden,
-              subject_evidence=None, music_cache=None):
+              subject_evidence=None, music_cache=None, caption_mode=None):
     from myzing.music.planning import plan_music
     from myzing.audio.media import AudioError
     try:
@@ -180,7 +183,11 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     except AudioError as exc:
         shortage("music_analysis", str(exc), "Check the local track and zing doctor; install myzing[audio] for music analysis.")
     lookup = {s.asset_id: s for s in studies}
-    font, font_report = font_choice(recipe, recipe_dir)
+    if caption_mode == "phone":
+        font, font_report = None, {"family": "Arial", "status": "studio preference",
+                                  "reason": "Phone captions use the renderer's default Arial bold with system fallback; original font unknown."}
+    else:
+        font, font_report = font_choice(recipe, recipe_dir)
     used = sorted({c.asset_id for c in sequence})
     assets = [AssetRef(k, lookup[k].path, lookup[k].sha256, lookup[k].duration) for k in used]
     clips, cursor = [], 0.0
@@ -193,7 +200,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         clips.append(CompositionClip(id=f"clip-{i + 1}", asset_id=c.asset_id, src=lookup[c.asset_id].path,
                                      src_in=c.start, src_out=c.end, timeline_start=cursor, color=deepcopy(color)))
         cursor += c.duration
-    captions = captions_for(sequence, studies, style, recipe, font, brief)
+    captions = [] if caption_mode == "none" else captions_for(sequence, studies, style, recipe, font, brief,
+                                                              phone=caption_mode == "phone")
     durations = shot_lengths(sequence, studies)
     first_cut = durations[0] if len(durations) > 1 else None
     audio_assets, audio, audio_notes = audio_for(brief, manifest, root, cursor, first_cut, include_music=False)
@@ -280,6 +288,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
              "30 fps CFR and full-HD aspect dimensions are delivery defaults; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
+    if caption_mode == "phone":
+        notes.append("Studio phone captions use up to four timed words, a 60px starting size and the renderer's default font; safe placement can shrink them. This is a readability preference, not recovered reference typography.")
     if music_tracks:
         notes.extend(music_evidence.warnings)
     continuity = score(sequence, studies, allow_reordering="[allow source reordering]" in brief.purpose.casefold())
@@ -293,7 +303,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         notes.append(font_report["reason"])
     for key in used:
         notes.extend(lookup[key].warnings)
-    if recipe.approximations.layout:
+    if recipe.approximations.layout and caption_mode != "phone":
         notes.append("Layout positions come from the recipe; output face safety must be checked on each assembled edit.")
     if recipe.approximations.transitions:
         notes.append("Transition approximations are not applied by P17; these plans use hard cuts to preserve word-safe source trims.")

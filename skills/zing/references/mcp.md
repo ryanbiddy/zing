@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 33 tools. Inspect the connected client's tool schemas for
+The current server has 35 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -14,6 +14,8 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 
 | Tools | Purpose |
 |---|---|
+| `zing_studio` | Stateless front door: path and answers so far to the next evidence-backed question or a plan. |
+| `zing_studio_run` | Confirmed b/d/f plans; start with answers and confirmed=true, then poll by project; cancel=true stops an owned job. |
 | `zing_status` | Doctor summary, stored breakdowns and study job status. |
 | `study_video` | Start a background study of a local file or authorized URL. |
 | `study_uoink_item` | Study a saved Uoink reference; verified retained file when available, possible URL fallback. |

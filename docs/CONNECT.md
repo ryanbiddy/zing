@@ -1,8 +1,9 @@
 # Connecting your AI to Zing
 
-Zing's MCP server gives any MCP client thirty-three tools, plus the prompt
+Zing's MCP server gives any MCP client thirty-five tools, plus the prompt
 pack as slash commands:
 
+- **Start here:** `zing_studio` (stateless questions and a plan), `zing_studio_run` (confirmed b/d/f jobs; poll or cancel by project). See [Studio](STUDIO.md).
 - **Study:** `study_video`, `study_uoink_item`, `get_breakdown`,
   `list_breakdowns`, `get_frames`, `zing_status`
 - **Judge:** `get_prompt`, `save_judgment`, `setup_taste`
@@ -29,8 +30,7 @@ if it drifts, CI fails.)
 The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
 launch commands still work. It accepts legacy initialization through
 `2025-11-25` and the stateless `2026-07-28` protocol. The current registry has
-33 tools and five prompts. MUSIC1 adds `music_check`; existing tool and prompt
-schemas remain compatible. See [SDK 2 compatibility](MCP-SDK2.md)
+35 tools and five prompts. STUDIO1 adds the guided front door; `match_start` gains an optional `studio_options` adapter argument. Existing arguments and defaults stay compatible. See [SDK 2 compatibility](MCP-SDK2.md)
 for protocol details and the recorded SDK 1 baseline. Zing exposes no HTTP
 MCP endpoint.
 

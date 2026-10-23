@@ -104,6 +104,32 @@ def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
 
 
+def h_zing_studio(path: str | None = None, answers: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Stateless interview: a next question or a plan, never starts production."""
+    from myzing.studio.flow import next_step
+    try:
+        if answers is not None and not isinstance(answers, dict):
+            return _err("answers must be an object")
+        supplied = dict(answers or {})
+        if path is not None:
+            if "path" in supplied and supplied["path"] != path:
+                return _err("path and answers.path disagree")
+            supplied["path"] = path
+        return _ok(**next_step(supplied))
+    except (ValueError, OSError, RuntimeError, ImportError) as exc:
+        return _err(str(exc))
+
+
+def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = False,
+                      project: str | None = None, cancel: bool = False) -> dict[str, Any]:
+    """Start/poll/cancel the studio operations without an existing job tool."""
+    from myzing.studio.jobs import job
+    try:
+        return _ok(**job(answers, confirmed=confirmed, project=project, cancel=cancel))
+    except (ValueError, OSError, RuntimeError, ImportError) as exc:
+        return _err(str(exc))
+
+
 def h_brief_questions() -> dict[str, Any]:
     """Return the terminal interview's questions, defaults, and answer examples."""
     from myzing.brief.questions import brief_questions
@@ -1146,12 +1172,15 @@ def _run_match(options, root, workspace, stop, lease):
 @_workspace_boundary
 def h_match_start(reference: str, clips: str, out: str, brief: str | None = None,
                   answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
-                  resume: bool = False, allow_download: bool = False) -> dict[str, Any]:
+                  resume: bool = False, allow_download: bool = False,
+                  studio_options: dict[str, Any] | None = None) -> dict[str, Any]:
     """Start the same supervised pipeline as the CLI; no media bytes returned."""
     from myzing.match.api import validate
     from myzing.match.process import run_lock
     options = dict(reference=reference, clips=clips, out=out, brief=brief, answers=answers,
                    drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    if studio_options is not None:
+        options["studio_options"] = studio_options
     try:
         validate(**options)
         root = Path(out).expanduser().resolve()
@@ -1782,6 +1811,14 @@ def build_server():
             "-> write text -> meme_check -> meme_render. Meme tools make no model calls."
         ),
     )
+    mcp.tool(
+        name="zing_studio",
+        description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Read-only local probes; saved-reference search only with a configured reachable peer. No production or downloads.",
+    )(h_zing_studio)
+    mcp.tool(
+        name="zing_studio_run",
+        description="Start a confirmed studio plan for b (no-reference edit), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For a/c/e reuse match_start, still_concepts/still_render and music_check. Local models only; paths and metadata out.",
+    )(h_zing_studio_run)
     mcp.tool(
         name="brief_questions",
         description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",

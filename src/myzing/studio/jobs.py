@@ -1,0 +1,115 @@
+"""Use the existing owned-process supervisor for studio-only operations."""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import threading
+from contextlib import nullcontext
+from pathlib import Path
+from uuid import uuid4
+
+from myzing import storage
+from myzing.match.process import run_lock, run_owned
+from .models import read_json, write_json
+
+_LOCK = threading.Lock()
+_JOBS = {}
+
+
+def execute(answers, *, progress=None, cancel=None, locked=False):
+    root = Path(answers["project"])
+    root.mkdir(parents=True, exist_ok=True)
+    run_id = uuid4().hex
+    result_path = root / f"studio-job-{run_id}.json"
+    with nullcontext() if locked else run_lock(root):
+        code = run_owned([sys.executable, "-m", "myzing.studio.worker"],
+                         json.dumps({"answers": answers, "result_path": str(result_path)}),
+                         progress=progress, cancel=cancel,
+                         env={**os.environ, "ZING_HOME": str(storage.resolve_workspace()),
+                              "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "PYTHONIOENCODING": "utf-8"})
+    if code not in (0, 1) or not result_path.is_file():
+        raise RuntimeError(f"Studio worker exited {code}; resume the saved session to retry.")
+    result = read_json(result_path)
+    result_path.unlink()
+    return result
+
+
+def job(answers=None, *, confirmed=False, project=None, cancel=False):
+    from .flow import next_step
+
+    if type(confirmed) is not bool or type(cancel) is not bool:
+        raise ValueError("confirmed and cancel must be booleans")
+    if project:
+        root = Path(project).expanduser().resolve()
+        file = root / "studio-job.json"
+        if not file.is_file():
+            raise ValueError("No studio job here. Start a confirmed plan first.")
+        with _LOCK:
+            active = _JOBS.get(str(root))
+            if cancel and active:
+                active[1].set()
+            state = read_json(file)
+            if state["status"] == "running" and not active:
+                from myzing.project.locking import _pid_alive
+                if state.get("pid") == os.getpid() or not _pid_alive(state.get("pid", -1)):
+                    state.update(status="failed", error="Studio worker is gone; resume the session to retry.")
+                    write_json(file, state)
+        return {k: v for k, v in state.items() if k != "pid"}
+    if not confirmed:
+        raise ValueError("Show the ready plan and obtain confirmation, then set confirmed=true.")
+    step = next_step(answers)
+    if step["status"] != "plan":
+        raise ValueError("Studio answers are incomplete; call zing_studio for the next question.")
+    a = step["answers"]
+    if a["path"] not in "bdf":
+        raise ValueError("Reuse the existing match_start, still_concepts/still_render or music_check tools listed in this plan.")
+    root = Path(a["project"])
+    root.mkdir(parents=True, exist_ok=True)
+    file = root / "studio-job.json"
+    from .models import Session, save_session
+    session = Session(answers=a, status="running")
+    workspace = storage.resolve_workspace()
+    with _LOCK:
+        if str(root) in _JOBS:
+            return {"status": "running", "project": str(root)}
+        lease = run_lock(root)
+        lease.__enter__()
+        stop = threading.Event()
+        try:
+            save_session(root, session)
+            write_json(file, {"status": "running", "project": str(root), "pid": os.getpid(), "phase": "starting"})
+        except BaseException:
+            lease.__exit__(None, None, None)
+            raise
+
+        def work():
+            try:
+                def progress(line):
+                    write_json(file, {"status": "running", "project": str(root), "pid": os.getpid(), "phase": line})
+                with storage.use_workspace(workspace):
+                    result = execute(a, progress=progress, cancel=stop, locked=True)
+                state = {"status": result["status"], "project": str(root), "result": result}
+                session.status, session.result = result["status"], result
+            except BaseException as exc:
+                status = "cancelled" if isinstance(exc, KeyboardInterrupt) else "failed"
+                state = {"status": status, "project": str(root), "error": str(exc)}
+                session.status, session.result = status, state
+            finally:
+                try:
+                    with _LOCK:
+                        write_json(file, state)
+                        save_session(root, session)
+                        _JOBS.pop(str(root), None)
+                finally:
+                    lease.__exit__(None, None, None)
+        thread = threading.Thread(target=work, daemon=True)
+        _JOBS[str(root)] = (thread, stop)
+        try:
+            thread.start()
+        except BaseException:
+            _JOBS.pop(str(root), None)
+            lease.__exit__(None, None, None)
+            raise
+    return {"status": "started", "project": str(root), "hint": "Poll zing_studio_run(project=...). Use cancel=true to stop this server's job."}

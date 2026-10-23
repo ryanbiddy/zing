@@ -21,7 +21,14 @@ def assert_wire(actual, expected):
     # the current registry/stdio pins and test_music.py.
     actual = copy.deepcopy(actual)
     if isinstance(actual, dict) and isinstance(actual.get("result"), dict) and "tools" in actual["result"]:
-        actual["result"]["tools"] = [t for t in actual["result"]["tools"] if t["name"] != "music_check"]
+        actual["result"]["tools"] = [t for t in actual["result"]["tools"] if t["name"] not in {"music_check", "zing_studio", "zing_studio_run"}]
+        for tool in actual["result"]["tools"]:
+            if tool["name"] == "match_start":
+                # STUDIO1 adds an optional adapter argument. The historical
+                # input fields and their required/default behavior stay pinned.
+                option = tool["inputSchema"]["properties"].pop("studio_options")
+                assert option["default"] is None
+                assert "studio_options" not in tool["inputSchema"].get("required", [])
     actual, expected = canonical(actual), canonical(expected)
     assert actual == expected, "".join(difflib.unified_diff(
         expected.splitlines(True), actual.splitlines(True),
@@ -45,7 +52,7 @@ def test_sdk1_fixture_provenance():
     from test_mcp_stdio import EXPECTED_TOOLS
     tools = GOLDEN[2]["response"]["result"]["tools"]
     assert len(tools) == 32
-    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check"}
+    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_studio", "zing_studio_run"}
     assert len(GOLDEN[3]["response"]["result"]["prompts"]) == 5
 
 
