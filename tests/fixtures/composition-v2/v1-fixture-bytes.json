@@ -36,15 +36,15 @@
     },
     "tools/eval/real_videos/raw-editing-practice/breakdown.json#": {
       "contract": "Breakdown",
-      "sha256": "c92e144dfddc97bdef3ae8154a286d66240145bca85712211aa2c680f33d237f"
+      "sha256": "957442270a70a2c0f547a134223d674b5029f56d091f4d0366b3c393fd44a7c4"
     },
     "tools/eval/real_videos/raw-talking-head-korky-paul/breakdown.json#": {
       "contract": "Breakdown",
-      "sha256": "24e564305dec18b31532c644494f28ee1a4d9ec81876869decf8c0fba1dce6ae"
+      "sha256": "87f7d2c0aa5d7379d31c74c08a89e78a1d0aa5aaa210631b16ef3718530129c9"
     },
     "tools/eval/real_videos/reference-cleo-antarctica/breakdown.json#": {
       "contract": "Breakdown",
-      "sha256": "6b69f7b391363e124d047b5b93354e3ad739511862b3b967a0d058b671f21110"
+      "sha256": "322170a4f9e465861878be8f916f677abc12d42a04dcf140915dd5341a5cee2d"
     },
     "tools/eval/real_videos/short-daily-dweebs/breakdown.json#": {
       "contract": "Breakdown",

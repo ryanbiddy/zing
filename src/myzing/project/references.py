@@ -61,9 +61,13 @@ def resolve_reference(project: str | Path, *, file: str | Path | None = None) ->
                     raise ProjectError("Refused a kept-media response containing a credential.")
                 path = resolve_path(media["path"], root, entry="kept media")
                 digest, size = _verified(path, media["sha256"], media["byte_length"])
+                # Best effort: the kept-media handoff has no title; the same
+                # corpus item's metadata does (corpus.read/1 get).
+                item = uoink_bridge.item_metadata(canonical)
+                title = item["title"].strip() if item.get("ok") and item.get("title", "").strip() else None
                 resolution = ReferenceResolution(
                     "resolved", str(path), digest, size, canonical,
-                    data["source_url"], data["provenance"],
+                    data["source_url"], data["provenance"], title=title,
                 )
             else:
                 raise ProjectError("This reference is a URL. Supply --file, or explicitly download it with 'zing study <url>'.")
@@ -106,8 +110,10 @@ def study_reference(project: str | Path, *, workspace: Path | None = None) -> di
         breakdown.provenance["project_reference"] = {
             "version": 1, "reference": manifest.reference.value,
             "sha256": resolution.sha256, "provenance": resolution.provenance,
-            "refetch": False,
+            "refetch": False, "project_name": root.name,
         }
+        if resolution.title:
+            breakdown.provenance["project_reference"]["title"] = resolution.title
         slug = storage.slug_for(str(path))
         with storage.use_workspace(workspace):
             storage.save_breakdown(breakdown, slug=slug)

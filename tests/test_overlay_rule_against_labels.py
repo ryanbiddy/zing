@@ -6,7 +6,7 @@ P-C2 frozen labels.
 captions"). P-C2 asked for a signal that separates a failure class
 without costing caption recall. Running the SHIPPED rule over 7
 hand-labeled cells (15,999 lines) gives a split verdict
-(handoff/research/P-C2-BASELINE-2026-07-20.md):
+(P-C2 baseline audit, 2026-07-20):
 
 - SAFE: across every captioned cell it diverts zero labeled captions.
 - UNDER-FIRING: on the 430s HUD cell — 1,882 events, none of them
@@ -28,7 +28,7 @@ import pytest
 
 from myzing.study.captions import Line, Observation, cluster_regions
 
-RESEARCH = Path(__file__).resolve().parents[1] / "handoff" / "research"
+RESEARCH = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "research"
 CALIB = RESEARCH / "ocr-calibration"
 FROZEN = CALIB / "frozen"
 LABELS = CALIB / "labels"
@@ -96,7 +96,7 @@ def test_overlay_rule_never_diverts_a_labeled_caption(slug: str) -> None:
             f"caption: {quoted!r}. Precision on the failure class was "
             f"measured at 1.0000 with 0/577 captions lost — if a "
             f"threshold change is intended, re-run "
-            f"handoff/research/pc2_baseline.py and update the note."
+            f"tools/eval/research/pc2_baseline.py and update the note."
         )
 
 
@@ -125,7 +125,7 @@ def test_overlay_rule_under_fires_on_long_form_documented_limitation() -> None:
     long-form it is effectively unfirable, and its measured precision
     comes partly from silence. If clustering or the threshold is ever
     changed to fix this, update this test to assert that warnings DO
-    appear, and re-run handoff/research/pc2_baseline.py.
+    appear, and re-run tools/eval/research/pc2_baseline.py.
     """
     observations, duration = _observations("youtube-uc6b5owmca")
 

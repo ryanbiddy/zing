@@ -262,15 +262,24 @@ def detect_faces(image, detector) -> list[list[float]]:
             for d in detector.detect(np.asarray(sample)[:, :, ::-1].copy())]
 
 
-def photo_focus(image) -> tuple[list[float] | None, str, list[str]]:
-    """Focus for a single render: local cached YuNet when available (never a
-    download), else the central-60% heuristic. Returns (focus, basis, notes)."""
+def photo_faces(image) -> tuple[list[list[float]], str]:
+    """Local cached YuNet faces (never a download): (boxes, "yunet"), or
+    ([], "center_heuristic") when the detector is unavailable."""
     from myzing.layout.detector import LayoutError, YuNetDetector
 
     try:
         detector = YuNetDetector(download=False)
-        faces, method = detect_faces(image, detector), "yunet"
+        return detect_faces(image, detector), "yunet"
     except (LayoutError, ImportError):
+        return [], "center_heuristic"
+
+
+def photo_focus(image, faces=None) -> tuple[list[float] | None, str, list[str]]:
+    """Focus for a single render: local cached YuNet when available (never a
+    download), else the central-60% heuristic. Returns (focus, basis, notes).
+    ``faces`` reuses a photo_faces() result."""
+    faces, method = faces if faces is not None else photo_faces(image)
+    if method == "center_heuristic":
         # Never crop on a subject estimate when faces cannot be seen.
         return focus_box(None, "center_heuristic", None) + ([],)
     subject = None if prominent_faces(faces) else saliency_box(image)

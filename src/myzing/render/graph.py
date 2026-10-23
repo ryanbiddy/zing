@@ -44,6 +44,7 @@ def _audio_leg(
     gain_db: float = 0.0,
     fade_in: float = 0.0,
     fade_out: float = 0.0,
+    extra: tuple[str, ...] = (),
 ) -> str:
     filters = []
     if trim_start is not None and trim_end is not None:
@@ -59,6 +60,7 @@ def _audio_leg(
     )
     if gain_db:
         filters.append(f"volume={_number(gain_db)}dB")
+    filters.extend(extra)
     if fade_in:
         filters.append(f"afade=t=in:st=0:d={_number(fade_in)}")
     if fade_out and trim_start is not None and trim_end is not None:
@@ -96,6 +98,7 @@ def build_graph(
     transitions: tuple[Transition | None, ...] = (),
     caption_overlay: Path | None = None,
     clip_framings: tuple = (),
+    clip_audio_filters: tuple = (),
     composition_audio: tuple = (),
     music_fades: dict | None = None,
     measure_stems: bool = False,
@@ -117,6 +120,8 @@ def build_graph(
         raise ValueError("clip LUTs must match the validated timeline order")
     if clip_framings and len(clip_framings) != len(validated.clips):
         raise ValueError("clip framings must match the validated timeline order")
+    if clip_audio_filters and len(clip_audio_filters) != len(validated.clips):
+        raise ValueError("clip audio filters must match the validated timeline order")
     for input_index, resolved in enumerate(validated.clips):
         input_paths.append(resolved.path)
         clip = resolved.spec
@@ -165,8 +170,9 @@ def build_graph(
             + grade + framing_clock + framing_filter(framing, edl.width, edl.height, rate, label)
             + edge + f"[{label}]"
         )
+        audio_extra = tuple(clip_audio_filters[input_index]) if clip_audio_filters else ()
         if transitions:
-            lines.append(effects.clip_audio(input_index, resolved, f"clipa{input_index}"))
+            lines.append(effects.clip_audio(input_index, resolved, f"clipa{input_index}", extra=audio_extra))
         elif resolved.media.has_audio:
             audio_label = f"clipa{input_index}"
             clip_audio_labels.append(audio_label)
@@ -191,6 +197,7 @@ def build_graph(
                     trim_end=clip.src_out,
                     fade_in=fade_in,
                     fade_out=fade_out,
+                    extra=audio_extra,
                 )
             )
 

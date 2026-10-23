@@ -2,23 +2,26 @@
 
 from __future__ import annotations
 
+import functools
 import os
 import stat
-import warnings
 from pathlib import Path, PureWindowsPath
 
 from myzing.layout.detector import LayoutError, YuNetDetector
 from myzing.memes import MemeError
 from myzing.memes.framing import saliency_box
-from myzing.memes.render import MAX_PIXELS, require_pillow
+from myzing.memes.photo import HEIF_EXTENSIONS, load_photo
+from myzing.memes.render import require_pillow
+from myzing.memes.subject import describe_estimate, estimate_subject
 from myzing.project.api import hash_file
 from .models import Photo
 
-EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
+EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", *HEIF_EXTENSIONS}
 FORMATS = {"JPEG", "PNG", "WEBP", "BMP", "TIFF"}
 MAX_PHOTOS = 64
 MAX_ENTRIES = 4096
-MAX_BYTES = 20 * 1024 * 1024
+# Phone photos of 48-108 MP are often 15-40 MB; decoding is bounded by pixels.
+MAX_BYTES = 64 * 1024 * 1024
 MAX_TOTAL_BYTES = 256 * 1024 * 1024
 FALLBACK = ("Face detection unavailable; reserving the central 60% of the photo as a "
             "subject heuristic. Faces elsewhere may be missed. For local YuNet detection, "
@@ -36,22 +39,54 @@ def local_path(value: str | Path) -> Path:
 
 
 def open_photo(path: Path):
-    Image, _, _, _, ImageOps = require_pillow()
+    """The oriented RGB working copy (see myzing.memes.photo)."""
+    return read_photo(path)[0]
+
+
+def read_photo(path: Path):
+    """(working copy, PhotoSource): EXIF/HEIF orientation, large photos reduced."""
+    require_pillow()
     if path.suffix.lower() not in EXTENSIONS:
-        raise MemeError("Use a JPEG, PNG, WebP, BMP, or TIFF photo.")
+        raise MemeError("Use a JPEG, PNG, WebP, BMP, TIFF, or HEIC/HEIF photo.")
     if not path.is_file() or not 0 < path.stat().st_size <= MAX_BYTES:
-        raise MemeError(f"Photo is missing, empty, or over 20 MiB: {path}")
+        raise MemeError(f"Photo is missing, empty, or over {MAX_BYTES // 2 ** 20} MiB: {path}")
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(path) as source:
-                if source.format not in FORMATS or getattr(source, "n_frames", 1) != 1:
-                    raise MemeError(f"Use a single-frame supported photo: {path.name}")
-                if source.width * source.height > MAX_PIXELS or max(source.size) > 8192:
-                    raise MemeError(f"Photo exceeds 8192px / 40 megapixels: {path.name}; resize it first.")
-                return ImageOps.exif_transpose(source).convert("RGB")
-    except (OSError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-        raise MemeError(f"Cannot read photo {path.name}: {exc}") from exc
+        return load_photo(path, formats=FORMATS, single_frame=True)
+    except MemeError as exc:
+        message = str(exc)
+        raise MemeError(message if message.startswith(("Cannot read photo", "Use a single-frame"))
+                        else f"Cannot read photo {path.name}: {message}") from exc
+
+
+@functools.lru_cache(maxsize=1)
+def _ocr_engine():
+    """The study pipeline's local RapidOCR engine, or None when its optional
+    runtime or verified local models are missing. Never downloads."""
+    try:
+        from myzing.study.caption_models import engine
+        return engine()[0]
+    except (ImportError, RuntimeError, OSError, ValueError):
+        return None
+
+
+def read_text(image) -> str | None:
+    """Confident text lines on the photo in reading order, '' when none,
+    None when local OCR is unavailable. Evidence for lines, not a caption."""
+    engine = _ocr_engine()
+    if engine is None:
+        return None
+    import numpy as np
+    from myzing.study.captions import _ocr
+
+    sample = image.convert("RGB")
+    sample.thumbnail((960, 960))
+    try:
+        lines = _ocr(engine, np.asarray(sample)[:, :, ::-1].copy())
+    except Exception:  # noqa: BLE001 - optional OCR must never fail an inventory
+        return None
+    words = [line.text for line in sorted(lines, key=lambda l: (round(l.y_center, 2), l.x_center))
+             if sum(c.isalpha() for c in line.text) >= 2]
+    return " ".join(" ".join(words).split())[:120]
 
 
 def detect_faces(image, detector) -> list[dict]:
@@ -68,7 +103,8 @@ def describe_photo(path: Path, detector=None) -> Photo:
 
     before = (path.stat().st_size, path.stat().st_mtime_ns)
     digest = hash_file(path)
-    with open_photo(path) as source:
+    decoded, origin = read_photo(path)
+    with decoded as source:
         width, height = source.size
         small = source.copy()
         small.thumbnail((256, 256))
@@ -91,18 +127,27 @@ def describe_photo(path: Path, detector=None) -> Photo:
                 notes.append(str(exc))
         if method == "center_heuristic":
             notes.append(FALLBACK)
+        if origin.note():
+            notes.append(origin.note())
         subject = saliency_box(source)
+        estimate = estimate_subject(source)
+        notes.append(describe_estimate(estimate))
+        brightness = round(ImageStat.Stat(small.convert("L")).mean[0] / 255, 3)
+        text = read_text(source)
     if before != (path.stat().st_size, path.stat().st_mtime_ns):
         raise MemeError(f"Photo changed during inventory: {path}; run again.")
     orientation = "square" if width == height else "landscape" if width > height else "portrait"
     face_text = (f"{len(faces)} face candidates detected" if method == "yunet"
                  else "face count unknown (detector unavailable)")
-    description = (f"{orientation.capitalize()} photo, {width} by {height} pixels; "
-                   f"dominant sampled colors {', '.join(colors)}; {face_text}. "
+    size_text = (f"{width} by {height} pixels" if not origin.downscaled else
+                 f"{origin.original[0]} by {origin.original[1]} pixels ({width} by {height} working copy)")
+    text_part = f' Text read locally: "{text[:60]}".' if text else ""
+    description = (f"{orientation.capitalize()} photo, {size_text}; "
+                   f"dominant sampled colors {', '.join(colors)}; {face_text}.{text_part} "
                    "Subject details have not been identified.")
     return Photo("photo-" + digest[:16], str(path), digest, width, height, before[0],
                  description, colors, orientation, round(density, 6), round(band_density, 6),
-                 faces, method, notes, subject)
+                 faces, method, notes, subject, origin.to_dict(), estimate, brightness, text)
 
 
 def inventory(folder: str | Path) -> tuple[list[Photo], list[str]]:
@@ -124,13 +169,13 @@ def inventory(folder: str | Path) -> tuple[list[Photo], list[str]]:
             if Path(entry.name).suffix.lower() not in EXTENSIONS:
                 continue
             if not 0 < info.st_size <= MAX_BYTES:
-                raise MemeError(f"Photo is empty or over 20 MiB: {entry.name}; resize or remove it.")
+                raise MemeError(f"Photo is empty or over {MAX_BYTES // 2 ** 20} MiB: {entry.name}; resize or remove it.")
             total += info.st_size
             paths.append(Path(entry.path))
             if len(paths) > MAX_PHOTOS or total > MAX_TOTAL_BYTES:
                 raise MemeError("Photo inventory exceeds 64 files / 256 MiB; use a smaller folder.")
     if not paths:
-        raise MemeError("No supported photos found; add JPEG, PNG, WebP, BMP, or TIFF files directly to the folder.")
+        raise MemeError("No supported photos found; add JPEG, PNG, WebP, BMP, TIFF, or HEIC files directly to the folder.")
     try:
         detector = YuNetDetector(download=False)
     except LayoutError:

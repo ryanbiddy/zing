@@ -3,7 +3,7 @@ from pathlib import Path
 
 REVIEW = (
     Path(__file__).resolve().parents[1]
-    / "handoff"
+    / "tests" / "fixtures" / "historical-evidence"
     / "reviews"
     / "CX-1-COLLATERAL-lane-c.md"
 )

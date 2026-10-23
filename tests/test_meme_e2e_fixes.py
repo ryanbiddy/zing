@@ -151,7 +151,10 @@ def test_face_near_the_top_is_never_cut(tmp_path, monkeypatch, aspect, detector)
     if detector:
         assert result["fit"] == "fill" and result["focus_basis"] == "faces"
     else:
-        assert result["fit"] == "blur" and result["warnings"] == [framing.BLUR_NO_DETECTOR]
+        # POLISH1: without a detector the face-like region is still the
+        # estimated subject, so the default classic text moves to a caption bar.
+        assert result["fit"] == "blur" and framing.BLUR_NO_DETECTOR in result["warnings"]
+        assert result["protection"]["text_clear"] and result["layout"] == "caption"
 
 
 def face_beside_subject(path):
@@ -338,8 +341,10 @@ def test_animated_export_uses_the_still_framing(tmp_path, fit):
 
     source = portrait(tmp_path / "portrait.png")
     focus = framing.head_box(list(FACE)) if fit == "fill" else None
+    # Explicit layout: render-video does not run subject protection, so a
+    # defaulted still layout could move to a caption bar (POLISH1).
     still = render_meme(["top"], image=str(source), aspect="16:9", fit=fit, focus=focus,
-                        out=str(tmp_path / "still.png"))
+                        layout="classic", out=str(tmp_path / "still.png"))
     motion = render_meme_video(["top"], image=str(source), aspect="16:9", fit=fit, focus=focus,
                                duration=1, fps=10, gif=True, out=str(tmp_path / "motion.mp4"))
     assert motion["fit"] == still["fit"] == fit

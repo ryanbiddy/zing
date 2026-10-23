@@ -104,6 +104,37 @@ def _err(message: str) -> dict[str, Any]:
     return {"ok": False, "error": message}
 
 
+def h_zing_studio(path: str | None = None, answers: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Stateless interview: a next question or a plan, never starts production."""
+    from myzing.studio.flow import agent_default_project, next_step
+    try:
+        if answers is not None and not isinstance(answers, dict):
+            return _err("answers must be an object")
+        supplied = dict(answers or {})
+        if path is not None:
+            if "path" in supplied and supplied["path"] != path:
+                return _err("path and answers.path disagree")
+            supplied["path"] = path
+        if "path" in supplied and "project" not in supplied:
+            supplied["project"] = agent_default_project()  # never the server's working directory
+        step = next_step(supplied)
+        return _err(step["error"]) if step["status"] == "blocked" else _ok(**step)
+    except (ValueError, OSError, RuntimeError, ImportError) as exc:
+        return _err(str(exc))
+
+
+def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = False,
+                      project: str | None = None, cancel: bool = False) -> dict[str, Any]:
+    """Start/poll/cancel the studio operations without an existing job tool."""
+    from myzing.studio.flow import agent_default_project
+    from myzing.studio.jobs import job
+    try:
+        if isinstance(answers, dict) and "path" in answers and "project" not in answers:
+            answers = {**answers, "project": agent_default_project()}
+        return _ok(**job(answers, confirmed=confirmed, project=project, cancel=cancel))
+    except (ValueError, OSError, RuntimeError, ImportError) as exc:
+        return _err(str(exc))
+
 def h_zing_explain(source: str, out_dir: str, transitions: bool = True,
                    offline: bool = True, against: str | None = None) -> dict[str, Any]:
     """Write local card files and return paths/metadata only."""
@@ -1154,12 +1185,15 @@ def _run_match(options, root, workspace, stop, lease):
 @_workspace_boundary
 def h_match_start(reference: str, clips: str, out: str, brief: str | None = None,
                   answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
-                  resume: bool = False, allow_download: bool = False) -> dict[str, Any]:
+                  resume: bool = False, allow_download: bool = False,
+                  studio_options: dict[str, Any] | None = None) -> dict[str, Any]:
     """Start the same supervised pipeline as the CLI; no media bytes returned."""
     from myzing.match.api import validate
     from myzing.match.process import run_lock
     options = dict(reference=reference, clips=clips, out=out, brief=brief, answers=answers,
                    drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    if studio_options is not None:
+        options["studio_options"] = studio_options
     try:
         validate(**options)
         root = Path(out).expanduser().resolve()
@@ -1442,7 +1476,7 @@ def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# get_frames (B-Q8, built to handoff/research/B-Q3-get-frames-design.md)
+# get_frames: bounded frame extraction for visual inspection
 # ---------------------------------------------------------------------------
 
 FRAMES_RECOMMENDED = 6
@@ -1576,14 +1610,24 @@ def h_plan_drafts(project: str, recipe: str, out: str, seed: int = 0) -> dict[st
     return _ok(**result)
 
 
+# POLISH1 added the optional protect argument to these two tools. The SDK 1
+# wire capture predates it; test_mcp_wire strips exactly these additions.
+PROTECT_DESCRIPTIONS = {
+    "still_concepts": ' Optional protect is a list of normalized [x,y,width,height] boxes text must avoid, besides faces and a model-free subject estimate.',
+    "meme_render": ' Optional protect is a list of normalized [x,y,width,height] source boxes text must avoid; faces and a confident model-free subject estimate are also protected (protection reports the estimate and its uncalibrated confidence).',
+}
+
+
 def h_still_concepts(photos: str, topic: str, out: str, n: int = 6,
                      aspect: str = "1:1", layout: str = "auto",
-                     lines: str | None = None) -> dict[str, Any]:
+                     lines: str | None = None,
+                     protect: list[list[float]] | None = None) -> dict[str, Any]:
     """Inventory local photos and render distinct concepts; no uploads/model calls."""
     from myzing.still.api import create_stills
 
     try:
-        return _ok(**create_stills(photos, topic, out, n=n, aspect=aspect, layout=layout, lines=lines))
+        return _ok(**create_stills(photos, topic, out, n=n, aspect=aspect, layout=layout, lines=lines,
+                                   protect=protect))
     except (ValueError, OSError) as exc:
         return _err(str(exc))
 
@@ -1637,7 +1681,8 @@ def h_meme_render(texts: list[str], image: str = "", template: str = "",
                   regions: list[list[float]] | None = None,
                   plate: bool = False, shadow: bool = False,
                   rotation: float = 0, offline: bool = False,
-                  overwrite: bool = False) -> dict[str, Any]:
+                  overwrite: bool = False,
+                  protect: list[list[float]] | None = None) -> dict[str, Any]:
     """Synchronous bounded still render: paths and metadata, never inline bytes."""
     from myzing.memes.render import render_meme
 
@@ -1646,7 +1691,7 @@ def h_meme_render(texts: list[str], image: str = "", template: str = "",
             texts, image=image, template=template, layout=layout, aspect=aspect,
             out=out, fit=fit, font=font, regions=regions, plate=plate,
             shadow=shadow, rotation=rotation, offline=offline,
-            overwrite=overwrite,
+            overwrite=overwrite, protect=protect,
         ))
     except (ValueError, OSError) as exc:
         return _err(str(exc))
@@ -1791,6 +1836,14 @@ def build_server():
         ),
     )
     mcp.tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
+    mcp.tool(
+        name="zing_studio",
+        description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Local probes and a bounded offline reference preview; saved-reference search only with a configured reachable peer. No production or downloads.",
+    )(h_zing_studio)
+    mcp.tool(
+        name="zing_studio_run",
+        description="Start a confirmed studio plan for b (no-reference edit), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For a/c/e reuse match_start, still_concepts/still_render and music_check. Local models only; paths and metadata out.",
+    )(h_zing_studio_run)
     mcp.tool(
         name="brief_questions",
         description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",
@@ -2022,7 +2075,8 @@ def build_server():
 
     mcp.tool(
         name="still_concepts",
-        description="Create 1-8 distinct meme concepts from a local photo folder and topic. Requires myzing[memes]. No model calls, network, or media uploads. Supply a new/empty out folder. Optional lines is a local JSON file of AI/user-written ideas; all text is validated. aspect: 1:1, 4:5, 9:16, 16:9. layout: auto, classic, caption, labels. Uses local YuNet when installed/cached; otherwise reports a center heuristic. Returns index_path, contact_sheet path, writer prompt, concept IDs, scores, alt text and warnings, never media bytes.",
+        description="Create 1-8 distinct meme concepts from a local photo folder and topic. Requires myzing[memes]. No model calls, network, or media uploads. Supply a new/empty out folder. Optional lines is a local JSON file of AI/user-written ideas; all text is validated. aspect: 1:1, 4:5, 9:16, 16:9. layout: auto, classic, caption, labels. Uses local YuNet when installed/cached; otherwise reports a center heuristic."
+        + PROTECT_DESCRIPTIONS["still_concepts"] + " Returns index_path, contact_sheet path, writer prompt, concept IDs, scores, alt text and warnings, never media bytes.",
     )(h_still_concepts)
     mcp.tool(
         name="still_render",
@@ -2043,7 +2097,8 @@ def build_server():
     )(h_meme_check)
     mcp.tool(
         name="meme_render",
-        description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path.",
+        description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path."
+        + PROTECT_DESCRIPTIONS["meme_render"],
     )(h_meme_render)
     mcp.tool(
         name="meme_render_video",

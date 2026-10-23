@@ -6,12 +6,30 @@
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
 from local images. Measurement and rendering run on your machine; your AI supplies
-the creative judgment through the CLI or **34 MCP tools**. No Zing API key needed.
+the creative judgment through the CLI or **36 MCP tools**. No Zing API key needed.
 
-`zing match` runs the reference-plus-clips workflow and writes three playable
-drafts, plans, a reusable recipe and rendered match reports. Missing footage and
-failed drafts stay visible. Status: pre-alpha. MIT licensed for this project's own software and documentation. Third-party
-assets retain their original terms; see [NOTICE.md](NOTICE.md).
+## Start here: zing studio
+
+Run `uv sync --all-extras` once in this checkout, put FFmpeg on PATH, then:
+
+```console
+uv run --frozen zing studio
+```
+
+Start with “What are we making?” Choose a reference edit, an edit from your
+clips, a photo meme, a style breakdown, music advice, or another delivery shape.
+Studio reads a local reference for up to eight seconds, then recommends length,
+pacing, captions, audio and shape from what it measured. A local reference edit
+takes eight questions plus confirmation. Enter accepts a recommendation; paths
+and topics need your answer. `?` explains, `b` goes back and `q` saves.
+The plan shows the default output folder, with an option to change it. The
+finish screen compares playable drafts by shape and recommends where to start.
+Continue with `zing studio --resume <project>`.
+
+See [Studio](docs/STUDIO.md) for a real transcript, JSON answers and agent use.
+Downloads are off by default. Missing evidence, failed drafts and blocked
+captions remain visible. Status: pre-alpha. MIT licensed for this project's
+software and documentation; third-party terms are in [NOTICE.md](NOTICE.md).
 
 ## Five commands to a first result
 
@@ -65,6 +83,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 
 | Task | Current capability and documentation |
 |---|---|
+| Guided creative session | [Studio](docs/STUDIO.md): questions, measured recommendations, confirmation and resume. |
 | First local edit | [Quickstart](docs/QUICKSTART.md): generated clip, explicit EDL, rendered draft and review artifacts. |
 | Explain how a video was made | [Explain](docs/EXPLAIN.md): `zing explain reference.mp4 --out ./style-card`; measured JSON, plain English, phone-readable PNG and a reusable recipe. Add `--against draft.mp4` to compare. |
 | Match a reference with your clips | [Match](docs/MATCH.md): `zing match reference.mp4 --clips ./clips --out ./project --brief brief.json`; resumable A/B/C rendering, full decode, PNGs and measured reports. |
@@ -87,9 +106,10 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans or a named shortage, with v1 EDL derivatives where supported. |
 | Keep speech complete | [Continuity and ASR repair](docs/CONTINUITY.md): clause boundaries, source order, bounded timing estimates, text roles and separate render/style status. |
 | Choose and place music | [Music advice and editing](docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
-| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 34 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 36 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
+| Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
 | Check asset provenance | [Third-party notices](docs/THIRD-PARTY-NOTICES.md): model pins, hashes and licenses. |

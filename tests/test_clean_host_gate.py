@@ -119,5 +119,11 @@ def test_clean_host_gate_launches_installed_mcp_smoke() -> None:
     source = MODULE_PATH.read_text(encoding="utf-8")
 
     assert 'REPO / "packaging" / "mcp_stdio_smoke.py"' in source
-    assert 'mcp_payload["tool_count"] == 34' in source
+    assert clean_host_check.EXPECTED_TOOLS == __import__("runpy").run_path(
+        str(clean_host_check.REPO / "packaging" / "mcp_stdio_smoke.py"))["EXPECTED_TOOLS"]
+    payload = {"ok": True, "server": {"name": "zing"}, "called": "zing_status",
+               "tool_count": len(clean_host_check.EXPECTED_TOOLS)}
+    assert clean_host_check._mcp_success(0, payload)
+    payload["tool_count"] -= 1
+    assert not clean_host_check._mcp_success(0, payload)
     assert "require_mcp=True" in source

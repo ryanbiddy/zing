@@ -16,6 +16,9 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "zing_studio",
+    "zing_studio_run",
+
     "zing_explain",
     "music_check",
     "match_start",

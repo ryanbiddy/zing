@@ -111,6 +111,19 @@
           "additionalProperties": {},
           "type": "object"
         },
+        "short_side": {
+          "anyOf": [
+            {
+              "maximum": 4320,
+              "minimum": 18,
+              "multipleOf": 18,
+              "type": "integer"
+            },
+            {
+              "const": "auto"
+            }
+          ]
+        },
         "target_length_seconds": {
           "type": "number"
         },
