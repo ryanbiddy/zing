@@ -103,6 +103,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Connect an AI or Uoink | [Connect](docs/CONNECT.md): 36 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
+| Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
 | Check asset provenance | [Third-party notices](docs/THIRD-PARTY-NOTICES.md): model pins, hashes and licenses. |

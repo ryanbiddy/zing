@@ -45,8 +45,8 @@ jobs:
       - name: Install ffmpeg (apt)
         timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends ffmpeg fonts-dejavu-core
       - name: Verify ffmpeg version and required filters (C#8)
         run: |
           ffmpeg -version
@@ -101,8 +101,8 @@ jobs:
       - name: Install ffmpeg (apt)
         timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends ffmpeg fonts-dejavu-core
       - name: Verify ffmpeg version and required filters (C#8)
         run: |
           grep PRETTY_NAME /etc/os-release
@@ -235,8 +235,8 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 15
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends ffmpeg
       - name: Install ffmpeg (chocolatey)
         if: runner.os == 'Windows'
         timeout-minutes: 10

@@ -6,7 +6,7 @@ one row per sampled frame. Text is replaced by hashes and token counts.
 Deterministic for a given media file + OCR model.
 
 Usage:
-    python -m handoff.research.ocr-calibration.freeze <workspace> <slug> [<slug> ...]
+    python -m tools.eval.research.ocr_freeze <workspace> <slug> [<slug> ...]
 
 Research tooling (P-C2, warning-only phase): no production imports
 back into the study pipeline; reuses captions.py internals read-only.
@@ -84,6 +84,6 @@ if __name__ == "__main__":
     if len(sys.argv) < 3:
         raise SystemExit(__doc__)
     ws = Path(sys.argv[1])
-    here = Path(__file__).resolve().parent
+    here = Path(__file__).resolve().parents[3] / "tests/fixtures/research/ocr-calibration"
     for s in sys.argv[2:]:
         freeze(ws, s, here / "frozen")

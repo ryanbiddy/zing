@@ -7,7 +7,7 @@ position+token rule, and the hold-out check across captioned cells.
 Read-only, stdlib only, no network, no myzing import. Run from the
 repo root:
 
-    python handoff/research/pc2_baseline.py
+    python tools/eval/research/pc2_baseline.py
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import statistics
 from pathlib import Path
 
 CAPTION = "likely_caption"
-LABELS_DIR = Path(__file__).resolve().parent / "ocr-calibration" / "labels"
+LABELS_DIR = Path(__file__).resolve().parents[3] / "tests/fixtures/research/ocr-calibration/labels"
 
 
 def load() -> list[dict]:

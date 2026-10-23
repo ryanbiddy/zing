@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INDEX = ROOT / "handoff" / "reviews" / "CX-6-AG-RESEARCH-AUDIT-INDEX.md"
+INDEX = ROOT / "tests" / "fixtures" / "historical-evidence" / "reviews" / "CX-6-AG-RESEARCH-AUDIT-INDEX.md"
 
 
 def test_cx6_indexes_every_assigned_dossier_with_an_exact_verdict() -> None:

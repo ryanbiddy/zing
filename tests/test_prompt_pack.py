@@ -344,7 +344,7 @@ def _labelled_ocr_cells():
     """{slug: (duration_s, incidental_share)} from the hand-labelled set."""
     import json as _json
 
-    root = pathlib.Path(__file__).resolve().parents[1] / "handoff" / "research"
+    root = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "research"
     labels_dir, frozen_dir = root / "ocr-calibration" / "labels", root / "ocr-calibration" / "frozen"
     cells = {}
     for lab in sorted(labels_dir.glob("*.jsonl")):

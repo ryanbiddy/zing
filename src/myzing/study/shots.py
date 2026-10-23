@@ -5,7 +5,7 @@ AdaptiveDetector — best PySceneDetect F1 on the only short-form benchmark
 (AutoShot SHOT: 73.86 vs 69.26 ContentDetector; the paper reports SHOT's
 average shot length as 2.59s) — with `min_scene_len` lowered to ~0.3s.
 That floor is now MEASURED against SHOT's published annotations rather
-than asserted (handoff/research/SHOT-THRESHOLD-AUDIT-2026-07-19.md, 344
+than asserted (shot-threshold audit, 2026-07-19, 344
 videos / 6,245 shots): the 0.6s-equivalent default would merge 13.5% of
 real short-form shots, and our 0.3s floor still merges 4.7% — so Zing's
 cut rate is a slight UNDER-count on fast-montage content, by construction.
