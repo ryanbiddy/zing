@@ -113,39 +113,13 @@ def _metric(target, observed, tolerance, basis, *, approximate=False):
 def report(recipe, rendered, geometry, color, verification, plan, audio_measurements=None):
     facts = {f.name: f.value for f in recipe.measured}
     durations = facts.get("shot_durations", [])
-    observed_durations = [s.duration for s in rendered.shots]
     from myzing.director.plans import REPORT_PREFIX
     planning = next((json.loads(w[len(REPORT_PREFIX):]) for w in plan.warnings if w.startswith(REPORT_PREFIX)), {})
     source_pacing = planning.get("pacing_evidence", {})
-    target = median(durations) if durations else None
     shots_unmeasured = any("shot" in w.lower() and any(word in w.lower() for word in ("fallback", "skipped", "failed"))
                            for w in [*recipe.warnings, *rendered.warnings])
-    dimensions = {
-        "shot_pace": _metric(target, median(observed_durations) if observed_durations else None,
-                             (target or 0) * .1, "Median shot seconds measured from rendered pixels; 10% envelope.",
-                             approximate=shots_unmeasured),
-        "first_cut": _metric(durations[0] if len(durations) > 1 else None,
-                             rendered.shots[1].start if len(rendered.shots) > 1 else None,
-                             2 / rendered.meta.fps, "First detected output cut vs reference; two output frames.",
-                             approximate=shots_unmeasured),
-    }
-    if durations and rendered.shots and not shots_unmeasured and (len(durations) == 1 or len(rendered.shots) == 1):
-        dimensions["first_cut"].update(
-            status="pass" if len(durations) == len(rendered.shots) == 1 else "miss",
-            reason="Compare observed cut presence: both are continuous, or one has cuts the other lacks.")
-    source_durations = source_pacing.get("shot_durations_seconds", [])
-    if source_durations:
-        mapped = _metric(target, median(source_durations), (target or 0) * .1,
-                         "Source study cuts mapped through selected trims, including internal cuts; 10% envelope.")
-        pixel = dimensions["shot_pace"]
-        dimensions["shot_pace"] = {**mapped, "rendered_pixels": pixel,
-            "status": "miss" if "miss" in (mapped["status"], pixel["status"]) else "approximate" if "approximate" in (mapped["status"], pixel["status"]) else "pass"}
-        mapped_first = source_durations[0] if len(source_durations) > 1 else None
-        source_first = _metric(durations[0] if len(durations) > 1 else None, mapped_first,
-                               2 / rendered.meta.fps, "First source-study cut mapped to the output.")
-        dimensions["first_cut"]["source_mapped"] = source_first
-        if source_first["status"] == "miss":
-            dimensions["first_cut"]["status"] = "miss"
+    from .timing import timing_dimensions
+    dimensions = timing_dimensions(durations, rendered, source_pacing, planning, plan, shots_unmeasured)
     captions = [v for k, v in facts.items() if k.startswith("captions[")]
     from myzing.study.text_roles import classify_text, caption_geometry
     output_roles = classify_text(rendered, geometry)
@@ -177,6 +151,7 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
     delta = max(abs(a - b) for a, b in zip(target_color, output_color)) if target_color and output_color else None
     dimensions["color"] = {"status": "miss" if delta is not None and delta > .15 else "approximate",
                            "target": target_color, "observed": output_color, "max_luma_percentile_delta": delta,
+                           "picture_area": color.get("picture_area") if color else None,
                            "tolerance": .15, "reason": "Unpaired scene distributions in encoded Rec.709; human review required. "
                            "This is not a paired Delta E 2000 test or recovery of an original LUT."}
     dimensions["typography"] = {"status": "approximate", "reason": "Pinned substitutes or disclosed system defaults; original font unknown."}
@@ -196,7 +171,8 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
     return {"version": 1, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
             "music": planning.get("music"), "audio_measurements": audio_measurements,
             "source_pacing": source_pacing, "text_roles": output_roles,
-            "pacing_flag": "unmet" if dimensions["shot_pace"]["status"] == "miss" else "unverified" if dimensions["shot_pace"]["status"] == "approximate" else "met",
+            "pacing_flag": {"miss": "unmet", "pass": "met", "not_applicable": "not_applicable"}.get(
+                dimensions["shot_pace"]["status"], "unverified"),
             "render": verification, "dimensions": dimensions,
             "warnings": user_warnings([*recipe.warnings, *rendered.warnings, *plan.warnings]),
             "recipe_unknowns": [u.to_dict() for u in recipe.unknowns],
@@ -204,6 +180,7 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
 
 
 def markdown(summary):
+    from .timing import dimension_notes, status_label
     def link(path):
         try:
             return Path(path).relative_to(summary["project"]).as_posix()
@@ -215,7 +192,7 @@ def markdown(summary):
              "|---|---|---|---|---|---|---|---|"]
     for label, row in summary["drafts"].items():
         grades = row.get("dimensions", {})
-        cells = [grades.get(k, {}).get("status", "—") for k in
+        cells = [status_label(grades.get(k, {}).get("status", "—")) for k in
                  ("shot_pace", "first_cut", "caption_timing", "caption_placement", "color")]
         failed = [k for k, v in grades.items() if v["status"] == "miss"]
         state = "render complete" if row["status"] == "ready" else row["status"]
@@ -224,6 +201,7 @@ def markdown(summary):
         if row["status"] == "ready":
             lines += ["", f"{label}: [video](<{link(row['video'])}>) · [plan](<{link(row['plan'])}>) · "
                       f"[timeline](<{link(row['timeline'])}>) · [match report](<{link(row['report'])}>)"]
+            lines += ["", *dimension_notes(row.get("dimensions", {}))]
             for track in (row.get("music") or {}).get("tracks", []):
                 lines += ["", f"Music: {Path(track['path']).name}. {track['reason']}",
                           track["advice"]["licensing"]]
