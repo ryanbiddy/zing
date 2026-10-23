@@ -83,7 +83,7 @@ jobs:
           if-no-files-found: warn
 
   # Same strict gate on the newest GitHub Ubuntu image (ubuntu-latest is
-  # Ubuntu 26.04 "resolute" since Oct 2026: apt FFmpeg 8.0, libass 0.17.4,
+  # Ubuntu 26.04 "resolute" since Oct 2026: apt FFmpeg 8.0.1, libass 0.17.4,
   # FreeType/HarfBuzz from that release). The job above stays pinned to
   # 24.04 for FFmpeg 6.x; this one catches regressions on current distros.
   ffmpeg-gates-ubuntu-latest:
@@ -136,39 +136,6 @@ jobs:
         with:
           name: eval-report-ubuntu-latest
           path: tools/eval/eval-report.json
-          if-no-files-found: warn
-
-  # TEMP (CI1): libass/drawtext literal-text probe. Remove before merge.
-  debug-libass-probe:
-    timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, ubuntu-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-      - name: Probe apt packages
-        timeout-minutes: 15
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
-      - run: |
-          grep PRETTY_NAME /etc/os-release
-          dpkg-query -W libass9 libfreetype6 'libharfbuzz0*' fonts-dejavu-core libfontconfig1 || true
-          ffmpeg -version | head -1
-          fc-match 'sans-serif:charset=2060' || true
-          fc-list | sort | head -40 || true
-      - run: pip install -e .[audio]
-      - run: python tools/ci_debug_libass.py probe-out
-      - if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: libass-probe-${{ matrix.os }}
-          path: probe-out
           if-no-files-found: warn
 
   # C#8 — focused Windows job: real ffmpeg on windows-latest running the
