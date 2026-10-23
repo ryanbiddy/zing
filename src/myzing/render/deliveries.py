@@ -9,7 +9,8 @@ from pathlib import Path
 from myzing.composition.aspects import dimensions, requested_aspects
 from myzing.layout.delivery import adapt_plan
 from myzing.layout.framing import analyze_subjects
-from myzing.layout.resolution import chosen_short_side, mark_auto_selected, resolution_advice
+from myzing.layout.resolution import (auto_gain, chosen_short_side, mark_auto_declined, mark_auto_selected,
+                                      resolution_advice)
 from myzing.layout.media import probe_duration
 from myzing.study.shots import detect_shots
 from .composition import _path, _verify, render_composition, unsupported_features
@@ -134,11 +135,15 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
                                    command=f"zing render PLAN.json --aspect {aspect}")
         lower = chosen_short_side(advice, short_side)
         if lower != min(size):
-            first, size = advice, dimensions(aspect, lower)
-            result = adapt_plan(plan, *size, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts)
-            advice = resolution_advice(result.clips, sizes, *size, max_upscale=limit,
+            trial = dimensions(aspect, lower)
+            lowered = adapt_plan(plan, *trial, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts)
+            second = resolution_advice(lowered.clips, sizes, *trial, max_upscale=limit,
                                        command=f"zing render PLAN.json --aspect {aspect}")
-            mark_auto_selected(advice, first)
+            if auto_gain(advice, second):
+                # Keep the lower size only when its planned picture improves.
+                advice, size, result = mark_auto_selected(second, advice), trial, lowered
+            else:
+                mark_auto_declined(advice, second)
         if advice["limited"] or advice.get("auto_selected"):
             # Up front: the first thing a reader of the delivery plan sees.
             result.warnings.insert(0, advice["summary"])

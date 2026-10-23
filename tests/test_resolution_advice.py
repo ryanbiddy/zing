@@ -12,7 +12,8 @@ import pytest
 from myzing.brief.models import Brief, BriefError
 from myzing.composition import AssetRef, Composition, CompositionClip
 from myzing.layout.framing import select_framing
-from myzing.layout.resolution import chosen_short_side, resolution_advice
+from myzing.layout.resolution import (auto_gain, chosen_short_side, mark_auto_declined, resolution_advice)
+from myzing.layout.types import Box, FaceTrack, Keyframe
 from myzing.project.models import Rational
 
 
@@ -21,15 +22,21 @@ def clip(asset="a", duration=4.0):
                            asset_id=asset)
 
 
-def advise(sw, sh, width, height, mode="auto", limit=2.5):
+def face(duration=4.0):
+    """A steady centered subject: the crop is limited by resolution, not by missing evidence."""
+    box = Box(.42, .3, .16, .4)
+    return [FaceTrack(id="face-1", keyframes=[Keyframe(time=0, box=box), Keyframe(time=duration, box=box)])]
+
+
+def advise(sw, sh, width, height, mode="auto", limit=2.5, tracks=()):
     c = clip()
-    c.framing = select_framing(mode, sw, sh, width, height, c, [], max_upscale=limit)
+    c.framing = select_framing(mode, sw, sh, width, height, c, list(tracks), max_upscale=limit)
     return resolution_advice([c], {"a": (sw, sh)}, width, height, max_upscale=limit,
                              command="zing render plan.json --aspect 9:16")
 
 
 def test_wide_low_res_source_in_9x16_states_numbers_and_recommends_720():
-    advice = advise(862, 360, 1080, 1920)
+    advice = advise(862, 360, 1080, 1920, tracks=face())
     source = advice["sources"][0]
     assert advice["limited"] and source["source"] == [862, 360]
     assert source["full_frame_scale"] == pytest.approx(5.333, abs=1e-3)
@@ -42,7 +49,7 @@ def test_wide_low_res_source_in_9x16_states_numbers_and_recommends_720():
     assert rec["brief_answer"] == {"short_side": 720}
     assert advice["alternatives"][0]["choice"] == "keep_framing"
     summary = advice["summary"]
-    for fact in ("862x360", "5.33x", "1080x1920", "2.5x limit", "720x1280", "70% sharp height",
+    for fact in ("862x360", "5.33x", "1080x1920", "2.5x limit", "720x1280", "up to 70% sharp height",
                  "Upscaling cannot recover detail"):
         assert fact in summary, (fact, summary)
     assert chosen_short_side(advice, "auto") == 720 and chosen_short_side(advice, 1080) == 1080
@@ -67,6 +74,9 @@ def test_tiny_sources_keep_the_size_with_zoomfill_or_blurfill():
     advice = advise(160, 90, 1080, 1920)
     assert advice["limited"] and advice["recommendation"]["choice"] == "keep_framing"
     assert "below 360p" in advice["summary"]
+    # Review fix: the kept size is 6.75x, so neither text may claim "within the limit".
+    assert "6.75x, past the 2.5x limit" in advice["recommendation"]["reason"]
+    assert "within the" not in advice["summary"] and "within the limit" not in advice["recommendation"]["reason"]
 
 
 def test_brief_short_side_is_validated_omitted_by_default_and_accepts_auto():
@@ -149,3 +159,49 @@ def test_low_res_delivery_renders_at_the_recommended_size(tmp_path):
     assert cli.returncode == 0, cli.stderr
     assert json.loads(cli.stdout)["deliveries"]["9:16"]["width"] == 720
     assert "resolution" not in cli.stderr  # at 720 the source reaches its target
+
+
+@pytest.mark.parametrize("source, size, expected, share", [
+    ((320, 240), (1080, 1080), [792, 792], .75),  # 4:3 in 1:1: the width fit needs 3.375x at 1080
+    ((240, 320), (1080, 1920), [594, 1056], .75),  # 3:4 in 9:16
+    ((360, 480), (1080, 1920), [900, 1600], .75),
+    ((400, 360), (1080, 1080), [990, 990], .9),  # was kept at 1080 (2.70x) as if within the limit
+])
+def test_slightly_wider_sources_get_a_size_whose_width_fit_stays_within_the_limit(source, size, expected, share):
+    """Review fix: the fitted-to-width picture is above the 70% target, so the
+    recommendation must bound that fit's enlargement, not the 70% crop's."""
+    advice = advise(*source, *size, tracks=face())
+    rec = advice["recommendation"]
+    assert advice["limited"] and rec["choice"] == "lower_resolution" and rec["output"] == expected
+    assert rec["expected_enlargement"] <= 2.5 + 1e-9 and rec["expected_sharp_height_share"] == pytest.approx(share)
+    keep = advice["alternatives"][0]
+    assert keep["expected_enlargement"] > 2.5 and "past the 2.5x limit" in keep["reason"]
+    assert "within the limit" not in keep["reason"] and "enlarged past the 2.5x limit" in advice["summary"]
+    lower = advise(*source, *expected, tracks=face())
+    assert not lower["limited"] and lower["sources"][0]["enlargement"] <= 2.5 + 1e-9
+    assert auto_gain(advice, lower)
+
+
+def test_a_crop_held_wide_by_missing_subject_evidence_is_not_a_resolution_problem():
+    """Review fix: without subject evidence the zoomfill window keeps 2/3 of the
+    source width (1.88x here), so a smaller delivery would show the same 35%."""
+    advice = advise(862, 360, 1080, 1920)
+    assert advice["sources"][0]["enlargement"] < 2.4 and advice["sources"][0]["sharp_height_share"] < .4
+    assert not advice["limited"] and advice["recommendation"]["choice"] == "none"
+    assert "subject or evidence limits" in advice["recommendation"]["reason"]
+    assert advise(862, 360, 1080, 1920, tracks=face())["limited"]
+
+
+def test_auto_keeps_the_size_when_the_lower_plan_shows_no_more_picture():
+    """Review fix: 640x360 reaches the limit at 1080x1920, but without subject
+    evidence its crop stays at 47% at 720x1280 too; auto must not lower it."""
+    first = advise(640, 360, 1080, 1920)
+    assert first["limited"] and first["recommendation"]["short_side"] == 720
+    second = advise(640, 360, 720, 1280)
+    assert second["sources"][0]["sharp_height_share"] < first["sources"][0]["sharp_height_share"] + .01
+    assert not auto_gain(first, second)
+    mark_auto_declined(first, second)
+    assert first["auto_declined"]["tried"] == [720, 1280]
+    assert "short_side auto kept 1080x1920" in first["summary"] and "subject evidence" in first["summary"]
+    with_subject = advise(640, 360, 720, 1280, tracks=face())
+    assert auto_gain(advise(640, 360, 1080, 1920, tracks=face()), with_subject)

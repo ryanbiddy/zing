@@ -204,7 +204,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     # default); 30 CFR is an explicit delivery choice, not inferred.
     from myzing.composition.aspects import dimensions
     from myzing.layout.framing import select_framing, place_captions
-    from myzing.layout.resolution import chosen_short_side, mark_auto_selected, resolution_advice
+    from myzing.layout.resolution import (auto_gain, chosen_short_side, mark_auto_declined, mark_auto_selected,
+                                          resolution_advice)
     from myzing.render.framing import display_dimensions
     source_dimensions, square_pixels, probe_notes = {}, set(), []
     subject_evidence = subject_evidence or {}
@@ -268,11 +269,16 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     clips, framing_notes, resolution = frame(width, height)
     if requested_side == "auto" and chosen_short_side(resolution, "auto") != min(width, height):
         # The brief asked Zing to lower the delivery size when a source is too
-        # small; re-plan at the recommended size and keep the evidence.
-        first = resolution
-        width, height = dimensions(brief.aspect, chosen_short_side(first, "auto"))
-        clips, framing_notes, resolution = frame(width, height)
-        mark_auto_selected(resolution, first)
+        # small. Re-plan at the recommended size and keep it only when the
+        # planned picture improves: subject evidence can hold a crop wider at
+        # any size, and then a smaller delivery only loses pixels.
+        first, trial = resolution, dimensions(brief.aspect, chosen_short_side(resolution, "auto"))
+        lowered = frame(*trial)
+        if auto_gain(first, lowered[2]):
+            (width, height), (clips, framing_notes, resolution) = trial, lowered
+            mark_auto_selected(resolution, first)
+        else:
+            mark_auto_declined(resolution, lowered[2])
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
     if source_dimensions:

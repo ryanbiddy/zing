@@ -272,17 +272,21 @@ actually uses. Example (an 862×360 Tears of Steel clip at 9:16):
 > Low-resolution source for 9:16: 862x360 source needs 5.33x to fill
 > 1080x1920 with a sharp picture; within the 2.5x limit the plan shows 42.8%
 > sharp height (zoomfill, 2.50x). Recommended: deliver 720x1280
-> (--short-side 720, or brief short_side 720 / "auto") for 70% sharp height
-> at 2.49x; or keep 1080x1920 with zoomfill/blurfill. Upscaling cannot
+> (--short-side 720, or brief short_side 720 / "auto") for up to 70% sharp
+> height at 2.49x; or keep 1080x1920 with zoomfill/blurfill. Upscaling cannot
 > recover detail.
 
 A source is resolution-limited when no framing at this size reaches its
 sharp target within the limit: 70% of the output height for sources wider
 than the output (the zoomfill target), the full height for same-aspect and
-narrower sources. A shortfall caused by subject or evidence-gap policy is not
-flagged. The recommendation is the largest short side (a multiple of 18, at
-least 360) that reaches the target without extra upscaling, with its expected
-share, enlargement, `--short-side` command and brief answer. Players enlarge
+narrower sources, and the plan's enlargement is at (or past) the limit. A
+shortfall caused by subject or evidence-gap policy (a crop held wider than
+the limit allows) is not flagged. The recommendation is the largest short
+side (a multiple of 18, at least 360) that reaches the target without extra
+upscaling; when the whole picture fitted to the width is already above the
+target (4:3 in 1:1, 3:4 in 9:16), it is the size at which that fit stays
+within the limit. It lists its expected share ("up to": geometry only),
+enlargement, `--short-side` command and brief answer. Players enlarge
 a 720×1280 upload to the screen, so on a phone it looks the same or softer
 up close; the trade is a larger sharp picture instead of blur bands. When
 that size would be below 360p the recommendation is to keep the size with
@@ -290,7 +294,11 @@ zoomfill/blurfill. Alternatives are listed in `alternatives`.
 
 Brief `short_side` (default 1080, omitted from saved briefs) chooses the
 delivery size for director plans and deliveries; `"auto"` re-plans an
-aspect at the recommended size only when its source is resolution-limited
-and records `auto_selected` (from, to, reason). With several sources the
+aspect at the recommended size only when its source is resolution-limited,
+keeps that size only when the planned sharp picture is larger (or an
+enlargement past the limit comes back within it), and records
+`auto_selected` (from, to, reason). Otherwise it keeps the size and records
+`auto_declined` (the tried size and its planned numbers): subject evidence,
+not resolution, held the crop. With several sources the
 lowest recommendation wins. Zing has no "enhance" filter: lanczos and
 sharpening change how enlargement looks, but no filter recovers detail.

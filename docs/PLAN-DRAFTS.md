@@ -86,7 +86,8 @@ transition approximations are currently reported as unapplied. Output uses
 full HD). Each plan's comparison entry has a `resolution` record; a
 low-resolution source puts its numbers and recommendation first in the
 plan warnings and the summary (see [FRAMING.md](FRAMING.md), "Low-resolution
-sources"). Brief `short_side: "auto"` plans at the recommended size.
+sources"). Brief `short_side: "auto"` plans at the recommended size when
+that plan shows more sharp picture, and otherwise keeps the size and says why.
 
 Source audio follows the clips. `none` adds no music or SFX; it cannot separate
 embedded sounds from source speech. Supplied audio files must be inventoried.
