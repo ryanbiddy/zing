@@ -160,6 +160,11 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
         results[aspect], resolution[aspect] = result, advice
     for result in results.values():
         result.warnings.extend(w for item in evidence.values() for w in item["warnings"])
+        # Composition schemas are shared: carry versioned detector evidence in
+        # the existing machine-readable warning convention, also in the report.
+        prefix = "zing.subject_analysis: "
+        result.warnings = [w for w in result.warnings if not w.startswith(prefix)]
+        result.warnings.append(prefix + json.dumps({"version": 1, "sources": evidence}, sort_keys=True))
     return results, {"version": 1, "sources": evidence, "framing": requested, "max_upscale": limit,
                      "short_side": short_side, "resolution": resolution}
 

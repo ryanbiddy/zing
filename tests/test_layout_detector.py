@@ -64,7 +64,8 @@ def test_doctor_layout_is_offline_and_actionable(tmp_path, monkeypatch):
     monkeypatch.setattr(doctor.metadata, "version", version)
     monkeypatch.setattr(detector, "load_cv2", lambda: pytest.fail("doctor imported native runtime"))
     check = doctor.check_layout()
-    assert not check.ok and check.fix == "zing layout fetch-model"
+    assert not check.ok and check.fix == "zing layout fetch-model; zing layout fetch-model --vision"
+    assert {r["name"] for r in check.data["vision_models"]} == {"person", "objects"}
     assert not check.data["network_used"]
 
 

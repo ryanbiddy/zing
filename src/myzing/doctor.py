@@ -755,9 +755,14 @@ def check_heic() -> Check:
 def check_layout() -> Check:
     """Offline metadata/cache probe; never import native runtimes in MCP status."""
     from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
+    from myzing.layout.vision_models import inventory
+
+    vision = inventory()
+    model_data = {"vision_models": vision, "network_used": False}
 
     if not _has_module("cv2"):
-        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed", fix=INSTALL_HINT)
+        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed; vision inference unavailable", fix=INSTALL_HINT,
+                     data=model_data)
     try:
         version = metadata.version("opencv-python-headless")
         conflicts = []
@@ -771,16 +776,18 @@ def check_layout() -> Check:
             return Check("layout", OPTIONAL, False,
                          f"OpenCV headless package {version}; conflicting wheels: {conflicts}",
                          fix="Remove GUI/contrib OpenCV wheels, then reinstall opencv-python-headless==4.13.0.92; "
-                             "checkout: uv sync --all-extras --reinstall-package opencv-python-headless")
+                             "checkout: uv sync --all-extras --reinstall-package opencv-python-headless", data=model_data)
         path = model_path()
         valid = verified_model(path)
     except (metadata.PackageNotFoundError, OSError) as exc:
-        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT)
+        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT, data=model_data)
     return Check("layout", OPTIONAL, valid,
                  f"OpenCV headless package {version}; YuNet model {'verified' if valid else 'missing or corrupt'}; "
-                 "native inference not probed",
-                 fix="" if valid else "zing layout fetch-model",
-                 data={"model": str(path), "model_verified": valid, "network_used": False,
+                 + "; ".join(f"{r['name']}: {'verified' if r['verified'] else 'missing/corrupt (HOG/saliency fallback)'}" for r in vision)
+                 + "; native inference not probed",
+                 fix=("" if valid else "zing layout fetch-model; ") +
+                     ("" if all(r["verified"] for r in vision) else "zing layout fetch-model --vision"),
+                 data={**model_data, "model": str(path), "model_verified": valid,
                        "runtime_probe": "package-metadata-only"})
 
 

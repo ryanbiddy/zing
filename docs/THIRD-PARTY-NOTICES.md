@@ -151,3 +151,37 @@ Whisper. Downloads require explicit consent and remain outside the repository.
 Small.en is English-only; large-v2 supports multiple languages. Zing recommends
 small.en for first-run download size and speed, with a caption-review warning.
 No new Python dependency is required; inference uses the existing `study` extra.
+
+
+## VIS1 optional person and object models
+
+Both model directories at OpenCV Zoo revision
+`f12e12798e8314f7c074a6656816c048dcc95b7a` explicitly license **all files** under
+Apache-2.0, including the ONNX weights. Zing adapts their preprocessing,
+anchor generation and output decoding; NMS receives xywh boxes and person
+inference retains multiple candidates. No weights are bundled.
+
+| Model | Bytes | SHA-256 | Grant |
+|---|---:|---|---|
+| MediaPipe person 2023mar | 11,990,159 | `47fd5599d6fa17608f03e0eb0ae230baa6e597d7e8a2c8199fe00abea55a701f` | [Directory README](https://github.com/opencv/opencv_zoo/blob/f12e12798e8314f7c074a6656816c048dcc95b7a/models/person_detection_mediapipe/README.md), [license](licenses/opencv-zoo-mediapipe-Apache-2.0.txt) |
+| YOLOX-S int8 2022nov | 9,079,452 | `01a3b0f400b30bc1e45230e991b2e499ab42622485a330021947333fbaf03935` | [Directory README](https://github.com/opencv/opencv_zoo/blob/f12e12798e8314f7c074a6656816c048dcc95b7a/models/object_detection_yolox/README.md), [license](licenses/opencv-zoo-yolox-Apache-2.0.txt) |
+
+YOLOX copyright (c) 2021-2022 Megvii Inc. All rights reserved. The Zoo demo
+credits Sri Siddarth Chakaravarthy (OpenCV, GSoC 2022). MediaPipe's detector
+was converted from BlazePose through PINTO's tools; these conversion tools
+are not shipped. Hashes and sizes were checked against the pinned Git LFS
+pointers. Downloads use Zing's HTTPS-only verified downloader.
+
+Inference uses `opencv-python-headless==4.13.0.92` from the existing `layout`
+extra. No new dependency, MediaPipe wheel, contrib wheel, Ultralytics code,
+or AGPL model is included. YuNet 2023mar remains unchanged.
+The wheel includes both upstream license texts and adaptation notices in
+`myzing/_data/docs/OPENCV-ZOO-LICENSES.md`.
+
+VIS1 ships three small CC0 recognition fixtures in `tests/fixtures/vision`:
+*Cat on couch* by Christoffer G. Thomsen, *Dog IMG 1057* by JasonAstros123,
+and a frame from Mvolz's *Korky Paul Introduction*. The
+[fixture manifest](../tests/fixtures/vision/manifest.json) records source
+pages, original/derived SHA-256 hashes, licenses and resizing steps.
+Only these three derivatives are bundled; acceptance videos and the six
+downloaded pet originals remain in the ignored workspace.

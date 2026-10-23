@@ -14,7 +14,8 @@ from myzing import storage
 from . import MemeError, PILLOW_HINT
 from .framing import FITS, REQUESTS, blur_background, fill_origin, photo_faces, photo_focus, resolve
 from .photo import load_photo
-from .subject import describe_estimate, estimate_subject, protected_regions, user_boxes
+from .subject import describe_detections, describe_estimate, estimate_subject, protected_regions, user_boxes
+from myzing.layout.vision import photo_detections
 from .score import viral_score
 from .templates import fetch_blank, get_template
 from .validate import check_texts
@@ -499,11 +500,13 @@ def protection_hits(layers: list[TextLayer], protection: list[dict], source_size
 
 
 KIND_NAMES = {"face": "a detected face", "subject_estimate": "the estimated subject",
+              "detected_subject": "a detected subject",
               "user": "a protect box", "center_heuristic": "the central-60% face heuristic"}
 
 
 def _kinds(hits) -> str:
-    names = list(dict.fromkeys(KIND_NAMES[region["kind"]] for _, region in hits))
+    names = list(dict.fromkeys(("a detected " + region["class_name"] if region["kind"] == "detected_subject"
+                               else KIND_NAMES[region["kind"]]) for _, region in hits))
     return ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
 
 
@@ -579,9 +582,10 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                  else None)
         # Photos: detected faces, a confident subject estimate and user boxes.
         # Templates are designed panels: only explicit protect boxes apply.
-        estimate = None if selected else estimate_subject(source)
+        recognized, detection_notes = ([], []) if selected else photo_detections(source)
+        estimate = None if selected or recognized else estimate_subject(source)
         protection = protected_regions(faces[0] if faces and faces[1] == "yunet" else [],
-                                       "yunet", estimate, protect)
+                                       "yunet", estimate, protect, recognized)
         if selected:
             protection = [r for r in protection if r["kind"] == "user"]
         attempts = [layout]
@@ -596,6 +600,11 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
             else:
                 if requested in ("auto", "fill"):
                     focus, basis, more = photo_focus(source, faces)
+                    if recognized and basis != "no_detector":
+                        from .framing import union
+                        boxes = [[d["box"][n] for n in ("x", "y", "width", "height")] for d in recognized]
+                        focus = union(([focus] if focus else []) + boxes)
+                        basis = "subject"  # retain the conservative 75% scenery rule
                 bar = caption_bar(texts, size, current_font) if current == "caption" else 0
                 fit, focus, resolved = resolve(requested, source.size, (w, h - bar), focus, basis)
                 more = more + resolved
@@ -609,13 +618,16 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                          "above the photo instead.")
         layout, font = current, current_font
         notes += more
+        notes += detection_notes
         if hits:
             notes.append(f"Text box {', '.join(str(i + 1) for i in sorted({i for i, _ in hits}))} overlaps "
                          f"{_kinds(hits)}; the requested {layout} layout was kept. Use --layout caption, "
                          "move it with --regions, or adjust --protect.")
         report = {"version": 1, "regions": protection, "text_clear": not hits,
+                  "detections": recognized,
                   "subject_estimate": estimate,
-                  "summary": (describe_estimate(estimate, not any(r["kind"] == "subject_estimate"
+                  "summary": (describe_detections(recognized) + (" Text is clear." if not hits else " Requested text overlaps protected regions.") if recognized else
+                              describe_estimate(estimate, not any(r["kind"] == "subject_estimate"
                                                                   for _, r in hits)) if not selected else
                               "Templates are designed panels: only explicit protect boxes are checked.")}
         result, reports = draw_composition(source, size=size, layers=layers, fit=fit,

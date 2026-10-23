@@ -79,8 +79,10 @@ def build_tracks(
             warnings.append("track_limited: face position outside the held interval is unknown")
         result.append(FaceTrack(f"face-{index + 1}", keys,
                                 min(d.confidence for _, _, d in chain), warnings,
-                                [TrackObservation(t, d.box, d.appearance) for _, t, d in chain]
-                                if any(d.appearance for _, _, d in chain) else []))
+                                [TrackObservation(t, d.box, d.appearance,
+                                                  d.confidence if d.class_name else None,
+                                                  d.class_name, d.detector) for _, t, d in chain]
+                                if any(d.appearance or d.class_name for _, _, d in chain) else []))
     return result
 
 

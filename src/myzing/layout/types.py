@@ -143,6 +143,8 @@ class Detection(Record):
     box: Box
     confidence: float
     appearance: list[float] = field(default_factory=list, metadata={"omit_default": True})
+    class_name: str = field(default="", metadata={"omit_default": True})
+    detector: str = field(default="", metadata={"omit_default": True})
     _nested: ClassVar = {"box": (Box, False)}
 
     def __post_init__(self) -> None:
@@ -157,11 +159,16 @@ class TrackObservation(Record):
     time: float
     box: Box
     appearance: list[float] = field(default_factory=list)
+    confidence: float | None = field(default=None, metadata={"omit_default": True})
+    class_name: str = field(default="", metadata={"omit_default": True})
+    detector: str = field(default="", metadata={"omit_default": True})
     _nested: ClassVar = {"box": (Box, False)}
 
     def __post_init__(self):
         super().__post_init__()
         number(self.time, "observation time")
+        if self.confidence is not None:
+            number(self.confidence, "observation confidence", 0, 1)
         for value in self.appearance:
             number(value, "appearance histogram", 0, 1)
 

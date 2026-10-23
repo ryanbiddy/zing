@@ -1,6 +1,6 @@
 """Local subject evidence, bounded reframing, and caption safety after the crop.
 
-YuNet faces take priority, followed by bundled HOG people. A stable compact
+YuNet faces and optional OpenCV DNN subjects precede bundled HOG fallback. A stable compact
 contrast component is only a saliency proxy (.25), not a semantic subject claim. Flat or
 unavailable imagery uses the center (confidence zero). Nothing is downloaded.
 """
@@ -19,6 +19,7 @@ from .crop_planner import select_framing, track_framing
 from .chooser import choose_layout, choose_stable, check_overlap
 from .detector import LayoutError, YuNetDetector, load_cv2
 from .tracking import build_tracks, appearance, stitch_tracks
+from .vision import optional_detectors
 from .types import (Box, CaptionEvent, Detection, FaceTrack, FrameDetections,
                     Keyframe, Mask, bounds, box_at, union)
 
@@ -170,7 +171,11 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
     except LayoutError as exc:
         detector = None
         warnings.append(f"Face detector unavailable: {exc}")
-    people_detector = PeopleDetector(cv2)
+    vision, model_notes = optional_detectors()
+    warnings.extend(model_notes)
+    people_detector = PeopleDetector(cv2) if not vision else None
+    if not vision:
+        warnings.append("Vision models unavailable: using bundled HOG people (uncalibrated confidence .5) and model-free saliency fallback.")
     directory.mkdir(parents=True, exist_ok=True)
     windows = used_windows([(0.0, duration)] if ranges is None else ranges, duration, 0 if ranges is None else RANGE_MARGIN)
     if not windows:
@@ -234,7 +239,9 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                 raise LayoutError(f"Source cuts plus regular samples exceed the {MAX_SAMPLES}-frame analysis limit")
             samples.sort()
             faces, people, salient = [], [], []
+            semantic = {}
             previous, previous_scene = None, None
+            last_objects = -math.inf
             for time, path in samples:
                 image = read_image(path)
                 # Temporal comparison resets at source cuts and between
@@ -243,11 +250,37 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                 if scene != previous_scene:
                     previous = None
                 detections = detector.detect(image) if detector else []
-                detections = [replace(d, appearance=appearance(image, d.box)) for d in detections]
-                persons = people_detector.detect(image)
+                detections = [replace(d, appearance=appearance(image, d.box), class_name="face", detector="yunet") for d in detections]
+                persons = ([replace(d, class_name="person", detector="hog-fallback")
+                            for d in people_detector.detect(image)] if people_detector else [])
+                recognized = []
+                for name, engine in list(vision.items()):
+                    # YOLOX runs at source cut/range starts and at most about 1 fps.
+                    if name == "objects" and scene == previous_scene and time - last_objects < 1 - 1e-6:
+                        continue
+                    try:
+                        found = engine.detect(image)
+                    except LayoutError as exc:
+                        warnings.append(f"{name} disabled after inference failure: {exc}; HOG/saliency fallback enabled.")
+                        del vision[name]
+                        if not vision and people_detector is None:
+                            people_detector = PeopleDetector(cv2)
+                            persons = [replace(d, class_name="person", detector="hog-fallback")
+                                       for d in people_detector.detect(image)]
+                        continue
+                    if name == "objects":
+                        last_objects = time
+                    recognized.extend(found)
+                    # Separate classes and detectors preserve every raw detection
+                    # and cannot join a dog to a nearby chair or suppress a face.
+                    for label in set(d.class_name for d in found):
+                        key = (name, label)
+                        semantic.setdefault(key, []).append(FrameDetections(time, [d for d in found if d.class_name == label]))
                 faces.append(FrameDetections(time, detections))
                 people.append(FrameDetections(time, persons))
-                salient.append(FrameDetections(time, [] if detections or persons else saliency_detection(image, cv2, previous)))
+                salient.append(FrameDetections(time, [] if detections or persons or recognized else
+                                               [replace(d, class_name="saliency", detector="contrast-fallback")
+                                                for d in saliency_detection(image, cv2, previous)]))
                 previous, previous_scene = image, scene
     except (LayoutError, OSError) as exc:
         diagnostic = re.sub(r" @ (?:0x)?[0-9a-fA-F]+", "", str(exc))
@@ -264,11 +297,15 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
             if high <= low:
                 continue
             label = f"{scene}" if len(windows) == 1 else f"{scene}.{part}"
-            for frames, prefix, margin in ((faces, "face", .025), (people, "person", .015), (salient, "saliency", .015)):
+            groups = [(faces, "face", .025), (people, "person", .015), (salient, "saliency", .015)]
+            groups += [(frames, ("person" if label == "person" else "object") + "-" + label.replace(" ", "_") + "-" + name, .015)
+                       for (name, label), frames in sorted(semantic.items())]
+            for frames, prefix, margin in groups:
                 measured = [frame for frame in frames if low <= frame.time < high]
                 if not measured:
                     continue
-                fragments = build_tracks(measured, duration=high, smooth_radius=1, margin=margin, max_gap=gap)
+                track_gap = max(1., gap) if prefix.endswith("-objects") else gap
+                fragments = build_tracks(measured, duration=high, smooth_radius=1, margin=margin, max_gap=track_gap)
                 if prefix == "face":
                     fragments = stitch_tracks(fragments)
                 for track in fragments:
@@ -281,7 +318,7 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                         keys.append(Keyframe(b, box_at(track.keyframes, b)))
                     tracks.append(replace(track, id=f"{prefix}-{label}-{track.id}", keyframes=keys))
     scope = "the whole source" if ranges is None else f"{len(windows)} used source range(s) plus {RANGE_MARGIN:g}s margins"
-    warnings.append(f"Subjects sampled at up to 2 fps over {scope}, plus measured source-cut starts: YuNet faces, bundled HOG people (confidence .5), then stable contrast objects; large clipped highlights and bright changing regions are suppressed. Saliency "
+    warnings.append(f"Subjects sampled at up to 2 fps over {scope}, plus measured source-cut starts: YuNet faces, available MediaPipe person head regions, YOLOX-S int8 classes at about 1 fps and cut starts; HOG people (confidence .5) when neither model is available, then stable contrast objects; large clipped highlights and bright changing regions are suppressed. Detector scores are uncalibrated. Saliency "
                     "(confidence .25), center for gaps (confidence 0). Saliency is not object recognition; missed subjects remain possible.")
     return tracks, warnings
 
@@ -827,6 +864,29 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 caption.text, caption.style = original_text, original_style
             else:
                 layout, caption.text, caption.style = best
+        # Full-body detections can leave no text-sized gap in the sharp
+        # picture. Reuse an existing padding band before declaring failure;
+        # keep the source/crop unchanged and never waive the overlap check.
+        semantic = any(o.detector in ("yolox-s-int8", "mediapipe-person-head")
+                       for tracks in subjects.values() for t in tracks for o in t.observations)
+        if not layout.overlap.safe and semantic and contents and all(b.width > .99 for b in contents):
+            for band_top, band_bottom, name in (
+                (max(b.bottom for b in contents), 1 - inset_bottom, "lower padding band"),
+                (inset_top, min(b.y for b in contents), "upper padding band"),
+            ):
+                if band_bottom <= band_top:
+                    continue
+                edges, band_masks = reserve(bounds(0, band_top, 1, band_bottom))
+                scales = tuple(s for s in (.85, .7, .55) if not phone or caption.style.size*s >= minimum_size)
+                alternative = choose_stable(event, obstacles, band_masks,
+                                            home=((edges[0] + edges[2])/2, edges[3]),
+                                            edge="bottom", aspect=plan.height/plan.width,
+                                            shrink_scales=scales)
+                if alternative is not None and alternative.overlap.safe:
+                    layout, masks, placement_region = alternative, band_masks, name
+                    layout = replace(layout, warnings=[*layout.warnings,
+                        "Detected subjects block the sharp picture; caption moved to an existing padding band."])
+                    break
         scope = (f"output crop; {placement_region}; aspect UI insets, swept supplied subject tracks and "
                  "visible-content bounds; detector recall unverified")
         if not obstacles:

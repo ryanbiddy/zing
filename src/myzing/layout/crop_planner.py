@@ -149,6 +149,7 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
                 box = union([box_at(t.keyframes, source) for t in selected])
                 cache[key] = (box.center[0] * framing.source_width, min(t.confidence for t in selected),
                               {"saliency" if t.id.startswith("saliency-") else
+                               "opencv-dnn" if t.id.startswith("object-") or "-objects-" in t.id or t.id.startswith("person-person-person-") else
                                "people-hog" if t.id.startswith("person-") else "yunet" for t in selected})
             else:
                 cache[key] = (framing.source_width / 2, 0, {"center/hold"})
