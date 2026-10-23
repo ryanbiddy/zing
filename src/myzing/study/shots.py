@@ -9,6 +9,9 @@ than asserted (shot-threshold audit, 2026-07-19, 344
 videos / 6,245 shots): the 0.6s-equivalent default would merge 13.5% of
 real short-form shots, and our 0.3s floor still merges 4.7% — so Zing's
 cut rate is a slight UNDER-count on fast-montage content, by construction.
+Match verification explicitly requests the two-frame floor: assembled edits
+can contain shorter measured source shots. Thresholds stay unchanged and
+plan/detector event disagreements remain disclosed by the match report.
 Other blind spots, recorded rather than hidden: gradual transitions
 under-detected, flash/strobe edits can over-cut. S2 upgrade path is transnetv2-pytorch behind this same
 function.
@@ -37,9 +40,11 @@ class ShotResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def detect_shots(media_path: Path, duration: float, fps: float) -> ShotResult:
+def detect_shots(media_path: Path, duration: float, fps: float, *, min_scene_len_s=MIN_SCENE_LEN_S) -> ShotResult:
     result = ShotResult()
-    min_scene_len_frames = max(2, round(MIN_SCENE_LEN_S * (fps or 30.0)))
+    if not math.isfinite(min_scene_len_s) or min_scene_len_s < 0:
+        raise ValueError("minimum shot duration must be finite and nonnegative")
+    min_scene_len_frames = max(2, round(min_scene_len_s * (fps or 30.0)))
     try:
         spans, version = _run_detector(str(media_path), min_scene_len_frames)
     except ImportError:
@@ -70,6 +75,11 @@ def detect_shots(media_path: Path, duration: float, fps: float) -> ShotResult:
         "adaptive_threshold": ADAPTIVE_THRESHOLD,
         "min_scene_len_s": MIN_SCENE_LEN_S,
     }
+    if min_scene_len_s != MIN_SCENE_LEN_S:
+        # Only an explicit floor (match verification) records the effective
+        # frame count; the generic study's breakdown stays byte-identical.
+        result.provenance.update(min_scene_len_s=min_scene_len_frames / (fps or 30.0),
+                                 min_scene_len_frames=min_scene_len_frames)
     return result
 
 

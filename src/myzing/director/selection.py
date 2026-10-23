@@ -11,6 +11,7 @@ from myzing.brief.models import Brief
 from myzing.contracts import Record
 from myzing.project.models import ProjectManifest
 from myzing.style_recipe import StyleRecipe
+from myzing.style_ranges import timing_band
 from myzing.timing import finite
 
 from .models import ClipStudy, shortage
@@ -63,7 +64,7 @@ def envelope(recipe: StyleRecipe) -> Envelope:
         min(set(positions), key=lambda p: (-positions.count(p), p)) if positions else "lower",
         {"pacing": "shot_durations" if durations else "unmeasured; 2s search default",
          "captions": "captions[]" if captions else "unmeasured; one word, original case, lower anchor",
-         "caption_events": len(captions)},
+         "caption_events": len(captions), "shot_durations": durations},
     )
 
 
@@ -190,7 +191,7 @@ class Candidate(Record):
         return self.content, self.start, self.end
 
 
-def candidates(studies, keep, forbidden, style, target):
+def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
     """Candidate trims stay within shot regions snapped out of spoken words.
 
     Must-keeps remain indivisible, even across original visual cuts. Full
@@ -200,6 +201,13 @@ def candidates(studies, keep, forbidden, style, target):
     required = [(key, a, b) for key, spans in sorted(keep.items()) for a, b in spans]
     available = 0.0
     pace = style.median_shot or 2.0
+    bands = [reference_band(value, style) for value in (style.first_cut, style.median_shot)]
+    lengths = {pace, style.first_cut or pace}
+    # Keep new trims one delivery frame inside the band: source times are
+    # fractional, but the director emits 30 fps plans.
+    if expand_timing:
+        lengths.update(value for b in bands if b["lower"] is not None
+                       for value in (b["lower"] + 1 / 30, b["upper"] - 1 / 30) if value > 0)
     for clip in studies:
         if clip.status != "ready":
             continue
@@ -243,6 +251,11 @@ def candidates(studies, keep, forbidden, style, target):
         for i, clause in enumerate(speech):
             low = speech[i - 1].end if i else 0.
             starts = {clause.start, max(low, clause.start - .12), low}
+            # A clause may contain natural picture cuts. Move its opening only
+            # within the preceding silence, placing that first cut in band.
+            if expand_timing:
+                starts.update(s.start - length for s in clip.shots for length in lengths
+                              if low <= s.start - length <= clause.start)
             for j in range(i, len(speech)):
                 last = speech[j]
                 if last.end - clause.start > target + .1:
@@ -250,10 +263,10 @@ def candidates(studies, keep, forbidden, style, target):
                 high = speech[j + 1].start if j + 1 < len(speech) else clip.duration
                 for start in starts:
                     stops = {last.end, min(high, last.end + .12), high}
-                    for length in (pace, target, style.first_cut or pace):
+                    for length in (*lengths, target):
                         if last.end <= start + length <= high:
                             stops.add(start + length)
-                    for stop in stops:
+                    for stop in sorted(stops):
                         add(start, stop)
         # These are selection boundaries; the match report still counts the
         # original, measured visual cuts inside each chosen trim.
@@ -282,9 +295,10 @@ def candidates(studies, keep, forbidden, style, target):
                     continue
                 pieces = [(max(a, begin), min(b, end)) for a, b in kept if overlaps((a, b), (begin, end))]
                 words = [w for w in clip.words if w.start >= begin - EPS and w.end <= end + EPS]
-                starts = sorted({begin, *(w.start for w in words), *(a for a, _ in pieces)})
+                starts = sorted({begin, *(w.start for w in words), *(a for a, _ in pieces),
+                                 *(end - length for length in lengths if expand_timing and begin <= end - length < end)})
                 ends = sorted({end, *(w.end for w in words), *(b for _, b in pieces)})
-                desired = {pace, style.first_cut or pace, target % pace or pace, target}
+                desired = {*lengths, target % pace or pace, target}
                 for start in starts:
                     stops = {end, *(b for _, b in pieces if b > start)}
                     for length in desired:
@@ -348,8 +362,7 @@ def first_caption(sequence):
     return None
 
 
-def different(a, b, target, pace):
-    """An opening must change content, or choices must change substantial footage."""
+def different_opening(a, b):
     x, y = a[0], b[0]
     opening_overlap = (max(0, min(x.end, y.end) - max(x.start, y.start))
                        if x.content == y.content else 0)
@@ -357,13 +370,40 @@ def different(a, b, target, pace):
         if (x.content != y.content or x.shot != y.shot or
                 (len(tokens(x.text)) >= 2 and len(tokens(y.text)) >= 2 and tokens(x.text) != tokens(y.text))):
             return True
+    return False
+
+
+def different(a, b, target, pace):
+    """An opening must change content, or choices must change substantial footage."""
+    if different_opening(a, b):
+        return True
     common = sum(max(0, min(x.end, y.end) - max(x.start, y.start))
                  for x in a for y in b if x.content == y.content)
     changed = max(sum(c.duration for c in a), sum(c.duration for c in b)) - common
     return changed >= max(1.0, pace, target * .2) - EPS
 
 
-def choose(pool, required, studies, style, target, fps, seed, *, allow_reordering=False):
+def reference_band(target, style):
+    """Bands come only from measured reference shots.
+
+    A studio pace preference (no reference) stays a search target; it is
+    never presented or enforced as a reference band.
+    """
+    durations = style.basis.get("shot_durations", [])
+    return timing_band(target if durations else None, durations)
+
+
+def band_distance(value, band):
+    """Seconds outside a measured band; missing cuts cannot satisfy a target."""
+    if band["lower"] is None:
+        return 0.0
+    if value is None:
+        return float("inf")
+    return max(0.0, band["lower"] - value, value - band["upper"])
+
+
+def choose(pool, required, studies, style, target, fps, seed, *, allow_reordering=False,
+           timing_evidence=None, prefer_bands=True, preferred_a=None):
     """Beam search, with no repeats/overlapping source use and stable tie breaks.
 
     Failure is explicitly bounded-search failure, not a proof that no possible
@@ -373,6 +413,17 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
     needed = (1 << len(required)) - 1
     pace = style.median_shot or 2.0
     by_id = {c.asset_id: c for c in studies}
+    pace_band = reference_band(style.median_shot, style)
+    opening_band = reference_band(style.first_cut, style)
+
+    def timing(seq, *, partial=False):
+        durations = shot_lengths(seq, studies)
+        first = durations[0] if partial or len(durations) > 1 else None
+        return (band_distance(first, opening_band), band_distance(median(durations), pace_band))
+
+    def timing_rank(seq, *, partial=False):
+        distances = timing(seq, partial=partial)
+        return (sum(d > EPS for d in distances), sum(distances))
 
     def tie(c):
         return hashlib.sha256(f"{seed}:{c.identity}".encode()).hexdigest()
@@ -397,6 +448,9 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
         return errors
 
     complete = {}
+    if preferred_a is not None:
+        indices = tuple(pool.index(c) for c in preferred_a)
+        complete[(indices[0], tuple(sorted(indices)))] = preferred_a
     bucket_count = len({(c.content, c.shot) for c in pool})
     # All openings compete; distinct opening buckets stop one appealing line
     # consuming the entire beam before B or C has an alternative.
@@ -421,9 +475,12 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                 remaining_keep = sum(b - a for n, (_, a, b) in enumerate(required) if not mask & (1 << n))
                 seq = [pool[i] for i in indices]
                 error = metrics(seq)
+                opening_distance, pace_distance = timing(seq, partial=True)
+                band_rank = (opening_distance > EPS, opening_distance, pace_distance > EPS, pace_distance)
                 return (max(0, duration + remaining_keep - target - tolerance),
                         (needed ^ (mask & needed)).bit_count(),
-                        sum(c.dangling_clauses for c in seq), sum(error), abs(target - duration), editorial(seq[0], mode), indices)
+                        sum(c.dangling_clauses for c in seq), *(band_rank if prefer_bands else ()),
+                        sum(error), abs(target - duration), editorial(seq[0], mode), indices)
 
             live.sort(key=rank)
             counts, selected = {}, []
@@ -465,11 +522,16 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
     def final_rank(seq, mode):
         errors = metrics(seq)
         duration = sum(c.duration for c in seq)
-        # Prefer every release-gate match before editorial heuristics.
-        gates = (errors[0] > .1 + EPS,
-                 errors[1] * max(tolerance, style.first_cut or 0) > tolerance + EPS,
-                 errors[2] > 1 / fps + EPS)
-        return (sum(c.dangling_clauses for c in seq), sum(gates), sum(errors),
+        if not prefer_bands:
+            gates = (errors[0] * pace > pace_band["tolerance"] + EPS,
+                     errors[1] * max(tolerance, style.first_cut or 0) > opening_band["tolerance"] + EPS,
+                     errors[2] > 1 / fps + EPS)
+            prefix = (sum(gates),)
+        else:
+            prefix = (*timing_rank(seq), errors[2] > 1 / fps + EPS)
+        # Timing feasibility precedes caption onset and opening variety. When
+        # no in-band choice survives, minimize distance from the bands first.
+        return (sum(c.dangling_clauses for c in seq), *prefix, sum(errors),
                 duration if mode == "C" else abs(target - duration),
                 editorial(seq[0], mode), sum(c.word_count for c in seq) if mode == "C" else 0,
                 tuple(c.identity for c in seq))
@@ -478,19 +540,98 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
     # A choices and require pairwise meaningful differences for the whole trio.
     def trio(options):
         ranked = {m: sorted(options, key=lambda s: final_rank(s, m)) for m in "ABC"}
+        if preferred_a is not None and preferred_a in ranked["A"]:
+            ranked["A"].remove(preferred_a)
+            ranked["A"].insert(0, preferred_a)
+        prefix = 4 if prefer_bands else 2
+        def opening_changed(a, b):
+            return different_opening(a, b) if prefer_bands else different([a[0]], [b[0]], target, pace)
         for a in ranked["A"][:BEAM]:
-            alternatives = sorted(ranked["B"], key=lambda s: (*final_rank(s, "B")[:2],
-                                  not different([a[0]], [s[0]], target, pace), final_rank(s, "B")))
+            alternatives = sorted(ranked["B"], key=lambda s: (*final_rank(s, "B")[:prefix],
+                                  not opening_changed(a, s), final_rank(s, "B")))
             for b in (s for s in alternatives if different(a, s, target, pace)):
-                concise = sorted(ranked["C"], key=lambda s: (*final_rank(s, "C")[:2],
-                                 not (different([a[0]], [s[0]], target, pace) and
-                                      different([b[0]], [s[0]], target, pace)), final_rank(s, "C")))
+                concise = sorted(ranked["C"], key=lambda s: (*final_rank(s, "C")[:prefix],
+                                 not (opening_changed(a, s) and opening_changed(b, s)), final_rank(s, "C")))
                 c = next((s for s in concise if different(a, s, target, pace) and different(b, s, target, pace)), None)
                 if c is not None:
                     return dict(zip("ABC", (a, b, c)))
     clean = [seq for seq in complete.values() if not any(c.dangling_clauses for c in seq)]
-    result = trio(clean) or trio(complete.values())
+    in_band = [seq for seq in clean if timing_rank(seq)[0] == 0]
+    result = (trio(in_band) if prefer_bands else None) or trio(clean) or trio(complete.values())
     if result is not None:
+        if timing_evidence is not None:
+            examined = clean or list(complete.values())
+            closest = min(timing_rank(seq) for seq in examined)
+            search = {"feasible_edits_examined": len(examined), "jointly_in_band_edits": len(in_band),
+                      "closest_violations": closest[0],
+                      # JSON has no infinity: a missing first cut is an unbounded distance.
+                      "closest_seconds_outside": closest[1] if closest[1] != float("inf") else None,
+                      "scope": "completed edits in the bounded search"}
+            for label, seq in result.items():
+                timing_evidence[label] = selection_timing_evidence(seq, studies, opening_band, pace_band, search)
         return result
     shortage("distinct_edits", "Studied footage supports fewer than three meaningfully distinct feasible choices in this search.",
              "Film an alternate opening line and a separate visual shot near the reference pace, or relax must-keeps/forbidden spans.")
+
+
+def selection_timing_evidence(sequence, studies, opening_band, pace_band, search, *, selected=None):
+    """Disclose bounded-search evidence for this edit without claiming footage impossibility.
+
+    The director calls this again on the final edit after music snapping, so
+    every planned value and reason describes the edit that is rendered.
+    ``selected`` holds the values chosen before snapping, when they differ.
+    """
+    lengths = shot_lengths(sequence, studies)
+    first = sequence[0]
+    study = next(c for c in studies if c.asset_id == first.asset_id)
+    internal = [s.start for s in study.shots if first.start + EPS < s.start < first.end - EPS]
+    protected = [s for s in clauses(study.words) if overlaps((first.start, first.end), (s.start, s.end))]
+    values = {"first_cut_seconds": (lengths[0] if len(lengths) > 1 else None, opening_band),
+              "median_shot_seconds": (median(lengths), pace_band)}
+    distances = {name: band_distance(value, band) for name, (value, band) in values.items()}
+    violations, outside = sum(d > EPS for d in distances.values()), sum(distances.values())
+    best = search["closest_seconds_outside"]
+    closest = (violations, outside) <= (search["closest_violations"], float("inf") if best is None else best + EPS)
+    result = {}
+    for name, (value, band) in values.items():
+        distance = distances[name]
+        reason = ("This edit is inside the reference band." if band["lower"] is not None
+                  else "Reference timing is unmeasured; no band constraint applied.")
+        if distance > EPS:
+            if name == "first_cut_seconds":
+                event = (f"the opening reaches its natural cut at source {internal[0]:.3f} s, "
+                         f"{internal[0] - first.start:.3f} s into the edit" if internal else
+                         f"the opening's whole selected span runs {first.duration:.3f} s before an edit" if value is not None
+                         else "the selected footage has no natural or edit cut in this completed draft")
+                speech = ("; protected clauses at source " + ", ".join(f"{s.start:.3f}-{s.end:.3f} s" for s in protected)
+                          + " must remain whole" if protected else "")
+                reason = f"Outside band because {event}{speech}."
+            else:
+                reason = (f"Outside band because the selected footage supplies {len(lengths)} natural/edit shots "
+                          f"with a {median(lengths):.3f} s median under the whole-clause, source-order and duration constraints.")
+            if closest:
+                reason += " No completed edit in the bounded search is closer to both bands."
+            elif search["jointly_in_band_edits"]:
+                reason += (f" {search['jointly_in_band_edits']} completed edits inside both bands were found, but "
+                           "they did not form three meaningfully distinct drafts; this edit completes the trio.")
+            else:
+                reason += (f" Completed edits closer to the bands exist ({search['closest_violations']} timing "
+                           f"dimension(s), {'an unbounded distance' if best is None else f'{best:.3f} s'} outside in total), but they did "
+                           "not form three meaningfully distinct drafts; this edit completes the trio.")
+            reason += " This does not prove that every possible edit of the footage is outside band."
+        entry = {"band": band, "planned": value,
+                 "distance_outside_seconds": distance if distance != float("inf") else None,
+                 "feasible_edits_examined": search["feasible_edits_examined"],
+                 "jointly_in_band_edits": search["jointly_in_band_edits"],
+                 "closest_in_search": closest, "search": dict(search),
+                 "reason": reason, "scope": search["scope"]}
+        before = (selected or {}).get(name)
+        if selected is not None and name in selected and (
+                (before is None) != (value is None) or
+                (before is not None and value is not None and abs(before - value) > EPS)):
+            entry["selected_before_music_seconds"] = before
+            entry["reason"] = (reason + " Music cut snapping moved it from "
+                               + ("no cut" if before is None else f"{before:.3f} s") + " to "
+                               + ("no cut" if value is None else f"{value:.3f} s") + ".")
+        result[name] = entry
+    return result

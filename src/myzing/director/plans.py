@@ -17,9 +17,10 @@ from myzing.layout.types import EventLayout, Keyframe
 from myzing.project.api import hash_file, resolve_path
 from myzing.project.models import Rational
 from myzing.timing import prepare_words, transform_word
+from myzing.style_ranges import timing_band, timing_distance
 
 from .models import shortage
-from .selection import EPS, first_caption, shot_lengths, tokens
+from .selection import EPS, first_caption, reference_band, shot_lengths, tokens
 from .continuity import clauses, score
 
 REPORT_PREFIX = "P17 planning evidence: "
@@ -174,12 +175,14 @@ def audio_for(brief, manifest, root, duration, first_cut, *, include_music=True)
 
 
 def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden,
-              subject_evidence=None, music_cache=None, caption_mode=None):
+              subject_evidence=None, music_cache=None, timing_selection=None, caption_mode=None):
     from myzing.music.planning import plan_music
     from myzing.audio.media import AudioError
     try:
         sequence, music_assets, music_tracks, music_evidence = plan_music(
-            sequence, studies, brief, manifest, root, style.median_shot, required, forbidden, music_cache)
+            sequence, studies, brief, manifest, root, style.median_shot, required, forbidden, music_cache,
+            timing_bands={"first_cut": reference_band(style.first_cut, style),
+                          "shot_pace": reference_band(style.median_shot, style)})
     except AudioError as exc:
         shortage("music_analysis", str(exc), "Check the local track and zing doctor; install myzing[audio] for music analysis.")
     lookup = {s.asset_id: s for s in studies}
@@ -296,9 +299,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         from myzing.music.models import attach
         attach(plan, music_evidence)
     numbers = {
-        "median_shot_seconds": metric(style.median_shot, median(durations), (style.median_shot or 0) * .1,
+        "median_shot_seconds": metric(style.median_shot, median(durations), timing_band(style.median_shot, style.basis.get("shot_durations", []))["tolerance"],
                                       "Whole-word cuts, required moments and available shot choices constrain the selected edit."),
-        "first_cut_seconds": metric(style.first_cut, first_cut, 2 / 30,
+        "first_cut_seconds": metric(style.first_cut, first_cut, timing_band(style.first_cut, style.basis.get("shot_durations", []))["tolerance"],
                                     "A word-safe opening with this timing was not selected by the bounded search."),
         "first_caption_seconds": metric(style.first_caption, first_caption(sequence), 1 / 30,
                                         "Caption onset follows complete source words; words are not retimed to fake a match."),
@@ -312,6 +315,23 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         "target_length_seconds": metric(brief.target_length_seconds, cursor, 2 / 30,
                                         "The brief supplies the duration; two output frames are allowed."),
     }
+    if timing_selection:
+        # Selection evidence was captured before music snapping, which can move
+        # a join toward or away from a band. Describe the final edit only.
+        from .selection import selection_timing_evidence
+        timing_selection = selection_timing_evidence(
+            sequence, studies, reference_band(style.first_cut, style), reference_band(style.median_shot, style),
+            next(iter(timing_selection.values()))["search"],
+            selected={key: value["planned"] for key, value in timing_selection.items()})
+    for key in ("median_shot_seconds", "first_cut_seconds"):
+        item = numbers[key]
+        item["band"] = reference_band(item["target"], style)
+        if item["band"]["lower"] is None:
+            continue  # Unmeasured, or a studio preference: there is no reference band to cite.
+        if timing_selection and key in timing_selection:
+            item["selection"] = timing_selection[key]
+            item["reason"] = timing_selection[key]["reason"]
+        item["reason"] = timing_distance(item["planned"], item["band"]) + " " + item["reason"]
     resolution_note = []
     if resolution["limited"] or resolution.get("auto_selected"):
         resolution_note = [resolution["summary"]]

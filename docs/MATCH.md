@@ -58,11 +58,105 @@ are disclosed. Unsupported audio instructions remain named render/plan failures;
 match does not silently remove supplied music or SFX. Font candidates are pinned
 substitutes. Missing font candidates use disclosed system defaults.
 
-Reports grade shot pace, first cut, caption timing/placement and color from the
-rendered file as `pass`, `approximate`, or `miss`. Sparse OCR cannot certify
-one-frame switches or ASR accuracy. Color compares unpaired scene distributions,
-so it requires human review and makes no paired Delta E or original-LUT claim.
+Reports compare the reference, the selected plan and the rendered file separately.
+`pass` means the measured dimension is inside its band; `approximate` remains
+unverified. `miss` names a difference outside the band. Two further statuses keep
+measurement limits and footage constraints visible:
+
+- `detector_disagreement`: the source-mapped plan meets the band, but the rendered
+  detector disagrees about timing or cut events. Both numbers and unmatched event
+  times are saved. This is neither a style miss nor a certified pass.
+- `not_applicable`: the selected footage cannot support this target while keeping
+  protected speech clauses whole. The report says **not applicable for this
+  footage**, retains the target and measurements, and explains the constraint.
+  A different opening may still be possible; this is not proof that the entire
+  clip pool is unsuitable.
+
+Shot pace and first cut use reference-derived ranges. Their half-width is half
+the reference shot-length IQR plus the larger of 0.25 seconds or 20% of the target.
+Quartiles use inclusive linear interpolation; one shot supplies zero spread.
+The half-width is capped at the larger of 0.25 seconds or half the target, so
+for targets of 0.5 s or more a band never extends past 0.5–1.5 times the target.
+Shot lengths are heavy-tailed: without the cap, a montage mixing 0.4 s cuts
+with 6 s holds had a 0–2.2 s band around its 1 s median, which passed drafts
+cut at a third or double the reference pace. Below a 0.5 s target the 0.25 s
+floor applies and the lower edge stops at zero. This is a documented editorial policy, not a
+perceptual confidence interval. Reports say how many seconds the observation is
+shorter or longer than the band. A continuous reference has no first-cut timing
+target; the presence of cuts is compared separately. Missing detection stays
+unmeasured.
+
+For example, the NASA audit reference has a 0.800 s median and a 0.267 s IQR:
+its pace and first-cut bands are 0.4165–1.1835 s. A 0.467 s opening is inside;
+a 3.057 s opening is outside. If that longer opening is a protected continuous
+speech clause with no natural cut inside the band, first cut is not applicable.
+Pace abstains only when a majority of the selected shots contain uninterrupted
+protected clauses longer than the band's upper edge. Speech over existing
+montage cuts is judged shot by shot: it remains applicable when those picture
+cuts keep each speech piece inside the band, and abstains only when the pieces
+between them are themselves longer than the upper edge. Speech elsewhere in a
+draft cannot excuse a non-speech opening.
+
+The director constrains both openings and pace with these same bands during
+candidate generation, beam pruning and selection of the three drafts. It tries
+a complete in-band trio before considering fallbacks. New trims can move through
+silence around natural cuts, but cannot split protected clauses. New band-edge
+trims sit one 30 fps delivery frame inside the band to allow for frame rounding.
+An initial A that already honors both bands is retained when the expanded search
+can complete a distinct in-band trio around it.
+Caption timing and opening variety cannot outweigh timing feasibility. Music
+snapping also rejects trims that move either timing dimension farther outside
+its band.
+
+If the bounded search cannot supply three distinct in-band edits, it ranks
+completed edits by the number of timing violations, then total seconds outside
+the bands. Selection evidence records the distances, completed choices examined,
+and the number of jointly in-band choices found. A fallback says **outside band
+because** and identifies its natural cut or whole-clause/duration constraint.
+It says whether the draft is the closest completed edit found, or whether closer
+edits existed but could not form three meaningfully distinct drafts. Planned
+values and reasons describe the final edit after music snapping; when snapping
+moved a timing value, the reason gives both numbers.
+This is a search result, not proof that no human edit of the footage could work.
+The reason appears in the match JSON and `comparison.md`, including when the
+dimension is not applicable for the selected footage.
+
+Frame accuracy remains a separate renderer check. Match's rendered-video study uses a two-frame minimum
+shot length, keeping the adaptive detector's content and ratio thresholds.
+The generic study default remains 0.3 s for unknown media. That default can
+suppress legitimate 5–7-frame shots when verifying an assembled edit; it caused
+the audit's 0.800 s plan to measure 0.967 s. A lower floor can also expose false
+events, so matching medians alone never establish detector agreement. The
+two-frame event-alignment allowance is solely a detector comparison precision,
+not the old first-cut style window.
+
+Color sampling crops the sharp picture **before downsampling**, using each
+clip's framing geometry and output frame interval. It excludes blurfill and
+zoomfill bands, fit letterboxing/pillarboxing, and source mattes recorded in
+the framing bounds. Cropped pictures fill their own measurement area. Overlaps
+use the common sharp rectangle; an empty intersection is a disclosed sample gap.
+Edges next to a recorded matte step two pixels inside it, because scaling and
+4:2:0 chroma blend the matte into the neighboring rows. If every sample is a
+gap, color is unmeasured (`approximate`, with that reason); the delivery is not
+failed and nothing passes.
+Reports record each region and sample rectangle. Unrecorded baked-in bars cannot
+be inferred from a plan that declares the whole source as picture.
+
+Sparse OCR cannot certify one-frame switches or ASR accuracy. Color compares
+unpaired scene distributions with the unchanged 0.15 maximum luma-percentile
+delta, so it requires human review and makes no paired Delta E or original-LUT claim.
 “Ready” means playable and reported; it does not mean every style dimension passed.
+
+`comparison.md` includes abstentions, disagreements and their reasons. JSON has
+`not_applicable_style_dimensions`, `detector_disagreements` and `style_notes` for
+finish-screen consumers; only `miss` enters `failed_style_dimensions`.
+`zing studio` ranks drafts by measured misses, then measured passes. Not
+applicable, detector disagreement, approximate and unmeasured color count as
+neither. Its finish screen prints one line per draft naming them (for example
+`Draft B (16:9, 1:1): shot pace detector disagreement.`), and when the
+recommended draft has any, the "Start with draft X because ..." line lists them
+as not passes. A studio run without a reference uses its pace choice as a search
+preference, never as a reference band.
 
 Over MCP, call `match_start(reference, clips, out, answers=..., resume=...)` and
 poll `match_status(project)`. URL consent is `allow_download=true`. Results contain

@@ -48,6 +48,18 @@ def test_min_scene_len_scales_with_fps(monkeypatch):
     assert fake.calls  # the assertion inside fake ran
 
 
+
+@pytest.mark.parametrize("fps", [24.0, 25.0, 30000 / 1001, 30.0])
+def test_generic_study_provenance_is_unchanged_by_the_verification_floor(monkeypatch, fps):
+    """zing study output stays byte-identical; only an explicit floor records frames."""
+    monkeypatch.setattr(shots, "_run_detector", fake_detector([(0.0, 5.0)]))
+    default = shots.detect_shots(Path("m.mp4"), duration=5.0, fps=fps)
+    assert default.provenance == {"shot_detector": "scenedetect-0.7 AdaptiveDetector",
+                                  "adaptive_threshold": shots.ADAPTIVE_THRESHOLD, "min_scene_len_s": 0.3}
+    verification = shots.detect_shots(Path("m.mp4"), duration=5.0, fps=fps, min_scene_len_s=0)
+    assert verification.provenance["min_scene_len_frames"] == 2
+    assert verification.provenance["min_scene_len_s"] == pytest.approx(2 / fps)
+
 def test_no_cuts_yields_single_full_shot(monkeypatch):
     monkeypatch.setattr(shots, "_run_detector", fake_detector([]))
     result = shots.detect_shots(Path("m.mp4"), duration=12.5, fps=30.0)

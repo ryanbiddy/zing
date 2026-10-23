@@ -48,7 +48,7 @@ def quality_warnings(stats):
     return warnings
 
 
-def measure_video(path, *, count=12, shots=None):
+def measure_video(path, *, count=12, shots=None, region_at=None):
     path = local_video(path)
     duration, source_width, source_height, metadata = probe(path)
     warnings = check_color_space(metadata)
@@ -58,7 +58,17 @@ def measure_video(path, *, count=12, shots=None):
     samples, frames, pixels = [], [], []
     for timestamp, shot_index in plan:
         try:
-            rgb = frame(path, timestamp, width, height)
+            if region_at is None:
+                rgb = frame(path, timestamp, width, height)
+            else:
+                region = region_at(timestamp)
+                if region is None:
+                    raise ColorError("No common sharp picture area at this time.")
+                x, y, w, h = region
+                if min(x, y) < 0 or min(w, h) <= 0 or x + w > source_width or y + h > source_height:
+                    raise ColorError("Framing-plan picture region lies outside the rendered frame.")
+                scale = 160 / max(w, h)
+                rgb = frame(path, timestamp, max(1, round(w * scale)), max(1, round(h * scale)), region=region)
         except ColorError as exc:
             warnings.append(f"Sample {timestamp:.6f}s unavailable: {exc}")
             continue
@@ -89,6 +99,8 @@ def measure_video(path, *, count=12, shots=None):
         confidence = min(confidence, 0.2)
     if len(samples) != len(plan) or (shots and len(shot_indices) != len(shots)):
         warnings.append("Sampling coverage is incomplete; unsampled shots may have a different grade.")
+    if region_at is not None:
+        warnings.append("Only sharp picture regions from framing geometry were measured; fill and matte bands were excluded before downsampling.")
     warnings.append("Frame timestamps are requested seek positions; sparse samples cannot establish full-frame coverage.")
     measurement = Measurement(str(path), sha256(path), duration, samples, aggregate,
                               coverage, confidence, metadata, list(dict.fromkeys(warnings)))
