@@ -93,13 +93,15 @@ word, and recovers over `duck_release_seconds` (0.8 s) after the last word.
 A pause releases only when the bed can recover and stay up before the next
 pre-duck. The gap must be at least `duck_hold_seconds` (0.8 s) and at least
 attack + release + `duck_plateau_seconds` (0.3 s), which is 1.3 s with the
-defaults. Shorter clause and sentence gaps stay ducked. Under the old
-hold-only rule, a 0.84 s gap released, lifted the bed 8.4 dB for about half a
-second and ducked it again; that is pumping. The edges follow the same idea.
-When the first word comes within max(hold, attack + plateau) of the edit
-start, the bed starts ducked and its 0.15 s fade-in rises only to the ducked
-level. When the last word ends within max(hold, release + plateau) of the
-edit end, the bed stays ducked into its fade. These follow the
+defaults; a gap of exactly 1.3 s releases. Shorter clause and sentence gaps
+stay ducked. Under the old hold-only rule, a 0.84 s gap released, lifted the
+bed 8.4 dB for about half a second and ducked it again; that is pumping. The
+edges follow the same at-least rule. When the first word comes less than
+max(hold, attack + plateau) after the edit start (0.8 s by default), the bed
+starts ducked and its 0.15 s fade-in rises only to the ducked level. When the
+last word ends less than max(hold, release + plateau) before the edit end
+(1.1 s), the bed stays ducked into its fade. A lead-in or tail at least that
+long plays at the pause level. These follow the
 slow-recovery ducking practice in
 [the mix research](taste/TRANSITIONS-AND-MIX.md) (P15/P17: down within about
 200 ms, back over 500 ms or more, no pumping between phrases). All five
@@ -120,12 +122,34 @@ per-aspect framing splits keep them), and the renderer applies them to each
 clip's source audio. Each quieter recording is raised toward the loudest
 recording's speech, by at most 18 dB. Gains are per source asset: two
 sentences of one recording keep their natural difference, and a jump cut
-inside it gets no level step. If that static gain would push the clip's peaks more
-than 3 dB past the −2 dBFS limiter, a 4:1 peak compressor (5 ms attack, 120 ms
-release) follows the gain, with its threshold 6 dB above the target speech
-level; the limiter catches what remains. The gain covers the whole clip,
-ambience included, as an editor's clip gain would. The plan warns when it
-compresses a clip (listen for pumping or raised room noise) or caps the boost.
+inside it gets no level step. The speech level is gated loudness over the
+recording's clause windows, so sound between clauses does not count, but
+sound under the words does: in a generated test, music under a −27 LUFS voice
+read 7.4 LU louder, and that clip would be raised 7.4 dB too little. If that
+static gain would push the recording's peaks more than 3 dB past the −2 dBFS
+limiter, a 4:1 peak compressor (5 ms attack, 120 ms release) follows the
+gain, with its threshold 6 dB above the target speech level and never above
+−2 dBFS (hotter speech would put it over full scale). The peak covers every
+clip of the recording, speech-free trims included: a slam in a B-roll trim is
+raised too. Sounds sharper than the 5 ms attack still reach the final
+limiter. In a generated test a −3.5 dBFS slam raised 15 dB took about 9 dB of
+limiting with the compressor (12.5 dB without it), and the plan says so when
+the raised peak exceeds the limiter by more than 12 dB. The gain covers the
+whole clip, ambience included, as an editor's clip gain would, so the room
+noise rises by the same amount: a generated −55 dBFS floor raised 14.3 dB sat
+15 dB above the loud clip's floor and about 5 dB under the ducked bed. The
+plan warns when it compresses a clip (listen for pumping or raised room
+noise) or caps the boost.
+
+Dialogue gains belong to the music mix they were planned with. The director
+plans them only for a speech-led edit with a supplied music track; a
+music-free edit is never matched. The renderer applies them only while that
+track is in the plan. If the music track is removed by hand, the clips keep
+their recorded levels and the render warns that the gains were not applied.
+With the track present, the gains need the planned clip timeline even when
+the bed is not ducked: a changed timeline would raise the wrong clip, so the
+render is refused with a re-plan hint (clear `dialogue_gains` to keep the
+edit without them).
 Where the source changes at a hard cut in a speech-led edit, each clip's own
 audio fades over its speech-free edge: out over at most 0.3 s before the cut,
 in over at most 0.1 s after it, never reaching a known word. A clip's score or
@@ -136,7 +160,16 @@ Whatever spread remains above 6 LU after that goes to the bed. The director
 records `bed_gain_points` (`[seconds, dB <= 0]` pairs), which the renderer
 adds to the duck envelope. A level change moves under the louder voice, where
 speech masks it: a rise starts at the louder clip's first word and a drop ends
-at its last, each over a 1.0 s raised cosine. The first pass offsets each clip
+at its last, each over a raised cosine of up to 1.0 s. A change stays inside
+one duck passage, so it never adds to a pre-duck or a recovery; ramps never
+overlap or run past the edit end; and no change is faster than the default
+pre-duck (0.022 s per dB, so 24 dB takes at least 0.53 s). A rise is made only
+when the louder clip also has room for the drop back down and a 0.3 s
+plateau. Without room, a rise is skipped (the louder clip sits further over a
+lower bed) and a drop starts at the first room after the cut, under the
+quieter clip. Short alternating clips therefore keep the lower bed instead
+of pumping it, and the planned clause report shows what that costs. Evidence
+edited by hand must keep the same slope; a faster change is rejected. The first pass offsets each clip
 by its remaining speech level against the loudest clip. A second pass centres
 each clip's planned clauses on 21 LU, so the music's own level changes are
 accounted for. The track gain carries the loudest wanted bed, because the
@@ -149,8 +182,9 @@ is a clause above the band that sits under a bed ramp, or in a compressed
 clip, where the planned figure is an upper estimate; such clauses are reported
 but do not warn.
 It retains E2E1's oversampled −2 dBFS peak limiter before AAC. On the two
-real acceptance renders the encoded AAC measured −2.2 and −2.8 dBTP; other
-material still needs its own check. Source-speech ducking is refused when the clip
+real acceptance renders the encoded AAC measured −2.2 dBTP (montage) and
+−1.7 dBTP (talking, after dialogue matching), so AAC can overshoot the
+limiter; other material still needs its own check. Source-speech ducking is refused when the clip
 timeline differs from the recorded planning timeline or when transitions
 overlap clips, because the spans would no longer mark speech; re-plan first.
 A plan carries at most 2,048 speech spans; more are rejected with a message.

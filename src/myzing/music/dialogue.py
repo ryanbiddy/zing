@@ -11,8 +11,9 @@ difference, and a jump cut inside it gets no level step (a +1.3 dB step on
 the second Korky Paul trim was heard). Where that static gain would push the clip's peaks more
 than ``LIMITER_GRACE_DB`` past the final -2 dBFS limiter (smaller overs the
 oversampled limiter handles cleanly), a peak-detecting compressor sits after the gain,
-its threshold ``HEADROOM_DB`` above the target speech level, so the limiter
-does not squash loud syllables on its own. The gain applies to the whole
+its threshold ``HEADROOM_DB`` above the target speech level (never above the
+limiter's ``LIMIT_DBFS``), so the limiter does not squash loud syllables on its
+own. The peak covers every clip of the recording, speech-free trims included. The gain applies to the whole
 clip, ambience included, as an editor's clip gain would.
 """
 from __future__ import annotations
@@ -35,6 +36,19 @@ def asset_levels(levels):
         if v["speech_lufs"] is not None and v.get("speech_seconds", 1.0) > 0:
             out.setdefault(v["asset_id"], []).append((v["speech_lufs"], v.get("speech_seconds", 1.0)))
     return {k: 10 * math.log10(sum(10 ** (x / 10) * w for x, w in vs) / sum(w for _, w in vs)) for k, vs in out.items()}
+
+
+def clip_peaks(sequence, levels, measure):
+    """Sample peak of every clip of a recording that may be raised, speech-free trims included.
+
+    The gain is per recording, so a slam in a B-roll trim of a quiet
+    recording is raised too and must count toward the compressor decision.
+    ``measure(clip)`` returns a peak in dBFS or None; other clips get None.
+    """
+    assets = asset_levels(levels)
+    if len(assets) < 2 or max(assets.values()) - min(assets.values()) <= SPREAD_LU:
+        return [None] * len(sequence)
+    return [measure(c) if c.asset_id in assets else None for c in sequence]
 
 
 def plan_gains(levels, peaks):
@@ -61,11 +75,13 @@ def plan_gains(levels, peaks):
         if gain < MIN_BOOST_DB:
             continue
         compress = peak is not None and peak + gain > LIMIT_DBFS + LIMITER_GRACE_DB
+        # Hot loudest speech (above -8 LUFS) would put target + headroom over the limiter or 0 dBFS.
+        threshold = max(-60.0, min(target + HEADROOM_DB, LIMIT_DBFS))
         rows.append({"asset_id": level["asset_id"], "start": level["output_start"], "end": level["output_end"],
                      "speech_lufs": level["speech_lufs"], "asset_speech_lufs": round(assets[level["asset_id"]], 2),
                      "target_lufs": round(target, 2), "gain_db": round(gain, 2),
                      "peak_dbfs": peak,
-                     "compressor": {"threshold_db": round(target + HEADROOM_DB, 2), "ratio": RATIO, "attack_ms": ATTACK_MS,
+                     "compressor": {"threshold_db": round(threshold, 2), "ratio": RATIO, "attack_ms": ATTACK_MS,
                                     "release_ms": RELEASE_MS, "knee_db": KNEE_DB} if compress else None})
         if level["asset_id"] in noted:
             continue
@@ -76,16 +92,20 @@ def plan_gains(levels, peaks):
                          f"{MAX_BOOST_DB:g} dB, so {wanted - MAX_BOOST_DB:.1f} LU of the jump remains. Re-record or "
                          "level that clip in an editor, or use a closer-matched take.")
         if compress:
+            sharp = (f" Sounds sharper than its {ATTACK_MS:g} ms attack, such as a slam or a clap, can still meet the "
+                     f"final limiter with up to about {peak + gain - LIMIT_DBFS:.0f} dB of gain reduction."
+                     if peak + gain - LIMIT_DBFS > 2 * HEADROOM_DB else "")
             notes.append(f"Dialogue in {where} was raised {gain:.1f} dB to match the other clips; its {peak:.1f} dBFS "
                          f"peaks would reach {peak + gain:.1f} dBFS, so a {RATIO:g}:1 compressor above "
-                         f"{target + HEADROOM_DB:.1f} dBFS holds its loudest syllables. Listen to that clip for "
+                         f"{threshold:.1f} dBFS holds its loudest syllables.{sharp} Listen to that clip for "
                          "pumping or raised room noise.")
     return rows, notes
 
 
-def row_at(rows, time):
-    """The dialogue gain row covering output ``time``, if any."""
-    return next((r for r in rows if r["start"] - 1e-6 <= time < r["end"] - 1e-6), None)
+def row_at(rows, time, asset_id=None):
+    """The dialogue gain row covering output ``time`` (for ``asset_id``, when given), if any."""
+    return next((r for r in rows if r["start"] - 1e-6 <= time < r["end"] - 1e-6
+                 and (asset_id is None or r.get("asset_id") in (None, asset_id))), None)
 
 
 def filters(row) -> tuple[str, ...]:

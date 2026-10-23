@@ -142,7 +142,7 @@ def clip_offsets(levels, reference):
         if wanted < -MAX_BED_CUT_DB:
             notes.append(f"Clip {level['asset_id']} at {level['output_start']:.2f}s speaks {-wanted:.1f} LU below the "
                          f"loudest clip; the bed drops only {MAX_BED_CUT_DB:g} dB there, so its clauses sit "
-                         f"{MAX_BED_CUT_DB - wanted:.1f} LU closer to the bed. Raise that clip's dialogue.")
+                         f"{-wanted - MAX_BED_CUT_DB:.1f} LU closer to the bed. Raise that clip's dialogue.")
     # Clips without measured speech inherit the previous (else next) measured offset.
     known = [o for o in offsets if o is not None]
     filled, last = [], known[0] if known else 0.0
@@ -173,32 +173,65 @@ def refine_offsets(levels, offsets, rows, target=21.0):
     return [min(0.0, o) for o in filled], shift
 
 
-def ramp_start(cut, rising, spans, duration, ramp=BED_RAMP_SECONDS):
-    """Start of the bed ramp for the change at ``cut``, under the louder speech.
+def _windows(passages, spans, lo, hi, free, duration, need):
+    """Room for a ramp: duck passages within the speech of [lo, hi], after ``free``, at least ``need`` long."""
+    words = sorted([max(a, lo), min(b, hi)] for a, b in spans if a < hi and b > lo)
+    if not words:
+        return []
+    first, last = words[0][0], max(b for _, b in words)
+    room = [(max(a, first, free), min(b, last, duration)) for a, b in passages]
+    return [(x, y) for x, y in room if y - x >= need - 1e-9]
 
-    A rise (the next clip is louder) starts at its first word after the cut;
-    a drop (the next clip is quieter) ends at the last word before it. Without
-    such a word the ramp starts (rise) or ends (drop) at the cut.
+
+def gain_points(levels, offsets, spans, duration, ramp=BED_RAMP_SECONDS, passages=None, plateau=None):
+    """[time, dB] points for per-clip bed offsets; raised-cosine ramps under the louder voice.
+
+    A change ramps over the louder side's speech: a rise starts at the first
+    word after the cut, a drop ends at the last word since the previous ramp.
+    Each ramp stays inside one duck passage, where the duck is held, so it
+    never adds to a pre-duck or a recovery. Ramps never overlap or pass the
+    edit end, and none is faster than the default pre-duck slope
+    (MIN_RAMP_SECONDS_PER_DB per dB). A rise is made only when the louder
+    clip also has room for the drop after it and ``plateau`` seconds between,
+    so short alternating clips do not pump the bed. Where the louder side has
+    no such room, a rise is not made (the louder clip sits further over a
+    lower bed) and a drop starts at the first room after the cut, under the
+    quieter clip. The planned clause report shows either.
     """
-    if rising:
-        start = min((a for a, b in spans if a >= cut - 1e-6), default=cut)
-        return max(0.0, min(duration - ramp, start))
-    end = max((b for a, b in spans if b <= cut + 1e-6), default=cut)
-    return max(0.0, min(duration - ramp, end - ramp))
-
-
-def gain_points(levels, offsets, spans, duration, ramp=BED_RAMP_SECONDS):
-    """[time, dB] points for per-clip bed offsets; raised-cosine ramps under the louder voice."""
+    from .ducking import DEFAULT_PLATEAU_SECONDS, MIN_RAMP_SECONDS_PER_DB, duck_passages
     if all(abs(o) < 1e-9 for o in offsets):
         return []
-    points = [[0.0, round(offsets[0], 3)]]
+    held = passages if passages is not None else duck_passages(spans, duration)
+    plateau = DEFAULT_PLATEAU_SECONDS if plateau is None else plateau
+    points, current, free = [[0.0, round(offsets[0], 3)]], offsets[0], 0.0
     for i in range(1, len(levels)):
-        if abs(offsets[i] - offsets[i - 1]) < 1e-9:
+        want = offsets[i]
+        if abs(want - current) < 1e-9:
             continue
-        start = max(points[-1][0], ramp_start(levels[i]["output_start"], offsets[i] > offsets[i - 1], spans, duration, ramp))
-        points += [[round(start, 4), round(offsets[i - 1], 3)], [round(min(duration, start + ramp), 4), round(offsets[i], 3)]]
-    points.append([round(max(points[-1][0], duration), 4), round(offsets[-1], 3)])
-    return points
+        cut, need = levels[i]["output_start"], abs(want - current) * MIN_RAMP_SECONDS_PER_DB
+        later = [(v["output_start"], o) for v, o in zip(levels[i + 1:], offsets[i + 1:]) if abs(o - want) > 1e-9]
+        following = later[0][0] if later else duration
+        early = want > current
+        if early:
+            # Keep room for the drop back down (and a plateau) under the same voice.
+            reserve = (want - later[0][1]) * MIN_RAMP_SECONDS_PER_DB + plateau if later and later[0][1] < want else 0.0
+            room = [(x, y - reserve) for x, y in _windows(held, spans, max(cut, free), following, free, duration,
+                                                          need + reserve)][:1]
+        else:
+            room = _windows(held, spans, free, cut, free, duration, need)[-1:]
+            if not room:  # the bed goes down under the quieter clip instead
+                early = True
+                room = [(x, y) for x, y in ((max(a, free, cut), min(b, following, duration)) for a, b in held)
+                        if y - x >= need - 1e-9][:1]
+        if not room:
+            continue
+        x, y = room[0]
+        length = max(need, min(ramp, y - x))
+        start = x if early else y - length
+        points += [[round(start, 4), round(current, 3)], [round(start + length, 4), round(want, 3)]]
+        current, free = want, start + length
+    points.append([round(max(points[-1][0], duration), 4), round(current, 3)])
+    return [] if all(abs(g) < 1e-9 for _, g in points) else points
 
 
 def planned_clauses(sequence, studies, music_path, offset, music_seconds, gain, evidence):
@@ -314,11 +347,10 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
     levels = clip_speech_levels(sequence, studies) if spans else []
     if spans:
         # Match the voices first (dialogue.py); the bed then follows only what remains.
-        from .dialogue import plan_gains, row_at
+        from .dialogue import clip_peaks, plan_gains, row_at
         from .measurement import peak_dbfs
         lookup = {s.asset_id: s for s in studies}
-        peaks = [peak_dbfs(lookup[c.asset_id].path, c.duration, start=c.start) if v["speech_lufs"] is not None else None
-                 for c, v in zip(sequence, levels)]
+        peaks = clip_peaks(sequence, levels, lambda c: peak_dbfs(lookup[c.asset_id].path, c.duration, start=c.start))
         evidence.dialogue_gains, notes = plan_gains(levels, peaks)
         evidence.warnings += notes
         if evidence.dialogue_gains:
@@ -342,8 +374,13 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
     excerpt_lufs = window_loudness(path, music_windows, end)
     gain = max(-60, min(12, target_lufs - excerpt_lufs)) if excerpt_lufs is not None else -24 if spans else -6
     if spans:
+        from .ducking import duck_passages
+        held = duck_passages(evidence.speech_spans, duration, hold=evidence.duck_hold_seconds,
+                             attack=evidence.duck_attack_seconds, release=evidence.duck_release_seconds,
+                             plateau=evidence.duck_plateau_seconds)
         offsets, notes = clip_offsets(levels, reference) if per_clip else ([0.0] * len(levels), [])
-        evidence.bed_gain_points = gain_points(levels, offsets, evidence.speech_spans, duration) if per_clip else []
+        evidence.bed_gain_points = gain_points(levels, offsets, evidence.speech_spans, duration, passages=held,
+                                                 plateau=evidence.duck_plateau_seconds) if per_clip else []
         evidence.clip_levels = [{**v, "bed_offset_db": round(o, 3)} for v, o in zip(levels, offsets)]
         evidence.warnings += notes
         if per_clip:
@@ -351,14 +388,15 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
                 "clip_spread_lu": round(spread, 2), "gain_points": evidence.bed_gain_points,
                 "reason": f"Clip speech levels differ by {spread:.1f} LU (more than {CLIP_SPREAD_LU:g}); the bed drops "
                           f"under quieter clips, centred so each clip's planned clauses sit about "
-                          f"{evidence.speech_to_music_lu:g} LU under its speech, ramping {BED_RAMP_SECONDS:g}s under "
+                          f"{evidence.speech_to_music_lu:g} LU under its speech, ramping up to {BED_RAMP_SECONDS:g}s under "
                           "the louder voice at each change."})
         if excerpt_lufs is not None:
             rows, summary, outside = planned_clauses(sequence, studies, path, offset, end - offset, gain, evidence)
             if per_clip:
                 offsets, shift = refine_offsets(levels, offsets, rows, evidence.speech_to_music_lu)
                 gain = max(-60, min(12, gain + shift))
-                evidence.bed_gain_points = gain_points(levels, offsets, evidence.speech_spans, duration)
+                evidence.bed_gain_points = gain_points(levels, offsets, evidence.speech_spans, duration, passages=held,
+                                                       plateau=evidence.duck_plateau_seconds)
                 evidence.clip_levels = [{**v, "bed_offset_db": round(o, 3)} for v, o in zip(levels, offsets)]
                 next(d for d in evidence.decisions if d["kind"] == "bed_clip_gain")["gain_points"] = evidence.bed_gain_points
                 rows, summary, outside = planned_clauses(sequence, studies, path, offset, end - offset, gain, evidence)

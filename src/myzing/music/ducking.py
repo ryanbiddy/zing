@@ -37,6 +37,12 @@ DEFAULT_ATTACK_SECONDS = 0.2
 DEFAULT_RELEASE_SECONDS = 0.8
 # Shortest audible time at the recovered level that justifies a release.
 DEFAULT_PLATEAU_SECONDS = 0.3
+# Boundary tolerance for duck_passages (seconds).
+EDGE_TOLERANCE = 1e-9
+# A bed gain change is never faster than the default pre-duck: a raised
+# cosine of D dB over D x this many seconds peaks at the default attack's
+# slope (9 dB over 0.2 s, about 0.07 dB per millisecond).
+MIN_RAMP_SECONDS_PER_DB = DEFAULT_ATTACK_SECONDS / DEFAULT_DEPTH_DB
 ENVELOPE_RATE = 1000
 # Balanced expression trees keep FFmpeg's parser depth near log2(spans); the
 # bound keeps per-frame selection cost and evidence size reasonable.
@@ -80,12 +86,17 @@ def release_gap(hold: float = DEFAULT_HOLD_SECONDS, attack: float = DEFAULT_ATTA
 def duck_passages(spans, duration: float, *, hold: float = DEFAULT_HOLD_SECONDS,
                   attack: float = DEFAULT_ATTACK_SECONDS, release: float = DEFAULT_RELEASE_SECONDS,
                   plateau: float = DEFAULT_PLATEAU_SECONDS) -> list[list[float]]:
-    """The passages the renderer ducks under, edges included (module docstring)."""
-    held = merge(spans, release_gap(hold, attack, release, plateau))
+    """The passages the renderer ducks under, edges included (module docstring).
+
+    Every boundary follows one rule: a pause, lead-in or tail at least as long
+    as its threshold plays at pause level; anything shorter stays ducked. The
+    nanosecond tolerance counts 3.8 - 2.5 (1.2999999999999998) as 1.3 s.
+    """
+    held = merge(spans, max(0.0, release_gap(hold, attack, release, plateau) - 2 * EDGE_TOLERANCE))
     if held:
-        if held[0][0] < max(hold, attack + plateau):
+        if held[0][0] < max(hold, attack + plateau) - EDGE_TOLERANCE:
             held[0][0] = 0.0
-        if duration - held[-1][1] < max(hold, release + plateau):
+        if duration - held[-1][1] < max(hold, release + plateau) - EDGE_TOLERANCE:
             held[-1][1] = max(held[-1][1], float(duration))
     return held
 

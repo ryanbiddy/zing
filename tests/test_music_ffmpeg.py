@@ -496,10 +496,10 @@ def two_talkers(tmp_path, quiet_amplitude):
     brief = Brief(purpose="Talking edit", target_length_seconds=12, music={"source": "supplied files", "files": ["m"]})
     _, _, tracks, evidence = plan_music(sequence, studies, brief, SimpleNamespace(assets=[asset]), tmp_path, 2, {}, {})
 
-    def render(name, plan):
+    def render(name, plan, audio=lambda tracks: tracks, reverse=False):
         p = Composition(assets=[AssetRef(s.asset_id, s.path, s.sha256) for s in studies] + [AssetRef("m", str(bed), asset.sha256)],
-            clips=[CompositionClip(s.path, 0, 6, 6 * i, id=f"c{i}", asset_id=s.asset_id) for i, s in enumerate(studies)],
-            audio=tracks, width=160, height=90)
+            clips=[CompositionClip(s.path, 0, 6, 6 * i, id=f"c{i}", asset_id=s.asset_id) for i, s in enumerate(studies[::-1] if reverse else studies)],
+            audio=audio(tracks), width=160, height=90)
         attach(p, plan)
         return render_composition(p, tmp_path / f"{name}.mp4", work_dir=tmp_path / name)
     return evidence, render
@@ -526,6 +526,17 @@ def test_clips_14_lu_apart_get_matched_dialogue_and_one_bed(np, tmp_path):
     speech = [r["speech_lufs"] for r in rows]
     assert abs((speech[0] + speech[1]) / 2 - (speech[2] + speech[3]) / 2) <= 1.5  # the jump is gone
     assert rendered.audio_measurements["warnings"] == []
+    # The gains belong to that music mix. With the music track removed the
+    # clips keep their recorded levels and the render says why.
+    bare = render("no-music", evidence, audio=lambda tracks: [])
+    assert "volume=" not in bare.filtergraph and any("dialogue gains were not applied" in w for w in bare.warnings)
+    # With the bed kept but not ducked, a reordered timeline must not raise the
+    # wrong clip by 14 dB (it used to: no timeline check ran without ducking).
+    from dataclasses import replace
+    from myzing.render.validation import EDLValidationError
+    with pytest.raises(EDLValidationError, match="dialogue gains were planned for a different clip timeline"):
+        render("swapped", evidence, audio=lambda tracks: [replace(t, duck_under_speech=False) for t in tracks],
+               reverse=True)
 
 
 def test_a_capped_dialogue_match_leaves_the_rest_to_a_per_clip_bed(np, tmp_path):

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 from myzing.contracts import Record
 from .ducking import (DEFAULT_ATTACK_SECONDS, DEFAULT_DEPTH_DB, DEFAULT_HOLD_SECONDS, DEFAULT_PLATEAU_SECONDS,
-                      DEFAULT_RELEASE_SECONDS, check_span_count)
+                      DEFAULT_RELEASE_SECONDS, MIN_RAMP_SECONDS_PER_DB, check_span_count)
 
 PREFIX = "MUSIC1 evidence: "
 
@@ -63,6 +63,12 @@ class MusicPlan(Record):
                     or point[0] < max(0, previous) or not -60 <= point[1] <= 0):
                 raise ValueError("bed_gain_points need ascending [seconds >= 0, -60 <= dB <= 0] pairs")
             previous = point[0]
+        for (t0, g0), (t1, g1) in zip(self.bed_gain_points, self.bed_gain_points[1:]):
+            # A faster change clicks or zippers (an equal-time pair is a step).
+            if abs(g1 - g0) * MIN_RAMP_SECONDS_PER_DB > t1 - t0 + 1e-3:
+                raise ValueError(f"bed_gain_points change {abs(g1 - g0):g} dB in {t1 - t0:g}s at {t0:g}s; allow at least "
+                                 f"{abs(g1 - g0) * MIN_RAMP_SECONDS_PER_DB:.3f}s ({MIN_RAMP_SECONDS_PER_DB:.4f}s per dB) "
+                                 "so the bed does not click")
         check_span_count(len(self.bed_gain_points) // 2, "bed gain changes")
         from .dialogue import validate
         validate(self.dialogue_gains)

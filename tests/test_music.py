@@ -340,3 +340,95 @@ def test_audio_fades_only_over_speech_free_edges_where_the_source_changes():
     # A word right at the cut gets no fade.
     assert edge_fades([clip("a", 0, 2, 0), clip("b", 2, 2, 0)], [[.5, 1.99], [2.01, 3]]) == [(), ()]
 
+
+def _envelope_db(spans, duration, points):
+    from myzing.music.ducking import duck_passages, gain_curve, weights
+    w = weights(duck_passages(spans, duration), duration, .2, .8)
+    return [-9 * a + b for a, b in zip(w, gain_curve(points, len(w)))]
+
+
+ATTACK_SLOPE = 9 * math.pi / (2 * .2) / 1000  # dB per 1 ms control sample: the default pre-duck's steepest
+
+
+def test_bed_gain_changes_stay_under_the_louder_voice_and_never_outrun_the_pre_duck():
+    from myzing.music.planning import gain_points
+    clip = lambda a, b: {"output_start": a, "output_end": b, "asset_id": "x"}
+    # Grok: offsets 0/-24/0 on a 1.15 s edit used to squeeze a 24 dB rise into
+    # 0.15 s (0.25 dB per sample). No clip has room, so the bed does not move.
+    spans = [[.05, .35], [.45, .75], [.85, 1.1]]
+    points = gain_points([clip(0, .4), clip(.4, .8), clip(.8, 1.15)], [0.0, -24.0, 0.0], spans, 1.15)
+    assert points == [] and MusicPlan(speech_spans=spans, bed_gain_points=points)
+    # Twelve 0.7 s clips alternating 0 / -10 dB used to chain ramps late (the
+    # bed sat at -8.5 dB under a loud clip and 0 under a quiet one) and pile
+    # 10 dB steps at the edit end. Now the bed goes down once and stays down.
+    levels = [clip(i * .7, (i + 1) * .7) for i in range(12)]
+    spans = [[i * .7 + .1, i * .7 + .6] for i in range(12)]
+    points = gain_points(levels, [0.0 if i % 2 == 0 else -10.0 for i in range(12)], spans, 8.4)
+    assert points == [[0.0, 0.0], [0.1, 0.0], [0.6, -10.0], [8.4, -10.0]]
+    curve = _envelope_db(spans, 8.4, points)
+    assert max(abs(a - b) for a, b in zip(curve, curve[1:])) <= ATTACK_SLOPE + 1e-9
+    # A drop that ended at the loud voice's last word once overlapped that
+    # clause's pre-duck (1.5x the attack slope; 1.08 dB per 10 ms at 24 dB).
+    # Ramps now stay inside one held passage; a big drop that cannot fit
+    # there goes down under the quieter clip instead.
+    spans = [[.5, 1.0], [2.6, 3.0], [6.2, 7.0]]
+    for delta, expected in ((6, [2.6, 3.0]), (18, [2.6, 3.0]), (24, [6.2, 7.2])):
+        points = gain_points([clip(0, 3.1), clip(3.1, 8)], [0.0, -float(delta)], spans, 8)
+        assert [p[0] for p in points[1:3]] == expected, (delta, points)
+        curve = _envelope_db(spans, 8, points)
+        assert max(abs(a - b) for a, b in zip(curve, curve[1:])) <= ATTACK_SLOPE + 1e-9, delta
+    # Hand-edited evidence (the warnings point editors at bed_gain_points)
+    # cannot step or zipper the bed.
+    with pytest.raises(ValueError, match="so the bed does not click"):
+        MusicPlan(bed_gain_points=[[0, 0], [3, 0], [3, -20], [6, -20]])
+    with pytest.raises(ValueError, match="allow at least 0.444s"):
+        MusicPlan(bed_gain_points=[[0, 0], [3, 0], [3.2, -20]])
+    assert MusicPlan(bed_gain_points=[[0, 0], [3, 0], [3.45, -20]])
+
+
+def test_duck_boundaries_follow_one_at_least_rule():
+    from myzing.music.ducking import duck_passages
+    # A pause of at least 1.3 s releases (3.8 - 2.5 is 1.2999999999999998 in floats); shorter is held.
+    assert len(duck_passages([[1, 2.5], [3.8, 5]], 7)) == 2
+    assert len(duck_passages([[1, 2.5], [2.5 + 1.3, 5]], 7)) == 2
+    assert len(duck_passages([[1, 2.5], [3.79, 5]], 7)) == 1
+    # A lead-in of at least max(hold, attack + plateau) = 0.8 s plays at pause level.
+    assert duck_passages([[.8, 2]], 5)[0][0] == .8 and duck_passages([[2.3 - 1.5, 2]], 5)[0][0] == pytest.approx(.8)
+    assert duck_passages([[.79, 2]], 5)[0][0] == 0.0
+    # A tail of at least max(hold, release + plateau) = 1.1 s recovers.
+    assert duck_passages([[1, 2.9]], 4)[-1][1] == 2.9 and duck_passages([[1, 2.91]], 4)[-1][1] == 4
+
+
+def test_capped_bed_and_hot_dialogue_messages_and_limits():
+    from myzing.music.dialogue import plan_gains
+    from myzing.music.planning import clip_offsets
+    # Grok: 30 LU under with a 24 dB cap leaves 6 LU, not 54.
+    _, notes = clip_offsets([{"asset_id": "loud", "output_start": 0, "output_end": 6, "speech_lufs": -14.0, "has_speech": True},
+                             {"asset_id": "quiet", "output_start": 6, "output_end": 12, "speech_lufs": -44.0, "has_speech": True}], -14.0)
+    assert "speaks 30.0 LU below" in notes[0] and "sit 6.0 LU closer" in notes[0]
+    # Grok: loudest speech at -4 LUFS put the compressor threshold at +2 dBFS and failed validation.
+    levels = [{"asset_id": "hot", "output_start": 0, "output_end": 3, "speech_lufs": -4.0, "speech_seconds": 2},
+              {"asset_id": "quiet", "output_start": 3, "output_end": 6, "speech_lufs": -20.0, "speech_seconds": 2}]
+    rows, notes = plan_gains(levels, [-.5, -6.0])
+    assert rows[0]["compressor"]["threshold_db"] == -2.0 and "above -2.0 dBFS" in notes[0]
+    assert MusicPlan(speech_spans=[[0, 1]], dialogue_gains=rows).dialogue_gains == rows
+
+
+def test_speech_free_trims_of_a_raised_recording_count_toward_its_peak():
+    from types import SimpleNamespace
+    from myzing.music.dialogue import clip_peaks, plan_gains
+    # A quiet recording whose speech peaks at -24.8 dBFS and whose speech-free
+    # trim holds a -3 dBFS slam: measuring only the speech clips left the
+    # +15 dB gain uncompressed and put the slam 12.5 dB into the final limiter.
+    levels = [{"asset_id": "loud", "output_start": 0, "output_end": 6, "speech_lufs": -12.9, "speech_seconds": 4},
+              {"asset_id": "quiet", "output_start": 6, "output_end": 12, "speech_lufs": -27.9, "speech_seconds": 4},
+              {"asset_id": "quiet", "output_start": 12, "output_end": 14.5, "speech_lufs": None, "speech_seconds": 0}]
+    sequence = [SimpleNamespace(asset_id=v["asset_id"], start=i) for i, v in enumerate(levels)]
+    measured = []
+    peaks = clip_peaks(sequence, levels, lambda c: measured.append(c.start) or [-3.5, -24.8, -3.0][c.start])
+    assert measured == [0, 1, 2] and peaks == [-3.5, -24.8, -3.0]
+    rows, notes = plan_gains(levels, peaks)
+    assert [r["peak_dbfs"] for r in rows] == [-3.0, -3.0] and all(r["compressor"] for r in rows)
+    assert "can still meet the final limiter with up to about 14 dB" in notes[0]
+    # Within 6 LU nothing is decoded at all.
+    assert clip_peaks(sequence[:1], levels[:1], lambda c: 1 / 0) == [None]
