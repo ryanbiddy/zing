@@ -2,6 +2,56 @@ Composition v2 supports per-clip `framing`: `fit`, `fill`, `reframe`, `zoomfill`
 `blurfill`. Omit it to retain the existing fit-and-pad graph and JSON bytes.
 EDL v1's default render path and v1/v2 compatibility fixtures are unchanged.
 
+To discard static broadcast bars before adapting a source:
+
+```powershell
+zing render plan.json --aspect all --picture-crop auto -o delivery.mp4
+```
+
+`picture_crop` in a brief accepts `auto` (default), `on`, or `off`. Auto uses a
+picture rectangle only when every used source range has consistent borders,
+static outer regions that look like broadcast graphics, and motion inside.
+`on` requires that evidence and fails with a remedy if it is unavailable; it
+does not guess harder. `off` preserves the full source. These choices also
+work in match and studio.
+
+The local detector samples up to 12 gray frames per merged used range, with
+at most 10 ranges, area-averaged to at most 320 pixels wide (never upsampled).
+Two horizontal boundaries must persist across at least
+80% of the central 70% of the frame width;
+at least 98% of the outer region must have temporal standard deviation ≤3
+gray levels, and at least 3% of the picture must vary. Confident candidates
+retain 25–94% of source area. Matching side borders can remove side chrome.
+The static surround, two sample rows away from the picture, must then be
+chrome: a uniform surround (spatial standard deviation below 6 gray levels)
+is a letterbox/pillarbox matte or flat frame, and a textured one (fewer than
+75% of its pixels with neighbour gradients ≤2) is camera scenery such as a
+desk, wall or shelf. Both keep the source, in auto and on. A border can fall
+inside one sample row, so the crop steps one sample row or column inward on
+every chrome side before rounding inward to even pixels; a picture that
+collapses below 16 pixels keeps the full frame. The delivery analysis records
+sample counts, border support, variance, motion fraction, retained area, the
+surround class and its numbers, confidence and the decision. Selected
+source-pixel bounds and evidence also travel in each clip's `framing.picture`.
+
+The crop precedes fit/fill/reframe and blurred-background generation. Caption
+safety and enlargement advice use the resulting live picture. Moving lower
+thirds, changing layouts, freezes, weak borders and motionless room edges may
+remain ambiguous. This is sampled static-frame detection, not recognition or
+reconstruction of obscured picture. NumPy (`myzing[color]`) is optional; without
+it the decision is unavailable and auto retains the source.
+
+YuNet tracking now retains raw observation times and small RGB histograms for
+fragment stitching within each shot and used range. Fragments may overlap in
+their held intervals. A link requires a gap ≤1.25 s, position within .45 face
+width/height units, size ratio ≤1.3 and histogram similarity ≥.82. Two raw
+detections at the same time are a hard conflict, so simultaneously visible
+faces stay separate. Ambiguous alternatives and missing appearance also stay
+separate: a link is refused while another candidate sharing either fragment
+scores within .05 of its heuristic confidence. Every accepted link records its numbers and heuristic confidence;
+histograms are appearance evidence, not biometric identification or speaker
+diarization. Lighting changes and long occlusions can still require review.
+
 Fit retains the entire picture with black padding. Fill crops around a stated
 center. Reframe follows local subject evidence with bounded crop motion.
 Zoomfill crops to an intermediate width around the subject, keeps every source
@@ -207,6 +257,22 @@ Caption planning uses the sharp picture and generic output-frame reserves.
 For vertical blurfill/zoomfill, prefer the lower blur band if the complete caption
 fits there throughout its event; otherwise try the upper band, then the sharp
 picture. The band must fit the estimated wrapped text with its outline and plate.
+A centered sharp picture leaves a lower band that sits mostly inside the 20%
+bottom UI reserve, so when every caption over a full-width blurfill/zoomfill
+clip would fit after lifting the picture, the planner raises it by the
+smallest even amount (never above the top reserve) and records
+`framing.foreground_top` with a warning. Captions in the lower band hang from
+the picture's bottom edge.
+
+Placement keeps one alignment (mixed alignments are centered, with a plan
+warning) and one anchor per shot and region. In the lower band, captions are
+centered and hang from the picture. Elsewhere the anchor is the median
+position (center and baseline) of the shot's events placed on their own,
+nearest the lower third. An event stays where the previous one was unless a
+face, subject or reserve would be covered; then it takes the smallest move in
+output pixels. One 15%-smaller box step in place beats a move larger than 15%
+of the short side, and narrower reflows of at most three lines are tried
+before such a jump; deeper shrinks remain a last resort.
 Every placed vertical caption is then measured with the positioned renderer's
 own libass probe (text and outline at the layout scale plus the plate padding);
 if the 0.8 em estimate was short, as with bold W, the text shrinks until the

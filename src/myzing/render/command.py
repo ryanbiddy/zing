@@ -37,6 +37,8 @@ def _short_side(value: str):
 
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="zing render")
+    from myzing.delivery_options import add_options
+    add_options(parser)
     parser.add_argument("edl", type=Path, help="EDL v1 or Composition v2 JSON file")
     parser.add_argument("-o", "--output", type=Path, help="output MP4 path")
     parser.add_argument("--ffmpeg", default="ffmpeg")
@@ -117,7 +119,16 @@ def run(argv: list[str]) -> int:
     )
     try:
         from myzing.composition.aspects import aspect_for, requested_aspects
-        if args.aspect or args.framing or args.max_upscale is not None:
+        from myzing.delivery_options import overrides, apply_plan
+        values = overrides(args)
+        if values and not isinstance(edl, Composition):
+            from myzing.composition.compatibility import upgrade_edl
+            edl = upgrade_edl(edl)
+        apply_plan(edl, values)
+        restyle = args.caption_mode == "phone" or args.caption_options is not None
+        if restyle and args.aspect is None and args.short_side is None:
+            args.short_side = max(18, min(edl.width, edl.height) // 18 * 18)
+        if args.aspect or args.framing or args.max_upscale is not None or args.picture_crop or restyle:
             if not isinstance(edl, Composition):
                 from myzing.composition.compatibility import upgrade_edl
                 edl = upgrade_edl(edl)

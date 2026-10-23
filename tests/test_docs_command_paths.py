@@ -34,6 +34,7 @@ def test_readme_discloses_whisper_model_download_and_peer_calls() -> None:
     assert "a video URL only when you" in readme
     assert "Hugging Face" in readme
     assert "first `zing study`" in readme
+    assert "never downloads one" in readme  # speech models only via consented setup
     assert transcribe.DEFAULT_MODEL in readme
     assert transcribe.ENV_MODEL in readme
     assert "ElevenLabs" in readme

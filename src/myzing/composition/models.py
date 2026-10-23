@@ -24,6 +24,7 @@ from myzing.timing import interval_problem
 from .timebase import rate_fraction
 from .framing import Framing
 from .speakers import SpeechWord
+from .encoding import DeliveryEncoding
 
 EPSILON = 1e-6  # Same seconds tolerance as the legacy renderer.
 TransitionKind = Literal["hard_cut", "dissolve", "wipe", "zoom_punch", "dip_to_black", "dip_to_white"]
@@ -99,12 +100,21 @@ class CaptionStyle(Record):
     outline_width: float = 2.0  # Output pixels.
     box_color: str | None = None
     version: int = 1
+    highlight_box_color: str | None = field(default=None, metadata={"omit_default": True})
+    highlight_box_padding: float = field(default=6.0, metadata={"omit_default": True})
+    highlight_box_radius: float = field(default=0.0, metadata={"omit_default": True})
+    highlight_box_opacity: float = field(default=1.0, metadata={"omit_default": True})
+    before_color: str | None = field(default=None, metadata={"omit_default": True})
+    after_color: str | None = field(default=None, metadata={"omit_default": True})
 
     def __post_init__(self):
         super().__post_init__()
         bounded(self.size, 1, 512, "caption size")
         bounded(self.outline_width, 0, 20, "caption outline_width")
-        for name in ("color", "highlight", "outline_color", "box_color"):
+        bounded(self.highlight_box_padding, 0, 64, "highlight_box_padding")
+        bounded(self.highlight_box_radius, 0, 64, "highlight_box_radius")
+        bounded(self.highlight_box_opacity, 0, 1, "highlight_box_opacity")
+        for name in ("color", "highlight", "outline_color", "box_color", "highlight_box_color", "before_color", "after_color"):
             value = getattr(self, name)
             if value is not None and not re.fullmatch(r"#[0-9a-fA-F]{6}", value):
                 raise ValueError(f"caption {name} must use #RRGGBB")
@@ -352,6 +362,7 @@ class Composition(Record):
     warnings: list[str] = field(default_factory=list)
     accepted_unsafe_layouts: list[str] = field(default_factory=list)
     brief: Brief | None = None
+    delivery: DeliveryEncoding | None = field(default=None, metadata={"omit_default": True})
     # Migration spelling, including int vs float, for byte-identical v1 lowering.
     legacy_fps: float | None = None
     # JSON-pointer -> ordered object keys within legacy Word.timing payloads.

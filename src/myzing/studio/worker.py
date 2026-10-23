@@ -10,7 +10,7 @@ from .models import write_json
 def main():
     payload = json.loads(sys.stdin.readline())
     try:
-        result = run_confirmed(payload["answers"], progress=lambda line: print(line, flush=True))
+        result = run_confirmed(payload["answers"], progress=lambda line: print(line, flush=True), locked=True)
     except (ValueError, OSError, RuntimeError, ImportError) as exc:
         result = {"ok": False, "status": "failed", "error": str(exc), "outputs": []}
     write_json(payload["result_path"], result)

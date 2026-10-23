@@ -7,7 +7,7 @@ These contracts deliberately do not depend on the composition schemas.
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields, is_dataclass
 from typing import Any, ClassVar
 
 
@@ -33,7 +33,16 @@ class Record:
             raise ValueError(f"unsupported {type(self).__name__} version: {self.version}")
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        def encode(value):
+            if is_dataclass(value):
+                return {f.name: encode(getattr(value, f.name)) for f in fields(value)
+                        if not (f.metadata.get("omit_default") and not getattr(value, f.name))}
+            if isinstance(value, list):
+                return [encode(v) for v in value]
+            if isinstance(value, dict):
+                return {k: encode(v) for k, v in value.items()}
+            return value
+        return encode(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]):
@@ -133,11 +142,28 @@ def box_at(path: list[Keyframe], time: float) -> Box:
 class Detection(Record):
     box: Box
     confidence: float
+    appearance: list[float] = field(default_factory=list, metadata={"omit_default": True})
     _nested: ClassVar = {"box": (Box, False)}
 
     def __post_init__(self) -> None:
         super().__post_init__()
         number(self.confidence, "confidence", 0, 1)
+        for value in self.appearance:
+            number(value, "appearance histogram", 0, 1)
+
+
+@dataclass(frozen=True)
+class TrackObservation(Record):
+    time: float
+    box: Box
+    appearance: list[float] = field(default_factory=list)
+    _nested: ClassVar = {"box": (Box, False)}
+
+    def __post_init__(self):
+        super().__post_init__()
+        number(self.time, "observation time")
+        for value in self.appearance:
+            number(value, "appearance histogram", 0, 1)
 
 
 @dataclass(frozen=True)
@@ -157,7 +183,9 @@ class FaceTrack(Record):
     keyframes: list[Keyframe]
     confidence: float = 1.0
     warnings: list[str] = field(default_factory=list)
-    _nested: ClassVar = {"keyframes": (Keyframe, True)}
+    observations: list[TrackObservation] = field(default_factory=list, metadata={"omit_default": True})
+    stitching: list[dict] = field(default_factory=list, metadata={"omit_default": True})
+    _nested: ClassVar = {"keyframes": (Keyframe, True), "observations": (TrackObservation, True)}
 
     def __post_init__(self) -> None:
         super().__post_init__()

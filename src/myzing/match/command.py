@@ -11,6 +11,8 @@ from .jobs import execute
 
 def run(argv):
     parser = argparse.ArgumentParser(prog="zing match", description=__doc__)
+    from myzing.delivery_options import add_options, overrides
+    add_options(parser)
     parser.add_argument("reference")
     parser.add_argument("--clips", required=True)
     parser.add_argument("--out", required=True)
@@ -26,10 +28,14 @@ def run(argv):
     parser.add_argument("--json", action="store_true", help="final summary on stdout; progress on stderr")
     args = parser.parse_args(argv)
     options = vars(args).copy()
+    override_names = ("caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps")
+    for name in override_names:
+        options.pop(name, None)
     json_output = options.pop("json")
     try:
         if args.answers is not None:
             options["answers"] = json.loads(args.answers)
+        values = overrides(args)
         if args.brief is None and args.answers is None and not (args.resume and (Path(args.out) / "brief.json").is_file()):
             if not sys.stdin.isatty():
                 raise ValueError("Noninteractive match requires --brief <file> or --answers '<json>'.")
@@ -40,6 +46,16 @@ def run(argv):
             init(args.reference, args.clips, root)
             from myzing.brief.questions import interview
             options["answers"] = interview(root, sys.stdin, sys.stderr).to_dict()
+        if values:
+            from myzing.brief.api import load_brief
+            saved = Path(args.out) / "brief.json"
+            existing = (load_brief(args.brief).to_dict() if args.brief else options.get("answers")
+                        if options.get("answers") is not None else load_brief(saved).to_dict() if args.resume and saved.is_file() else {})
+            if "target_mb" in values:
+                existing.pop("video_bitrate_kbps", None)
+            if "video_bitrate_kbps" in values:
+                existing.pop("target_mb", None)
+            options["answers"], options["brief"] = {**existing, **values}, None
         validate(**options)
         result = execute(options, progress=lambda text: print(text, file=sys.stderr, flush=True))
     except KeyboardInterrupt:

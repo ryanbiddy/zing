@@ -4,6 +4,33 @@ Render a Composition v2 file with the same command as a v1 EDL:
 zing render composition.json -o draft.mp4 --keep-work render-work
 ```
 
+For a delivery budget, add `--target-mb 2.5` (decimal MB, audio included), or
+`--video-bitrate-kbps 1500` (video only). These are mutually exclusive. Zing
+uses x264 two-pass average bitrate, with no CRF mixed into that encode. The
+first pass measures the actual AAC payload by summing its packets (stream
+`bit_rate` can be missing or `N/A`; then 192 kb/s is assumed and noted); the
+second reserves that audio cost and 1.5% for the container. A target is a
+cap: when the second pass overshoots, as x264 average bitrate does on very
+short clips, it reruns with the video share scaled down, up to three times.
+A rate below x264's own pass-one minimum is encoded at that minimum. Without a
+budget, the existing CRF 20 path stays unchanged. V1 CLI inputs are upgraded
+when these options are requested.
+
+The v2 contract is `delivery: {"version":1,"target_mb":2.5}` or
+`delivery: {"version":1,"video_bitrate_kbps":1500}`. Briefs accept `target_mb`
+and `video_bitrate_kbps`. Each completed budget render writes
+`<output>.encoding.json`: achieved bytes/MB, total bitrate, size error, x264
+mean QP and a quality-risk warning. Mean QP is an encoder statistic, not a
+perceptual score. QP ≥30 or fewer than .04 target bits per pixel per frame
+triggers a warning to inspect faces and motion and increase the budget.
+A delivery still over the target after the reruns (material that needs more
+bits even at coarse quantization) carries a warning; one more than 10% under
+it carries a note. A target that leaves under 16 kb/s for video fails before
+encoding, or after pass one once the measured audio is known. `--keep-work` retains both-pass statistics and the encoder log.
+
+See [captions](CAPTIONS.md) for active-word plates, before/after colors and
+phone sizing, and [framing](FRAMING.md) for automatic broadcast-picture crops.
+
 In Python:
 
 ```python

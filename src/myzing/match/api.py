@@ -95,12 +95,13 @@ def capabilities():
             "whisper_cache": whisper}
 
 
-def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False):
+def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False, speech_model=None):
     before = projects.hash_file(Path(source))
     b = study(str(source), workspace=workspace, raw_mode=raw, caption_geometry=True,
               fonts=fonts, detect_transitions=not raw, local_models_only=True,
               model_workspace=storage.resolve_workspace(),
-              **({"shot_min_scene_len_s": 0.0} if verification else {}))
+              **({"shot_min_scene_len_s": 0.0} if verification else {}),
+              **({"speech_model": speech_model} if speech_model is not None else {}))
     if projects.hash_file(Path(source)) != before:
         raise ValueError("Source changed during study; wait for writes to finish and --resume.")
     if max_seconds and b.meta.duration > max_seconds:
@@ -336,9 +337,15 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 raise ValueError(resolution.reason)
             return {"path": resolution.path, "sha256": resolution.sha256, "outputs": [resolution.path]}
 
+        speech = {"speech_model": studio_options["speech_model"]} if studio_options and "speech_model" in studio_options else {}
+        if speech:
+            from myzing.study.speech_models import local_path
+            name = speech["speech_model"]
+            local = local_path(name) if name != "skip" else None
+            caps["studio_speech"] = {"model": name, "path": str(local) if local else None}
         resolved = checkpoints.step("reference-resolve", ref_key, resolve)
         ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps],
-                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60.05))
+                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60.05, **speech))
         # Keep the existing brief recommendation and reference contracts useful.
         from myzing.project.locking import project_lock
         with project_lock(root):
@@ -356,7 +363,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             sha = projects.hash_file(source)
             # The source-map method keys the study: a changed fine pass restudies.
             clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, "source-map-" + SOURCE_MAP_METHOD],
-                                                      lambda source=source: _study(str(source), root, raw=True))
+                                                      lambda source=source: _study(str(source), root, raw=True, **speech))
             audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.2"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             if caps["color"]:
@@ -448,7 +455,10 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     outputs = [str(video)]
                     if result.audio_measurements is not None:
                         outputs.append(str(video.with_suffix(".music.json")))
-                    return {"outputs": outputs, "warnings": list(result.warnings), "audio_measurements": result.audio_measurements}
+                    if getattr(result, "delivery_measurements", None) is not None:
+                        outputs.append(str(video.with_suffix(".encoding.json")))
+                    return {"outputs": outputs, "warnings": list(result.warnings), "audio_measurements": result.audio_measurements,
+                            "delivery_measurements": getattr(result, "delivery_measurements", None)}
                 rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps, "frame-clock-audio-headroom-v2", "music1-duck-envelope-v2"], render)
                 rendered_result = {**rendered_result, "warnings": evidence.user_warnings(rendered_result["warnings"])}
                 summary["warnings"].extend(rendered_result["warnings"])
@@ -460,7 +470,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 verified = checkpoints.step("decode-" + label, projects.hash_file(video), verify)
                 output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps,
                                                                     "confirmed-cut-verification-" + SOURCE_MAP_METHOD],
-                                                lambda: _study(str(video), root / "verification", verification=True))
+                                                lambda: _study(str(video), root / "verification", verification=True, **speech))
                 timeline = video.with_suffix(".png")
                 inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v1"],
                     lambda: _inspect(video, timeline, output_study, root / "verification", verified["verification"]["duration"]))
@@ -481,6 +491,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                              output_color["measurement"], verified["verification"], plan, rendered_result.get("audio_measurements"))
                     result.update(recipe={"path": str(root / "recipe.json"), "sha256": projects.hash_file(root / "recipe.json")},
                                   plan={"path": prepared["path"], "sha256": projects.hash_file(Path(prepared["path"]))})
+                    if rendered_result.get("delivery_measurements") is not None:
+                        result["delivery_encoding"] = rendered_result["delivery_measurements"]
                     result["warnings"] = evidence.user_warnings([*result["warnings"], *rendered_result["warnings"], *inspected["warnings"]])
                     write(report_path, result)
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"],
@@ -489,6 +501,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"],
                            music=matched.get("music"), audio_measurements=matched.get("audio_measurements"))
+                if rendered_result.get("delivery_measurements") is not None:
+                    row["encoding"] = rendered_result["delivery_measurements"]
             except StepFailed as exc:
                 row["error"] = str(exc)
     except (StepFailed, ValueError, OSError) as exc:
