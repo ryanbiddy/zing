@@ -32,7 +32,7 @@ jobs:
   # models are provisioned explicitly before the offline inference tests.
   ffmpeg-gates-ubuntu:
     timeout-minutes: 30
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # pinned: this gate covers apt FFmpeg 6.x; ubuntu-latest moved to 26.04 (FFmpeg 8, libass 0.17.4)
     env:
       ZING_REQUIRE_FFMPEG: "1"
       ZING_REQUIRE_OCR: "1"
