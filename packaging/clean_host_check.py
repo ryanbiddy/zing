@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
                 mcp.returncode == 0
                 and mcp_payload["ok"] is True
                 and mcp_payload["server"]["name"] == "zing"
-                and mcp_payload["tool_count"] == 33
+                and mcp_payload["tool_count"] == 34
                 and mcp_payload["called"] == "zing_status"
             )
         except (KeyError, TypeError, json.JSONDecodeError):
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
             "mcp-stdio",
             "PASS" if mcp_ok else "FAIL",
             (
-                "installed product initialized, listed 33 tools, and called "
+                "installed product initialized, listed 34 tools, and called "
                 "zing_status"
                 if mcp_ok else
                 f"installed MCP smoke failed: {mcp_payload}"

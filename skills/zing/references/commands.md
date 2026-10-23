@@ -12,6 +12,7 @@ over nested JSON in native-command arguments.
 |---|---|
 | `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
+| `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |

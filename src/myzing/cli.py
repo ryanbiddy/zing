@@ -12,6 +12,7 @@ import sys
 # the remaining drift class — a command added here appears in help by
 # construction, ordered as listed).
 _COMMANDS: dict[str, tuple[str, str]] = {
+    "explain": ("myzing.explain.command", "explain a video's editing style as JSON, Markdown and a phone-readable card"),
     "music": ("myzing.music.command", "check local tracks for an edit; no downloads"),
     "doctor": ("myzing.doctor",
                "check your environment and print the exact fix for each gap"),

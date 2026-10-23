@@ -209,3 +209,24 @@ def test_transition_sidecar_validation(field, value, match):
     result = TransitionsResult([TransitionObservation("wipe", 1, 1.5)], {"transition_evidence": [known]}, [])
     with pytest.raises(ValueError, match=match):
         build_style_recipe(b, transitions=result)
+
+
+def test_recipe_size_grows_linearly_with_transition_evidence():
+    """Each fact used to carry a full copy of every transition-evidence item, so
+    a 20 s montage with 145 abstentions wrote a 13.6 MB recipe (CARD1 review)."""
+    import json
+
+    def size(count):
+        b = sample_breakdown()
+        b.provenance = {**b.provenance, "transition_detector": "zing-transition-signatures",
+                        "transition_evidence": [TransitionEvidence("unknown", i + 1, i + 1.2, i + .8, i + 1.4, 0, 6,
+                                                                   "motion lacks quiet handles").to_dict()
+                                                for i in range(count)]}
+        recipe = build_style_recipe(b)
+        facts = [*recipe.measured, *recipe.unknowns]
+        heavy = [f for f in facts if getattr(f, "provenance", None) and len(json.dumps(f.provenance.to_dict())) > 20000]
+        assert len(heavy) <= 1  # only the reference record keeps the one full list
+        assert recipe.reference.details["transition_evidence"][count - 1]["start_seconds"] == count
+        return len(json.dumps(recipe.to_dict()))
+    small, large = size(50), size(200)
+    assert large < 5 * small  # quadratic growth would be about 16x
