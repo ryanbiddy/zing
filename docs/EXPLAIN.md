@@ -48,7 +48,11 @@ Every section has separate `facts`, `confidence`, `unknowns` and readable `lines
 plus one `not_knowable` sentence (what no export can reveal). The readable card
 shows that sentence; the full, itemized `unknowns` stay in `card.json`.
 Confidence scores are heuristics, not calibrated probabilities. Missing values
-are null or absent; they never become zero measurements.
+are null or absent; they never become zero measurements. `card.json` is the
+readable record, not a second copy of the evidence: long text lists keep their
+first 200 entries (eight samples per track) with totals under `truncated`, and
+the evidence files keep everything. Audio maps stop at 600 seconds; the card
+then says which span tempo, loudness and moments describe.
 
 - Pacing uses detected shot boundaries. It gives a shot-length distribution,
   cut rates in ten-second windows (a final window under two seconds joins the
