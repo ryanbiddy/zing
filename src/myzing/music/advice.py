@@ -9,6 +9,7 @@ from statistics import median
 
 from myzing.contracts import Record
 from myzing.audio import analyze
+from .ducking import DEFAULT_SPEECH_TO_MUSIC_LU
 
 
 @dataclass
@@ -205,7 +206,7 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
         length_text += f" (analysis covers the first {audio.duration_seconds:.0f}s)"
     add("duration", f"{length_text} for {length:g}s: " + ("use one continuous excerpt; no loop is needed." if available >= length else "choose a longer track or arrange a loop/edit, which is not automatic."), 28 if available < length else 0)
     l = audio.loudness
-    add("loudness", f"Track measures {l.integrated_lufs} LUFS and {l.true_peak_dbtp} dBTP; set excerpt gain " + ("for a 21 LU speech-to-music difference, then measure the render." if speech else "near the -16 LUFS music-led target, then check the encoded peak."), 14 if l.integrated_lufs is None or l.integrated_lufs > -7 else 0)
+    add("loudness", f"Track measures {l.integrated_lufs} LUFS and {l.true_peak_dbtp} dBTP; set excerpt gain " + (f"for a {DEFAULT_SPEECH_TO_MUSIC_LU:g} LU speech-to-music difference, then measure the render." if speech else "near the -16 LUFS music-led target, then check the encoded peak."), 14 if l.integrated_lufs is None or l.integrated_lufs > -7 else 0)
     add("dynamics", "Automate or compress the large loudness swings before mixing this track." if l.loudness_range_lu is not None and l.loudness_range_lu > 15 else "Keep the measured dynamics unless listening reveals masking; short tracks make LRA less informative.", 10 if l.loudness_range_lu is not None and l.loudness_range_lu > 15 else 0)
     q = s.quality if s else {}
     clipping_cost = 28 if q.get("near_full_scale_fraction", 0) > .001 else 12 if q.get("clipping_suspected") else 0

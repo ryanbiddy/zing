@@ -208,20 +208,21 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     audio_assets += music_assets
     audio += music_tracks
     assets = list({a.id: a for a in [*assets, *audio_assets]}.values())
-    # Output dimensions follow the brief; 30 CFR is an explicit delivery choice,
-    # not an inferred property of the reference or camera.
-    width, height = {"9:16": (1080, 1920), "1:1": (1080, 1080), "16:9": (1920, 1080)}[brief.aspect]
+    # Output dimensions follow the brief's aspect and short side (1080 by
+    # default); 30 CFR is an explicit delivery choice, not inferred.
+    from myzing.composition.aspects import dimensions
     from myzing.layout.framing import select_framing, place_captions
+    from myzing.layout.resolution import (auto_gain, chosen_short_side, mark_auto_declined, mark_auto_selected,
+                                          resolution_advice)
     from myzing.render.framing import display_dimensions
-    framing_notes = []
-    source_dimensions, square_pixels = {}, set()
+    source_dimensions, square_pixels, probe_notes = {}, set(), []
     subject_evidence = subject_evidence or {}
     for clip in clips:
         probe = next(a.probe for a in manifest.assets if a.id == clip.asset_id)
         if probe is None or not probe.width or not probe.height:
             if brief.framing not in ("auto", "fit"):
                 shortage("framing_dimensions", "Source dimensions are missing.", "Run zing project scan before framing.", clip.asset_id)
-            framing_notes.append(f"clip {clip.id}: source dimensions missing; retaining fit, framing unmeasured.")
+            probe_notes.append(f"clip {clip.id}: source dimensions missing; retaining fit, framing unmeasured.")
             continue
         stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
         sw, sh = display_dimensions({"width": probe.width, "height": probe.height,
@@ -230,35 +231,62 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         if display_dimensions({"width": probe.width, "height": probe.height, "tags": {"rotate": probe.rotation},
                                **stream, "sample_aspect_ratio": "1:1"}) == (sw, sh):
             square_pixels.add(clip.asset_id)
-        tracks, notes = subject_evidence.get(clip.asset_id, ([], []))
-        clip.framing = select_framing(brief.framing, sw, sh, width, height, clip, tracks,
-                                      max_upscale=brief.framing_max_upscale)
-        framing_notes.extend([*notes, *clip.framing.warnings, *clip.framing.upscale_warning(width, height)])
-    split_clips = []
-    for clip in clips:
-        f = clip.framing
-        cuts = [clip.src_in]
-        if f is not None and f.mode != "fit" and brief.framing in ("auto", "reframe", "zoomfill"):
-            for shot in lookup[clip.asset_id].shots:
-                if shot.start - cuts[-1] >= 1 / 30 and clip.src_out - shot.start >= 1 / 30:
-                    cuts.append(shot.start)
-        cuts.append(clip.src_out)
-        for i, (start, end) in enumerate(zip(cuts, cuts[1:])):
-            part = replace(clip, id=clip.id if len(cuts) == 2 else f"{clip.id}-shot-{i + 1}",
-                           src_in=start, src_out=end, timeline_start=clip.timeline_start + start - clip.src_in,
-                           framing=None)
-            if f is not None:
-                part.framing = select_framing(brief.framing, f.source_width, f.source_height, width, height,
-                                              part, subject_evidence.get(clip.asset_id, ([], []))[0],
-                                              max_upscale=brief.framing_max_upscale)
-            split_clips.append(part)
-    for clip in split_clips:
-        # A square-pixel full-picture fit renders identically with framing
-        # absent (the default fit graph; FFmpeg applies display rotation).
-        # Omitting it keeps such plans representable as v1 EDLs.
-        if clip.framing is not None and clip.framing.mode == "fit" and clip.asset_id in square_pixels:
-            clip.framing = None
-    clips = split_clips
+
+    def frame(width, height):
+        """Clips framed (and split at shots) for one delivery size."""
+        framed, framing_notes = [], list(probe_notes)
+        for clip in clips:
+            framing = None
+            if clip.asset_id in source_dimensions:
+                tracks, notes = subject_evidence.get(clip.asset_id, ([], []))
+                framing = select_framing(brief.framing, *source_dimensions[clip.asset_id], width, height, clip,
+                                         tracks, max_upscale=brief.framing_max_upscale)
+                framing_notes.extend([*notes, *framing.warnings, *framing.upscale_warning(width, height)])
+            framed.append(replace(clip, framing=framing))
+        split_clips = []
+        for clip in framed:
+            f = clip.framing
+            cuts = [clip.src_in]
+            if f is not None and f.mode != "fit" and brief.framing in ("auto", "reframe", "zoomfill"):
+                for shot in lookup[clip.asset_id].shots:
+                    if shot.start - cuts[-1] >= 1 / 30 and clip.src_out - shot.start >= 1 / 30:
+                        cuts.append(shot.start)
+            cuts.append(clip.src_out)
+            for i, (start, end) in enumerate(zip(cuts, cuts[1:])):
+                part = replace(clip, id=clip.id if len(cuts) == 2 else f"{clip.id}-shot-{i + 1}",
+                               src_in=start, src_out=end, timeline_start=clip.timeline_start + start - clip.src_in,
+                               framing=None)
+                if f is not None:
+                    part.framing = select_framing(brief.framing, f.source_width, f.source_height, width, height,
+                                                  part, subject_evidence.get(clip.asset_id, ([], []))[0],
+                                                  max_upscale=brief.framing_max_upscale)
+                split_clips.append(part)
+        advice = resolution_advice(split_clips, source_dimensions, width, height,
+                                   max_upscale=brief.framing_max_upscale,
+                                   command=f"zing render plan-{label}.json --aspect {brief.aspect}")
+        for clip in split_clips:
+            # A square-pixel full-picture fit renders identically with framing
+            # absent (the default fit graph; FFmpeg applies display rotation).
+            # Omitting it keeps such plans representable as v1 EDLs.
+            if clip.framing is not None and clip.framing.mode == "fit" and clip.asset_id in square_pixels:
+                clip.framing = None
+        return split_clips, framing_notes, advice
+
+    requested_side = brief.short_side
+    width, height = dimensions(brief.aspect, 1080 if requested_side == "auto" else requested_side)
+    clips, framing_notes, resolution = frame(width, height)
+    if requested_side == "auto" and chosen_short_side(resolution, "auto") != min(width, height):
+        # The brief asked Zing to lower the delivery size when a source is too
+        # small. Re-plan at the recommended size and keep it only when the
+        # planned picture improves: subject evidence can hold a crop wider at
+        # any size, and then a smaller delivery only loses pixels.
+        first, trial = resolution, dimensions(brief.aspect, chosen_short_side(resolution, "auto"))
+        lowered = frame(*trial)
+        if auto_gain(first, lowered[2]):
+            (width, height), (clips, framing_notes, resolution) = trial, lowered
+            mark_auto_selected(resolution, first)
+        else:
+            mark_auto_declined(resolution, lowered[2])
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
     if source_dimensions:
@@ -284,8 +312,12 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         "target_length_seconds": metric(brief.target_length_seconds, cursor, 2 / 30,
                                         "The brief supplies the duration; two output frames are allowed."),
     }
-    notes = [*recipe.warnings, *audio_notes, *framing_notes,
-             "30 fps CFR and full-HD aspect dimensions are delivery defaults; framing needs review.",
+    resolution_note = []
+    if resolution["limited"] or resolution.get("auto_selected"):
+        resolution_note = [resolution["summary"]]
+    notes = [*resolution_note, *recipe.warnings, *audio_notes, *framing_notes,
+             f"30 fps CFR and {width}x{height} ({brief.aspect}, short side {min(width, height)}) are delivery "
+             "choices; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
     if caption_mode == "phone":
@@ -335,6 +367,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                     "src_out": c.src_out, "output_start": c.timeline_start,
                                     "output_end": c.timeline_end} for c in clips],
         "framing": [{"clip_id": c.id, "framing": c.framing.to_dict()} for c in clips if c.framing is not None],
+        "resolution": resolution,
         "constraints": {"must_keep_word_safe": required, "forbidden_word_safe": forbidden,
                         "speech_cuts": "whole rule-derived clauses, or measured non-speech boundaries",
                         "repeated_source_ranges": False},
@@ -349,6 +382,133 @@ def attach_report(plan, report):
     music = [w for w in plan.warnings if w.startswith(PREFIX)]
     plan.warnings = [*report["warnings"], *music, REPORT_PREFIX + json.dumps(report, sort_keys=True, ensure_ascii=False, allow_nan=False)]
     return Composition.from_dict(plan.to_dict())
+
+
+MUSIC_SIDECAR = "zing.music_sidecar"
+MUSIC_CANNOT_CARRY = [
+    "the music track itself: EDL v1 plays each audio file from its first sample, so a source trim is impossible",
+    "ducking under source speech: EDL v1 ducks music only under voiceover tracks",
+    "the duck envelope (including per-clip bed gain points) and music fades",
+    "per-clip dialogue gain, its peak compressor and the speech-free audio fades at source changes: EDL v1 "
+    "plays each clip's audio unchanged (the sidecar lists them under dialogue)",
+    "MUSIC1 evidence: track choice, drop/moment alignment, cut snapping and their reasons",
+    "the v2 renderer's music measurement sidecar and final -2 dBFS peak limiter",
+]
+
+
+def _duck_envelope(passages, duration, depth, attack, release, gain_points=()):
+    """Gain keyframes (seconds, dB) at every ramp start/end, in timeline time.
+
+    Zing renders raised-cosine ramps (myzing.music.ducking); straight lines
+    between these keyframes approximate them, exactly at each keyframe. Bed
+    gain points (per-clip bed level) add to the duck at their own keyframes.
+    """
+    import math
+
+    from myzing.music.ducking import gain_at
+
+    def weight(t):
+        best = 0.0
+        for a, b in passages:
+            if a <= t <= b:
+                return 1.0
+            if attack > 0 and a - attack <= t < a:
+                best = max(best, (1 - math.cos(math.pi * (t - (a - attack)) / attack)) / 2)
+            if release > 0 and b < t <= b + release:
+                best = max(best, (1 + math.cos(math.pi * (t - b) / release)) / 2)
+        return best
+
+    times = sorted({0.0, duration, *(max(0.0, min(duration, t)) for a, b in passages
+                                     for t in (a - attack, a, b, b + release)),
+                    *(max(0.0, min(duration, float(t))) for t, _ in gain_points)})
+    return [[round(t, 6), round(-depth * weight(t) + gain_at(gain_points, t), 3) + 0.0] for t in times]
+
+
+def music_sidecar(plan, label: str) -> dict:
+    """Everything a human editor needs to rebuild the plan's music bed."""
+    from myzing.music.dialogue import edge_fade_seconds, row_at
+    from myzing.music.ducking import duck_passages, release_gap
+    from myzing.music.models import extract
+
+    evidence = extract(plan)
+    duration = max((c.timeline_end for c in plan.clips), default=0.0)
+    tracks = []
+    for audio in (a for a in plan.audio if a.role == "music"):
+        source_out = audio.src_out
+        length = (source_out - audio.src_in) if source_out is not None else None
+        planned = next((t for t in evidence.tracks if t["id"] == audio.id), None)
+        fades = ({"fade_in_seconds": round(min(.15, length / 4), 6), "fade_out_seconds": round(min(1.0, length / 4), 6)}
+                 if planned is not None and length else {"fade_in_seconds": 0.0, "fade_out_seconds": 0.0})
+        duck = None
+        if audio.duck_under_speech and audio.duck_scope == "source_speech":
+            # The renderer's passages: gaps shorter than the release gap and
+            # close edit edges stay ducked (myzing.music.ducking.duck_passages).
+            held = duck_passages(evidence.speech_spans, duration, hold=evidence.duck_hold_seconds,
+                                 attack=evidence.duck_attack_seconds, release=evidence.duck_release_seconds,
+                                 plateau=evidence.duck_plateau_seconds)
+            duck = {"scope": "source_speech", "depth_db": evidence.duck_depth_db,
+                    "attack_seconds": evidence.duck_attack_seconds,
+                    "release_seconds": evidence.duck_release_seconds,
+                    "hold_seconds": evidence.duck_hold_seconds,
+                    "plateau_seconds": evidence.duck_plateau_seconds,
+                    "release_gap_seconds": release_gap(evidence.duck_hold_seconds, evidence.duck_attack_seconds,
+                                                       evidence.duck_release_seconds, evidence.duck_plateau_seconds),
+                    "speech_to_music_target_lu": evidence.speech_to_music_lu,
+                    "speech_spans": evidence.speech_spans, "passages": held,
+                    "bed_gain_points": [list(p) for p in evidence.bed_gain_points],
+                    "envelope_db": _duck_envelope(held, duration, evidence.duck_depth_db,
+                                                  evidence.duck_attack_seconds, evidence.duck_release_seconds,
+                                                  evidence.bed_gain_points),
+                    "envelope_note": ("Timeline seconds and gain in dB relative to the track gain, per-clip bed "
+                                      "gain points included; Zing renders raised-cosine ramps between these "
+                                      "keyframes.")}
+        elif audio.duck_under_speech:
+            duck = {"scope": audio.duck_scope, "note": "Ducks under voiceover; EDL v1 can carry this track."}
+        tracks.append({
+            "id": audio.id, "asset_id": audio.asset_id, "path": audio.src,
+            "sha256": next((a.sha256 for a in plan.assets if a.id == audio.asset_id), None),
+            "timeline_start": audio.timeline_start,
+            "timeline_end": round(audio.timeline_start + length, 6) if length is not None else None,
+            "source_in": audio.src_in, "source_out": source_out, "gain_db": audio.gain_db, **fades, "duck": duck,
+            "reason": planned.get("reason") if planned else None})
+    # Dialogue matching and source-change fades act on the clips' own audio,
+    # which the v1 EDL plays unchanged; list them per clip for an editor.
+    ordered = sorted(plan.clips, key=lambda c: c.timeline_start)
+    scoped = any(a.role == "music" and a.duck_under_speech and a.duck_scope == "source_speech" for a in plan.audio)
+    fades = edge_fade_seconds(ordered, evidence.speech_spans) if scoped else [(0.0, 0.0)] * len(ordered)
+    dialogue = []
+    for clip, (fade_in, fade_out) in zip(ordered, fades):
+        row = row_at(evidence.dialogue_gains, clip.timeline_start + clip.duration / 2, clip.asset_id)
+        if row or fade_in or fade_out:
+            dialogue.append({"clip_id": clip.id, "asset_id": clip.asset_id, "timeline_start": clip.timeline_start,
+                             "timeline_end": clip.timeline_end, "gain_db": row["gain_db"] if row else 0.0,
+                             "compressor": row.get("compressor") if row else None,
+                             "fade_in_seconds": round(fade_in, 6), "fade_out_seconds": round(fade_out, 6)})
+    return {"version": 1, "kind": MUSIC_SIDECAR, "plan": f"plan-{label}.json", "edl": f"plan-{label}.edl.json",
+            "fps": [plan.fps.numerator, plan.fps.denominator], "timeline_duration": round(duration, 6),
+            "tracks": tracks, "dialogue": dialogue, "cannot_carry": MUSIC_CANNOT_CARRY,
+            "rebuild": ("Import the EDL's picture and dialogue, apply each dialogue entry's clip gain, compressor "
+                        "(threshold dBFS, ratio, attack and release ms, knee dB) and fades to that clip's audio, "
+                        "then place each track at timeline_start using source_in..source_out of the file, apply "
+                        "gain_db, the fades, and the duck envelope keyframes. Rendering plan-" + label + ".json "
+                        "with zing render reproduces the full mix.")}
+
+
+def music_projection(plan, label: str):
+    """For a music plan: (picture-and-dialogue v1 EDL, music sidecar, blockers).
+
+    Music is the only thing separated, and only when it is the sole reason
+    lowering fails; every other v2 feature still blocks the derivative.
+    """
+    if not any(w.startswith(REPORT_PREFIX) for w in plan.warnings):
+        raise ValueError("Expected a P17 plan with retained planning evidence.")
+    if not any(a.role == "music" for a in plan.audio):
+        return None, None, []
+    projected = replace(plan, warnings=[], brief=None, audio=[a for a in plan.audio if a.role != "music"])
+    blockers = lowering_blockers(projected)
+    if blockers:
+        return None, None, blockers
+    return lower_to_v1(projected), music_sidecar(plan, label), []
 
 
 def render_projection(plan):

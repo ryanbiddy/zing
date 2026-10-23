@@ -189,7 +189,10 @@ Each box allows 70 characters; all boxes together allow 110. Repeat `--text` in
 box order; an empty string preserves a slot. `check` returns exit 1 for invalid
 copy; JSON `ok` means the check ran, while `valid` says whether copy passed.
 Layouts are classic, caption and labels. `--regions` for labels uses normalized
-source-image `[x,y,width,height]` boxes. Choose a font covering the requested script.
+source-image `[x,y,width,height]` boxes. Text avoids detected faces and a
+model-free subject estimate (a distinct region, not a recognized pet or object);
+add `--protect x,y,w,h` boxes on `meme render` and `still` when it misses one.
+Choose a font covering the requested script.
 `--template` fetches a blank on cache miss unless `--offline` is set. Catalog
 lookup itself stays offline. Existing still outputs require `--overwrite`;
 prefer a new filename instead of enabling it.

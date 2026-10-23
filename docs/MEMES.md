@@ -19,8 +19,23 @@ Replace the example ID with one printed by your run. `--n` is the total
 number of concepts, from 1 to 8. Zing distributes them across candidate
 photos, seeds the existing formula engine with the topic and photo hash,
 and removes duplicate complete captions. The same photo bytes and topic
-produce the same concepts and IDs with the same local detector setup.
+produce the same concepts and IDs with the same local detector and OCR setup.
 Scores measure readability and compression; they do not predict popularity.
+
+Offline lines use each photo's measured facts before the topic formulas:
+the prominent face count ("all 3 of us after monday standup", or "me, five
+minutes into ..." for one face), text read by local OCR ('the sign said
+"EXIT"'), scene brightness (dark: "... at 2am"; bright: "... in broad
+daylight"), a saturated dominant color, and a confident subject estimate,
+which yields a label idea whose two labels sit beside the subject, never on
+it. Each idea lists its `evidence` (for example `faces=3`, `light=dark`).
+OCR runs only when the optional study OCR runtime and its verified local
+models are present (`index.json` `text` is `""` when none was found and
+`null` when OCR was unavailable); nothing is downloaded. Brightness is the
+photo's mean luma (`brightness`, 0 to 1). The writer prompt passes the same
+`measured_facts` to your AI. These lines are still template-based, and the
+result says so: an agent or LLM given the meme-writer prompt writes better
+ones.
 
 The output folder must be new or empty. It receives full-size candidate
 PNGs, `contact-sheet.png`, `index.json`, and `meme-writer.md`. The index records
@@ -74,15 +89,84 @@ model while generating concepts. To provision it explicitly, run
 fails, Zing reports an unknown face count and keeps text off the central 60%
 of the source image as a heuristic, and `auto` blur-fills instead of
 cropping (a subject estimate can sit beside a face it cannot see). This can
-miss faces elsewhere. Text avoids faces only; pets and objects are not
-protected. Inspect placement before sharing, even when detection is available.
+miss faces elsewhere. Inspect placement before sharing, even when detection
+is available.
+
+### Pets, objects and protect boxes
+
+Text also avoids non-face subjects. Each photo gets a model-free subject
+estimate: color distance from the photo's border color plus local edge
+strength, a mild center prior, an Otsu threshold and the strongest connected
+region (nearby pieces join it). It marks "a distinct region", never a dog,
+cat or any other category, and its confidence is an uncalibrated separation
+score from 0 to 1. Flat, evenly busy, full-width bands (sky, floor) and
+regions covering most of the photo are not subjects. When no prominent face
+was detected and the confidence is at least 0.5, the estimate's box (grown
+by 3% of the photo per side) is protected like a face. Lower estimates are
+reported but not protected. The still index records `subject_estimate` (box,
+confidence, method, position and evidence), and each concept warns with one
+line such as "Subject estimate (top-center, box [...], confidence 1.00,
+uncalibrated) ... it marks a distinct region, not what it is."
+
+Add your own boxes with `--protect x,y,w,h` (normalized source coordinates,
+repeatable, at most six) on `zing still` and `zing meme render`, or `protect`
+on MCP `still_concepts` and `meme_render`. They apply in addition to faces
+and the estimate; `zing still pick` re-checks the boxes saved in the index.
+
+```sh
+uv run --frozen zing meme render --image dog.jpg --text "me at 6am" --protect 0.3,0.05,0.4,0.5 --out dog-meme.png
+```
+
+`meme render` now checks its text boxes against detected faces, the subject
+estimate and protect boxes (it does not use the central-60% fallback). When
+its default classic layout would cover one, it uses a caption bar above the
+photo and says why. An explicitly requested `--layout` (or `--regions`) is
+kept, and the overlap is stated in `warnings` and in the result's
+`protection` object (`regions`, `text_clear`, `subject_estimate`, `summary`).
+The check draws each text layer once and tests what it actually covers
+(text ink, stroke, and any plate or shadow), not its layout box: a short line
+centered in the full-width classic band stays in place when a face sits at
+the band's edge. On 40 frames from the licensed review clips (YuNet cached;
+four caption sets, 1:1 and 9:16) the default moved to a caption bar in 32 of
+320 renders, against 44 of 320 with the earlier layout-box check; every
+remaining move was real ink over a padded face box. Repeated patterns
+(stripes, tiles) are not a subject estimate: when more than four regions are
+as large as the strongest, its confidence is scaled down. Templates check
+only explicit protect boxes. `render-video` does not run face or subject
+protection. The still workflow (`zing still`) keeps its layout-box placement
+check.
 
 The photo inventory reads one folder, without recursion or links. It accepts
-single-frame JPEG, PNG, WebP, BMP, and TIFF; other extensions are ignored.
-Limits: 64 supported files, 20 MiB per photo, 256 MiB combined, 8192 pixels
-per axis, 40 megapixels per photo, and 4096 folder entries. Invalid supported
-files are reported as errors. Byte-identical photos are deduplicated.
-Orientation follows EXIF. No photo, description, or topic is sent anywhere.
+single-frame JPEG, PNG, WebP, BMP, TIFF, and HEIC/HEIF; other extensions are
+ignored. Limits: 64 supported files, 64 MiB per photo, 256 MiB combined, and
+4096 folder entries; decoding is bounded as described in "HEIC and very large
+photos" below. Invalid supported files are reported as errors. Byte-identical
+photos are deduplicated. Orientation follows EXIF (HEIF: its rotation and
+mirror properties). No photo, description, or topic is sent anywhere.
+
+### HEIC and very large photos
+
+Every photo is decoded once into a working copy at most 4096 pixels on its
+long side, in display orientation, before face/subject analysis and rendering
+(outputs are at most 1920 pixels wide). A 50-megapixel phone JPEG is decoded
+at a reduced JPEG scale and never needs a full-size bitmap. The decode bound
+is explicit: at most 120 megapixels and 16384 pixels per side; larger photos
+are refused with "resize it first". Pillow's decompression-bomb warning is
+replaced by that bound, so a 90-megapixel photo no longer crashes. The still
+index records each photo's `source` (`original` and `working` sizes,
+megapixels, decoder, orientation source), its description names both sizes,
+and `meme render` returns the same `source` object plus a warning line when a
+photo was reduced.
+
+HEIC/HEIF photos are decoded by the installed FFmpeg (extension `.heic`,
+`.heif`, `.hif`, or a HEIF `ftyp` brand on a renamed file). FFmpeg 8.1.2
+reads single images, phone-style tile grids and HEIF rotation; FFmpeg 6.1.1
+cannot read HEIF image items. Then the command stops with the FFmpeg version
+and the remedy: convert the photo to JPEG or PNG, or put FFmpeg 7.1 or newer
+first on PATH. `zing doctor` reports HEIC support (`heic`) by probing a tiny
+HEIF header, without an encoder or sample photo. Zing adds no HEIC library:
+pillow-heif wheels bundle the GPL x265 encoder. Color profiles (for example
+Display P3) are not converted; colors are read as stored.
 
 ### Better lines from your own AI
 
@@ -147,14 +231,26 @@ uv run --frozen zing meme render --image desk.jpg --text "one quick fix" --text 
 
 Zing makes no model calls. Ideas are seeded formula substitutions; your AI
 writes and judges the joke using `zing prompt meme-writer` or MCP
-`get_prompt("meme-writer")`. A topic phrased as a situation ("when the build
-finally passes", "when you commit", "the deploy failed") gets situation
-formulas: the photo is the reaction, so lines read "when you commit" or "pov:
-the build finally passes / nobody move"; the subject after "when" is kept. A
-wh-clause ("how it works", "why the build broke") is used as a noun: "me
+`get_prompt("meme-writer")`. Every line is built from the topic's own words:
+its head noun ("monday standup" names "the standup", "my cat knocking things
+off the desk" names "my cat"), the clause subject ("the build", or the object
+when the subject is a pronoun: "you open the legacy code" names "the legacy
+code"), or the wh-clause itself. No payoff comes from a fixed list, so
+topics with different head nouns never share a line. Topics about the same
+noun can share a payoff ("the build broke" and "the build passed" both get
+"the build deserves a raise"); each setup line still names its own topic.
+Formats cover top/bottom setups, one-line
+reactions, POV, labels and a "nobody asked about ..." explainer (the
+"nobody:" colon form stays banned filler). A topic phrased as a situation
+("when the build finally passes", "when you commit", "the deploy failed")
+gets situation formulas: the photo is the reaction, so lines read "when you
+commit" or "pov: the build finally passes / don't touch the build"; the
+subject after "when" is kept and verbs agree ("the tests deserve a raise").
+A wh-clause ("how it works", "why the build broke") is used as a noun: "me
 explaining how it works". Other topics are treated as a thing; tasks and "how
 to ..." become gerunds with standard spelling ("fix the flaky test" reads
 "fixing the flaky test", "commit" "committing", "be on call" "being on call").
+Each idea carries a `note` that it is a template-based offline line.
 Topics longer than 40 characters are shortened at a clause break or a word,
 never mid-word and never with an ellipsis. `zing doctor` reports the optional `pillow`
 dependency. Templates, ideas, and checks work without Pillow.
@@ -183,9 +279,10 @@ For custom layouts with more than three regions, check with `--box-count`.
 
 Rendering defaults to a square. `--aspect` accepts `16:9` (1200x675), `1:1`
 (1080x1080), `4:5` (1080x1350), `9:16` (1080x1920), or `original` (1200-1920
-pixels wide, retaining the source ratio). Source and output images are
-limited to 40 megapixels. The still `render` command uses the first frame
-of animated inputs; use `render-video` to keep motion.
+pixels wide, retaining the source ratio). Photos are decoded as described in
+"HEIC and very large photos"; output images are limited to 40 megapixels.
+The still `render` command uses the first frame of animated inputs; use
+`render-video` to keep motion.
 
 - `--layout classic`: outlined Anton text at the top and bottom edges, in
   capitals. The outline is 8% of the font size, so it holds on bright skies.
@@ -239,10 +336,12 @@ be cached, or you can supply it as a local `--image`.
 `--start` and `--end` are source seconds. The selected interval must be at
 most 30 seconds; longer sources require an explicit trim. `--max-duration`
 can lower that limit. Missing or invalid durations, unsupported containers,
-files above 500 MiB, and sources above 8192 pixels on either axis or 40
-megapixels are refused before encoding. Supported containers are MP4/MOV,
-Matroska/WebM, AVI, MPEG/TS, and GIF; the installed FFmpeg must support their
-codecs. URLs, network shares, and playlist inputs are refused.
+files above 500 MiB, and videos above 8192 pixels on either axis or 40
+megapixels are refused before encoding. Still images (`--image`, cached
+blanks) use the photo decoder above, including HEIC and large photos.
+Supported containers are MP4/MOV, Matroska/WebM, AVI, MPEG/TS, and GIF; the
+installed FFmpeg must support their codecs. URLs, network shares, and playlist
+inputs are refused.
 
 The `classic`, `caption`, and `labels` layouts use the still renderer's text
 caps, fonts, wrapping, plates, shadows, rotation, and framing. `--fit` is

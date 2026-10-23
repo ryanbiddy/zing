@@ -47,7 +47,7 @@ REGISTERED_SKIPS = {
     "real-media test needs ffmpeg and ffprobe": (
         "the separately opted-in media regression needs the decoder binaries. "
         "PRODUCT SURFACE: doctor names FFmpeg as required and the transition probe "
-        "raises an explicit executable-not-found error. The 327 mandatory FFmpeg "
+        "raises an explicit executable-not-found error. The 332 mandatory FFmpeg "
         "tests remain in the no-skip CI gate."
     ),
     "set ZING_CG2_REAL_ROOT": (
@@ -126,6 +126,17 @@ REGISTERED_SKIPS = {
         "there does project-lock release retry; POSIX renames never hit it. "
         "windows-latest CI executes this case. PRODUCT SURFACE: none needed — a "
         "platform detail of lock cleanup, not a user-visible capability."
+    ),
+    "local OCR runtime/models are not installed": (
+        "photo text is optional evidence for offline meme lines; it needs the study OCR runtime and "
+        "verified local models, and the test never downloads them. PRODUCT SURFACE: doctor's ocr and "
+        "caption_geometry checks; the still index records text=null when OCR was unavailable, and "
+        "docs/MEMES.md says so."
+    ),
+    "FFmpeg is not on PATH": (
+        "the real HEIC round trip encodes its fixture with the local FFmpeg (libx265). PRODUCT SURFACE: "
+        "doctor's required ffmpeg check and optional heic check; HEIC decoding names the missing FFmpeg "
+        "and the remedy. The no-skip FFmpeg gate runs the HEIF support test, which never skips."
     ),
 }
 

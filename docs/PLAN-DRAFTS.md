@@ -82,7 +82,12 @@ retimed and reused in order. Platform-mask checks are rerun; reference-face
 safety does not transfer to new footage. Each plan states that output face
 safety needs a fresh layout check. A selected LUT approximation is retained;
 transition approximations are currently reported as unapplied. Output uses
-30 fps CFR and the brief's aspect at full-HD dimensions.
+30 fps CFR and the brief's aspect at its `short_side` (1080 by default, so
+full HD). Each plan's comparison entry has a `resolution` record; a
+low-resolution source puts its numbers and recommendation first in the
+plan warnings and the summary (see [FRAMING.md](FRAMING.md), "Low-resolution
+sources"). Brief `short_side: "auto"` plans at the recommended size when
+that plan shows more sharp picture, and otherwise keeps the size and says why.
 
 Source audio follows the clips. `none` adds no music or SFX; it cannot separate
 embedded sounds from source speech. Supplied audio files must be inventoried.
@@ -117,6 +122,32 @@ B/C counterparts. The full v2 documents retain their evidence. The derivative
 explicitly separates only `brief` and `warnings`, then calls the existing strict
 `lower_to_v1`; it never discards fonts, layouts, framing, color, transitions or
 audio policy to force a renderable result. Those features are listed as blockers.
+
+Plans with a music bed are the one exception, because EDL v1 cannot carry a
+trimmed, speech-ducked track: when music is the only thing that blocks
+lowering, the derivative keeps the picture, captions and source audio
+(dialogue) and drops only the music tracks. `plan-A.edl.music.json` (version
+1, `kind: "zing.music_sidecar"`) then holds what an editor needs to rebuild
+the bed: track path and SHA-256, `timeline_start`/`timeline_end`, `source_in`
+and `source_out`, `gain_db`, the fade-in/out seconds the v2 renderer applies,
+and the duck: scope, depth, attack, release, hold, plateau and the release
+gap, the speech-over-music target, the known speech spans, the passages the
+renderer ducks under (the same `duck_passages` rule, so short gaps and close
+edit edges stay ducked), the per-clip `bed_gain_points`, and `envelope_db`
+keyframes (timeline seconds, dB relative to the track gain, bed gain points
+included) at every ramp start and end. Zing renders raised-cosine ramps
+between those keyframes. `dialogue` lists, per clip, what the v2 renderer
+does to the clip's own audio and EDL v1 cannot: the dialogue-matching gain,
+its peak compressor (threshold dBFS, ratio, attack and release ms, knee dB)
+and the speech-free fades at source changes. `cannot_carry` lists what the
+EDL cannot represent (source trim, ducking under source speech, fades and
+envelope with bed gain points, dialogue gain, compressor and edge fades,
+MUSIC1 alignment evidence, the v2 measurement sidecar and peak limiter). The
+comparison's `v1` entry records `scope`, `music_removed`, `music_sidecar` and
+the full-plan `blockers`; `plan_drafts` returns `music_sidecars`. Any other
+blocker (framing, layout, fonts, color, SFX, transitions) still blocks the
+derivative, and no sidecar is written. Render `plan-A.json` for the complete
+mix.
 
 ```powershell
 zing render C:\edit-project\drafts\plan-A.edl.json -o C:\edit-project\draft-A.mp4

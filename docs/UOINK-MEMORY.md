@@ -64,6 +64,38 @@ rejected. The vendored `tests/fixtures/uoink_corpus_v1/provider.json` search
 responses pass the parser unchanged; the adjacent sidecar pins their source
 commit and SHA-256. HTTP 404, 405 or 501 reports search unavailable.
 
+## Note titles
+
+`push_to_uoink` titles the note `Zing breakdown: <title>`. Retained Uoink
+files are named `media.mp4`, so the file name is the last resort. The title
+is the first available of:
+
+1. The Uoink corpus item's title. The kept-media handoff has no title field,
+   so `zing project resolve-reference` asks for the same item with
+   corpus.read/1 `get` (`GET /api/corpus/v1/items/<encoded-id>`, token
+   header only, no query or body), but only when the service manifest
+   advertises `uoink.corpus.read/1`, as search does. The envelope is
+   exact-key validated like search (data has exactly `item`, `content` and
+   `attachments`; the item has the search item's keys and the requested
+   id). Only `title`, `author` and `source_url` are kept, as
+   `reference.resolution.title` in `project.json` and as `title` in the
+   breakdown's `project_reference` provenance. A breakdown studied before
+   this has its title looked up at push time instead.
+2. The platform title of a URL study.
+3. The media container's `title` tag (read with ffprobe).
+4. The project folder name (recorded as `project_name` by
+   `zing project study-reference`).
+5. The file name, then the slug.
+
+Any failed lookup (offline, missing capability, `not_found`, drifted shape,
+a garbled or truncated HTTP reply) falls through quietly to the next rule.
+The reply is read up to 16 MiB: Uoink 3.11 caps `get` content at 2 MiB of
+Markdown but writes it with ASCII JSON escapes, so a conformant reply with
+CJK text can exceed 4 MiB. The push result names the rule in
+`title_source` (`uoink_item`, `platform`, `container`, `project`,
+`filename`, `slug`). The tests replay the vendored provider fixture's `get`,
+`get_non_video` and `missing` responses unchanged.
+
 ## Choice receipts and the draft writer handoff
 
 ```powershell

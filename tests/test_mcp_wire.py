@@ -15,13 +15,30 @@ pytest.importorskip("mcp", reason='install "myzing[mcp]" for wire tests')
 GOLDEN = json.loads((FIXTURES / "sdk1.json").read_text(encoding="utf-8"))["exchanges"]
 
 
+def without_protect(tool):
+    """POLISH1 added an optional protect argument (and one description
+    sentence) to still_concepts and meme_render; compare everything else."""
+    from myzing.mcp_server import PROTECT_DESCRIPTIONS
+
+    if tool["name"] not in PROTECT_DESCRIPTIONS:
+        return tool
+    tool = copy.deepcopy(tool)
+    assert PROTECT_DESCRIPTIONS[tool["name"]] in tool["description"]
+    tool["description"] = tool["description"].replace(PROTECT_DESCRIPTIONS[tool["name"]], "")
+    assert "protect" in tool["inputSchema"]["properties"]
+    del tool["inputSchema"]["properties"]["protect"]
+    return tool
+
+
 def assert_wire(actual, expected):
     # The SDK1 capture is immutable historical evidence. MUSIC1/CARD1 add tools;
     # continue comparing every original tool byte, and test the addition via
-    # the current registry/stdio pins and test_music.py.
+    # the current registry/stdio pins and test_music.py. POLISH1's protect
+    # argument is stripped the same way and tested in test_meme_protect.py.
     actual = copy.deepcopy(actual)
     if isinstance(actual, dict) and isinstance(actual.get("result"), dict) and "tools" in actual["result"]:
-        actual["result"]["tools"] = [t for t in actual["result"]["tools"] if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run"}]
+        actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
+                                     if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run"}]
         for tool in actual["result"]["tools"]:
             if tool["name"] == "match_start":
                 # STUDIO1 adds an optional adapter argument. The historical
