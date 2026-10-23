@@ -210,7 +210,7 @@ def render_png(card, media, path):
             rows = [r for r in section.facts.get("tracks", []) if r["kind"] in CAPTION_ROLES]
             if rows:
                 bw, bh = (180, int(180/aspect)) if aspect >= 1 else (int(180*aspect), 180)
-                for i, row in enumerate(sorted(rows, key=lambda r: -len(r["samples"]))[:3]):
+                for i, row in enumerate(sorted(rows, key=lambda r: -r.get("sample_count", len(r["samples"])))[:3]):
                     x = 36+i*248
                     draw.rectangle((x, y, x+bw, y+bh), fill="#dde2d8", outline=muted)
                     left, top, right, bottom = row["box"]

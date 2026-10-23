@@ -68,12 +68,12 @@ def _text(captions, ocr_ran):
     spoken = [r for r in rows if r["kind"] == "caption"]
     # One unreadable caption-role track is not enough to call the video captioned.
     if len(spoken) >= 2 or any(r.get("quotable") for r in spoken):
-        r = max(spoken, key=lambda r: len(r["samples"]))
+        r = max(spoken, key=lambda r: r.get("sample_count", len(r["samples"])))
         pop = ", word by word" if r["motion"] == "popping" else ""
         return f"Burned-in captions {ZONE_PHRASES[r['zone']]} of the frame, {r['case']} case{pop}."
     if spoken or any(r["kind"] in ("title", "credit", "persistent overlay") for r in rows):
         return f"Titles or large text on screen{sample}; whether any of it is captions is uncertain."
-    return f"On-screen text that does not follow the speech (signs, screens or titles){sample}; no captions found."
+    return f"On-screen text not tied to speech (signs, screens or titles){sample}; no captions found."
 
 
 def _audio(audio):

@@ -493,3 +493,26 @@ def test_ranges_and_signs_read_cleanly():
     assert transitions(b).lines[0] == "1 dissolve (7.00-7.70s, score 0.83)."
     assert plain.signed(-0.04) == "+0.0" and plain.signed(-10.84) == "-10.8"
     assert "b* +0.0" in color(lab(0.2, -0.0001)).lines[1]
+
+
+def test_card_json_lists_are_bounded_with_totals():
+    from myzing.explain import sections as S
+    text = "Mission Elapsed Time"
+    many = geometry_with(text, [.97] * 30)
+    track = many["tracks"][0]
+    many["tracks"] = [{**track, "id": f"t{i}"} for i in range(S.MAX_TRACKS + 25)]
+    section = captions(breakdown(), many)
+    assert len(section.facts["tracks"]) == S.MAX_TRACKS
+    assert section.facts["truncated"]["totals"]["tracks"] == S.MAX_TRACKS + 25
+    row = section.facts["tracks"][0]
+    assert row["sample_count"] == 30 and len(row["samples"]) == S.MAX_TRACK_SAMPLES
+    assert f"{S.MAX_TRACKS + 25} text regions read" in section.lines[0]  # prose uses the full count
+
+
+def test_truncated_audio_says_which_part_was_measured():
+    b = breakdown()
+    b["meta"]["duration"] = 1200
+    audio = {"tempo": {"status": "none", "bpm": None, "confidence": 0}, "loudness": {"integrated_lufs": -29.5, "true_peak_dbtp": -18.4},
+             "structure": {"moments": []}, "duration_seconds": 600.0, "truncated": True, "warnings": []}
+    lines = audio_section(b, audio).lines
+    assert any("first 600.0s of 1200.0s only" in line for line in lines)

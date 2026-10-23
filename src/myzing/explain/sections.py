@@ -21,6 +21,16 @@ NOT_KNOWABLE = {
     "audio": "the music level under speech (that needs separate stems) and what the track is.",
 }
 QUOTE_CONFIDENCE = .85
+# card.json is the readable record, not a second copy of the evidence files:
+# long lists keep their first entries plus a total, and the evidence path.
+MAX_TRACKS, MAX_TRACK_SAMPLES, MAX_LIST = 200, 8, 200
+
+
+def _bounded(values, limit, name, truncated):
+    if isinstance(values, list) and len(values) > limit:
+        truncated[name] = len(values)
+        return values[:limit]
+    return values
 
 
 def _windows(cuts, duration):
@@ -80,7 +90,8 @@ def pacing(b, audio):
         typical = median(lengths)
         lines = [f"{len(cuts)} cut{'s' if len(cuts) != 1 else ''} in {seconds(duration)}: a new shot about every {seconds(typical)} "
                  f"({pace_word(typical)}; {facts['cuts_per_minute']:.0f} cuts per minute).",
-                 f"Shots run {seconds(min(lengths))} to {seconds(max(lengths))}."]
+                 f"Shots run {seconds(min(lengths))} to {seconds(max(lengths))}." if max(lengths) - min(lengths) >= .01
+                 else f"Every shot runs {seconds(typical)}."]
         if len(windows) > 1 and len({round(w["cuts_per_minute"]) for w in windows}) > 1:
             lines.append("Cuts per minute by 10 s window: " + ", ".join(f"{w['cuts_per_minute']:.0f}" for w in windows[:8])
                          + (" (more in card.json)." if len(windows) > 8 else "."))
@@ -149,7 +160,7 @@ STYLED_ROLES = ("caption", "title", "credit", "persistent overlay")
 def quotable_rows(rows):
     """Clean reads first, ranked by real words, then OCR confidence, then repeats."""
     return sorted((r for r in rows if r["quotable"]),
-                  key=lambda r: (-min(4, word_count(r["text"])), -(r["ocr_confidence"] or 0), -len(r["samples"])))
+                  key=lambda r: (-min(4, word_count(r["text"])), -(r["ocr_confidence"] or 0), -r.get("sample_count", len(r["samples"]))))
 
 
 def captions(b, geometry):
@@ -195,8 +206,16 @@ def captions(b, geometry):
         unknowns.append("No accepted text tracks; this does not prove the video has no text.")
     if not fonts:
         unknowns.append("Font candidates unavailable; prepare local OCR assets and install myzing[fonts].")
-    facts = {"tracks": rows, "appearance_samples": detections, "font_candidates": fonts,
-             "coverage": geometry.get("coverage", {}), "text_roles": roles,
+    truncated = {}
+    for r in rows:
+        r["sample_count"] = len(r["samples"])
+        r["samples"] = r["samples"][:MAX_TRACK_SAMPLES]
+    bounded_roles = {**roles, "events": _bounded(roles.get("events", []), MAX_LIST, "text_roles.events", truncated)}
+    facts = {"tracks": _bounded(rows, MAX_TRACKS, "tracks", truncated),
+             "appearance_samples": _bounded(detections, MAX_LIST, "appearance_samples", truncated),
+             "font_candidates": _bounded(fonts, MAX_LIST, "font_candidates", truncated),
+             "coverage": geometry.get("coverage", {}), "text_roles": bounded_roles,
+             "truncated": {"totals": truncated, "full_lists": "evidence caption-geometry.json"} if truncated else None,
              "quote_rule": f"median OCR confidence >= {QUOTE_CONFIDENCE}, two samples (or >= 0.95), and word-like text",
              "caption_geometry_summary": geometry_stats(caption_geometry(geometry, roles))}
     widths = [d["appearance"]["stroke_width_px"] for d in detections if d["appearance"].get("stroke_width_px") is not None]
@@ -217,7 +236,7 @@ def captions(b, geometry):
         spoken = [r for r in rows if r["kind"] == "caption"]
         weak_captions = len(spoken) < 2 and not any(r["quotable"] for r in spoken)
         styled = [r for r in rows if r["kind"] in STYLED_ROLES]
-        for r in sorted(styled, key=lambda r: -len(r["samples"]))[:2]:
+        for r in sorted(styled, key=lambda r: -r.get("sample_count", len(r["samples"])))[:2]:
             size = f", ink about {r['size_percent_short_side']:.0f}% of the short side" if r["size_percent_short_side"] is not None else ""
             label = "Caption-like text (role uncertain)" if r["kind"] == "caption" and weak_captions else r["kind"].capitalize()
             lines.append(f"{label} style: {ZONE_PHRASES[r['zone']]}, {r['case']} case, {r['display']}{size}.")
@@ -234,8 +253,8 @@ def captions(b, geometry):
             lines.append(f"Closest bundled font: {candidate.get('family', candidate.get('font_id'))} ({strength} match, "
                          f"score {candidate['score']:.2f}); a substitute, not the original.")
     return Section("Captions and on-screen text", facts,
-                   {"kind": "sampled OCR and heuristic geometry" if rows else "no accepted text tracks; absence unproven", "scores": [d["confidence"] for d in detections]},
-                   unknowns + geometry.get("warnings", []), lines, not_knowable=NOT_KNOWABLE["captions"])
+                   {"kind": "sampled OCR and heuristic geometry" if rows else "no accepted text tracks; absence unproven", "scores": [d["confidence"] for d in detections][:MAX_LIST * 5]},
+                   unknowns + _bounded(geometry.get("warnings", []), 50, "warnings", {}), lines, not_knowable=NOT_KNOWABLE["captions"])
 
 
 def color(measurement, error=None):
@@ -338,6 +357,9 @@ def audio_section(b, audio, error=None):
         lines = [(f"Speech for about {speech:.0%} of the clip (voice activity detection)." if speech
                   else "No speech detected." if speech == 0 else "Speech share unknown."), music_line]
     if audio:
+        if audio.get("truncated"):
+            lines.append(f"Audio measured for the first {seconds(audio['duration_seconds'])} of {seconds(b['meta']['duration'])} only; "
+                         "tempo, loudness and moments describe that part.")
         lines.append(f"Tempo: {tempo['bpm']:.1f} BPM." if tempo.get("bpm") else "No steady beat found.")
         loud = audio["loudness"]
         if loud.get("integrated_lufs") is not None:

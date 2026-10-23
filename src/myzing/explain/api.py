@@ -130,6 +130,8 @@ def _measure(source, out, *, transitions, allow_download=False):
     geometry_path = folder / "caption-geometry.json"
     geometry = json.loads(geometry_path.read_text(encoding="utf-8")) if geometry_path.exists() else {}
     warnings = list(b.warnings)
+    if len(warnings) > 100:  # e.g. one font warning per OCR track on long sources
+        warnings = warnings[:100] + [f"{len(b.warnings) - 100} more study warnings in the evidence breakdown.json."]
     audio, color, audio_error, color_error = None, None, None, None
     if display["has_audio"]:
         try:
