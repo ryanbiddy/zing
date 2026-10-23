@@ -118,6 +118,27 @@ def test_heic_support_matches_the_ffmpeg_demuxer_and_failures_are_actionable(tmp
     assert "HEIC/HEIF" in message and "Convert the photo to JPEG or PNG" in message
     if not supported:
         assert "cannot read HEIC/HEIF photo probe.heic" in message
+    if version.startswith("ffmpeg version 6."):
+        assert "predates HEIF image items" in message and "Option not found" not in message
+
+
+def test_an_old_ffprobe_option_error_reads_as_missing_heif_support(tmp_path, monkeypatch):
+    """Review fix: FFmpeg 6.1's refusal quoted ffprobe's unknown-option error."""
+    path = tmp_path / "IMG_0001.HEIC"
+    path.write_bytes(photo._probe_container())
+
+    def old_ffprobe(command, **kwargs):
+        return subprocess.CompletedProcess(command, 1, "", "Failed to set value '-of' for option "
+                                                           "'show_stream_groups': Option not found\n")
+
+    monkeypatch.setattr(photo.subprocess, "run", old_ffprobe)
+    monkeypatch.setattr(photo.shutil, "which", lambda name: name)
+    monkeypatch.setattr(photo, "_ffmpeg_version", lambda ffmpeg: "ffmpeg version 6.1.1")
+    with pytest.raises(MemeError) as error:
+        photo.load_photo(path)
+    message = str(error.value)
+    assert "cannot read HEIC/HEIF photo IMG_0001.HEIC (this FFmpeg predates HEIF image items)" in message
+    assert "Option not found" not in message and "FFmpeg 7.1 or newer" in message
 
 
 def test_doctor_reports_heic_support(capsys):

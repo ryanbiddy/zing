@@ -175,8 +175,12 @@ def _heif_probe(path: Path, ffmpeg: str, ffprobe: str) -> tuple[int, int]:
     except (OSError, subprocess.SubprocessError) as exc:
         raise MemeError(f"HEIC/HEIF photos need FFmpeg on PATH ({exc}). {HEIF_REMEDY}") from exc
     if result.returncode:
-        raise MemeError(f"{_ffmpeg_version(ffmpeg)} cannot read HEIC/HEIF photo "
-                        f"{path.name} ({(result.stderr.strip().splitlines() or ['no detail'])[-1][:160]}). "
+        detail = (result.stderr.strip().splitlines() or ["no detail"])[-1][:160]
+        if "show_stream_groups" in result.stderr:
+            # FFmpeg before 7.1 has no stream groups (HEIF tile grids); its
+            # option error says nothing useful about the photo.
+            detail = "this FFmpeg predates HEIF image items"
+        raise MemeError(f"{_ffmpeg_version(ffmpeg)} cannot read HEIC/HEIF photo {path.name} ({detail}). "
                         + HEIF_REMEDY)
     try:
         data = json.loads(result.stdout or "{}")
