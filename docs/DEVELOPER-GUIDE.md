@@ -161,6 +161,23 @@ uv run --frozen pytest -ra
 ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 332
 ```
 
+CI (`.github/workflows/ci.yml`) runs that gate on four FFmpeg stacks, with
+skips counted as failures:
+
+| Job | Runner | FFmpeg and libass | Tests |
+|---|---|---|---|
+| `ffmpeg-gates-ubuntu` | `ubuntu-24.04`, pinned | apt FFmpeg 6.1.1, libass 0.17.1 | full gate |
+| `ffmpeg-gates-ubuntu-latest` | `ubuntu-latest` (Ubuntu 26.04 since October 2026) | apt FFmpeg 8.0.1, libass 0.17.4 | full gate |
+| `ffmpeg-smoke-windows` | `windows-latest` | Chocolatey FFmpeg 9.x | full gate |
+| `ffmpeg-smoke-macos` | `macos-latest` | Homebrew `ffmpeg-full` 9.0.2, libass 0.17.5 | listed subset |
+
+The 24.04 job stays pinned so FFmpeg 6 keeps coverage; the `ubuntu-latest`
+job follows GitHub's newest image so new distro stacks fail in CI first.
+Tests that use FFmpeg `drawtext` as an independent text reference render one
+line per call: FFmpeg 6.1.4, 7.1.3, 8.0.1 and 8.1.0 draw a `.notdef` box for
+each newline ([FFmpeg issue #21565](https://code.ffmpeg.org/FFmpeg/FFmpeg/issues/21565),
+fixed in 7.1.4, 8.0.2 and 8.1.1).
+
 Real-model tests require explicit opt-in even when models are already cached:
 `ZING_REQUIRE_REAL_ASR=1` for Whisper, `ZING_REQUIRE_OCR=1` for the generated
 OCR fixtures, `ZING_REQUIRE_YUNET=1` for face inference, and
