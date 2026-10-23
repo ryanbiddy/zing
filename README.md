@@ -1,5 +1,7 @@
 # Zing
 
+<!-- mcp-name: io.github.ryanbiddy/zing -->
+
 **“Make my clips look like that video.”** Zing is a terminal-first creative studio
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
@@ -51,6 +53,10 @@ Run `uv run --frozen zing doctor` to diagnose missing prerequisites.
 Use the current source checkout for these features. Zing is not on PyPI; the
 [connection guide](docs/CONNECT.md) also covers the published prerelease wheel.
 See [developer setup](docs/DEVELOPER-GUIDE.md) for environment details.
+
+For agent setup, see [install from source](llms-install.md). The
+[directory submission kit](docs/DIRECTORY-SUBMISSIONS.md) is preparation only;
+its future PyPI registry entry is not an available package or a submitted listing.
 
 ## Give your agent the skill
 
