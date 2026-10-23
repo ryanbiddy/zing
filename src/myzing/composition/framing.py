@@ -77,6 +77,7 @@ class Framing(Record):
     warnings: list[str] = field(default_factory=list)
     assessments: list[CropAssessment] = field(default_factory=list, metadata={"omit_default": True})
     speaker_turns: list[SpeakerTurn] = field(default_factory=list, metadata={"omit_default": True})
+    picture: dict = field(default_factory=dict, metadata={"omit_default": True})
     version: int = 1
 
     def __post_init__(self):
@@ -149,7 +150,7 @@ class Framing(Record):
         enlargement. Fit keeps the legacy graph (FFmpeg can round one row
         pair larger), so this is a conservative fit content box.
         """
-        sw, sh = ((self.width, self.height) if self.mode == "zoomfill" else (self.source_width, self.source_height))
+        sw, sh = ((self.width, self.height) if self.mode == "zoomfill" else (self.bounds.width, self.bounds.height))
         scale = min(width / sw, height / sh)
         return max(2, math.floor(sw * scale / 2) * 2), max(2, math.floor(sh * scale / 2) * 2)
 
@@ -163,7 +164,7 @@ class Framing(Record):
         return (width - w) // 2 // 2 * 2, (height - h) // 2 // 2 * 2
 
     def upscale_warning(self, width: int, height: int) -> list[str]:
-        scale = (min(width / self.source_width, height / self.source_height) if self.mode in ("fit", "blurfill")
+        scale = (min(width / self.bounds.width, height / self.bounds.height) if self.mode in ("fit", "blurfill")
                  else width / self.width if self.mode == "zoomfill"
                  else max(width / self.width, height / self.height))
         return ([f"Framing upscale {scale:.3f}x exceeds stated {self.max_upscale:g}x limit; source detail cannot be recovered."]

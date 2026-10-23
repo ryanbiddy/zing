@@ -443,7 +443,10 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     outputs = [str(video)]
                     if result.audio_measurements is not None:
                         outputs.append(str(video.with_suffix(".music.json")))
-                    return {"outputs": outputs, "warnings": list(result.warnings), "audio_measurements": result.audio_measurements}
+                    if getattr(result, "delivery_measurements", None) is not None:
+                        outputs.append(str(video.with_suffix(".encoding.json")))
+                    return {"outputs": outputs, "warnings": list(result.warnings), "audio_measurements": result.audio_measurements,
+                            "delivery_measurements": getattr(result, "delivery_measurements", None)}
                 rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps, "frame-clock-audio-headroom-v2", "music1-duck-envelope-v2"], render)
                 rendered_result = {**rendered_result, "warnings": evidence.user_warnings(rendered_result["warnings"])}
                 summary["warnings"].extend(rendered_result["warnings"])
@@ -475,6 +478,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                              output_color["measurement"], verified["verification"], plan, rendered_result.get("audio_measurements"))
                     result.update(recipe={"path": str(root / "recipe.json"), "sha256": projects.hash_file(root / "recipe.json")},
                                   plan={"path": prepared["path"], "sha256": projects.hash_file(Path(prepared["path"]))})
+                    if rendered_result.get("delivery_measurements") is not None:
+                        result["delivery_encoding"] = rendered_result["delivery_measurements"]
                     result["warnings"] = evidence.user_warnings([*result["warnings"], *rendered_result["warnings"], *inspected["warnings"]])
                     write(report_path, result)
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"],
@@ -483,6 +488,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"],
                            music=matched.get("music"), audio_measurements=matched.get("audio_measurements"))
+                if rendered_result.get("delivery_measurements") is not None:
+                    row["encoding"] = rendered_result["delivery_measurements"]
             except StepFailed as exc:
                 row["error"] = str(exc)
     except (StepFailed, ValueError, OSError) as exc:

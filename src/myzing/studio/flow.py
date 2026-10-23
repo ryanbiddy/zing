@@ -22,6 +22,8 @@ PATHS = {
 KEYS = {"path", "project", "reference_kind", "reference", "reference_query", "allow_download",
         "clips", "photos", "topic", "platform", "aspects", "length", "tone", "captions",
         "music", "tracks", "source", "context", "speech", "draft"}
+DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps"}
+KEYS |= DELIVERY_KEYS
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -116,6 +118,10 @@ def _path(value, key, *, folder=False, exists=True):
 
 
 def normalize(key, value):
+    if key in DELIVERY_KEYS:
+        from myzing.brief.models import Brief
+        Brief.from_answers({key: value})
+        return value
     if key == "path":
         value = str(value).lower().strip()
         value = dict(zip("123456", PATHS)).get(value, value)
@@ -161,7 +167,7 @@ def normalize(key, value):
         allowed = {"reference_kind": ["file", "url", "uoink"],
                    "platform": ["original", "TikTok/Reels", "YouTube", "square", "all", "custom"],
                    "tone": ["natural", "calm", "energetic"],
-                   "captions": ["none", "phone"], "draft": ["A", "B", "C", "keep all"]}[key]
+                   "captions": ["none", "phone", "reference"], "draft": ["A", "B", "C", "keep all"]}[key]
         if value not in allowed:
             raise ValueError(f"{key}: choose {', '.join(allowed)}.")
     elif not isinstance(value, str) or not value.strip() or len(value) > 500:
@@ -173,7 +179,12 @@ def normalize_answers(answers):
     if not isinstance(answers, dict) or set(answers) - KEYS:
         raise ValueError("answers must be an object using studio question IDs; unknown keys: " +
                          str(sorted(set(answers) - KEYS) if isinstance(answers, dict) else "not an object"))
-    return {key: normalize(key, value) for key, value in answers.items()}
+    result = {key: normalize(key, value) for key, value in answers.items()}
+    from myzing.brief.models import Brief
+    Brief.from_answers({key: result[key] for key in DELIVERY_KEYS if key in result})
+    if "caption_mode" in result:
+        result["captions"] = result["caption_mode"]
+    return result
 
 
 def brief_answers(answers):
@@ -183,7 +194,8 @@ def brief_answers(answers):
             "caption_language": "none" if answers["captions"] == "none" else "original",
             "music": {"source": "supplied files", "files": answers["music"]} if isinstance(answers["music"], list)
             else {"source": "none" if answers["music"] == "none" else "keep original audio"},
-            "framing": "auto"}
+            "framing": "auto", "caption_mode": answers["captions"] if answers["captions"] in ("phone", "none") else "reference",
+            **{key: answers[key] for key in DELIVERY_KEYS if key in answers}}
 
 
 def next_step(answers=None, *, cache=None):
@@ -411,5 +423,5 @@ def build_plan(a, facts):
             "aspects": a.get("aspects", []), "steps": steps, "estimate": estimate,
             "downloads": [a["reference"]] if a.get("allow_download") else [],
             "warnings": warnings, "evidence": facts, "execution": execution,
-            "style": {key: a[key] for key in ("length", "tone", "captions", "music") if key in a},
+            "style": {key: a[key] for key in ("length", "tone", "captions", "music", *sorted(DELIVERY_KEYS)) if key in a},
             "confirmation_required": True}

@@ -156,7 +156,10 @@ def run_confirmed(answers, *, progress=None):
     else:
         attempt = Path(tempfile.mkdtemp(prefix="deliveries-", dir=root))
         progress("Rebuild framing, render, and decode each delivery")
-        result = adapters.deliver(a["source"], attempt / "edit.mp4", a["aspects"])
+        from .flow import DELIVERY_KEYS
+        options = {key: a[key] for key in DELIVERY_KEYS if key in a}
+        result = adapters.deliver(a["source"], attempt / "edit.mp4", a["aspects"],
+                                  **({"delivery_options": options} if options else {}))
     if path in "ab" and a.get("draft", "keep all") != "keep all":
         from myzing.project.choices import choose_draft
         label = a["draft"]
@@ -182,12 +185,17 @@ def run_confirmed(answers, *, progress=None):
                     p = Composition.from_dict(read_json(output))
                     if not p.captions:
                         warnings.append(f"Blocked captions: {output} contains no timed caption events. Speech is unknown or unavailable; review the studies.")
-                    small.extend(c.style.size * 1080 / min(p.width, p.height) for c in p.captions
-                                 if c.style and c.style.size < min(p.width, p.height) / 30)
+                    from myzing.layout.readability import phone_size
+                    from myzing.layout.framing import visible_content
+                    picture_width = min((visible_content(c.framing, p.width, p.height).width*p.width
+                                         for c in p.clips if c.framing), default=p.width)
+                    floor = phone_size(p.width, p.height, picture_width)
+                    small.extend(c.style.size * (c.layout.scale if c.layout else 1) for c in p.captions
+                                 if c.style and c.style.size * (c.layout.scale if c.layout else 1) < floor-.01)
                 except ValueError:
                     pass
         if small:
-            warnings.append(f"Phone captions need review: {len(small)} delivered caption events were reduced below a 36px size at a 1080px short side (smallest {min(small):.1f}px). Placement safety can reduce readability; inspect the videos at phone size.")
+            warnings.append(f"Phone captions need review: {len(small)} delivered caption events are below the picture-relative minimum (smallest {min(small):.1f}px). Shorten the phrase or choose framing with more caption space; inspect the videos at phone size.")
     next_actions = {
         "a": ["Review the draft videos and their match reports.", "Choose A, B or C with zing plan choose.", "Want another shape? Run zing studio and choose 6."],
         "b": ["Review A/B/C before choosing with zing plan choose.", "Try a music track: run zing studio and choose 5.", "Want another shape? Run zing studio and choose 6."],

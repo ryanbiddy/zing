@@ -76,6 +76,10 @@ def _expression(framing, axis, rate):
 
 def framing_filter(framing, width, height, rate, label="framing"):
     normal = "" if framing is None else f"scale={framing.source_width}:{framing.source_height},setsar=1,"
+    if framing is not None and framing.mode in ("fit", "blurfill"):
+        b = framing.bounds
+        if (b.x, b.y, b.width, b.height) != (0, 0, framing.source_width, framing.source_height):
+            normal += f"crop={_number(b.width)}:{_number(b.height)}:{_number(b.x)}:{_number(b.y)}:exact=1,"
     if framing is None or framing.mode == "fit":
         return (normal + f"scale={width}:{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,"
                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p")
@@ -87,13 +91,17 @@ def framing_filter(framing, width, height, rate, label="framing"):
         if framing.mode == "zoomfill":
             x, y = (_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
             foreground_crop = f"crop=w={framing.width}:h={framing.height}:x='{x}':y='{y}':exact=1,"
+        background_crop = ""
+        if framing.mode == "zoomfill" and framing.picture:
+            b = framing.bounds
+            background_crop = f"crop={_number(b.width)}:{_number(b.height)}:{_number(b.x)}:{_number(b.y)}:exact=1,"
         # The planner's exact even size: force_original_aspect_ratio rounds to
         # the nearest row pair, which put the sharp picture up to 2 rows into
         # a caption band planned from the floor.
         fw, fh = framing.foreground_size(width, height)
         ox, oy = framing.foreground_origin(width, height)
         return (normal + f"split=2[{label}_fg][{label}_bg];\n"
-                f"[{label}_bg]scale={bw}:{bh}:force_original_aspect_ratio=increase,"
+                f"[{label}_bg]{background_crop}scale={bw}:{bh}:force_original_aspect_ratio=increase,"
                 f"crop={bw}:{bh}:exact=1,gblur=sigma=12:steps=2,"
                 # The lut constants are 8-bit limited-range levels. Convert
                 # 10/12-bit, RGB and full-range input first, or neutral chroma

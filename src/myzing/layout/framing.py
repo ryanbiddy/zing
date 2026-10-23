@@ -18,7 +18,7 @@ from myzing.composition.framing import CropBounds, CropKeyframe, Framing
 from .crop_planner import select_framing, track_framing
 from .chooser import choose_layout, check_overlap
 from .detector import LayoutError, YuNetDetector, load_cv2
-from .tracking import build_tracks
+from .tracking import build_tracks, appearance, stitch_tracks
 from .types import (Box, CaptionEvent, Detection, FaceTrack, FrameDetections,
                     Keyframe, Mask, bounds, box_at, union)
 
@@ -243,6 +243,7 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                 if scene != previous_scene:
                     previous = None
                 detections = detector.detect(image) if detector else []
+                detections = [replace(d, appearance=appearance(image, d.box)) for d in detections]
                 persons = people_detector.detect(image)
                 faces.append(FrameDetections(time, detections))
                 people.append(FrameDetections(time, persons))
@@ -267,7 +268,10 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                 measured = [frame for frame in frames if low <= frame.time < high]
                 if not measured:
                     continue
-                for track in build_tracks(measured, duration=high, smooth_radius=1, margin=margin, max_gap=gap):
+                fragments = build_tracks(measured, duration=high, smooth_radius=1, margin=margin, max_gap=gap)
+                if prefix == "face":
+                    fragments = stitch_tracks(fragments)
+                for track in fragments:
                     a, b = max(low, track.keyframes[0].time), min(high, track.keyframes[-1].time)
                     # Keep the held endpoint on this side of a scene boundary.
                     b = max(a, b - 1e-7 if b == high == end and end < duration else b)
@@ -296,8 +300,13 @@ def visible_content(framing, output_width, output_height):
 def output_box(box, framing, time, output_width, output_height):
     if framing.mode in ("fit", "blurfill"):
         content = visible_content(framing, output_width, output_height)
-        return Box(content.x + box.x * content.width, content.y + box.y * content.height,
-                   box.width * content.width, box.height * content.height)
+        b = framing.bounds
+        left, top = max(b.x, box.x*framing.source_width), max(b.y, box.y*framing.source_height)
+        right, bottom = min(b.x+b.width, box.right*framing.source_width), min(b.y+b.height, box.bottom*framing.source_height)
+        if right <= left or bottom <= top:
+            return None
+        return Box(content.x + (left-b.x)/b.width * content.width, content.y + (top-b.y)/b.height * content.height,
+                   (right-left)/b.width * content.width, (bottom-top)/b.height * content.height)
     cx, cy = framing.center_at(time)
     x, y = cx - framing.width / 2, cy - framing.height / 2
     left = max(0, (box.x * framing.source_width - x - 2) / framing.width)
@@ -409,7 +418,8 @@ def fit_measured_ink(caption, layout, width, height, ffmpeg="ffmpeg", attempts=6
                             outline_width=caption.style.outline_width * scale)
             ink = _measure(caption, style, "Arial", caption_runs(caption), width, height,
                            directory, ffmpeg, renderer, 1.0)
-            padding = 4 * scale if style.box_color is not None else 0
+            padding = max(4 * scale if style.box_color is not None else 0,
+                          style.highlight_box_padding * scale if style.highlight_box_color else 0)
             ink_width, ink_height = ink[2] - ink[0], ink[3] - ink[1]
             if ink_width + 2 * padding <= box_width + 1 and ink_height + 2 * padding <= box_height + 1:
                 return ink
@@ -420,6 +430,24 @@ def fit_measured_ink(caption, layout, width, height, ffmpeg="ffmpeg", attempts=6
                                     outline_width=caption.style.outline_width * factor)
     caption.style = original
     return None
+
+
+def measure_styled_ink(caption, width, height):
+    """Measure a phone phrase before placement, using its actual font/shaping."""
+    from myzing.ffmpeg_capabilities import caption_filter
+    from myzing.render.positioned_captions import _measure, caption_runs
+    from myzing.render.font_files import private_font, ass_em_scale
+    with tempfile.TemporaryDirectory(prefix="zing-phone-ink-") as temporary:
+        directory = Path(temporary)
+        (directory / "fonts").mkdir()
+        name, em = "Arial", 1.
+        if caption.font:
+            data = Path(caption.font.path).read_bytes()
+            name, payload = private_font(data)
+            em = ass_em_scale(data)
+            (directory / "fonts" / f"{name}.ttf").write_bytes(payload)
+        return _measure(caption, caption.style, name, caption_runs(caption), width, height,
+                        directory, "ffmpeg", caption_filter("ffmpeg"), em)
 
 
 def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False):
@@ -444,6 +472,7 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
     frame_limit = frame_index(max(c.timeline_end for c in plan.clips), plan.fps, rounding="nearest")
     source_dimensions = source_dimensions or {}
     layouts = []
+    ink_cache = {}
     vertical = plan.height > plan.width
 
     def reserve(region):
@@ -505,6 +534,13 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
             style = caption.style or CaptionStyle(max(1, short / 18))
             caption.style = replace(style, outline_width=max(style.outline_width, min(20, short / 270)),
                                     box_color=style.box_color or "#111111")
+        phone = plan.brief is not None and plan.brief.caption_mode == "phone"
+        minimum_size = 0
+        if phone:
+            from .readability import phone_size
+            minimum_size = phone_size(plan.width, plan.height, content.width * plan.width)
+            style = caption.style or CaptionStyle(minimum_size, outline_width=2, box_color="#111111")
+            caption.style = replace(style, size=max(style.size, minimum_size))
         placement_region = "sharp picture"
         if vertical and contents and all(b.width > .99 for b in contents):
             # Prefer a band only when the entire static caption can fit there
@@ -517,6 +553,11 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
             required = (line_count * caption.style.size * 1.4 + caption.style.outline_width * 2 + 14) / plan.height / .8
             bands = [(max(b.bottom for b in contents), 1 - inset_bottom, "lower blur band"),
                      (inset_top, min(b.y for b in contents), "upper blur band")]
+            if phone:
+                # A one-word group should not jump above the speaker while its
+                # neighbouring two-line group sits below. Keep the lower band
+                # preference, then use the face-safe sharp-picture search.
+                bands = bands[:1]
             # Fit's black padding remains outside content; only blurred modes
             # invite a caption into the surrounding picture.
             blurred = all(c.framing and c.framing.mode in ("blurfill", "zoomfill")
@@ -530,7 +571,7 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
         if caption.style is None:
             caption.style = CaptionStyle(max(1, min(plan.width, plan.height) / 18),
                                          outline_width=min(plan.width, plan.height) / 540)
-        max_width, max_height = min(.84, (right - left) * .94), min(.16, (bottom - top) * .8)
+        max_width, max_height = min(.84, (right - left) * .94), min(.26 if phone else .16, (bottom - top) * .8)
         # Reserve the text's estimated extent, not 84% of the frame for every
         # word. Oversized empty boxes make otherwise safe close-ups infeasible.
         words = " ".join(caption.text.split())
@@ -540,7 +581,19 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                                  break_long_words=False, break_on_hyphens=False)
 
         def extent(lines, style):
-            padding = style.outline_width * 2 + (14 if style.box_color else 6)
+            padding = style.outline_width * 2 + max(14 if style.box_color else 6,
+                         2 * style.highlight_box_padding + 6 if style.highlight_box_color else 0)
+            if phone:
+                text = "\n".join(lines)
+                key = (text, style.size, style.outline_width, str(caption.font), caption.all_caps)
+                if key not in ink_cache:
+                    try:
+                        ink_cache[key] = measure_styled_ink(replace(caption, text=text, style=style), plan.width, plan.height)
+                    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                        ink_cache[key] = None
+                ink = ink_cache[key]
+                if ink:
+                    return ink[2]-ink[0]+padding, ink[3]-ink[1]+padding
             return (max(len(line) for line in lines) * style.size * .8 + padding,
                     len(lines) * style.size * 1.4 + padding)
 
@@ -571,12 +624,15 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                              min(max_width, ink_width / plan.width), min(max_height, ink_height / plan.height), "lower-third")
         prior = caption.layout
         checked = check_overlap(prior.as_path(), obstacles, masks) if prior else None
+        def choose(event):
+            scales = tuple(s for s in (.85, .7, .55) if not phone or caption.style.size*s >= minimum_size)
+            return choose_layout([event], obstacles, masks, allow_motion=False, shrink_scales=scales).events[0]
         if prior and checked.safe:
             layout = replace(prior, overlap=checked)
             boxes = [key.box for key in prior.as_path()]
             event = replace(event, width=min(b.width for b in boxes), height=min(b.height for b in boxes))
         else:
-            layout = choose_layout([event], obstacles, masks, allow_motion=False).events[0]
+            layout = choose(event)
         if not layout.overlap.safe:
             # A long single line can block a usable side gap on a close-up.
             # Reflow into narrower boxes before declaring the layout infeasible.
@@ -594,10 +650,12 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 shrink = max(1, ink_width / (trial_width * plan.width), ink_height / (trial_height * plan.height))
                 caption.style = replace(caption.style, size=max(1, caption.style.size / shrink),
                                         outline_width=caption.style.outline_width / shrink)
+                if phone and caption.style.size < minimum_size:
+                    continue
                 ink_width, ink_height = extent(lines, caption.style)
                 trial = replace(event, width=min(trial_width, ink_width / plan.width),
                                 height=min(trial_height, ink_height / plan.height))
-                alternative = choose_layout([trial], obstacles, masks, allow_motion=False).events[0]
+                alternative = choose(trial)
                 if alternative.overlap.safe:
                     layout = alternative
                     break
@@ -607,7 +665,7 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                  "visible-content bounds; detector recall unverified")
         if not obstacles:
             scope += "; faces unmeasured in this interval"
-        if vertical:
+        if vertical or (caption.style and caption.style.highlight_box_color):
             # Vertical bands are tight and the plate adds padding: verify the
             # positioned renderer's own libass measurement fits the placed box
             # (and so its masks), shrinking the text if the estimate was short.
@@ -618,5 +676,9 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 pass  # Unmeasurable here (custom font, no FFmpeg/libass): the renderer still measures.
         layout = replace(layout, overlap=replace(layout.overlap, scope=scope))
         caption.layout = layout
+        if phone and caption.style.size * layout.scale < minimum_size - .01:
+            raise ValueError(f"Phone captions need review: {caption.id} cannot fit safely at the minimum "
+                             f"{minimum_size:.1f}px ({minimum_size/plan.width:.1%} of output width). "
+                             "Shorten the phrase or choose framing with more caption space.")
         layouts.append(layout.to_dict())
     return layouts

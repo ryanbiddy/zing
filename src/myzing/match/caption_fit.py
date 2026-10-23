@@ -26,11 +26,14 @@ def _fit(caption, style, scale, width, height, font, em, plan, root):
         measured = replace(style, size=style.size * scale, outline_width=style.outline_width * scale)
         left, top, right, bottom = _measure(caption, measured, font, caption_runs(caption),
             plan.width, plan.height, root, "ffmpeg", "ass", em)
-        padding = 8 * scale if style.box_color else 0
+        padding = max(8 * scale if style.box_color else 0,
+                      2 * style.highlight_box_padding * scale if style.highlight_box_color else 0)
         if right - left + padding <= width and bottom - top + padding <= height:
             return style, None
         size = style.size * min(width / (right - left + padding), height / (bottom - top + padding)) * .95
-        if size * scale < 24:
+        from myzing.layout.readability import phone_size
+        minimum = phone_size(plan.width, plan.height) if plan.brief and plan.brief.caption_mode == "phone" else 24
+        if size * scale < minimum:
             return None, (f"Caption {caption.id} cannot fit as a readable complete clause; shorten the selected "
                           "speech or enlarge its layout.")
         style = replace(style, size=size)

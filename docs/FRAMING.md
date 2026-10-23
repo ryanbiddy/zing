@@ -2,6 +2,45 @@ Composition v2 supports per-clip `framing`: `fit`, `fill`, `reframe`, `zoomfill`
 `blurfill`. Omit it to retain the existing fit-and-pad graph and JSON bytes.
 EDL v1's default render path and v1/v2 compatibility fixtures are unchanged.
 
+To discard static broadcast bars before adapting a source:
+
+```powershell
+zing render plan.json --aspect all --picture-crop auto -o delivery.mp4
+```
+
+`picture_crop` in a brief accepts `auto` (default), `on`, or `off`. Auto uses a
+picture rectangle only when every used source range has consistent borders,
+static outer regions and motion inside. `on` requires that evidence and fails
+with a remedy if it is unavailable; it does not guess harder. `off` preserves
+the full source. These choices also work in match and studio.
+
+The local detector samples up to 12 gray frames per merged used range, with
+at most 10 ranges. Two horizontal boundaries must persist across at least
+80% of the central 70% of the frame width;
+at least 98% of the outer region must have temporal standard deviation ≤3
+gray levels, and at least 3% of the picture must vary. Confident candidates
+retain 25–94% of source area. Matching side borders can remove side chrome.
+The delivery analysis records sample counts, border support, variance, motion
+fraction, retained area, confidence and the decision. Selected source-pixel
+bounds and evidence also travel in each clip's `framing.picture`.
+
+The crop precedes fit/fill/reframe and blurred-background generation. Caption
+safety and enlargement advice use the resulting live picture. Moving lower
+thirds, changing layouts, freezes, weak borders and motionless room edges may
+remain ambiguous. This is sampled static-frame detection, not recognition or
+reconstruction of obscured picture. NumPy (`myzing[color]`) is optional; without
+it the decision is unavailable and auto retains the source.
+
+YuNet tracking now retains raw observation times and small RGB histograms for
+fragment stitching within each shot and used range. Fragments may overlap in
+their held intervals. A link requires a gap ≤1.25 s, position within .45 face
+width/height units, size ratio ≤1.3 and histogram similarity ≥.82. Two raw
+detections at the same time are a hard conflict, so simultaneously visible
+faces stay separate. Ambiguous alternatives and missing appearance also stay
+separate. Every accepted link records its numbers and heuristic confidence;
+histograms are appearance evidence, not biometric identification or speaker
+diarization. Lighting changes and long occlusions can still require review.
+
 Fit retains the entire picture with black padding. Fill crops around a stated
 center. Reframe follows local subject evidence with bounded crop motion.
 Zoomfill crops to an intermediate width around the subject, keeps every source

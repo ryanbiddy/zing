@@ -129,12 +129,15 @@ def load_edit(source):
                        warnings=["Flattened input: existing captions, color, music and cuts remain baked in."])
 
 
-def deliver(source, output, aspects):
+def deliver(source, output, aspects, *, delivery_options=None):
     from myzing.render.deliveries import render_deliveries
     from myzing.composition import Composition
     from myzing.match.evidence import decode
 
     plan = load_edit(source)
+    if delivery_options:
+        from myzing.delivery_options import apply_plan
+        apply_plan(plan, delivery_options)
     fallback = None
     try:
         result = render_deliveries(plan, output, aspects=aspects,

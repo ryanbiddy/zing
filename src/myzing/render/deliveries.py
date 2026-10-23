@@ -53,7 +53,10 @@ def measure_sources(sources, directory, *, fps, ffprobe="ffprobe"):
         cuts = [s.start for s in shots.shots]
         tracks, warnings = analyze_subjects(path, duration, directory / "sampling" / f"source-{index:03d}", cuts,
                                             ranges=list(ranges))
+        from myzing.layout.picture import analyze_picture
+        picture = analyze_picture(path, ranges, size)
         measured[_key(path)] = {"display_dimensions": size, "tracks": tracks, "cuts": cuts,
+                                "picture": picture,
                                 "ranges": sorted({(float(a), float(b)) for a, b in ranges}),
                                 "warnings": [*shots.warnings, *warnings]}
     return measured
@@ -120,23 +123,30 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
     if missing:
         measured.update(measure_sources(missing, directory, fps=plan.fps.numerator / plan.fps.denominator,
                                         ffprobe=ffprobe))
-    sizes, tracks, cuts, evidence = {}, {}, {}, {}
+    sizes, tracks, cuts, evidence, pictures = {}, {}, {}, {}, {}
     for asset_id in sorted({c.asset_id for c in plan.clips}):
         item = measured[_key(paths[asset_id])]
         sizes[asset_id], tracks[asset_id], cuts[asset_id] = item["display_dimensions"], item["tracks"], item["cuts"]
+        policy = plan.brief.picture_crop if plan.brief else "auto"
+        detected = item.get("picture", {})
+        applied = policy != "off" and bool(detected.get("confident"))
+        pictures[asset_id] = {**detected, "requested": policy, "applied": applied,
+                             "decision": "crop to live picture" if applied else "preserve source: " +
+                             ("disabled" if policy == "off" else detected.get("reason", "unmeasured"))}
         evidence[asset_id] = {"display_dimensions": sizes[asset_id], "tracks": [t.to_dict() for t in tracks[asset_id]],
+                              "picture": pictures[asset_id],
                               "cuts": cuts[asset_id], "analyzed_ranges": [list(r) for r in item["ranges"]],
                               "warnings": item["warnings"]}
     results, resolution = {}, {}
     for aspect in selected:
         size = dimensions(aspect, 1080 if short_side == "auto" else short_side)
-        result = adapt_plan(plan, *size, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts)
+        result = adapt_plan(plan, *size, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts, pictures=pictures)
         advice = resolution_advice(result.clips, sizes, *size, max_upscale=limit,
                                    command=f"zing render PLAN.json --aspect {aspect}")
         lower = chosen_short_side(advice, short_side)
         if lower != min(size):
             trial = dimensions(aspect, lower)
-            lowered = adapt_plan(plan, *trial, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts)
+            lowered = adapt_plan(plan, *trial, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts, pictures=pictures)
             second = resolution_advice(lowered.clips, sizes, *trial, max_upscale=limit,
                                        command=f"zing render PLAN.json --aspect {aspect}")
             if auto_gain(advice, second):
@@ -170,7 +180,7 @@ def render_deliveries(composition, output, *, aspects=None, base_dir=None, work_
         stem = output.stem + "." + aspect.replace(":", "x")
         # A measured music render also writes <stem>.music.json beside its MP4.
         destinations.extend([output.with_name(stem + ".mp4"), output.with_name(stem + ".json"),
-                             output.with_name(stem + ".music.json")])
+                             output.with_name(stem + ".music.json"), output.with_name(stem + ".encoding.json")])
     # Refuse before any analysis: no delivery file may replace something it reads.
     protected = {_key(p): Path(p) for p in [*input_paths(composition, base_dir), *inputs]}
     for destination in destinations:
@@ -208,6 +218,8 @@ def _render_deliveries(composition, output, work, selected, report_path, base_di
             result = render_composition(plan, video, base_dir=saved.parent, work_dir=work / aspect.replace(":", "x"),
                                         ffmpeg=ffmpeg, ffprobe=ffprobe)
             row.update(status="ready", warnings=list(result.warnings))
+            if getattr(result, "delivery_measurements", None) is not None:
+                row["encoding"] = result.delivery_measurements
             if result.audio_measurements is not None:
                 # Every aspect carries the source plan's music evidence and audio,
                 # so its mix is measured against the same speech spans.

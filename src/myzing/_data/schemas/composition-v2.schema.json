@@ -58,6 +58,18 @@
         "caption_language": {
           "type": "string"
         },
+        "caption_mode": {
+          "enum": [
+            "reference",
+            "phone",
+            "none"
+          ],
+          "type": "string"
+        },
+        "caption_options": {
+          "additionalProperties": {},
+          "type": "object"
+        },
         "exact_spellings": {
           "items": {
             "type": "string"
@@ -98,6 +110,14 @@
           },
           "type": "array"
         },
+        "picture_crop": {
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "type": "string"
+        },
         "platform": {
           "type": "string"
         },
@@ -127,9 +147,29 @@
         "target_length_seconds": {
           "type": "number"
         },
+        "target_mb": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "version": {
           "const": 1,
           "type": "integer"
+        },
+        "video_bitrate_kbps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       },
       "required": [
@@ -209,6 +249,39 @@
       "required": [
         "look",
         "parameters",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_encoding_DeliveryEncoding": {
+      "additionalProperties": false,
+      "properties": {
+        "target_mb": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        },
+        "video_bitrate_kbps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
         "version"
       ],
       "type": "object"
@@ -401,6 +474,10 @@
             "blurfill"
           ]
         },
+        "picture": {
+          "additionalProperties": {},
+          "type": "object"
+        },
         "source_height": {
           "minimum": 1,
           "type": "integer"
@@ -497,6 +574,28 @@
     "myzing_composition_models_CaptionStyle": {
       "additionalProperties": false,
       "properties": {
+        "after_color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "before_color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
         "box_color": {
           "anyOf": [
             {
@@ -515,6 +614,32 @@
         "highlight": {
           "pattern": "^#[0-9a-fA-F]{6}$",
           "type": "string"
+        },
+        "highlight_box_color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "highlight_box_opacity": {
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "highlight_box_padding": {
+          "maximum": 64,
+          "minimum": 0,
+          "type": "number"
+        },
+        "highlight_box_radius": {
+          "maximum": 64,
+          "minimum": 0,
+          "type": "number"
         },
         "outline_color": {
           "pattern": "^#[0-9a-fA-F]{6}$",
@@ -1566,6 +1691,16 @@
         "$ref": "#/$defs/myzing_composition_models_CompositionClip"
       },
       "type": "array"
+    },
+    "delivery": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/myzing_composition_encoding_DeliveryEncoding"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "fps": {
       "$ref": "#/$defs/myzing_project_models_Rational"

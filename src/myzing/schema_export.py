@@ -38,6 +38,8 @@ def _constraints(cls: type, properties: dict) -> None:
         for key in ("width", "height"):
             properties[key]["minimum"] = 1
     if name == "Brief":
+        properties["caption_mode"]["enum"] = ["reference", "phone", "none"]
+        properties["picture_crop"]["enum"] = ["auto", "on", "off"]
         properties["framing"]["enum"] = ["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"]
         properties["aspects"]["items"] = {"enum": ["16:9", "1:1", "9:16"]}
         properties["aspects"]["uniqueItems"] = True
@@ -77,8 +79,11 @@ def _constraints(cls: type, properties: dict) -> None:
     if name == "CaptionStyle":
         properties["size"].update(minimum=1, maximum=512)
         properties["outline_width"].update(minimum=0, maximum=20)
-        for key in ("color", "highlight", "outline_color", "box_color"):
+        for key in ("color", "highlight", "outline_color", "box_color", "highlight_box_color", "before_color", "after_color"):
             properties[key]["pattern"] = "^#[0-9a-fA-F]{6}$"
+        for key in ("highlight_box_padding", "highlight_box_radius"):
+            properties[key].update(minimum=0, maximum=64)
+        properties["highlight_box_opacity"].update(minimum=0, maximum=1)
     if name in {"Word", "MeasuredFact", "TransitionEvidence", "Coverage", "Segment", "Tempo"}:
         for key in ("confidence", "fraction"):
             if key in properties:

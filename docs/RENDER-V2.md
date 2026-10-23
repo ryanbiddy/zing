@@ -4,6 +4,27 @@ Render a Composition v2 file with the same command as a v1 EDL:
 zing render composition.json -o draft.mp4 --keep-work render-work
 ```
 
+For a delivery budget, add `--target-mb 2.5` (decimal MB, audio included), or
+`--video-bitrate-kbps 1500` (video only). These are mutually exclusive. Zing
+uses x264 two-pass average bitrate, with no CRF mixed into that encode. The
+first pass measures the actual AAC rate; the second reserves that audio cost
+and 1.5% for the container. Without a budget, the existing CRF 20 path stays
+unchanged. V1 CLI inputs are upgraded when these options are requested.
+
+The v2 contract is `delivery: {"version":1,"target_mb":2.5}` or
+`delivery: {"version":1,"video_bitrate_kbps":1500}`. Briefs accept `target_mb`
+and `video_bitrate_kbps`. Each completed budget render writes
+`<output>.encoding.json`: achieved bytes/MB, total bitrate, size error, x264
+mean QP and a quality-risk warning. Mean QP is an encoder statistic, not a
+perceptual score. QP ≥30 or fewer than .04 target bits per pixel per frame
+triggers a warning to inspect faces and motion and increase the budget.
+Very short or simple material can miss an average-bitrate target; a miss over
+10% is reported. A target too small for the initial audio allowance fails
+before encoding. `--keep-work` retains both-pass statistics and the encoder log.
+
+See [captions](CAPTIONS.md) for active-word plates, before/after colors and
+phone sizing, and [framing](FRAMING.md) for automatic broadcast-picture crops.
+
 In Python:
 
 ```python
