@@ -73,6 +73,8 @@ def peer(monkeypatch, media, *, capabilities=("uoink.corpus.read/1", "uoink.medi
         if url.endswith(f"/api/corpus/v1/items/{ITEM}"):
             assert req.method == "GET" and req.data is None and "?" not in url
             assert req.get_header("X-uoink-token") == TOKEN
+            if callable(get):
+                return get(req)
             return respond(get if get is not None else provider()["operations"]["get"])
         if url.endswith("/notes"):
             notes.append(json.loads(req.data.decode("utf-8")))
@@ -192,3 +194,43 @@ def test_url_studies_keep_their_platform_title_without_extra_requests(zing_works
     pushed = uoink_bridge.push_breakdown("tiktok-42")
     assert pushed["title_source"] == "platform"
     assert len(seen) == 1
+
+
+class _TruncatedResponse(FakeHTTPResponse):
+    def read(self, *args, **kwargs):
+        import http.client
+        raise http.client.IncompleteRead(b"{", 64)
+
+
+def _bad_status(req):
+    import http.client
+    raise http.client.BadStatusLine("garbage")
+
+
+@pytest.mark.parametrize("failure", [_bad_status, lambda req: _TruncatedResponse(b""),
+                                     lambda req: respond_raw(b"[" * 100000 + b"]" * 100000)])
+def test_transport_failures_fall_back_without_failing_resolve_or_push(project, kept, monkeypatch, failure):
+    """Review fix: http.client errors (not OSError) and RecursionError escaped
+    item_metadata and failed both the reference resolve and the push."""
+    calls, notes = peer(monkeypatch, kept, get=failure)
+    resolution = resolve_reference(project)
+    assert resolution.state == "resolved" and resolution.title is None
+    slug = study(monkeypatch, project)
+    pushed = uoink_bridge.push_breakdown(slug)
+    assert pushed["ok"] and pushed["title_source"] == "project"
+    assert notes[-1]["title"] == "Zing breakdown: edit-korky"
+
+
+def respond_raw(data):
+    return FakeHTTPResponse(data)
+
+
+def test_a_conformant_get_with_two_mib_of_cjk_markdown_keeps_its_title(project, kept, monkeypatch):
+    """Review fix: Uoink 3.11 serializes get with json.dumps (ASCII escapes), so
+    its 2 MiB content cap can produce more than the old 4 MiB read limit."""
+    body = provider()["operations"]["get"]
+    text = ("月曜日の朝" * 200000).encode("utf-8")[:2 * 1024 * 1024].decode("utf-8", "replace")
+    body["data"]["content"].update(text=text, byte_length=3_000_000, truncated=True)
+    assert len(json.dumps(body).encode("utf-8")) > 4 * 1024 * 1024
+    peer(monkeypatch, kept, get=body)
+    assert resolve_reference(project).title == "The saved hour"

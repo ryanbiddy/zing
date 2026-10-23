@@ -20,6 +20,7 @@ documented in docs/UOINK-MEMORY.md, with its v1 response validated unchanged.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -428,6 +429,10 @@ def _search_item_valid(item: Any) -> bool:
 
 
 _GET_DATA_KEYS = {"item", "content", "attachments"}
+# Uoink caps get content at 2 MiB of Markdown but serializes it with
+# json.dumps' ASCII escapes: CJK text grows about 2x and control or
+# replacement characters up to 6x, so a conformant reply can exceed 4 MiB.
+_GET_MAX_BYTES = 16 * 1024 * 1024
 _GET_CONTENT_KEYS = {"available", "media_type", "text", "byte_length", "truncated"}
 _ATTACHMENT_KEYS = {"id", "kind", "role", "media_type", "label", "byte_length", "href"}
 
@@ -490,8 +495,8 @@ def item_metadata(item_ref: str) -> dict[str, Any]:
             credential_safe_url(base + "/api/corpus/v1/items/" + urllib.parse.quote(item_id, safe="")), method="GET")
         request.add_unredirected_header("X-Uoink-Token", token)
         with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
-            raw = response.read(4 * 1024 * 1024 + 1)
-        if len(raw) > 4 * 1024 * 1024:
+            raw = response.read(_GET_MAX_BYTES + 1)
+        if len(raw) > _GET_MAX_BYTES:
             raise ValueError("oversized item response")
         body = json.loads(raw.decode("utf-8"))
     except suite_peer.UoinkResolutionError as error:
@@ -499,9 +504,11 @@ def item_metadata(item_ref: str) -> dict[str, Any]:
     except urllib.error.HTTPError as error:
         try:
             body = json.loads(error.read().decode("utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError, http.client.HTTPException, RecursionError):
             return _err(f"Uoink item lookup unavailable (HTTP {error.code}).", code="peer_error")
-    except (OSError, ValueError):
+    except (OSError, ValueError, http.client.HTTPException, RecursionError):
+        # Best effort: a garbled status line, a truncated body or absurdly
+        # nested JSON must leave resolution and push to their fallbacks.
         return _err("Uoink item lookup unavailable: peer offline or response invalid.", code="unavailable")
     return parse_get_response(body, item_id)
 

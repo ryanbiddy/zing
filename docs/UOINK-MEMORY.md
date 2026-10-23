@@ -87,8 +87,11 @@ is the first available of:
    `zing project study-reference`).
 5. The file name, then the slug.
 
-Any failed lookup (offline, missing capability, `not_found`, drifted shape)
-falls through quietly to the next rule; the push result names the rule in
+Any failed lookup (offline, missing capability, `not_found`, drifted shape,
+a garbled or truncated HTTP reply) falls through quietly to the next rule.
+The reply is read up to 16 MiB: Uoink 3.11 caps `get` content at 2 MiB of
+Markdown but writes it with ASCII JSON escapes, so a conformant reply with
+CJK text can exceed 4 MiB. The push result names the rule in
 `title_source` (`uoink_item`, `platform`, `container`, `project`,
 `filename`, `slug`). The tests replay the vendored provider fixture's `get`,
 `get_non_video` and `missing` responses unchanged.
