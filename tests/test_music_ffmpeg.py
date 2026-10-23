@@ -183,8 +183,8 @@ def test_source_speech_ducking_measured_stems_trims_and_peak(np, tmp_path):
     plan = MusicPlan(mode="speech-led", speech_spans=[[2, 5], [7, 10]], tracks=[{"id":"m1"}])
     attach(p, plan)
     from myzing.music.measurement import window_loudness
-    # Planning rule: the pause bed sits (21 - depth) LU under gated speech.
-    p.audio[0].gain_db = (window_loudness(source, [[2, 5], [7, 10]], 12) - (21 - plan.duck_depth_db)
+    # Planning rule: the pause bed sits (speech_to_music_lu - depth) LU under gated speech.
+    p.audio[0].gain_db = (window_loudness(source, [[2, 5], [7, 10]], 12) - (plan.speech_to_music_lu - plan.duck_depth_db)
                           - window_loudness(music, [[4, 7], [9, 12]], 16))
     rendered = render_composition(p, tmp_path / "mix.mp4", work_dir=tmp_path / "work")
     measured = rendered.audio_measurements

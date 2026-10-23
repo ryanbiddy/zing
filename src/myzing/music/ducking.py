@@ -37,6 +37,11 @@ DEFAULT_ATTACK_SECONDS = 0.2
 DEFAULT_RELEASE_SECONDS = 0.8
 # Shortest audible time at the recovered level that justifies a release.
 DEFAULT_PLATEAU_SECONDS = 0.3
+# Speech-over-bed target in phrases (LU). Ryan's call after LISTEN1 (three of
+# four Gemini reviews heard 21 LU as buried): the loudest bed that keeps every
+# clause of the talking acceptance edit at least 18 LU under its speech
+# (measured 18.1-21.0 LU). The 18-24 LU warning band stays (measurement.py).
+DEFAULT_SPEECH_TO_MUSIC_LU = 19.2
 # Boundary tolerance for duck_passages (seconds).
 EDGE_TOLERANCE = 1e-9
 # A bed gain change is never faster than the default pre-duck: a raised

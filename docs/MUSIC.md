@@ -109,9 +109,21 @@ values live in the plan's MUSIC1 evidence and can be edited there. The
 renderer turns the passages into a 1 kHz gain envelope file multiplied into
 the music (`amultiply`), so neither span count nor FFmpeg expression limits
 bound it and no NumPy is needed. Gated source loudness sets the pause bed
-21 − depth = 12 LU below speech, targeting 21 LU below speech in phrases
-(18–24 LU acceptance band). With no known speech, the planning target is
-−16 LUFS for music. These are gain targets; the renderer measures the result.
+`speech_to_music_lu` − depth = 10.2 LU below speech, targeting
+`speech_to_music_lu` below speech in phrases (18–24 LU acceptance band). With
+no known speech, the planning target is −16 LUFS for music. These are gain
+targets; the renderer measures the result.
+
+`speech_to_music_lu` defaults to 19.2 LU, the loud end of the band. It was
+21 LU until LISTEN1, when three of four listening reviews called the bed
+buried. Ryan chose the loudest bed that keeps every clause of the talking
+acceptance edit at least 18 LU under its speech: at 19.2 LU its five clauses
+measure 21.0, 20.5, 20.8, 18.1 and 19.1 LU on FFmpeg 8.1.2 and 6.1.1 (the
+renderer's sidecar; an independent time-domain BS.1770 check gives 18.3 LU
+and FFmpeg's gated meter 18.0 LU for the quietest). Clauses differ because
+the music's own level moves along the excerpt; the target is the planned
+average, not a floor. It is one setting in the plan's MUSIC1 evidence, so a
+quieter bed is one edit away; the 18–24 LU warning band is unchanged.
 
 Clips whose speech levels differ need their voices matched, not only their
 bed. A whispered clip next to a loud one leaves the quiet clauses about 11 LU
@@ -171,7 +183,7 @@ quieter clip. Short alternating clips therefore keep the lower bed instead
 of pumping it, and the planned clause report shows what that costs. Evidence
 edited by hand must keep the same slope; a faster change is rejected. The first pass offsets each clip
 by its remaining speech level against the loudest clip. A second pass centres
-each clip's planned clauses on 21 LU, so the music's own level changes are
+each clip's planned clauses on the target, so the music's own level changes are
 accounted for. The track gain carries the loudest wanted bed, because the
 envelope only lowers the bed. A bed cut is capped at 24 dB, and a clip whose
 speech is below the loudness gate follows its neighbour; both cases add a plan
@@ -183,8 +195,8 @@ clip, where the planned figure is an upper estimate; such clauses are reported
 but do not warn.
 It retains E2E1's oversampled −2 dBFS peak limiter before AAC. On the two
 real acceptance renders the encoded AAC measured −2.2 dBTP (montage) and
-−1.7 dBTP (talking, after dialogue matching), so AAC can overshoot the
-limiter; other material still needs its own check. Source-speech ducking is refused when the clip
+−1.9 dBTP (talking, after dialogue matching, at the 19.2 LU default; −1.7 at
+21 LU), so AAC can overshoot the limiter; other material still needs its own check. Source-speech ducking is refused when the clip
 timeline differs from the recorded planning timeline or when transitions
 overlap clips, because the spans would no longer mark speech; re-plan first.
 A plan carries at most 2,048 speech spans; more are rejected with a message.
@@ -276,8 +288,9 @@ What listening found, and what it changed:
   second jump: a 9 dB swell in the silent gap at the cut, which stayed
   noticeable even when moved under the louder voice. So the voices are now
   matched first (+13.3 dB on the Tears of Steel recording, with a peak
-  compressor). After that, all five clauses measure 19.9–22.8 LU over one
-  bed level, the mix measures −13.7 LUFS and −1.7 dBTP, and the limiter takes
+  compressor). After that, at the then-default 21 LU target, all five
+  clauses measure 19.9–22.8 LU over one bed level, the mix measures
+  −13.7 LUFS and −1.7 dBTP, and the limiter takes
   up to 3.4 dB on one plosive. A first version matched each clip and gave the
   second Korky Paul trim a +1.3 dB step at its jump cut; the listener heard
   it, so gains are now per recording.
@@ -292,10 +305,10 @@ speech is dark and reverberant beside Korky Paul's dry recording, and an
 untranscribed murmur trails "be honest". The edit also ends 0.33 s after the
 last word. These belong to the clips and the authored source ranges. Three
 of the last four talking reviews called the bed buried, and two asked for
-4–6 dB more. It sits 20.8 LU under speech, inside both the 18–24 LU band and
-P17's 15–25 LU range for talking beds. Raising it that much would leave the
-documented band, so it stays a design decision (`speech_to_music_lu` in the
-evidence) rather than a fix.
+4–6 dB more. It sat 20.8 LU under speech, inside both the 18–24 LU band and
+P17's 15–25 LU range for talking beds. Raising it 4–6 dB would leave the
+documented band, so the default moved only to the band's loud end: 19.2 LU,
+1.8 dB louder, with the quietest clause at 18.1 LU (see the ducking section).
 
 On the montage, the audio was identical in all three runs, yet Gemini placed
 the drop at 4.0 s, then at 3.6–3.7 s, then at 4.25 s. It also called the two

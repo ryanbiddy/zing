@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 from myzing.contracts import Record
 from .ducking import (DEFAULT_ATTACK_SECONDS, DEFAULT_DEPTH_DB, DEFAULT_HOLD_SECONDS, DEFAULT_PLATEAU_SECONDS,
-                      DEFAULT_RELEASE_SECONDS, MIN_RAMP_SECONDS_PER_DB, check_span_count)
+                      DEFAULT_RELEASE_SECONDS, DEFAULT_SPEECH_TO_MUSIC_LU, MIN_RAMP_SECONDS_PER_DB, check_span_count)
 
 PREFIX = "MUSIC1 evidence: "
 
@@ -19,7 +19,7 @@ class MusicPlan(Record):
     tracks: list[dict] = field(default_factory=list)
     decisions: list[dict] = field(default_factory=list)
     cut_summary: dict = field(default_factory=dict)
-    speech_to_music_lu: float = 21.0
+    speech_to_music_lu: float = DEFAULT_SPEECH_TO_MUSIC_LU
     beat_tolerance_seconds: float = .08
     # Known-speech ducking (docs/MUSIC.md). Clause gaps shorter than the hold
     # stay ducked; the bed recovers only in longer pauses.

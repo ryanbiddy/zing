@@ -6,10 +6,10 @@ import tempfile
 from pathlib import Path
 from myzing.audio.media import ffmpeg, numpy, run_ffmpeg, decode_mono, local_file, SAMPLE_RATE
 from myzing.audio.loudness import measure_loudness, parse_ebur128
-from .ducking import MAX_SPANS, check_span_count, merge, span_expression
+from .ducking import DEFAULT_SPEECH_TO_MUSIC_LU, MAX_SPANS, check_span_count, merge, span_expression
 
-# docs/MUSIC.md: speech sits 21 LU over the bed in phrases, 18-24 LU accepted.
-CLAUSE_TARGET_LU = 21.0
+# docs/MUSIC.md: speech sits 19.2 LU over the bed in phrases by default, 18-24 LU accepted.
+CLAUSE_TARGET_LU = DEFAULT_SPEECH_TO_MUSIC_LU
 CLAUSE_BAND_LU = (18.0, 24.0)
 KWEIGHT_RATE = 48000
 KWEIGHT_FRAME = 2400  # 50 ms frames, 20 Hz bins

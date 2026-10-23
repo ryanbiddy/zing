@@ -152,13 +152,15 @@ def clip_offsets(levels, reference):
     return filled, notes
 
 
-def refine_offsets(levels, offsets, rows, target=21.0):
+def refine_offsets(levels, offsets, rows, target=None):
     """Centre each clip's planned clauses on ``target`` LU; returns (offsets, track gain shift).
 
     Speech-only offsets ignore the music's own level changes along the
     excerpt; one pass over the planned per-clause separations corrects that.
     Offsets stay <= 0 dB, so the loudest wanted bed moves the track gain.
     """
+    if target is None:
+        from .ducking import DEFAULT_SPEECH_TO_MUSIC_LU as target
     wanted = []
     for level, current in zip(levels, offsets):
         mine = [(r["separation_lu"], r["end"] - r["start"]) for r in rows if r["separation_lu"] is not None
@@ -338,7 +340,7 @@ def plan_music(sequence, studies, brief, manifest, root, pace, required, forbidd
              "The track ends before the edit; fade at the track end.") if short else
             "Supported metric phrase with fade." if candidates else "No nearby supported phrase; fade at the edit end.")})
     # Known-speech ducking lowers the bed by duck_depth_db inside speech
-    # passages, so the pause bed sits (21 - depth) LU under gated speech.
+    # passages, so the pause bed sits (speech_to_music_lu - depth) LU under gated speech.
     # When clip speech levels differ by more than CLIP_SPREAD_LU, the track
     # gain follows the loudest clip and gain points lower the bed under the
     # quieter ones (docs/MUSIC.md).
