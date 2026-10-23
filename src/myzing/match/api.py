@@ -18,6 +18,7 @@ from myzing.project.paths import resolve_path
 from myzing.project.references import resolve_reference
 from myzing.schemas import Breakdown
 from myzing.study.api import study
+from myzing.study.source_map import METHOD as SOURCE_MAP_METHOD
 from myzing.style_recipe import StyleRecipe, build_style_recipe
 from myzing.urls import is_http_url
 
@@ -114,8 +115,10 @@ def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verif
     geometry = folder / "caption-geometry.json"
     if geometry.is_file():
         files.append(geometry)
-    return {"path": str(folder / "breakdown.json"), "media": str(media), "slug": slug,
-            "geometry": str(geometry) if geometry.is_file() else None,
+    # The content hash keys later steps (director, inspection): a restudy that
+    # changes evidence, such as a new source map, must not reuse old plans.
+    return {"path": str(folder / "breakdown.json"), "sha256": projects.hash_file(folder / "breakdown.json"),
+            "media": str(media), "slug": slug, "geometry": str(geometry) if geometry.is_file() else None,
             "warnings": b.warnings, "outputs": list(map(str, files))}
 
 
@@ -351,7 +354,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 continue
             source = resolve_path(asset.path, root)
             sha = projects.hash_file(source)
-            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, "source-map-adaptive-content-v1"],
+            # The source-map method keys the study: a changed fine pass restudies.
+            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, "source-map-" + SOURCE_MAP_METHOD],
                                                       lambda source=source: _study(str(source), root, raw=True))
             audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.2"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
@@ -381,7 +385,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
                                                  "continuity-v4", repair_asr, "aspect-zoomfill-speakers-v6", caps["layout"],
-                                                 "music1-review-v3", "reference-timing-constraints-v4", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
+                                                 "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v1", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
         summary["source_asr"] = planned["summary"].get("source_asr", [])
@@ -454,7 +458,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     write(path, result)
                     return {"path": str(path), "outputs": [str(path)], "verification": result}
                 verified = checkpoints.step("decode-" + label, projects.hash_file(video), verify)
-                output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps, "confirmed-cut-verification-v1"],
+                output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps,
+                                                                    "confirmed-cut-verification-" + SOURCE_MAP_METHOD],
                                                 lambda: _study(str(video), root / "verification", verification=True))
                 timeline = video.with_suffix(".png")
                 inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v1"],

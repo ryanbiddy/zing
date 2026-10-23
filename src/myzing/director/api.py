@@ -16,7 +16,8 @@ from myzing.style_recipe import StyleRecipe
 from .inventory import inventory
 from .models import PlanningShortage, shortage
 from .plans import MUSIC_CANNOT_CARRY, attach_report, make_plan, music_projection, render_projection
-from .selection import band_distance, candidates, choose, constraints, envelope, reference_band, shot_lengths
+from .selection import (band_distance, candidates, choose, constraints, different, envelope, reference_band,
+                        shot_lengths)
 
 PRODUCER = "myzing.director/1"
 MANAGED = {"comparison.json", *(f"plan-{label}{suffix}.json" for label in "ABC"
@@ -149,6 +150,10 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         report["search"] = {"candidate_count": len(pool), "method": "deterministic bounded beam; 96 states per expansion",
                             "distinctness": "Different opening content with <50% overlap, or >=max(1s, reference median, 20% target) changed footage.",
                             "duration_tolerance_seconds": 2 / 30}
+        relaxed = next(iter(timing_evidence["A"].values()))["search"].get("distinctness_relaxed")
+        if relaxed:
+            # Fewer than three distinct in-band edits: timing bands were kept first.
+            report["search"]["distinctness_relaxed"] = relaxed
         music_cache = {}
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
@@ -160,7 +165,9 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},
                         "other_opening": {"asset_id": alternative[0].asset_id, "start": alternative[0].start, "end": alternative[0].end},
-                        "source_choices_changed": sorted(c.identity for c in sequence) != sorted(c.identity for c in alternative)}
+                        "source_choices_changed": sorted(c.identity for c in sequence) != sorted(c.identity for c in alternative),
+                        "meaningfully_different": different(sequence, alternative, brief.target_length_seconds,
+                                                            style.median_shot or 2.0)}
                 for other, alternative in selected.items() if other != label
             }
             plan = attach_report(plan, evidence)

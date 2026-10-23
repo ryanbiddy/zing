@@ -148,7 +148,7 @@ $env:ZING_TEST_FETCH_FONTS = "1"
 $env:ZING_FONT_TEST_REPORT = "$PWD/zing-workspace/p8-accuracy"
 uv run --frozen pytest -q tests/test_font_match_ffmpeg.py
 $env:ZING_REQUIRE_FFMPEG = "1"
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 362
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 364
 ```
 
 Reruns are deterministic with the same files and runtime versions; different

@@ -111,13 +111,24 @@ Caption timing and opening variety cannot outweigh timing feasibility. Music
 snapping also rejects trims that move either timing dimension farther outside
 its band.
 
-If the bounded search cannot supply three distinct in-band edits, it ranks
-completed edits by the number of timing violations, then total seconds outside
-the bands. Selection evidence records the distances, completed choices examined,
-and the number of jointly in-band choices found. A fallback says **outside band
-because** and identifies its natural cut or whole-clause/duration constraint.
-It says whether the draft is the closest completed edit found, or whether closer
-edits existed but could not form three meaningfully distinct drafts. Planned
+If the bounded search finds in-band edits but fewer than three meaningfully
+distinct ones, it relaxes A/B/C distinctness, never the timing bands: each
+draft takes the most different unused in-band edit, and once every distinct
+in-band edit is used a draft repeats one rather than leave the bands. Trims
+that differ only by floating-point noise count as one edit. Similar and
+repeated drafts are disclosed in the plan notes, `comparison.md` and
+`search.distinctness_relaxed` (for example, "B and C are similar because the
+footage allows few in-band openings" or "C repeats B's edit"). Drafts leave the
+bands only when no in-band edit exists at all. Without a measured reference
+band nothing is relaxed, so unmeasured timing still requires distinct drafts.
+
+Outside-band drafts are ranked by the number of timing violations, then total
+seconds outside the bands. Selection evidence records the distances, completed
+choices examined, and the number of distinct jointly in-band choices found. A
+fallback says **outside band because** and identifies its natural cut or
+whole-clause/duration constraint. It says whether the draft is the closest
+completed edit found, or whether closer edits existed but could not form three
+meaningfully distinct drafts. Planned
 values and reasons describe the final edit after music snapping; when snapping
 moved a timing value, the reason gives both numbers.
 This is a search result, not proof that no human edit of the footage could work.

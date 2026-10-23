@@ -8,7 +8,7 @@ from myzing.composition import AssetRef, Composition, CompositionClip
 from myzing.director.continuity import score
 from myzing.director.models import ClipStudy
 from myzing.director.plans import REPORT_PREFIX
-from myzing.director.selection import Candidate, candidates, choose, envelope
+from myzing.director.selection import Candidate, candidates, choose, envelope, shot_lengths
 from myzing.match.evidence import markdown, report
 from myzing.music.planning import retime
 from myzing.schemas import Breakdown, Shot, VideoMeta, Word
@@ -162,3 +162,73 @@ def test_fallback_wording_names_closer_edits_left_out_of_the_trio():
     in_band = {**closest, "jointly_in_band_edits": 4, "closest_violations": 0, "closest_seconds_outside": 0.0}
     text = selection_timing_evidence(sequence, studies, band, band, in_band)["median_shot_seconds"]["reason"]
     assert "4 completed edits inside both bands were found" in text and "closest" not in text
+
+
+def few_in_band_openings(extra_trims=True):
+    """One opening fits the 0.55-1.05 s bands; the other clips open on a 0.2 s shot."""
+    studies = [ClipStudy("x", "x.mp4", "x" * 64, 4, "ready", shots=[Shot(0, 0, 4)]),
+               *(ClipStudy(k, f"{k}.mp4", k * 64, 4, "ready", shots=[Shot(0, 0, .2), Shot(1, .2, 4)])
+                 for k in ("y", "z"))]
+    piece = lambda key, end: Candidate(key, key * 64, 0, end, 0, 0, None, "", False, False)
+    # Trims of the same opening shot change at most 0.1 s of footage.
+    pool = [piece("x", .8), *([piece("x", .85), piece("x", .75)] if extra_trims else []),
+            piece("y", .8), piece("z", .8)]
+    return studies, pool
+
+
+def test_similar_in_band_drafts_beat_distinct_out_of_band_openings():
+    from myzing.director.selection import different
+    studies, pool = few_in_band_openings()
+    style = envelope(reference())
+    band = timing_band(.8, [.8] * 5)
+    evidence = {}
+    selected = choose(pool, [], studies, style, 2.4, 30, 0, timing_evidence=evidence)
+    for label, sequence in selected.items():
+        assert sequence[0].asset_id == "x"
+        assert band["lower"] <= shot_lengths(sequence, studies)[0] <= band["upper"]
+        assert all(v["distance_outside_seconds"] == 0 for v in evidence[label].values())
+    assert not different(selected["B"], selected["C"], 2.4, .8)
+    relaxed = evidence["C"]["first_cut_seconds"]["search"]["distinctness_relaxed"]
+    assert relaxed["distinct_in_band_edits"] == 3 and not relaxed["repeats"]
+    assert relaxed["similar_pairs"] == [["A", "B"], ["A", "C"], ["B", "C"]]
+    assert "B and C are similar because the footage allows few in-band openings" in relaxed["reason"]
+    assert "3 distinct completed edits inside both timing bands" in relaxed["reason"]
+
+
+def test_too_few_in_band_edits_repeat_rather_than_leave_the_band():
+    studies, pool = few_in_band_openings(extra_trims=False)
+    style = envelope(reference())
+    band = timing_band(.8, [.8] * 5)
+    evidence = {}
+    selected = choose(pool, [], studies, style, 2.4, 30, 0, timing_evidence=evidence)
+    # Distinct openings exist (y, z) but start on a 0.2 s shot, outside the band.
+    for label, sequence in selected.items():
+        assert band["lower"] <= shot_lengths(sequence, studies)[0] <= band["upper"], label
+        assert selected[label] == selected["A"]
+    relaxed = evidence["B"]["first_cut_seconds"]["search"]["distinctness_relaxed"]
+    assert relaxed["repeats"] == {"B": "A", "C": "A"} and not relaxed["similar_pairs"]
+    assert ("B repeats A's edit; C repeats A's edit because only 1 distinct completed edit fits both "
+            "timing bands") in relaxed["reason"]
+
+
+def test_float_noise_trims_are_one_edit():
+    from dataclasses import replace
+    studies, pool = few_in_band_openings(extra_trims=False)
+    # The same opening reached by two arithmetic paths, 2e-15 s apart.
+    pool.append(replace(pool[0], end=pool[0].end + 2e-15))
+    evidence = {}
+    selected = choose(pool, [], studies, envelope(reference()), 2.4, 30, 0, timing_evidence=evidence)
+    relaxed = evidence["A"]["first_cut_seconds"]["search"]["distinctness_relaxed"]
+    assert evidence["A"]["first_cut_seconds"]["jointly_in_band_edits"] == 1
+    assert relaxed["distinct_in_band_edits"] == 1 and relaxed["repeats"] == {"B": "A", "C": "A"}
+    assert "similar" not in relaxed["reason"]
+
+
+def test_unmeasured_bands_keep_the_distinctness_shortage():
+    from myzing.director.models import PlanningShortage
+    studies, pool = few_in_band_openings()
+    pool = [c for c in pool if c.asset_id == "x"]
+    style = envelope(build_style_recipe(Breakdown(VideoMeta("fixture", "file", duration=4, fps=30))))
+    with pytest.raises(PlanningShortage) as caught:
+        choose(pool, [], studies[:1], style, .8, 30, 0, timing_evidence={})
+    assert caught.value.shortage.code == "distinct_edits"

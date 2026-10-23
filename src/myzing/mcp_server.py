@@ -714,10 +714,23 @@ def _summarize_breakdown(d: dict[str, Any]) -> dict[str, Any]:
             if k != "loudness_curve"
         },
         "warnings": d.get("warnings", []),
-        "provenance": d.get("provenance", {}),
+        "provenance": _compact_provenance(d.get("provenance", {})),
         "judgment_sections": sorted(d.get("judgment", {})),
         "schema_version": d.get("schema_version", 1),
     }
+
+
+def _compact_provenance(provenance: dict[str, Any]) -> dict[str, Any]:
+    """The source map's per-candidate evidence stays in the full view."""
+    source_map = provenance.get("source_map")
+    if not isinstance(source_map, dict):
+        return provenance
+    candidates = [c for c in source_map.get("candidates", []) if isinstance(c, dict)]
+    compact = {k: source_map[k] for k in ("method", "version", "status", "fps", "warnings") if k in source_map}
+    compact.update(accepted_frames=[c.get("frame") for c in candidates if c.get("accepted") is True],
+                   candidates_recorded=len(candidates), rejected_counts=source_map.get("rejected_counts", []),
+                   evidence="per-candidate evidence: get_breakdown with detail='full'")
+    return {**provenance, "source_map": compact}
 
 
 @_workspace_boundary

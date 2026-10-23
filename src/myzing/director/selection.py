@@ -373,14 +373,38 @@ def different_opening(a, b):
     return False
 
 
+def changed_footage(a, b):
+    common = sum(max(0, min(x.end, y.end) - max(x.start, y.start))
+                 for x in a for y in b if x.content == y.content)
+    return max(sum(c.duration for c in a), sum(c.duration for c in b)) - common
+
+
 def different(a, b, target, pace):
     """An opening must change content, or choices must change substantial footage."""
     if different_opening(a, b):
         return True
-    common = sum(max(0, min(x.end, y.end) - max(x.start, y.start))
-                 for x in a for y in b if x.content == y.content)
-    changed = max(sum(c.duration for c in a), sum(c.duration for c in b)) - common
-    return changed >= max(1.0, pace, target * .2) - EPS
+    return changed_footage(a, b) >= max(1.0, pace, target * .2) - EPS
+
+
+def edit_key(sequence):
+    """Trims that differ only by floating-point noise are the same edit."""
+    return tuple((c.content, round(c.start, 6), round(c.end, 6)) for c in sequence)
+
+
+def distinctness_reason(in_band_count, similar_pairs, repeats):
+    """Plain disclosure for a trio that kept the timing bands over distinctness."""
+    edits = f"{in_band_count} distinct completed edit{'s' if in_band_count != 1 else ''}"
+    parts = []
+    if similar_pairs:
+        pairs = ", ".join(f"{x} and {y}" for x, y in similar_pairs)
+        parts.append(f"{pairs} are similar because the footage allows few in-band openings: the bounded search "
+                     f"found {edits} inside both timing bands, and they do not form three meaningfully distinct "
+                     "drafts.")
+    if repeats:
+        copies = "; ".join(f"{label} repeats {source}'s edit" for label, source in repeats.items())
+        parts.append(f"{copies} because only {edits} fit{'s' if in_band_count == 1 else ''} both timing bands.")
+    parts.append("Distinctness was relaxed before the timing bands.")
+    return " ".join(parts)
 
 
 def reference_band(target, style):
@@ -555,9 +579,51 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                 c = next((s for s in concise if different(a, s, target, pace) and different(b, s, target, pace)), None)
                 if c is not None:
                     return dict(zip("ABC", (a, b, c)))
+    def in_band_first(in_band):
+        """Relax A/B/C distinctness, never the timing bands, while any in-band edit exists.
+
+        Each draft takes the most different unused in-band edit. Once every
+        distinct in-band edit is used, a draft repeats one (disclosed) rather
+        than leave the reference timing.
+        """
+        chosen = {}
+        for mode in "ABC":
+            used = list(chosen.values())
+            options = [s for s in in_band if edit_key(s) not in {edit_key(u) for u in used}] or in_band
+            if mode == "A" and preferred_a is not None and preferred_a in options:
+                chosen[mode] = preferred_a
+                continue
+            # Timing and caption gates first, then the most different choice.
+            chosen[mode] = min(options, key=lambda s: (
+                *final_rank(s, mode)[:4], -sum(different(u, s, target, pace) for u in used),
+                -sum(different_opening(u, s) for u in used),
+                -min((changed_footage(u, s) for u in used), default=0.0), final_rank(s, mode)))
+        return chosen
+
     clean = [seq for seq in complete.values() if not any(c.dangling_clauses for c in seq)]
-    in_band = [seq for seq in clean if timing_rank(seq)[0] == 0]
-    result = (trio(in_band) if prefer_bands else None) or trio(clean) or trio(complete.values())
+    in_band, seen = [], set()
+    for seq in clean:
+        if timing_rank(seq)[0] == 0 and edit_key(seq) not in seen:
+            seen.add(edit_key(seq))
+            in_band.append(seq)
+    result = trio(in_band) if prefer_bands else None
+    relaxed = None
+    measured_bands = opening_band["lower"] is not None or pace_band["lower"] is not None
+    if result is None and prefer_bands and measured_bands and in_band:
+        # Fewer than three distinct in-band edits: keep the reference timing
+        # and disclose similar or repeated drafts, rather than leave a band.
+        result = in_band_first(in_band)
+        repeats = {}
+        for i, label in enumerate("ABC"):
+            earlier = next((x for x in "ABC"[:i] if edit_key(result[x]) == edit_key(result[label])), None)
+            if earlier is not None:
+                repeats[label] = earlier
+        similar = [[x, y] for i, x in enumerate("ABC") for y in "ABC"[i + 1:]
+                   if edit_key(result[x]) != edit_key(result[y]) and not different(result[x], result[y], target, pace)]
+        relaxed = {"policy": "timing bands before A/B/C distinctness", "distinct_in_band_edits": len(in_band),
+                   "similar_pairs": similar, "repeats": repeats,
+                   "reason": distinctness_reason(len(in_band), similar, repeats)}
+    result = result or trio(clean) or trio(complete.values())
     if result is not None:
         if timing_evidence is not None:
             examined = clean or list(complete.values())
@@ -567,6 +633,8 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                       # JSON has no infinity: a missing first cut is an unbounded distance.
                       "closest_seconds_outside": closest[1] if closest[1] != float("inf") else None,
                       "scope": "completed edits in the bounded search"}
+            if relaxed is not None:
+                search["distinctness_relaxed"] = relaxed
             for label, seq in result.items():
                 timing_evidence[label] = selection_timing_evidence(seq, studies, opening_band, pace_band, search)
         return result
@@ -609,7 +677,11 @@ def selection_timing_evidence(sequence, studies, opening_band, pace_band, search
             else:
                 reason = (f"Outside band because the selected footage supplies {len(lengths)} natural/edit shots "
                           f"with a {median(lengths):.3f} s median under the whole-clause, source-order and duration constraints.")
-            if closest:
+            before = (selected or {}).get(name)
+            if search.get("distinctness_relaxed") and before is not None and band_distance(before, band) <= EPS:
+                # In-band-first selection only leaves a band through music snapping.
+                reason += " The selected edit was inside this band before music cut snapping."
+            elif closest:
                 reason += " No completed edit in the bounded search is closer to both bands."
             elif search["jointly_in_band_edits"]:
                 reason += (f" {search['jointly_in_band_edits']} completed edits inside both bands were found, but "

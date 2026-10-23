@@ -351,6 +351,10 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         notes.append("Continuity not applicable: this draft selects no transcribed speech.")
     if numbers["median_shot_seconds"]["status"] == "deviation":
         notes.append("Pacing unmet: the selected complete-clause draft misses the reference envelope, including internal source cuts. The bounded search did not select a matching alternative.")
+    relaxed = next(iter(timing_selection.values()))["search"].get("distinctness_relaxed") if timing_selection else None
+    if relaxed and (label in {*relaxed["repeats"], *relaxed["repeats"].values()}
+                    or any(label in pair for pair in relaxed["similar_pairs"])):
+        notes.append(relaxed["reason"])
     if font is None:
         notes.append(font_report["reason"])
     for key in used:

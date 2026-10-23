@@ -27,6 +27,7 @@ def test_planning_map_splits_only_confirmed_cuts_and_preserves_public_shots():
     original = copy.deepcopy(b.shots)
     m = map_for(b)
     m.candidates.append({"frame": 42, "accepted": False, "confidence": "rejected", "evidence": {}})
+    m.rejected_counts = [{"proposal": "p", "reason": "r", "count": 3, "recorded": 1}]
     b.provenance["source_map"] = m.to_dict()
     assert SourceMap.from_dict(m.to_dict()) == m
     assert [s.start for s in planning_shots(b)] == [0, 1, 1.2]
@@ -34,7 +35,9 @@ def test_planning_map_splits_only_confirmed_cuts_and_preserves_public_shots():
 
 
 @pytest.mark.parametrize("field,value", [("fps", 24), ("duration", 3), ("base_cuts", [.5]),
-                                        ("version", 2), ("method", "unknown")])
+                                        ("version", 2), ("method", "unknown"),
+                                        ("method", "adaptive-and-content-confirmed-v1"),
+                                        ("rejected_counts", [{"proposal": "p", "reason": "r", "count": 1, "recorded": 1}])])
 def test_stale_or_unknown_map_is_not_used(field, value):
     b = breakdown()
     b.provenance["source_map"] = {**map_for(b).to_dict(), field: value}
@@ -43,13 +46,11 @@ def test_stale_or_unknown_map_is_not_used(field, value):
 
 
 def test_missing_map_and_failed_fine_pass_retain_original_evidence(monkeypatch):
+    import sys
+
     b = breakdown()
     assert planning_shots(b) is b.shots
-    from myzing.study import shots
-
-    def fail(*args):
-        raise ImportError("scenedetect unavailable")
-    monkeypatch.setattr(shots, "_run_detector", fail)
+    monkeypatch.setitem(sys.modules, "scenedetect", None)  # import raises ImportError
     m = build_source_map(Path("absent.mp4"), 2., 30., b.shots)
     assert m.status == "unmeasured" and m.warnings and not m.candidates
     b.provenance["source_map"] = m.to_dict()
@@ -100,3 +101,25 @@ def test_inventory_and_pace_use_fine_source_map(tmp_path, zing_workspace):
     assert data["shots"] != [asdict(s) for s in clip.shots]
     sequence = [Candidate(clip.asset_id, clip.sha256, 0., 2., 0, 0, None, "", False, False)]
     assert shot_lengths(sequence, [clip]) == pytest.approx([36 / m.fps, 2 - 36 / m.fps])
+
+
+def test_rejections_are_bounded_and_counted():
+    from myzing.study.source_map import MAX_REJECTED_RECORDED, _decision, _Recorder
+
+    recorder = _Recorder()
+    for frame in range(1, 5001):
+        recorder.add(_decision(frame, frame % 1000 == 0, {"reason": "weak" if frame % 2 else "motion",
+                                                          "proposal": "content",
+                                                          "mean_absolute_difference": frame % 97 / 100}))
+    candidates, counts = recorder.finish()
+    rejected = [r for r in candidates if not r["accepted"]]
+    assert len(rejected) == MAX_REJECTED_RECORDED
+    assert [r["frame"] for r in candidates if r["accepted"]] == [1000, 2000, 3000, 4000, 5000]
+    assert sum(c["count"] for c in counts) == 4995
+    assert sum(c["recorded"] for c in counts) == MAX_REJECTED_RECORDED
+    # The strongest rejected changes are the ones kept.
+    strengths = sorted((f % 97 / 100 for f in range(1, 5001) if f % 1000), reverse=True)
+    assert sorted((r["evidence"]["mean_absolute_difference"] for r in rejected), reverse=True) ==         strengths[:MAX_REJECTED_RECORDED]
+    m = SourceMap(30., 200., [], candidates, counts)
+    assert SourceMap.from_dict(m.to_dict()) == m
+    assert [r["frame"] for r in m.candidates] == sorted(r["frame"] for r in m.candidates)
