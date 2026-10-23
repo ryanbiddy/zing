@@ -36,14 +36,14 @@ def test_ci_jobs_and_package_installs_have_explicit_timeouts() -> None:
     text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
         encoding="utf-8",
     )
-    assert text.count("    timeout-minutes: 30") == 5
+    assert text.count("    timeout-minutes: 30") == 6
 
     install_blocks = re.findall(
         r"(?ms)^      - name: Install ffmpeg \(([^)]+)\)\n"
         r"(.*?)(?=^      - |\Z)",
         text,
     )
-    assert len(install_blocks) == 6
+    assert len(install_blocks) == 7
     for platform, block in install_blocks:
         expected = 15 if platform == "apt" else 10
         assert f"timeout-minutes: {expected}" in block

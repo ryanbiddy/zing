@@ -1,7 +1,7 @@
 name: ci
 on:
   push:
-    branches: [main]
+    branches: [main, fix/libass-0174]  # TEMP: branch trigger for CI1 (remove before merge)
   pull_request:
 jobs:
   # Fast mocked-unit matrix. The ffmpeg-marked subset is excluded here
@@ -80,6 +80,95 @@ jobs:
         with:
           name: eval-report-ubuntu
           path: tools/eval/eval-report.json
+          if-no-files-found: warn
+
+  # Same strict gate on the newest GitHub Ubuntu image (ubuntu-latest is
+  # Ubuntu 26.04 "resolute" since Oct 2026: apt FFmpeg 8.0, libass 0.17.4,
+  # FreeType/HarfBuzz from that release). The job above stays pinned to
+  # 24.04 for FFmpeg 6.x; this one catches regressions on current distros.
+  ffmpeg-gates-ubuntu-latest:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    env:
+      ZING_REQUIRE_FFMPEG: "1"
+      ZING_REQUIRE_OCR: "1"
+      ZING_TEST_FETCH_FONTS: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Install ffmpeg (apt)
+        timeout-minutes: 15
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+      - name: Verify ffmpeg version and required filters (C#8)
+        run: |
+          grep PRETTY_NAME /etc/os-release
+          dpkg-query -W libass9 libfreetype6 'libharfbuzz0*' fonts-dejavu-core || true
+          ffmpeg -version
+          ffprobe -version
+          for filter in drawtext subtitles sidechaincompress lut3d xfade acrossfade zoompan; do
+            if ffmpeg -hide_banner -filters | awk '{print $2}' | grep -qx "$filter"; then
+              echo "filter present: $filter"
+            else
+              echo "::error::required ffmpeg filter missing: $filter"
+              exit 1
+            fi
+          done
+      - run: pip install -e .[dev,layout,color,audio,memes,study] "rapidocr==3.9.1"
+      - run: pip uninstall -y opencv-python
+      - run: pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92
+      - name: Provision pinned font library (explicit download; matching stays offline)
+        run: zing fonts fetch --all
+      - name: Provision pinned caption OCR models (explicit download; study stays offline)
+        run: python -m myzing.study.caption_models --fetch
+      - name: Golden generation (real ffmpeg fixtures, hostile paths)
+        run: python -m tools.eval.make_goldens --output "tools/eval/goldens"
+      - name: Breakdown + profile eval with machine-readable report
+        run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
+      - name: ffmpeg-marked test subset (skips are failures)
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 327
+      - name: Keep eval report as artifact on failure (C#9)
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: eval-report-ubuntu-latest
+          path: tools/eval/eval-report.json
+          if-no-files-found: warn
+
+  # TEMP (CI1): libass/drawtext literal-text probe. Remove before merge.
+  debug-libass-probe:
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Probe apt packages
+        timeout-minutes: 15
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+      - run: |
+          grep PRETTY_NAME /etc/os-release
+          dpkg-query -W libass9 libfreetype6 'libharfbuzz0*' fonts-dejavu-core libfontconfig1 || true
+          ffmpeg -version | head -1
+          fc-match 'sans-serif:charset=2060' || true
+          fc-list | sort | head -40 || true
+      - run: pip install -e .[audio]
+      - run: python tools/ci_debug_libass.py probe-out
+      - if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: libass-probe-${{ matrix.os }}
+          path: probe-out
           if-no-files-found: warn
 
   # C#8 — focused Windows job: real ffmpeg on windows-latest running the
