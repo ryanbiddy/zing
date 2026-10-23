@@ -26,6 +26,15 @@ class _Parser(argparse.ArgumentParser):
         raise _UsageError(message)
 
 
+def _short_side(value: str):
+    if value == "auto":
+        return value
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("use auto or a multiple of 18 such as 720 or 1080") from exc
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="zing render")
     parser.add_argument("edl", type=Path, help="EDL v1 or Composition v2 JSON file")
@@ -35,7 +44,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--aspect", help="replan from sources for all, or a comma-separated list: 16:9,1:1,9:16")
     parser.add_argument("--framing", choices=["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"], help="delivery framing override")
     parser.add_argument("--max-upscale", type=float, help="auto crop enlargement ceiling (default 2.5x)")
-    parser.add_argument("--short-side", type=int, default=1080, help="delivery short side; multiple of 18, default 1080")
+    parser.add_argument("--short-side", type=_short_side, default=None,
+                        help="delivery short side (multiple of 18; default: the brief's, else 1080) or auto: "
+                             "lower it when a low-resolution source cannot stay sharp")
     parser.add_argument(
         "--keep-work",
         type=Path,
@@ -106,7 +117,7 @@ def run(argv: list[str]) -> int:
     )
     try:
         from myzing.composition.aspects import aspect_for, requested_aspects
-        if args.aspect or args.framing or args.max_upscale is not None:
+        if args.aspect or args.framing or args.max_upscale is not None or args.short_side is not None:
             if not isinstance(edl, Composition):
                 from myzing.composition.compatibility import upgrade_edl
                 edl = upgrade_edl(edl)
@@ -160,6 +171,9 @@ def run(argv: list[str]) -> int:
                                       short_side=args.short_side, ffmpeg=args.ffmpeg, ffprobe=args.ffprobe,
                                       inputs=(edl_path,))
             print(json.dumps(result, indent=2, ensure_ascii=False))
+            for row in result["deliveries"].values():
+                if row["resolution"]["limited"] or row["resolution"].get("auto_selected"):
+                    print(f"zing render: resolution: {row['resolution']['summary']}", file=sys.stderr)
             return 0
         if isinstance(edl, Composition):
             assembled = None

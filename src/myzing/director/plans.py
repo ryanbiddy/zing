@@ -200,20 +200,20 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     audio_assets += music_assets
     audio += music_tracks
     assets = list({a.id: a for a in [*assets, *audio_assets]}.values())
-    # Output dimensions follow the brief; 30 CFR is an explicit delivery choice,
-    # not an inferred property of the reference or camera.
-    width, height = {"9:16": (1080, 1920), "1:1": (1080, 1080), "16:9": (1920, 1080)}[brief.aspect]
+    # Output dimensions follow the brief's aspect and short side (1080 by
+    # default); 30 CFR is an explicit delivery choice, not inferred.
+    from myzing.composition.aspects import dimensions
     from myzing.layout.framing import select_framing, place_captions
+    from myzing.layout.resolution import chosen_short_side, resolution_advice
     from myzing.render.framing import display_dimensions
-    framing_notes = []
-    source_dimensions, square_pixels = {}, set()
+    source_dimensions, square_pixels, probe_notes = {}, set(), []
     subject_evidence = subject_evidence or {}
     for clip in clips:
         probe = next(a.probe for a in manifest.assets if a.id == clip.asset_id)
         if probe is None or not probe.width or not probe.height:
             if brief.framing not in ("auto", "fit"):
                 shortage("framing_dimensions", "Source dimensions are missing.", "Run zing project scan before framing.", clip.asset_id)
-            framing_notes.append(f"clip {clip.id}: source dimensions missing; retaining fit, framing unmeasured.")
+            probe_notes.append(f"clip {clip.id}: source dimensions missing; retaining fit, framing unmeasured.")
             continue
         stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
         sw, sh = display_dimensions({"width": probe.width, "height": probe.height,
@@ -222,35 +222,58 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         if display_dimensions({"width": probe.width, "height": probe.height, "tags": {"rotate": probe.rotation},
                                **stream, "sample_aspect_ratio": "1:1"}) == (sw, sh):
             square_pixels.add(clip.asset_id)
-        tracks, notes = subject_evidence.get(clip.asset_id, ([], []))
-        clip.framing = select_framing(brief.framing, sw, sh, width, height, clip, tracks,
-                                      max_upscale=brief.framing_max_upscale)
-        framing_notes.extend([*notes, *clip.framing.warnings, *clip.framing.upscale_warning(width, height)])
-    split_clips = []
-    for clip in clips:
-        f = clip.framing
-        cuts = [clip.src_in]
-        if f is not None and f.mode != "fit" and brief.framing in ("auto", "reframe", "zoomfill"):
-            for shot in lookup[clip.asset_id].shots:
-                if shot.start - cuts[-1] >= 1 / 30 and clip.src_out - shot.start >= 1 / 30:
-                    cuts.append(shot.start)
-        cuts.append(clip.src_out)
-        for i, (start, end) in enumerate(zip(cuts, cuts[1:])):
-            part = replace(clip, id=clip.id if len(cuts) == 2 else f"{clip.id}-shot-{i + 1}",
-                           src_in=start, src_out=end, timeline_start=clip.timeline_start + start - clip.src_in,
-                           framing=None)
-            if f is not None:
-                part.framing = select_framing(brief.framing, f.source_width, f.source_height, width, height,
-                                              part, subject_evidence.get(clip.asset_id, ([], []))[0],
-                                              max_upscale=brief.framing_max_upscale)
-            split_clips.append(part)
-    for clip in split_clips:
-        # A square-pixel full-picture fit renders identically with framing
-        # absent (the default fit graph; FFmpeg applies display rotation).
-        # Omitting it keeps such plans representable as v1 EDLs.
-        if clip.framing is not None and clip.framing.mode == "fit" and clip.asset_id in square_pixels:
-            clip.framing = None
-    clips = split_clips
+
+    def frame(width, height):
+        """Clips framed (and split at shots) for one delivery size."""
+        framed, framing_notes = [], list(probe_notes)
+        for clip in clips:
+            framing = None
+            if clip.asset_id in source_dimensions:
+                tracks, notes = subject_evidence.get(clip.asset_id, ([], []))
+                framing = select_framing(brief.framing, *source_dimensions[clip.asset_id], width, height, clip,
+                                         tracks, max_upscale=brief.framing_max_upscale)
+                framing_notes.extend([*notes, *framing.warnings, *framing.upscale_warning(width, height)])
+            framed.append(replace(clip, framing=framing))
+        split_clips = []
+        for clip in framed:
+            f = clip.framing
+            cuts = [clip.src_in]
+            if f is not None and f.mode != "fit" and brief.framing in ("auto", "reframe", "zoomfill"):
+                for shot in lookup[clip.asset_id].shots:
+                    if shot.start - cuts[-1] >= 1 / 30 and clip.src_out - shot.start >= 1 / 30:
+                        cuts.append(shot.start)
+            cuts.append(clip.src_out)
+            for i, (start, end) in enumerate(zip(cuts, cuts[1:])):
+                part = replace(clip, id=clip.id if len(cuts) == 2 else f"{clip.id}-shot-{i + 1}",
+                               src_in=start, src_out=end, timeline_start=clip.timeline_start + start - clip.src_in,
+                               framing=None)
+                if f is not None:
+                    part.framing = select_framing(brief.framing, f.source_width, f.source_height, width, height,
+                                                  part, subject_evidence.get(clip.asset_id, ([], []))[0],
+                                                  max_upscale=brief.framing_max_upscale)
+                split_clips.append(part)
+        advice = resolution_advice(split_clips, source_dimensions, width, height,
+                                   max_upscale=brief.framing_max_upscale,
+                                   command=f"zing render plan-{label}.json --aspect {brief.aspect}")
+        for clip in split_clips:
+            # A square-pixel full-picture fit renders identically with framing
+            # absent (the default fit graph; FFmpeg applies display rotation).
+            # Omitting it keeps such plans representable as v1 EDLs.
+            if clip.framing is not None and clip.framing.mode == "fit" and clip.asset_id in square_pixels:
+                clip.framing = None
+        return split_clips, framing_notes, advice
+
+    requested_side = brief.short_side
+    width, height = dimensions(brief.aspect, 1080 if requested_side == "auto" else requested_side)
+    clips, framing_notes, resolution = frame(width, height)
+    if requested_side == "auto" and chosen_short_side(resolution, "auto") != min(width, height):
+        # The brief asked Zing to lower the delivery size when a source is too
+        # small; re-plan at the recommended size and keep the evidence.
+        first = resolution
+        width, height = dimensions(brief.aspect, chosen_short_side(first, "auto"))
+        clips, framing_notes, resolution = frame(width, height)
+        resolution["auto_selected"] = {"from": first["output"], "to": [width, height],
+                                       "reason": first["recommendation"]["reason"]}
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
     if source_dimensions:
@@ -276,8 +299,13 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         "target_length_seconds": metric(brief.target_length_seconds, cursor, 2 / 30,
                                         "The brief supplies the duration; two output frames are allowed."),
     }
-    notes = [*recipe.warnings, *audio_notes, *framing_notes,
-             "30 fps CFR and full-HD aspect dimensions are delivery defaults; framing needs review.",
+    resolution_note = []
+    if resolution["limited"] or resolution.get("auto_selected"):
+        resolution_note = [resolution["summary"] + (
+            f" short_side auto delivered {width}x{height}." if resolution.get("auto_selected") else "")]
+    notes = [*resolution_note, *recipe.warnings, *audio_notes, *framing_notes,
+             f"30 fps CFR and {width}x{height} ({brief.aspect}, short side {min(width, height)}) are delivery "
+             "choices; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
     if music_tracks:
@@ -325,6 +353,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                     "src_out": c.src_out, "output_start": c.timeline_start,
                                     "output_end": c.timeline_end} for c in clips],
         "framing": [{"clip_id": c.id, "framing": c.framing.to_dict()} for c in clips if c.framing is not None],
+        "resolution": resolution,
         "constraints": {"must_keep_word_safe": required, "forbidden_word_safe": forbidden,
                         "speech_cuts": "whole rule-derived clauses, or measured non-speech boundaries",
                         "repeated_source_ranges": False},

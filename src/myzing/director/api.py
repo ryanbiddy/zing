@@ -156,7 +156,12 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             "v1_edls": {label: str(output / f"plan-{label}.edl.json") for label in report["plans"]
                         if report["plans"][label]["v1"]["representable"]},
             "summary": {"drafts": len(report["plans"]), "shortages": report["shortages"],
-                        "warnings": [*inventory_notes, *excluded],
+                        # Low-resolution advice first: it changes what to render.
+                        "warnings": [*dict.fromkeys(p["resolution"]["summary"] for p in report["plans"].values()
+                                                    if p["resolution"]["limited"]), *inventory_notes, *excluded],
+                        "resolution": {label: {key: p["resolution"][key] for key in
+                                               ("limited", "output", "summary", "recommendation")}
+                                       for label, p in report["plans"].items()},
                         "source_asr": [{"asset_id": c.asset_id, "file": Path(c.path).name, **c.asr_repair}
                                        for c in clips if c.asr_repair.get("repairs") or c.asr_repair.get("quarantined")],
                         "clips_needing_study": [c.asset_id for c in clips if c.status == "needs_study"],

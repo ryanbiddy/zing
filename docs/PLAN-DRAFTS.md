@@ -82,7 +82,11 @@ retimed and reused in order. Platform-mask checks are rerun; reference-face
 safety does not transfer to new footage. Each plan states that output face
 safety needs a fresh layout check. A selected LUT approximation is retained;
 transition approximations are currently reported as unapplied. Output uses
-30 fps CFR and the brief's aspect at full-HD dimensions.
+30 fps CFR and the brief's aspect at its `short_side` (1080 by default, so
+full HD). Each plan's comparison entry has a `resolution` record; a
+low-resolution source puts its numbers and recommendation first in the
+plan warnings and the summary (see [FRAMING.md](FRAMING.md), "Low-resolution
+sources"). Brief `short_side: "auto"` plans at the recommended size.
 
 Source audio follows the clips. `none` adds no music or SFX; it cannot separate
 embedded sounds from source speech. Supplied audio files must be inventoried.
