@@ -33,7 +33,7 @@ def _shots(pacing, framing, audio, duration):
     if not pacing:
         return f"{shape.capitalize()} video{boxed}; cut timing unknown."
     cuts = len(pacing["cut_times"])
-    doubt = " (count may be low: detectors disagree)" if pacing.get("v6_additional_cut_times") else ""
+    doubt = " (may be undercounted)" if pacing.get("v6_additional_cut_times") else ""
     if cuts == 0:
         what = f"{subject} shot" if subject == "talking-head" else "shot"
         return f"One continuous {shape} {what}, {seconds(duration)} with no cuts{doubt}{boxed}."
@@ -41,7 +41,7 @@ def _shots(pacing, framing, audio, duration):
     kind = "montage" if typical < 2.5 and cuts >= 4 else "edit"
     people = " with people on camera" if subject else ""
     return (f"{pace_word(typical).capitalize()} {shape} {kind}{people}: {cuts} cut{'s' if cuts != 1 else ''} in "
-            f"{seconds(duration)}, a new shot about every {seconds(typical)}{doubt}{boxed}.")
+            f"{seconds(duration)}, typical shot {seconds(typical)}{doubt}{boxed}.")
 
 
 def _transitions(transitions, pacing):

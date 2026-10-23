@@ -138,6 +138,9 @@ def render_png(card, media, path):
                     end = len(word)
                     while draw.textlength(word[:end], font=selected) > width:
                         end -= 1
+                    # Break long paths after a separator when one fits.
+                    cut = max(word.rfind("\\", 0, end), word.rfind("/", 0, end))
+                    end = cut + 1 if cut > end // 2 else end
                     draw.text((36 + indent, y), word[:end], font=selected, fill=color)
                     y += selected.size + 9
                     word = word[end:]
