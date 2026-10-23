@@ -2,7 +2,13 @@
 
 <!-- mcp-name: io.github.ryanbiddy/zing -->
 
-**“Make my clips look like that video.”** Zing is a terminal-first creative studio
+**“Make my clips look like that video.”**
+
+Pre-alpha. Zing studies a video you like, cuts your clips into three captioned
+drafts in that style, and tells you which style checks each one passed. Needs
+Python, uv and FFmpeg.
+
+Zing is a terminal-first creative studio
 that gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
 from local images. Measurement and rendering run on your machine; your AI supplies
