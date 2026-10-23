@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import os
 import tempfile
-import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -13,7 +12,9 @@ from uuid import uuid4
 
 from myzing import storage
 from . import MemeError, PILLOW_HINT
-from .framing import FITS, REQUESTS, blur_background, fill_origin, photo_focus, resolve
+from .framing import FITS, REQUESTS, blur_background, fill_origin, photo_faces, photo_focus, resolve
+from .photo import load_photo
+from .subject import describe_estimate, estimate_subject, protected_regions, user_boxes
 from .score import viral_score
 from .templates import fetch_blank, get_template
 from .validate import check_texts
@@ -442,18 +443,91 @@ def text_layers(texts: list[str], *, source_size: tuple[int, int], size: tuple[i
     return viewport, layers
 
 
+# Alpha above this counts as drawn (text ink, its stroke, a plate or a
+# shadow); fainter anti-aliased fringe pixels do not.
+COVER_ALPHA = 32
+
+
+def layer_coverage(layer: TextLayer, size: tuple[int, int]):
+    """What a layer actually draws, as an 8-bit mask of the output ("L"):
+    text ink and stroke, plus its plate and shadow. None if it cannot be drawn."""
+    Image = require_pillow()[0]
+    canvas = Image.new("RGBA", (round(size[0]), round(size[1])), (0, 0, 0, 0))
+    try:
+        _draw_layer(canvas, layer)
+    except MemeError:
+        return None
+    return canvas.getchannel("A").point(lambda value: 255 if value > COVER_ALPHA else 0)
+
+
+def protection_hits(layers: list[TextLayer], protection: list[dict], source_size: tuple[int, int],
+                    viewport: Rect, fit: str, focus: list[float] | None,
+                    size: tuple[int, int] | None = None) -> list[tuple[int, dict]]:
+    """(text index, protected region) pairs where the text covers the region.
+
+    Regions are normalized source boxes; a crop can remove one entirely.
+    With ``size`` (the output size) each layer is drawn once and only its
+    rendered ink, stroke, plate and shadow count: a short line centered in a
+    full-width classic band does not touch a face at the band's edge.
+    Without it, or when a layer cannot be drawn, the layout box is used,
+    which can count as touching where the ink does not.
+    """
+    rect = fit_rect(source_size, viewport, fit, focus)
+    masks = [layer_coverage(layer, size) if size and layer.text.strip() else None for layer in layers]
+    hits = []
+    for region in protection:
+        x, y, bw, bh = region["box"]
+        left = max(rect.x + x * rect.width, viewport.x)
+        top = max(rect.y + y * rect.height, viewport.y)
+        right = min(rect.x + (x + bw) * rect.width, viewport.x + viewport.width)
+        bottom = min(rect.y + (y + bh) * rect.height, viewport.y + viewport.height)
+        if right - left <= 1 or bottom - top <= 1:
+            continue
+        for index, layer in enumerate(layers):
+            if not layer.text.strip():
+                continue
+            if masks[index] is not None:
+                window = (math.floor(left), math.floor(top), math.ceil(right), math.ceil(bottom))
+                if masks[index].crop(window).getbbox() is not None:
+                    hits.append((index, region))
+                continue
+            box = layer.box
+            if (min(right, box.x + box.width) - max(left, box.x) > 1
+                    and min(bottom, box.y + box.height) - max(top, box.y) > 1):
+                hits.append((index, region))
+    return hits
+
+
+KIND_NAMES = {"face": "a detected face", "subject_estimate": "the estimated subject",
+              "user": "a protect box", "center_heuristic": "the central-60% face heuristic"}
+
+
+def _kinds(hits) -> str:
+    names = list(dict.fromkeys(KIND_NAMES[region["kind"]] for _, region in hits))
+    return ", ".join(names[:-1]) + (" and " if len(names) > 1 else "") + names[-1]
+
+
 def render_meme(texts: list[str], *, image: str = "", template: str = "",
                 layout: str = "", aspect: str = "1:1", out: str = "", fit: str = "",
                 font: str = "", regions: list[list[float]] | None = None,
                 plate: bool = False, shadow: bool = False, rotation: float = 0,
                 offline: bool = False, overwrite: bool = False,
-                focus: list[float] | None = None) -> dict:
+                focus: list[float] | None = None,
+                protect: list[list[float]] | None = None) -> dict:
     """``fit`` defaults to ``auto`` for photos (face/subject-aware fill, or
     blur-fill when a crop would cut faces) and ``contain`` for templates.
-    ``focus`` (normalized [x, y, w, h]) is a precomputed fill focus."""
+    ``focus`` (normalized [x, y, w, h]) is a precomputed fill focus.
+
+    Text avoids detected faces, a confident subject estimate (photos only)
+    and ``protect`` boxes (normalized source [x, y, w, h]). When the default
+    layout would cover one, a caption bar is used; an explicitly requested
+    layout is kept and the overlap is reported in ``warnings``/``protection``.
+    """
     if bool(image) == bool(template):
         raise MemeError("Provide exactly one of image or template.")
     selected = get_template(template) if template else None
+    layout_explicit, font_explicit = bool(layout), bool(font)
+    protect = user_boxes(protect)
     layout = layout or ("labels" if selected else "classic")
     fit = fit or ("contain" if selected else "auto")
     aspect = ASPECT_ALIASES.get(aspect, aspect)
@@ -480,7 +554,7 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
         regions = selected["box_layout"]
     layout_boxes(layout, len(texts), (1080, 1080), regions=regions)
     font = resolve_font(font or ("sans" if layout == "caption" else "anton"))
-    Image, _, _, _, ImageOps = require_pillow()
+    Image = require_pillow()[0]
     target = (Path(out).expanduser() if out else storage.workspace_root() / "memes" / "renders" / f"meme-{uuid4().hex[:12]}.png").resolve()
     formats = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
     if target.suffix.lower() not in formats:
@@ -491,26 +565,59 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
     if target.exists() and not overwrite:
         raise MemeError(f"{target} already exists; choose another --out or pass overwrite.")
     try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(source_path) as opened:
-                if opened.width * opened.height > MAX_PIXELS:
-                    raise MemeError("Source exceeds the 40 megapixel limit; resize it first.")
-                source = ImageOps.exif_transpose(opened).convert("RGBA")
+        # Oriented working copy: large photos are reduced first, HEIC goes
+        # through FFmpeg, and the decode is bounded (myzing.memes.photo).
+        try:
+            source, origin = load_photo(source_path, mode="RGBA")
+        except MemeError as exc:
+            raise MemeError(f"Could not render {source_path}: {exc}") from exc
         size = output_size(aspect, source.size)
         w, h = size
-        requested, notes, basis = fit, [], "none"
-        if focus is not None:
-            basis = "explicit"  # a resolved fill (still workflow): use it exactly as planned
-        else:
-            if fit in ("auto", "fill"):
-                focus, basis, notes = photo_focus(source)
-            bar = caption_bar(texts, size, font) if layout == "caption" else 0
-            fit, focus, more = resolve(fit, source.size, (w, h - bar), focus, basis)
-            notes += more
-        viewport, layers = text_layers(texts, source_size=source.size, size=size, layout=layout,
-                                      fit=fit, font=font, regions=regions, plate=plate,
-                                      shadow=shadow, rotation=rotation, focus=focus)
+        requested, notes = fit, [origin.note()] if origin.note() else []
+        planned_focus = focus
+        faces = (photo_faces(source) if not selected or (planned_focus is None and fit in ("auto", "fill"))
+                 else None)
+        # Photos: detected faces, a confident subject estimate and user boxes.
+        # Templates are designed panels: only explicit protect boxes apply.
+        estimate = None if selected else estimate_subject(source)
+        protection = protected_regions(faces[0] if faces and faces[1] == "yunet" else [],
+                                       "yunet", estimate, protect)
+        if selected:
+            protection = [r for r in protection if r["kind"] == "user"]
+        attempts = [layout]
+        if not layout_explicit and not selected and layout != "caption" and regions is None:
+            attempts.append("caption")
+        for attempt, current in enumerate(attempts):
+            current_font = font if attempt == 0 or font_explicit else resolve_font(
+                "sans" if current == "caption" else "anton")
+            fit, focus, basis, more = requested, planned_focus, "none", []
+            if planned_focus is not None:
+                basis = "explicit"  # a resolved fill (still workflow): use it exactly as planned
+            else:
+                if requested in ("auto", "fill"):
+                    focus, basis, more = photo_focus(source, faces)
+                bar = caption_bar(texts, size, current_font) if current == "caption" else 0
+                fit, focus, resolved = resolve(requested, source.size, (w, h - bar), focus, basis)
+                more = more + resolved
+            viewport, layers = text_layers(texts, source_size=source.size, size=size, layout=current,
+                                          fit=fit, font=current_font, regions=regions, plate=plate,
+                                          shadow=shadow, rotation=rotation, focus=focus)
+            hits = protection_hits(layers, protection, source.size, viewport, fit, focus, size)
+            if not hits or attempt == len(attempts) - 1:
+                break
+            notes.append(f"{current.capitalize()} text would cover {_kinds(hits)}; used a caption bar "
+                         "above the photo instead.")
+        layout, font = current, current_font
+        notes += more
+        if hits:
+            notes.append(f"Text box {', '.join(str(i + 1) for i in sorted({i for i, _ in hits}))} overlaps "
+                         f"{_kinds(hits)}; the requested {layout} layout was kept. Use --layout caption, "
+                         "move it with --regions, or adjust --protect.")
+        report = {"version": 1, "regions": protection, "text_clear": not hits,
+                  "subject_estimate": estimate,
+                  "summary": (describe_estimate(estimate, not any(r["kind"] == "subject_estimate"
+                                                                  for _, r in hits)) if not selected else
+                              "Templates are designed panels: only explicit protect boxes are checked.")}
         result, reports = draw_composition(source, size=size, layers=layers, fit=fit,
                                            viewport=viewport, caption=layout == "caption",
                                            focus=focus)
@@ -528,10 +635,11 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
         if isinstance(exc, MemeError):
             raise
         raise MemeError(f"Could not render {source_path}: {exc}") from exc
-    return {"path": str(target), "source_path": str(source_path), "width": w, "height": h,
+    return {"path": str(target), "source_path": str(source_path), "source": origin.to_dict(),
+            "width": w, "height": h,
             "layout": layout, "aspect": aspect, "fit": fit, "fit_requested": requested,
             "focus": focus, "focus_basis": basis, "boxes": reports,
-            "validation": validation,
+            "protection": report, "validation": validation,
             "viral_lens": viral_score(texts, aspect=aspect, contrast=[True] * len(texts)),
             "warnings": (["Generic catalog regions: inspect placement or supply custom regions."]
                          if selected and selected["layout_kind"] == "generic_rows" else []) + notes}

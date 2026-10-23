@@ -10,6 +10,7 @@ over nested JSON in native-command arguments.
 
 | Command | Use and boundary |
 |---|---|
+| `zing studio` | Guided creative session; recommendations, confirmation, saved answers and resume. |
 | `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
@@ -188,7 +189,10 @@ Each box allows 70 characters; all boxes together allow 110. Repeat `--text` in
 box order; an empty string preserves a slot. `check` returns exit 1 for invalid
 copy; JSON `ok` means the check ran, while `valid` says whether copy passed.
 Layouts are classic, caption and labels. `--regions` for labels uses normalized
-source-image `[x,y,width,height]` boxes. Choose a font covering the requested script.
+source-image `[x,y,width,height]` boxes. Text avoids detected faces and a
+model-free subject estimate (a distinct region, not a recognized pet or object);
+add `--protect x,y,w,h` boxes on `meme render` and `still` when it misses one.
+Choose a font covering the requested script.
 `--template` fetches a blank on cache miss unless `--offline` is set. Catalog
 lookup itself stays offline. Existing still outputs require `--overwrite`;
 prefer a new filename instead of enabling it.

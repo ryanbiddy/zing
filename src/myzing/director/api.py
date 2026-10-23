@@ -14,11 +14,12 @@ from myzing.style_recipe import StyleRecipe
 
 from .inventory import inventory
 from .models import PlanningShortage, shortage
-from .plans import attach_report, make_plan, render_projection
+from .plans import MUSIC_CANNOT_CARRY, attach_report, make_plan, music_projection, render_projection
 from .selection import candidates, choose, constraints, envelope
 
 PRODUCER = "myzing.director/1"
-MANAGED = {"comparison.json", *(f"plan-{label}{suffix}.json" for label in "ABC" for suffix in ("", ".edl"))}
+MANAGED = {"comparison.json", *(f"plan-{label}{suffix}.json" for label in "ABC"
+                                  for suffix in ("", ".edl", ".edl.music"))}
 
 
 def _json(data):
@@ -65,9 +66,13 @@ def _publish(out, payloads, report, protected):
         _atomic(previous, _json(report))
 
 
-def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True) -> dict:
+def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True,
+                studio_options: dict | None = None) -> dict:
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
+    if studio_options is not None:
+        from myzing.studio.adapters import validate_options
+        validate_options(studio_options)
     root = Path(project).expanduser().resolve()
     recipe_path = Path(recipe).expanduser().resolve()
     output = Path(out).expanduser().resolve()
@@ -94,6 +99,9 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             shortage("must_keep_length", f"Whole-word must-keeps require {required_seconds:.3f}s, beyond the brief target.",
                      "Lengthen the brief or shorten its must-keep spans.")
         style = envelope(style_recipe)
+        if studio_options is not None:
+            from myzing.studio.adapters import style_envelope
+            style = style_envelope(style, studio_options)
         pool, required = candidates(clips, keep, forbidden, style, brief.target_length_seconds)
         selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed,
                           allow_reordering="[allow source reordering]" in brief.purpose.casefold())
@@ -122,7 +130,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
                                        style, brief, manifest, root, seed, keep, forbidden,
-                                       subject_evidence=subject_evidence, music_cache=music_cache)
+                                       subject_evidence=subject_evidence, music_cache=music_cache,
+                                       **({"caption_mode": studio_options.get("captions")} if studio_options is not None else {}))
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},
@@ -132,14 +141,30 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             }
             plan = attach_report(plan, evidence)
             legacy, blockers = render_projection(plan)
+            sidecar = None
+            if legacy is None:
+                # A music bed is the usual blocker: keep picture and dialogue
+                # in the v1 derivative and hand the music to a sidecar.
+                music_legacy, sidecar, music_blockers = music_projection(plan, label)
+                if music_legacy is not None:
+                    legacy = music_legacy
             evidence["v1"] = {"representable": legacy is not None, "blockers": blockers,
                               "evidence_retained_in": [f"plan-{label}.json", "comparison.json"],
                               "projection": "Only brief and warnings are separated into the retained v2 evidence; all rendering instructions are checked by lower_to_v1."}
+            if sidecar is not None:
+                evidence["v1"].update(
+                    scope="picture and dialogue; the music bed is in the sidecar",
+                    music_removed=[t["id"] for t in sidecar["tracks"]],
+                    music_sidecar=f"plan-{label}.edl.music.json", cannot_carry=MUSIC_CANNOT_CARRY,
+                    projection=("Brief, warnings and the music track are separated; picture, captions and source "
+                                "audio are checked by lower_to_v1. The sidecar carries the music for an editor."))
             # Record lowering in the plan itself too, with no dependency on out.
             plan = attach_report(plan, evidence)
             payloads[f"plan-{label}.json"] = plan.to_json(indent=2) + "\n"
             if legacy is not None:
                 payloads[f"plan-{label}.edl.json"] = _json(legacy.to_dict())
+            if sidecar is not None:
+                payloads[f"plan-{label}.edl.music.json"] = _json(sidecar)
             report["plans"][label] = evidence
         report["status"] = "ready"
     except PlanningShortage as exc:
@@ -155,8 +180,15 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             "plans": {label: str(output / f"plan-{label}.json") for label in report["plans"]},
             "v1_edls": {label: str(output / f"plan-{label}.edl.json") for label in report["plans"]
                         if report["plans"][label]["v1"]["representable"]},
+            "music_sidecars": {label: str(output / report["plans"][label]["v1"]["music_sidecar"])
+                               for label in report["plans"] if report["plans"][label]["v1"].get("music_sidecar")},
             "summary": {"drafts": len(report["plans"]), "shortages": report["shortages"],
-                        "warnings": [*inventory_notes, *excluded],
+                        # Low-resolution advice first: it changes what to render.
+                        "warnings": [*dict.fromkeys(p["resolution"]["summary"] for p in report["plans"].values()
+                                                    if p["resolution"]["limited"]), *inventory_notes, *excluded],
+                        "resolution": {label: {key: p["resolution"][key] for key in
+                                               ("limited", "output", "summary", "recommendation")}
+                                       for label, p in report["plans"].items()},
                         "source_asr": [{"asset_id": c.asset_id, "file": Path(c.path).name, **c.asr_repair}
                                        for c in clips if c.asr_repair.get("repairs") or c.asr_repair.get("quarantined")],
                         "clips_needing_study": [c.asset_id for c in clips if c.status == "needs_study"],

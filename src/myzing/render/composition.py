@@ -197,6 +197,7 @@ def render_composition(
     c = prepared.composition
     if any(a.duck_under_speech and a.duck_scope == "source_speech" and a.kind != "music" for a in c.audio):
         raise EDLValidationError("source_speech ducking applies to music tracks only")
+    from myzing.music import dialogue
     from myzing.music.models import extract, stale_timeline
     music_evidence = extract(c)
     scoped = any(a.duck_under_speech and a.duck_scope == "source_speech" for a in c.audio)
@@ -213,6 +214,21 @@ def render_composition(
         if any(t.end > t.start for t in c.transitions):
             raise EDLValidationError("source_speech ducking spans assume hard cuts; overlapping transitions move "
                                      "speech in output time. Re-plan, or duck under voiceover instead")
+    # Dialogue gains belong to the music mix they were planned for: they apply
+    # only while that music track is in the plan, and only to the planned clip
+    # timeline (docs/MUSIC.md). A music-free edit keeps its recorded levels.
+    planned_tracks = {t.get("id") for t in music_evidence.tracks}
+    dialogue_rows = music_evidence.dialogue_gains if any(
+        a.kind == "music" and a.id in planned_tracks for a in c.audio) else []
+    dialogue_warnings: tuple[str, ...] = ()
+    if music_evidence.dialogue_gains and not dialogue_rows:
+        dialogue_warnings = ("MUSIC1 dialogue gains were not applied: the plan no longer has the music track they were "
+                             "planned with, so each clip keeps its recorded level. Re-run zing plan drafts to re-balance, "
+                             "or delete the MUSIC1 evidence.",)
+    if dialogue_rows and stale_timeline(music_evidence, c.clips):
+        raise EDLValidationError("MUSIC1 dialogue gains were planned for a different clip timeline (clips, trims or "
+                                 "transition overlaps changed), so they would raise the wrong clips. Re-run zing plan "
+                                 "drafts, or clear dialogue_gains in the MUSIC1 evidence")
     # A plain music bed renders on a [render]-only install. Measurement needs
     # NumPy and runs only for director music evidence or speech ducking.
     measure_music = any(a.kind == "music" for a in c.audio) and (bool(music_evidence.tracks) or scoped)
@@ -271,7 +287,7 @@ def render_composition(
         validated = replace(validated, warnings=tuple(w for w in validated.warnings if "EDL has no voiceover" not in w))
     from .color import validate_source_colors, write_luts
     validated = replace(validated, warnings=prepared.warnings + validated.warnings + validate_source_colors(validated)
-                        + measurement_warnings)
+                        + measurement_warnings + dialogue_warnings)
     from .framing import probe_dimensions
     framing_warnings, dimensions = [], {}
     ordered = sorted(c.clips, key=lambda clip: clip.timeline_start)
@@ -328,6 +344,10 @@ def render_composition(
             transitions=joins,
             caption_overlay=caption_overlay,
             clip_framings=tuple(clip.framing for clip in ordered),
+            clip_audio_filters=tuple(
+                dialogue.filters(dialogue.row_at(dialogue_rows, clip.timeline_start + clip.duration / 2, clip.asset_id))
+                + fades for clip, fades in zip(ordered, dialogue.edge_fades(ordered, music_evidence.speech_spans)
+                                                if scoped else [()] * len(ordered))),
             composition_audio=tuple(c.audio),
             speech_spans=tuple(tuple(s) for s in music_evidence.speech_spans),
             music_fades={t["id"]: {"fade_in": min(.15, (a.src_out - a.src_in) / 4),
