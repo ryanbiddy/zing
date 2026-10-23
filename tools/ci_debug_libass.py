@@ -124,8 +124,7 @@ def main(out: Path):
             except Exception as exc:  # report and continue
                 entry["error"] = str(exc)[-2000:]
             if jname == "wj":
-                (out / "literal.txt").write_text(text, encoding="utf-8", newline="
-")
+                (out / "literal.txt").write_text(text, encoding="utf-8", newline="\n")
                 for flags in ("default", "no_hinting", "force_autohint", "no_autohint"):
                     vf = ("drawtext=fontfile='original.ttf':textfile='literal.txt':expansion=none:fontsize=28:"
                           f"fontcolor=white:x=10:y=10:ft_load_flags={flags}")
