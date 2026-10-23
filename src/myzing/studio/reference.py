@@ -118,12 +118,8 @@ def _worker(source, workspace):
         emit({"text_present": any(found) if found else None, "text_samples": len(found)})
     except (ImportError, OSError, ValueError, RuntimeError):
         emit({"text_present": None})
-    # Optional integration stays behind the same small adapter. This is
-    # inside the owned deadline, after the inexpensive observations.
-    from .adapters import quick_explain
-    card = quick_explain(str(sample), Path(tmp) / "card")
-    if card is not None:
-        emit({"explain_summary": card.get("summary", []), "explain_ok": card.get("ok", False)})
+    # Explain performs a full study. Leave that to confirmed path d; this
+    # preview reuses study's shot/audio/OCR measurements within its deadline.
 
 
 if __name__ == "__main__":

@@ -73,6 +73,11 @@ def test_studio_entry_point_and_mcp_counts():
     assert _usage().startswith("Start here: zing studio")
     assert (ROOT / "docs/STUDIO.md").is_file()
 
+def test_explain_documented_surface():
+    assert "zing_explain" in (ROOT / "docs/CONNECT.md").read_text(encoding="utf-8")
+    assert "zing explain" in (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "explain_video(source, out_dir, *, transitions=True, offline=True)" in (ROOT / "docs/EXPLAIN.md").read_text(encoding="utf-8")
+
 
 def test_extras_tables_match_package():
     project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")

@@ -115,7 +115,8 @@ def h_zing_studio(path: str | None = None, answers: dict[str, Any] | None = None
             if "path" in supplied and supplied["path"] != path:
                 return _err("path and answers.path disagree")
             supplied["path"] = path
-        return _ok(**next_step(supplied))
+        step = next_step(supplied)
+        return _err(step["error"]) if step["status"] == "blocked" else _ok(**step)
     except (ValueError, OSError, RuntimeError, ImportError) as exc:
         return _err(str(exc))
 
@@ -128,6 +129,13 @@ def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = F
         return _ok(**job(answers, confirmed=confirmed, project=project, cancel=cancel))
     except (ValueError, OSError, RuntimeError, ImportError) as exc:
         return _err(str(exc))
+
+def h_zing_explain(source: str, out_dir: str, transitions: bool = True,
+                   offline: bool = True, against: str | None = None) -> dict[str, Any]:
+    """Write local card files and return paths/metadata only."""
+    from myzing.explain.api import _explain
+    return _explain(source, out_dir, transitions=transitions, offline=offline,
+                    against=against, allow_download=not offline)
 
 
 def h_brief_questions() -> dict[str, Any]:
@@ -1811,6 +1819,7 @@ def build_server():
             "-> write text -> meme_check -> meme_render. Meme tools make no model calls."
         ),
     )
+    mcp.tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
     mcp.tool(
         name="zing_studio",
         description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Local probes and a bounded offline reference preview; saved-reference search only with a configured reachable peer. No production or downloads.",

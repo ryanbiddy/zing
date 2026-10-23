@@ -52,12 +52,9 @@ def explain_video(source, out_dir, *, progress=None, fallback=True):
                 "card_md": str(folder / "breakdown.md"), "card_png": str(png) if png.is_file() else None,
                 "summary": [note, f"{len(b.shots)} observed shots; {len(b.words)} transcript words; {len(b.captions)} sampled text events."],
                 "warnings": warnings}
+    if progress:
+        progress("Reading the video and making its style card...")
     return explain(source, str(out_dir), transitions=True, offline=True)
-
-
-def quick_explain(source, out_dir):
-    """Optional preview; no full-study fallback within the short interview read."""
-    return explain_video(source, out_dir, fallback=False)
 
 
 def register_music(root, tracks):
@@ -151,9 +148,9 @@ def deliver(source, output, aspects):
         fallback = "Auto framing could not satisfy its crop-motion bound; studio used full-picture blurfill for this delivery."
         result = render_deliveries(plan, output, aspects=aspects, framing="blurfill",
                                    base_dir=Path(source).parent, inputs=(Path(source),))
-        result["warnings"] = [fallback]
+        result["warnings"] = [fallback, *result.get("warnings", [])]
         report = read_json(result["report"])
-        report.setdefault("warnings", []).append(fallback)
+        report["warnings"] = [fallback, *report.get("warnings", [])]
         write_json(result["report"], report)
     for row in result["deliveries"].values():
         receipt = decode(Path(row["video"]), Composition.from_dict(read_json(row["plan"])))

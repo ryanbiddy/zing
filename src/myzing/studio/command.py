@@ -18,8 +18,8 @@ def show_question(q, out):
         print(f"  {i}. {option['label']}", file=out)
     value = q["recommended"]
     display = ",".join(value) if isinstance(value, list) else "yes" if value is True else "no" if value is False else value
-    if q["id"] == "path":
-        display = next((str(i) for i, option in enumerate(q["options"], 1) if option["value"] == value), display)
+    display = next((f"{i} ({option['label']})" for i, option in enumerate(q["options"], 1)
+                    if option["value"] == value), display)
     if value is not None:
         print(f"Recommended: {display}", file=out)
         print(q["reason"], file=out)
@@ -70,6 +70,8 @@ def show_result(result, out):
                 for line in range(max(map(len, cells))):
                     label = draft if line == 0 else ""
                     print(label.ljust(5) + " | " + " | ".join((cell[line] if line < len(cell) else "").ljust(width) for cell in cells), file=out)
+        for line in summary.get("style_summary", []):
+            print(line, file=out)
         for item in summary["highlights"]:
             print(item["label"] + ": " + relative(item["file"]), file=out)
         if summary["recommendation"]:

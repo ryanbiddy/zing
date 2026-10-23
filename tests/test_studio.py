@@ -105,7 +105,10 @@ def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs
         questions.append(q)
         a[q["id"]] = q["recommended"]
     assert [q["id"] for q in questions] == ["platform", "length", "captions", "music"]
-    assert all("66 cuts/min" in q["reason"] for q in questions)
+    assert ["9:16" in questions[0]["reason"], "19.7 s" in questions[1]["reason"],
+            "No text detected" in questions[2]["reason"], "Music observed" in questions[3]["reason"]] == [True] * 4
+    assert all("66 cuts/min" not in q["reason"] for q in questions)
+    assert all("66 cuts/min" in q["evidence"]["reference"]["reason"] for q in questions)
     assert step["answers"]["aspects"] == ["9:16"]
     assert step["answers"]["length"] == 20 and step["answers"]["tone"] == "energetic"
     assert step["answers"]["captions"] == "none" and step["answers"]["music"] == "original"
@@ -455,7 +458,7 @@ def test_mcp_runner_start_poll_cancel_owns_process_job(inputs, monkeypatch):
     result = jobs.job(a, confirmed=True)
     assert result["status"] == "started" and entered.wait(2)
     assert jobs.job(project=inputs["project"])["status"] == "running"
-    jobs.job(project=inputs["project"], cancel=True)
+    assert jobs.job(project=inputs["project"], cancel=True)["cancellation_requested"] is True
     with jobs._LOCK:
         active = jobs._JOBS.get(inputs["project"])
     if active:
@@ -502,13 +505,14 @@ def test_redelivery_motion_failure_uses_disclosed_full_picture_fallback(tmp_path
         calls.append(kwargs)
         if len(calls) == 1:
             raise ValueError("reframe keyframes exceed max_velocity")
-        write_json(report, {"status": "ready", "deliveries": {}})
-        return {"status": "ready", "report": str(report), "deliveries": {}}
+        write_json(report, {"status": "ready", "deliveries": {}, "warnings": ["Original framing warning"]})
+        return {"status": "ready", "report": str(report), "deliveries": {}, "warnings": ["Original framing warning"]}
     monkeypatch.setattr("myzing.render.deliveries.render_deliveries", render)
     result = adapters.deliver(tmp_path / "source.json", tmp_path / "out.mp4", ["1:1"])
     assert "framing" not in calls[0] and calls[1]["framing"] == "blurfill"
     assert "crop-motion bound" in result["warnings"][0]
     assert read_json(report)["warnings"] == result["warnings"]
+    assert result["warnings"][1:] == ["Original framing warning"]
 
 
 def test_public_results_link_instead_of_repeating_director_evidence():
@@ -535,3 +539,73 @@ def test_phone_captions_preserve_words_and_times_in_short_groups():
     assert [len(c.words) for c in phone] == [4, 4, 1]
     assert [(w.text, w.start, w.end) for c in phone for w in c.words] == [(w.text, w.start, w.end) for w in words]
     assert all(c.style.size == 60 and c.font is None and c.layout is None for c in phone)
+
+
+def test_mcp_declined_download_is_consent_error(inputs):
+    from myzing.mcp_server import h_zing_studio, _err
+    result = h_zing_studio("a", {"project": inputs["project"],
+                               "reference": "https://example.invalid/reference.mp4", "allow_download": False})
+    assert result == _err("Download declined. Go back to use a local reference or save and quit.")
+    assert not Path(inputs["project"]).exists()
+
+
+@pytest.mark.parametrize("owner_alive", [True, False])
+def test_studio_cannot_cancel_a_foreign_job(inputs, monkeypatch, owner_alive):
+    import os
+    from myzing.studio.models import write_json, read_json
+    from myzing.mcp_server import h_zing_studio_run
+    root = Path(inputs["project"])
+    root.mkdir()
+    write_json(root / "studio-job.json", {"status": "running", "project": str(root), "pid": os.getpid() + 100000})
+    monkeypatch.setattr("myzing.project.locking._pid_alive", lambda pid: owner_alive)
+    result = h_zing_studio_run(project=str(root), cancel=True)
+    assert result["ok"] and result["cancellation_requested"] is False
+    assert result["status"] == ("running" if owner_alive else "failed")
+    assert "owning server" in result["hint"]
+    assert "pid" not in result
+    assert read_json(root / "studio-job.json")["status"] == result["status"]
+
+
+def test_reference_summary_once_and_recommended_option_labels(inputs, monkeypatch, capsys):
+    from myzing.studio.reference import describe
+    ref = describe({"duration": 20, "aspect": "16:9", "sample_seconds": 20,
+                    "cuts_per_minute": 63, "has_audio": True, "speech_present": True,
+                    "music_present": True, "text_present": False, "text_samples": 3})
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: ref)
+    monkeypatch.setattr("sys.stdin", io.StringIO(
+        f"1\n{inputs['source']}\n{inputs['clips']}\na local story\n\n\n\n\nq\n"))
+    assert command.run([]) == 0
+    text = capsys.readouterr().out
+    assert text.count("Your reference is 20.0 s, 16:9; about 63 cuts/min") == 1
+    assert text.index("Reading the reference...") < text.index(ref["reason"])
+    assert "Recommended: 5 (Keep source / reference shape)" in text
+    assert "Recommended: 1 (No added captions)" in text
+    assert "Recommended: 1 (Keep my clips' audio)" in text
+    assert "Recommended: original" not in text and "Recommended: none" not in text
+    assert load_session(inputs["project"]).questions_asked == 8
+
+
+def test_explain_success_summary_and_all_cards_reach_finish(inputs, monkeypatch):
+    from myzing.studio.execute import run_confirmed
+    from myzing.studio.models import read_json
+    from myzing.explain import api
+    calls = []
+    def explain(source, out, **kwargs):
+        calls.append((source, kwargs))
+        paths = {f"card_{suffix}": str(Path(out) / f"card.{suffix}") for suffix in ("json", "md", "png")}
+        for file in paths.values():
+            Path(file).write_bytes(b"test card placeholder")
+        return {"ok": True, **paths, "summary": ["Twenty seconds; measured rapid cuts.", "No text detected in sampled frames."]}
+    monkeypatch.setattr(api, "explain_video", explain)
+    a, _ = complete("d", inputs)
+    result = run_confirmed(a)
+    assert result["ok"] and calls == [(inputs["source"], {"transitions": True, "offline": True})]
+    assert read_json(Path(inputs["project"]) / "studio-result.json") == result
+    screen = io.StringIO()
+    command.show_result(result, screen)
+    text = screen.getvalue()
+    for line in result["result"]["summary"]:
+        assert text.count(line) == 1
+    for suffix in ("json", "md", "png"):
+        assert f"card.{suffix}" in text
+    assert "fallback" not in text

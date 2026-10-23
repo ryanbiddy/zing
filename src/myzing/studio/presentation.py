@@ -113,10 +113,15 @@ def creator_summary(result, answers, facts):
     for shape, still in detail.get("stills", {}).items():
         highlights.append({"label": f"Finished still ({shape})", "file": still["selected"]["path"]})
         highlights.append({"label": f"Contact sheet ({shape})", "file": still["concepts"]["contact_sheet"]})
+    if detail.get("ok") and detail.get("card_json"):
+        highlights = [{"label": label, "file": detail[key]} for key, label in
+                      (("card_md", "Style card"), ("card_png", "Preview"), ("card_json", "Measured card"))
+                      if detail.get(key)]
     if not rows and not highlights:
         highlights = [{"label": "Output", "file": p} for p in result.get("outputs", [])[:3]]
     return {"version": 1, "deliveries": rows, "recommendation": recommendation,
             "notes": list(dict.fromkeys(notes))[:5], "highlights": highlights,
+            "style_summary": detail.get("summary", []) if detail.get("card_json") else [],
             "output_folder": str(root), "full_result": str(root / "studio-result.json"), "next_actions": actions}
 
 

@@ -210,7 +210,7 @@ def next_step(answers=None, *, cache=None):
             why = f"{len(facts.get('photos', []))} photos measured; square is a starting layout choice. Your publishing destination is unknown."
         if path == "a" and reference.get("aspect"):
             orientation = {"16:9": "landscape", "9:16": "portrait", "1:1": "square"}.get(reference["aspect"], orientation)
-            why = reference["reason"] + " Keep its shape unless your destination needs another."
+            why = f"Your reference is {reference['aspect']}. Keep its shape unless your destination needs another."
         ask("platform", "Where will this go?", default_platform, why,
             {"TikTok/Reels": "TikTok / Reels (9:16)", "YouTube": "YouTube (16:9)", "square": "Feed (1:1)", "all": "All three shapes", "original": "Keep source / reference shape", "custom": "Custom shapes"})
         aspect = {"portrait": "9:16", "landscape": "16:9", "square": "1:1"}.get(orientation, "1:1" if path == "c" else "16:9")
@@ -224,7 +224,7 @@ def next_step(answers=None, *, cache=None):
         if ref.get("duration"):
             seconds = min(60, max(1, round(ref["duration"])))
         ask("length", "How many seconds?", seconds,
-            ref["reason"] + f" Recommend {seconds:g} s and {ref['tone']} pacing to follow it." if ref.get("duration") else
+            f"The reference is {ref['duration']:g} s; recommend {seconds:g} s to follow it." if ref.get("duration") else
             f"{facts['duration']:g} source seconds; {seconds:g} s is a starting target. Distinct usable moments are unknown."
             if facts["duration"] else "Usable duration is unknown; 15 seconds is a disclosed starting target.")
     if path in "ab":
@@ -238,15 +238,24 @@ def next_step(answers=None, *, cache=None):
             {"none": "No added captions", "phone": "Phone-readable spoken captions"})
         ask("music", "Music: original, none, or local track paths separated by ;?", "original" if facts["audio_streams"] else "none",
             "Keep the measured audio streams; supplied tracks will be rated and ducked only under known speech."
-            if facts["audio_streams"] else "No source audio was measured; supply a local track if you want added music.")
+            if facts["audio_streams"] else "No source audio was measured; supply a local track if you want added music.",
+            {"original": "Keep my clips' audio", "none": "No music bed (keep speech)"})
         if ref.get("duration"):
             for q in queue:
                 if q.id == "captions":
                     q.recommended = "phone" if ref.get("text_present") and ref.get("speech_present") else "none"
-                    q.reason = ref["reason"] + " Add spoken captions only when speech and text are both observed; sampled text may be titles."
+                    text = ref.get("text_present")
+                    q.reason = ("No text detected in sampled reference frames; start without added captions." if text is False else
+                                "Text and speech observed; try spoken captions. Sampled text may be titles." if text and ref.get("speech_present") else
+                                "Spoken-caption evidence is unknown; start without added captions.")
                 elif q.id == "music":
                     q.recommended = "original" if ref.get("has_audio") and ref.get("music_present") is not False else "none"
-                    q.reason = ref["reason"] + " Keep your clips' audio to start; a reference soundtrack is not copied. Supply a local track to add a music bed."
+                    music = ref.get("music_present")
+                    observed = ("Music observed in the reference (heuristic)." if music is True else
+                                "No music detected in the reference (heuristic)." if music is False else
+                                "Reference music is unknown.")
+                    q.reason = observed + (" Keep your clips' audio to start; type local track paths to add music. The reference soundtrack is not copied."
+                                           if q.recommended == "original" else " Start without a music bed; speech stays.")
     if path == "e" and a.get("context", "none") == "none":
         ask("speech", "Will someone be speaking over the music?", True,
             "Speech is unknown without an edit plan; checking as a speech bed is the conservative default.", {True: "Yes", False: "No"})
@@ -271,7 +280,7 @@ def build_plan(a, facts):
         "a": ["Inventory clips and save brief", "Study reference and clips offline", "Plan A/B/C and framing", "Render, decode and inspect each delivery"],
         "b": ["Inventory clips and save brief", "Study clips offline", "Choose a disclosed style from the brief; plan A/B/C", "Render and decode each delivery"],
         "c": ["Measure photos and create six concepts per shape", "Render contact sheets", "Export the highest readability-scored concept per shape"],
-        "d": ["Measure cuts, transitions, captions, color and music where available", "Write style card (or study + timeline fallback)"],
+        "d": ["Measure cuts, transitions, captions, color and music where available", "Write style card as text, JSON and a preview"],
         "e": ["Measure local music", "Rank tracks and write reasons"],
         "f": ["Load the plan or probe the finished edit", "Rebuild framing for each requested shape", "Render and decode deliveries"],
     }[path]

@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import runpy
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,16 @@ import venv
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+# Share the smoke gate's registry; adding a tool changes both gates together.
+EXPECTED_TOOLS = runpy.run_path(str(REPO / "packaging" / "mcp_stdio_smoke.py"))["EXPECTED_TOOLS"]
+
+
+def _mcp_success(returncode, payload):
+    return (returncode == 0 and payload["ok"] is True
+            and payload["server"]["name"] == "zing"
+            and payload["tool_count"] == len(EXPECTED_TOOLS)
+            and payload["called"] == "zing_status")
+
 
 
 def run(cmd: list[str], cwd: Path, env: dict, timeout: int = 600):
@@ -161,13 +172,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         try:
             mcp_payload = json.loads(mcp.stdout)
-            mcp_ok = (
-                mcp.returncode == 0
-                and mcp_payload["ok"] is True
-                and mcp_payload["server"]["name"] == "zing"
-                and mcp_payload["tool_count"] == 33
-                and mcp_payload["called"] == "zing_status"
-            )
+            mcp_ok = _mcp_success(mcp.returncode, mcp_payload)
         except (KeyError, TypeError, json.JSONDecodeError):
             mcp_ok = False
             mcp_payload = {}
@@ -175,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
             "mcp-stdio",
             "PASS" if mcp_ok else "FAIL",
             (
-                "installed product initialized, listed 33 tools, and called "
+                f"installed product initialized, listed {len(EXPECTED_TOOLS)} tools, and called "
                 "zing_status"
                 if mcp_ok else
                 f"installed MCP smoke failed: {mcp_payload}"

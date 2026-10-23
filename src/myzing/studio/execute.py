@@ -189,7 +189,7 @@ def run_confirmed(answers, *, progress=None):
         "a": ["Review the draft videos and their match reports.", "Choose A, B or C with zing plan choose.", "Use studio path f for another shape."],
         "b": ["Review A/B/C before choosing with zing plan choose.", "Use studio path e to try a music track.", "Use studio path f for another shape."],
         "c": ["Open the contact sheet and check the joke and text placement.", "Pick another concept with zing still pick <folder> --id <id>.", "Try a more specific topic in a fresh studio session."],
-        "d": ["Open the style card or fallback breakdown.", "Use studio path a with this video as the reference."],
+        "d": ["Open the style card and review its measured observations.", "Use studio path a with this video as the reference."],
         "e": ["Compare the reasons and listen to the suggested excerpts.", "Try another local track.", "Use a chosen track in studio path a or b."],
         "f": ["Watch the new delivery and check its crop.",
               "Want another shape? Start path f with the original plan."],

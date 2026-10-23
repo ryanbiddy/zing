@@ -1,6 +1,6 @@
 # Connecting your AI to Zing
 
-Zing's MCP server gives any MCP client thirty-five tools, plus the prompt
+Zing's MCP server gives any MCP client thirty-six tools, plus the prompt
 pack as slash commands:
 
 - **Start here:** `zing_studio` (stateless questions and a plan), `zing_studio_run` (confirmed b/d/f jobs; poll or cancel by project). See [Studio](STUDIO.md).
@@ -10,6 +10,7 @@ pack as slash commands:
 - **Brief:** `brief_questions`, `brief_save`
 - **Music:** `music_check` (local candidate advice; see [Music](MUSIC.md))
 - **Plan:** `plan_drafts` (project, recipe and output paths; see [Three draft plans](PLAN-DRAFTS.md))
+- **Explain:** `zing_explain` (style card, reusable recipe and optional comparison; see [Explain](EXPLAIN.md))
 - **Match:** `match_start`, `match_status` (reference plus clips to resumable drafts and rendered match reports; see [Match](MATCH.md))
 - **Profile:** `build_profile`, `get_profile`, `list_profiles`,
   `list_presets`
@@ -30,7 +31,7 @@ if it drifts, CI fails.)
 The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
 launch commands still work. It accepts legacy initialization through
 `2025-11-25` and the stateless `2026-07-28` protocol. The current registry has
-35 tools and five prompts. STUDIO1 adds the guided front door; `match_start` gains an optional `studio_options` adapter argument. Existing arguments and defaults stay compatible. See [SDK 2 compatibility](MCP-SDK2.md)
+36 tools and five prompts. STUDIO1 adds the guided front door; `match_start` gains an optional `studio_options` adapter argument. Existing arguments and defaults stay compatible. See [SDK 2 compatibility](MCP-SDK2.md)
 for protocol details and the recorded SDK 1 baseline. Zing exposes no HTTP
 MCP endpoint.
 

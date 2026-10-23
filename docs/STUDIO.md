@@ -34,7 +34,8 @@ The preview has an eight-second deadline, samples at most the first 20 seconds
 at reduced resolution, and checks three text frames with locally installed OCR.
 It reuses the study cut detector and audio measurements. It reports speech,
 likely music and sampled text separately; unavailable measurements stay unknown.
-The optional explain adapter runs within the same deadline when installed.
+The full reference summary appears once; each question gives a reason specific
+to its choice. Path 4 uses Explain for the full style card after confirmation.
 Remote and saved references are resolved by match after confirmation, so their
 interview style evidence remains unknown.
 
@@ -192,8 +193,9 @@ project for a new edit.
   The crop planner merges sub-microsecond duplicate track times before limiting
   movement. If a motion-bound rejection still occurs, Studio retries full-picture blurfill and records that fallback in the delivery report.
 - Style breakdown lazily calls `myzing.explain.api.explain_video(source,
-  out_dir, transitions=True, offline=True)`. If that module is unavailable, the
-  small `studio.adapters.explain_video` seam runs existing study + inspect and
+  out_dir, transitions=True, offline=True)` and displays its summary and three
+  card paths. Missing optional measurements remain unknown. If the module cannot
+  load, the small `studio.adapters.explain_video` seam runs existing study + inspect and
   explicitly labels the fallback. It does not claim an original font or LUT.
 - Photo concepts use the existing formula engine and readability score, not
   semantic image recognition or a prediction that a joke will land.

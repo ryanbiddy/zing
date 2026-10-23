@@ -48,15 +48,21 @@ def job(answers=None, *, confirmed=False, project=None, cancel=False):
             raise ValueError("No studio job here. Start a confirmed plan first.")
         with _LOCK:
             active = _JOBS.get(str(root))
-            if cancel and active:
+            live = active is not None and active[0].is_alive()
+            if cancel and live:
                 active[1].set()
             state = read_json(file)
-            if state["status"] == "running" and not active:
+            if state["status"] == "running" and not live:
                 from myzing.project.locking import _pid_alive
                 if state.get("pid") == os.getpid() or not _pid_alive(state.get("pid", -1)):
                     state.update(status="failed", error="Studio worker is gone; resume the session to retry.")
                     write_json(file, state)
-        return {k: v for k, v in state.items() if k != "pid"}
+        result = {k: v for k, v in state.items() if k != "pid"}
+        if cancel:
+            result["cancellation_requested"] = live
+            result["hint"] = ("Cancellation requested; poll until the owned worker stops." if live else
+                              "No live job owned by this server. A job in another process must be cancelled through its owning server.")
+        return result
     if not confirmed:
         raise ValueError("Show the ready plan and obtain confirmation, then set confirmed=true.")
     step = next_step(answers)

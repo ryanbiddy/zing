@@ -43,4 +43,9 @@ Keep full detail in the result. Include the output folder, result path and exact
 draft-choice command, then two or three concrete next actions. Do not call
 an edit a style match merely because it rendered. Do not silently crop baked-in
 captions in a flattened-video re-delivery; recommend the original plan when
-available. The style-card module has a labeled study/inspect fallback.
+available. Style breakdown uses Explain and returns its summary and card paths;
+missing measurements remain unknown. A missing module has a labeled study/inspect fallback.
+
+Cancellation applies only to a live job owned by the connected server. Check
+`result.cancellation_requested` in the result; false means no stop was requested.
+Use the owning server to cancel a job started in another process.
