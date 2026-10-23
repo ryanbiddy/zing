@@ -91,7 +91,12 @@ not just-noticeable differences, paired Delta E, or a guarantee of the same grad
 | Largest chroma percentile difference | 4 | 10 | Lab chroma |
 | Contrast difference (p95-p5) | 5 | 12 | L* |
 | Largest mean a*/b* distance in a lightness quartile | 4 | 8 | a*/b* units |
-| Face-interior cast (mean shift or worst nearest-face distance) | 2 | 5 | a*/b* units |
+
+There is no face or skin component in this comparison. The reference's people
+and the draft's people are different people under different light; comparing
+their skin measures who is on screen, not the grade, and judging one person's
+skin tone against another's is wrong. Skin is checked separately, against the
+same clip's ungraded source (see [Skin preservation](#skin-preservation)).
 
 Values between the limits are approximate. One measured miss makes color miss;
 every measured component must be within its pass band for color to pass. Sparse,
@@ -101,6 +106,19 @@ supplied shots covered, and measurement confidence at least 0.5. Confidence is
 the existing sampling/metadata/clipping heuristic, not a probability. Missing or
 legacy luma-only measurements remain unmeasured, represented as approximate in
 the dimension status for existing consumers. Studio counts only `pass` as a pass.
+
+Scene content versus grade: unpaired statistics cannot fully separate the two. A
+reference full of blue sky and a draft shot indoors differ in mean cast with no
+grading error at all. Each report therefore measures how much each video's own
+sampled shots differ from its pooled statistics (the sample standard deviation
+of every component) and turns it into an allowance of two standard errors of the
+pooled difference. A component misses only when it exceeds the miss limit by
+more than that allowance; otherwise it is approximate, marked `content_limited`,
+and the reason says "Scene content differs". The allowance never widens a pass.
+A single static picture has no allowance, so the generated calibration below is
+unchanged. A one-shot reference whose scene differs from a one-shot draft can
+still miss; compare the crops before regrading. The reference's per-sample
+statistics are kept in the recipe as `color.sample_stats`.
 
 Calibration uses the original RGB chart in `tools/eval/color2_fixture.py`, with
 headroom to avoid clipping. Blue/green shifts preserve encoded Rec.709 luma
@@ -126,22 +144,56 @@ case moves from miss to pass. Reproduce the calibration with:
 uv run --frozen python -m tools.eval.color2_fixture --out zing-workspace/color2-calibration
 ```
 
-Face protection uses supplied boxes or the existing verified local YuNet model;
-it never downloads a model. The central 60% of each face box reduces hair and
-background contamination. Each sampled face is compared with the nearest
-reference face color; the worst distance and the pooled mean shift use the
-tighter bands. Identical varied face colors can pass, while a small green face
-cannot disappear into a large wall. The generated
-face-patch test keeps the overall scene inside the pass bands while its green
-face misses the tighter limit. Pixels are not selected by skin hue. This remains
-a face-interior proxy: different people, lighting, hair and makeup can differ.
-No comparable boxes means skin protection is unmeasured, even if scene color
-passes. The 160-pixel sampling frame can miss small faces.
-
 Reports retain signed a*/b*, lightness/chroma percentile deltas, contrast and
 quartile distances alongside plain-language descriptions. A distribution pass
 does not identify a creator's LUT. Scene changes can exceed these bands without
 a grading error; compare sharp frame crops before changing a look.
+
+## Skin preservation
+
+`zing match` reports skin as its own dimension, `skin_preservation`, and it
+never feeds the draft-versus-reference color verdict. For every graded clip a
+draft uses, Zing decodes up to six frames of the ungraded source inside the
+trims the draft uses (640 pixels on the long side), finds faces with the verified
+local YuNet model (never downloaded), keeps the central 60% of each face box,
+and measures those same pixels twice: as decoded, and after that clip's own LUT
+at its plan strength. Each face is compared only with itself. No face is ever
+compared with another person, with the reference's faces, or with a population
+skin-tone norm, and pixels are not selected by skin hue.
+
+The measure is the signed CIE 1976 hue difference (dH*ab, in a*/b* units), so a
+lightness or saturation change scores zero: those are part of the look. It
+counts toward green only while a* falls, and toward magenta only while a* rises
+and b* falls. A face with chroma below 4 has no reliable hue, so for it any push
+of a* onto the green side counts. The worst face decides the dimension.
+
+| Worst shift toward green or magenta | Status |
+|---|---|
+| At or below 2.5 a*/b* units | pass |
+| Above 2.5, at or below 5 | approximate (shown on the Studio finish screen) |
+| Above 5 | miss (a failed dimension) |
+
+Calibration in `tools/eval/skin_fixture.py` grades generated face patches and
+compares each with itself. On six generated skin tones from very light to very
+deep under neutral light, all eight looks at full strength and the bounded
+white-balance and exposure corrections stay at or below 2.4, except teal-orange,
+whose teal shadows shift the deepest tone by 3.2 (4.5 with the tint bound):
+approximate. A +0.014 green / -0.035 red and blue code-value cast reaches 6.6 to
+7.6 on every tone and a -0.02 green / +0.05 red and blue cast 6.4 to 7.1: miss.
+A cool look on an already pink-lit face is a cooler face, not a magenta one, and
+passes. Reproduce with:
+
+```sh
+uv run --frozen python -m tools.eval.skin_fixture --out zing-workspace/skin-calibration
+```
+
+Without the layout extra or the YuNet model, or when no face is found in the
+sampled frames, skin preservation is unmeasured (approximate, with the reason)
+and never a pass. A draft whose clips carry no grade has no skin dimension,
+because nothing changed the skin. Limits: sparse frames can miss faces, small
+faces give few pixels, and hair, glasses or makeup inside the box are measured
+with the skin. The check uses the LUT applied to decoded source pixels, the same
+trilinear operation the renderer uses, not a decode of the delivered file.
 
 ## Look bank and search
 

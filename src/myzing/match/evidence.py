@@ -110,7 +110,7 @@ def _metric(target, observed, tolerance, basis, *, approximate=False):
             "basis": basis, "reason": reason}
 
 
-def report(recipe, rendered, geometry, color, verification, plan, audio_measurements=None):
+def report(recipe, rendered, geometry, color, verification, plan, audio_measurements=None, *, skin=None):
     facts = {f.name: f.value for f in recipe.measured}
     durations = facts.get("shot_durations", [])
     from myzing.director.plans import REPORT_PREFIX
@@ -148,6 +148,9 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
     dimensions["caption_placement"] = placement
     from .color import from_recipe
     dimensions["color"] = from_recipe(recipe, color)
+    if skin is not None:
+        # Same faces before/after each clip's own grade; not a reference comparison.
+        dimensions["skin_preservation"] = skin
     dimensions["typography"] = {"status": "approximate", "reason": "Pinned substitutes or disclosed system defaults; original font unknown."}
     continuity = planning.get("continuity", {})
     if continuity:
@@ -200,6 +203,9 @@ def markdown(summary):
             color = row.get("dimensions", {}).get("color", {})
             if color.get("status") != "miss" and color.get("reason"):
                 lines += ["", f"color: {color['status']}. {color['reason']}"]
+            skin = row.get("dimensions", {}).get("skin_preservation", {})
+            if skin.get("status") != "miss" and skin.get("reason"):
+                lines += ["", f"skin preservation: {skin['status']}. {skin['reason']}"]
             for track in (row.get("music") or {}).get("tracks", []):
                 lines += ["", f"Music: {Path(track['path']).name}. {track['reason']}",
                           track["advice"]["licensing"]]

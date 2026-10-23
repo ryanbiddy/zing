@@ -1,4 +1,4 @@
-"""COLOR2 rendered calibration, own-LUT pass, and protected face proxy."""
+"""COLOR2 rendered calibration, own-LUT pass, and same-face skin preservation."""
 
 import pytest
 
@@ -52,18 +52,42 @@ def test_zing_fitted_lut_reaches_color_pass(tmp_path, monkeypatch):
     apply_video(recipe.cube_path, source, graded)
     plan = Composition(width=160, height=120, assets=[AssetRef("a", str(source), recipe.clip.sha256)],
                        clips=[CompositionClip(id="c", asset_id="a", src=str(source), src_in=0, src_out=2, timeline_start=0)])
-    result = compare_color(a, measure_output_color(graded, plan, count=4, face_boxes_at=lambda t, rgb: []))
+    result = compare_color(a, measure_output_color(graded, plan, count=4))
     assert result["status"] == "pass", result
 
 
-def test_face_cast_survives_render_and_sharp_area_sampling(tmp_path):
-    from test_match_color import skin_case
-    from myzing.match.skin import measure_faces
-    rgb, green, boxes = skin_case()
-    a = encoded(tmp_path / "reference.mp4", rgb)
-    b = encoded(tmp_path / "green.mp4", green)
-    assert compare_color(a, b)["status"] == "pass"
-    for data, path in ((a, tmp_path / "reference.mp4"), (b, tmp_path / "green.mp4")):
-        measured, frames, _ = measure_video(path, count=4)
-        data["skin"] = measure_faces(frames, [s.timestamp for s in measured.samples], boxes_at=boxes)
-    assert compare_color(a, b)["status"] == "miss"
+def test_skin_preservation_compares_each_face_with_its_own_ungraded_source(tmp_path):
+    """(a) different people, no grade: no skin miss; (b) a greening LUT on the same clip: miss."""
+    from test_match_color import BOX, people
+    from myzing.color import COLOR_SPACE
+    from myzing.color.cube import Cube, make_cube, write_cube
+    from myzing.color.looks import transform_for
+    from myzing.color.media import sha256
+    from myzing.composition import AssetRef, ColorTransform, Composition, CompositionClip
+    from myzing.match.skin import measure_plan
+    first, second = people()
+    sources = [tmp_path / "first.mp4", tmp_path / "second.mp4"]
+    for path, rgb in zip(sources, (first, second)):
+        encoded(path, rgb)
+    neutral = make_cube(transform_for("neutral", 0))
+    luts = {"identity": write_cube(neutral, tmp_path / "identity.cube"),
+            "green": write_cube(Cube(neutral.size, [[min(1, max(0, v + d)) for v, d in zip(row, (-.035, .014, -.035686))]
+                                                    for row in neutral.values]), tmp_path / "green.cube")}
+
+    def plan(lut, strength=1.0):
+        color = None if lut is None else ColorTransform(str(lut), sha256(lut), strength, COLOR_SPACE)
+        return Composition(width=160, height=120,
+                           assets=[AssetRef(f"a{i}", str(path), sha256(path)) for i, path in enumerate(sources)],
+                           clips=[CompositionClip(id=f"c{i}", asset_id=f"a{i}", src=str(path), src_in=0, src_out=2,
+                                                  timeline_start=2 * i, color=color) for i, path in enumerate(sources)])
+    boxes = lambda t, rgb: [BOX]
+    assert measure_plan(plan(None), boxes_at=boxes) is None
+    assert measure_plan(plan(luts["green"], 0.0), boxes_at=boxes) is None
+    same = measure_plan(plan(luts["identity"]), boxes_at=boxes, count=3)
+    assert same["status"] == "pass" and len(same["faces"]) == 6
+    assert max(f["shift"] for f in same["faces"]) < .5
+    greened = measure_plan(plan(luts["green"]), boxes_at=boxes, count=3)
+    assert greened["status"] == "miss" and {f["status"] for f in greened["faces"]} == {"miss"}
+    assert all(f["a_delta"] < -5 for f in greened["faces"]) and "toward green" in greened["reason"]
+    half = measure_plan(plan(luts["green"], .5), boxes_at=boxes, count=3)
+    assert half["worst"]["shift"] < greened["worst"]["shift"]
