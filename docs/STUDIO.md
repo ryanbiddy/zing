@@ -18,51 +18,62 @@ Choose what you want to make:
 5. Check music for an edit.
 6. Re-deliver a video or plan in landscape, square or portrait.
 
-Each question includes a recommended answer, its reason and available evidence.
-Enter accepts it, `?` shows evidence, `b` goes back and `q` saves and quits. At the
-opening menu, `b` selects the second path; use numbers if you prefer. Required
-paths and topics have no invented default: an empty answer asks again.
+Recommendations include their reason and evidence. Enter accepts a recommendation;
+required paths and topics ask plainly and repeat on an empty answer. `?` explains,
+`b` goes back and `q` saves. Menus use numbers; a-f remain opening-menu aliases.
 
-Studio probes local inputs while asking questions. It does not start studies,
-rendering or downloads until you review and confirm a plan. The plan lists
-steps, shapes, downloads and the output folder. Cold-run time is explicitly
-unknown; a source duration is not an encoding-speed benchmark.
+A local reference match takes eight questions plus confirmation: reference,
+clips, topic, destination, length, captions and music after the opening choice.
+The reference supplies the pacing default. The output folder defaults to a fresh
+`zing-workspace/studio[-N]`; change it with `o` on the plan screen. Use `t` there
+to change an edit's tone. Destination determines shape; only custom asks another
+shape question.
+
+Studio probes local inputs and reads a local reference before style questions.
+The preview has an eight-second deadline, samples at most the first 20 seconds
+at reduced resolution, and checks three text frames with locally installed OCR.
+It reuses the study cut detector and audio measurements. It reports speech,
+likely music and sampled text separately; unavailable measurements stay unknown.
+The optional explain adapter runs within the same deadline when installed.
+Remote and saved references are resolved by match after confirmation, so their
+interview style evidence remains unknown.
+
+Production studies, renders and downloads wait for plan confirmation. The plan
+lists steps, shapes, downloads and output folder. Runtime is unknown until
+measured on the machine; source duration is not an encoding-speed benchmark.
 
 ## A real photo session
 
-This excerpt is from the STUDIO1 acceptance run on October 22, 2026. It used
-three frames extracted from SHA-verified V1 clips (Korky Paul, Tears of Steel
-and NASA), without downloads. Answers are shown after `>`; the long project
-prefix is shortened below to `zing-workspace/studio1-real`. The full terminal
-capture is saved locally under that folder as `c-transcript.txt`.
+This excerpt is from the October 22, 2026 acceptance run. Three photos came from
+SHA-verified V1 clips (Korky Paul, Tears of Steel and NASA), with no downloads.
+Answers are shown after `>`; paths below are shortened relative to
+`zing-workspace/studio1-refined`. The full local capture is `c-transcript.txt`.
 
 ```text
 What are we making?
-  1. a. Edit my clips to look like a reference video
-  2. b. Edit my clips (no reference): pick a style from the brief
-  3. c. A meme or still from photos plus a topic
-  4. d. Break down a video's style
-  5. e. Check music for an edit
-  6. f. Re-deliver an existing edit or plan
-> c
-
-Where should I save this session and its outputs?
-> zing-workspace/studio1-real/memes
+  1. Edit my clips to look like a reference video
+  2. Edit my clips (no reference): pick a style from the brief
+  3. A meme or still from photos plus a topic
+  4. Break down a video's style
+  5. Check music for an edit
+  6. Re-deliver an existing edit or plan
+> 3
 
 Which folder holds your photos?
-> zing-workspace/studio1-real/photos
+> photos
 
 What's the meme or still topic?
 > when the build finally passes
 
 Where will this go?
+  1. TikTok / Reels (9:16)
+  2. YouTube (16:9)
+  3. Feed (1:1)
+  4. All three shapes
+  5. Keep source / reference shape
+  6. Custom shapes
 Recommended: square
 > square
-
-Which shapes? (16:9, 1:1, 9:16 or all)
-Recommended: 1:1
-This follows your destination and measured orientation where available; auto framing checks crops before delivery.
-> [Enter]
 
 Plan: A meme or still from photos plus a topic
 Shapes: 1:1
@@ -70,22 +81,30 @@ Shapes: 1:1
   2. Render contact sheets
   3. Export the highest readability-scored concept per shape
 Downloads: none
-Output folder: zing-workspace/studio1-real/memes
-Note: Readability scores do not judge the joke. Face coverage is sampled or unknown; review the contact sheet.
-
-Run this plan? Recommended: yes.
+Output folder: c/zing-workspace/studio-2
 > yes
-Working: Measure photos and render six 1:1 concepts
-Working: Export still-57812695cd9c8fda (highest readability score; humor needs your review)
+
 Studio: ready
+Finished still (1:1): stills-rpst7pnc/1x1/finished-still-57812695cd9c8fda.png
+Contact sheet (1:1): stills-rpst7pnc/1x1/contact-sheet.png
+Note: Some photos need a blurred background to keep faces and subjects inside the frame.
+Note: Readability scores help with layout; you still need to judge the joke.
+Output folder: c/zing-workspace/studio-2
+Full result: c/zing-workspace/studio-2/studio-result.json
 ```
 
-The run wrote `index.json`, `contact-sheet.png`, `meme-writer.md` and
-`finished-still-57812695cd9c8fda.png` under `memes/stills-hhyxg5ot/1x1/`.
-Six questions plus confirmation took 1.86 seconds with scripted stdin; the first
-complete contact sheet was available at 1.61 seconds. These are local timings,
-not a general speed promise. The result named two crops that would lose face or
-subject evidence and used the existing still renderer's blurred background.
+Four questions plus confirmation replaced six questions plus confirmation.
+The scripted run took 4.156 seconds, with its first contact sheet at 3.484 seconds.
+These are local timings, not a speed promise. The two similar face/subject crop
+warnings now appear as one note; both source observations remain in the result.
+
+For edits, the finish screen shows a drafts-by-shapes table with playable paths
+relative to the output folder. Status distinguishes rendered output, measured
+style misses and unverified matches. One recommendation ranks completed drafts
+by fewest measured misses, then most passing checks; ties are stated. It does
+not infer artistic quality from that ranking. At most five merged notes appear,
+followed by the output folder, full result path and an exact draft-choice command.
+All deliveries, warnings and the creator summary remain in `studio-result.json`.
 
 ## Save, resume and automate
 
@@ -133,7 +152,8 @@ also accepts `all` or a comma-separated string. `music` accepts `original`,
 embedded audio. Optional `draft: "B"` records a local choice through the existing
 choice API after a completed draft is available. Nothing is shared to Uoink.
 
-Other paths ask for these fields after `path` and `project`:
+Other paths use these fields after `path`. The project defaults automatically;
+`aspects` is asked only for a custom destination and remains accepted in JSON:
 
 | Path | Answer fields |
 |---|---|
@@ -169,8 +189,8 @@ project for a new edit.
 - Re-delivering a plan rebuilds framing and caption placement from its sources.
   A flattened video retains its baked-in captions, cuts, color and mix; those
   elements cannot be edited separately. Each delivery is decoded for validation.
-  If the existing auto crop planner rejects a motion-velocity bound, studio
-  retries full-picture blurfill and records that fallback in the delivery report.
+  The crop planner merges sub-microsecond duplicate track times before limiting
+  movement. If a motion-bound rejection still occurs, Studio retries full-picture blurfill and records that fallback in the delivery report.
 - Style breakdown lazily calls `myzing.explain.api.explain_video(source,
   out_dir, transitions=True, offline=True)`. If that module is unavailable, the
   small `studio.adapters.explain_video` seam runs existing study + inspect and
@@ -178,7 +198,7 @@ project for a new edit.
 - Photo concepts use the existing formula engine and readability score, not
   semantic image recognition or a prediction that a joke will land.
 
-URL references need `reference_kind: "url"` and explicit
+URL references are recognized from the URL and need explicit
 `allow_download: true`; `--yes` cannot supply that consent. Models stay local.
 Saved references appear only with a configured, reachable Uoink peer advertising
 the existing search contract. `reference_query` searches through `uoink_bridge`
@@ -190,8 +210,8 @@ hash-verified by match; an unavailable retained file never triggers URL fallback
 Call `zing_studio(path, answers)` for the next question. Relay its prompt,
 options, recommendation, reason and evidence; do not turn unknowns into claims.
 Pass the answers back until it returns a plan. This tool is stateless: it does
-not save a session or run production. It performs local read-only probes and
-only the requested configured-peer search.
+not save a session or run production. It performs local read-only probes,
+a bounded local reference preview and only the requested configured-peer search.
 
 After confirmation, follow the plan's `execution` metadata. Paths a, c and e
 reuse `match_start` / `match_status`, `still_concepts` / `still_render`, and

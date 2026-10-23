@@ -21,11 +21,13 @@ def validate_options(value):
         normalize("music", value["music"])
 
 
-def explain_video(source, out_dir, *, progress=None):
+def explain_video(source, out_dir, *, progress=None, fallback=True):
     """EXPLAIN integration point. Only a missing module invokes the fallback."""
     try:
         from myzing.explain.api import explain_video as explain
     except ImportError:
+        if not fallback:
+            return None
         from myzing import storage
         from myzing.study.api import study
         from myzing.inspect.timeline import inspect_timeline
@@ -51,6 +53,11 @@ def explain_video(source, out_dir, *, progress=None):
                 "summary": [note, f"{len(b.shots)} observed shots; {len(b.words)} transcript words; {len(b.captions)} sampled text events."],
                 "warnings": warnings}
     return explain(source, str(out_dir), transitions=True, offline=True)
+
+
+def quick_explain(source, out_dir):
+    """Optional preview; no full-study fallback within the short interview read."""
+    return explain_video(source, out_dir, fallback=False)
 
 
 def register_music(root, tracks):

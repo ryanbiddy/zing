@@ -135,7 +135,7 @@ def run_confirmed(answers, *, progress=None):
             folder = attempt / aspect.replace(":", "x")
             made = create_stills(a["photos"], a["topic"], folder, aspect=aspect)
             selected = max(made["summary"], key=lambda c: c["score"].get("readability", 0))
-            progress(f"Export {selected['id']} (highest readability score; humor needs your review)")
+            progress(f"Export the selected {aspect} still (highest readability score; humor needs your review)")
             rows[aspect] = {"concepts": made, "selected": pick_still(folder, selected["id"])}
         result = {"status": "ready", "stills": rows}
     elif path == "d":
@@ -199,5 +199,7 @@ def run_confirmed(answers, *, progress=None):
               "project": str(root), "outputs": outputs, "warnings": warnings, "result": result,
               "next_actions": next_actions, "seconds": round(time.monotonic() - started, 3)}
     result["output_sha256"] = {p: hash_file(Path(p)) for p in outputs}
+    from .presentation import creator_summary
+    result["creator_summary"] = creator_summary(result, a, plan["evidence"])
     write_json(root / "studio-result.json", result)
     return result

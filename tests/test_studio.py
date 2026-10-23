@@ -23,6 +23,8 @@ def inputs(tmp_path, monkeypatch, zing_workspace):
     probe = {"duration": 18.0, "width": 640, "height": 360, "orientation": "landscape",
              "has_audio": True, "flags": [], "streams": [{"codec_type": "video"}], "notes": []}
     monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(to_dict=lambda: probe))
+    monkeypatch.setattr(flow, "default_project", lambda: str(tmp_path / "project"))
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: {"reason": "Reference quick read failed; style unknown.", "warnings": [], "tone": "natural"})
     return {"clips": str(clips), "photos": str(photos), "source": str(video), "track": str(track), "project": str(tmp_path / "project")}
 
 
@@ -71,11 +73,129 @@ def test_scripted_stdin_every_path(path, inputs, monkeypatch, capsys):
     state = load_session(inputs["project"])
     assert state.status == "ready" and state.questions_asked == len(transcript)
     assert Session.from_dict(state.to_dict()).to_dict() == state.to_dict()
+    assert "1. a." not in output
+    if path == "a":
+        assert state.questions_asked <= 8
+
+
+def test_required_path_empty_reprompts_without_enter_acceptance(inputs, monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"1\n\n{inputs['source']}\nq\n"))
+    assert command.run([]) == 0
+    text = capsys.readouterr().out
+    required = text.split("Drag the reference video here", 1)[1].split("Which folder", 1)[0]
+    assert "Enter accepts" not in required and "Recommended:" not in required
+    assert "Please type an answer" in required
+    assert load_session(inputs["project"]).answers["reference"] == inputs["source"]
+
+
+def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs, monkeypatch):
+    from myzing.studio.reference import describe
+    reference = describe({"duration": 19.7, "aspect": "9:16", "sample_seconds": 19.7,
+                         "cuts_per_minute": 66, "has_audio": True, "speech_present": False,
+                         "music_present": True, "text_present": False})
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: reference)
+    a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "clips": inputs["clips"], "topic": "demo"}
+    questions = []
+    cache = {}
+    while True:
+        step = flow.next_step(a, cache=cache)
+        if step["status"] == "plan":
+            break
+        q = step["question"]
+        questions.append(q)
+        a[q["id"]] = q["recommended"]
+    assert [q["id"] for q in questions] == ["platform", "length", "captions", "music"]
+    assert all("66 cuts/min" in q["reason"] for q in questions)
+    assert step["answers"]["aspects"] == ["9:16"]
+    assert step["answers"]["length"] == 20 and step["answers"]["tone"] == "energetic"
+    assert step["answers"]["captions"] == "none" and step["answers"]["music"] == "original"
+    a["platform"] = "custom"
+    assert flow.next_step(a, cache=cache)["question"]["id"] == "aspects"
+
+
+def test_output_folder_can_change_on_plan_screen(inputs, tmp_path, monkeypatch, capsys):
+    other = tmp_path / "other"
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"6\n{inputs['source']}\nsquare\no\n{other}\nq\n"))
+    assert command.run([]) == 0
+    assert load_session(other).answers["aspects"] == ["1:1"]
+    text = capsys.readouterr().out
+    assert "Where should I save" not in text and "o changes output folder" in text
+
+
+def test_redelivery_keeps_saved_plan_shape(inputs, tmp_path):
+    from myzing.composition import Composition, AssetRef, CompositionClip
+    plan = Composition(assets=[AssetRef("s", inputs["source"], None)],
+                       clips=[CompositionClip(inputs["source"], 0, 2, 0, id="c", asset_id="s")], width=360, height=640)
+    source = tmp_path / "plan.json"
+    source.write_text(json.dumps(plan.to_dict()))
+    step = flow.next_step({"path": "f", "source": str(source), "platform": "original"})
+    assert step["status"] == "plan" and step["answers"]["aspects"] == ["9:16"]
+    assert "360x640, 2 seconds" in step["plan"]["evidence"]["measured"][0]
+
+
+@pytest.mark.parametrize("timeout", [False, True])
+def test_quick_reference_partial_failure_is_bounded_and_unknown(inputs, monkeypatch, timeout):
+    from myzing.studio import reference
+    from myzing.match.process import Cancelled
+    workspaces = []
+    def owned(command, payload, **kwargs):
+        assert command[-1] == "myzing.studio.reference" and kwargs["cancel"] is not None
+        workspaces.append(Path(json.loads(payload)["workspace"]))
+        kwargs["progress"](json.dumps({"studio_reference": True, "data": {"duration": 20, "aspect": "16:9", "sample_seconds": 20}}))
+        if timeout:
+            raise Cancelled()
+        kwargs["progress"](json.dumps({"studio_reference": True, "data": {"error": "optional detector missing"}}))
+    monkeypatch.setattr("myzing.match.process.run_owned", owned)
+    # The fixture replaces the public seam; exercise its original implementation.
+    import importlib
+    original = importlib.reload(reference).quick_read
+    result = original(inputs["source"])
+    assert "speech unknown" in result["reason"] and "cut rate unknown" in result["reason"]
+    assert any("limit" in w if timeout else "optional detector missing" in w for w in result["warnings"])
+    assert workspaces and all(not p.exists() for p in workspaces)
+
+
+def test_finish_summary_merges_notes_and_uses_measured_results(inputs):
+    from myzing.studio.presentation import creator_summary
+    rows = {f"{draft}.9x16": {"status": "ready", "video": f"{draft}.mp4", "plan": f"{draft}.json",
+                             "dimensions": {"color": {"status": status}, "shot_pace": {"status": "pass"}}}
+            for draft, status in [("A", "miss"), ("B", "pass"), ("C", "miss")]}
+    result = {"project": inputs["project"], "result": {"drafts": rows}, "warnings": [
+        "The detected faces do not fit a full-bleed crop", "The measured subject does not fit a full-bleed crop"]}
+    summary = creator_summary(result, {"aspects": ["9:16"]}, {"clips": []})
+    assert summary["recommendation"].startswith("Start with draft B (9:16)")
+    assert summary["notes"] == ["Some photos need a blurred background to keep faces and subjects inside the frame."]
+    assert '--draft B --draft-file "B.json"' in summary["next_actions"][0]
+    rows["B.9x16"]["status"] = "failed"
+    assert "draft B" not in creator_summary(result, {}, {})["recommendation"]
+    rows["B.9x16"]["status"] = "ready"
+    for key, row in list(rows.items()):
+        for shape in ("16x9", "1x1"):
+            rows[key.replace("9x16", shape)] = {**row, "video": f"drafts/draft-{key[0]}.{shape}.mp4"}
+    summary = creator_summary(result, {"aspects": ["9:16"]}, {})
+    screen = io.StringIO()
+    command.show_result({**result, "status": "ready", "creator_summary": summary}, screen)
+    text = screen.getvalue()
+    assert "Output:" not in text and text.count("Full result:") == 1 and text.count("Note:") == 1
+    assert all(len(line) <= 120 for line in text.splitlines() if " | " in line)
+    rows["A.9x16"]["dimensions"]["color"]["status"] = "pass"
+    assert "No draft is clearly better" in creator_summary(result, {}, {})["recommendation"]
+
+
+def test_progress_translates_internal_asset_and_draft_ids(inputs, tmp_path):
+    from myzing.studio.presentation import progress_label
+    root = Path(inputs["project"])
+    root.mkdir()
+    (root / "project.json").write_text(json.dumps({"assets": [{"id": "asset_secret", "path": "korky.mp4", "probe": {"width": 640}}]}))
+    a = {"project": str(root), "aspects": ["16:9", "1:1", "9:16"]}
+    assert progress_label("study-asset_secret: starting", a) == "Studying korky.mp4 (1 of 1)"
+    assert progress_label("render-B.1x1: starting", a) == "Rendering draft B, 1:1 (5 of 9)"
+    assert progress_label("study-asset_secret: done", a) is None
 
 
 def test_back_explain_quit_and_resume(inputs, monkeypatch, capsys):
     # Back from topic changes clips, not the path; ? does not consume an answer.
-    text = f"b\n{inputs['project']}\n{inputs['clips']}\nb\n?\n{inputs['clips']}\nq\n"
+    text = f"b\n{inputs['clips']}\nb\n?\n{inputs['clips']}\nq\n"
     monkeypatch.setattr("sys.stdin", io.StringIO(text))
     assert command.run([]) == 0
     state = load_session(inputs["project"])
@@ -83,7 +203,7 @@ def test_back_explain_quit_and_resume(inputs, monkeypatch, capsys):
     assert state.answers["clips"] == inputs["clips"]
     output = capsys.readouterr().out
     assert '"unknowns"' in output and "Continue: zing studio --resume" in output
-    monkeypatch.setattr("sys.stdin", io.StringIO("a small demo\n\n\n\n\n\n\nq\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO("a small demo\n\n\n\n\n\nq\n"))
     assert command.run(["--resume", inputs["project"]]) == 0
     state = load_session(inputs["project"])
     assert state.answers["topic"] == "a small demo" and state.status == "paused"

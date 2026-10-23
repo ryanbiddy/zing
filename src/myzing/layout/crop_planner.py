@@ -112,6 +112,15 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
     cache = evidence.targets if evidence is not None else {}
     times = sorted({0.0, clip.duration, *[output_time(clip, k.time) for t in tracks for k in t.keyframes
                                        if clip.src_in < k.time < clip.src_out]})
+    # Independent tracks can describe the same instant a few floating-point
+    # ulps apart after source-to-output mapping. Such intervals have no visible
+    # motion but amplify coordinate rounding into an illegal peak velocity.
+    # Coalesce sub-microsecond samples, retaining the exact shot endpoints.
+    distinct = [0.0]
+    for time in times[1:-1]:
+        if time - distinct[-1] >= 1e-6 and clip.duration - time >= 1e-6:
+            distinct.append(time)
+    times = [*distinct, clip.duration]
     if len(times) > 256:
         times = [clip.duration * i / 255 for i in range(256)]
     confidences, methods = [], set()
@@ -187,7 +196,7 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
             if keys:
                 previous = keys[-1]
                 distance = math.hypot(x - previous.center_x, y - previous.center_y)
-                limit = framing.max_velocity * (time - previous.time) / 1.5
+                limit = framing.max_velocity * (time - previous.time) / 1.5 * (1 - 1e-9)
                 factor = min(1, limit / distance) if distance else 1
                 x = previous.center_x + (x - previous.center_x) * factor
                 y = previous.center_y + (y - previous.center_y) * factor

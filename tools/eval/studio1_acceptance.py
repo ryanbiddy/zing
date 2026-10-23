@@ -78,19 +78,26 @@ def prepare(out, source):
 
 
 def transcript(stage, out):
-    project = out / ("match" if stage == "a" else "square" if stage == "f" else "memes")
+    working = out / stage
+    working.mkdir(exist_ok=True)
+    project = working / "zing-workspace/studio"
+    suffix = 2
+    while project.exists():
+        project = working / f"zing-workspace/studio-{suffix}"
+        suffix += 1
     if stage == "a":
-        lines = ["a", str(project), "file", str(out / "verified/nasa-montage.mp4"), str(out / "clips"),
-                 "a short introduction to people making things", "all", "", "8", "natural", "phone", "original", "yes"]
+        lines = ["1", str(out / "verified/nasa-montage.mp4"), str(out / "clips"),
+                 "a short introduction to people making things", "all", "", "", "", "yes"]
     elif stage == "f":
-        result = json.loads((out / "match/studio-result.json").read_text(encoding="utf-8"))
+        matched = json.loads((out / "a-metrics.json").read_text(encoding="utf-8"))["project"]
+        result = json.loads((Path(matched) / "studio-result.json").read_text(encoding="utf-8"))
         drafts = result["result"]["drafts"]
         selected = next((r["plan"] for key, r in drafts.items() if key.startswith("A.") and r["status"] == "ready"), None)
         if not selected:
             raise ValueError("No completed A draft to re-deliver. Read the match result first.")
-        lines = ["f", str(project), selected, "square", "", "yes"]
+        lines = ["6", selected, "square", "yes"]
     else:
-        lines = ["c", str(project), str(out / "photos"), "when the build finally passes", "square", "", "yes"]
+        lines = ["3", str(out / "photos"), "when the build finally passes", "square", "yes"]
     script = "\n".join(lines) + "\n"
     (out / f"{stage}-stdin.txt").write_text(script, encoding="utf-8")
     started = time.monotonic()
@@ -100,7 +107,7 @@ def transcript(stage, out):
            "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1"}
     with (out / f"{stage}-transcript.txt").open("w", encoding="utf-8") as log:
         log.write("Command: zing studio\nScripted first-time-creator answers (empty lines accept recommendations):\n" + script + "\nTerminal output:\n")
-        process = subprocess.Popen([sys.executable, "-m", "myzing.cli", "studio"], cwd=ROOT, env=env,
+        process = subprocess.Popen([sys.executable, "-m", "myzing.cli", "studio"], cwd=working, env=env,
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    text=True, encoding="utf-8", errors="replace")
         process.stdin.write(script)
@@ -110,7 +117,8 @@ def transcript(stage, out):
             log.write(line)
             log.flush()
             print(line, end="", flush=True)
-            if first is None and (("decode-" in line and ": done" in line) or "Working: Export " in line or line.startswith("Output:")):
+            if first is None and ("Playback checked for" in line or "Working: Export " in line or line.startswith("Finished still")
+                                  or (line.startswith("Edit") and " | " in line)):
                 first = round(elapsed, 3)
         code = process.wait()
     state = json.loads((project / "studio-session.json").read_text(encoding="utf-8"))

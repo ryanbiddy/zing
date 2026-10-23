@@ -30,7 +30,7 @@ def options(values):
 
 def question(key, prompt, recommended, reason, facts, choices=(), required=False):
     return Question(key, prompt, options(choices), recommended, reason,
-                    {k: facts[k] for k in ("measured", "unknowns", "warnings") if k in facts}, required)
+                    {k: facts[k] for k in ("measured", "unknowns", "warnings", "reference") if k in facts}, required)
 
 
 def default_project():
@@ -95,7 +95,7 @@ def normalize(key, value):
             raise ValueError(f"{key}: enter yes or no.")
     elif key in {"reference_kind", "platform", "tone", "captions", "draft"}:
         allowed = {"reference_kind": ["file", "url", "uoink"],
-                   "platform": ["original", "TikTok/Reels", "YouTube", "square", "all"],
+                   "platform": ["original", "TikTok/Reels", "YouTube", "square", "all", "custom"],
                    "tone": ["natural", "calm", "energetic"],
                    "captions": ["none", "phone"], "draft": ["A", "B", "C", "keep all"]}[key]
         if value not in allowed:
@@ -130,10 +130,7 @@ def next_step(answers=None, *, cache=None):
         q = question("path", "What are we making?", "a", "Choose a reference match if you have a video to aim for; your intent is still unknown.", empty, PATHS)
         return {"status": "question", "question": q.to_dict(), "answers": a}
     path = a["path"]
-    if "project" not in a:
-        q = question("project", "Where should I save this session and its outputs?", default_project(),
-                     "A fresh project folder keeps the session resumable and the source files separate.", empty)
-        return {"status": "question", "question": q.to_dict(), "answers": a}
+    a.setdefault("project", default_project())
     root = Path(a["project"])
     reserved = {root / name for name in ("studio-session.json", "studio-result.json", "studio-job.json", "studio-recipe.json")}
     for key in ("source", "reference", "context", "music", "tracks"):
@@ -157,7 +154,10 @@ def next_step(answers=None, *, cache=None):
                 kinds["uoink"] = "Use a saved reference from Uoink"
             elif a.get("reference_kind") == "uoink":
                 raise ValueError("Saved references are unavailable: configure a reachable Uoink peer or choose a local file.")
-        ask("reference_kind", "Where is the reference?", "file", "Local media needs no download; only configured, reachable peers are offered.", kinds)
+        # Local paths and URLs identify their own type. Only show a source menu
+        # when a reachable saved-reference peer offers a meaningful third choice.
+        if "uoink" in kinds and "reference" not in a:
+            ask("reference_kind", "Where is the reference?", "file", "Local media needs no download.", kinds)
         if a.get("reference_kind") == "uoink":
             ask("reference_query", "What should I search your saved references for?", None,
                 "Your search terms are unknown; only this query goes to the configured peer.", required=True)
@@ -172,7 +172,7 @@ def next_step(answers=None, *, cache=None):
                 ask("reference", "Which saved reference?", next(iter(items)),
                     "This is the peer's first search result; style suitability is unknown.", items)
         else:
-            ask("reference", "Reference video path or URL?", None,
+            ask("reference", "Drag the reference video here or type its path (or URL):", None,
                 "The reference is unknown; supply the video whose style you want to study.", required=True)
         if "reference" in a:
             kind = "url" if is_http_url(a["reference"]) else "uoink" if a["reference"].startswith("uoink:") else "file"
@@ -203,22 +203,35 @@ def next_step(answers=None, *, cache=None):
             "The subject and purpose cannot be inferred from dimensions or filenames.", required=True)
     if path in "abcf":
         orientation = max(facts["orientations"], key=facts["orientations"].get) if facts["orientations"] else None
+        reference = facts.get("reference", {})
         default_platform = "square" if path == "c" else "original"
-        why = (facts["measured"][0] + " Keep the source shape unless you have a publishing target.") if facts["clips"] else "Publishing destination is unknown; this is a starting choice, not measured audience advice."
+        why = (facts["measured"][0] + " Keep the source shape unless you have a publishing target.") if facts["measured"] else "Publishing destination is unknown; this is a starting choice, not measured audience advice."
+        if path == "c":
+            why = f"{len(facts.get('photos', []))} photos measured; square is a starting layout choice. Your publishing destination is unknown."
+        if path == "a" and reference.get("aspect"):
+            orientation = {"16:9": "landscape", "9:16": "portrait", "1:1": "square"}.get(reference["aspect"], orientation)
+            why = reference["reason"] + " Keep its shape unless your destination needs another."
         ask("platform", "Where will this go?", default_platform, why,
-            {"original": "Keep the source shape", "TikTok/Reels": "TikTok / Reels", "YouTube": "YouTube landscape", "square": "Square feed", "all": "All three shapes"})
+            {"TikTok/Reels": "TikTok / Reels (9:16)", "YouTube": "YouTube (16:9)", "square": "Feed (1:1)", "all": "All three shapes", "original": "Keep source / reference shape", "custom": "Custom shapes"})
         aspect = {"portrait": "9:16", "landscape": "16:9", "square": "1:1"}.get(orientation, "1:1" if path == "c" else "16:9")
         selected = {"TikTok/Reels": ["9:16"], "YouTube": ["16:9"], "square": ["1:1"], "all": ASPECTS}.get(a.get("platform"), [aspect])
-        ask("aspects", "Which shapes? (16:9, 1:1, 9:16 or all)", selected,
-            "This follows your destination and measured orientation where available; auto framing checks crops before delivery.")
+        if a.get("platform") == "custom":
+            ask("aspects", "Which shapes? (16:9, 1:1, 9:16 or all)", selected,
+                "Choose your delivery set; auto framing checks crops before delivery.")
     if path in "ab" or (path == "e" and a.get("context", "none") == "none"):
-        seconds = min(30, max(1, round(facts["duration"] / 3, 1))) if facts["duration"] else 15
+        seconds = min((15, 20, 30, 45, 60), key=lambda n: abs(n - min(30, facts["duration"] / 3))) if facts["duration"] else 15
+        ref = facts.get("reference", {}) if path == "a" else {}
+        if ref.get("duration"):
+            seconds = min(60, max(1, round(ref["duration"])))
         ask("length", "How many seconds?", seconds,
-            f"{facts['duration']:g} source seconds allow this conservative first target; distinct usable moments are unknown."
+            ref["reason"] + f" Recommend {seconds:g} s and {ref['tone']} pacing to follow it." if ref.get("duration") else
+            f"{facts['duration']:g} source seconds; {seconds:g} s is a starting target. Distinct usable moments are unknown."
             if facts["duration"] else "Usable duration is unknown; 15 seconds is a disclosed starting target.")
     if path in "ab":
-        ask("tone", "What tone should it have?", "natural",
-            "Semantic tone is unknown; natural is a restrained starting preference. Measured studies still determine draft candidates.", ["natural", "calm", "energetic"])
+        ref = facts.get("reference", {}) if path == "a" else {}
+        if path == "b":
+            ask("tone", "What tone should it have?", "natural",
+                "Semantic tone is unknown; natural is a restrained starting preference. Measured studies still determine draft candidates.", ["natural", "calm", "energetic"])
         ask("captions", "Add spoken captions?", "phone" if facts["audio_streams"] else "none",
             f"{facts['audio_streams']} probed videos have audio; speech and spelling are unknown. Phone captions need valid timed words; blocked captions will be reported."
             if facts["audio_streams"] else "No speech evidence is available; omit captions unless you want to try local transcription.",
@@ -226,6 +239,14 @@ def next_step(answers=None, *, cache=None):
         ask("music", "Music: original, none, or local track paths separated by ;?", "original" if facts["audio_streams"] else "none",
             "Keep the measured audio streams; supplied tracks will be rated and ducked only under known speech."
             if facts["audio_streams"] else "No source audio was measured; supply a local track if you want added music.")
+        if ref.get("duration"):
+            for q in queue:
+                if q.id == "captions":
+                    q.recommended = "phone" if ref.get("text_present") and ref.get("speech_present") else "none"
+                    q.reason = ref["reason"] + " Add spoken captions only when speech and text are both observed; sampled text may be titles."
+                elif q.id == "music":
+                    q.recommended = "original" if ref.get("has_audio") and ref.get("music_present") is not False else "none"
+                    q.reason = ref["reason"] + " Keep your clips' audio to start; a reference soundtrack is not copied. Supply a local track to add a music bed."
     if path == "e" and a.get("context", "none") == "none":
         ask("speech", "Will someone be speaking over the music?", True,
             "Speech is unknown without an edit plan; checking as a speech bed is the conservative default.", {True: "Yes", False: "No"})
@@ -237,6 +258,10 @@ def next_step(answers=None, *, cache=None):
         raise ValueError("Choose a saved reference from the search results.")
     if a.get("allow_download") and (path != "a" or not is_http_url(a.get("reference", ""))):
         raise ValueError("allow_download applies only to the selected reference URL.")
+    if path in "abcf" and "aspects" not in a:
+        a["aspects"] = selected
+    if path == "a":
+        a.setdefault("tone", facts.get("reference", {}).get("tone", "natural"))
     return {"status": "plan", "plan": build_plan(a, facts), "answers": a}
 
 
@@ -283,4 +308,5 @@ def build_plan(a, facts):
             "aspects": a.get("aspects", []), "steps": steps, "estimate": estimate,
             "downloads": [a["reference"]] if a.get("allow_download") else [],
             "warnings": warnings, "evidence": facts, "execution": execution,
+            "style": {key: a[key] for key in ("length", "tone", "captions", "music") if key in a},
             "confirmation_required": True}

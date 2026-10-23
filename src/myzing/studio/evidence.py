@@ -1,4 +1,4 @@
-"""Read-only, local observations for the interview. Never starts a study."""
+"""Local observations for the interview, including a bounded reference preview."""
 
 from __future__ import annotations
 
@@ -30,10 +30,38 @@ def collect(answers, cache=None):
     cache = cache if cache is not None else {}
     result = {"measured": [], "unknowns": [], "clips": [], "duration": None,
               "orientations": {}, "audio_streams": 0, "warnings": []}
+    reference = answers.get("reference")
+    if answers.get("path") == "a" and reference:
+        if "://" not in reference and Path(reference).is_file():
+            from .reference import quick_read
+            stat = Path(reference).stat()
+            key = ("reference", reference, stat.st_size, stat.st_mtime_ns)
+            if key not in cache:
+                if cache.get("progress"):
+                    cache["progress"]("Reading the reference...")
+                cache[key] = quick_read(reference)
+                if cache.get("progress"):
+                    cache["progress"](cache[key]["reason"])
+                    for warning in cache[key].get("warnings", [])[:1]:
+                        cache["progress"](warning)
+            result["reference"] = cache[key]
+            result["measured" if cache[key].get("duration") else "unknowns"].append(cache[key]["reason"])
+            result["warnings"].extend(cache[key].get("warnings", []))
+        else:
+            result["unknowns"].append("Reference quick read unavailable until the saved or remote reference is resolved after confirmation; style is unknown.")
     files = media_files(answers["clips"], answers.get("project")) if answers.get("clips") else []
     source = answers.get("source")
     if source and Path(source).is_file() and Path(source).suffix.lower() != ".json":
         files.append(Path(source))
+    elif source and Path(source).suffix.lower() == ".json":
+        try:
+            from .adapters import load_edit
+            plan = load_edit(source)
+            result["orientations"] = {"landscape" if plan.width > plan.height else "portrait" if plan.height > plan.width else "square": 1}
+            result["duration"] = max((clip.timeline_end for clip in plan.clips), default=0)
+            result["measured"].append(f"Saved plan: {plan.width}x{plan.height}, {result['duration']:g} seconds.")
+        except (OSError, ValueError, RuntimeError) as exc:
+            result["unknowns"].append(f"Saved plan dimensions unavailable: {exc}")
     for path in files:
         try:
             stat = path.stat()
@@ -58,7 +86,7 @@ def collect(answers, cache=None):
         low = [Path(c["path"]).name for c in clips if min(c["width"], c["height"]) < 1080]
         if low:
             result["warnings"].append("Low-resolution source(s): " + ", ".join(low) + "; HD delivery can look soft.")
-    else:
+    elif not result["measured"]:
         result["unknowns"].append("Video dimensions, duration and speech are unknown until local files can be probed.")
     result["unknowns"].append("An audio stream does not establish speech. Safe crops and caption placement need subject analysis.")
     if answers.get("photos"):

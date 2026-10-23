@@ -16,9 +16,13 @@ uv run --frozen zing studio
 
 Start with “What are we making?” Choose a reference edit, an edit from your
 clips, a photo meme, a style breakdown, music advice, or another delivery shape.
-Studio asks one question at a time, recommends from local measurements, and
-shows the plan before you confirm. Enter accepts, `?` explains, `b` goes back,
-and `q` saves. Continue with `zing studio --resume <project>`.
+Studio reads a local reference for up to eight seconds, then recommends length,
+pacing, captions, audio and shape from what it measured. A local reference edit
+takes eight questions plus confirmation. Enter accepts a recommendation; paths
+and topics need your answer. `?` explains, `b` goes back and `q` saves.
+The plan shows the default output folder, with an option to change it. The
+finish screen compares playable drafts by shape and recommends where to start.
+Continue with `zing studio --resume <project>`.
 
 See [Studio](docs/STUDIO.md) for a real transcript, JSON answers and agent use.
 Downloads are off by default. Missing evidence, failed drafts and blocked

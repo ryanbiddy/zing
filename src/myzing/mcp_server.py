@@ -1813,7 +1813,7 @@ def build_server():
     )
     mcp.tool(
         name="zing_studio",
-        description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Read-only local probes; saved-reference search only with a configured reachable peer. No production or downloads.",
+        description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Local probes and a bounded offline reference preview; saved-reference search only with a configured reachable peer. No production or downloads.",
     )(h_zing_studio)
     mcp.tool(
         name="zing_studio_run",

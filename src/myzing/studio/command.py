@@ -15,13 +15,15 @@ from .models import SESSION_NAME, Session, load_session, read_json, save_session
 def show_question(q, out):
     print("\n" + q["prompt"], file=out)
     for i, option in enumerate(q["options"], 1):
-        label = f"{option['value']}. " if q["id"] == "path" else ""
-        print(f"  {i}. {label}{option['label']}", file=out)
+        print(f"  {i}. {option['label']}", file=out)
     value = q["recommended"]
     display = ",".join(value) if isinstance(value, list) else "yes" if value is True else "no" if value is False else value
-    print(f"Recommended: {display if value is not None else 'supply a path or answer (unknown)'}", file=out)
-    print(q["reason"], file=out)
-    print("Enter accepts | ? explains | b goes back | q saves and quits", file=out)
+    if q["id"] == "path":
+        display = next((str(i) for i, option in enumerate(q["options"], 1) if option["value"] == value), display)
+    if value is not None:
+        print(f"Recommended: {display}", file=out)
+        print(q["reason"], file=out)
+    print(("Enter accepts | " if value is not None else "") + "? explains | b goes back | q saves and quits", file=out)
     print("> ", end="", file=out, flush=True)
 
 
@@ -34,6 +36,8 @@ def show_plan(plan, out):
     print(f"Estimated steps: {len(plan['steps'])}. Time: {plan['estimate']['basis']}", file=out)
     print("Downloads: " + (", ".join(plan["downloads"]) or "none"), file=out)
     print("Output folder: " + plan["output_folder"], file=out)
+    if plan.get("style"):
+        print("Style: " + "; ".join(f"{k}: {v}" for k, v in plan["style"].items()), file=out)
     for warning in plan["warnings"]:
         print("Note: " + warning, file=out)
 
@@ -42,6 +46,45 @@ def show_result(result, out):
     print("\nStudio: " + result.get("status", "failed"), file=out)
     if result.get("error"):
         print(result["error"], file=out)
+    if "creator_summary" in result:
+        from pathlib import Path
+        summary = result["creator_summary"]
+        root = Path(summary["output_folder"])
+        def relative(path):
+            try:
+                return str(Path(path).relative_to(root))
+            except ValueError:
+                return str(path)
+        rows = summary["deliveries"]
+        if rows:
+            from textwrap import wrap
+            shapes = list(dict.fromkeys(r["shape"] for r in rows))
+            width = max(35, max((len(relative(r["file"])) for r in rows if r["file"]), default=0))
+            print("\nDraft | " + " | ".join(shape.ljust(width) for shape in shapes), file=out)
+            print("----- | " + " | ".join("-" * width for _ in shapes), file=out)
+            for draft in dict.fromkeys(r["draft"] for r in rows):
+                cells = []
+                for shape in shapes:
+                    row = next((r for r in rows if r["draft"] == draft and r["shape"] == shape), None)
+                    cells.append([relative(row["file"]), *wrap("[" + row["status"] + "]", width)] if row and row["file"] else ["not rendered"])
+                for line in range(max(map(len, cells))):
+                    label = draft if line == 0 else ""
+                    print(label.ljust(5) + " | " + " | ".join((cell[line] if line < len(cell) else "").ljust(width) for cell in cells), file=out)
+        for item in summary["highlights"]:
+            print(item["label"] + ": " + relative(item["file"]), file=out)
+        if summary["recommendation"]:
+            print("\n" + summary["recommendation"], file=out)
+        for note in summary["notes"]:
+            print("Note: " + note, file=out)
+        for track in result.get("result", {}).get("advice", {}).get("tracks", []):
+            print(f"{track['track']}: {track['rating']} ({track['score']}/100)", file=out)
+            for reason in track.get("reasons", []):
+                print("  " + (reason if isinstance(reason, str) else json.dumps(reason)), file=out)
+        print("Output folder: " + summary["output_folder"], file=out)
+        print("Full result: " + summary["full_result"], file=out)
+        for action in summary["next_actions"]:
+            print("Next: " + action, file=out)
+        return
     for path in result.get("outputs", []):
         print("Output: " + path, file=out)
     detail = result.get("result", {})
@@ -74,7 +117,7 @@ def show_result(result, out):
 def _answer(q, raw):
     if raw == "":
         if q["recommended"] is None:
-            raise ValueError("This answer is unknown; please supply it.")
+            raise ValueError("Please type an answer or drag a local path here; Enter cannot fill this in.")
         return q["recommended"]
     if raw.isdigit() and q["options"]:
         index = int(raw) - 1
@@ -91,7 +134,7 @@ def run(argv):
     parser.add_argument("--json", action="store_true", help="JSON Lines events: question, plan, progress, result")
     args = parser.parse_args(argv)
     session = Session()
-    cache = {}
+    cache = {"progress": lambda text: print(text, file=sys.stderr if args.json else sys.stdout, flush=True)}
 
     def emit(event, data):
         if args.json:
@@ -117,6 +160,10 @@ def run(argv):
             return
         key = session.history.pop()
         session.answers.pop(key, None)
+        if key == "platform":
+            session.answers.pop("aspects", None)
+        if key == "reference" and "tone" not in session.history:
+            session.answers.pop("tone", None)
         session.result = {}
         session.status = "interview"
 
@@ -182,6 +229,7 @@ def run(argv):
                     return pause()
                 raw = line.strip()
                 if raw == "?":
+                    print(q["reason"])
                     print(json.dumps(q["evidence"], indent=2, ensure_ascii=False))
                     continue
                 if raw == "b" and q["id"] != "path":
@@ -206,7 +254,8 @@ def run(argv):
                 if args.answers or args.json:
                     emit("confirmation_required", {"ok": True, "project": session.answers["project"], "hint": "Rerun with --yes after reviewing the plan."})
                     return 0
-                print("\nRun this plan? Recommended: yes. The inputs and outputs above are ready for your review.\nEnter=yes | ? explains | b goes back | q saves and quits\n> ", end="", flush=True)
+                tone_option = "t changes tone | " if session.answers["path"] in "ab" else ""
+                print("\nRun this plan? Recommended: yes.\nEnter=yes | o changes output folder | " + tone_option + "? explains | b goes back | q saves and quits\n> ", end="", flush=True)
                 line = sys.stdin.readline()
                 if not line or line.strip().lower() in {"q", "no", "n"}:
                     return pause()
@@ -215,6 +264,17 @@ def run(argv):
                     continue
                 if line.strip() == "?":
                     print(json.dumps(plan["evidence"], indent=2, ensure_ascii=False))
+                    continue
+                if line.strip() == "o" or (line.strip() == "t" and tone_option):
+                    key = "project" if line.strip() == "o" else "tone"
+                    print("Output folder:" if key == "project" else "Tone (natural, calm, energetic):", flush=True)
+                    value = sys.stdin.readline()
+                    if not value or value.strip() == "q":
+                        return pause()
+                    try:
+                        session.answers[key] = flow.normalize(key, value.strip())
+                    except (ValueError, OSError) as exc:
+                        print(str(exc))
                     continue
                 if line.strip().lower() not in {"", "y", "yes"}:
                     print("Enter yes to run, b to change an answer, or q to save.")
@@ -228,9 +288,12 @@ def run(argv):
             nonlocal last_progress
             with output_lock:
                 last_progress = time.monotonic()
-                emit("progress", {"step": text})
-                if not args.json:
-                    print("Working: " + text, flush=True)
+                from .presentation import progress_label
+                label = progress_label(text, session.answers)
+                if label:
+                    emit("progress", {"step": label, "producer_step": text})
+                    if not args.json:
+                        print("Working: " + label, flush=True)
         stop = threading.Event()
         def heartbeat():
             while not stop.wait(15):
