@@ -59,6 +59,20 @@ def test_command_catalog_covers_cli_registry():
     assert catalog == set(_COMMANDS)
 
 
+def test_studio_entry_point_and_mcp_counts():
+    import ast
+    from myzing.cli import _usage
+    module = ast.parse((ROOT / "packaging/mcp_stdio_smoke.py").read_text(encoding="utf-8"))
+    tools = next(ast.literal_eval(n.value) for n in module.body
+                 if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "EXPECTED_TOOLS" for t in n.targets))
+    assert {"zing_studio", "zing_studio_run"} <= tools
+    for file in ("README.md", "docs/CONNECT.md", "skills/zing/references/mcp.md"):
+        text = (ROOT / file).read_text(encoding="utf-8")
+        counts = re.findall(r"\b(\d+) (?:MCP )?tools\b", text)
+        assert counts and all(int(n) == len(tools) for n in counts), (file, counts)
+    assert _usage().startswith("Start here: zing studio")
+    assert (ROOT / "docs/STUDIO.md").is_file()
+
 def test_explain_documented_surface():
     assert "zing_explain" in (ROOT / "docs/CONNECT.md").read_text(encoding="utf-8")
     assert "zing explain" in (ROOT / "README.md").read_text(encoding="utf-8")

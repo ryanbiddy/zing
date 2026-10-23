@@ -203,6 +203,34 @@ def test_default_box_includes_the_stated_margin_and_rejects_off_frame_ink():
     assert default_caption_box(caption, 1920, 1080, (-961, -40, 961, 40)) is None
 
 
+def test_track_framing_zero_length_clip_keeps_one_keyframe():
+    """Coalescing must not emit [0, 0] for a zero-length shot (strictly-increasing check)."""
+    from types import SimpleNamespace
+    clip = SimpleNamespace(src_in=2.0, src_out=2.0, duration=0.0, timeline_start=0.0, source_at=lambda t: 2.0)
+    tracks = [FaceTrack("f", [Keyframe(1.0, Box(.4, .2, .1, .2)), Keyframe(3.0, Box(.5, .2, .1, .2))])]
+    framing = track_framing(centered_framing("reframe", 1920, 1080, 1080, 1920), clip, tracks)
+    assert [k.time for k in framing.keyframes] == [0.0]
+
+
+def test_track_framing_velocity_clamp_is_unchanged_when_already_valid():
+    """The rounding margin applies only to a step the validator would reject.
+
+    An unconditional margin moved every clamped keyframe of plans that already
+    validated (about 1e-7 px in a 3,000-case comparison with 1a2c88c).
+    """
+    import math
+    clip = CompositionClip("x.mp4", 10.0, 11.0, 0, id="c", asset_id="s")
+    tracks = [FaceTrack("f", [Keyframe(10.0, Box(.0, .2, .1, .2)), Keyframe(10.5, Box(.85, .2, .1, .2)),
+                              Keyframe(11.0, Box(.85, .2, .1, .2))])]
+    base = replace(centered_framing("reframe", 1920, 1080, 1080, 1920), max_velocity=90.0)
+    keys = track_framing(base, clip, tracks).keyframes
+    assert [k.time for k in keys] == [0.0, 0.5, 1.0]
+    speeds = [1.5 * math.hypot(b.center_x - a.center_x, b.center_y - a.center_y) / (b.time - a.time)
+              for a, b in zip(keys, keys[1:])]
+    assert all(speed <= 90.0 + 1e-6 for speed in speeds)
+    assert abs(speeds[0] - 90.0) < 1e-10  # clamped exactly at the bound, not shrunk by a margin
+
+
 def test_long_clause_in_a_narrow_fit_rewraps_instead_of_shrinking_unreadably():
     # A 9:16 source fit into 16:9 leaves a narrow picture. Wrapping at the
     # default size and then shrinking both axes made this clause 20 px tall

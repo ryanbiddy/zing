@@ -12,6 +12,8 @@ import sys
 # the remaining drift class — a command added here appears in help by
 # construction, ordered as listed).
 _COMMANDS: dict[str, tuple[str, str]] = {
+    "studio": ("myzing.studio.command", "start here: guided questions, recommendations and creative outputs"),
+
     "explain": ("myzing.explain.command", "explain a video's editing style as JSON, Markdown and a phone-readable card"),
     "music": ("myzing.music.command", "check local tracks for an edit; no downloads"),
     "doctor": ("myzing.doctor",
@@ -77,6 +79,7 @@ def _usage() -> str:
         for name, (_, help_line) in _COMMANDS.items()
     )
     return (
+        "Start here: zing studio\n\n"
         "zing — study short videos, build a taste profile, direct and "
         "render your own\n\n"
         "usage: zing [--version] <command> [args]\n\n"

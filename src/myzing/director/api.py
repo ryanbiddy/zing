@@ -66,9 +66,13 @@ def _publish(out, payloads, report, protected):
         _atomic(previous, _json(report))
 
 
-def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True) -> dict:
+def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True,
+                studio_options: dict | None = None) -> dict:
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
+    if studio_options is not None:
+        from myzing.studio.adapters import validate_options
+        validate_options(studio_options)
     root = Path(project).expanduser().resolve()
     recipe_path = Path(recipe).expanduser().resolve()
     output = Path(out).expanduser().resolve()
@@ -95,6 +99,9 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             shortage("must_keep_length", f"Whole-word must-keeps require {required_seconds:.3f}s, beyond the brief target.",
                      "Lengthen the brief or shorten its must-keep spans.")
         style = envelope(style_recipe)
+        if studio_options is not None:
+            from myzing.studio.adapters import style_envelope
+            style = style_envelope(style, studio_options)
         pool, required = candidates(clips, keep, forbidden, style, brief.target_length_seconds)
         selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed,
                           allow_reordering="[allow source reordering]" in brief.purpose.casefold())
@@ -123,7 +130,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
                                        style, brief, manifest, root, seed, keep, forbidden,
-                                       subject_evidence=subject_evidence, music_cache=music_cache)
+                                       subject_evidence=subject_evidence, music_cache=music_cache,
+                                       **({"caption_mode": studio_options.get("captions")} if studio_options is not None else {}))
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},
