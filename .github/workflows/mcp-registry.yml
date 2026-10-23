@@ -1,0 +1,70 @@
+name: MCP Registry
+
+# Future registry publication only. Never publishes the Python package.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'After publishing and verifying PyPI, type io.github.ryanbiddy/zing to publish this listing'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-registry
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirmation == 'io.github.ryanbiddy/zing'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      UOINK_URL: http://127.0.0.1:1
+      PUBLISHER_VERSION: v1.8.1
+      PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Check listing against the checkout
+        run: python scripts/check_registry_server_json.py
+
+      - name: Require the matching PyPI release and verification marker
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+          from pathlib import Path
+
+          listing = json.loads(Path('server.json').read_text())
+          package = listing['packages'][0]
+          url = f"https://pypi.org/pypi/{package['identifier']}/{package['version']}/json"
+          with urllib.request.urlopen(url, timeout=30) as response:
+              release = json.load(response)
+          info = release['info']
+          assert info['name'] == package['identifier'], 'PyPI name mismatch'
+          assert info['version'] == package['version'], 'PyPI version mismatch'
+          assert f"mcp-name: {listing['name']}" in info['description'], 'PyPI marker missing'
+          assert any(not asset.get('yanked', False) for asset in release['urls']), 'No usable PyPI artifact'
+          PY
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/mcp-publisher.tar.gz" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${PUBLISHER_SHA256}  $RUNNER_TEMP/mcp-publisher.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$RUNNER_TEMP" mcp-publisher
+
+      - name: Log in with GitHub OIDC
+        run: '"$RUNNER_TEMP/mcp-publisher" login github-oidc'
+
+      - name: Publish the registry listing
+        run: '"$RUNNER_TEMP/mcp-publisher" publish server.json'

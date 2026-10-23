@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.ryanbiddy/zing",
+  "title": "Zing",
+  "description": "Pre-alpha video study, captioned draft editing and memes for AI agents. Runs locally over stdio.",
+  "websiteUrl": "https://myzing.app",
+  "repository": {
+    "url": "https://github.com/ryanbiddy/zing",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "myzing",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
