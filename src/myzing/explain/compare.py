@@ -41,8 +41,18 @@ def compare_cards(reference, other):
     metrics["captions"] = {"placement": {**metric(1, iou, .2, "Match report: median sampled caption box IoU >= 0.8; sparse geometry proxy."), "target_box": ga, "observed_box": gb}}
     ta, tb = get(a, "transitions", "events"), get(b, "transitions", "events")
     types = sorted({e["signature"] for e in (ta or [])+(tb or [])})
-    metrics["transitions"] = {kind: metric(sum(e["signature"] == kind for e in ta), sum(e["signature"] == kind for e in tb), 0,
-                                            "Detected signature counts; no claim of identical timing or effects.") for kind in types} if ta is not None and tb is not None else {}
+    # Rates, not raw counts: a 6 s draft can never hold a 20 s reference's count.
+    # One event in the shorter clip is the smallest difference a rate can show.
+    da, db = reference.duration_seconds, other.duration_seconds
+    metrics["transitions"] = {}
+    if ta is not None and tb is not None and da > 0 and db > 0:
+        for kind in types:
+            ra = sum(e["signature"] == kind for e in ta) * 60 / da
+            rb = sum(e["signature"] == kind for e in tb) * 60 / db
+            metrics["transitions"][kind] = {**metric(ra, rb, max(.25 * ra, 60 / min(da, db)),
+                                                     "Detected signatures per minute; tolerance is 25% of the reference rate "
+                                                     "or one event in the shorter clip. No claim of identical timing or effects."),
+                                            "unit": "per minute"}
     result = {}
     for section, values in metrics.items():
         if section == "pacing" and any(c.sections["pacing"].facts.get("v6_additional_cut_times") for c in (reference, other)):
@@ -51,4 +61,8 @@ def compare_cards(reference, other):
         states = [m["status"] for m in values.values()]
         result[section] = {"status": "differs" if "differs" in states else "unknown" if not states or "unknown" in states else "close",
                            "metrics": values, "scope": "Only the listed measurements; unknown properties remain unknown."}
+        if section == "transitions" and not states and ta is not None and tb is not None and not types and da > 0 and db > 0:
+            result[section].update(status="close", reason="no transition signatures detected in either video.")
+        elif not states:
+            result[section]["reason"] = "a required measurement is missing."
     return {"against": other.source, "against_sha256": other.source_sha256, "sections": result}

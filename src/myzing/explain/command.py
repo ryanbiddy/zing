@@ -20,9 +20,10 @@ def run(argv):
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif result["ok"]:
-        print("\n".join(result["summary"]))
+        print("What a viewer notices:")
+        print("\n".join("- " + line for line in result["summary"]))
         print(result["card_md"])
-        print(result["card_png"])
+        print(result["card_png"] or "card.png skipped: install myzing[memes] for Pillow; card.md and card.json are complete.")
     else:
         print(result["error"])
     return 0 if result["ok"] else 1

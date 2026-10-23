@@ -182,7 +182,7 @@ the director's named shortage, and a failed draft prevents “three ready.”
 
 ## Explain a reference
 
-For ?how was this made??, use `zing explain VIDEO --out DIR` or `zing_explain`.
-Read the card?s facts, confidence and unknowns separately. Add `--against DRAFT`
+For "how was this made?", use `zing explain VIDEO --out DIR` or `zing_explain`.
+Read the card's facts, confidence and unknowns separately. Add `--against DRAFT`
 for a measured comparison. See [Explain](references/explain.md). Do not call a
 substitute font or fitted LUT the original.

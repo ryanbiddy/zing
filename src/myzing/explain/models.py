@@ -32,12 +32,17 @@ class Section(Record):
     confidence: dict = field(default_factory=dict)
     unknowns: list[str] = field(default_factory=list)
     lines: list[str] = field(default_factory=list)
+    # One short sentence for readers: what no measurement of an export can reveal.
+    # The complete, itemized limitations stay in `unknowns`.
+    not_knowable: str = ""
     version: int = 1
 
     def __post_init__(self):
         super().__post_init__()
         if not isinstance(self.title, str) or not self.title:
             raise ValueError("Section needs a title")
+        if not isinstance(self.not_knowable, str):
+            raise ValueError("not_knowable must be a string")
         if not isinstance(self.facts, dict) or not isinstance(self.confidence, dict):
             raise ValueError("Facts and confidence must be separate objects")
         for values in (self.unknowns, self.lines):
@@ -61,8 +66,8 @@ class StyleCard(Record):
 
     def __post_init__(self):
         super().__post_init__()
-        if self.duration_seconds <= 0:
-            raise ValueError("Card duration must be positive")
+        if isinstance(self.duration_seconds, bool) or not isinstance(self.duration_seconds, (int, float)) or self.duration_seconds < 0:
+            raise ValueError("Card duration must be a nonnegative number")
         if not isinstance(self.sections, dict) or not all(isinstance(v, Section) for v in self.sections.values()):
             raise ValueError("Card sections must be Section records")
         for section in self.sections.values():
