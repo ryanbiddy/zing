@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("PIL")
+pytest.importorskip("PIL.Image")
 from PIL import Image  # noqa: E402
 
 from myzing import cli  # noqa: E402

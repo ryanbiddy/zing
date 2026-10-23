@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-pytest.importorskip("PIL")
+pytest.importorskip("PIL.Image")
 from PIL import Image, ImageDraw  # noqa: E402
 
 from myzing import cli, mcp_server  # noqa: E402

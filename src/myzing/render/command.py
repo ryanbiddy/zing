@@ -117,7 +117,7 @@ def run(argv: list[str]) -> int:
     )
     try:
         from myzing.composition.aspects import aspect_for, requested_aspects
-        if args.aspect or args.framing or args.max_upscale is not None or args.short_side is not None:
+        if args.aspect or args.framing or args.max_upscale is not None:
             if not isinstance(edl, Composition):
                 from myzing.composition.compatibility import upgrade_edl
                 edl = upgrade_edl(edl)

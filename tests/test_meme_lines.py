@@ -113,7 +113,7 @@ def test_color_names_only_saturated_colors():
 
 
 def test_still_concepts_use_measured_photo_facts(tmp_path, zing_workspace):
-    pytest.importorskip("PIL")
+    pytest.importorskip("PIL.Image")
     from PIL import Image, ImageDraw
     from myzing.still.api import create_stills
 
@@ -132,7 +132,7 @@ def test_still_concepts_use_measured_photo_facts(tmp_path, zing_workspace):
 
 
 def test_local_ocr_text_becomes_line_evidence_when_available(tmp_path, zing_workspace):
-    pytest.importorskip("PIL")
+    pytest.importorskip("PIL.Image")
     from PIL import Image, ImageDraw, ImageFont
     from myzing.memes.render import resolve_font
     from myzing.still.inventory import _ocr_engine, describe_photo
