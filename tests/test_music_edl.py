@@ -16,6 +16,9 @@ from myzing.director.api import plan_drafts  # noqa: E402
 from myzing.music import planning  # noqa: E402
 from myzing.music.models import MusicPlan  # noqa: E402
 from myzing.schemas import EDL  # noqa: E402
+from test_director import stub_default_ink  # noqa: E402
+
+REAL_PLAN_MUSIC = planning.plan_music
 
 
 @pytest.fixture
@@ -24,6 +27,13 @@ def music_project(tmp_path, zing_workspace, monkeypatch, request):
     analysis are stubbed (MUSIC1's own tests cover them); planning, lowering
     and publishing are real."""
     media = getattr(request, "param", False)
+    if not media:
+        # Caption placement measures default caption ink with FFmpeg/libass
+        # and, without them, places every caption (a layout v1 cannot carry).
+        # Use test_director's deterministic stand-in so these tests check the
+        # music split, not the host's FFmpeg; the media variant measures for real.
+        from myzing.layout import framing as layout_framing
+        monkeypatch.setattr(layout_framing, "measure_default_ink", stub_default_ink)
     root, _, _ = example_project(tmp_path / "project", media=media)
     bed = root / "clips" / "bed.wav"
     bed.write_bytes(b"RIFF stub")
@@ -90,11 +100,32 @@ def test_other_blockers_still_block_the_derivative(music_project, monkeypatch):
     assert not any(path.name.endswith(".edl.music.json") for path in (music_project / "plans").iterdir())
 
 
+def test_unmeasurable_captions_still_block_the_music_derivative(music_project, monkeypatch):
+    """Without FFmpeg/libass (a lean install) captions are placed explicitly,
+    a layout EDL v1 cannot carry: no derivative and no sidecar, and the
+    comparison names those caption blockers next to the music ones."""
+    from myzing.layout import framing as layout_framing
+
+    def unmeasurable(*args, **kwargs):
+        raise OSError("FFmpeg is not on PATH")
+
+    monkeypatch.setattr(layout_framing, "measure_default_ink", unmeasurable)
+    result = plan_drafts(music_project, music_project / "recipe.json", music_project / "plans", seed=17)
+    assert result["status"] == "ready" and result["v1_edls"] == {} and result["music_sidecars"] == {}
+    comparison = json.loads(Path(result["comparison_path"]).read_text(encoding="utf-8"))
+    for label in "ABC":
+        blockers = comparison["plans"][label]["v1"]["blockers"]
+        assert "captions[0].layout" in blockers and "audio[0].source_trim" in blockers
+    assert not any(path.name.endswith(".edl.music.json") for path in (music_project / "plans").iterdir())
+
+
 def test_rerun_without_music_removes_owned_sidecars(music_project, monkeypatch):
     out = music_project / "plans"
     plan_drafts(music_project, music_project / "recipe.json", out, seed=17)
     assert (out / "plan-A.edl.music.json").is_file()
-    monkeypatch.undo()  # the real planner: the brief supplies no music
+    # The real planner (the brief supplies no music). Undo only this patch:
+    # monkeypatch.undo() would also drop the caption-ink stand-in and workspace.
+    monkeypatch.setattr(planning, "plan_music", REAL_PLAN_MUSIC)
     result = plan_drafts(music_project, music_project / "recipe.json", out, seed=17)
     assert result["music_sidecars"] == {} and set(result["v1_edls"]) == {"A", "B", "C"}
     assert not (out / "plan-A.edl.music.json").exists()
