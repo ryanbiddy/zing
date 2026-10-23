@@ -77,6 +77,10 @@ class Framing(Record):
     warnings: list[str] = field(default_factory=list)
     assessments: list[CropAssessment] = field(default_factory=list, metadata={"omit_default": True})
     speaker_turns: list[SpeakerTurn] = field(default_factory=list, metadata={"omit_default": True})
+    picture: dict = field(default_factory=dict, metadata={"omit_default": True})
+    # Blurfill/zoomfill sharp-picture top as a share of output height. None
+    # centers it; caption planning raises it to open a lower caption band.
+    foreground_top: float | None = field(default=None, metadata={"omit_default": True})
     version: int = 1
 
     def __post_init__(self):
@@ -117,6 +121,10 @@ class Framing(Record):
             raise ValueError("only reframe and zoomfill accept keyframes")
         if any(a.end > b.start for a, b in zip(self.speaker_turns, self.speaker_turns[1:])):
             raise ValueError("speaker turns must be ordered without overlap")
+        if self.foreground_top is not None:
+            bounded(self.foreground_top, 0, 1, "framing foreground_top")
+            if self.mode not in ("blurfill", "zoomfill"):
+                raise ValueError("foreground_top applies to blurfill and zoomfill only")
 
     def center_at(self, time: float) -> tuple[float, float]:
         if not self.keyframes:
@@ -140,6 +148,12 @@ class Framing(Record):
         if self.speaker_turns and self.speaker_turns[-1].end > duration + 1e-6:
             raise ValueError("speaker turn exceeds the clip duration")
 
+    @property
+    def fit_source(self) -> tuple[float, float]:
+        """Source size a fit/blurfill foreground scales: the live picture after a
+        picture crop, else the whole source (bounds then only describe it)."""
+        return (self.bounds.width, self.bounds.height) if self.picture else (self.source_width, self.source_height)
+
     def foreground_size(self, width: int, height: int) -> tuple[int, int]:
         """Even sharp-picture size in output pixels for fit, blurfill and zoomfill.
 
@@ -149,21 +163,23 @@ class Framing(Record):
         enlargement. Fit keeps the legacy graph (FFmpeg can round one row
         pair larger), so this is a conservative fit content box.
         """
-        sw, sh = ((self.width, self.height) if self.mode == "zoomfill" else (self.source_width, self.source_height))
+        sw, sh = ((self.width, self.height) if self.mode == "zoomfill" else self.fit_source)
         scale = min(width / sw, height / sh)
         return max(2, math.floor(sw * scale / 2) * 2), max(2, math.floor(sh * scale / 2) * 2)
 
     def foreground_origin(self, width: int, height: int) -> tuple[int, int]:
         """Top-left of the blurfill/zoomfill sharp picture in output pixels.
 
-        Centered, then rounded down to even: FFmpeg's 4:2:0 overlay does that
-        to any odd position, so the graph receives this exact origin.
+        Centered (or at foreground_top), then rounded down to even: FFmpeg's
+        4:2:0 overlay does that to any odd position, so the graph receives
+        this exact origin.
         """
         w, h = self.foreground_size(width, height)
-        return (width - w) // 2 // 2 * 2, (height - h) // 2 // 2 * 2
+        y = (height - h) // 2 if self.foreground_top is None else min(height - h, round(self.foreground_top * height))
+        return (width - w) // 2 // 2 * 2, max(0, y) // 2 * 2
 
     def upscale_warning(self, width: int, height: int) -> list[str]:
-        scale = (min(width / self.source_width, height / self.source_height) if self.mode in ("fit", "blurfill")
+        scale = (min(width / self.fit_source[0], height / self.fit_source[1]) if self.mode in ("fit", "blurfill")
                  else width / self.width if self.mode == "zoomfill"
                  else max(width / self.width, height / self.height))
         return ([f"Framing upscale {scale:.3f}x exceeds stated {self.max_upscale:g}x limit; source detail cannot be recovered."]

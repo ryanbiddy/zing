@@ -5,6 +5,25 @@ uv sync --all-extras
 uv run --frozen zing studio
 ```
 
+Caption and delivery preferences can be supplied before the interview:
+
+```powershell
+zing studio --caption-options '{"highlight_box_color":"#FFD23F","highlight":"#0A0A0A","highlight_box_radius":4}' --picture-crop auto --target-mb 2.5
+```
+
+The confirmation plan shows these choices. Saved studio answers accept
+`caption_options`, `caption_mode`, `picture_crop`, `target_mb`, and
+`video_bitrate_kbps`; the size and bitrate fields are mutually exclusive.
+They apply to edited drafts and re-deliveries of existing plans. A flattened
+video still needs timed caption events to add word backgrounds. Choose phone
+captions for the [documented size floor](CAPTIONS.md); existing captions cannot
+be extracted or resized from flattened pixels by this option.
+
+The target applies to each delivered file. Encoding receipts beside the MP4s
+report achieved size and encoder quality risk. The framing evidence records
+whether static broadcast chrome was removed. These are local operations;
+they require no Uoink connection, upload, or new model download.
+
 FFmpeg and ffprobe must be on PATH for video work. The interview itself uses
 plain stdin/stdout and the Python standard library; media work uses Zing's
 existing optional extras. It works in PowerShell and macOS/Linux shells.
@@ -250,8 +269,9 @@ project for a new edit.
   can produce nine videos. Reports keep render completion separate from style
   fidelity. Failed drafts, missing words, shortages and soft upscales are named.
 - `phone` requests spoken captions in groups of up to four timed words, with
-  a 60px starting size and the renderer's default font. Safe placement may
-  shrink them; review the delivery at phone size. Missing or
+  the renderer's default font and a [picture-relative size floor](CAPTIONS.md).
+  Safe placement may shrink them only to that floor; otherwise shorten the
+  phrase or change framing. Review the delivery at phone size. Missing or
   invalid speech can block captions or planning. `none` disables new captions
   for studio edits. Neither choice erases text already baked into source media.
 - Re-delivering a plan rebuilds framing and caption placement from its sources.

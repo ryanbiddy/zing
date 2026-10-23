@@ -46,6 +46,7 @@ contract does not round timestamps to frames.
 | `width`, `height` | Positive integer output dimensions in pixels; defaults 1080 × 1920. Encoder-specific constraints still belong to rendering. |
 | `fps` | Existing inventory `Rational`: positive integer `numerator`, `denominator`, and `version: 1`. Default 30/1. |
 | `loudness_target` | `LoudnessTarget` or null. Null requests no new loudness policy. |
+| `delivery` | Optional versioned `DeliveryEncoding`: either positive `target_mb` (decimal MB) or `video_bitrate_kbps`, using x264 two-pass encoding. Omitted retains CRF defaults; see [V2 rendering](RENDER-V2.md). |
 | `warnings` | Ordered strings. Evidence gaps and planning limitations belong here. |
 | `accepted_unsafe_layouts` | Optional array of unique caption IDs, default `[]`. Explicitly accepts those events' unsafe/infeasible layout warnings for rendering. Other warnings never imply acceptance. |
 | `brief` | Existing `myzing.brief.models.Brief`, including its version, or null. Its answers retain the brief module's validation. |
@@ -78,7 +79,7 @@ that a stored checksum still matches bytes on disk.
 | `id`, `asset_id` | Unique clip instance ID and an existing asset ID. Repeated uses of an asset have different clip IDs. |
 | `speed_map` | Ordered `SpeedSegment` array, default `[]` for rate 1. Segments must tile the complete source trim without gaps or overlaps. |
 | `color` | `ColorTransform` or null. |
-| `framing` | Optional versioned fit/fill/reframe/zoomfill/blurfill geometry, with crop assessments and optional speaker turns. Omitted means legacy fit and is omitted from serialized bytes. See [framing](FRAMING.md). |
+| `framing` | Optional versioned fit/fill/reframe/zoomfill/blurfill geometry, with crop assessments and optional speaker turns, live-picture evidence (`picture`) and, for blurfill/zoomfill, an optional sharp-picture top `foreground_top` (0–1 of output height; null centers it). Omitted means legacy fit and is omitted from serialized bytes. See [framing](FRAMING.md). |
 | `version` | `1`. |
 
 Each `SpeedSegment` contains `src_in`, `src_out`, positive `rate` (source seconds
@@ -159,6 +160,12 @@ result and does not rerun detection or collision search.
 em pixels; `color`, `highlight`, `outline_color`, and optional `box_color` use
 `#RRGGBB`; `outline_width` is 0–20 pixels; `version` is 1. Defaults are white,
 yellow highlight, black outline, two-pixel outline and no plate color.
+Optional active-word fields are `highlight_box_color` (`#RRGGBB` or null),
+`highlight_box_padding` (0–64 px, default 6), `highlight_box_radius` (0–64 px,
+default 0), `highlight_box_opacity` (0–1, default 1), and `before_color` and
+`after_color` (`#RRGGBB` or null). These use the existing v2 caption style
+extension and omit defaults from JSON. Active boxes require ASS word timing;
+see [captions](CAPTIONS.md) for layers, states and sizing.
 HyperFrames events require layout, font, style and template. Its adapter accepts
 exact rational FPS and requires a duration on that frame grid, supported output
 dimensions and final layout scale 1. The [v2 renderer](HYPERFRAMES-V2.md) checks

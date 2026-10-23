@@ -137,6 +137,8 @@ def _answer(q, raw):
 
 def run(argv):
     parser = argparse.ArgumentParser(prog="zing studio", description=__doc__)
+    from myzing.delivery_options import add_options, overrides
+    add_options(parser)
     parser.add_argument("--resume", metavar="PROJECT")
     parser.add_argument("--answers", metavar="JSON_FILE", help="question IDs and answers; paths resolve from the current directory")
     parser.add_argument("--yes", action="store_true", help="confirm the displayed plan; does not grant download consent")
@@ -224,7 +226,19 @@ def run(argv):
                 session.answers.pop("speech_download", None)
                 if "speech_download" in session.history:
                     session.history.remove("speech_download")
+            if supplied.get("target_mb") is not None:
+                session.answers.pop("video_bitrate_kbps", None)
+            elif supplied.get("video_bitrate_kbps") is not None:
+                session.answers.pop("target_mb", None)
             session.answers.update(supplied)
+            session.result = {}
+        delivery_values = overrides(args)
+        if delivery_values:
+            if "target_mb" in delivery_values:
+                session.answers.pop("video_bitrate_kbps", None)
+            elif "video_bitrate_kbps" in delivery_values:
+                session.answers.pop("target_mb", None)
+            session.answers.update(delivery_values)
             session.result = {}
         if session.status == "ready" and session.result and not args.answers and session.answers.get("path") != "a":
             from myzing.project.api import hash_file

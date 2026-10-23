@@ -82,6 +82,8 @@ def resolution_advice(clips, source_dimensions: dict, width: int, height: int, *
         if clip.asset_id not in source_dimensions:
             continue
         sw, sh = source_dimensions[clip.asset_id]
+        if clip.framing is not None and clip.framing.picture:
+            sw, sh = clip.framing.bounds.width, clip.framing.bounds.height
         mode, share, enlargement = _assessment(clip.framing, sw, sh, width, height)
         row = rows.setdefault(clip.asset_id, {
             "asset_id": clip.asset_id, "source": [sw, sh], "source_megapixels": round(sw * sh / 1e6, 2),
