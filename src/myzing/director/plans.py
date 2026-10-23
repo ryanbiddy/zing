@@ -91,13 +91,17 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         for word in lookup[c.asset_id].words:
             if not (word.start >= c.start - EPS and word.end <= c.end + EPS):
                 continue
-            if window and (window[-1].end in clause_ends or (phone and len(window) >= 4)):
+            if window and window[-1].end in clause_ends:
                 groups.append((window, cursor - c.start))
                 window = []
             window.append(word)
         if window:
             groups.append((window, cursor - c.start))
         cursor += c.duration
+    if phone:
+        # Balanced groups of up to four words; no one-word flashes.
+        from myzing.layout.readability import phone_word_groups
+        groups = [(part, offset) for window, offset in groups for part in phone_word_groups(window)]
     result = []
     caps_count = round(style.all_caps_rate * len(groups))
     layout = recipe.approximations.layout
@@ -126,9 +130,17 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         if phone:
             from myzing.composition import CaptionStyle
             caption.style = CaptionStyle(60, outline_width=4, box_color="#111111")
+        if getattr(brief, "caption_options", None):
+            from myzing.composition import CaptionStyle
+            caption.style = CaptionStyle.from_dict({**(caption.style or CaptionStyle(60)).to_dict(), **brief.caption_options})
+            if caption.style.highlight_box_color:
+                caption.word_timed = True
         if not phone and layout and layout.events:
             caption.layout = _layout(caption, layout.events[i % len(layout.events)], layout.masks)
         result.append(caption)
+    if phone and result:
+        from myzing.layout.readability import hold_short_events
+        hold_short_events(result, cursor)
     prepare_words([w for c in result for w in c.words], cursor, repair=False)
     return result
 
@@ -175,7 +187,10 @@ def audio_for(brief, manifest, root, duration, first_cut, *, include_music=True)
 
 
 def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden,
-              subject_evidence=None, music_cache=None, timing_selection=None, caption_mode=None):
+              subject_evidence=None, music_cache=None, timing_selection=None, caption_mode=None, picture_evidence=None):
+    caption_mode = caption_mode or brief.caption_mode
+    if caption_mode == "phone":
+        brief = replace(brief, caption_mode="phone")
     from myzing.music.planning import plan_music
     from myzing.audio.media import AudioError
     try:
@@ -220,6 +235,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     from myzing.render.framing import display_dimensions
     source_dimensions, square_pixels, probe_notes = {}, set(), []
     subject_evidence = subject_evidence or {}
+    picture_evidence = picture_evidence or {}
+    from myzing.layout.picture import select_picture_framing
     for clip in clips:
         probe = next(a.probe for a in manifest.assets if a.id == clip.asset_id)
         if probe is None or not probe.width or not probe.height:
@@ -242,8 +259,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             framing = None
             if clip.asset_id in source_dimensions:
                 tracks, notes = subject_evidence.get(clip.asset_id, ([], []))
-                framing = select_framing(brief.framing, *source_dimensions[clip.asset_id], width, height, clip,
-                                         tracks, max_upscale=brief.framing_max_upscale)
+                framing = select_picture_framing(brief.framing, *source_dimensions[clip.asset_id], width, height, clip,
+                                         tracks, max_upscale=brief.framing_max_upscale,
+                                         picture=picture_evidence.get(clip.asset_id), policy=brief.picture_crop)
                 framing_notes.extend([*notes, *framing.warnings, *framing.upscale_warning(width, height)])
             framed.append(replace(clip, framing=framing))
         split_clips = []
@@ -260,9 +278,10 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                src_in=start, src_out=end, timeline_start=clip.timeline_start + start - clip.src_in,
                                framing=None)
                 if f is not None:
-                    part.framing = select_framing(brief.framing, f.source_width, f.source_height, width, height,
+                    part.framing = select_picture_framing(brief.framing, f.source_width, f.source_height, width, height,
                                                   part, subject_evidence.get(clip.asset_id, ([], []))[0],
-                                                  max_upscale=brief.framing_max_upscale)
+                                                  max_upscale=brief.framing_max_upscale,
+                                                  picture=picture_evidence.get(clip.asset_id), policy=brief.picture_crop)
                 split_clips.append(part)
         advice = resolution_advice(split_clips, source_dimensions, width, height,
                                    max_upscale=brief.framing_max_upscale,
@@ -271,7 +290,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             # A square-pixel full-picture fit renders identically with framing
             # absent (the default fit graph; FFmpeg applies display rotation).
             # Omitting it keeps such plans representable as v1 EDLs.
-            if clip.framing is not None and clip.framing.mode == "fit" and clip.asset_id in square_pixels:
+            if clip.framing is not None and clip.framing.mode == "fit" and not clip.framing.picture and clip.asset_id in square_pixels:
                 clip.framing = None
         return split_clips, framing_notes, advice
 
@@ -341,7 +360,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
     if caption_mode == "phone":
-        notes.append("Studio phone captions use up to four timed words, a 60px starting size and the renderer's default font; safe placement can shrink them. This is a readability preference, not recovered reference typography.")
+        notes.append("Studio phone captions use up to four timed words and the renderer's default font. Portrait em size is at least 8% of visible picture width and 7% of output width; square/wide use 6.5% of min(picture width, output height). Infeasible phone layouts require shorter phrases or different framing. This is a readability preference, not recovered typography.")
     if music_tracks:
         notes.extend(music_evidence.warnings)
     continuity = score(sequence, studies, allow_reordering="[allow source reordering]" in brief.purpose.casefold())

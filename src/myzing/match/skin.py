@@ -176,8 +176,14 @@ def measure_plan(plan, *, count=SAMPLES_PER_SOURCE, boxes_at=None):
     for clip in plan.clips:
         if clip.color is None or not clip.color.strength:
             continue  # an ungraded clip cannot change skin
-        key = (clip.src, clip.color.lut_path, clip.color.strength)
-        group = groups.setdefault(key, {"sha256": clip.color.sha256, "spans": []})
+        framing = clip.framing
+        # After a picture-in-frame crop only the live picture is delivered:
+        # faces in the surrounding broadcast chrome are never sampled.
+        picture = (framing.bounds, framing.source_width, framing.source_height) if (
+            framing is not None and framing.picture and framing.mode in ("fit", "blurfill", "zoomfill")) else None
+        key = (clip.src, clip.color.lut_path, clip.color.strength,
+               None if picture is None else (picture[0].x, picture[0].y, picture[0].width, picture[0].height))
+        group = groups.setdefault(key, {"sha256": clip.color.sha256, "spans": [], "picture": picture})
         group["spans"].append((clip.src_in, clip.src_out))
     if not groups:
         return None
@@ -190,7 +196,7 @@ def measure_plan(plan, *, count=SAMPLES_PER_SOURCE, boxes_at=None):
                 'Install "myzing[layout]" and run zing layout fetch-model to enable it.'))
         detector = "local YuNet (verified weights, no download)"
     faces, sources = [], []
-    for (src, lut, strength), group in groups.items():
+    for (src, lut, strength, _), group in groups.items():
         if sha256(lut) != group["sha256"]:
             raise ValueError(f"LUT changed since planning: {lut}. Re-run the match with --resume.")
         cube = read_cube(lut)
@@ -199,13 +205,21 @@ def measure_plan(plan, *, count=SAMPLES_PER_SOURCE, boxes_at=None):
             # The renderer blends the cube by strength in display code values.
             return px + strength * (apply_cube(px, cube) - px)
         _, width, height, _ = probe(src)
+        region = None
+        if group["picture"] is not None:
+            bounds, framing_width, framing_height = group["picture"]
+            sx, sy = width / framing_width, height / framing_height
+            x, y = math.ceil(bounds.x * sx), math.ceil(bounds.y * sy)
+            region = (x, y, min(width, math.floor((bounds.x + bounds.width) * sx)) - x,
+                      min(height, math.floor((bounds.y + bounds.height) * sy)) - y)
+            width, height = region[2], region[3]
         scale = LONG_SIDE / max(width, height)
         size = (max(2, round(width * scale / 2) * 2), max(2, round(height * scale / 2) * 2))
         row = {"source": str(src), "lut_sha256": group["sha256"], "strength": strength, "detector": detector,
-               "samples": [], "faces": 0, "gaps": []}
+               "picture_region": list(region) if region else None, "samples": [], "faces": 0, "gaps": []}
         for timestamp in sample_times(group["spans"], count):
             try:
-                rgb = frame(src, timestamp, *size)
+                rgb = frame(src, timestamp, *size, region=region)
             except ColorError as exc:  # a missing frame is a sampling gap, not a skin verdict
                 row["gaps"].append(f"{timestamp:.3f}s: {exc}")
                 continue

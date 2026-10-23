@@ -91,3 +91,49 @@ def test_skin_preservation_compares_each_face_with_its_own_ungraded_source(tmp_p
     assert all(f["a_delta"] < -5 for f in greened["faces"]) and "toward green" in greened["reason"]
     half = measure_plan(plan(luts["green"], .5), boxes_at=boxes, count=3)
     assert half["worst"]["shift"] < greened["worst"]["shift"]
+
+
+def test_picture_crop_measures_only_the_live_picture_for_color_and_skin(tmp_path):
+    """DOGFOOD1 picture-in-frame crop: no broadcast chrome in the color region or skin samples."""
+    from dataclasses import replace
+    from myzing.color import COLOR_SPACE
+    from myzing.color.cube import Cube, apply_cube, make_cube, write_cube
+    from myzing.color.looks import transform_for
+    from myzing.color.media import sha256
+    from myzing.color.science import np, rgb_to_lab
+    from myzing.composition import AssetRef, ColorTransform, Composition, CompositionClip
+    from myzing.composition.framing import CropBounds, Framing
+    from myzing.match.picture import measure_output_color, picture_regions
+    from myzing.match.skin import measure_plan
+    from myzing.render.composition import render_composition
+    skin = np.array([.80, .55, .45])
+    rgb = np.empty((240, 320, 3))
+    rgb[:] = [1., 0., 1.]                    # static magenta chrome above and below
+    rgb[60:180] = skin + .03 * np.sin(np.arange(320) / 7)[None, :, None]  # the live picture
+    source = tmp_path / "broadcast.mp4"
+    encoded(source, np.clip(rgb, 0, 1))
+    neutral = make_cube(transform_for("neutral", 0))
+    green = Cube(neutral.size, [[min(1, max(0, v + d)) for v, d in zip(row, (-.035, .014, -.035686))] for row in neutral.values])
+    lut = write_cube(green, tmp_path / "green.cube")
+    framing = Framing(mode="blurfill", source_width=320, source_height=240, bounds=CropBounds(0, 60, 320, 120),
+                      width=320, height=120, center_x=160, center_y=120,
+                      picture={"confident": True, "bounds_normalized": [0, .25, 1, .5]})
+    clip = CompositionClip(id="c", asset_id="a", src=str(source), src_in=0, src_out=2, timeline_start=0,
+                           color=ColorTransform(str(lut), sha256(lut), 1.0, COLOR_SPACE), framing=framing)
+    plan = Composition(width=240, height=240, assets=[AssetRef("a", str(source), sha256(source))], clips=[clip])
+    video = tmp_path / "draft.mp4"
+    render_composition(plan, video, base_dir=tmp_path)
+    assert picture_regions(plan)[0]["rect"] == [0, 74, 240, 90]  # the live picture's box, no matte inset
+    live = rgb_to_lab(apply_cube(np.clip(rgb[60:180], 0, 1).reshape(-1, 3), green))
+    measured = measure_output_color(video, plan, count=4)["aggregate"]
+    assert np.allclose(measured["ab_mean"], live[:, 1:].mean(axis=0), atol=2.5), measured["ab_mean"]
+    assert measured["saturation"][-1] < 40  # magenta chrome would exceed 80
+    whole = lambda t, frame: [(0, 0, 1, 1)]
+    cropped = measure_plan(plan, boxes_at=whole, count=3)
+    assert cropped["sources"][0]["picture_region"] == [0, 60, 320, 120]
+    expected = rgb_to_lab(np.clip(rgb[60:180], 0, 1).reshape(-1, 3)).mean(axis=0)
+    assert all(np.allclose(f["source_lab"], expected, atol=2.5) for f in cropped["faces"])
+    assert cropped["status"] == "miss"  # the green LUT still greens the live face
+    uncropped = measure_plan(Composition(width=240, height=240, assets=plan.assets,
+                                         clips=[replace(clip, framing=replace(framing, picture={}))]), boxes_at=whole, count=3)
+    assert all(f["source_lab"][1] > expected[1] + 10 for f in uncropped["faces"])  # chrome would leak in

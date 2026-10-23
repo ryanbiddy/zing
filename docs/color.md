@@ -159,7 +159,10 @@ local YuNet model (never downloaded), keeps the central 60% of each face box,
 and measures those same pixels twice: as decoded, and after that clip's own LUT
 at its plan strength. Each face is compared only with itself. No face is ever
 compared with another person, with the reference's faces, or with a population
-skin-tone norm, and pixels are not selected by skin hue.
+skin-tone norm, and pixels are not selected by skin hue. After a picture-in-frame
+crop ([framing](FRAMING.md)) only the live picture is sampled, so faces in the
+cropped-away broadcast chrome are never measured; the color comparison likewise
+measures only the live picture's sharp box, without a matte inset.
 
 The measure is the signed CIE 1976 hue difference (dH*ab, in a*/b* units), so a
 lightness or saturation change scores zero: those are part of the look. It
@@ -255,7 +258,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 359
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 374
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.

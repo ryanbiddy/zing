@@ -88,8 +88,28 @@ class Brief:
     # lower it when a low-resolution source cannot reach its sharp target
     # within framing_max_upscale (see docs/FRAMING.md, "Low-resolution sources").
     short_side: int | str = field(default=1080, metadata={"omit_default": True})
+    caption_mode: str = field(default="reference", metadata={"omit_default": True})
+    caption_options: dict = field(default_factory=dict, metadata={"omit_default": True})
+    picture_crop: str = field(default="auto", metadata={"omit_default": True})
+    target_mb: float | None = field(default=None, metadata={"omit_default": True})
+    video_bitrate_kbps: float | None = field(default=None, metadata={"omit_default": True})
 
     def __post_init__(self):
+        if self.caption_mode not in ("reference", "phone", "none"):
+            raise BriefError("caption_mode: choose reference, phone, or none")
+        if self.picture_crop not in ("auto", "off", "on"):
+            raise BriefError("picture_crop: choose auto, on (require confident detection), or off")
+        if not isinstance(self.caption_options, dict):
+            raise BriefError("caption_options: supply CaptionStyle fields as an object")
+        if self.caption_options:
+            from myzing.composition.models import CaptionStyle
+            try:
+                CaptionStyle.from_dict({"version": 1, "size": 60, **self.caption_options})
+            except (ValueError, TypeError) as exc:
+                raise BriefError(f"caption_options: {exc}") from exc
+        if self.target_mb is not None or self.video_bitrate_kbps is not None:
+            from myzing.composition.encoding import DeliveryEncoding
+            DeliveryEncoding(self.target_mb, self.video_bitrate_kbps)
         if type(self.version) is not int or self.version != 1:
             raise BriefError("Unsupported Brief version; expected version 1. Upgrade Zing if needed.")
         for name in ("purpose", "audience", "platform", "caption_language"):
@@ -141,6 +161,10 @@ class Brief:
             result.pop("framing_max_upscale")
         if self.short_side == 1080:
             result.pop("short_side")
+        for name, default in (("caption_mode", "reference"), ("caption_options", {}), ("picture_crop", "auto"),
+                              ("target_mb", None), ("video_bitrate_kbps", None)):
+            if getattr(self, name) == default:
+                result.pop(name)
         return result
 
     @classmethod
@@ -163,7 +187,8 @@ class Brief:
     def from_dict(cls, data: dict) -> Brief:
         if not isinstance(data, dict) or type(data.get("version")) is not int or data["version"] != 1:
             raise BriefError("Unsupported Brief version; expected version 1. Use --answers for unversioned answers.")
-        missing = {f.name for f in fields(cls)} - {"framing", "aspects", "framing_max_upscale", "short_side"} - set(data)
+        missing = {f.name for f in fields(cls)} - {"framing", "aspects", "framing_max_upscale", "short_side",
+                  "caption_mode", "caption_options", "picture_crop", "target_mb", "video_bitrate_kbps"} - set(data)
         if missing:
             raise BriefError(f"Incomplete saved brief: missing {', '.join(sorted(missing))}. Use --answers to apply defaults.")
         return cls.from_answers({k: v for k, v in data.items() if k != "version"})

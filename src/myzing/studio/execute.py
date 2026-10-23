@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tempfile
 import time
+from contextlib import nullcontext
 from pathlib import Path
 
 from . import adapters
@@ -85,14 +86,15 @@ def no_reference(a, root, progress):
         source = projects.resolve_path(asset.path, root)
         progress(f"Study {source.name} (local models only)")
         study(str(source), workspace=root, raw_mode=True, local_models_only=True,
-              model_workspace=storage.resolve_workspace(), phase_callback=progress)
+              model_workspace=storage.resolve_workspace(), phase_callback=progress,
+              **({"speech_model": a["speech_model"]} if "speech_model" in a else {}))
     recipe = StyleRecipe(ObservationProvenance(str(root / "brief.json"), detector="myzing.studio.brief-style/1"),
                          unknowns=[Unknown("reference_style", "No reference was requested; style comes from the saved brief.")],
                          warnings=[f"{a['tone']} is a chosen tone, not a measured property of the footage. Source color is unchanged."])
     write_json(root / "studio-recipe.json", recipe.to_dict())
     progress("Plan A/B/C with measured clip studies and the brief")
     planned = plan_drafts(root, root / "studio-recipe.json", root / "drafts",
-                          studio_options={"no_reference": True, "tone": a["tone"], "captions": a["captions"]})
+                          studio_options={"no_reference": True, "tone": a["tone"], "captions": a["captions"], **({"speech_model": a["speech_model"]} if "speech_model" in a else {})})
     if planned["status"] != "ready":
         return {**planned, "shortages": planned["summary"]["shortages"], "recommendation": recommendation}
     deliveries, failures = {}, []
@@ -107,13 +109,15 @@ def no_reference(a, root, progress):
             "plans": planned, "deliveries": deliveries, "failures": failures, "recommendation": recommendation}
 
 
-def run_confirmed(answers, *, progress=None):
+def run_confirmed(answers, *, progress=None, locked=False):
     """Internal execution API; callers must obtain explicit plan confirmation."""
     progress = progress or (lambda text: None)
     response = next_step(answers)
     if response["status"] != "plan":
         raise ValueError("Complete the studio questions and confirm the plan before running.")
     a, plan = response["answers"], response["plan"]
+    from myzing.study.speech_models import prepare
+    speech_setup = prepare(a, progress=progress)
     root, path = Path(a["project"]), a["path"]
     root.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
@@ -121,11 +125,11 @@ def run_confirmed(answers, *, progress=None):
     if path == "a":
         from myzing.match.jobs import execute
         from .jobs import busy_lock
-        with busy_lock(root):
+        with nullcontext() if locked else busy_lock(root):
             result = execute({"reference": a["reference"], "clips": a["clips"], "out": str(root),
                               "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),
                               "allow_download": a.get("allow_download", False),
-                              "studio_options": {"captions": a["captions"], "music": a["music"]}},
+                              "studio_options": {"captions": a["captions"], "music": a["music"], **({"speech_model": a["speech_model"]} if "speech_model" in a else {})}},
                              progress=progress, locked=True)
     elif path == "b":
         result = no_reference(a, root, progress)
@@ -156,7 +160,10 @@ def run_confirmed(answers, *, progress=None):
     else:
         attempt = Path(tempfile.mkdtemp(prefix="deliveries-", dir=root))
         progress("Rebuild framing, render, and decode each delivery")
-        result = adapters.deliver(a["source"], attempt / "edit.mp4", a["aspects"])
+        from .flow import DELIVERY_KEYS
+        options = {key: a[key] for key in DELIVERY_KEYS if key in a}
+        result = adapters.deliver(a["source"], attempt / "edit.mp4", a["aspects"],
+                                  **({"delivery_options": options} if options else {}))
     if path in "ab" and a.get("draft", "keep all") != "keep all":
         from myzing.project.choices import choose_draft
         label = a["draft"]
@@ -182,12 +189,14 @@ def run_confirmed(answers, *, progress=None):
                     p = Composition.from_dict(read_json(output))
                     if not p.captions:
                         warnings.append(f"Blocked captions: {output} contains no timed caption events. Speech is unknown or unavailable; review the studies.")
-                    small.extend(c.style.size * 1080 / min(p.width, p.height) for c in p.captions
-                                 if c.style and c.style.size < min(p.width, p.height) / 30)
+                    from myzing.layout.readability import phone_minimum
+                    small.extend(c.style.size * (c.layout.scale if c.layout else 1) for c in p.captions
+                                 if c.style and c.style.size * (c.layout.scale if c.layout else 1)
+                                 < phone_minimum(p, c) - .01)
                 except ValueError:
                     pass
         if small:
-            warnings.append(f"Phone captions need review: {len(small)} delivered caption events were reduced below a 36px size at a 1080px short side (smallest {min(small):.1f}px). Placement safety can reduce readability; inspect the videos at phone size.")
+            warnings.append(f"Phone captions need review: {len(small)} delivered caption events are below the picture-relative minimum (smallest {min(small):.1f}px). Shorten the phrase or choose framing with more caption space; inspect the videos at phone size.")
     next_actions = {
         "a": ["Review the draft videos and their match reports.", "Choose A, B or C with zing plan choose.", "Want another shape? Run zing studio and choose 6."],
         "b": ["Review A/B/C before choosing with zing plan choose.", "Try a music track: run zing studio and choose 5.", "Want another shape? Run zing studio and choose 6."],
@@ -209,6 +218,8 @@ def run_confirmed(answers, *, progress=None):
               **({"error": result["error"]} if result.get("error") else {}),
               "project": str(root), "outputs": outputs, "warnings": warnings, "result": result,
               "next_actions": next_actions, "seconds": round(time.monotonic() - started, 3)}
+    if speech_setup:
+        result["speech_setup"] = speech_setup
     result["output_sha256"] = {p: hash_file(Path(p)) for p in outputs}
     from .presentation import creator_summary
     result["creator_summary"] = creator_summary(result, a, plan["evidence"])

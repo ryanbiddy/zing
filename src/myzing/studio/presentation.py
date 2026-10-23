@@ -165,7 +165,7 @@ def _shortage_note(shortage):
         return ("None of your clips could be used: clips with speech need timed words from a local speech model, "
                 "or measured silence. " + (
                     "Speech transcription is not installed; install myzing[study], then resume." if missing and "not installed" in missing else
-                    missing.split(". ", 1)[0] + ". Download it once with zing study on one clip, "
+                    missing.split(". ", 1)[0] + ". Choose speech setup in studio or run zing doctor --speech-model small.en, "
                     "or set ZING_WHISPER_MODEL to a local model folder, then resume." if missing else
                     "Check the study warnings in the full result, then resume."))
     if code in {"audio_asset", "audio_placement", "music_analysis"}:

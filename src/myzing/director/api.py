@@ -132,6 +132,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         # analysis, with no study/ASR, model downloads, or reference lookup.
         from myzing.layout.framing import analyze_subjects
         subject_evidence = {}
+        picture_evidence = {}
         used = {c.asset_id for sequence in selected.values() for c in sequence}
         for asset in manifest.assets:
             probe = asset.probe
@@ -143,6 +144,14 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             ranges = [(c.start, c.end) for sequence in selected.values() for c in sequence if c.asset_id == asset.id]
             subject_evidence[asset.id] = analyze_subjects(Path(study.path), study.duration, root / "framing-work",
                                                          [s.start for s in study.shots], ranges=ranges)
+            if brief.picture_crop != "off":
+                from myzing.layout.picture import analyze_picture
+                from myzing.render.framing import display_dimensions
+                stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
+                size = display_dimensions({"width": probe.width, "height": probe.height,
+                                           "tags": {"rotate": probe.rotation}, **stream})
+                picture_evidence[asset.id] = analyze_picture(study.path, ranges, size)
+        report["picture_analysis"] = picture_evidence
         report["subject_analysis"] = {key: {"tracks": [t.to_dict() for t in tracks], "warnings": notes}
                                       for key, (tracks, notes) in subject_evidence.items()}
         report["envelope"] = style.to_dict()
@@ -153,9 +162,14 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
                                        style, brief, manifest, root, seed, keep, forbidden,
-                                       subject_evidence=subject_evidence, music_cache=music_cache,
+                                       subject_evidence=subject_evidence, music_cache=music_cache, picture_evidence=picture_evidence,
                                        timing_selection=timing_evidence[label],
-                                       **({"caption_mode": studio_options.get("captions")} if studio_options is not None else {}))
+                                       **({"caption_mode": "none" if studio_options.get("speech_model") == "skip" else studio_options.get("captions")} if studio_options is not None else {}))
+            if studio_options and studio_options.get("speech_model") == "skip":
+                from myzing.study.speech_models import SKIP_NOTE
+                evidence["continuity"] = {"version": 1, "status": "unavailable", "score": None, "basis": SKIP_NOTE}
+                evidence["captions"] = {"status": "unavailable", "basis": SKIP_NOTE}
+                plan.warnings.append(SKIP_NOTE)
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},

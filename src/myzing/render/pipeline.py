@@ -49,6 +49,7 @@ class RenderResult:
     filtergraph: str
     work_dir: Path | None
     audio_measurements: dict | None = None
+    delivery_measurements: dict | None = None
 
 
 def _create_directory(directory: Path, error: str) -> None:
@@ -251,6 +252,8 @@ def _render_in_directory(
     music_metadata: dict | None = None,
     duck: dict | None = None,
     measure_music: bool = False,
+    delivery=None,
+    ffprobe: str = "ffprobe",
 ) -> RenderResult:
     try:
         directory.mkdir(parents=True, exist_ok=True)
@@ -314,15 +317,21 @@ def _render_in_directory(
     for label, name in ((plan.music_label, "music-stem.wav"), (plan.source_label, "source-stem.wav")):
         if label:
             command += ["-map", f"[{label}]", "-t", f"{validated.duration:.6f}", "-c:a", "pcm_f32le", str(directory / name)]
+    delivery_receipt = None
     try:
-        result = subprocess.run(
-            command,
-            cwd=directory,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=900,
-        )
+        if delivery is not None:
+            from .encoding import encode
+            result, command, delivery_receipt = encode(command, delivery, validated.duration,
+                validated.edl.width, validated.edl.height, validated.edl.fps, directory, ffprobe=ffprobe)
+        else:
+            result = subprocess.run(
+                command,
+                cwd=directory,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=900,
+            )
     except (OSError, subprocess.SubprocessError) as exc:
         raise RenderError(f"could not run ffmpeg: {exc}") from exc
     if result.returncode:
@@ -352,16 +361,20 @@ def _render_in_directory(
         measurements.update(render_sha256=hash_file(staged_output), music_plan=music_metadata)
         (directory / "music-measurements.json").write_text(json.dumps(measurements, indent=2, allow_nan=False), encoding="utf-8")
     _publish_output(staged_output, output_path)
+    if delivery_receipt is not None:
+        _publish_output(directory / "delivery-encoding.json", output_path.with_suffix(".encoding.json"))
     if measurements is not None:
         _publish_output(directory / "music-measurements.json", output_path.with_suffix(".music.json"))
     return RenderResult(
         output_path=output_path,
         duration=validated.duration,
-        warnings=validated.warnings + tuple((measurements or {}).get("warnings", ())),
+        warnings=validated.warnings + tuple((measurements or {}).get("warnings", ()))
+                 + tuple((delivery_receipt or {}).get("warnings", ())),
         command=tuple(command),
         filtergraph=plan.graph,
         work_dir=directory,
         audio_measurements=measurements,
+        delivery_measurements=delivery_receipt,
     )
 
 
