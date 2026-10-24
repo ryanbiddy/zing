@@ -24,6 +24,7 @@ KEYS = {"path", "project", "reference_kind", "reference", "reference_query", "al
         "music", "tracks", "source", "context", "speech", "draft", "speech_model", "speech_download"}
 DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps"}
 KEYS |= DELIVERY_KEYS
+KEYS |= {"footage_kind", "cursor_log"}
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -118,6 +119,12 @@ def _path(value, key, *, folder=False, exists=True):
 
 
 def normalize(key, value):
+    if key == "footage_kind":
+        if value not in {"general", "screen"}:
+            raise ValueError("footage_kind: choose general or screen.")
+        return value
+    if key == "cursor_log":
+        return "none" if value == "none" else _path(value, key)
     if key in DELIVERY_KEYS:
         from myzing.brief.models import Brief
         Brief.from_answers({key: value})
@@ -215,6 +222,10 @@ def brief_answers(answers):
 def next_step(answers=None, *, cache=None):
     """Return the next question or a reviewable plan. Never assumes consent."""
     a = normalize_answers(answers or {})
+    # Pre-SCREEN1 saved briefs/API callers already past the topic question
+    # retain their general-footage route. New interviews ask before topic.
+    if "topic" in a:
+        a.setdefault("footage_kind", "general")
     empty = {"measured": [], "unknowns": ["Creative intent is unknown until you choose."], "warnings": []}
     if "path" not in a:
         q = question("path", "What are we making?", "a", "Choose a reference match if you have a video to aim for; your intent is still unknown.", empty, PATHS)
@@ -294,6 +305,12 @@ def next_step(answers=None, *, cache=None):
     if path in "ab":
         ask("clips", "Which folder holds your clips?", None,
             "Clip paths are unknown; local probes will measure size, duration and audio streams.", required=True)
+        ask("footage_kind", "Are these screen recordings of an app?", "general",
+            "Choose screen for smooth zooms, pans and idle speed-up. Pixel probes alone cannot reliably identify an app demo.",
+            {"general": "General footage", "screen": "Screen recordings: recommend the screen-demo plan"})
+        if a.get("footage_kind") == "screen":
+            ask("cursor_log", "Optional cursor JSONL for this recording, or none?", "none",
+                "A log gives stronger zoom evidence. Without it, screen-demo follows UI changes at lower confidence. One log requires one source video.")
     if path == "c":
         ask("photos", "Which folder holds your photos?", None,
             "Photo content is unknown; use a local folder of JPEG, PNG, WebP, BMP or TIFF files.", required=True)
@@ -329,7 +346,7 @@ def next_step(answers=None, *, cache=None):
         if a.get("platform") == "custom":
             ask("aspects", "Which shapes? (16:9, 1:1, 9:16 or all)", selected,
                 "Choose your delivery set; auto framing checks crops before delivery.")
-    if path in "ab" or (path == "e" and a.get("context", "none") == "none"):
+    if (path in "ab" and a.get("footage_kind") != "screen") or (path == "e" and a.get("context", "none") == "none"):
         seconds = min((15, 20, 30, 45, 60), key=lambda n: abs(n - min(30, facts["duration"] / 3))) if facts["duration"] else 15
         ref = facts.get("reference", {}) if path == "a" else {}
         if ref.get("duration"):
@@ -342,7 +359,7 @@ def next_step(answers=None, *, cache=None):
             if facts["duration"] else "Usable duration is unknown; 15 seconds is a disclosed starting target.")
     if path in "ab":
         ref = facts.get("reference", {}) if path == "a" else {}
-        if path == "b":
+        if path == "b" and a.get("footage_kind") != "screen":
             ask("tone", "What tone should it have?", "natural",
                 "Semantic tone is unknown; natural is a restrained starting preference. Measured studies still determine draft candidates.", ["natural", "calm", "energetic"])
         # The platform answer decides the shapes before "aspects" is stored.
@@ -410,6 +427,9 @@ def next_step(answers=None, *, cache=None):
         a["aspects"] = selected
     if path == "a":
         a.setdefault("tone", facts.get("reference", {}).get("tone", "natural"))
+    if path in "ab" and a.get("footage_kind") == "screen":
+        a.setdefault("length", min(60, max(1, facts.get("duration") or 15)))
+        a.setdefault("tone", "natural")
     return {"status": "plan", "plan": build_plan(a, facts), "answers": a}
 
 
@@ -423,8 +443,13 @@ def build_plan(a, facts):
         "e": ["Measure local music", "Rank tracks and write reasons"],
         "f": ["Load the plan or probe the finished edit", "Rebuild framing for each requested shape", "Render and decode deliveries"],
     }[path]
+    if path in "ab" and a.get("footage_kind") == "screen":
+        steps = ["Plan continuous screen demos from cursor dwell/clicks or lower-confidence UI activity",
+                 "Compress measured idle spans; retain speech", "Render smooth zoom/pan and each requested aspect"]
     # A style breakdown delivers no video; source resolution is not its risk.
     warnings = [w for w in facts["warnings"] if not (path == "d" and w.startswith("Low-resolution source"))]
+    if path in "ab" and a.get("footage_kind") == "screen":
+        warnings.append("Screen-demo preserves each recording's continuity and source audio. Idle compression determines duration; reference cut pace and added music are not applied.")
     if path in "ab":
         warnings.append("A/B/C can be blocked by footage shortages or invalid speech timing; no missing words or style measurements are invented.")
         if a.get("speech_model") == "skip":

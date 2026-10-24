@@ -122,7 +122,12 @@ def run_confirmed(answers, *, progress=None, locked=False):
     root.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     progress("Starting " + plan["title"])
-    if path == "a":
+    if path in "ab" and a.get("footage_kind") == "screen":
+        from myzing.screen.api import run_folder
+        result = run_folder(a["clips"], root, cursor=None if a.get("cursor_log", "none") == "none" else a["cursor_log"],
+                            aspects=a["aspects"], caption_preset=a["captions"] if a["captions"] in {"clean","punch","box"} else "none",
+                            progress=progress, speech_model=a.get("speech_model"), music=a.get("music"))
+    elif path == "a":
         from myzing.match.jobs import execute
         from .jobs import busy_lock
         with nullcontext() if locked else busy_lock(root):
@@ -206,6 +211,9 @@ def run_confirmed(answers, *, progress=None, locked=False):
         "f": ["Watch the new delivery and check its crop.",
               "Want another shape? Run zing studio, choose 6 and give it the original plan."],
     }[path]
+    if path in "ab" and a.get("footage_kind") == "screen":
+        next_actions = ["Watch each screen demo at phone size; check UI text and the focus at clicks.",
+                        "Adjust its saved screen plan and use zing render <plan.json> --aspect all to re-deliver."]
     status = result.get("status", "failed")
     if status in ("failed", "shortage", "cancelled"):
         # Nothing finished to review: point at the blocker and the saved session.
