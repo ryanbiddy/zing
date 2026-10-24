@@ -1,5 +1,6 @@
 # Music that serves the edit
 
+
 `zing music check track.wav other.mp3 --brief brief.json --json` rates local
 tracks as good, usable or bad. `--plan plan-A.json` uses the edit's duration,
 shot pace and known speech. Without either file, the target is 30 seconds;
@@ -334,3 +335,22 @@ the timing sheet's numbers as if it had heard them, so only claims a
 measurement can confirm were acted on. This is not a panel of human
 listeners, and taste judgments (whether a fade ends "mid-groove") stay
 unverified.
+
+## Learned vocals and embedded scores (AUD1)
+
+With `audio-ml` and explicitly fetched CED weights, vocal advice uses learned
+singing-family scores. The old heuristic corroborates weak candidates. Advice
+names CED and its confidence; JSON retains singing and instrument labels.
+Without the runtime or weights, advice explicitly says `heuristic`. Harmonic
+peaks alone cannot trigger the learned vocal warning. See [Audio](AUDIO.md).
+
+Studied clips retain music-under-speech candidates. The director adds a
+`source_score` decision when a selected clip overlaps one, even without an
+extra bed. Explain reports that the clip already carries a candidate score,
+with confidence. On the licensed clips, Tears of Steel's lab scene (the clip
+LISTEN1 heard carrying its own film score) measures Music 0.75 under Speech
+0.88; its dialogue scene, with no score, stays below 0.05 and gets no
+candidate. These tags warn that adding a bed may
+stack music; they do not separate or lower the clip's existing score.
+Laughter/applause windows remain reviewable candidates in the director
+comparison, without automatic cuts.

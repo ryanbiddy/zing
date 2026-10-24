@@ -1,0 +1,42 @@
+[
+  {
+    "file": "Cat-on-couch.jpg",
+    "url": "https://upload.wikimedia.org/wikipedia/commons/6/6b/Cat-on-couch.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File%3ACat-on-couch.jpg",
+    "license": "CC0-1.0",
+    "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "Christoffer G. Thomsen",
+    "sha256": "4106f897356c61675ae313100143f58da2947c1e0c5607e18294b1df32bb7daa",
+    "original_sha256": "c66190a1833bc122af6daa702d21b96257ee3793e19e6aa49d8448f90665a8c2",
+    "derivation": "First oriented frame resized without crop to long side 480, JPEG quality 85.",
+    "expect": {
+      "objects": "cat"
+    }
+  },
+  {
+    "file": "Dog_IMG_1057.jpg",
+    "url": "https://upload.wikimedia.org/wikipedia/commons/2/25/Dog_IMG_1057.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File%3ADog_IMG_1057.jpg",
+    "license": "CC0-1.0",
+    "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+    "author": "JasonAstros123",
+    "sha256": "0166048565580a99ca058f2778fe3f21d8a6aefe63a122423b57a551f42f68cc",
+    "original_sha256": "a9eb5123c6af19ed7dfb86408f1684982a83414751beb320b80f0ec901b7a00a",
+    "derivation": "First oriented frame resized without crop to long side 480, JPEG quality 85.",
+    "expect": {
+      "objects": "dog"
+    }
+  },
+  {
+    "file": "korky-1s.jpg",
+    "sha256": "e331502e0cc1bb24c9bd1f0901d597822d42f9e0f642050d370034f28211c604",
+    "license": "CC0-1.0",
+    "source": "https://upload.wikimedia.org/wikipedia/commons/8/8d/Korky_Paul_Introduction.webm",
+    "license_url": "https://commons.wikimedia.org/wiki/File:Korky_Paul_Introduction.webm",
+    "source_clip_sha256": "f11726ac7085f55a9d4f2a8a4c5ecb07c237a9639505ea0caae0802f4189a8d7",
+    "derivation": "Frame at 1.0 s of pinned V1 Korky excerpt, resized without crop to long side 480, JPEG quality 85.",
+    "expect": {
+      "person": "person"
+    }
+  }
+]

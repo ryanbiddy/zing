@@ -8,10 +8,13 @@ from .models import read_json, write_json
 
 
 def validate_options(value):
-    if not isinstance(value, dict) or set(value) - {"captions", "music", "tone", "no_reference"}:
-        raise ValueError("studio_options must contain only captions, music, tone and no_reference")
-    if "captions" in value and value["captions"] not in {"none", "phone"}:
-        raise ValueError("studio_options.captions: choose none or phone")
+    if not isinstance(value, dict) or set(value) - {"captions", "music", "tone", "no_reference", "speech_model"}:
+        raise ValueError("studio_options must contain only captions, music, tone, no_reference and speech_model")
+    if "speech_model" in value:
+        from .flow import normalize
+        normalize("speech_model", value["speech_model"])
+    if "captions" in value and value["captions"] not in {"none", "phone", "punch", "box", "clean"}:
+        raise ValueError("studio_options.captions: choose none, phone, punch, box or clean")
     if "no_reference" in value and type(value["no_reference"]) is not bool:
         raise ValueError("studio_options.no_reference must be boolean")
     if value.get("no_reference") and value.get("tone") not in {"natural", "calm", "energetic"}:
@@ -129,12 +132,15 @@ def load_edit(source):
                        warnings=["Flattened input: existing captions, color, music and cuts remain baked in."])
 
 
-def deliver(source, output, aspects):
+def deliver(source, output, aspects, *, delivery_options=None):
     from myzing.render.deliveries import render_deliveries
     from myzing.composition import Composition
     from myzing.match.evidence import decode
 
     plan = load_edit(source)
+    if delivery_options:
+        from myzing.delivery_options import apply_plan
+        apply_plan(plan, delivery_options, base_dir=Path(source).parent)
     fallback = None
     try:
         result = render_deliveries(plan, output, aspects=aspects,

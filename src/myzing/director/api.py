@@ -16,7 +16,8 @@ from myzing.style_recipe import StyleRecipe
 from .inventory import inventory
 from .models import PlanningShortage, shortage
 from .plans import MUSIC_CANNOT_CARRY, attach_report, make_plan, music_projection, render_projection
-from .selection import band_distance, candidates, choose, constraints, envelope, reference_band, shot_lengths
+from .selection import (ALTERNATIVE, band_distance, candidates, choose, constraints, different, envelope,
+                        reference_band, shot_lengths)
 
 PRODUCER = "myzing.director/1"
 MANAGED = {"comparison.json", *(f"plan-{label}{suffix}.json" for label in "ABC"
@@ -132,6 +133,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         # analysis, with no study/ASR, model downloads, or reference lookup.
         from myzing.layout.framing import analyze_subjects
         subject_evidence = {}
+        picture_evidence = {}
         used = {c.asset_id for sequence in selected.values() for c in sequence}
         for asset in manifest.assets:
             probe = asset.probe
@@ -143,24 +145,48 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             ranges = [(c.start, c.end) for sequence in selected.values() for c in sequence if c.asset_id == asset.id]
             subject_evidence[asset.id] = analyze_subjects(Path(study.path), study.duration, root / "framing-work",
                                                          [s.start for s in study.shots], ranges=ranges)
+            if brief.picture_crop != "off":
+                from myzing.layout.picture import analyze_picture
+                from myzing.render.framing import display_dimensions
+                stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
+                size = display_dimensions({"width": probe.width, "height": probe.height,
+                                           "tags": {"rotate": probe.rotation}, **stream})
+                picture_evidence[asset.id] = analyze_picture(study.path, ranges, size)
+        report["picture_analysis"] = picture_evidence
         report["subject_analysis"] = {key: {"tracks": [t.to_dict() for t in tracks], "warnings": notes}
                                       for key, (tracks, notes) in subject_evidence.items()}
         report["envelope"] = style.to_dict()
         report["search"] = {"candidate_count": len(pool), "method": "deterministic bounded beam; 96 states per expansion",
                             "distinctness": "Different opening content with <50% overlap, or >=max(1s, reference median, 20% target) changed footage.",
                             "duration_tolerance_seconds": 2 / 30}
+        relaxed = next(iter(timing_evidence["A"].values()))["search"].get("distinctness_relaxed")
+        if relaxed:
+            # Fewer than three distinct in-band edits: timing bands were kept first.
+            report["search"]["distinctness_relaxed"] = relaxed
         music_cache = {}
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
                                        style, brief, manifest, root, seed, keep, forbidden,
-                                       subject_evidence=subject_evidence, music_cache=music_cache,
+                                       subject_evidence=subject_evidence, music_cache=music_cache, picture_evidence=picture_evidence,
                                        timing_selection=timing_evidence[label],
-                                       **({"caption_mode": studio_options.get("captions")} if studio_options is not None else {}))
+                                       **({"caption_mode": "none" if studio_options.get("speech_model") == "skip" else studio_options.get("captions")} if studio_options is not None else {}))
+            if studio_options and studio_options.get("speech_model") == "skip":
+                from myzing.study.speech_models import SKIP_NOTE
+                evidence["continuity"] = {"version": 1, "status": "unavailable", "score": None, "basis": SKIP_NOTE}
+                evidence["captions"] = {"status": "unavailable", "basis": SKIP_NOTE}
+                plan.warnings.append(SKIP_NOTE)
+            evidence["audio_moment_candidates"] = [
+                {"asset_id": c.asset_id, **moment}
+                for c in clips if c.status == "ready"
+                for moment in c.audio_tags.get("moment_candidates", [])
+            ]
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},
                         "other_opening": {"asset_id": alternative[0].asset_id, "start": alternative[0].start, "end": alternative[0].end},
-                        "source_choices_changed": sorted(c.identity for c in sequence) != sorted(c.identity for c in alternative)}
+                        "source_choices_changed": sorted(c.identity for c in sequence) != sorted(c.identity for c in alternative),
+                        "meaningfully_different": different(sequence, alternative, brief.target_length_seconds,
+                                                            style.median_shot or 2.0)}
                 for other, alternative in selected.items() if other != label
             }
             plan = attach_report(plan, evidence)
@@ -190,6 +216,11 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             if sidecar is not None:
                 payloads[f"plan-{label}.edl.music.json"] = _json(sidecar)
             report["plans"][label] = evidence
+        # Alternatives and undelivered drafts are named wherever plans are listed.
+        report["alternatives"] = {label: p["alternative"]["reason"] for label, p in report["plans"].items()
+                                  if p.get("alternative")}
+        if relaxed and relaxed["missing_drafts"]:
+            report["missing_drafts"] = {"drafts": relaxed["missing_drafts"], "reason": relaxed["reason"]}
         report["status"] = "ready"
     except PlanningShortage as exc:
         report["shortages"] = [exc.shortage.to_dict()]
@@ -206,10 +237,15 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                         if report["plans"][label]["v1"]["representable"]},
             "music_sidecars": {label: str(output / report["plans"][label]["v1"]["music_sidecar"])
                                for label in report["plans"] if report["plans"][label]["v1"].get("music_sidecar")},
+            "alternatives": report.get("alternatives", {}), "missing_drafts": report.get("missing_drafts"),
             "summary": {"drafts": len(report["plans"]), "shortages": report["shortages"],
                         # Low-resolution advice first: it changes what to render.
                         "warnings": [*dict.fromkeys(p["resolution"]["summary"] for p in report["plans"].values()
-                                                    if p["resolution"]["limited"]), *inventory_notes, *excluded],
+                                                    if p["resolution"]["limited"]),
+                                     *(f"{label}: {ALTERNATIVE}: {reason}." for label, reason
+                                       in report.get("alternatives", {}).items()),
+                                     *([report["missing_drafts"]["reason"]] if report.get("missing_drafts") else []),
+                                     *inventory_notes, *excluded],
                         "resolution": {label: {key: p["resolution"][key] for key in
                                                ("limited", "output", "summary", "recommendation")}
                                        for label, p in report["plans"].items()},

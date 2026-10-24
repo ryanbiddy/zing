@@ -398,122 +398,57 @@ def _whisper_model_name() -> str:
 
 
 def _whisper_cache() -> tuple[Path | None, bool]:
-    """(hub cache dir, is the configured model already downloaded).
-
-    A cache dir of None means Zing could not locate one — reported as
-    unknown, never as absent.
-    """
-    for env in ("HF_HUB_CACHE", "HUGGINGFACE_HUB_CACHE"):
-        raw = os.environ.get(env, "").strip()
-        if raw:
-            root = Path(raw)
-            break
-    else:
-        home = os.environ.get("HF_HOME", "").strip()
-        root = (
-            Path(home) / "hub" if home
-            else Path.home() / ".cache" / "huggingface" / "hub"
-        )
-    if not root.is_dir():
-        return None, False
-    needle = f"faster-whisper-{_whisper_model_name()}"
-    return root, any(
-        entry.name.endswith(needle) for entry in root.iterdir()
-    )
+    from .study.speech_models import hub_cache, local_path
+    cache = hub_cache()
+    return cache if cache.is_dir() else None, local_path(_whisper_model_name()) is not None
 
 
 def check_whisper() -> Check:
-    if _has_module("faster_whisper"):
-        # Lane A's #353 points a failed model load at `zing doctor`
-        # ("usually a download or disk-space problem; run 'zing doctor'").
-        # Reporting only that the package imports answered READY in
-        # exactly the situation that produced that warning — so say
-        # whether the weights are actually here, and whether there is
-        # room for them. Measured: large-v2 is 3.09 GB on disk.
-        model = _whisper_model_name()
-        local = Path(model)
-        if local.is_dir() or local.is_absolute():
-            required = ("model.bin", "config.json", "tokenizer.json")
-            missing = [name for name in required
-                       if not (local / name).is_file() or (local / name).stat().st_size == 0]
-            return Check(
-                name="faster-whisper", tier=RECOMMENDED, ok=not missing,
-                detail=(f"package installed; local model '{model}' files present; native loading not probed"
-                        if not missing else f"local model '{model}' is incomplete: missing or empty {', '.join(missing)}"),
-                fix=("Set ZING_WHISPER_MODEL to a complete local faster-whisper model directory."
-                     if missing else ""),
-                degraded_mode=("transcription may be unavailable; study reports model-load failures"
-                               if missing else ""),
-                data={"model": model, "cached": not missing, "local": True, "missing": missing},
-            )
-        cache, cached = _whisper_cache()
-        if cached:
-            return Check(
-                name="faster-whisper",
-                tier=RECOMMENDED,
-                ok=True,
-                detail=f"package installed; model '{model}' is downloaded",
-                data={"model": model, "cached": True, "cache": str(cache)},
-            )
-        if cache is None:
-            return Check(
-                name="faster-whisper",
-                tier=RECOMMENDED,
-                ok=True,
-                detail=(
-                    f"package installed; model '{model}' downloads on the "
-                    "first `zing study` run (no Hugging Face cache directory "
-                    "yet, so its size could not be checked)"
-                ),
-                data={"model": model, "cached": False, "cache": None},
-            )
-        free_gb = shutil.disk_usage(cache).free / 1e9
-        if free_gb < 4.0:
-            return Check(
-                name="faster-whisper",
-                tier=RECOMMENDED,
-                ok=False,
-                detail=(
-                    f"package installed, but model '{model}' is not "
-                    f"downloaded and only {free_gb:.1f} GB is free at "
-                    f"{cache} (large-v2 needs ~3.1 GB)"
-                ),
-                fix=(
-                    "free space on that volume, or set HF_HOME to a roomier "
-                    "one, or pick a smaller model with "
-                    "ZING_WHISPER_MODEL=small"
-                ),
-                degraded_mode=(
-                    "the first `zing study` will fail its model download: "
-                    "empty transcript + a warning in the breakdown"
-                ),
-                data={
-                    "model": model,
-                    "cached": False,
-                    "free_gb": round(free_gb, 1),
-                },
-            )
-        return Check(
-            name="faster-whisper",
-            tier=RECOMMENDED,
-            ok=True,
-            detail=(
-                f"package installed; model '{model}' downloads on the first "
-                f"`zing study` run ({free_gb:.0f} GB free at the cache)"
-            ),
-            data={"model": model, "cached": False, "free_gb": round(free_gb, 1)},
-        )
-    return Check(
-        name="faster-whisper",
-        tier=RECOMMENDED,
-        ok=False,
-        detail="faster_whisper not importable",
-        fix='python -m pip install "myzing[study]"',
-        degraded_mode=(
-            "transcription is skipped: empty transcript + a warning in the "
-            "breakdown (words/pacing-by-speech unavailable)"
-        ),
-    )
+    from .study import speech_models
+    model = _whisper_model_name()
+    rows = speech_models.inventory()
+    row = next(r for r in rows if r["model"] == model)
+    installed = _has_module("faster_whisper")
+    data = {**row, "models": rows, "network_used": False}
+    cached = [r["model"] for r in rows if r["cached"]]
+    detail = ("package installed" if installed else "faster_whisper not importable")
+    detail += "; cached speech models: " + (", ".join(cached) or "none")
+    local = Path(model)
+    fix = 'python -m pip install "myzing[study]"' if not installed else ""
+    ok = installed
+    if local.is_dir() or local.is_absolute():
+        missing = [n for n in ("model.bin", "config.json", "tokenizer.json")
+                   if not (local / n).is_file() or not (local / n).stat().st_size]
+        data.update(local=True, missing=missing)
+        detail += "; native loading not probed" if not missing else "; local model is incomplete: " + ", ".join(missing)
+        if missing:
+            ok = False
+            fix = "Set ZING_WHISPER_MODEL to a complete local faster-whisper model directory."
+    elif row["cached"]:
+        detail += f"; model '{model}' is downloaded; native loading not probed"
+    else:
+        # The remedy below downloads into ZING_HOME, so measure that drive,
+        # not the Hugging Face cache (often another volume, or absent).
+        cache = speech_models.speech_root()
+        data["cache"] = str(cache)
+        detail += f"; configured model '{model}' is not cached. Choose speech setup in zing studio or zing doctor --speech-model small.en"
+        fix = fix or "Run zing doctor --speech-model small.en (English, ~486 MB), or --speech-model large-v2 (multilingual, ~3.09 GB); confirm the download."
+        where = speech_models.existing_ancestor(cache)
+        try:
+            free = shutil.disk_usage(where).free / 1e9
+        except OSError:
+            detail += f"; free space at {where} could not be checked"
+        else:
+            data["free_gb"] = round(free, 1)
+            detail += f"; {free:.1f} GB is free at {where} for Zing's speech cache"
+            if free < (row["download_bytes"] or 4e9) / 1e9 + .1:
+                ok = False
+                fix += " Free space, move ZING_HOME, or choose a smaller model."
+    return Check(name="faster-whisper", tier=RECOMMENDED, ok=ok, detail=detail, fix=fix,
+                 degraded_mode="" if installed and row["cached"] else
+                 ("transcription is skipped" if not installed else "transcription may be unavailable") +
+                 ": empty transcript + warning; spoken captions and continuity unavailable",
+                 data=data)
 
 
 def check_ocr() -> Check:
@@ -820,9 +755,14 @@ def check_heic() -> Check:
 def check_layout() -> Check:
     """Offline metadata/cache probe; never import native runtimes in MCP status."""
     from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
+    from myzing.layout.vision_models import inventory
+
+    vision = inventory()
+    model_data = {"vision_models": vision, "network_used": False}
 
     if not _has_module("cv2"):
-        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed", fix=INSTALL_HINT)
+        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed; vision inference unavailable", fix=INSTALL_HINT,
+                     data=model_data)
     try:
         version = metadata.version("opencv-python-headless")
         conflicts = []
@@ -836,16 +776,18 @@ def check_layout() -> Check:
             return Check("layout", OPTIONAL, False,
                          f"OpenCV headless package {version}; conflicting wheels: {conflicts}",
                          fix="Remove GUI/contrib OpenCV wheels, then reinstall opencv-python-headless==4.13.0.92; "
-                             "checkout: uv sync --all-extras --reinstall-package opencv-python-headless")
+                             "checkout: uv sync --all-extras --reinstall-package opencv-python-headless", data=model_data)
         path = model_path()
         valid = verified_model(path)
     except (metadata.PackageNotFoundError, OSError) as exc:
-        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT)
+        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT, data=model_data)
     return Check("layout", OPTIONAL, valid,
                  f"OpenCV headless package {version}; YuNet model {'verified' if valid else 'missing or corrupt'}; "
-                 "native inference not probed",
-                 fix="" if valid else "zing layout fetch-model",
-                 data={"model": str(path), "model_verified": valid, "network_used": False,
+                 + "; ".join(f"{r['name']}: {'verified' if r['verified'] else 'missing/corrupt (HOG/saliency fallback)'}" for r in vision)
+                 + "; native inference not probed",
+                 fix=("" if valid else "zing layout fetch-model; ") +
+                     ("" if all(r["verified"] for r in vision) else "zing layout fetch-model --vision"),
+                 data={**model_data, "model": str(path), "model_verified": valid,
                        "runtime_probe": "package-metadata-only"})
 
 
@@ -889,6 +831,26 @@ def check_audio() -> Check:
     )
 
 
+def check_audio_ml() -> Check:
+    from .audio.tag_models import model_paths, runtime_supported, runtime_version, INSTALL_HINT, FETCH_HINT, REVISION
+    present = _has_module("sherpa_onnx")
+    version = runtime_version() if present else None
+    supported = present and runtime_supported(version)
+    try:
+        paths = model_paths()
+        valid, detail = True, "CED weights verified"
+    except (OSError, RuntimeError) as exc:
+        paths, valid, detail = {}, False, str(exc)
+    runtime = (f"sherpa-onnx {version} installed; " if supported else
+               f"sherpa-onnx {version or 'of unknown version'} predates 2.0 (1.x links GPL espeak-ng); " if present else
+               "sherpa-onnx absent; ")
+    return Check("audio-ml", OPTIONAL, supported and valid, runtime + detail,
+                 fix="" if supported and valid else f"{INSTALL_HINT}; {FETCH_HINT}",
+                 degraded_mode="" if supported and valid else "vocal/music heuristics remain active; learned tags unavailable",
+                 data={"paths": {k: str(v) for k, v in paths.items()}, "revision": REVISION, "runtime_version": version,
+                       "model_verified": valid, "network_used": False, "runtime_probe": "package-metadata-only"})
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -906,6 +868,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_color(),
         check_hyperframes(),
         check_audio(),
+        check_audio_ml(),
         check_uoink(),
     ]
 
@@ -1015,28 +978,55 @@ def _print_human(checks: list[Check]) -> None:
             print("\n" + step)
 
 
-_USAGE = "usage: zing doctor [--json]"
+_USAGE = "usage: zing doctor [--json] [--speech-model small.en|large-v2|skip] [--audio-model ced-mini] [--yes]"
 
 
 def run(argv: list[str]) -> int:
-    if argv in (["-h"], ["--help"]):
-        print(_USAGE + "\n\n" + (__doc__ or ""))
-        return 0
-    if argv not in ([], ["--json"]):
-        unknown = next(
-            (arg for arg in argv if arg != "--json"),
-            None,
-        )
-        if unknown is not None:
-            detail = f"unknown argument {unknown!r}"
-        else:
-            detail = f"unsupported argument combination: {argv!r}"
-        print(f"{detail}\n{_USAGE}", file=sys.stderr)
+    import argparse
+    from .study import speech_models
+    parser = argparse.ArgumentParser(prog="zing doctor", description=__doc__)
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--speech-model", choices=["small.en", "large-v2", "skip"])
+    parser.add_argument("--audio-model", choices=["ced-mini"], help="set up optional learned audio tags (myzing[audio-ml])")
+    parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected model download")
+    unknown = [a for a in argv if a.startswith("--") and a not in {"--json", "--yes", "--help"}
+               and a.split("=", 1)[0] not in {"--speech-model", "--audio-model"}]  # --speech-model=small.en is the same option
+    if unknown:
+        print("unrecognized arguments: " + " ".join(unknown), file=sys.stderr)
         return 2
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        return int(exc.code)
+    if args.yes and not (args.speech_model or args.audio_model):
+        print("--yes requires --speech-model or --audio-model", file=sys.stderr)
+        return 2
+    receipt = audio_receipt = None
+    if args.speech_model or args.audio_model:
+        from .audio import tag_models
+        try:
+            if args.speech_model:
+                receipt = speech_models.setup(args.speech_model, yes=args.yes, json_mode=args.json)
+            if args.audio_model:
+                audio_receipt = tag_models.setup(args.audio_model, yes=args.yes, json_mode=args.json)
+        except (ValueError, OSError, RuntimeError) as exc:
+            if args.json:
+                print(json.dumps({"ok": False, "error": str(exc)}))
+            else:
+                print(str(exc), file=sys.stderr)
+            return 2
     checks = run_checks()
     summary = summarize(checks)
-    if "--json" in argv:
+    if receipt:
+        summary["speech_setup"] = receipt
+    if audio_receipt:
+        summary["audio_setup"] = audio_receipt
+    if args.json:
         print(json.dumps(summary, indent=2))
     else:
         _print_human(checks)
+        speech_models.print_inventory()
+        for item in (receipt, audio_receipt):
+            if item:
+                print(json.dumps(item, indent=2))
     return 0 if summary["ok"] else 1

@@ -243,6 +243,7 @@ itself may use the network; ask first when not already authorized.
 | fonts | Pillow and pinned headless OpenCV for font comparison; expanded font assets need an explicit fetch. |
 | layout | Pinned headless OpenCV; explicit MIT YuNet model fetch still required. |
 | color | NumPy for SDR look matching. |
+| audio-ml | Optional CED audio tags via sherpa-onnx; weights via `zing doctor --audio-model ced-mini`. |
 | audio | NumPy for audio measurements. |
 | all | All feature extras above. |
 | dev | pytest, MCP and render support for development. |
@@ -250,8 +251,13 @@ itself may use the network; ask first when not already authorized.
 Prefer uv's combined checkout install: its exclusion prevents overlapping GUI
 and headless OpenCV wheels. Plain pip does not honor that exclusion.
 The default Whisper model is large-v2 (about 3.1 GB); `ZING_WHISPER_MODEL` selects
-another model or existing local model directory. RapidOCR may acquire missing
-weights too. Do not run an uncached study as an offline operation.
+another cached model or existing local model directory. Study never downloads a
+speech model. Studio recommends small.en (~486 MB, English-only, less accurate)
+for a first draft, with large-v2 available. `zing doctor` and `zing setup` list
+cached models; `--speech-model small.en` runs the same pinned, hash-verified
+fetch after an explicit yes (`--yes` when non-interactive); `--audio-model ced-mini`
+does the same for the optional `audio-ml` tag weights (about 10.5 MB). RapidOCR may acquire
+missing weights too. Do not run an uncached study as an offline operation.
 Kokoro runtime/assets, OpenTimelineIO, and the pinned HyperFrames Node/browser/font
 sidecar require separate setup and are not installed by all-extras. The v2
 renderer composites HyperFrames captions with footage and audio; standalone

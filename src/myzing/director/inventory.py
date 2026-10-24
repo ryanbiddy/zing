@@ -11,6 +11,7 @@ from myzing.contracts import json_value
 from myzing.project.api import hash_file, load_project, project_status, resolve_path
 from myzing.schemas import Breakdown
 from myzing.timing import interval_problem
+from myzing.study.source_map import planning_shots
 
 from .models import ClipStudy
 from .asr_repair import repair_words
@@ -107,7 +108,10 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
             if abs(b.meta.duration - item.duration) > .05:
                 raise ValueError("study duration differs from project probe; rescan and restudy")
             item.duration = min(item.duration, b.meta.duration)
-            item.words, item.asr_repair = repair_words(b.words, item.duration, enabled=repair_asr)
+            item.audio_tags = b.provenance.get("audio_tags", {})
+            from myzing.captions.timing import mark_study_clamp
+            source_words = mark_study_clamp(b.words, b.provenance)
+            item.words, item.asr_repair = repair_words(source_words, item.duration, enabled=repair_asr)
             if item.asr_repair["repairs"]:
                 item.warnings.append(f"ASR repair {source.name}: {len(item.asr_repair['repairs'])} word timings "
                                      "interpolated within 2s windows; originals and per-word repairs retained in inventory.asr_repair.")
@@ -126,7 +130,7 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                 if problem or shot.start < previous:
                     raise ValueError(f"invalid shot intervals: {problem or 'overlap/order'}")
                 previous = shot.end
-            item.shots = b.shots
+            item.shots = planning_shots(b)
             raw = b.provenance.get("raw_mode", {})
             if not isinstance(raw, dict):
                 raise ValueError("raw_mode must be an object")
@@ -146,6 +150,8 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                 if (str(audio_source.resolve()) not in paths | {str((path.parent / b.meta.media_path).resolve())}
                         or abs(audio.duration_seconds - item.duration) > .05 or audio.truncated):
                     raise ValueError("audio-map source/duration does not match this complete study")
+                if audio.tags:
+                    item.audio_tags = audio.tags.to_dict()
                 silence = []
                 for segment in audio.segments:
                     if segment.label != "silence" or segment.start >= item.duration:

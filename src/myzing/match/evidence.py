@@ -110,7 +110,7 @@ def _metric(target, observed, tolerance, basis, *, approximate=False):
             "basis": basis, "reason": reason}
 
 
-def report(recipe, rendered, geometry, color, verification, plan, audio_measurements=None):
+def report(recipe, rendered, geometry, color, verification, plan, audio_measurements=None, *, skin=None):
     facts = {f.name: f.value for f in recipe.measured}
     durations = facts.get("shot_durations", [])
     from myzing.director.plans import REPORT_PREFIX
@@ -146,16 +146,11 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
         placement.update(status="approximate" if iou >= .8 else "miss", median_box_iou=iou,
                          reason="Different text and sparse samples: box IoU is a style proxy, not known-font fidelity.")
     dimensions["caption_placement"] = placement
-    target_color = facts.get("color.luma_percentiles")
-    output_color = (color.get("aggregate") or {}).get("luma_percentiles") if color else None
-    delta = max(abs(a - b) for a, b in zip(target_color, output_color)) if target_color and output_color else None
-    dimensions["color"] = {"status": "miss" if delta is not None and delta > .15 else "approximate",
-                           "target": target_color, "observed": output_color, "max_luma_percentile_delta": delta,
-                           "picture_area": color.get("picture_area") if color else None,
-                           "tolerance": .15, "reason": ("No sample had a usable sharp picture area; color is unmeasured. "
-                                                        if color and color.get("status") == "unmeasured" else "")
-                           + "Unpaired scene distributions in encoded Rec.709; human review required. "
-                           "This is not a paired Delta E 2000 test or recovery of an original LUT."}
+    from .color import from_recipe
+    dimensions["color"] = from_recipe(recipe, color)
+    if skin is not None:
+        # Same faces before/after each clip's own grade; not a reference comparison.
+        dimensions["skin_preservation"] = skin
     dimensions["typography"] = {"status": "approximate", "reason": "Pinned substitutes or disclosed system defaults; original font unknown."}
     continuity = planning.get("continuity", {})
     if continuity:
@@ -199,12 +194,23 @@ def markdown(summary):
                  ("shot_pace", "first_cut", "caption_timing", "caption_placement", "color")]
         failed = [k for k, v in grades.items() if v["status"] == "miss"]
         state = "render complete" if row["status"] == "ready" else row["status"]
+        if row.get("alternative"):
+            state += "; " + row["alternative"]["label"]
         lines.append("| " + " | ".join([label, state, ", ".join(failed) or "none established; unverified dimensions remain", *cells]) + " |")
     for label, row in summary["drafts"].items():
         if row["status"] == "ready":
             lines += ["", f"{label}: [video](<{link(row['video'])}>) · [plan](<{link(row['plan'])}>) · "
                       f"[timeline](<{link(row['timeline'])}>) · [match report](<{link(row['report'])}>)"]
+            if row.get("alternative"):
+                lines += ["", f"{label}: {row['alternative']['label']}: {row['alternative']['reason']}. "
+                          "It never counts as a style match pass."]
             lines += ["", *dimension_notes(row.get("dimensions", {}))]
+            color = row.get("dimensions", {}).get("color", {})
+            if color.get("status") != "miss" and color.get("reason"):
+                lines += ["", f"color: {color['status']}. {color['reason']}"]
+            skin = row.get("dimensions", {}).get("skin_preservation", {})
+            if skin.get("status") != "miss" and skin.get("reason"):
+                lines += ["", f"skin preservation: {skin['status']}. {skin['reason']}"]
             for track in (row.get("music") or {}).get("tracks", []):
                 lines += ["", f"Music: {Path(track['path']).name}. {track['reason']}",
                           track["advice"]["licensing"]]
@@ -220,6 +226,8 @@ def markdown(summary):
                           f"{measured['speech_to_music_lu']} LU below source speech. "
                           f"Mix: {measured['integrated']['integrated_lufs']} LUFS, "
                           f"{measured['integrated']['true_peak_dbtp']} dBTP. Unknown values remain unmeasured."]
+    if summary.get("missing_drafts"):
+        lines += ["", "Not delivered: " + summary["missing_drafts"]["reason"]]
     if summary.get("director_comparison"):
         lines += ["", f"[Full planning evidence](<{link(summary['director_comparison'])}>)"]
     if summary.get("reference_text_roles"):

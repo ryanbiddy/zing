@@ -40,7 +40,7 @@ list — update both together):
 1. **ffmpeg & ffprobe (required):** video and audio analysis. If missing on Windows: `winget install Gyan.FFmpeg`.
 2. **yt-dlp (recommended):** fetching remote reference videos, including its JS-runtime and EJS-solver readiness for YouTube.
 3. **scenedetect (recommended):** shot-boundary detection.
-4. **faster-whisper (recommended):** transcription with word-level timestamps.
+4. **faster-whisper (recommended):** transcription with word-level timestamps, cached model inventory and explicit verified model setup. See [doctor and speech setup](DOCTOR.md).
 5. **ocr — rapidocr (recommended):** burned-caption text extraction from frames.
 6. **tts (optional):** voiceover synthesis (kokoro local, or ElevenLabs with an API key).
 7. **uoink (optional):** the suite peer on port 5179, probed per INTEGRATION-CONTRACT v1 (absent is calm; unhealthy names its code).
@@ -158,7 +158,7 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 349
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 410
 ```
 
 CI (`.github/workflows/ci.yml`) runs that gate on four FFmpeg stacks, with
@@ -186,9 +186,17 @@ requires `ZING_CG2_REAL_ROOT` to name its local fixture directory. The shared
 `real_model(env=...)` marker skips before fixture/model loading; its reason is
 registered in `tests/test_skip_registry.py`.
 
+`ZING_REQUIRE_VISION=1` opts into the [person and pet tests](VIS1.md), using
+pre-provisioned models and the three small CC0 images in
+`tests/fixtures/vision`. These tests never download assets.
+
 Default `pytest` needs no HF offline environment variables to avoid real model
 loads. `tests/test_real_model_opt_in.py` removes those variables and poisons
 the ASR loader and hub download functions to prove the default skips first.
 The opted-in Whisper test also sets `local_files_only=True`: provision a model
 explicitly outside the tests before running it. The mandatory FFmpeg gate
 opts into OCR with pre-provisioned assets; missing assets still fail the gate.
+
+The optional audio-ml doctor check verifies the CED asset hashes and sherpa-onnx package presence without inference or network access.
+
+AUD1 real-model replay: set ZING_AUD1_REAL=1, ZING_AUD1_MEDIA to hash-verified acceptance copies, and ZING_AUD1_WHISPER to a complete local tiny model directory; run pytest -q tests/test_audio_tagging_real.py. See [Audio](AUDIO.md). Tests never download these assets.

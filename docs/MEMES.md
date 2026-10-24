@@ -94,7 +94,7 @@ is available.
 
 ### Pets, objects and protect boxes
 
-Text also avoids non-face subjects. Each photo gets a model-free subject
+Text also avoids non-face subjects. Without semantic detections, each photo gets a model-free subject
 estimate: color distance from the photo's border color plus local edge
 strength, a mild center prior, an Otsu threshold and the strongest connected
 region (nearby pieces join it). It marks "a distinct region", never a dog,

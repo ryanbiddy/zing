@@ -33,18 +33,22 @@ def frame(photo: Photo, aspect: str, layout: str, fit: str = "contain",
     bar = _bar(layout, texts, (w, h))
     focus, basis = focus_box([[f["x"], f["y"], f["width"], f["height"]] for f in photo.faces],
                              photo.face_method, photo.subject)
+    if photo.detections and basis != "no_detector":
+        from myzing.memes.framing import union
+        boxes = [[d["box"][n] for n in ("x", "y", "width", "height")] for d in photo.detections]
+        focus, basis = union(([focus] if focus else []) + boxes), "subject"
     return resolve(fit, (photo.width, photo.height), (w, h - bar), focus, basis)
 
 
 def protected_boxes(photo: Photo, protect: list[list[float]] | None = None) -> list[Box]:
     """Faces (or the center heuristic), the subject estimate, and user boxes."""
-    if photo.face_method == "center_heuristic" and photo.subject_estimate is None and not protect:
+    if photo.face_method == "center_heuristic" and photo.subject_estimate is None and not protect and not photo.detections:
         return [Box(.2, .2, .6, .6)]
-    if photo.face_method != "center_heuristic" and photo.subject_estimate is None and not protect:
+    if photo.face_method != "center_heuristic" and photo.subject_estimate is None and not protect and not photo.detections:
         return [Box.from_dict(face).pad(.025) for face in photo.faces]
     faces = [[f["x"], f["y"], f["width"], f["height"]] for f in photo.faces]
     return [Box(*region["box"]) for region in
-            protected_regions(faces, photo.face_method, photo.subject_estimate, protect)]
+            protected_regions(faces, photo.face_method, photo.subject_estimate, protect, photo.detections)]
 
 
 def output_faces(photo: Photo, aspect: str, layout: str,
@@ -144,6 +148,8 @@ def place(photo: Photo, texts: list[str], aspect: str, requested: str = "auto",
     if len(texts) > 3:
         raise MemeError("No safe label placement found; use at most three beats for an external caption bar.")
     kinds = []
+    if photo.detections:
+        kinds.append("detected " + ", ".join(sorted({d["class_name"] for d in photo.detections})))
     if photo.faces or photo.face_method == "center_heuristic":
         kinds.append("faces" if photo.face_method != "center_heuristic" else "the central-60% face heuristic")
     if photo.subject_estimate is not None and any(

@@ -38,6 +38,11 @@ def unsupported_features(composition: Composition) -> list[str]:
     for caption in composition.captions:
         if caption.backend not in {"ass", "hyperframes"}:
             problems.append(f"caption {caption.id}: {caption.backend} caption backend")
+        if caption.style and caption.style.highlight_box_color:
+            if caption.backend != "ass":
+                problems.append(f"caption {caption.id}: active-word backgrounds require backend ass")
+            if not caption.word_timed:
+                problems.append(f"caption {caption.id}: active-word backgrounds require word_timed and words")
     for audio in composition.audio:
         if audio.role not in {"music", "voiceover"} or audio.role != audio.kind:
             problems.append(f"audio {audio.id}: role={audio.role}, kind={audio.kind}")
@@ -147,6 +152,15 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
     paths = {}
     for asset in composition.assets:
         paths[asset.id] = _path(asset.path, base_dir, f"asset {asset.id}")
+    # A plan may carry a bundled face's absolute path from another machine.
+    # Resolve the identical pinned bytes before passing a private family to libass.
+    from myzing.captions.metrics import bundled_path
+    for caption in composition.captions:
+        if caption.preset and caption.font and not (base_dir / caption.font.path).is_file():
+            local = bundled_path(caption.font.sha256)
+            if local:
+                caption.font.path = str(local)
+                warnings.append(f"caption {caption.id}: missing font path resolved to the identical bundled face.")
     font_paths = {
         caption.id: _path(caption.font.path, base_dir, f"caption {caption.id} font")
         for caption in composition.captions if caption.font is not None
@@ -195,6 +209,10 @@ def render_composition(
     base_dir = (base_dir or Path.cwd()).expanduser().resolve()
     prepared = prepare_composition(composition, base_dir)
     c = prepared.composition
+    if c.delivery is None and c.brief is not None:
+        from myzing.composition.encoding import DeliveryEncoding
+        if c.brief.target_mb is not None or c.brief.video_bitrate_kbps is not None:
+            c.delivery = DeliveryEncoding(c.brief.target_mb, c.brief.video_bitrate_kbps)
     if any(a.duck_under_speech and a.duck_scope == "source_speech" and a.kind != "music" for a in c.audio):
         raise EDLValidationError("source_speech ducking applies to music tracks only")
     from myzing.music import dialogue
@@ -245,6 +263,8 @@ def render_composition(
     output = Path(output).expanduser().resolve()
     if output in prepared.input_paths:
         raise pipeline.RenderError("output path must not overwrite an input media, font or LUT file")
+    if c.delivery and (output.with_suffix(".encoding.json") in prepared.input_paths or output.with_suffix(".encoding.json").is_symlink()):
+        raise pipeline.RenderError("encoding receipt must not overwrite an input or symlink")
     if c.audio and (output.with_suffix(".music.json") in prepared.input_paths or output.with_suffix(".music.json").is_symlink()):
         raise pipeline.RenderError("music measurement output must not overwrite an input or symlink")
     hf_plan = None
@@ -311,6 +331,9 @@ def render_composition(
         reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "filter graph.txt", "rendered.mp4")}
         reserved.update(directory / name for name in ("music-stem.wav", "source-stem.wav", "music-duck.wav"))
         reserved.add(directory / "music-measurements.json")
+        if c.delivery:
+            reserved.update(directory / name for name in ("budget-pass1.mp4", "delivery-encoding.json",
+                            "x264-budget-0.log", "x264-budget-0.log.mbtree", "x264-budget.log"))
         owned_dirs = [directory / "fonts"]
         if hf_plan is not None:
             owned_dirs.extend((directory / "hyperframes-overlays", directory / "hyperframes"))
@@ -356,6 +379,7 @@ def render_composition(
             music_metadata=music_evidence.to_dict(),
             duck=music_evidence.duck(),
             measure_music=measure_music,
+            delivery=c.delivery, ffprobe=ffprobe,
         )
 
     if work_dir is not None:

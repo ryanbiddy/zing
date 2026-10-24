@@ -18,7 +18,7 @@ DOCS = [
 def test_documented_ffmpeg_counts_match_full_ci_gate():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     counts = re.findall(r"pytest -q -m ffmpeg --expected-ffmpeg-tests (\d+)", workflow)
-    assert counts and len(set(counts)) == 1
+    assert len(counts) == 3 and len(set(counts)) == 1
     expected = counts[0]
     quoted = []
     for doc in DOCS:
@@ -72,6 +72,10 @@ def test_studio_entry_point_and_mcp_counts():
         assert counts and all(int(n) == len(tools) for n in counts), (file, counts)
     assert _usage().startswith("Start here: zing studio")
     assert (ROOT / "docs/STUDIO.md").is_file()
+    presets = (ROOT / "docs/CAPTION-PRESETS.md").read_text(encoding="utf-8")
+    assert all(name in presets for name in ("punch", "box", "clean"))
+    assert all(aspect in presets for aspect in ("16:9", "1:1", "9:16"))
+    assert "short side" in presets
 
 def test_explain_documented_surface():
     assert "zing_explain" in (ROOT / "docs/CONNECT.md").read_text(encoding="utf-8")
@@ -82,12 +86,12 @@ def test_explain_documented_surface():
 def test_extras_tables_match_package():
     project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     section = project.split("[project.optional-dependencies]", 1)[1].split("\n[", 1)[0]
-    extras = set(re.findall(r"^([a-z]+) =", section, re.M))
+    extras = set(re.findall(r"^([a-z][a-z-]*) =", section, re.M))
     assert extras
     for name in ("README.md", "skills/zing/references/commands.md"):
         text = (ROOT / name).read_text(encoding="utf-8")
         table = text.split("| Extra | Enables |", 1)[1].split("\n\n", 1)[0]
-        documented = set(re.findall(r"^\| `?([a-z]+)`? \|", table, re.M))
+        documented = set(re.findall(r"^\| `?([a-z][a-z-]*)`? \|", table, re.M))
         assert documented == extras, (name, documented ^ extras)
 
 

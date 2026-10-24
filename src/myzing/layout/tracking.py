@@ -1,10 +1,10 @@
-"""Geometric linking only: no face identity or embeddings."""
+"""Geometric and color-appearance linking: no named identity or embeddings."""
 
 from __future__ import annotations
 
 import math
 
-from .types import Box, Detection, FaceTrack, FrameDetections, Keyframe, bounds, number, union
+from .types import Box, Detection, FaceTrack, FrameDetections, Keyframe, TrackObservation, bounds, number, union
 
 
 def iou(a: Box, b: Box) -> float:
@@ -78,5 +78,104 @@ def build_tracks(
         if start > 0 or end < duration:
             warnings.append("track_limited: face position outside the held interval is unknown")
         result.append(FaceTrack(f"face-{index + 1}", keys,
-                                min(d.confidence for _, _, d in chain), warnings))
+                                min(d.confidence for _, _, d in chain), warnings,
+                                [TrackObservation(t, d.box, d.appearance,
+                                                  d.confidence if d.class_name else None,
+                                                  d.class_name, d.detector) for _, t, d in chain]
+                                if any(d.appearance or d.class_name for _, _, d in chain) else []))
     return result
+
+
+def appearance(image, box):
+    """Small RGB histograms, not identity embeddings; lighting changes can veto links."""
+    h, w = image.shape[:2]
+    crop = image[max(0, int(box.y*h)):min(h, max(1, int(box.bottom*h))),
+                 max(0, int(box.x*w)):min(w, max(1, int(box.right*w)))]
+    if not crop.size:
+        return []
+    import numpy as np
+    return [float(v / (crop.shape[0] * crop.shape[1] * 3)) for channel in range(3)
+            for v in np.histogram(crop[:, :, channel], bins=8, range=(0, 256))[0]]
+
+
+AMBIGUITY_MARGIN = .05  # Heuristic-confidence units; see stitch_tracks.
+
+
+def stitch_tracks(tracks, *, max_gap=1.25):
+    """Conservative fragment links within one shot, using raw observations.
+
+    Held/smoothed intervals may overlap. Two detections at the same sampled
+    instant are a hard conflict, even with similar colors or overlapping boxes.
+    Missing appearance leaves fragments separate. Confidence is a heuristic.
+    """
+    from dataclasses import replace
+    number(max_gap, "stitch max_gap", 0, 10)
+    groups = [[t] for t in tracks]
+
+    def observations(group):
+        return sorted((o for t in group for o in t.observations), key=lambda o: o.time)
+
+    def link(a, b):
+        aa, bb = observations(a), observations(b)
+        if not aa or not bb:
+            return None
+        if any(abs(x.time-y.time) < 1e-6 for x in aa for y in bb):
+            return None
+        if aa[0].time > bb[0].time:
+            aa, bb = bb, aa
+        if bb[0].time < aa[-1].time:
+            # Interleaved observations could be two faces with alternating recall.
+            return None
+        gap = bb[0].time-aa[-1].time
+        if gap > max_gap:
+            return None
+        x, y = aa[-1], bb[0]
+        if not x.appearance or len(x.appearance) != len(y.appearance):
+            return None
+        similarity = 1 - sum(abs(p-q) for p, q in zip(x.appearance, y.appearance)) / 2
+        size_ratio = max(x.box.width/y.box.width, y.box.width/x.box.width,
+                         x.box.height/y.box.height, y.box.height/x.box.height)
+        distance = math.dist(x.box.center, y.box.center) / max(.01, min(x.box.width, x.box.height))
+        if similarity < .82 or size_ratio > 1.3 or distance > .45:
+            return None
+        confidence = min(similarity, 1/size_ratio, 1-distance/2)
+        return {"version": 1, "fragments": [t.id for t in [*a, *b]], "gap_seconds": gap,
+                "appearance_similarity": similarity, "size_ratio": size_ratio,
+                "center_distance_face_units": distance, "confidence": confidence,
+                "covisibility": "no equal-time or interleaved raw detections",
+                "method": "raw-observation position/size/RGB-histogram; not biometric identity"}
+
+    while True:
+        candidates = [(e["confidence"], i, j, e) for i, a in enumerate(groups) for j, b in enumerate(groups)
+                      if i < j and (e := link(a, b)) is not None]
+        if not candidates:
+            break
+        # An equally plausible alternative is uncertainty, not an arbitrary
+        # identity: a link is refused while another candidate sharing either
+        # endpoint scores within AMBIGUITY_MARGIN (.05) of its confidence.
+        candidates.sort(key=lambda c: (-c[0], c[1], c[2]))
+        def endpoints(candidate):
+            i, j = candidate[1:3]
+            return (i, j) if observations(groups[i])[0].time < observations(groups[j])[0].time else (j, i)
+        selected = next((c for c in candidates if not any(
+            other is not c and abs(other[0]-c[0]) < AMBIGUITY_MARGIN and
+            (endpoints(c)[0] == endpoints(other)[0] or endpoints(c)[1] == endpoints(other)[1])
+            for other in candidates)), None)
+        if selected is None:
+            break
+        _, i, j, evidence = selected
+        combined = [*groups[i], *groups[j]]
+        obs = observations(combined)
+        # Raw boxes preserve the measured face; retain conservative padding from
+        # contributing tracks by taking their envelopes at each observation.
+        from .types import box_at
+        times = sorted({k.time for t in combined for k in t.keyframes})
+        keys = [Keyframe(time, union([box_at(t.keyframes, time) for t in combined
+                                     if t.keyframes[0].time <= time <= t.keyframes[-1].time])) for time in times]
+        merged = replace(combined[0], keyframes=keys, observations=obs,
+                         confidence=min(evidence["confidence"], *(t.confidence for t in combined)),
+                         warnings=list(dict.fromkeys(w for t in combined for w in t.warnings)),
+                         stitching=[e for t in combined for e in t.stitching] + [evidence])
+        groups[i] = [merged]
+        groups.pop(j)
+    return [t for group in groups for t in group]

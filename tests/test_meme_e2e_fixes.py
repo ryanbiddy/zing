@@ -183,7 +183,8 @@ def test_no_detector_never_crops_on_a_subject_beside_a_face(tmp_path, aspect):
     w, h = ASPECTS[aspect]
     result = render_meme(["top"], image=str(source), aspect=aspect, out=str(tmp_path / "out.png"))
     assert result["fit"] == "blur" and result["focus_basis"] == "no_detector"
-    assert result["warnings"] == [framing.BLUR_NO_DETECTOR]
+    assert framing.BLUR_NO_DETECTOR in result["warnings"]
+    assert any("model-free saliency" in note for note in result["warnings"])
     assert inside(fit_rect((600, 900), Rect(0, 0, w, h), "blur", None), FACE_ABOVE, w, h)
     # The still workflow (photo.subject recorded at inventory) behaves the same.
     folder = tmp_path / "photos"
@@ -203,10 +204,12 @@ def test_no_detector_and_no_subject_never_crops(tmp_path):
         result = render_meme(["a"], image=str(path), aspect=aspect,
                              out=str(tmp_path / (aspect.replace(":", "x") + ".png")))
         assert result["fit"] == "blur" and result["focus"] is None and result["focus_basis"] == "no_detector"
-        assert result["warnings"] == [framing.BLUR_NO_DETECTOR]
+        assert framing.BLUR_NO_DETECTOR in result["warnings"]
+        assert any("model-free saliency" in note for note in result["warnings"])
     # The face-blind centered crop is only ever an explicit request.
     cover = render_meme(["a"], image=str(path), fit="cover", out=str(tmp_path / "cover.png"))
-    assert cover["fit"] == "cover" and cover["warnings"] == []
+    assert cover["fit"] == "cover"
+    assert any("model-free saliency" in note for note in cover["warnings"])
     explicit = render_meme(["a"], image=str(path), fit="fill", out=str(tmp_path / "fill.png"))
     assert explicit["fit"] == "cover" and "may cut faces" in explicit["warnings"][0]
 
@@ -216,7 +219,7 @@ def test_detector_with_no_faces_crops_only_on_a_large_measured_subject(tmp_path,
     flat = tmp_path / "flat.png"
     Image.new("RGB", (640, 480), (63, 97, 122)).save(flat)
     blurred = render_meme(["a"], image=str(flat), out=str(tmp_path / "flat-out.png"))
-    assert blurred["fit"] == "blur" and blurred["warnings"] == [framing.BLUR_NO_EVIDENCE]
+    assert blurred["fit"] == "blur" and framing.BLUR_NO_EVIDENCE in blurred["warnings"]
     # 4:3 into 1:1 keeps 75% of the photo: a subject crop is allowed, with a caveat.
     source = subject_photo(tmp_path / "subject.png")
     filled = render_meme(["a"], image=str(source), aspect="1:1", out=str(tmp_path / "subject-out.png"))

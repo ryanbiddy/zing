@@ -114,11 +114,15 @@ def test_color_ignores_differently_colored_fill(tmp_path, size, mode, portrait):
     reference = tmp_path / "yellow.mp4"
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "color=yellow:s=160x90:d=1:r=30",
                     "-c:v", "libx264", "-crf", "10", "-pix_fmt", "yuv420p", str(reference)], check=True, capture_output=True)
-    target = measure_video(reference, count=4)[0].aggregate.luma_percentiles
+    target = measure_video(reference, count=4)[0]
     full = measure_video(video, count=4)[0].to_dict()
     sharp = measure_output_color(video, plan, count=4)
     recipe = build_style_recipe(Breakdown(VideoMeta("ref", "file", duration=1, fps=30)))
-    recipe.measured.append(replace(recipe.measured[0], name="color.luma_percentiles", value=target))
+    from myzing.style_recipe import Coverage
+    recipe.measured.extend(replace(recipe.measured[0], name="color."+key, value=value,
+                                   coverage=Coverage(4, 1, "generated", target.coverage),
+                                   confidence=target.confidence, confidence_kind="heuristic")
+                           for key, value in target.aggregate.to_dict().items())
     b = Breakdown(VideoMeta("out", "file", duration=1, fps=30))
     assert report(recipe, b, {}, full, {}, plan)["dimensions"]["color"]["status"] == "miss"
     checked = report(recipe, b, {}, sharp, {}, plan)["dimensions"]["color"]

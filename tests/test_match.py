@@ -42,6 +42,30 @@ def test_checkpoints_hash_outputs_and_name_failure_logs(tmp_path):
     assert "broken encoder" in Path(failure["log"]).read_text()
 
 
+def test_study_checkpoint_result_tracks_breakdown_content(tmp_path, monkeypatch, zing_workspace):
+    """Later steps key on study results; a restudy with new evidence must change them."""
+    from myzing.match import api
+    from myzing.project.api import hash_file
+    from myzing.schemas import Breakdown, Shot, VideoMeta
+
+    source = tmp_path / "clip.mp4"
+    source.write_bytes(b"clip")
+    marker = {"value": 1}
+
+    def fake_study(path, **kwargs):
+        b = Breakdown(VideoMeta(str(path), "file", duration=2, fps=30, media_path="clip.mp4"),
+                      shots=[Shot(0, 0, 2)])
+        b.provenance["source_map"] = {"accepted": marker["value"]}
+        return b
+    monkeypatch.setattr(api, "study", fake_study)
+    first = api._study(source, tmp_path / "workspace", raw=True)
+    assert first["sha256"] == hash_file(Path(first["path"]))
+    marker["value"] = 2  # Same paths and warnings; different measured evidence.
+    second = api._study(source, tmp_path / "workspace", raw=True)
+    assert (first["path"], first["warnings"]) == (second["path"], second["warnings"])
+    assert second["sha256"] != first["sha256"] and second != first
+
+
 def test_url_without_consent_never_acquires(tmp_path, monkeypatch, zing_workspace):
     clips = tmp_path / "clips"
     clips.mkdir()

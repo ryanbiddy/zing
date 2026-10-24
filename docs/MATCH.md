@@ -1,5 +1,8 @@
 # Match a reference with your clips
 
+Source timing uses the [confirmed source map](SOURCE-MAP.md). Public study
+shots remain unchanged; extra planning cuts carry frame evidence and confidence.
+
 ```sh
 zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --answers '{"target_length_seconds":6,"aspect":"16:9"}'
 zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --resume --json
@@ -108,13 +111,27 @@ Caption timing and opening variety cannot outweigh timing feasibility. Music
 snapping also rejects trims that move either timing dimension farther outside
 its band.
 
-If the bounded search cannot supply three distinct in-band edits, it ranks
-completed edits by the number of timing violations, then total seconds outside
-the bands. Selection evidence records the distances, completed choices examined,
-and the number of jointly in-band choices found. A fallback says **outside band
-because** and identifies its natural cut or whole-clause/duration constraint.
-It says whether the draft is the closest completed edit found, or whether closer
-edits existed but could not form three meaningfully distinct drafts. Planned
+If the bounded search finds in-band edits but fewer than three meaningfully
+distinct ones, it keeps every distinct in-band edit, most different first, even
+when two are similar ("B and C are similar because the footage allows few
+in-band openings"). Each remaining draft is the most different edit left, even
+outside the bands, and is labeled `C: alternative outside the reference timing:
+<reason>` in the plan notes, the director's and match's `comparison.json`
+(`alternatives`, and `alternative` on each delivery row), `comparison.md`, the
+MCP results and studio's finish table. An alternative never counts as a style
+pass, and studio's pick prefers in-band drafts. A draft is never a duplicate:
+edits that land on the same 30 fps frames are one edit, and when no further
+distinct edit exists fewer drafts are delivered with the reason
+(`missing_drafts`). Without a measured reference band nothing is relaxed, so
+unmeasured timing still requires three distinct drafts or a named shortage.
+
+Outside-band drafts are ranked by the number of timing violations, then total
+seconds outside the bands. Selection evidence records the distances, completed
+choices examined, and the number of distinct jointly in-band choices found. A
+fallback says **outside band because** and identifies its natural cut or
+whole-clause/duration constraint. It says whether the draft is the closest
+completed edit found, or whether closer edits existed but could not form three
+meaningfully distinct drafts. Planned
 values and reasons describe the final edit after music snapping; when snapping
 moved a timing value, the reason gives both numbers.
 This is a search result, not proof that no human edit of the footage could work.
@@ -143,8 +160,33 @@ Reports record each region and sample rectangle. Unrecorded baked-in bars cannot
 be inferred from a plan that declares the whole source as picture.
 
 Sparse OCR cannot certify one-frame switches or ASR accuracy. Color compares
-unpaired scene distributions with the unchanged 0.15 maximum luma-percentile
-delta, so it requires human review and makes no paired Delta E or original-LUT claim.
+CIELAB lightness, mean a*/b* cast, chroma, contrast and tonal cast on the sharp
+picture. Each component has an inner pass band and an outer miss band; values
+between them stay approximate. A miss in any component makes color miss. A pass
+requires all measured components inside their inner bands, at least four usable
+samples per input, complete requested/shot coverage and confidence at least 0.5.
+Legacy luma-only, missing, sparse or low-confidence matching evidence cannot pass.
+The report retains the luma delta for audits, but it does not determine status.
+
+Scene content is not the grade. Each report measures how much each video's own
+sampled shots differ; a component that exceeds its miss limit by less than two
+standard errors of that shot-to-shot variation is approximate ("Scene content
+differs"), not a miss. That allowance never turns a difference into a pass. A
+one-shot reference and a one-shot draft of different scenes can still miss, so
+inspect the crops before attributing a difference to grading. Per-component
+deltas explain the direction and size of each difference. See
+[color calibration](color.md#color2-match-report-bands) for thresholds and fixtures.
+These are unpaired scene statistics, not paired Delta E or original-LUT recovery.
+
+Skin is never compared with the reference. The reference's people and the
+draft's people are different people under different light, so their skin says
+who is on screen, not how the draft was graded, and judging one person's skin
+tone against another's is wrong. Instead, `skin_preservation` is a separate
+dimension: for each graded clip, faces found in the ungraded source frames are
+measured on the same pixels before and after that clip's own LUT, and a hue shift
+toward green or magenta above 5 a*/b* units misses (2.5 to 5 is approximate). It
+does not affect the color dimension. No detector, no faces, or no grade leaves it
+unmeasured or absent, never passed. See [skin preservation](color.md#skin-preservation).
 “Ready” means playable and reported; it does not mean every style dimension passed.
 
 `comparison.md` includes abstentions, disagreements and their reasons. JSON has

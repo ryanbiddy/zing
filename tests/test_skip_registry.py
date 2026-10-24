@@ -28,6 +28,16 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "set ZING_REQUIRE_VISION=1": (
+        "real recognition requires explicitly provisioned Apache-2.0 models and licensed photos; "
+        "synthetic shapes cannot establish recall. PRODUCT SURFACE: doctor lists verified vision "
+        "models, layout fetch-model --vision provisions them explicitly, and docs/VIS1.md documents "
+        "offline fixtures and the opt-in. Missing models retain labeled HOG/saliency fallbacks."
+    ),
+    "FFmpeg not installed": (
+        "generated source-map media requires the encoder. PRODUCT SURFACE: zing doctor "
+        "reports FFmpeg availability; the strict FFmpeg gate forbids this skip."
+    ),
     "real-model test requires explicit opt-in": (
         "normal pytest never loads real Whisper, OCR, YuNet or Kokoro models without an explicit test opt-in. "
         "PRODUCT SURFACE: docs/DEVELOPER-GUIDE.md lists each environment variable; the real-ASR fixture "
@@ -126,6 +136,12 @@ REGISTERED_SKIPS = {
         "there does project-lock release retry; POSIX renames never hit it. "
         "windows-latest CI executes this case. PRODUCT SURFACE: none needed — a "
         "platform detail of lock cleanup, not a user-visible capability."
+    ),
+    "Windows status-reader sharing": (
+        "Windows can briefly refuse replacement while a Studio status reader has the "
+        "old JSON file open; POSIX permits that replacement. windows-latest runs this "
+        "regression. PRODUCT SURFACE: studio.models.write_json retries the transient "
+        "sharing failure so polling does not turn a running Studio job into a failure."
     ),
     "local OCR runtime/models are not installed": (
         "photo text is optional evidence for offline meme lines; it needs the study OCR runtime and "

@@ -19,8 +19,11 @@ studies need one authoritative copy. Missing, stale, unfinished or invalid
 studies are listed in the comparison report with a `zing study` remedy.
 
 The MCP equivalent is `plan_drafts(project, recipe, out, seed=17)`. It returns
-paths and a summary. `status: "ready"` means three plans were written;
-`status: "shortage"` means no trio was written. A shortage is a valid tool
+paths and a summary. `status: "ready"` means plans were written: three, or
+fewer when the footage offers no further distinct edit inside a measured
+reference's timing (`missing_drafts` gives the reason; a draft is never
+duplicated). `alternatives` names any draft outside the reference timing.
+`status: "shortage"` means no plan was written. A shortage is a valid tool
 result, while malformed inputs and filesystem errors use the usual error
 envelope. The CLI exits 1 for either a shortage or an error.
 

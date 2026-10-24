@@ -52,7 +52,7 @@ def test_batched_pipeline_runs_on_real_silence(loaded_model, tmp_path):
     assert result.returncode == 0, result.stderr
 
     model, *_ = loaded_model
-    words, language, probability = transcribe._run_model_batched(model, wav)
+    words, language, probability = transcribe._run_model_batched(model, wav)[:3]
 
     # Silence honestly yields no words — and the batched body actually ran.
     assert words == []

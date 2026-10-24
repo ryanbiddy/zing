@@ -202,7 +202,7 @@ def user_boxes(values) -> list[list[float]]:
 
 
 def protected_regions(faces: list[list[float]] | None, face_method: str, estimate: dict | None,
-                      protect: list[list[float]] | None = None) -> list[dict]:
+                      protect: list[list[float]] | None = None, detections: list[dict] | None = None) -> list[dict]:
     """Source-normalized boxes text must avoid, each with its kind and basis.
 
     Faces (padded 2.5%) or, without a detector, the central-60% heuristic;
@@ -220,13 +220,25 @@ def protected_regions(faces: list[list[float]] | None, face_method: str, estimat
             left, top = max(0., x - .025), max(0., y - .025)
             right, bottom = min(1., x + w + .025), min(1., y + h + .025)
             regions.append({"kind": "face", "box": [left, top, right - left, bottom - top], "confidence": None})
-    if (estimate is not None and estimate.get("confidence", 0) >= MIN_CONFIDENCE
+    for detection in detections or []:
+        from myzing.layout.types import Box
+        box = Box.from_dict(detection["box"]).pad(MARGIN)
+        regions.append({"kind": "detected_subject", "class_name": detection["class_name"],
+                        "confidence": detection["confidence"], "detector": detection["detector"],
+                        "box": [box.x, box.y, box.width, box.height]})
+    if (not detections and estimate is not None and estimate.get("confidence", 0) >= MIN_CONFIDENCE
             and not prominent_faces(faces or [])):
         regions.append({"kind": "subject_estimate", "box": list(estimate["box"]),
                         "confidence": estimate["confidence"]})
     for box in protect or []:
         regions.append({"kind": "user", "box": list(box), "confidence": None})
     return regions
+
+
+def describe_detections(detections: list[dict]) -> str:
+    return "Detected subjects: " + ", ".join(
+        f"{d['class_name']} ({d['confidence']:.2f}, {d['detector']})" for d in detections
+    ) + ". Model confidence is uncalibrated; each detected region is protected from text."
 
 
 def describe_estimate(estimate: dict | None, clear: bool | None = None) -> str:

@@ -119,6 +119,7 @@ class AudioMap(Record):
     breakdown_source: str | None = None
     version: int = 2
     structure: Any = None
+    tags: Any = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AudioMap:
@@ -129,6 +130,9 @@ class AudioMap(Record):
         data["loudness"] = Loudness.from_dict(data["loudness"])
         data["onsets"] = [Onset.from_dict(item) for item in data["onsets"]]
         data["segments"] = [Segment.from_dict(item) for item in data["segments"]]
+        if data.get("tags") is not None:
+            from .tagging import AudioTags
+            data["tags"] = AudioTags.from_dict(data["tags"])
         if data.get("structure") is not None:
             from .structure import Structure
             data["structure"] = Structure.from_dict(data["structure"])

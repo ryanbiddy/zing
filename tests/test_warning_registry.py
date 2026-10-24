@@ -41,6 +41,8 @@ PROBLEM = re.compile(
 # A warning is honest when it names a FIX, a CONSEQUENCE, or is itself the
 # consequence. Add new entries deliberately; that is the point of the file.
 REGISTERED: dict[str, str] = {
+    "Learned audio tagging unavailable; heuristic fallback": "names the fallback and carries the missing-model fetch remedy or runtime failure",
+    "VAD word-edge clamp unavailable; raw word times retained": "states that original decoder timings remain unchanged",
     "face evidence unavailable at": "names the failed sample; face overlap remains unknown and other text evidence is required",
     # Keys are fragments as they appear in ONE source literal. Warnings
     # split across line-continuations are keyed on their first fragment —
@@ -54,6 +56,7 @@ REGISTERED: dict[str, str] = {
     "caption geometry sample {t:.6f}s failed": "states that the observation becomes a coverage gap",
     "faster-whisper not installed": "names pip install myzing[study]",
     "scenedetect not installed": "names pip install myzing[study]",
+    "Fine source map unavailable:": "names myzing[study] and restudy; states fallback to public study shots",
     "backend failed to start": "names zing doctor + likely cause",
     "whisper model '{name}' could not be": "names zing doctor + download/disk cause",
     "shot detection failed: {e} — scenedetect is installed but": "names zing doctor",

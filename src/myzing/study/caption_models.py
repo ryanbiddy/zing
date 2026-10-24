@@ -8,13 +8,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import os
-import tempfile
-import urllib.request
 from importlib.util import find_spec
 from pathlib import Path
 
 from myzing.storage import workspace_root
+from myzing.model_fetch import fetch_verified, verified
 
 BASE_URL = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.1/onnx/"
 MODELS = {
@@ -30,10 +28,6 @@ FETCH_HINT = "Run python -m myzing.study.caption_models --fetch with the same ZI
 
 def cache_dir() -> Path:
     return workspace_root() / "models" / "caption-geometry"
-
-
-def verified(path: Path, sha256: str) -> bool:
-    return path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == sha256
 
 
 def model_paths() -> dict[str, Path]:
@@ -60,20 +54,7 @@ def fetch_models() -> list[Path]:
     paths = []
     for relative, digest in MODELS.values():
         target = root / Path(relative).name
-        if not verified(target, digest):
-            with urllib.request.urlopen(BASE_URL + relative, timeout=60) as response:
-                payload = response.read(40_000_001)
-            if len(payload) > 40_000_000 or hashlib.sha256(payload).hexdigest() != digest:
-                raise RuntimeError(f"caption model SHA-256 verification failed: {target.name}")
-            temporary = None
-            try:
-                with tempfile.NamedTemporaryFile(dir=root, suffix=".part", delete=False) as out:
-                    temporary = Path(out.name)
-                    out.write(payload)
-                os.replace(temporary, target)
-            finally:
-                if temporary is not None:
-                    temporary.unlink(missing_ok=True)
+        fetch_verified(BASE_URL + relative, target, digest, 40_000_000)
         paths.append(target)
     return paths
 

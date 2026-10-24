@@ -1,4 +1,54 @@
-# PF layout dependencies and assets
+# Third-party dependencies and assets
+
+## AUD1 audio tagging and ASR hygiene
+
+The optional `audio-ml` extra adds `sherpa-onnx>=2.0,<3`; the lock resolves
+`sherpa-onnx` and its native `sherpa-onnx-core` distribution to 2.0.0.
+Both use Apache-2.0. No third-party training or inference code is vendored.
+The floor is 2.0 because sherpa-onnx 1.x wheels link espeak-ng and
+piper-phonemize for text-to-speech (espeak-ng is GPL-3.0-or-later); 2.0.0
+removed both (upstream changelog, #4055), and its binaries carry only
+sherpa-onnx and ONNX Runtime (MIT). Wheel downloads for 2.0.0 (CPython 3.12,
+`sherpa-onnx` plus `sherpa-onnx-core`): Windows x64 2.2 + 16.6 MB, macOS arm64
+2.1 + 9.5 MB, macOS x86_64 2.3 + 10.8 MB, Linux x86_64 4.2 + 10.5 MB.
+The runtime's [Apache license](https://github.com/k2-fsa/sherpa-onnx/blob/88204440c2ad19158fe77dbf470bb1fe7fdee613/LICENSE)
+is pinned at revision `88204440c2ad19158fe77dbf470bb1fe7fdee613`, with SHA-256
+`cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`.
+Installed wheel notices cover native components, including ONNX Runtime.
+
+CED-mini weights are Apache-2.0 according to the [original model card](https://huggingface.co/mispeech/ced-mini/blob/26c3ebcae85d4330f4fc26763f029539a3afcda0/README.md),
+pinned at `26c3ebcae85d4330f4fc26763f029539a3afcda0`; card SHA-256:
+`0fbd9dd64fffc22211d63b22689e38a81446d5e37db6148e3ac42667d3c22882`.
+The [sherpa conversion repository](https://huggingface.co/k2-fsa/sherpa-onnx-ced-mini-audio-tagging-2024-04-19/tree/4da6df50dc47b25f91074b5ef7df4c1cc0dd7d4d)
+is pinned at `4da6df50dc47b25f91074b5ef7df4c1cc0dd7d4d`. Its README identifies
+the CED origin; the conversion repository itself carries no license tag, so the
+original weight card supplies the weight license. The GPL CED training
+repository is not imported, vendored, or downloaded.
+
+| Explicitly fetched asset | Bytes | SHA-256 |
+|---|---:|---|
+| `model.int8.onnx` | 10,451,715 | `ff29f39f9fbe637f72535160e9d006d61d872fdab0fce838672265b9b38cf946` |
+| `class_labels_indices.csv` | 14,675 | `cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429` |
+
+Immutable URLs are constructed in `src/myzing/audio/tag_models.py`. These
+assets remain in the user's ignored workspace, with no implicit model fetch.
+The label vocabulary is the AudioSet class index distributed with the conversion.
+No AudioSet recordings are included.
+
+The VAD edge algorithm is an independent stdlib implementation of stable-ts's
+silence-suppression idea, using faster-whisper's existing bundled Silero VAD.
+It introduces no package dependency. [stable-ts's MIT license](https://github.com/jianfch/stable-ts/blob/e312072cc024ae9fceb25b057d7d18524873a02b/LICENSE)
+is pinned at `e312072cc024ae9fceb25b057d7d18524873a02b`, SHA-256
+`69ac6d54d38598c96443b5314597568bb8fa21726c46168fcec98764de33dc23`.
+No stable-ts source is copied. Its archived status does not affect the runtime.
+
+Acceptance reuses V1 media from the manifest above and MUSIC1 CC0 tracks:
+Electric (Sudocolon), Calm Piano / Vaporware (The Cynic Project), and The Charm
+68 (The Cynic Project; vocals by Julie). Hashes and license URLs are retained
+with the acceptance copies. The existing cached MIT faster-whisper-tiny model
+at `d90ca5fe260221311c53c58e660288d3deb8d356` was copied locally, not downloaded.
+
+## PF layout dependencies and assets
 
 No model, image, media binary or third-party source is vendored in this pass.
 Downloaded evidence belongs under the ignored `zing-workspace/` directory.
@@ -136,3 +186,83 @@ The audit reuses the OCR, YuNet and OFL/Apache font assets documented above.
 It adds no package dependency. See the
 [evaluation report](../tools/eval/real/REAL-EVAL-2026-10.md) for measured results
 and unvalidated capabilities.
+
+## Optional speech models
+
+Studio, doctor and setup offer these MIT-licensed Systran conversions of OpenAI
+Whisper. Downloads require explicit consent and remain outside the repository.
+`src/myzing/study/speech_pins.py` records each file's SHA-256 and byte size.
+
+| Model | Immutable revision | Source |
+|---|---|---|
+| small.en | `d1d751a5f8271d482d14ca55d9e2deeebbae577f` | [Systran model card](https://huggingface.co/Systran/faster-whisper-small.en) |
+| large-v2 | `f0fe81560cb8b68660e564f55dd99207059c092e` | [Systran model card](https://huggingface.co/Systran/faster-whisper-large-v2) |
+
+Small.en is English-only; large-v2 supports multiple languages. Zing recommends
+small.en for first-run download size and speed, with a caption-review warning.
+No new Python dependency is required; inference uses the existing `study` extra.
+
+
+## VIS1 optional person and object models
+
+Both model directories at OpenCV Zoo revision
+`f12e12798e8314f7c074a6656816c048dcc95b7a` explicitly license **all files** under
+Apache-2.0, including the ONNX weights. Zing adapts their preprocessing,
+anchor generation and output decoding; NMS receives xywh boxes and person
+inference retains multiple candidates. No weights are bundled.
+
+| Model | Bytes | SHA-256 | Grant |
+|---|---:|---|---|
+| MediaPipe person 2023mar | 11,990,159 | `47fd5599d6fa17608f03e0eb0ae230baa6e597d7e8a2c8199fe00abea55a701f` | [Directory README](https://github.com/opencv/opencv_zoo/blob/f12e12798e8314f7c074a6656816c048dcc95b7a/models/person_detection_mediapipe/README.md), [license](licenses/opencv-zoo-mediapipe-Apache-2.0.txt) |
+| YOLOX-S int8 2022nov | 9,079,452 | `01a3b0f400b30bc1e45230e991b2e499ab42622485a330021947333fbaf03935` | [Directory README](https://github.com/opencv/opencv_zoo/blob/f12e12798e8314f7c074a6656816c048dcc95b7a/models/object_detection_yolox/README.md), [license](licenses/opencv-zoo-yolox-Apache-2.0.txt) |
+
+YOLOX copyright (c) 2021-2022 Megvii Inc. All rights reserved. The Zoo demo
+credits Sri Siddarth Chakaravarthy (OpenCV, GSoC 2022). MediaPipe's detector
+was converted from BlazePose through PINTO's tools; these conversion tools
+are not shipped. Hashes and sizes were checked against the pinned Git LFS
+pointers. Downloads use Zing's HTTPS-only verified downloader.
+
+Inference uses `opencv-python-headless==4.13.0.92` from the existing `layout`
+extra. No new dependency, MediaPipe wheel, contrib wheel, Ultralytics code,
+or AGPL model is included. YuNet 2023mar remains unchanged.
+The wheel includes both upstream license texts and adaptation notices in
+`myzing/_data/docs/OPENCV-ZOO-LICENSES.md`.
+
+VIS1 ships three small CC0 recognition fixtures in `tests/fixtures/vision`:
+*Cat on couch* by Christoffer G. Thomsen, *Dog IMG 1057* by JasonAstros123,
+and a frame from Mvolz's *Korky Paul Introduction*. The
+[fixture manifest](../tests/fixtures/vision/manifest.json) records source
+pages, original/derived SHA-256 hashes, licenses and resizing steps.
+Only these three derivatives are bundled; acceptance videos and the six
+downloaded pet originals remain in the ignored workspace.
+
+## CAPTION2 grouping: AutoSubs (MIT)
+
+The sentence/pause grouping, punctuation break priorities, balanced-target tolerance and non-overlapping minimum-duration scheduling in `src/myzing/captions/grouping.py` are adapted from [AutoSubs formatting.rs](https://github.com/tmoroney/auto-subs/blob/main/AutoSubs-App/src-tauri/crates/transcription-engine/src/formatting.rs), retrieved 2026-10-23. Zing adds measured advances, a dynamic program and protected English pairs. No AutoSubs runtime is included.
+
+MIT License
+
+Copyright (c) 2023 Tom Moroney
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+## CAPTION2 font derivatives (OFL-1.1)
+
+`ZingCaption-700.ttf` and `ZingCaption-800.ttf` are static, renamed derivatives of the existing pinned Inter source (Google Fonts revision `45e3d5269e4a17d823f6d84470bc084dc5ae46f6`), at optical size 32. Optional kerning and ligatures are disabled for fixed word slots. Copyright, designer and license records remain in the fonts; the complete license is `src/myzing/_data/fonts/ZingCaption-OFL.txt`. Source and derived SHA-256 pins are in `caption-presets.json`; `tools/eval/caption2_fonts.py` reproduces them with fontTools 4.62.1 (MIT, build tool only). No runtime dependency was added.

@@ -197,3 +197,79 @@ def choose_layout(events: list[CaptionEvent], tracks: list[FaceTrack], masks: li
         if chosen.overlap.safe:
             previous = chosen.box or chosen.path[-1].box
     return LayoutPlan(layouts, tracks, masks, platform)
+
+
+def choose_stable(event: CaptionEvent, tracks: list[FaceTrack], masks: list[Mask], *,
+                  home: tuple[float, float], previous: tuple[float, float] | None = None,
+                  edge: str = "bottom", aspect: float = 1.0, shrink_penalty: float = 0.0,
+                  shrink_scales: tuple[float, ...] = (0.85, 0.7, 0.55)) -> EventLayout | None:
+    """One static event at a stable anchor; move only when something is covered.
+
+    ``home`` and ``previous`` are (center x, edge y) points, where edge y is the
+    box's bottom (``edge="bottom"``) or top (``edge="top"``), so one- and
+    two-line events share a baseline. Ranking: stay at the previous event's
+    anchor, else home, else the free candidate with the smallest move from
+    where the caption is (``aspect`` is output height/width, so moves compare
+    in output pixels; ties prefer home). A smaller box costs
+    ``shrink_penalty * (1 - scale)`` of move distance, so a slightly smaller
+    caption in place beats a jump across the frame; scales below 85% are used
+    only when nothing larger is safe. Returns None when no box
+    is safe; callers keep their existing fallback.
+    """
+    if edge not in ("top", "bottom"):
+        raise ValueError("edge must be top or bottom")
+    origin = previous or home
+    best = None
+    # Trade a move against at most one 15% shrink step; deeper shrinks hurt
+    # readability more than a move, so they remain a last resort.
+    traded = [s for s in (1.0, *shrink_scales) if s >= .85 - 1e-9]
+    for scale in (*traded, *(s for s in shrink_scales if s < .85 - 1e-9)):
+        if best is not None and scale not in traded:
+            break
+        width, height = event.width * scale, event.height * scale
+
+        def center(point):
+            return point[0], point[1] - height / 2 if edge == "bottom" else point[1] + height / 2
+
+        def move(box, point):
+            y = box.bottom if edge == "bottom" else box.y
+            return math.hypot(box.center[0] - point[0], (y - point[1]) * aspect)
+
+        cx, cy = center(origin)
+        # Obstacle edges on the current row and column give the smallest moves.
+        obstacles = [m.box for m in masks]
+        for track in tracks:
+            start, end = max(event.start, track.keyframes[0].time), min(event.end, track.keyframes[-1].time)
+            if start <= end:
+                obstacles.append(union([box_at(track.keyframes, start), box_at(track.keyframes, end)] +
+                                       [k.box for k in track.keyframes if start < k.time < end]))
+        xs = {x for b in obstacles for x in (b.x - width / 2, b.right + width / 2)}
+        ys = {y for b in obstacles for y in (b.y - height / 2, b.bottom + height / 2)}
+        anchors = [(x, cy) for x in xs] + [(cx, y) for y in ys] + [(x, y) for x in xs for y in ys]
+        anchors = [(min(1, max(0, x)), min(1, max(0, y))) for x, y in anchors]
+        probe = CaptionEvent(event.id, event.start, event.end, width, height,
+                             [min(1, max(0, cx)), min(1, max(0, cy))])
+        ranked = []
+        if previous is not None:
+            ranked.append((_at(center(previous), width, height), "previous-position"))
+        ranked.append((_at(center(home), width, height), "stable-anchor"))
+        ranked += [(b, "smallest-move") for b in sorted(
+            _candidates(probe, width, height, tracks, masks, anchors),
+            key=lambda b: (round(move(b, origin), 9), move(b, home), b.y, b.x))]
+        for box, reason in ranked:
+            check = check_overlap(_static(box, event.start, event.end), tracks, masks)
+            if check.safe:
+                cost = move(box, origin) + shrink_penalty * (1 - scale)
+                if best is None or cost < best[0] - 1e-9:
+                    best = (cost, EventLayout(event.id, event.start, event.end, reason, check, box=box, scale=scale,
+                                              fallback="smaller-box" if scale < 1 else None))
+                break
+        if best is not None and best[0] <= shrink_penalty * (1 - scale) + 1e-9:
+            break  # Nothing smaller can cost less.
+    if best is None:
+        return None
+    layout = best[1]
+    if layout.scale < 1:
+        layout.warnings.append(
+            f"infeasible_requested_size: using {layout.scale:.0%} box; compiler must resize text and effects")
+    return layout
