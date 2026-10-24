@@ -160,8 +160,33 @@ Reports record each region and sample rectangle. Unrecorded baked-in bars cannot
 be inferred from a plan that declares the whole source as picture.
 
 Sparse OCR cannot certify one-frame switches or ASR accuracy. Color compares
-unpaired scene distributions with the unchanged 0.15 maximum luma-percentile
-delta, so it requires human review and makes no paired Delta E or original-LUT claim.
+CIELAB lightness, mean a*/b* cast, chroma, contrast and tonal cast on the sharp
+picture. Each component has an inner pass band and an outer miss band; values
+between them stay approximate. A miss in any component makes color miss. A pass
+requires all measured components inside their inner bands, at least four usable
+samples per input, complete requested/shot coverage and confidence at least 0.5.
+Legacy luma-only, missing, sparse or low-confidence matching evidence cannot pass.
+The report retains the luma delta for audits, but it does not determine status.
+
+Scene content is not the grade. Each report measures how much each video's own
+sampled shots differ; a component that exceeds its miss limit by less than two
+standard errors of that shot-to-shot variation is approximate ("Scene content
+differs"), not a miss. That allowance never turns a difference into a pass. A
+one-shot reference and a one-shot draft of different scenes can still miss, so
+inspect the crops before attributing a difference to grading. Per-component
+deltas explain the direction and size of each difference. See
+[color calibration](color.md#color2-match-report-bands) for thresholds and fixtures.
+These are unpaired scene statistics, not paired Delta E or original-LUT recovery.
+
+Skin is never compared with the reference. The reference's people and the
+draft's people are different people under different light, so their skin says
+who is on screen, not how the draft was graded, and judging one person's skin
+tone against another's is wrong. Instead, `skin_preservation` is a separate
+dimension: for each graded clip, faces found in the ungraded source frames are
+measured on the same pixels before and after that clip's own LUT, and a hue shift
+toward green or magenta above 5 a*/b* units misses (2.5 to 5 is approximate). It
+does not affect the color dimension. No detector, no faces, or no grade leaves it
+unmeasured or absent, never passed. See [skin preservation](color.md#skin-preservation).
 “Ready” means playable and reported; it does not mean every style dimension passed.
 
 `comparison.md` includes abstentions, disagreements and their reasons. JSON has

@@ -24,14 +24,15 @@ def progress_label(text, answers):
             return f"{verb} {Path(asset['path']).name} ({videos.index(asset) + 1} of {len(videos)})"
         except (OSError, ValueError, KeyError, StopIteration):
             return "Studying your clips"
-    match = re.fullmatch(r"(plan|render|decode|restudy|inspect|color-report|report)-([ABC])\.(16x9|1x1|9x16)", key)
+    match = re.fullmatch(r"(plan|render|decode|restudy|inspect|color-report|skin-report|report)-([ABC])\.(16x9|1x1|9x16)", key)
     if match:
         phase, draft, shape = match.groups()
         shape = shape.replace("x", ":")
         aspects = answers.get("aspects", [shape])
         index = "ABC".index(draft) * len(aspects) + aspects.index(shape) + 1
         verb = {"plan": "Preparing", "render": "Rendering", "decode": "Checking playback of", "restudy": "Measuring",
-                "inspect": "Making a preview of", "color-report": "Checking color in", "report": "Comparing"}[phase]
+                "inspect": "Making a preview of", "color-report": "Checking color in",
+                "skin-report": "Checking skin tones in", "report": "Comparing"}[phase]
         if phase == "decode" and state == "done":
             verb = "Playback checked for"
         return f"{verb} draft {draft}, {shape} ({index} of {3 * len(aspects)})"
@@ -194,8 +195,13 @@ def _disclosures(dimensions):
         label = name.replace("_", " ")
         if value.get("status") in DISCLOSED:
             found.append(f"{label} {status_label(value['status'])}")
-        elif name == "color" and value.get("status") == "approximate" and value.get("max_luma_percentile_delta") is None:
-            found.append("color unmeasured")
+        elif name == "color" and value.get("status") == "approximate":
+            unmeasured = value.get("measurement_status") == "unmeasured" or (
+                "measurement_status" not in value and value.get("max_luma_percentile_delta") is None)
+            found.append("color unmeasured" if unmeasured else "color approximate")
+        elif name == "skin_preservation" and value.get("status") == "approximate" and value.get("measurement_status") == "measured":
+            # A measured skin hue shift short of a miss still needs eyes on faces.
+            found.append("skin preservation approximate")
     return found
 
 
