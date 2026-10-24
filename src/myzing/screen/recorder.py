@@ -100,7 +100,7 @@ def record(path, *, duration=None, countdown=3, region=None, source=None,
               "hz": 60, "bounds": list(bounds), "coordinates": "normalized-capture-region",
               "sync": "GO is t=0; --cursor-offset is the video time of GO. Creation-time sync is optional."})
         handle.flush()
-        output("GO — telemetry t=0. Stop with Ctrl+C.")
+        output("GO - telemetry t=0. Stop with Ctrl+C.")
         previous_buttons, ticks = set(), 0
         deadline = start
         try:

@@ -72,6 +72,8 @@ def plan_screen(video, *, cursor=None, cursor_offset=0., sync_creation_time=Fals
     protection = [*events, *[{**e,"type":"activity"} for e in changes]]
     plan.idle = protected_idle(frozen, protection, plan.words, plan.duration)
     plan.zooms = zoom_candidates(events, [] if cursor else changes, plan.idle, plan.duration)
+    from .regions import attach_regions
+    attach_regions(path, plan.zooms, plan.duration, ffmpeg=ffmpeg)
     plan.clicks = [e for e in events if e["type"] == "click"]
     if not plan.zooms:
         plan.warnings.append("No supported focus candidates; camera holds the initial framing.")

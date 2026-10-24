@@ -23,6 +23,8 @@ class Zoom:
     evidence: list[dict]
     confidence: float
     version: int = 1
+    box: list[float] | None = None
+    box_evidence: dict = field(default_factory=dict)
 
     def to_dict(self):
         return asdict(self)
@@ -38,6 +40,14 @@ class Zoom:
         number(obj.end, "zoom end", obj.start + .001)
         for k in ("x", "y", "confidence"):
             number(getattr(obj, k), k, 0, 1)
+        if obj.box is not None:
+            if len(obj.box) != 4:
+                raise ValueError("UI box must contain normalized x,y,width,height.")
+            x, y, w, h = obj.box
+            for v in (x, y, w, h):
+                number(v, "UI box", 0, 1)
+            if min(w, h) <= 0 or x+w > 1+1e-8 or y+h > 1+1e-8:
+                raise ValueError("UI box must fit inside the source frame.")
         if not obj.evidence or any(e.get("kind") not in {"dwell", "click", "activity"} for e in obj.evidence):
             raise ValueError("Each zoom needs dwell, click or activity evidence.")
         return obj

@@ -79,10 +79,11 @@ def test_screen_render_target_pixels_and_camera(tmp_path,screen_fixture,telemetr
         key=min(cam["keys"],key=lambda k:abs(k["t"]-when))
         left,top,cw,ch=crop_window(plan,cam,key)
         sx,sy=(165,140) if color==0 else (455,200)
-        assert abs(cx-(sx-left)*result["width"]/cw)<4
-        assert abs(cy-(sy-top)*result["height"]/ch)<4
+        picture=cam["shots"][key["shot"]]["picture"]
+        assert abs(cx-(picture["x"]+(sx-left)*picture["width"]/cw))<4
+        assert abs(cy-(picture["y"]+(sy-top)*picture["height"]/ch))<4
     for axis,limit in [("x",.65),("y",.65),("zoom",1.5)]:
-        velocities=[(b[axis]-a[axis])*30 for a,b in zip(cam["keys"],cam["keys"][1:])]
+        velocities=[(b[axis]-a[axis])*30 for a,b in zip(cam["keys"],cam["keys"][1:]) if not b.get("cut")]
         assert max(map(abs,velocities))<limit+.01
         assert max(abs(b-a)*30 for a,b in zip(velocities,velocities[1:]))<6.1
 
@@ -96,6 +97,7 @@ def test_screen_caption_presets_clear_ui(tmp_path,screen_fixture,preset):
     layout=json.loads((Path(result["camera"]).parent/"caption-plan.json").read_text())
     assert layout["captions"] and all(c["preset"]==preset for c in layout["captions"])
     assert all(c["layout"]["overlap"]["safe"] for c in layout["captions"])
+    assert all(c["layout"]["box"]["y"]>.60 for c in layout["captions"])
 
 
 def test_screen_cli_plan_render_and_source_identity(tmp_path,screen_fixture,capsys):
@@ -132,3 +134,74 @@ def test_screen_audio_unknown_speech_not_sped_up(tmp_path,screen_fixture):
     assert not plan.idle and any("narration" in s for s in plan.warnings)
     result=render_screen(plan,tmp_path/"audio-demo.mp4",short_side=180)
     assert result["duration"]==pytest.approx(9,abs=.08)
+
+
+@pytest.fixture(scope="module")
+def edge_fixture(tmp_path_factory):
+    root=tmp_path_factory.mktemp("screen-edges")
+    video=root/"edges.mp4"
+    filters=("drawbox=x=2:y=12:w=180:h=336:color=red:t=fill,"
+             "drawtext=text='LEFT COMPLETE':x=8:y=60:fontsize=18:fontcolor=white,"
+             "drawbox=x=450:y=16:w=188:h=330:color=blue:t=fill,"
+             "drawtext=text='RIGHT COMPLETE':x=455:y=70:fontsize=18:fontcolor=white")
+    subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","color=0x101820:s=640x360:r=30:d=6",
+                    "-vf",filters,"-c:v","libx264","-threads","1","-pix_fmt","yuv420p",str(video)],check=True)
+    rows=[{"type":"start","version":1,"t":0}]
+    for i in range(360):
+        t=i/60
+        x=.14 if t<4.3 else .85
+        rows.append({"type":"cursor","t":t,"x":x,"y":.5})
+        if i in (72,258):
+            rows.append({"type":"click","t":t,"x":x,"y":.5,"button":"left"})
+    rows.append({"type":"stop","t":6,"samples":360})
+    log=root/"cursor.jsonl"
+    log.write_text("".join(json.dumps(e)+"\n" for e in rows))
+    return video,log
+
+
+@pytest.mark.parametrize("aspect",["16:9","1:1","9:16"])
+def test_edge_elements_no_clip_or_empty_travel_frames(tmp_path,edge_fixture,aspect):
+    source,log=edge_fixture
+    plan=plan_screen(source,cursor=log,idle_speed=1)
+    assert len(plan.zooms)==2 and all(z.box for z in plan.zooms)
+    result=render_screen(plan,tmp_path/"edge.mp4",aspect=aspect,short_side=180)
+    cam=json.loads(Path(result["camera"]).read_text())
+    assert len(cam["cuts"])==1 and cam["cuts"][0]["t"]==pytest.approx(4.3)
+    # Decode every output frame. Both complete outer color rectangles must
+    # match the predicted picture coordinates. No dark travel frame is exempt.
+    raw=subprocess.run(["ffmpeg","-v","error","-i",result["video"],"-f","rawvideo","-pix_fmt","rgb24","pipe:1"],
+                       capture_output=True,check=True).stdout
+    fw,fh=result["width"],result["height"]
+    size=fw*fh*3
+    assert len(raw)//size==180
+    for index in range(180):
+        key=cam["keys"][index]
+        picture=cam["shots"][key["shot"]]["picture"]
+        data=raw[index*size:(index+1)*size]
+        color=0 if index<129 else 2
+        points=[(i//3%fw,i//3//fw) for i in range(0,len(data),3)
+                if data[i+color]>140 and data[i+1]<100 and data[i+2-color]<100]
+        assert len(points)>150,(index,"empty travel frame")
+        actual=[min(p[0] for p in points),min(p[1] for p in points),
+                max(p[0] for p in points)+1,max(p[1] for p in points)+1]
+        x,y,w,h=key["window"]
+        target=(2,12,182,348) if color==0 else (450,16,638,346)
+        expected=[picture["x"]+(target[0]-x)*picture["width"]/w,
+                  picture["y"]+(target[1]-y)*picture["height"]/h,
+                  picture["x"]+(target[2]-x)*picture["width"]/w,
+                  picture["y"]+(target[3]-y)*picture["height"]/h]
+        assert all(abs(a-b)<3 for a,b in zip(actual,expected)),(index,actual,expected)
+        assert picture["x"]<actual[0]<actual[2]<picture["x"]+picture["width"]
+        assert picture["y"]<actual[1]<actual[3]<picture["y"]+picture["height"]
+    if aspect=="9:16":
+        assert min(s["picture"]["height"] for s in cam["shots"])>=fh*.88
+
+
+def test_old_screen_plan_measures_bounds_before_render(tmp_path,screen_fixture):
+    source,log=screen_fixture
+    plan=plan_screen(source,cursor=log)
+    for z in plan.zooms:
+        z.box=None
+    result=render_screen(plan,tmp_path/"legacy.mp4",aspect="9:16",short_side=180)
+    cam=json.loads(Path(result["camera"]).read_text())
+    assert all(s["box"]!=[0,0,1,1] for s in cam["shots"])

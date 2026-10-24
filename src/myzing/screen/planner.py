@@ -7,7 +7,6 @@ docs/licenses/screen-*.txt. No upstream runtime is needed.
 from __future__ import annotations
 
 import math
-from dataclasses import replace
 
 from .models import ScreenPlan, Zoom
 
@@ -128,104 +127,11 @@ def dimensions(aspect, short_side=720):
     return round(short_side*a/min(a,b)), round(short_side*b/min(a,b))
 
 
-def smooth_windows(plan, keys, cw, ch):
-    """Smooth *visible rectangles*, including boundary clamping.
-
-    Clamping a spring's center afterward can create an acceleration spike at
-    a screen edge. A positive convolution of valid rectangles remains valid
-    (the containment constraints are convex). Three box passes soften that
-    boundary without overshoot; broaden only until actual camera bounds pass.
-    """
-    windows=[]
-    for k in keys:
-        w,h=cw/k["zoom"],ch/k["zoom"]
-        x=max(w/2,min(plan.width-w/2,k["x"]*plan.width))
-        y=max(h/2,min(plan.height-h/2,k["y"]*plan.height))
-        windows.append((x,y,w))
-    for radius in (3,5,8,12,18,30):
-        values=windows
-        for _ in range(3):
-            # Prefix sums keep long recordings linear in frame count.
-            padded=[values[0]]*radius+values+[values[-1]]*radius
-            sums=[[0.,0.,0.]]
-            for row in padded:
-                sums.append([a+b for a,b in zip(sums[-1],row)])
-            span=2*radius+1
-            values=[tuple((sums[i+span][j]-sums[i][j])/span for j in range(3)) for i in range(len(values))]
-        result=[{"t":k["t"],"x":v[0]/plan.width,"y":v[1]/plan.height,"zoom":cw/v[2]} for k,v in zip(keys,values)]
-        safe=True
-        for axis,vmax,amax in (("x",.65,4.),("y",.65,4.),("zoom",1.5,6.)):
-            velocity=[(b[axis]-a[axis])*plan.fps for a,b in zip(result,result[1:])]
-            acceleration=[(b-a)*plan.fps for a,b in zip(velocity,velocity[1:])]
-            if max(map(abs,velocity),default=0)>vmax+1e-6 or max(map(abs,acceleration),default=0)>amax+1e-6:
-                safe=False
-        if safe:
-            return result
-    raise ValueError("Screen camera cannot satisfy motion bounds; reduce --max-zoom or split the recording into longer demonstrations.")
-
-
 def camera(plan, width, height):
-    """Chained transition/hold targets, integrated by a critical spring damper.
-
-    Screenize adaptations: offline anticipation, >=0.1s holds, bounded velocity
-    and acceleration, viewport dead zone. No target is inferred from key data.
-    """
-    from myzing.layout.readability import phone_size
-    from myzing.layout.framing import centered_framing
-    segments = time_segments(plan)
-    duration = segments[-1]["out_end"]
-    base = centered_framing("reframe",plan.width,plan.height,width,height)
-    cw,ch = base.width,base.height
-    # Limit extra magnification by context (1.8x default) and source sampling.
-    # The phone floor is a LOWER text-size bound, not an upper zoom bound.
-    cap = max(1., min(plan.max_zoom, 2.5*cw/width))
-    needed = phone_size(width, height)/(plan.ui_text_px*width/cw)
-    zoom = min(cap, max(1.35, needed))
-    notes = []
-    if width/cw > 2.5:
-        notes.append("Filling this aspect already exceeds 2.5x source enlargement; extra zoom is disabled. Use a higher-resolution recording or a smaller delivery.")
-    if needed > cap:
-        notes.append(f"UI text estimate cannot reach the phone floor within the {cap:.2f}x zoom cap; record larger UI text. Text size is supplied/assumed, not OCR-measured.")
-    scenes = [replace(z, start=output_time(segments, z.start), end=output_time(segments, z.end)) for z in plan.zooms]
-    schedule = []
-    for z in scenes:
-        transition = min(.8, max(.15, z.end-z.start-.1))
-        schedule.extend([{"kind": "transition", "start": z.start, "end": z.start+transition,
-                          "x": z.x, "y": z.y, "zoom": zoom},
-                         {"kind": "hold", "start": z.start+transition, "end": z.end,
-                          "x": z.x, "y": z.y, "zoom": zoom}])
-    keys, state, velocity = [], [.5, .5, 1.], [0., 0., 0.]
-    # Portrait's initial framing follows the first known focus, matching the
-    # existing source-space framing convention; it does not start off target.
-    if scenes:
-        state[:2] = [scenes[0].x, scenes[0].y]
-    dt = 1/(plan.fps*4)
-    last_target = state[:]
-    for frame in range(math.ceil(duration*plan.fps)+1):
-        t = min(duration, frame/plan.fps)
-        active = next((z for z in scenes if z.start <= t < z.end), None)
-        desired = [active.x, active.y, zoom] if active else [last_target[0], last_target[1], 1.]
-        if active:
-            # A small target change inside 8% of the current viewport holds.
-            for axis, size, whole in ((0,cw,plan.width),(1,ch,plan.height)):
-                if abs(desired[axis]-last_target[axis]) < .08*size/(whole*state[2]):
-                    desired[axis] = last_target[axis]
-        last_target = desired[:]
-        for _ in range(4 if frame else 0):
-            for i in range(3):
-                accel = max(-4 if i < 2 else -6, min(4 if i < 2 else 6, 64*(desired[i]-state[i])-16*velocity[i]))
-                vmax = .65 if i < 2 else 1.5
-                velocity[i] = max(-vmax, min(vmax, velocity[i]+accel*dt))
-                state[i] += velocity[i]*dt
-        keys.append({"t": t, "x": state[0], "y": state[1], "zoom": max(1., state[2])})
-    keys = smooth_windows(plan,keys,cw,ch)
-    return {"keys": keys, "segments": schedule, "time_map": segments, "duration": duration,
-            "base_width": cw, "base_height": ch, "zoom_cap": cap,
-            "phone_text_floor": phone_size(width,height), "assumed_ui_text_px": plan.ui_text_px, "warnings": notes}
+    """Fit whole UI regions; cut on actions when a pan would be empty or slow."""
+    from .framing import element_camera
+    return element_camera(plan, width, height)
 
 
 def crop_window(plan, cam, key):
-    w, h = cam["base_width"]/key["zoom"], cam["base_height"]/key["zoom"]
-    x = max(0, min(plan.width-w, key["x"]*plan.width-w/2))
-    y = max(0, min(plan.height-h, key["y"]*plan.height-h/2))
-    return x, y, w, h
+    return tuple(key["window"])

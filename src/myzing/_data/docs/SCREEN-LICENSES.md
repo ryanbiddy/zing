@@ -1,6 +1,6 @@
 # Screen-demo algorithm notices
 
-Zing adapts OpenScreen dwell detection (MIT), Screenize scene merging and camera structure (Apache-2.0), and screenstudio-alt-skill idle detection (MIT). Zing adds privacy-filtered input events, gap handling, activity vetoes, bounded visible-window smoothing, and CAPTION2 placement. These are modified Python adaptations, not the upstream applications.
+Zing adapts OpenScreen dwell detection (MIT), Screenize scene merging and camera structure (Apache-2.0), and screenstudio-alt-skill idle detection (MIT). Zing adds privacy-filtered input events, gap handling, activity vetoes, whole-region fitting, eased push-ins, action-timed cuts and CAPTION2 placement. These are modified Python adaptations, not the upstream applications.
 
 Revisions: OpenScreen ca8104c279da0d4b4481ec992ff103949e22c772; Screenize 027be96bbf2d855698bc67f1536ac8cef48cc3e4; screenstudio-alt-skill 61a0b303ce3a73d103398fee7ecb5fa31f8a0994. Screenize has no NOTICE file at that revision.
 
@@ -247,4 +247,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-

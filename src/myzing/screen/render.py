@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .analysis import input_args
 from .models import ScreenPlan
-from .planner import camera, crop_window, dimensions, output_time
+from .planner import camera, dimensions, output_time
 
 
 def expression(keys, field, variable="t"):
@@ -44,18 +44,11 @@ def _captions(plan, cam, width, height, work, ffmpeg):
         clips=[CompositionClip(plan.source,0,cam["duration"],0,id="screen",asset_id="screen")],
         captions=[CompositionCaption(" ".join(w.text for w in words),words[0].start,words[-1].end,id="speech",words=words,all_caps=False)])
     apply_preset(composition,plan.caption_preset,vad=False)
-    targets = []
-    scenes = [(output_time(cam["time_map"],z.start),output_time(cam["time_map"],z.end),z) for z in plan.zooms]
-    target = (plan.zooms[0].x,plan.zooms[0].y) if plan.zooms else (.5,.5)
-    for k in cam["keys"]:
-        x,y,w,h = crop_window(plan,cam,k)
-        active = next((z for a,b,z in scenes if a <= k["t"] < b),None)
-        if active:
-            target = (active.x,active.y)
-        focus_x = min(.85,max(.15,(target[0]*plan.width-x)/w))
-        focus_y = min(.85,max(.15,(target[1]*plan.height-y)/h))
-        targets.append(Keyframe(k["t"],Box(focus_x-.15,focus_y-.12,.30,.24)))
-    focus = FaceTrack("ui-focus",targets,1.)
+    # The entire picture is protected. CAPTION2 must choose its lower rail;
+    # a point-sized proxy could still let captions cover neighboring UI text.
+    bottom = max((shot["picture"]["y"]+shot["picture"]["height"])/height for shot in cam["shots"])
+    focus = FaceTrack("ui-picture", [Keyframe(0,Box(0,0,1,min(.98,bottom+.015))),
+        Keyframe(cam["duration"],Box(0,0,1,min(.98,bottom+.015)))],1.)
     place_captions(composition,{"screen":[focus]},{"screen":(width,height)})
     if any(c.layout and not c.layout.overlap.safe for c in composition.captions):
         raise ValueError("No safe caption rail clears the zoomed UI focus. Shorten the supplied caption phrases or use --caption-preset none.")
@@ -85,23 +78,16 @@ def graph(plan, cam, width, height, has_audio, caption_filter=""):
             lines.append(f"[a{i}]atrim=start={s['start']:.9f}:end={s['end']:.9f},asetpts=PTS-STARTPTS,"+",".join(tempo)+f"[q{i}]")
     labels = "".join(f"[p{i}]"+(f"[q{i}]" if has_audio else "") for i in range(n))
     lines.append(labels+f"concat=n={n}:v=1:a={int(has_audio)}[timed]"+("[audio]" if has_audio else ""))
-    # Oversampling and 4:4:4 eliminate the two-source-pixel chroma crop steps.
-    # A fixed aspect crop pans first; zoompan then does the fractional zoom.
+    # Each focus shot has its own aspect. All shots end on exact frame
+    # boundaries; camera cuts do not cut or reorder the source audio.
+    shots = cam["shots"]
     factor = 4 if plan.width <= 1920 else 2
-    sw, sh = plan.width*factor, plan.height*factor
-    bw, bh = round(cam["base_width"]*factor), round(cam["base_height"]*factor)
-    keys = []
-    for k in cam["keys"]:
-        left,top,w,h = crop_window(plan,cam,k)
-        center_x,center_y = left+w/2,top+h/2
-        base_x = max(0,min(plan.width-cam["base_width"],center_x-cam["base_width"]/2))
-        base_y = max(0,min(plan.height-cam["base_height"],center_y-cam["base_height"]/2))
-        keys.append({**k,"bx":base_x*factor,"by":base_y*factor,
-                     "zx":(left-base_x)*factor,"zy":(top-base_y)*factor})
-    # Sample the spring at output frame times. Expressions select only a single
-    # interval, so graph depth grows logarithmically with recording duration.
-    bx,by = (expression(keys,k) for k in ("bx","by"))
-    z,zx,zy = (expression(keys,k,f"on/{plan.fps}") for k in ("zoom","zx","zy"))
+    windows = [k["window"] for k in cam["keys"]]
+    pl = max(0, math.ceil(-min(w[0] for w in windows)))+4
+    pt = max(0, math.ceil(-min(w[1] for w in windows)))+4
+    pr = max(0, math.ceil(max(w[0]+w[2] for w in windows)-plan.width))+4
+    pb = max(0, math.ceil(max(w[1]+w[3] for w in windows)-plan.height))+4
+    sw, sh = plan.width+pl+pr, plan.height+pt+pb
     highlights = ""
     if plan.click_highlights:
         for e in plan.clicks:
@@ -109,10 +95,22 @@ def graph(plan, cam, width, height, has_audio, caption_filter=""):
             px,py = round(e["x"]*plan.width)-10,round(e["y"]*plan.height)-10
             highlights += f",drawbox=x={px}:y={py}:w=20:h=20:color=0xFFD23F@0.8:t=3:enable='between(t,{start:.6f},{start+.28:.6f})'"
     lines.append(f"[timed]fps={plan.fps},setsar=1{highlights},format=yuv444p,"
-                 f"scale={sw}:{sh}:flags=bicubic:in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,"
-                 f"crop={bw}:{bh}:x='{bx}':y='{by}':exact=1,"
-                 f"zoompan=z='{z}':x='{zx}':y='{zy}':d=1:s={width}x{height}:fps={plan.fps},"
-                 f"setsar=1{caption_filter},format=yuv420p[video]")
+                 f"pad={sw}:{sh}:{pl}:{pt}:color=0x101820,"
+                 f"scale={sw*factor}:{sh*factor}:flags=bicubic:in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,"
+                 f"split={len(shots)}"+"".join(f"[shot{i}]" for i in range(len(shots))))
+    for i, shot in enumerate(shots):
+        picture = shot["picture"]
+        keys = [{**k,"t":k["t"]-shot["start"]} for k in shot["keys"]]
+        zoom = expression(keys,"zoom",f"on/{plan.fps}")
+        x,y,w,h = keys[0]["window"]
+        start, end = round(shot["start"]*plan.fps), round(shot["end"]*plan.fps)
+        lines.append(f"[shot{i}]trim=start_frame={start}:end_frame={end},setpts=PTS-STARTPTS,"
+                     f"crop={round(w*factor)}:{round(h*factor)}:{round((x+pl)*factor)}:{round((y+pt)*factor)}:exact=1,"
+                     f"zoompan=z='{zoom}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:"
+                     f"s={picture['width']}x{picture['height']}:fps={plan.fps},setsar=1,"
+                     f"pad={width}:{height}:{picture['x']}:{picture['y']}:color=0x101820[view{i}]")
+    lines.append("".join(f"[view{i}]" for i in range(len(shots)))+
+                 f"concat=n={len(shots)}:v=1:a=0,setsar=1{caption_filter},format=yuv420p[video]")
     return ";\n".join(lines)
 
 
@@ -130,6 +128,9 @@ def render_screen(plan, output, *, aspect="16:9", short_side=720, ffmpeg="ffmpeg
     info = probe_media(source, ffprobe)
     if probe_dimensions(source,ffprobe) != (plan.width,plan.height) or abs(info.duration-plan.duration) > .1:
         raise ValueError("Screen plan dimensions/duration differ from the source; replan.")
+    if any(z.box is None for z in plan.zooms):
+        from .regions import attach_regions
+        attach_regions(source, plan.zooms, plan.duration, ffmpeg=ffmpeg)
     width,height = dimensions(aspect,short_side)
     cam = camera(plan,width,height)
     output.parent.mkdir(parents=True,exist_ok=True)

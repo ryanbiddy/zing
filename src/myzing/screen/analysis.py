@@ -81,7 +81,11 @@ def activity(path, duration, ffmpeg="ffmpeg"):
                     y = sum((c[1]+.5)*tile/h for c in region)/len(region)
                     if not events or index/rate-events[-1]["t"] >= .75:
                         events.append({"kind": "activity", "t": index/rate, "x": x, "y": y,
-                                       "confidence": .45, "changed_tiles": len(region)})
+                                       "confidence": .45, "changed_tiles": len(region),
+                                       "box": [min(c[0] for c in region)*tile/w,
+                                               min(c[1] for c in region)*tile/h,
+                                               (max(c[0] for c in region)-min(c[0] for c in region)+1)*tile/w,
+                                               (max(c[1] for c in region)-min(c[1] for c in region)+1)*tile/h]})
             previous, index = frame, index+1
         if proc.wait(timeout=15):
             raise RuntimeError("FFmpeg could not decode screen activity frames.")

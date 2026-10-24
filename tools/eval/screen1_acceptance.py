@@ -97,9 +97,18 @@ def deliver(root,source,log):
     from myzing.screen.render import render_screen
     from myzing.screen.planner import output_time,crop_window
     results=[]
+    raw=[json.loads(s) for s in log.read_text().splitlines()]
+    clicks=[r for r in raw if r['type']=='click']
+    # Explicitly authored guide captions for this fixture, not ASR or key text.
+    words=[]
+    for click, text in zip(clicks, ('Run the local checks', 'Review the build result')):
+        for i, word in enumerate(text.split()):
+            start=max(0,click['t']-.4)+i*.4
+            words.append({'text':word,'start':start,'end':start+.4})
+    (root/'authored-caption-words.json').write_text(json.dumps(words,indent=2),encoding='utf-8')
     for telemetry in (True,False):
         name="telemetry" if telemetry else "activity"
-        plan=plan_screen(source,cursor=log if telemetry else None,ui_text_px=24,click_highlights=telemetry)
+        plan=plan_screen(source,cursor=log if telemetry else None,ui_text_px=24,click_highlights=telemetry,words=words)
         save_plan(plan,root/(name+"-plan.json"))
         for aspect in ("16:9","9:16"):
             label=name+"-"+aspect.replace(":","x")
@@ -131,10 +140,25 @@ def deliver(root,source,log):
             contact=root/(label+"-phone.png");sheet.save(contact)
             velocities={}
             for axis in ('x','y','zoom'):
-                v=[(b[axis]-a[axis])*30 for a,b in zip(cam['keys'],cam['keys'][1:])]
+                v=[(b[axis]-a[axis])*30 for a,b in zip(cam['keys'],cam['keys'][1:]) if not b.get("cut")]
                 velocities[axis]={'velocity':max(map(abs,v)),'acceleration':max(abs(b-a)*30 for a,b in zip(v,v[1:]))}
+            edges={axis:{'velocity':0.,'acceleration':0.} for axis in ('left','top','right','bottom')}
+            for shot in cam['shots']:
+                for axis,values in zip(edges,zip(*[(x/plan.width,y/plan.height,(x+w)/plan.width,(y+h)/plan.height)
+                        for k in shot['keys'] for x,y,w,h in [k['window']]])):
+                    v=[(b-a)*plan.fps for a,b in zip(values,values[1:])]
+                    edges[axis]['velocity']=max(edges[axis]['velocity'],max(map(abs,v),default=0.))
+                    edges[axis]['acceleration']=max(edges[axis]['acceleration'],max((abs(b-a)*plan.fps for a,b in zip(v,v[1:])),default=0.))
             results.append({**result,"contact_sheet":str(contact),"click_coverage":clicks,"motion":velocities,
-                            "source_duration":plan.duration,"zoom_count":len(plan.zooms),"idle":plan.idle})
+                            "visible_edge_motion_within_shots":edges,
+                            "source_duration":plan.duration,"zoom_count":len(plan.zooms),"idle":plan.idle,
+                            "cuts":cam['cuts'], "caption_source":"explicitly authored fixture guide",
+                            "element_fit":all(
+                                x <= s['box'][0]*plan.width and y <= s['box'][1]*plan.height and
+                                x+w >= (s['box'][0]+s['box'][2])*plan.width and
+                                y+h >= (s['box'][1]+s['box'][3])*plan.height
+                                for s in cam['shots'] for k in s['keys'] for x,y,w,h in [k['window']])})
+            (root/(label+'-verification.json')).write_text(json.dumps(results[-1],indent=2),encoding='utf-8')
     (root/'acceptance.json').write_text(json.dumps(results,indent=2),encoding='utf-8')
     return results
 

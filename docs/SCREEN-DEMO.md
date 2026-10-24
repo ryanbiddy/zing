@@ -59,12 +59,30 @@ evidence (0.45), not recovered cursor positions or recognized text. Telemetry
 dwells score 0.75; clicks score 0.95. These are editorial weights, not calibrated
 probabilities. Each zoom stores its evidence and confidence in the plan.
 
-The camera merges nearby candidates, anticipates a focus change, then holds.
-A critical spring damper, dead zone, minimum hold, velocity and acceleration
-bounds reduce jitter. Oversampled 4:4:4 crop plus `zoompan` smooths source-pixel
-rounding. All aspects use source-space focus coordinates, including portrait.
-The work directory contains the camera keys, time map and FFmpeg graph for review.
+Each zoom also stores a normalized `box` and `box_evidence`. A small local pixel
+probe looks for the enclosing flat-color panel or control at the focus position,
+sampling the start, action and end of the scene. The union protects a widget
+that expands after a click. If no enclosing region is found, activity scenes
+use their changed-area rectangle; otherwise the camera shows the whole source.
+These are visual bounds, not recovered DOM elements. Gradients, overlays and
+unbordered controls can defeat this heuristic; inspect the saved boxes.
+
+The camera fits the whole region with a 6% margin on each side. It zooms out
+when necessary and pads outside the source at frame edges. Nearby regions share
+a containing view. A move over 40% of the normalized frame, or one estimated
+to take over 0.6 seconds under the motion limits, becomes a cut at a click,
+activity event or nearby idle end. The previous view holds until that frame,
+so no frames travel through the empty space between targets. Each shot has
+a gentle, contained 0.6-second push-in with a smooth start and stop.
+
+Portrait pictures follow the target's aspect: tall elements use up to 90% of
+the delivery height without captions, or 58% with a reserved lower caption band.
+Wide elements retain their full width and proportions; they cannot fill a tall
+frame without clipping or stretching. Oversampled 4:4:4 crop plus `zoompan`
+smooths source-pixel rounding. The work directory contains the region boxes,
+picture rectangles, camera keys, action-timed cuts, time map and FFmpeg graph.
 Balanced expressions and `filter_script_args` support FFmpeg 6, 8 and 9 syntax.
+Older version-1 plans without boxes get a region probe at render time.
 
 `freezedetect` supplies idle evidence. The default speeds safe idle interiors
 to 4x, with reading handles and protection around clicks, key presses and supplied
@@ -72,9 +90,9 @@ speech. Use `--idle-speed 1` to retain timing. Audio recordings without word
 timings stay at normal speed because a still screen can contain narration.
 Static UI is not proof the viewer has finished reading; review the shortened edit.
 
-`--max-zoom` defaults to 1.8; extra zoom uses only the headroom below 2.5x
-source enlargement. If filling the delivery aspect already exceeds 2.5x, extra
-zoom is disabled and the plan warns to use a larger source or smaller delivery.
+`--max-zoom` defaults to 1.8; source enlargement stays below 2.5x. Whole-region
+coverage takes priority over magnification. If the element cannot fit at the
+phone text floor, the view zooms out and reports the legibility tradeoff.
 `--ui-text-px` is the source UI's estimated em size (default 24), not an OCR
 measurement. The planner compares it to DOGFOOD1/CAPTION2's phone floor. A floor
 sets a *minimum* readable text size; a zoom cap limits enlargement and loss of
@@ -84,8 +102,8 @@ does not claim unreadable source text has been repaired.
 Supply `--words words.json` for captions, using source-time
 `[{"text":"Build","start":1,"end":1.5}]`. Words come from an explicit transcript,
 never the key log. `--caption-preset clean|punch|box|none` uses the CAPTION2 fonts,
-grouping and renderer. Captions use a rail clear of a protected region around the
-camera focus. If no rail fits, rendering stops with an instruction to shorten the
+grouping and renderer. Captions use the lower band, with the entire picture
+protected from overlap. If no rail fits, rendering stops with an instruction to shorten the
 phrases. `--click-highlights` adds short yellow outlines at recorded clicks.
 
 `zing match screen --clips <folder> --out <folder> --cursor session.jsonl --aspect all`
@@ -105,9 +123,10 @@ requested duration and added music beds are not imposed; source audio is retaine
   gaps over 100 ms and filters candidates against idle evidence.
 - [Screenize](https://github.com/syi0808/screenize/blob/027be96bbf2d855698bc67f1536ac8cef48cc3e4/Screenize/Generators/SegmentCamera/SegmentPlanner.swift),
   Apache-2.0. Adapted scene merging (distance <0.05, gap <0.5 s), transition/hold
-  structure, 0.15–0.8 s transition bounds and 0.1 s minimum holds. Its
-  ContinuousCamera informed the spring-damper/dead-zone design. Zing adds offline
-  anticipation and explicit motion limits; this is not the full Swift planner.
+  structure and minimum holds. Its ContinuousCamera informed the original
+  spring/dead-zone design. The revised whole-region camera uses stable containing
+  views, eased push-ins and action-timed cuts for distant targets. This is not
+  the full Swift planner.
 - [screenstudio-alt-skill](https://github.com/connerkward/screenstudio-alt-skill/blob/61a0b303ce3a73d103398fee7ecb5fa31f8a0994/src/polish.py),
   MIT, copyright 2026 Conner K Ward. Adapted the local event-log and FFmpeg
   `freezedetect` idle-compression approach. The privacy-filtered JSONL schema is
