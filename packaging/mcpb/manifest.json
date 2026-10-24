@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "myzing",
   "display_name": "Zing",
-  "version": "0.1.0",
+  "version": "1.0.0rc1",
   "description": "Zing studies short videos: deterministic edit measurements (shots, word-timed transcript, caption OCR, audio) your AI turns into style judgments over MCP.",
   "author": {
     "name": "Ryan Biddy"

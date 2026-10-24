@@ -2,6 +2,7 @@
 name: meme-writer
 description: Write compressed on-image meme text, check its budgets, and render it locally.
 version: 1.0.0
+release_version: 1.0.0rc1
 required_keys: [ideas]
 ---
 

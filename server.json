@@ -8,12 +8,12 @@
     "url": "https://github.com/ryanbiddy/zing",
     "source": "github"
   },
-  "version": "0.1.0",
+  "version": "1.0.0rc1",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "myzing",
-      "version": "0.1.0",
+      "version": "1.0.0rc1",
       "transport": {
         "type": "stdio"
       }

@@ -38,7 +38,7 @@ def test_zing_connect_names_the_public_prerelease_and_mcp_extra() -> None:
         in text
     )
     assert (
-        'python -m pip install "./myzing-0.1.0-py3-none-any.whl[mcp]"'
+        'python -m pip install "./dist/myzing-1.0.0rc1-py3-none-any.whl[mcp]"'
         in text
     )
 

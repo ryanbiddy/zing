@@ -2,6 +2,7 @@
 name: direct
 description: How to direct raw footage against a StyleProfile — honest gap report, keepers, filmable shot prompts — and write the direction back.
 version: 1.4.0
+release_version: 1.0.0rc1
 required_keys: [verdict, gaps, shot_prompts, keepers, assembly_notes]
 ---
 

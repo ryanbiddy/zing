@@ -35,7 +35,22 @@ def assert_wire(actual, expected):
     # continue comparing every original tool byte, and test the addition via
     # the current registry/stdio pins and test_music.py. POLISH1's protect
     # argument is stripped the same way and tested in test_meme_protect.py.
-    actual = copy.deepcopy(actual)
+    # REL1 adds the distribution version to prompt frontmatter. The individual
+    # prompt contract/version stays byte-identical to the SDK1 evidence.
+    # Release parity is checked separately in test_release_packaging.py.
+    from myzing import __version__
+
+    def without_release_stamp(value):
+        if isinstance(value, str):
+            return value.replace(f"release_version: {__version__}\n", "").replace(
+                f"release_version: {__version__}\\n", "")
+        if isinstance(value, list):
+            return [without_release_stamp(item) for item in value]
+        if isinstance(value, dict):
+            return {key: without_release_stamp(item) for key, item in value.items()}
+        return value
+
+    actual = without_release_stamp(copy.deepcopy(actual))
     if isinstance(actual, dict) and isinstance(actual.get("result"), dict) and "tools" in actual["result"]:
         actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
                                      if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run"}]

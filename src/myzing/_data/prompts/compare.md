@@ -2,6 +2,7 @@
 name: compare
 description: How to judge a NEW breakdown AGAINST a StyleProfile + its genre rubric — band-by-band, criterion by criterion — and write the comparison back.
 version: 0.5.1
+release_version: 1.0.0rc1
 required_keys: [fit, rubric_scores, deviations, overall]
 ---
 
