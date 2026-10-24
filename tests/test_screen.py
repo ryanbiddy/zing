@@ -38,7 +38,12 @@ def test_merge_clicks_with_dwell_despite_contradictory_freeze():
     zooms=zoom_candidates(events,[],[],10)
     assert len(zooms)==1 and {e['kind'] for e in zooms[0].evidence}=={"click","dwell"}
     assert zooms[0].confidence==.95
-    assert zoom_candidates(events,[],[{"start":0,"end":4}],10)
+    freeze=[{"start":0,"end":4}]
+    assert zoom_candidates(events,[],freeze,10)
+    idle=protected_idle(freeze,events,[],10)
+    assert all(s["end"]<=.85 or s["start"]>=2.5 for s in idle)
+    assert all(s["speed"]==1 for s in time_segments(plan(idle=idle))
+               if s["end"]>1 and s["start"]<2.5)
     rapid=[{"type":"click","t":1+i*.01,"x":.2 if i%2 else .8,"y":.5} for i in range(12)]
     scenes=zoom_candidates(rapid,[],[],10)
     cam=camera(plan(zooms=scenes),360,640)
@@ -160,7 +165,8 @@ def test_screen_cli_routing_and_optional_doctor(monkeypatch):
 
 def test_small_activity_vetoes_global_freeze():
     idle=protected_idle([{"start":0,"end":10}],[{"type":"activity","t":5}],[],10)
-    assert all(not s["start"]<5<s["end"] for s in idle)
+    assert idle==[{"start":.6,"end":4.4,"evidence":"freezedetect"},
+                  {"start":5.8,"end":9.4,"evidence":"freezedetect"}]
     assert zoom_candidates([], [{"kind":"activity","t":5,"x":.6,"y":.5,"confidence":.45}],idle,10)
 
 
@@ -288,12 +294,31 @@ def test_short_nearby_dwell_survives_without_duration_ranking():
     assert all(z.evidence[0]["kind"]=="dwell" for z in zooms)
 
 
-@pytest.mark.parametrize("velocity",[.05,.2,1.0])
+@pytest.mark.parametrize("velocity",[.002,.005,.01,.02,.025,.05,.2,1.0])
 def test_slow_pan_is_activity_not_dwell(velocity):
     events=[{"type":"cursor","t":i/60,"x":i/60*velocity,"y":.5} for i in range(60)]
     assert not dwell_candidates(events)
     idle=protected_idle([{"start":0,"end":5}],events,[],5)
     assert all(s["start"]>=1 for s in idle)
+
+
+def test_three_second_two_percent_pan_has_no_dwell_fragments():
+    events=[{"type":"cursor","t":i/60,"x":.3+i/60*.02,"y":.5} for i in range(181)]
+    assert dwell_candidates(events)==[]
+    assert zoom_candidates(events,[],[{"start":0,"end":3}],3)==[]
+    assert protected_idle([{"start":0,"end":3}],events,[],3)==[]
+
+
+@pytest.mark.parametrize("velocity",[.02,.2])
+def test_rest_followed_by_travel_keeps_only_rest_prefix(velocity):
+    events=samples(0,2)
+    events += [{"type":"cursor","t":2+i/60,"x":.3+i/60*velocity,"y":.4} for i in range(1,121)]
+    events += samples(4+1/60,5,events[-1]["x"])
+    rests=dwell_candidates(events)
+    assert len(rests)==2
+    assert rests[0]["start"]==0 and rests[0]["end"]==pytest.approx(2)
+    assert rests[1]["start"]>=4 and rests[1]["end"]==pytest.approx(5)
+    assert all(r["end"]<=2 or r["start"]>=4 for r in rests)
 
 
 def test_subpixel_cursor_travel_vetoes_global_freeze():
@@ -359,3 +384,98 @@ def test_phone_floor_focus_width_and_complete_visible_words(x):
         for word in words:
             b=[word[0]*p.width,word[1]*p.height,word[2]*p.width,word[3]*p.height]
             assert not intersects(view,b) or contains(view,b)
+
+
+@pytest.mark.parametrize("transpose",[False,True])
+def test_safe_window_searches_word_containment_edges(transpose):
+    from myzing.screen.framing import safe_window
+    from myzing.screen.regions import contains
+    focus=[.42*960,.40*540,.14*960,.08*540]
+    word=[.365*960,.36*540,.215*960,.05*540]
+    if transpose:
+        focus=[focus[1],focus[0],focus[3],focus[2]]
+        word=[word[1],word[0],word[3],word[2]]
+    view=safe_window(focus,[word],210,1)
+    assert view is not None
+    assert contains(view,focus) and contains(view,word)
+    axis=1 if transpose else 0
+    assert view[axis]<=word[axis]-1+1e-6
+    assert view[axis]+view[axis+2]>=word[axis]+word[axis+2]+1-1e-6
+
+
+def test_word_containment_keeps_sixty_percent_focus_when_feasible():
+    z=Zoom(0,3,.49,.44,[{"kind":"click","t":1}],.95,
+           box=[.42,.40,.14,.08],box_evidence={"words":[[.365,.36,.215,.05]]})
+    cam=camera(plan(zooms=[z]),360,640)
+    assert cam["shots"][0]["focus_width_fraction"]>=.60-1e-6
+    assert not cam["warnings"]
+
+
+def test_tiny_known_control_has_enlargement_ceiling_and_honest_metadata():
+    z=Zoom(0,3,.5,.5,[{"kind":"click","t":1}],.95,box=[.49,.49,19/960,12/540])
+    p=plan(zooms=[z],ui_text_px=4,max_zoom=1.2)
+    cam=camera(p,1080,1920)
+    shot=cam["shots"][0]
+    scales=[shot["picture"]["width"]/k["window"][2] for k in shot["keys"]]
+    assert max(scales)<=2.5+1e-6
+    source_base=min(p.width,p.height*shot["picture"]["width"]/shot["picture"]["height"])
+    assert shot["zoom_cap"]==pytest.approx(max(source_base/k["window"][2] for k in shot["keys"]))
+    assert any("phone floor" in w for w in cam["warnings"])
+    assert any("60%" in w for w in cam["warnings"])
+
+
+@pytest.mark.parametrize("short_side",[180,720,1080])
+def test_caption_picture_never_crosses_lower_band(short_side):
+    w,h=dimensions("9:16",short_side)
+    p=plan(zooms=[Zoom(0,3,.5,.5,[{"kind":"click","t":1}],.95,box=[.4,.4,.2,.1])],
+           words=[{"text":"Run","start":1,"end":2}])
+    pic=camera(p,w,h)["shots"][0]["picture"]
+    assert pic["y"]+pic["height"]<=.66*h
+
+
+@pytest.mark.parametrize("captioned",[False,True])
+def test_full_height_narrow_focus_reports_width_conflict(captioned):
+    from myzing.screen.regions import contains
+    p=plan(zooms=[Zoom(0,3,.5,.5,[{"kind":"click","t":1}],.95,box=[.45,0,.1,1])],
+           words=[{"text":"Run","start":1,"end":2}] if captioned else [])
+    cam=camera(p,720,1280)
+    assert any("60%" in w for w in cam["warnings"])
+    assert all(contains(k["window"],[.45*960,0,.1*960,540]) for k in cam["keys"])
+
+
+def test_wide_short_flat_control_is_focus_and_gets_phone_zoom():
+    from myzing.screen.regions import geometry,focus_region,contains
+    w,h=640,360
+    pixels=bytearray(w*h*3)
+    for y in range(100,112):
+        for x in range(120,320):
+            pixels[(y*w+x)*3:(y*w+x)*3+3]=bytes((40,160,224))
+    controls,lines,words=geometry(pixels,w,h)
+    box,kind=focus_region(controls,lines,(220/w,106/h))
+    assert box is not None and contains(box,[120/w,100/h,200/w,12/h])
+    assert box[2]<.4 and box[3]<.1 and kind=="control-and-label"
+    p=ScreenPlan("demo.mp4","a"*64,w,h,3,zooms=[Zoom(0,3,220/w,106/h,
+                 [{"kind":"click","t":1}],.95,box=box,box_evidence={"words":words})])
+    shot=camera(p,360,640)["shots"][0]
+    assert p.ui_text_px*shot["source_enlargement"]>=shot["phone_text_floor"]-1e-6
+    assert shot["focus_width_fraction"]>=.60-1e-6
+
+
+def test_tall_glyph_line_is_kept_and_cannot_be_bisected():
+    from myzing.screen.regions import geometry,contains,intersects
+    w,h=640,360
+    pixels=bytearray(w*h*3)
+    # Generated 26px glyphs: the former 23.4px ceiling discarded every one.
+    for left in range(40,150,16):
+        for y in range(192,218):
+            for x in range(left,left+6):
+                pixels[(y*w+x)*3:(y*w+x)*3+3]=b'\xff\xff\xff'
+    _,_,words=geometry(pixels,w,h)
+    truth=[40/w,192/h,102/w,26/h]
+    assert any(contains(b,truth) for b in words)
+    p=ScreenPlan("demo.mp4","a"*64,w,h,3,zooms=[Zoom(0,3,.17,.3,
+                 [{"kind":"click","t":1}],.95,box=[60/w,90/h,100/w,32/h],
+                 box_evidence={"words":words})])
+    for key in camera(p,360,640)["keys"]:
+        word=[40,192,102,26]
+        assert not intersects(key["window"],word) or contains(key["window"],word)

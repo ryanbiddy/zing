@@ -80,10 +80,13 @@ Portrait uses a tall picture area: up to 90% of delivery height without
 captions, or 58% with CAPTION2 captions in the lower band. Magnification targets
 the shared phone text floor and at least 60% of output width for the focus.
 It can crop non-focus panel space. `--max-zoom` (default 1.8) is the preferred
-context zoom; the phone floor can require greater enlargement.
+context zoom; the phone floor can require greater enlargement, capped at 2.5
+output pixels per source pixel, including any push-in. Saved `zoom_cap` reports
+the actual maximum context magnification, not the requested preference.
 `--ui-text-px` supplies the source text em-size estimate (default 24).
 Enlargement cannot restore missing source detail. If a complete focus line
-cannot fit at the floor, the camera preserves it and reports the conflict;
+cannot fit at the floor, or cannot fill 60% of portrait width within the
+enlargement ceiling, the camera preserves it and reports each unmet target;
 record larger UI text or choose a wider delivery.
 
 These bounds are heuristics, not DOM or OCR results. Gradients, low contrast,
@@ -97,8 +100,9 @@ Older version-1 plans without boxes get a region probe at render time.
 `freezedetect` supplies possible idle spans. A cursor rest of at least 450 ms
 is attention, including long hovers: its entire span remains at normal speed
 and keeps a zoom hold. Runs must stay within 1.2% of their starting position
-and below 2.5% of a screen per second over the measured window. Slow pans
-therefore do not become dwells. Every valid rest survives; there is no
+and each measured edge must stay at or below 0.1% of a screen per second.
+A moving sample ends the rest and cannot seed a new dwell; a later stable
+sample may begin another rest. Every valid rest survives; there is no
 duration ranking or 1.8-second exclusion zone.
 
 Only inactivity without dwell, cursor travel, clicks, keys, local image changes
@@ -127,7 +131,7 @@ requested duration and added music beds are not imposed; source audio is retaine
 
 - [OpenScreen](https://github.com/siddharthvaddem/openscreen/blob/ca8104c279da0d4b4481ec992ff103949e22c772/src/components/video-editor/timeline/zoomSuggestionUtils.ts),
   MIT, copyright 2025 Siddharth Vaddem. Adapted its 450 ms dwell concept.
-  Zing retains long holds, checks window velocity and excursion, breaks gaps
+  Zing retains long holds, checks edge velocity and excursion, breaks gaps
   over 100 ms, and keeps every valid run. Its original maximum duration,
   per-sample movement threshold, duration ranking and spacing are not used.
 - [Screenize](https://github.com/syi0808/screenize/blob/027be96bbf2d855698bc67f1536ac8cef48cc3e4/Screenize/Generators/SegmentCamera/SegmentPlanner.swift),

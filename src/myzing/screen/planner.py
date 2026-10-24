@@ -14,24 +14,31 @@ from .models import ScreenPlan, Zoom
 def dwell_candidates(events):
     """OpenScreen's 450ms dwell adapted to attention, including long holds.
 
-    A run stays within 1.2% of the frame and travels at most 2.5%/second
-    over its window. A per-sample threshold alone mistakes slow pans for rests.
+    A run stays within 1.2% of the frame. Each measured edge must travel at
+    most 0.1%/second: deliberate slow travel cannot restart as short rests.
     Keep every stable run: duration ranking/1.8s spacing loses valid attention.
     """
     samples = sorted((e for e in events if e["type"] == "cursor"), key=lambda e: e["t"])
-    runs, current, distance = [], [], 0.
+    runs, current, previous = [], [], None
     for sample in samples:
-        if current:
-            step = math.hypot(sample["x"]-current[-1]["x"], sample["y"]-current[-1]["y"])
-            elapsed = sample["t"]-current[0]["t"]
-            excursion = math.hypot(sample["x"]-current[0]["x"], sample["y"]-current[0]["y"])
-            if (sample["t"]-current[-1]["t"] > .1 or excursion > .012 or
-                    elapsed >= .15 and (distance+step)/elapsed > .025):
+        if previous is not None:
+            dt = sample["t"]-previous["t"]
+            step = math.hypot(sample["x"]-previous["x"], sample["y"]-previous["y"])
+            excursion = math.dist((sample["x"],sample["y"]),
+                                  (current[0]["x"],current[0]["y"])) if current else 0.
+            if dt > .1:
+                # A telemetry gap ends the old run; the new sample may rest.
                 runs.append(current)
-                current, distance = [], 0.
-            else:
-                distance += step
+                current = []
+            elif dt <= 0 or step > .001*dt+1e-12 or excursion > .012:
+                # Preserve only the low-speed prefix. Do not seed another
+                # dwell with this moving sample, even when current is empty.
+                runs.append(current)
+                current = []
+                previous = sample
+                continue
         current.append(sample)
+        previous = sample
     runs.append(current)
     candidates = []
     for run in runs:

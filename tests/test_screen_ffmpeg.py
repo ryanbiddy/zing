@@ -269,3 +269,48 @@ def test_generated_focus_phone_floor_and_no_midword_crop(tmp_path,side):
     actual=[min(a for a,b in points),min(b for a,b in points),
             max(a for a,b in points)+1-min(a for a,b in points),max(b for a,b in points)+1-min(b for a,b in points)]
     assert all(abs(a-b)<=3 for a,b in zip(actual,expected)),(actual,expected)
+
+
+def test_tall_rendered_text_guards_portrait_crop(tmp_path):
+    """Large glyph ink must survive region detection and protect every frame."""
+    from myzing.screen.regions import contains,intersects,geometry
+    font=(Path(__file__).resolve().parents[1]/"src/myzing/_data/fonts/Anton-Regular.ttf").as_posix().replace(":",r"\:")
+    text=f"drawtext=fontfile='{font}':text='MMMM':x=40:y=192:fontsize=34:fontcolor=white"
+    raw=subprocess.run(["ffmpeg","-v","error","-f","lavfi","-i","color=black:s=640x360",
+        "-vf",text,"-frames:v","1","-f","rawvideo","-pix_fmt","rgb24","pipe:1"],
+        capture_output=True,check=True).stdout
+    points=[(i//3%640,i//3//640) for i in range(0,len(raw),3) if min(raw[i:i+3])>150]
+    left,top=min(x for x,y in points),min(y for x,y in points)
+    truth=[left,top,max(x for x,y in points)+1-left,max(y for x,y in points)+1-top]
+    assert truth[3]>360*.065
+    _,_,words=geometry(raw,640,360)
+    normalized=[truth[0]/640,truth[1]/360,truth[2]/640,truth[3]/360]
+    assert any(contains(b,normalized) for b in words)
+    video=tmp_path/"tall-text.mp4"
+    filters="drawbox=x=60:y=150:w=100:h=32:color=blue:t=fill,"+text
+    subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","color=black:s=640x360:r=30:d=2",
+        "-vf",filters,"-c:v","libx264","-threads","1","-pix_fmt","yuv420p",str(video)],check=True)
+    rows=[{"type":"start","version":1,"t":0}]
+    rows += [{"type":"cursor","t":i/60,"x":110/640,"y":166/360} for i in range(120)]
+    rows += [{"type":"stop","t":2,"samples":120}]
+    log=tmp_path/"cursor.jsonl"
+    log.write_text("".join(json.dumps(r)+"\n" for r in rows),encoding="utf-8")
+    p=plan_screen(video,cursor=log,words=[{"text":"Run","start":.5,"end":1.5}])
+    assert any(contains(b,normalized) for b in p.zooms[0].box_evidence["words"])
+    result=render_screen(p,tmp_path/"portrait.mp4",aspect="9:16",short_side=360)
+    cam=json.loads(Path(result["camera"]).read_text())
+    for key in cam["keys"]:
+        assert not intersects(key["window"],truth) or contains(key["window"],truth)
+    # The renderer must use that crop, including the whole line when visible.
+    key=cam["keys"][30]
+    if intersects(key["window"],truth):
+        pic=cam["shots"][key["shot"]]["picture"]
+        x,y,w,h=key["window"]
+        expected=[pic["x"]+(truth[0]-x)*pic["width"]/w,pic["y"]+(truth[1]-y)*pic["height"]/h,
+                  truth[2]*pic["width"]/w,truth[3]*pic["height"]/h]
+        data=frame(result["video"],1,360,640)
+        ink=[(i//3%360,i//3//360) for i in range(0,len(data),3)
+             if min(data[i:i+3])>150 and i//3//360<pic["y"]+pic["height"]]
+        actual=[min(a for a,b in ink),min(b for a,b in ink),
+                max(a for a,b in ink)+1-min(a for a,b in ink),max(b for a,b in ink)+1-min(b for a,b in ink)]
+        assert all(abs(a-b)<=3 for a,b in zip(actual,expected)),(actual,expected)

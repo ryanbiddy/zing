@@ -60,9 +60,12 @@ def geometry(rgb, width, height):
                     seen[j]=1
                     stack.append(j)
         components.append(([left,top,right-left+1,bottom-top+1],count,color))
-    controls = [padded(b,width,height) for b,n,c in components
-                if b[2]>=width*.035 and b[3]>=height*.045
-                and .001 <= b[2]*b[3]/(width*height) <= .6 and n/(b[2]*b[3])>=.45]
+    # Short toolbars are controls too. Retain the fill/area checks and only
+    # reject the height noise floor, rather than imposing a frame percentage.
+    flat = [(b,c) for b,n,c in components
+            if b[2]>=width*.035 and b[3]>=3
+            and .001<=b[2]*b[3]/(width*height)<=.6 and n/(b[2]*b[3])>=.45]
+    controls = [padded(b,width,height) for b,c in flat]
     # Merge anti-aliased glyph colors before finding components. Local tile
     # backgrounds handle both light-on-dark labels and dark button text.
     from collections import Counter
@@ -79,10 +82,11 @@ def geometry(rgb, width, height):
     # Flat controls supply a stronger background estimate than a tile crossing
     # their border. This recovers dark text on colored buttons without joining
     # the glyphs to the button outline.
-    flat = [(b,c) for b,n,c in components
-            if b[2]>=width*.035 and b[3]>=height*.045
-            and .001<=b[2]*b[3]/(width*height)<=.6 and n/(b[2]*b[3])>=.45]
-    for (left,top,w,h),background in sorted(flat,key=lambda item:item[0][2]*item[0][3],reverse=True):
+    # Large page backgrounds are not focus controls, but can disambiguate a
+    # tile filled mostly by tall lettering (which otherwise inverts the mask).
+    backgrounds = flat+[(b,c) for b,n,c in components
+                        if b[2]*b[3]/(width*height)>.6 and n/(b[2]*b[3])>=.45]
+    for (left,top,w,h),background in sorted(backgrounds,key=lambda item:item[0][2]*item[0][3],reverse=True):
         for y in range(top,top+h):
             for x in range(left,left+w):
                 i=y*width+x
@@ -109,7 +113,7 @@ def geometry(rgb, width, height):
                         mask[j]=0
                         stack.append(j)
         b=[left,top,right-left+1,bottom-top+1]
-        if count>=3 and 3<=b[3]<=height*.065 and 1<=b[2]<=width*.10:
+        if count>=3 and b[3]>=3 and 1<=b[2]<=width*.10:
             glyphs.append(b)
     rows = []
     for b in sorted(glyphs,key=lambda b:(b[1]+b[3]/2,b[0])):

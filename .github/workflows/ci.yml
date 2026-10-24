@@ -73,7 +73,7 @@ jobs:
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 428
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 429
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -129,7 +129,7 @@ jobs:
       - name: Breakdown + profile eval with machine-readable report
         run: python -m tools.eval.run --sample --profiles --report "tools/eval/eval-report.json"
       - name: ffmpeg-marked test subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 428
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 429
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
         uses: actions/upload-artifact@v6
@@ -177,7 +177,7 @@ jobs:
       - name: Provision pinned caption OCR models (explicit download; study stays offline)
         run: python -m myzing.study.caption_models --fetch
       - name: Path-handling / ASS / render smoke subset (skips are failures)
-        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 428
+        run: pytest -q -m ffmpeg --expected-ffmpeg-tests 429
 
   # macOS smoke: frame extraction, six inspection tests, audio placement,
   # and the caption/ducking render oracle (Homebrew FFmpeg with libass).
@@ -214,7 +214,7 @@ jobs:
       - run: pip uninstall -y opencv-python
       - run: pip install --force-reinstall --no-deps opencv-python-headless==4.13.0.92
       - name: Real media, inspection, render audio and animated meme gates (skips are failures)
-        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking tests/test_memes_video.py tests/test_director_ffmpeg.py tests/test_render_composition_ffmpeg.py tests/test_render_lut_ffmpeg.py tests/test_match_ffmpeg.py tests/test_match_color_ffmpeg.py tests/test_e2e1_ffmpeg.py tests/test_continuity_ffmpeg.py tests/test_framing_ffmpeg.py tests/test_aspect_delivery_ffmpeg.py tests/test_reframe2_ffmpeg.py tests/test_music_ffmpeg.py tests/test_render_transitions_ffmpeg.py::test_supported_transition_pixels_frames_duration_audio tests/test_render_transitions_ffmpeg.py::test_mixed_chain_normalizes_inputs_and_keeps_fractional_audio_placement tests/test_render_transitions_ffmpeg.py::test_luts_precede_overlap_and_captions_follow_it tests/test_still.py::test_pick_real_video_and_gif_offline tests/test_studio_ffmpeg.py tests/test_dogfood1_ffmpeg.py tests/test_caption2_ffmpeg.py tests/test_source_map_ffmpeg.py tests/test_screen_ffmpeg.py -m ffmpeg --expected-ffmpeg-tests 297
+        run: pytest -q tests/test_mcp_frames.py::test_get_frames_real_two_color_probe tests/test_inspect_ffmpeg.py tests/test_render_integration.py::test_clip_audio_follows_each_timeline_slot tests/test_render_integration.py::test_golden_edl_renders_with_content_probes_and_ducking tests/test_memes_video.py tests/test_director_ffmpeg.py tests/test_render_composition_ffmpeg.py tests/test_render_lut_ffmpeg.py tests/test_match_ffmpeg.py tests/test_match_color_ffmpeg.py tests/test_e2e1_ffmpeg.py tests/test_continuity_ffmpeg.py tests/test_framing_ffmpeg.py tests/test_aspect_delivery_ffmpeg.py tests/test_reframe2_ffmpeg.py tests/test_music_ffmpeg.py tests/test_render_transitions_ffmpeg.py::test_supported_transition_pixels_frames_duration_audio tests/test_render_transitions_ffmpeg.py::test_mixed_chain_normalizes_inputs_and_keeps_fractional_audio_placement tests/test_render_transitions_ffmpeg.py::test_luts_precede_overlap_and_captions_follow_it tests/test_still.py::test_pick_real_video_and_gif_offline tests/test_studio_ffmpeg.py tests/test_dogfood1_ffmpeg.py tests/test_caption2_ffmpeg.py tests/test_source_map_ffmpeg.py tests/test_screen_ffmpeg.py -m ffmpeg --expected-ffmpeg-tests 298
 
   # S5 Lane B: fresh-host install gate — wheel -> bare venv -> first-run
   # surface, NO repo checkout on the tested path (packaged data must

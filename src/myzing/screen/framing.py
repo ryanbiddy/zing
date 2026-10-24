@@ -8,6 +8,7 @@ from .regions import union, intersects, contains
 
 
 MARGIN = .06  # Each side of the source element, before delivery letterboxing.
+MAX_SOURCE_ENLARGEMENT = 2.5  # Output pixels per source pixel, including pushes.
 
 
 def center(box):
@@ -71,8 +72,8 @@ def safe_window(focus, words, width, aspect, anchor_y=.5):
     ys = [cy,ylo,yhi]
     # A pixel of breathing room absorbs crop rounding and codec ringing.
     for a,b,c,d in words:
-        xs.extend((a-1-width,a+c+1))
-        ys.extend((b-1-ch,b+d+1))
+        xs.extend((a-1-width,a+c+1,a-1,a+c+1-width))
+        ys.extend((b-1-ch,b+d+1,b-1,b+d+1-ch))
     xs = sorted({max(xlo,min(xhi,v)) for v in xs},key=lambda v:abs(v-cx))
     ys = sorted({max(ylo,min(yhi,v)) for v in ys},key=lambda v:abs(v-cy))
     best,score = None,float("inf")
@@ -107,20 +108,25 @@ def fitted_shot(plan, group, width, height, start, end):
     ph = max(2,round(pw/aspect/2)*2)
     aspect = pw/ph
     picture_center = min(height*.43,height*.66-ph/2) if captioned and portrait else height*.38 if captioned else height*.5
-    picture = {"x":round((width-pw)/4)*2,"y":round((picture_center-ph/2)/2)*2,
+    picture = {"x":round((width-pw)/4)*2,"y":math.floor((picture_center-ph/2)/2)*2,
                "width":pw,"height":ph}
     source_base = min(plan.width,plan.height*aspect)
     floor = phone_size(width,height,pw)
     scale = max(floor/plan.ui_text_px, .60*width/w if portrait else 0.)
-    required = max(w,h*aspect)*(1+2*MARGIN)
+    required = max(max(w,h*aspect)*(1+2*MARGIN),pw/MAX_SOURCE_ENLARGEMENT)
     # max_zoom is the preferred context zoom. Legibility may require more;
     # element containment remains mandatory when the two are incompatible.
     desired = max(required,min(source_base/plan.max_zoom,pw/scale))
     view = None
     # Try slightly tighter crops before giving up the text floor. Shrinking
     # changes which surrounding words need to fit, never the protected focus.
-    for i in range(21):
-        cw = desired+(required-desired)*i/20
+    widths = [desired+(required-desired)*i/20 for i in range(21)]
+    # A complete neighboring word can need a wider crop than the preferred
+    # context zoom, while still meeting both phone targets. Try that range
+    # before expanding the focus union and conceding legibility.
+    if pw/scale > desired:
+        widths += [desired+(pw/scale-desired)*i/20 for i in range(1,21)]
+    for cw in widths:
         view = safe_window(focus,guards,cw,aspect,.8 if portrait else .65)
         if view is not None:
             break
@@ -152,14 +158,16 @@ def fitted_shot(plan, group, width, height, start, end):
             keys.append({"t":start+t,"x":cx/plan.width,"y":cy/plan.height,
                          "zoom":zoom,"window":[cx-cw/2,cy-ch/2,cw,ch]})
         return keys
-    keys=keys_for(.035)
+    push=max(0.,min(.035,MAX_SOURCE_ENLARGEMENT*base_w/pw-1))
+    keys=keys_for(push)
     padded_focus=[x-w*MARGIN,y-h*MARGIN,w*(1+2*MARGIN),h*(1+2*MARGIN)]
     if any(not contains(k["window"],padded_focus) or
            any(intersects(k["window"],b) and not contains(k["window"],b) for b in guards) for k in keys):
         keys=keys_for(0.)
     return {"start":start,"end":end,"box":box,"picture":picture,"word_boxes":words,
             "base_width":base_w,"base_height":base_h,"keys":keys,
-            "zoom_cap":plan.max_zoom,"source_enlargement":pw/base_w,
+            "zoom_cap":max(source_base/k["window"][2] for k in keys),
+            "source_enlargement":pw/base_w,"source_enlargement_cap":MAX_SOURCE_ENLARGEMENT,
             "phone_text_floor":floor,"focus_width_fraction":w*pw/base_w/width,
             "estimated_pan_seconds":group["estimated_pan_seconds"]}
 
@@ -175,7 +183,8 @@ def element_camera(plan, width, height):
     # estimate alone can approve a union that falls below the phone floor.
     def legible(group):
         shot = fitted_shot(plan,group,width,height,0,1/plan.fps)
-        return plan.ui_text_px*shot["source_enlargement"] >= shot["phone_text_floor"]-1e-6
+        return (plan.ui_text_px*shot["source_enlargement"] >= shot["phone_text_floor"]-1e-6
+                and (height<=width or shot["focus_width_fraction"]>=.60-1e-6))
     groups = focus_groups(plan.zooms, can_merge=legible)
     starts, cuts, kept = [0], [], [groups[0]]
     for group in groups[1:]:
@@ -199,7 +208,9 @@ def element_camera(plan, width, height):
         keys.extend(shot["keys"])
         shots.append(shot)
         if plan.ui_text_px*shot["source_enlargement"] < shot["phone_text_floor"]-1e-6:
-            notes.append("Focus text cannot reach the phone floor while keeping its complete line and visible words; record larger UI text or use a wider delivery. Size is estimated from --ui-text-px, not OCR-measured.")
+            notes.append("Focus text cannot reach the phone floor within the 2.5x source enlargement ceiling while keeping its complete line and visible words; record larger UI text or use a wider delivery. Size is estimated from --ui-text-px, not OCR-measured.")
+        if height>width and shot["focus_width_fraction"]<.60-1e-6:
+            notes.append("Focus cannot fill 60% of portrait width within the 2.5x source enlargement ceiling while keeping the complete element and visible words; its height or surrounding text may require a wider crop.")
     if any(z.box is None or z.box_evidence.get("kind") == "unknown-full-source" for z in plan.zooms):
         notes.append("UI element bounds are unknown for a focus scene; showing the whole source instead of cropping around its cursor.")
     return {"keys": keys, "shots": shots, "cuts": cuts,
