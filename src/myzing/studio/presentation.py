@@ -49,6 +49,9 @@ def creator_summary(result, answers, facts):
     detail = result.get("result", {})
     root = Path(result["project"])
     rows = []
+    for index, screen in enumerate(detail.get("screens", []), 1):
+        for shape, row in screen.get("deliveries", {}).items():
+            rows.append(_row(f"Screen {index}", shape, {**row, "status": "ready"}))
     for key, row in detail.get("drafts", {}).items():
         label, _, shape = key.partition(".")
         rows.append(_row(label, shape.replace("x", ":"), row))

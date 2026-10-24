@@ -172,6 +172,7 @@ extras below. To select features, use e.g. `uv sync --extra memes --extra render
 | `render` | pysubs2 for ASS captions. |
 | `memes` | Pillow for still rendering and timeline inspection. |
 | `fonts` | Pillow and pinned headless OpenCV for font comparison; expanded font assets require an explicit fetch. |
+| `screen` | Optional macOS Quartz cursor recording (PyObjC); Windows uses stdlib. |
 | `layout` | Pinned headless OpenCV; YuNet still needs an explicit model fetch. |
 | `color` | NumPy for SDR matching and LUT work. |
 | `audio-ml` | Optional CED audio tags via sherpa-onnx; weights via `zing doctor --audio-model ced-mini`. |
@@ -231,3 +232,5 @@ See [Connect](docs/CONNECT.md) for the actual MCP handoff and explicit credentia
 Match reports separate playable output from style fidelity. Current director
 plans use cuts; sparse OCR, font substitutions, sampled face detection and color
 distribution comparisons remain approximations that need review.
+
+Screen recordings: [Screen-demo planning and cursor privacy](docs/SCREEN-DEMO.md).

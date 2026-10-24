@@ -56,3 +56,6 @@ tests/fixtures/vision/*.jpg -text
 tests/fixtures/vision/manifest.json text eol=lf
 docs/licenses/*.txt -text
 src/myzing/_data/docs/OPENCV-ZOO-LICENSES.md text eol=lf
+
+# Upstream screen-demo license bytes retained consistently across platforms.
+docs/licenses/screen-*.txt -text

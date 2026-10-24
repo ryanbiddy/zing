@@ -92,3 +92,9 @@ bases, not a claim of an individual model release.
 
 If you own material referenced here and want it removed or its attribution
 corrected, please open an issue on this repository.
+
+## SCREEN1 screen-demo algorithms
+
+OpenScreen (MIT, copyright 2025 Siddharth Vaddem), Screenize (Apache-2.0), and screenstudio-alt-skill (MIT, copyright 2026 Conner K Ward) inform the ports in `src/myzing/screen`. Upstream revisions, modifications and links: [Screen demos](docs/SCREEN-DEMO.md). Full upstream license texts: `docs/licenses/screen-openscreen.txt`, `screen-screenize.txt`, and `screen-screenstudio-alt-skill.txt`. Screenize has no upstream NOTICE file in the inspected revision. PyObjC (MIT) is an optional macOS-only dependency; no upstream application runtime or model weights are vendored.
+
+The Screenize-derived portions of `myzing.screen.planner` retain Apache-2.0 terms. All three upstream screen-demo license texts and the modification notice also ship inside the wheel in `myzing/_data/docs/SCREEN-LICENSES.md`.
