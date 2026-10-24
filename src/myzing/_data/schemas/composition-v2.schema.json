@@ -62,6 +62,9 @@
           "enum": [
             "reference",
             "phone",
+            "punch",
+            "box",
+            "clean",
             "none"
           ],
           "type": "string"
@@ -858,6 +861,20 @@
         },
         "position": {
           "type": "string"
+        },
+        "preset": {
+          "anyOf": [
+            {
+              "enum": [
+                "punch",
+                "box",
+                "clean"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "start": {
           "type": "number"

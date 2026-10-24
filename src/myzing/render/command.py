@@ -124,8 +124,8 @@ def run(argv: list[str]) -> int:
         if values and not isinstance(edl, Composition):
             from myzing.composition.compatibility import upgrade_edl
             edl = upgrade_edl(edl)
-        apply_plan(edl, values)
-        restyle = args.caption_mode == "phone" or args.caption_options is not None
+        apply_plan(edl, values, base_dir=edl_path.parent)
+        restyle = args.caption_mode in ("phone", "punch", "box", "clean") or args.caption_options is not None
         if restyle and args.aspect is None and args.short_side is None:
             args.short_side = max(18, min(edl.width, edl.height) // 18 * 18)
         if args.aspect or args.framing or args.max_upscale is not None or args.picture_crop or restyle:

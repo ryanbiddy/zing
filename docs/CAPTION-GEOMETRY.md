@@ -72,7 +72,7 @@ outline width tolerance is 1.5 pixels on a three-pixel stroke. The low-confidenc
 test deliberately lowers two real inference scores to exercise the gap contract.
 
 ```text
-ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 389
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 410
 ```
 
 The tests establish those limits for the generated cases. Real footage, gradients,
@@ -138,4 +138,4 @@ uv run --frozen pytest -q -m real_caption
 The replay verifies media/label/baseline hashes and refuses changed frozen code
 for held-out runs. It writes sidecars, exact-frame PNG overlays and per-frame font
 evidence. The opt-in test reads 2.6 seconds of Korky without seams or downloads;
-its skip is registered. It is separate from the 389-test FFmpeg gate.
+its skip is registered. It is separate from the 410-test FFmpeg gate.

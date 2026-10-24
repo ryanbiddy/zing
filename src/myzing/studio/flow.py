@@ -181,7 +181,7 @@ def normalize(key, value):
         allowed = {"reference_kind": ["file", "url", "uoink"],
                    "platform": ["original", "TikTok/Reels", "YouTube", "square", "all", "custom"],
                    "tone": ["natural", "calm", "energetic"],
-                   "captions": ["none", "phone", "reference"], "draft": ["A", "B", "C", "keep all"]}[key]
+                   "captions": ["none", "phone", "punch", "box", "clean", "reference"], "draft": ["A", "B", "C", "keep all"]}[key]
         if value not in allowed:
             raise ValueError(f"{key}: choose {', '.join(allowed)}.")
     elif not isinstance(value, str) or not value.strip() or len(value) > 500:
@@ -208,7 +208,7 @@ def brief_answers(answers):
             "caption_language": "none" if answers["captions"] == "none" else "original",
             "music": {"source": "supplied files", "files": answers["music"]} if isinstance(answers["music"], list)
             else {"source": "none" if answers["music"] == "none" else "keep original audio"},
-            "framing": "auto", "caption_mode": answers["captions"] if answers["captions"] in ("phone", "none") else "reference",
+            "framing": "auto", "caption_mode": answers["captions"] if answers["captions"] in ("phone", "punch", "box", "clean", "none") else "reference",
             **{key: answers[key] for key in DELIVERY_KEYS if key in answers}}
 
 
@@ -345,10 +345,17 @@ def next_step(answers=None, *, cache=None):
         if path == "b":
             ask("tone", "What tone should it have?", "natural",
                 "Semantic tone is unknown; natural is a restrained starting preference. Measured studies still determine draft candidates.", ["natural", "calm", "energetic"])
-        ask("captions", "Add spoken captions?", "phone" if facts["audio_streams"] else "none",
-            f"{facts['audio_streams']} probed videos have audio; speech and spelling are unknown. Phone captions need valid timed words; blocked captions will be reported."
+        # The platform answer decides the shapes before "aspects" is stored.
+        shapes = a.get("aspects") or selected
+        caption_choice = "clean" if shapes == ["16:9"] else "punch"
+        caption_reason = ("Clean suits a 16:9 delivery: up to two balanced lines and longer reading time."
+                          if caption_choice == "clean" else
+                          "Punch keeps short phrases large on one line for phone viewing"
+                          + (" (one style is used for every shape)." if len(shapes) > 1 else "."))
+        ask("captions", "Which spoken-caption style?", caption_choice if facts["audio_streams"] else "none",
+            f"{caption_reason} {facts['audio_streams']} probed videos have audio; speech and spelling still need checking."
             if facts["audio_streams"] else "No speech evidence is available; omit captions unless you want to try local transcription.",
-            {"none": "No added captions", "phone": "Phone-readable spoken captions"})
+            {"none": "No added captions", "punch": "Punch: bold caps, yellow active word", "box": "Box: a yellow plate glides behind fixed words", "clean": "Clean: balanced subtitles with longer holds", "phone": "Legacy phone captions"})
         ask("music", "Music: original, none, or local track paths separated by ;?", "original" if facts["audio_streams"] else "none",
             "Keep the measured audio streams; supplied tracks will be rated and ducked only under known speech."
             if facts["audio_streams"] else "No source audio was measured; supply a local track if you want added music.",
@@ -356,10 +363,10 @@ def next_step(answers=None, *, cache=None):
         if ref.get("duration"):
             for q in queue:
                 if q.id == "captions":
-                    q.recommended = "phone" if ref.get("text_present") and ref.get("speech_present") else "none"
+                    q.recommended = caption_choice if ref.get("text_present") and ref.get("speech_present") else "none"
                     text = ref.get("text_present")
                     q.reason = ("No text detected in sampled reference frames; start without added captions." if text is False else
-                                "Text and speech observed; try spoken captions. Sampled text may be titles." if text and ref.get("speech_present") else
+                                caption_reason + " Text and speech observed; sampled text may be titles." if text and ref.get("speech_present") else
                                 "Text observed but no speech detected; it is likely titles or signs, so start without spoken captions."
                                 if text and ref.get("speech_present") is False else
                                 "Spoken-caption evidence is unknown; start without added captions.")

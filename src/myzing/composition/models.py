@@ -279,10 +279,15 @@ class CompositionCaption(Record, CaptionSpec):
     style: CaptionStyle | None = None
     backend: Literal["ass", "hyperframes"] = "ass"
     template: Literal["phrase-highlight", "kinetic"] | None = None
+    preset: Literal["punch", "box", "clean"] | None = field(default=None, metadata={"omit_default": True})
     version: int = 1
 
     def __post_init__(self):
         super().__post_init__()
+        if self.preset not in (None, "punch", "box", "clean"):
+            raise ValueError("caption preset: choose punch, box or clean")
+        if self.preset and (self.backend != "ass" or not self.font or not self.style):
+            raise ValueError("caption presets require ASS, a pinned font and style")
         nonempty(self.id, "caption id")
         nonempty(self.text, "caption text")
         interval(self.start, self.end, "caption interval")

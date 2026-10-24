@@ -103,7 +103,7 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         from myzing.layout.readability import phone_word_groups
         groups = [(part, offset) for window, offset in groups for part in phone_word_groups(window)]
     result = []
-    caps_count = round(style.all_caps_rate * len(groups))
+    caps_count = 0 if getattr(brief, "caption_mode", "reference") in ("punch", "box", "clean") else round(style.all_caps_rate * len(groups))
     layout = recipe.approximations.layout
     for i, (words, offset) in enumerate(groups):
         all_caps = (round((i + 1) * caps_count / len(groups)) > round(i * caps_count / len(groups)))
@@ -189,8 +189,8 @@ def audio_for(brief, manifest, root, duration, first_cut, *, include_music=True)
 def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden,
               subject_evidence=None, music_cache=None, timing_selection=None, caption_mode=None, picture_evidence=None):
     caption_mode = caption_mode or brief.caption_mode
-    if caption_mode == "phone":
-        brief = replace(brief, caption_mode="phone")
+    if caption_mode in ("phone", "punch", "box", "clean"):
+        brief = replace(brief, caption_mode=caption_mode)
     from myzing.music.planning import plan_music
     from myzing.audio.media import AudioError
     try:
@@ -201,7 +201,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     except AudioError as exc:
         shortage("music_analysis", str(exc), "Check the local track and zing doctor; install myzing[audio] for music analysis.")
     lookup = {s.asset_id: s for s in studies}
-    if caption_mode == "phone":
+    if caption_mode in ("phone", "punch", "box", "clean"):
         font, font_report = None, {"family": "Arial", "status": "studio preference",
                                   "reason": "Phone captions use the renderer's default Arial bold with system fallback; original font unknown."}
     else:
@@ -311,6 +311,15 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             mark_auto_declined(resolution, lowered[2])
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
+    if caption_mode in ("punch", "box", "clean"):
+        from myzing.captions.presets import apply_preset
+        # Clip paths are project-relative: resolve them so the VAD clamp runs.
+        apply_preset(plan, caption_mode, base_dir=root)
+        captions = plan.captions
+        font_report = {"family": "Zing Caption (Inter)", "status": "explicit preset", "original_font": "unknown",
+                       "reason": f"The {caption_mode} preset uses a pinned Inter derivative; the original font is unknown."}
+        if not source_dimensions:
+            place_captions(plan, {}, {})
     if source_dimensions:
         place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions,
                        keep_safe_defaults=True)

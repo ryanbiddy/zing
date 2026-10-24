@@ -108,7 +108,7 @@ def lowering_blockers(composition: Composition) -> list[str]:
     for index, caption in enumerate(composition.captions):
         if caption.alignment != "center":
             problems.append(f"captions[{index}].alignment={caption.alignment}")
-        for field in ("layout", "font", "style", "template"):
+        for field in ("layout", "font", "style", "template", "preset"):
             if getattr(caption, field) is not None:
                 problems.append(f"captions[{index}].{field}")
         if caption.backend != "ass":

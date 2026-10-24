@@ -80,8 +80,7 @@ def _usage() -> str:
     )
     return (
         "Start here: zing studio\n\n"
-        "zing — study short videos, build a taste profile, direct and "
-        "render your own\n\n"
+        "Match your clips to a reference video and make memes from local images.\n\n"
         "usage: zing [--version] <command> [args]\n\n"
         f"commands:\n{rows}\n\n"
         "Most commands accept --help. To connect an AI client, start with:\n"

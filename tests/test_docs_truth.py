@@ -72,6 +72,10 @@ def test_studio_entry_point_and_mcp_counts():
         assert counts and all(int(n) == len(tools) for n in counts), (file, counts)
     assert _usage().startswith("Start here: zing studio")
     assert (ROOT / "docs/STUDIO.md").is_file()
+    presets = (ROOT / "docs/CAPTION-PRESETS.md").read_text(encoding="utf-8")
+    assert all(name in presets for name in ("punch", "box", "clean"))
+    assert all(aspect in presets for aspect in ("16:9", "1:1", "9:16"))
+    assert "short side" in presets
 
 def test_explain_documented_surface():
     assert "zing_explain" in (ROOT / "docs/CONNECT.md").read_text(encoding="utf-8")

@@ -253,8 +253,15 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
     default_font = next(iter(fonts.values()))[0] if fonts else "Arial"
     lines = [_header(composition.width, composition.height, default_font)]
     measurements = {}
+    preset_geometry = []
     frame_limit = frame_index(max(c.timeline_end for c in composition.clips), composition.fps, rounding="nearest")
     for caption in composition.captions:
+        if caption.preset:
+            from myzing.captions.render import compile_caption
+            events, receipt = compile_caption(caption, composition, *fonts[caption.id], frame_limit)
+            lines.extend(events)
+            preset_geometry.append(receipt)
+            continue
         width, height = composition.width, composition.height
         style = caption.style or CaptionStyle(
             max(24, round(min(width, height) / 12)), highlight="#FFDC00",
@@ -357,6 +364,8 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
                 plate = ("{" + rf"\an7\bord0\shad0\1c{_color(style.box_color)}\p1" + move + resize + "}"
                          + f"m 0 0 l {_n(a.width * width)} 0 {_n(a.width * width)} {_n(a.height * height)} 0 {_n(a.height * height)}")
                 lines.append(_dialogue(start, end, plate, layer=0))
+    if preset_geometry:
+        (directory / "caption-geometry.json").write_text(json.dumps(preset_geometry, indent=2) + "\n", encoding="utf-8")
     output = directory / "captions.ass"
     output.write_text("".join(lines), encoding="utf-8", newline="\n")
     (directory / "caption-fonts.json").write_text(json.dumps(receipts, indent=2) + "\n", encoding="utf-8", newline="\n")

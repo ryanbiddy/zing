@@ -894,3 +894,18 @@ def test_project_lock_release_retries_a_transient_sharing_violation(tmp_path, mo
 def test_plan_reports_explicit_skip(inputs):
     _, plan = complete("b", inputs)
     assert any("captions and whole-line continuity are unavailable" in w for w in plan["warnings"])
+
+
+@pytest.mark.parametrize("platform,choice,reason", [
+    ("YouTube","clean","16:9"), ("TikTok/Reels","punch","phone"),
+    ("square","punch","phone"), ("all","punch","every shape"),
+])
+def test_caption_recommendation_uses_selected_delivery(inputs, platform, choice, reason):
+    answers, _ = complete("b", inputs)
+    answers.pop("captions", None)
+    answers.pop("aspects", None)
+    answers["platform"] = platform
+    question = flow.next_step(answers)["question"]
+    assert question["id"] == "captions"
+    assert question["recommended"] == choice
+    assert reason in question["reason"]
