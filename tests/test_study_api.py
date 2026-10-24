@@ -28,8 +28,17 @@ from myzing.study.ingest import IngestResult
 from myzing.study.proc import MediaError
 from myzing.study.shots import ShotResult
 from myzing.study.transcribe import TranscribeResult
+from myzing.study import source_map
 
 SOURCE = "https://www.tiktok.com/@cleo/video/777"
+
+
+@pytest.fixture(autouse=True)
+def mock_fine_map(monkeypatch):
+    # This module isolates orchestration; real decoded confirmation has its
+    # own generated-media tests.
+    monkeypatch.setattr(source_map, "build_source_map", lambda p, d, f, shots:
+                        source_map.SourceMap(f, d, [s.start for s in shots[1:]]))
 
 
 def wire_measurement_stages_only(monkeypatch):

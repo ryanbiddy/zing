@@ -194,11 +194,16 @@ def markdown(summary):
                  ("shot_pace", "first_cut", "caption_timing", "caption_placement", "color")]
         failed = [k for k, v in grades.items() if v["status"] == "miss"]
         state = "render complete" if row["status"] == "ready" else row["status"]
+        if row.get("alternative"):
+            state += "; " + row["alternative"]["label"]
         lines.append("| " + " | ".join([label, state, ", ".join(failed) or "none established; unverified dimensions remain", *cells]) + " |")
     for label, row in summary["drafts"].items():
         if row["status"] == "ready":
             lines += ["", f"{label}: [video](<{link(row['video'])}>) · [plan](<{link(row['plan'])}>) · "
                       f"[timeline](<{link(row['timeline'])}>) · [match report](<{link(row['report'])}>)"]
+            if row.get("alternative"):
+                lines += ["", f"{label}: {row['alternative']['label']}: {row['alternative']['reason']}. "
+                          "It never counts as a style match pass."]
             lines += ["", *dimension_notes(row.get("dimensions", {}))]
             color = row.get("dimensions", {}).get("color", {})
             if color.get("status") != "miss" and color.get("reason"):
@@ -221,6 +226,8 @@ def markdown(summary):
                           f"{measured['speech_to_music_lu']} LU below source speech. "
                           f"Mix: {measured['integrated']['integrated_lufs']} LUFS, "
                           f"{measured['integrated']['true_peak_dbtp']} dBTP. Unknown values remain unmeasured."]
+    if summary.get("missing_drafts"):
+        lines += ["", "Not delivered: " + summary["missing_drafts"]["reason"]]
     if summary.get("director_comparison"):
         lines += ["", f"[Full planning evidence](<{link(summary['director_comparison'])}>)"]
     if summary.get("reference_text_roles"):

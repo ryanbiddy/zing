@@ -581,6 +581,25 @@ def test_get_breakdown_full_and_summary(zing_workspace):
     }
 
 
+def test_summary_compacts_source_map_evidence(zing_workspace):
+    from myzing.study.source_map import SourceMap
+
+    b = make_breakdown()
+    rows = [{"frame": 3, "accepted": True, "confidence": "high", "evidence": {"x": 1.0}},
+            *({"frame": f, "accepted": False, "confidence": "rejected", "evidence": {"x": 0.5}}
+              for f in range(4, 40))]
+    b.provenance["source_map"] = SourceMap(
+        30.0, b.meta.duration, [], rows,
+        [{"proposal": "p", "reason": "r", "count": 500, "recorded": 36}]).to_dict()
+    storage.save_breakdown(b, slug=SLUG)
+    full = mcp_server.h_get_breakdown(SLUG)["breakdown"]["provenance"]["source_map"]
+    assert len(full["candidates"]) == 37
+    compact = mcp_server.h_get_breakdown(SLUG, detail="summary")["breakdown"]["provenance"]["source_map"]
+    assert "candidates" not in compact and compact["accepted_frames"] == [3]
+    assert compact["candidates_recorded"] == 37 and compact["rejected_counts"][0]["count"] == 500
+    assert compact["method"] == full["method"] and compact["status"] == "measured"
+
+
 def test_get_breakdown_serves_base_dir_for_relative_paths(zing_workspace):
     """B-Q10: meta.media_path and shots[].keyframe are breakdown-relative;
     an MCP client can only resolve them if the result carries the base dir."""

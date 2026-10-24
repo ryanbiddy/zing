@@ -11,6 +11,7 @@ from myzing.contracts import json_value
 from myzing.project.api import hash_file, load_project, project_status, resolve_path
 from myzing.schemas import Breakdown
 from myzing.timing import interval_problem
+from myzing.study.source_map import planning_shots
 
 from .models import ClipStudy
 from .asr_repair import repair_words
@@ -129,7 +130,7 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                 if problem or shot.start < previous:
                     raise ValueError(f"invalid shot intervals: {problem or 'overlap/order'}")
                 previous = shot.end
-            item.shots = b.shots
+            item.shots = planning_shots(b)
             raw = b.provenance.get("raw_mode", {})
             if not isinstance(raw, dict):
                 raise ValueError("raw_mode must be an object")

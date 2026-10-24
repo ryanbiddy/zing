@@ -1,5 +1,8 @@
 # Match a reference with your clips
 
+Source timing uses the [confirmed source map](SOURCE-MAP.md). Public study
+shots remain unchanged; extra planning cuts carry frame evidence and confidence.
+
 ```sh
 zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --answers '{"target_length_seconds":6,"aspect":"16:9"}'
 zing match reference.mp4 --clips ./clips --out ./zing-workspace/match --resume --json
@@ -108,13 +111,27 @@ Caption timing and opening variety cannot outweigh timing feasibility. Music
 snapping also rejects trims that move either timing dimension farther outside
 its band.
 
-If the bounded search cannot supply three distinct in-band edits, it ranks
-completed edits by the number of timing violations, then total seconds outside
-the bands. Selection evidence records the distances, completed choices examined,
-and the number of jointly in-band choices found. A fallback says **outside band
-because** and identifies its natural cut or whole-clause/duration constraint.
-It says whether the draft is the closest completed edit found, or whether closer
-edits existed but could not form three meaningfully distinct drafts. Planned
+If the bounded search finds in-band edits but fewer than three meaningfully
+distinct ones, it keeps every distinct in-band edit, most different first, even
+when two are similar ("B and C are similar because the footage allows few
+in-band openings"). Each remaining draft is the most different edit left, even
+outside the bands, and is labeled `C: alternative outside the reference timing:
+<reason>` in the plan notes, the director's and match's `comparison.json`
+(`alternatives`, and `alternative` on each delivery row), `comparison.md`, the
+MCP results and studio's finish table. An alternative never counts as a style
+pass, and studio's pick prefers in-band drafts. A draft is never a duplicate:
+edits that land on the same 30 fps frames are one edit, and when no further
+distinct edit exists fewer drafts are delivered with the reason
+(`missing_drafts`). Without a measured reference band nothing is relaxed, so
+unmeasured timing still requires three distinct drafts or a named shortage.
+
+Outside-band drafts are ranked by the number of timing violations, then total
+seconds outside the bands. Selection evidence records the distances, completed
+choices examined, and the number of distinct jointly in-band choices found. A
+fallback says **outside band because** and identifies its natural cut or
+whole-clause/duration constraint. It says whether the draft is the closest
+completed edit found, or whether closer edits existed but could not form three
+meaningfully distinct drafts. Planned
 values and reasons describe the final edit after music snapping; when snapping
 moved a timing value, the reason gives both numbers.
 This is a search result, not proof that no human edit of the footage could work.

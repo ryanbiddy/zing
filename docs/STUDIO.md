@@ -169,8 +169,11 @@ appear as one note; both source observations remain in the result.
 For edits, the finish screen shows a drafts-by-shapes table with playable paths
 relative to the output folder. Status distinguishes rendered output, measured
 style misses and unverified matches. One recommendation ranks completed drafts
-by fewest measured misses, then most passing checks; ties are stated. It does
-not infer artistic quality from that ranking. At most five merged notes appear,
+by fewest measured misses, then most passing checks; ties are stated. Drafts
+inside the reference timing come first: an alternative outside it is labeled
+`C: alternative outside the reference timing: <reason>`, never counts as a pass,
+and is recommended only when nothing else rendered. It does not infer artistic
+quality from that ranking. At most five merged notes appear,
 followed by the output folder, full result path and an exact draft-choice command.
 Notes never show producer IDs or field names. A shortage names its blocker: clips
 excluded for missing speech timing are not reported as too little footage. A

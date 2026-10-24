@@ -28,6 +28,10 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "FFmpeg not installed": (
+        "generated source-map media requires the encoder. PRODUCT SURFACE: zing doctor "
+        "reports FFmpeg availability; the strict FFmpeg gate forbids this skip."
+    ),
     "real-model test requires explicit opt-in": (
         "normal pytest never loads real Whisper, OCR, YuNet or Kokoro models without an explicit test opt-in. "
         "PRODUCT SURFACE: docs/DEVELOPER-GUIDE.md lists each environment variable; the real-ASR fixture "
