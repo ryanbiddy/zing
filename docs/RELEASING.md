@@ -68,6 +68,16 @@ studio run. Product processes have networking blocked and empty model caches.
 Dependency installation still needs the package index. Use `--work-dir` with a
 new folder to retain both venvs, logs and images for review.
 
+The JSON report saves each command, exit code, stderr tail and validation
+failure as it happens. Exceptions include a full traceback. If pip explicitly
+reports an unavailable optional dependency for `[all]`, the check tries each
+optional extra in a separate venv and records the affected extras and pip
+errors as `platform_limitations`. Available extras still run the full smoke
+check. Core install or runtime failures, network failures and dependency
+conflicts remain fatal. A report with `passed_with_platform_limitations` does
+not prove that `[all]` installs on that platform. **Ryan only:** Review those
+limitations before approving publication.
+
 Release versions live in `pyproject.toml`, `src/myzing/__init__.py`, `uv.lock`,
 `server.json`, the MCPB manifest and each prompt's `release_version`. Prompt
 `version` fields track their individual contracts and stay independent. Update
