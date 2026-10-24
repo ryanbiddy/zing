@@ -46,13 +46,32 @@ def nospace(ch):
     return any(a <= code <= b for a, b in _NOSPACE)
 
 
+def number_continuation(left, right):
+    """Whether two timed pieces belong to one displayed numeric value."""
+    if not left or not right:
+        return False
+    if left[-1] in "$£€¥₹" and right[0].isdigit():
+        return True
+    if left[-1].isdigit() and (re.match(r"^[,.]\d", right) or right in ("%", "‰", ",", ".")):
+        return True
+    if re.search(r"\d[,.]$", left) and right[0].isdigit():
+        return True
+    return False
+
+
+def separator(left, right):
+    """Display boundary only: currency, grouped numbers, decimals, percent."""
+    if not left or not right or (nospace(left[-1]) and nospace(right[0])) or number_continuation(left, right):
+        return ""
+    return " "
+
+
 def join(texts):
     """Join display words; no space between two no-space-script words."""
     out = ""
     for text in texts:
-        if out and text and not (nospace(out[-1]) and nospace(text[0])):
-            out += " "
-        out += text
+        text = text.strip()
+        out += separator(out, text) + text
     return out
 
 
@@ -92,7 +111,7 @@ def choose_lines(words, measure, width, cap, max_lines, hard_gap=.5, split=None)
     for i in range(1, len(words)):
         if split is not None and i != split:
             continue
-        if token(words[i-1]) in STOPWORDS or glued(words[i]):
+        if token(words[i-1]) in STOPWORDS or glued(words[i]) or number_continuation(join(texts[:i]), texts[i]):
             continue
         a, b = join(texts[:i]), join(texts[i:])
         if max(len(a), len(b)) > cap or max(measure(texts[:i]), measure(texts[i:])) > width:
@@ -176,6 +195,11 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
     if not words:
         return [], [], [], [], []
     n = len(words)
+    texts = [w.text.strip() for w in words]
+    numeric = {i for i in range(1, n) if number_continuation(join(texts[:i]), texts[i])}
+    units = [0]
+    for i in range(n):
+        units.append(units[-1] + (i not in numeric))
     clean = preset == "clean"
     limit, cap = (24, 30 if portrait else 42) if clean else (3 if preset == "punch" else 4, 1000)
     if all(all(nospace(c) or not c.isalnum() for c in w.text) for w in words):
@@ -188,7 +212,7 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
     end = words[-1].end + .5 if end is None else end
     start = max(0., words[0].start - LEAD) if start is None else start
     solo = set(solo)
-    sentence = {i for i in range(1, n) if terminal(words[i-1])}
+    sentence = {i for i in range(1, n) if terminal(words[i-1]) and i not in numeric}
     # Port AutoSubs' sentence/pause/speaker boundaries, without discarding words.
     hard = {i for i in range(1, n)
             if (words[i].start-words[i-1].end >= gap and token(words[i-1]) not in STOPWORDS)
@@ -204,8 +228,11 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
     best = [math.inf] * (n+1)
     paths = [None] * (n+1)
     best[0] = 0
+    from bisect import bisect_left
     for j in range(1, n+1):
-        for i in range(max(0, j-limit), j):
+        if j in numeric:
+            continue  # Do not put half a currency/decimal value in another cue.
+        for i in range(bisect_left(units, units[j]-limit), j):
             if not math.isfinite(best[i]) or any(i < k < j for k in hard):
                 continue
             part = words[i:j]
@@ -218,7 +245,7 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
             if len(split) > 1:
                 continue
             lines = choose_lines(part, measure, width, cap, 2 if clean else 1, gap, split[0] if split else None)
-            if lines is None or (len(part) > 1 and part[-1].end-part[0].start > maximum):
+            if lines is None or (units[j]-units[i] > 1 and part[-1].end-part[0].start > maximum):
                 continue
             chars = sum(len(s) for s in lines)
             need = max(minimum, chars/20, len(part)*.3 if clean else 0)

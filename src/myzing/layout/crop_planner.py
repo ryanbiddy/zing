@@ -307,6 +307,34 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
     """Largest admissible sharp picture: full crop, <=70%-height zoomfill, full fit."""
     from .framing import centered_framing, framing_mode
     assessments = []
+    subject_note = None
+    if width < height and sw > sh:
+        # HOG sometimes labels the seated speaker plus their desk as one very
+        # wide person. When a single reliable face spans the whole shot, that
+        # enclosing box is duplicate subject evidence, not a second subject.
+        faces = [t for t in tracks if t.id.startswith("face")]
+        if len(faces) == 1:
+            face = faces[0]
+            if (face.confidence >= .8 and face.keyframes[0].time <= clip.src_in
+                    and face.keyframes[-1].time >= clip.src_out):
+                def duplicate(track):
+                    if not track.id.startswith("person-"):
+                        return False
+                    keys = [k for k in track.keyframes if clip.src_in <= k.time <= clip.src_out]
+                    if not keys:
+                        return False
+                    for key in keys:
+                        box = box_at(face.keyframes, key.time)
+                        if not (key.box.x <= box.x and key.box.y <= box.y
+                                and key.box.right >= box.right and key.box.bottom >= box.bottom):
+                            return False
+                    return True
+                kept = [t for t in tracks if not duplicate(t)]
+                if len(kept) != len(tracks):
+                    subject_note = (f"Single talking head: face confidence {face.confidence:.3f}, full-shot coverage; "
+                                    f"{len(tracks)-len(kept)} enclosing HOG box(es) describe the same subject. "
+                                    f"Sharp-height target 50-70%; enlargement ceiling {max_upscale:g}x.")
+                    tracks = kept
     evidence = Evidence(clip, tracks, fps, sw, sh)
 
     def finish(candidate, assessment, reason):
@@ -315,6 +343,8 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
                  f"{assessment.sharp_area_share:.1%} of output area; enlargement {assessment.enlargement:.3f}x; "
                  f"retained source area {assessment.retained_area:.1%}; tracked-subject coverage "
                  f"{assessment.subject_coverage:.1%}; headroom safe {assessment.headroom_safe}."]
+        if subject_note:
+            notes.append(subject_note)
         if assessment.evidence_gaps:
             notes.append("Subject evidence has gaps: unknown subjects may be outside the crop; confidence is not a visibility guarantee.")
         if candidate.mode == "zoomfill" and assessment.sharp_height_share < .50:

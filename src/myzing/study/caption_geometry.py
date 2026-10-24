@@ -21,6 +21,29 @@ from typing import Any, Iterator
 from . import captions, caption_models, formats
 
 FILENAME = "caption-geometry.json"
+MAX_FRAMES = 256
+MAX_DETECTIONS = 16
+MAX_TRACKS = 128
+MAX_TRACK_SAMPLES = 64
+MAX_GAPS = 512
+MAX_SIDE = 960
+MAX_TEXT_CHARS = 512
+MAX_POLYGON_POINTS = 8
+
+
+def sample_schedule(duration):
+    """Keep short-reference fidelity; bound work and coverage on long sources."""
+    if duration <= 60:
+        return captions.sample_schedule(duration)
+    # 24 dense hook samples, then uniform coverage of the remaining duration.
+    step = (duration - 3) / (MAX_FRAMES - 24)
+    return [(i / 8, .125) for i in range(24)] + [(3 + i * step, step) for i in range(MAX_FRAMES - 24)]
+
+
+def sampled(items, limit):
+    if len(items) <= limit:
+        return items
+    return [items[round(i * (len(items)-1) / (limit-1))] for i in range(limit)]
 
 
 class JsonRecord:
@@ -113,7 +136,9 @@ class CaptionGeometry(JsonRecord):
                 "overlay_tracks": sum(t.kind == "overlay" for t in self.tracks),
                 "sampled_frames": len(self.frames),
                 "low_confidence_frames": len(self.coverage.get("low_confidence_frames", [])),
-                "gaps": len(self.coverage.get("gaps", []))}
+                "gaps": self.coverage.get("gap_count", len(self.coverage.get("gaps", []))),
+                **self.provenance.get("counts", {}),
+                **{"limit_"+k: v for k, v in self.provenance.get("limits", {}).items()}}
 
     def write(self, folder: Path) -> Path:
         path = folder / FILENAME
@@ -125,7 +150,29 @@ class CaptionGeometry(JsonRecord):
             with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=folder,
                                              suffix=".part", delete=False) as stream:
                 temporary = Path(stream.name)
-                json.dump(self.to_dict(), stream, ensure_ascii=False, allow_nan=False, indent=2)
+                # Serialize one frame/track at a time; asdict(self) would copy
+                # every nested detection before json.dump even starts writing.
+                from dataclasses import fields
+                stream.write("{")
+                first = True
+                for item in fields(self):
+                    value = getattr(self, item.name)
+                    if item.name == "font_candidates" and value is None:
+                        continue
+                    if not first:
+                        stream.write(",")
+                    first = False
+                    stream.write(json.dumps(item.name) + ":")
+                    if item.name in ("frames", "tracks"):
+                        stream.write("[")
+                        for i, record in enumerate(value):
+                            if i:
+                                stream.write(",")
+                            json.dump(record.to_dict(), stream, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+                        stream.write("]")
+                    else:
+                        json.dump(value, stream, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
+                stream.write("}")
                 stream.write("\n")
             os.replace(temporary, path)
         finally:
@@ -149,7 +196,7 @@ def _iou(a, b):
     return area / union if union else 0.0
 
 
-def parse_ocr(out, frame) -> list[Detection]:
+def parse_ocr(out, frame, *, limit=None) -> list[Detection]:
     """Retain low/absent scores and reject malformed geometry explicitly."""
     boxes = getattr(out, "boxes", None)
     texts = getattr(out, "txts", None)
@@ -162,6 +209,11 @@ def parse_ocr(out, frame) -> list[Detection]:
     height, width = frame.shape[:2]
     result = []
     for i, box in enumerate(boxes):
+        if limit is not None:
+            if len(result) >= limit:
+                break
+            if len(box) > MAX_POLYGON_POINTS or len(str(texts[i] or "")) > MAX_TEXT_CHARS:
+                continue
         if len(box) < 3 or any(len(p) != 2 or not all(math.isfinite(float(v)) for v in p) for p in box):
             raise ValueError("OCR returned a nonfinite or malformed polygon")
         polygon = [[min(1., max(0., float(x) / width)), min(1., max(0., float(y) / height))] for x, y in box]
@@ -186,9 +238,13 @@ def iter_frames(path: Path, duration: float) -> Iterator[tuple[float, float, flo
         fps = cap.get(cv2.CAP_PROP_FPS)
         if not math.isfinite(fps) or fps <= 0:
             raise RuntimeError("decoder did not report a valid CFR frame rate")
-        schedule = captions.sample_schedule(duration)
+        schedule = sample_schedule(duration)
         want, index = 0, 0
         while want < len(schedule):
+            if duration > 60:
+                index = max(index, math.ceil(schedule[want][0] * fps - 1e-8))
+                if not cap.set(cv2.CAP_PROP_POS_FRAMES, index):
+                    raise RuntimeError("bounded caption sample seek failed")
             got, frame = cap.read()
             if not got:
                 break
@@ -197,6 +253,9 @@ def iter_frames(path: Path, duration: float) -> Iterator[tuple[float, float, flo
                 break
             target, step = schedule[want]
             if t + 1e-9 >= target:
+                if max(frame.shape[:2]) > MAX_SIDE:
+                    scale = MAX_SIDE / max(frame.shape[:2])
+                    frame = cv2.resize(frame, (round(frame.shape[1]*scale), round(frame.shape[0]*scale)), interpolation=cv2.INTER_AREA)
                 yield t, target, step, index, frame
                 # A low-fps source cannot supply several distinct observations
                 # at the same decoded time. Missed targets remain coverage gaps.
@@ -210,6 +269,10 @@ def iter_frames(path: Path, duration: float) -> Iterator[tuple[float, float, flo
 def read_geometry(path: Path, duration: float) -> CaptionGeometry:
     result = CaptionGeometry(duration if math.isfinite(duration) and duration > 0 else 0.)
     result.provenance = {
+        "limits": {"frames": MAX_FRAMES, "detections_per_frame": MAX_DETECTIONS, "tracks": MAX_TRACKS,
+                   "samples_per_track": MAX_TRACK_SAMPLES, "gap_examples": MAX_GAPS, "max_side": MAX_SIDE,
+                   "text_chars": MAX_TEXT_CHARS, "polygon_points": MAX_POLYGON_POINTS},
+        "counts": {"detections_observed": 0, "detections_omitted": 0},
         "method": "caption-geometry-v2", "coordinate_space": "normalized display-frame edges",
         "text_height": "visible fill ink / frame height (not font em size)",
         "colors": "CIE Lab D65 component medians; sRGB estimates from decoded BGR",
@@ -224,7 +287,7 @@ def read_geometry(path: Path, duration: float) -> CaptionGeometry:
         result.warnings.append("caption geometry not measured: unknown duration")
         result.coverage = _coverage(result, [])
         return result
-    schedule = captions.sample_schedule(duration)
+    schedule = sample_schedule(duration)
     try:
         if path.is_file():
             import hashlib
@@ -249,6 +312,7 @@ def read_geometry(path: Path, duration: float) -> CaptionGeometry:
             except Exception as exc:
                 result.provenance["face_evidence"] = f"unavailable: {exc}"
         previous, previous_detections = None, []
+        observed = 0
         for t, target, step, index, frame in iter_frames(path, duration):
             sample = FrameSample(t, target, step, index, frame.shape[1], frame.shape[0])
             try:
@@ -257,14 +321,19 @@ def read_geometry(path: Path, duration: float) -> CaptionGeometry:
                     import copy
                     sample.detections = copy.deepcopy(previous_detections)
                 else:
-                    sample.detections = parse_ocr(engine(frame), frame)
+                    out = engine(frame)
+                    boxes = getattr(out, "boxes", None)
+                    observed = len(boxes) if boxes is not None else 0
+                    sample.detections = parse_ocr(out, frame, limit=MAX_DETECTIONS)
                     for detection in sample.detections:
                         if detection.text and (detection.confidence or 0) >= THRESHOLDS["corroborated_ocr"]:
                             detection.appearance = measure(frame, detection.polygon, detection.text)
+                result.provenance["counts"]["detections_observed"] += observed
+                result.provenance["counts"]["detections_omitted"] += observed-len(sample.detections)
                 if faces is not None and sample.detections:
                     try:
                         sample.face_boxes = [[d.box.x, d.box.y, d.box.right, d.box.bottom]
-                                             for d in faces.detect(frame)]
+                                             for d in faces.detect(frame)[:MAX_DETECTIONS]]
                     except Exception as exc:
                         result.warnings.append(f"face evidence unavailable at {t:.6f}s: {exc}")
                 if not sample.detections:
@@ -284,10 +353,17 @@ def read_geometry(path: Path, duration: float) -> CaptionGeometry:
     if result.frames:
         from .caption_regions import assess
         assess(result.frames)
-    result.tracks = track_frames(result.frames, duration)
+    result.tracks = track_frames(result.frames, duration, counts=result.provenance["counts"])
     result.coverage = _coverage(result, schedule)
+    for track in result.tracks:
+        track.classification["samples_observed"] = len(track.samples)
+        track.classification["samples_omitted"] = max(0, len(track.samples)-MAX_TRACK_SAMPLES)
+        track.samples = sampled(track.samples, MAX_TRACK_SAMPLES)
+        track.path = sampled(track.path, MAX_TRACK_SAMPLES)
+    if duration > 60:
+        result.warnings.append(f"Caption analysis budget: at most {MAX_FRAMES} frames across {duration:g}s; text between samples is unmeasured.")
     if result.coverage["gaps"]:
-        result.warnings.append(f"caption geometry: {len(result.coverage['gaps'])} coverage gap(s); see {FILENAME}")
+        result.warnings.append(f"caption geometry: {result.coverage['gap_count']} coverage gap(s); see {FILENAME}")
     return result
 
 
@@ -298,18 +374,22 @@ def _confident(d):
 
 
 def _coverage(result, schedule):
-    gaps = []
+    gaps, reasons = [], Counter()
+    def add(gap):
+        reasons[gap["reason"]] += 1
+        if len(gaps) < MAX_GAPS:
+            gaps.append(gap)
     seen = {round(f.scheduled_t, 6) for f in result.frames}
     for target, step in schedule:
         if round(target, 6) not in seen:
-            gaps.append({"t": target, "reason": "frame_unavailable"})
+            add({"t": target, "reason": "frame_unavailable"})
     for f in result.frames:
         if f.status != "ok":
-            gaps.append({"t": f.t, "reason": f.status,
+            add({"t": f.t, "reason": f.status,
                          "scope": "uncertain detections" if f.status == "low_confidence" else "frame"})
         for index, d in enumerate(f.detections):
             if d.validation and not d.validation["accepted"]:
-                gaps.append({"t": f.t, "reason": "rejected_text_region", "scope": "detection",
+                add({"t": f.t, "reason": "rejected_text_region", "scope": "detection",
                              "detection_index": index, "reasons": d.validation["reasons"]})
     # A watermark can still be recognized while a caption is occluded. Frame
     # status alone would hide that loss, so name missing observations within
@@ -317,7 +397,7 @@ def _coverage(result, schedule):
     for track in result.tracks:
         for before, after in zip(track.samples, track.samples[1:]):
             for index in range(before["sample_index"] + 1, after["sample_index"]):
-                gaps.append({"t": result.frames[index].t, "reason": "track_not_detected",
+                add({"t": result.frames[index].t, "reason": "track_not_detected",
                              "scope": "track", "track_id": track.id})
     # No claim that no_text_detected means no visible text; it may be occluded
     # or missed entirely by the detector. Every interval between samples is unknown.
@@ -329,7 +409,8 @@ def _coverage(result, schedule):
             "sampled_fps": len(times) / result.duration if result.duration else 0.,
             "expected_frames": len(schedule), "sampled_frames": len(times),
             "low_confidence_frames": [f.t for f in result.frames if f.status == "low_confidence"],
-            "gaps": sorted(gaps, key=lambda g: g["t"]), "unsampled_intervals": intervals,
+            "gap_count": sum(reasons.values()), "gap_counts_by_reason": dict(reasons),
+            "gaps_omitted": max(0, sum(reasons.values())-len(gaps)), "gaps": sorted(gaps, key=lambda g: g["t"]), "unsampled_intervals": intervals,
             "geometry_between_samples": "unobserved; paths are fits, not measurements"}
 
 
@@ -368,7 +449,7 @@ def _similarity(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
 
-def track_frames(frames: list[FrameSample], duration: float) -> list[CaptionTrack]:
+def track_frames(frames: list[FrameSample], duration: float, *, counts=None) -> list[CaptionTrack]:
     streams: list[list[dict]] = []
     for sample_index, frame in enumerate(frames):
         if frame.status == "ocr_error":
@@ -410,7 +491,11 @@ def track_frames(frames: list[FrameSample], duration: float) -> list[CaptionTrac
                 used_tracks.add(i)
                 used_observations.add(j)
         streams.extend([obs] for j, obs in enumerate(observations) if j not in used_observations)
-    return [_build_track(i, stream, frames, duration) for i, stream in enumerate(streams)]
+    if counts is not None:
+        counts.update(tracks_observed=len(streams), tracks_omitted=max(0, len(streams)-MAX_TRACKS))
+    # Prioritize well-supported tracks; deterministic order for stable IDs.
+    retained = sorted(sorted(range(len(streams)), key=lambda i: (-len(streams[i]), i))[:MAX_TRACKS])
+    return [_build_track(i, streams[i], frames, duration) for i in retained]
 
 
 def _build_track(index, samples, frames, duration):
@@ -423,7 +508,7 @@ def _build_track(index, samples, frames, duration):
     motion = "popping" if popping else "moving" if displacement > .015 else "static"
     # Persistence uses the full requested schedule, so decode truncation cannot
     # promote a short-lived caption to a whole-video overlay.
-    expected = captions.sample_schedule(duration)
+    expected = sample_schedule(duration)
     occupancy = len(samples) / len(expected) if expected else 0.
     covers_ends = bool(expected and samples[0]["t"] <= expected[0][1]
                        and samples[-1]["t"] >= expected[-1][0] - expected[-1][1] - 1e-6)

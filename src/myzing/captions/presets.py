@@ -7,7 +7,7 @@ from myzing.composition import CaptionStyle, CompositionCaption
 from myzing.timing import transform_word
 
 from . import PRESETS
-from .grouping import STOPWORDS, group_words, join, nospace, token
+from .grouping import separator, STOPWORDS, group_words, join, nospace, token
 from .metrics import font_asset, metrics
 
 
@@ -37,7 +37,8 @@ def normalize_words(words):
     out = []
     for word in words:
         text = unicodedata.normalize("NFC", word.text.strip())
-        if out and text and not any(ch.isalnum() for ch in text):
+        if (out and text and not any(ch.isalnum() for ch in text)
+                and text not in "$£€¥₹" and separator(out[-1].text, text)):
             previous = out.pop()
             sep = " " if any(unicodedata.category(ch) == "So" for ch in text) else ""
             merged = transform_word(previous, previous.start, max(previous.end, word.end),
@@ -69,9 +70,12 @@ def words_width(texts, font, style, name):
     """Advance width of display words laid out as fixed slots on one line."""
     space = font.width(" ", style.size)
     total = sum(font.width(t, style.size) for t in texts)
-    total += sum(space for a, b in zip(texts, texts[1:]) if not (nospace(a[-1]) and nospace(b[0])))
-    # Every box word reserves padding, including before/after highlighting.
-    return total + (2*style.highlight_box_padding*len(texts) if name == "box" else 0)
+    gaps = sum(bool(separator(join(texts[:i]), texts[i])) for i in range(1, len(texts)))
+    total += space * gaps
+    # Joined numeric tokens share a display run; padding must not reinsert a
+    # visible space into "$3,000" while their original timings stay separate.
+    runs = bool(texts) + gaps
+    return total + (2*style.highlight_box_padding*runs if name == "box" else 0)
 
 
 def line_width(text, font, style, name):
@@ -104,7 +108,7 @@ def slot_lines(caption):
 def line_widths(caption, font, style):
     space = font.width(" ", style.size)
     pad = 2*style.highlight_box_padding if caption.preset == "box" else 0
-    return [sum(font.width(t, style.size) + pad + (space if gap else 0) for t, gap, _ in slots)
+    return [pad + sum(font.width(t, style.size) + (pad + space if gap else 0) for t, gap, _ in slots)
             for slots in slot_lines(caption)]
 
 

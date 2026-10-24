@@ -35,11 +35,14 @@ def collect(answers, cache=None):
         if "://" not in reference and Path(reference).is_file():
             from .reference import quick_read
             stat = Path(reference).stat()
-            key = ("reference", reference, stat.st_size, stat.st_mtime_ns)
+            from myzing.reference_range import parse
+            start, end = parse(**{k: answers[k] for k in ("ref_start", "ref_end", "reference_range") if k in answers})
+            trim = {k: v for k, v in dict(ref_start=start, ref_end=end).items() if v is not None}
+            key = ("reference", reference, stat.st_size, stat.st_mtime_ns, start, end)
             if key not in cache:
                 if cache.get("progress"):
                     cache["progress"]("Reading the reference...")
-                cache[key] = quick_read(reference)
+                cache[key] = quick_read(reference, **trim)
                 if cache.get("progress"):
                     cache["progress"](cache[key]["reason"])
                     for warning in cache[key].get("warnings", [])[:1]:

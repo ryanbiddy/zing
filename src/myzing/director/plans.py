@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from myzing.captions.grouping import join
+
 import json
 from copy import deepcopy
 from dataclasses import replace
@@ -122,7 +124,7 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         if all_caps:
             mapped = [replace(w, text=w.text.upper()) for w in mapped]
         caption = CompositionCaption(
-            id=f"caption-{i + 1}", text=" ".join(w.text.strip() for w in mapped),
+            id=f"caption-{i + 1}", text=join(w.text for w in mapped),
             start=mapped[0].start, end=mapped[-1].end, words=mapped,
             position=style.position, all_caps=all_caps, word_timed=style.words_visible == 1,
             font=None if phone else deepcopy(font),
@@ -201,6 +203,21 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     except AudioError as exc:
         shortage("music_analysis", str(exc), "Check the local track and zing doctor; install myzing[audio] for music analysis.")
     lookup = {s.asset_id: s for s in studies}
+    # Preserve a sub-frame source tail after the final word. Cutting at an ASR
+    # timestamp such as 11.98s can round a 12s source down to 359 output frames,
+    # leaving no frame for its final word. Never cross a forbidden span, include
+    # another word, extend source media, or exceed the existing target tolerance.
+    tail_notes = []
+    last = sequence[-1]
+    source = lookup[last.asset_id]
+    tail = source.duration-last.end
+    from .selection import overlaps
+    if (0 < tail <= 1/30 + EPS
+            and abs(sum(c.duration for c in sequence)+tail-brief.target_length_seconds) <= 2/30 + EPS
+            and not any(overlaps((last.end, source.duration), span) for span in forbidden.get(last.asset_id, []))
+            and not any(w.start >= last.end-EPS and w.end > last.end+EPS for w in source.words)):
+        sequence = [*sequence[:-1], replace(last, end=source.duration)]
+        tail_notes.append(f"Kept {tail:.6f}s of existing source tail after the final word for output-frame alignment; word timings unchanged.")
     if caption_mode in ("phone", "punch", "box", "clean"):
         font, font_report = None, {"family": "Arial", "status": "studio preference",
                                   "reason": "Phone captions use the renderer's default Arial bold with system fallback; original font unknown."}
@@ -363,7 +380,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     resolution_note = []
     if resolution["limited"] or resolution.get("auto_selected"):
         resolution_note = [resolution["summary"]]
-    notes = [*resolution_note, *recipe.warnings, *audio_notes, *framing_notes,
+    notes = [*resolution_note, *recipe.warnings, *audio_notes, *framing_notes, *tail_notes,
              f"30 fps CFR and {width}x{height} ({brief.aspect}, short side {min(width, height)}) are delivery "
              "choices; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",

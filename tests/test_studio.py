@@ -30,7 +30,7 @@ def inputs(tmp_path, monkeypatch, zing_workspace):
 
 def complete(path, inputs):
     a = {"path": path, "project": inputs["project"]}
-    supplied = {"reference_kind": "file", "reference": inputs["source"], "clips": inputs["clips"],
+    supplied = {"reference_kind": "file", "reference": inputs["source"], "reference_range": "all", "clips": inputs["clips"],
                 "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix", "speech_model": "skip"}
     while True:
         step = flow.next_step(a)
@@ -76,14 +76,14 @@ def test_scripted_stdin_every_path(path, inputs, monkeypatch, capsys):
     assert Session.from_dict(state.to_dict()).to_dict() == state.to_dict()
     assert "1. a." not in output
     if path == "a":
-        assert state.questions_asked <= 9
+        assert state.questions_asked <= 10
 
 
 def test_required_path_empty_reprompts_without_enter_acceptance(inputs, monkeypatch, capsys):
     monkeypatch.setattr("sys.stdin", io.StringIO(f"1\n\n{inputs['source']}\nq\n"))
     assert command.run([]) == 0
     text = capsys.readouterr().out
-    required = text.split("Drag the reference video here", 1)[1].split("Which folder", 1)[0]
+    required = text.split("Drag the reference video here", 1)[1].split("Which part of the reference", 1)[0]
     assert "Enter accepts" not in required and "Recommended:" not in required
     assert "Please type an answer" in required
     assert load_session(inputs["project"]).answers["reference"] == inputs["source"]
@@ -95,7 +95,7 @@ def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs
                          "cuts_per_minute": 66, "has_audio": True, "speech_present": False,
                          "music_present": True, "text_present": False})
     monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: reference)
-    a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "clips": inputs["clips"], "topic": "demo"}
+    a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "reference_range": "all", "clips": inputs["clips"], "topic": "demo"}
     questions = []
     cache = {}
     while True:
@@ -403,7 +403,7 @@ def test_missing_explain_falls_back_to_offline_study_and_inspect(inputs, tmp_pat
             folder.mkdir(parents=True, exist_ok=True)
             (folder / "breakdown.json").write_text("{}")
             (folder / "breakdown.md").write_text("Measured fallback")
-        return SimpleNamespace(meta=SimpleNamespace(duration=5), shots=[], words=[], captions=[], warnings=["Speech unknown"])
+        return SimpleNamespace(meta=SimpleNamespace(duration=5, media_path="media.mp4"), shots=[], words=[], captions=[], warnings=["Speech unknown"])
     def inspect(source, out, **kwargs):
         Path(out).write_bytes(b"test PNG placeholder")
         return SimpleNamespace(warnings=[])
@@ -624,7 +624,7 @@ def test_reference_summary_once_and_recommended_option_labels(inputs, monkeypatc
                     "music_present": True, "text_present": False, "text_samples": 3})
     monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: ref)
     monkeypatch.setattr("sys.stdin", io.StringIO(
-        f"1\n{inputs['source']}\n{inputs['clips']}\na local story\n\n\n\n\nq\n"))
+        f"1\n{inputs['source']}\nall\n{inputs['clips']}\na local story\n\n\n\n\nq\n"))
     assert command.run([]) == 0
     text = capsys.readouterr().out
     assert text.count("Your reference is 20.0 s, 16:9; about 63 cuts/min") == 1
@@ -633,7 +633,7 @@ def test_reference_summary_once_and_recommended_option_labels(inputs, monkeypatc
     assert "Recommended: 1 (No added captions)" in text
     assert "Recommended: 1 (Keep my clips' audio)" in text
     assert "Recommended: original" not in text and "Recommended: none" not in text
-    assert load_session(inputs["project"]).questions_asked == 9
+    assert load_session(inputs["project"]).questions_asked == 10
 
 
 def test_explain_success_summary_and_all_cards_reach_finish(inputs, monkeypatch):
@@ -753,6 +753,8 @@ def test_fallback_notes_hide_internal_ids_fields_and_pre_run_caveats(inputs):
     assert creator_summary(result, {"path": "a"}, {"clips": []})["notes"] == [
         "6 detailed notes on measurement limits, color and framing are in the full result."]
     result["warnings"] = [*warnings, "clip clip-2: Selected zoomfill: crop enlargement 5.455x exceeds 2.5x"]
+    assert not any("shots are enlarged" in n for n in creator_summary(result, {"path": "a"}, {})["notes"])
+    result["warnings"] = [*warnings, "Framing upscale 5.455x exceeds stated 2.5x limit; source detail cannot be recovered."]
     assert creator_summary(result, {"path": "a"}, {})["notes"] == [
         "Some shots are enlarged more than 2.5x to fill the frame; check them for softness."]
 
@@ -809,7 +811,7 @@ def test_reference_shape_follows_display_rotation_and_bad_files_stop_early(input
     portrait = reference.describe({"duration": 8.0, "aspect": "9:16", "orientation": "portrait", "sample_seconds": 8})
     monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: portrait)
     step = flow.next_step({"path": "a", "project": inputs["project"], "reference": inputs["source"],
-                           "clips": inputs["clips"], "topic": "t", "platform": "original", "length": 8,
+                           "reference_range": "all", "clips": inputs["clips"], "topic": "t", "platform": "original", "length": 8,
                            "captions": "none", "music": "original"})
     assert step["answers"]["aspects"] == ["9:16"]
     for read, message in [({"no_video": True}, "no video stream"), ({"unreadable": "moov atom not found"}, "cannot be read")]:
@@ -819,14 +821,13 @@ def test_reference_shape_follows_display_rotation_and_bad_files_stop_early(input
 
 
 def test_long_reference_length_names_the_cap(inputs, monkeypatch):
-    from myzing.studio.reference import describe
-    monkeypatch.setattr("myzing.studio.reference.quick_read",
-                        lambda p: describe({"duration": 1200.0, "aspect": "16:9", "sample_seconds": 20}))
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(to_dict=lambda: {"duration": 1200.0}))
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: pytest.fail("no preview before trim"))
     a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "clips": inputs["clips"],
          "topic": "t", "platform": "original"}
     q = flow.next_step(a)["question"]
-    assert q["id"] == "length" and q["recommended"] == 60
-    assert "closest length studio supports" in q["reason"] and "follow it" not in q["reason"]
+    assert q["id"] == "reference_range" and q["recommended"] is None
+    assert "60s" in q["prompt"] and "before any study" in q["reason"]
 
 
 def test_caption_reason_reports_measured_speech_absence(inputs, monkeypatch):
@@ -834,7 +835,7 @@ def test_caption_reason_reports_measured_speech_absence(inputs, monkeypatch):
     read = describe({"duration": 8.0, "aspect": "16:9", "sample_seconds": 8, "has_audio": True,
                      "speech_present": False, "speech_ratio": 0.0, "text_present": True, "text_samples": 3})
     monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: read)
-    a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "clips": inputs["clips"],
+    a = {"path": "a", "project": inputs["project"], "reference": inputs["source"], "reference_range": "all", "clips": inputs["clips"],
          "topic": "t", "platform": "original", "length": 8}
     q = flow.next_step(a)["question"]
     assert q["id"] == "captions" and q["recommended"] == "none"

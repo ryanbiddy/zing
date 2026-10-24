@@ -22,8 +22,8 @@ PATHS = {
 KEYS = {"path", "project", "reference_kind", "reference", "reference_query", "allow_download",
         "clips", "photos", "topic", "platform", "aspects", "length", "tone", "captions",
         "music", "tracks", "source", "context", "speech", "draft", "speech_model", "speech_download"}
-DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps"}
-KEYS |= DELIVERY_KEYS
+DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps", "short_side"}
+KEYS |= DELIVERY_KEYS | {"ref_start", "ref_end", "reference_range"}
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -118,6 +118,13 @@ def _path(value, key, *, folder=False, exists=True):
 
 
 def normalize(key, value):
+    if key in {"ref_start", "ref_end"}:
+        from myzing.reference_range import seconds
+        return seconds(value)
+    if key == "reference_range":
+        from myzing.reference_range import parse
+        parse(reference_range=value)
+        return value
     if key in DELIVERY_KEYS:
         from myzing.brief.models import Brief
         Brief.from_answers({key: value})
@@ -194,6 +201,8 @@ def normalize_answers(answers):
         raise ValueError("answers must be an object using studio question IDs; unknown keys: " +
                          str(sorted(set(answers) - KEYS) if isinstance(answers, dict) else "not an object"))
     result = {key: normalize(key, value) for key, value in answers.items()}
+    from myzing.reference_range import parse
+    parse(**{k: result[k] for k in ("ref_start", "ref_end", "reference_range") if k in result})
     from myzing.brief.models import Brief
     Brief.from_answers({key: result[key] for key in DELIVERY_KEYS if key in result})
     if "caption_mode" in result:
@@ -242,6 +251,25 @@ def next_step(answers=None, *, cache=None):
         if _inside(Path(a["project"]), Path(a["source"]).parent):
             raise ValueError(f"Style breakdown writes outside the video's folder; choose an output folder that is not inside {Path(a['source']).parent}.")
         root = Path(a["project"])
+    # Probe before the preview, model setup, or any full study. Long references
+    # get a required range question immediately, even with all other answers set.
+    reference = a.get("reference") if path == "a" else a.get("source") if path == "d" else None
+    if reference and "://" not in reference and not reference.startswith("uoink:"):
+        from myzing.project.probe import probe_file
+        from myzing.reference_range import parse, validate_duration
+        trim = {k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a}
+        parse(**trim)
+        try:
+            duration = probe_file(Path(reference)).to_dict().get("duration")
+        except (OSError, ValueError, RuntimeError):
+            duration = None  # existing unreadable-file diagnostics below
+        if duration:
+            if path == "a" and duration > 60 and not trim:
+                facts = {"measured": [f"Reference duration: {duration:g}s."], "warnings": [], "unknowns": []}
+                q = question("reference_range", f"Reference is {duration:g}s; the supported limit is 60s. Which part should I use (e.g. 0:30-1:20)?",
+                             None, "Choose a range before any study.", facts, required=True)
+                return {"status": "question", "question": q.to_dict(), "answers": a}
+            validate_duration(duration, **trim, limit=60 if path == "a" else None)
     facts = evidence.collect(a, cache)
     queue = []
 
@@ -279,6 +307,9 @@ def next_step(answers=None, *, cache=None):
             kind = "url" if is_http_url(a["reference"]) else "uoink" if a["reference"].startswith("uoink:") else "file"
             if "reference_kind" in a and kind != a["reference_kind"]:
                 raise ValueError("Reference does not match its selected source type; go back to change the source type.")
+            if not any(k in a for k in ("ref_start", "ref_end", "reference_range")):
+                ask("reference_range", "Which part of the reference? (all, or e.g. 0:30-1:20)", "all",
+                    "Use the whole supported reference, or select a frame-accurate interval.")
             read = facts.get("reference", {})
             if kind == "file" and read.get("no_video"):
                 raise ValueError(f"reference: {Path(a['reference']).name} has no video stream, so there is no picture style to match. "
