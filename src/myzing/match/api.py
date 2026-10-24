@@ -73,7 +73,7 @@ def capabilities():
     from myzing.layout.detector import model_path, verified_model
     from importlib.metadata import PackageNotFoundError, version
     versions = {}
-    for package in ("myzing", "numpy", "Pillow", "opencv-python-headless", "faster-whisper", "rapidocr", "scenedetect", "pysubs2"):
+    for package in ("myzing", "numpy", "Pillow", "opencv-python-headless", "faster-whisper", "rapidocr", "scenedetect", "pysubs2", "sherpa-onnx"):
         try:
             versions[package] = version(package)
         except PackageNotFoundError:
@@ -90,17 +90,26 @@ def capabilities():
                  str(Path(os.environ.get("HF_HOME", str(Path.home() / ".cache/huggingface"))) / "hub"))))
     cached = [Path(model) / "model.bin"] if Path(model).is_dir() else list(cache.glob(f"models--*faster-whisper-{model}/snapshots/*/model.bin"))
     whisper = [(str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in cached if p.is_file()]
-    return {"fonts": present("PIL") and present("cv2"), "color": present("numpy"),
+    from myzing.audio.tag_models import model_paths, REVISION
+    from myzing.audio.tagging import ALGORITHM as TAG_ALGORITHM
+    try:
+        tag_assets = {name: str(path) for name, path in model_paths().items()}
+    except (RuntimeError, OSError):
+        tag_assets = {}
+    return {"audio_tagging": {"revision": REVISION, "algorithm": TAG_ALGORITHM, "verified_assets": tag_assets},
+            "asr_hygiene": "vad-edge-snap-v2+prompt-tokens-v1+recall-guard-v1",
+            "fonts": present("PIL") and present("cv2"), "color": present("numpy"),
             "audio": present("numpy"), "layout": present("cv2") and verified_model(model_path()),
             "versions": versions, "ocr_models": ocr, "font_files": font_files, "whisper_model": model,
             "whisper_cache": whisper}
 
 
-def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False, speech_model=None):
+def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False, vocabulary=(), speech_model=None):
     before = projects.hash_file(Path(source))
     b = study(str(source), workspace=workspace, raw_mode=raw, caption_geometry=True,
               fonts=fonts, detect_transitions=not raw, local_models_only=True,
               model_workspace=storage.resolve_workspace(),
+              **({"vocabulary": vocabulary} if vocabulary else {}),
               **({"shot_min_scene_len_s": 0.0} if verification else {}),
               **({"speech_model": speech_model} if speech_model is not None else {}))
     if projects.hash_file(Path(source)) != before:
@@ -132,7 +141,8 @@ def _audio(studied, enabled):
     if not any(s["codec_type"] == "audio" for s in probe(Path(studied["media"]))["streams"]):
         return {"outputs": [], "warnings": ["No audio stream; audio map unavailable."]}
     b = Breakdown.from_dict(read(studied["path"]))
-    mapped = analyze(studied["media"], breakdown=b)
+    # The study tagged this same media file; reuse its windows instead of a second CED pass.
+    mapped = analyze(studied["media"], breakdown=b, tags=b.provenance.get("audio_tags"))
     path = Path(studied["path"]).parent / "audio-map.json"
     write(path, mapped.to_dict())
     return {"outputs": [str(path)], "path": str(path), "warnings": mapped.warnings}
@@ -345,8 +355,17 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 resolution = resolve_reference(root)
             if resolution.state != "resolved":
                 raise ValueError(resolution.reason)
-            return {"path": resolution.path, "sha256": resolution.sha256, "outputs": [resolution.path]}
+            return {"path": resolution.path, "sha256": resolution.sha256, "title": resolution.title, "outputs": [resolution.path]}
 
+        def get_brief():
+            selected = load_brief(brief) if brief else Brief.from_answers(answers) if answers is not None else load_brief(root / "brief.json")
+            save_brief(root, selected)
+            return {"outputs": [str(root / "brief.json")]}
+        checkpoints.step("brief", {"brief": projects.hash_file(Path(brief)) if brief else None, "answers": answers,
+                                   "saved": projects.hash_file(root / "brief.json") if brief is None and answers is None else None}, get_brief)
+        from myzing.study.asr_hygiene import vocabulary_context
+        context = vocabulary_context(brief=load_brief(root / "brief.json"))
+        terms = context["terms"]
         speech = {"speech_model": studio_options["speech_model"]} if studio_options and "speech_model" in studio_options else {}
         if speech:
             from myzing.study.speech_models import local_path
@@ -354,8 +373,10 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             local = local_path(name) if name != "skip" else None
             caps["studio_speech"] = {"model": name, "path": str(local) if local else None}
         resolved = checkpoints.step("reference-resolve", ref_key, resolve)
-        ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps],
-                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60.05, **speech))
+        reference_terms = vocabulary_context(terms, metadata={"title": resolved.get("title") or ""})["terms"]
+        ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps, reference_terms],
+                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60.05,
+                                                    **({"vocabulary": reference_terms} if reference_terms else {}), **speech))
         # Keep the existing brief recommendation and reference contracts useful.
         from myzing.project.locking import project_lock
         with project_lock(root):
@@ -372,28 +393,22 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             source = resolve_path(asset.path, root)
             sha = projects.hash_file(source)
             # The source-map method keys the study: a changed fine pass restudies.
-            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, "source-map-" + SOURCE_MAP_METHOD],
-                                                      lambda source=source: _study(str(source), root, raw=True, **speech))
-            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.2"],
+            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, context["cache_key"], "source-map-" + SOURCE_MAP_METHOD],
+                                                      lambda source=source: _study(str(source), root, raw=True, **({"vocabulary": terms} if terms else {}), **speech))
+            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.4"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             if caps["color"]:
                 colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, "sdr-matrix-v1"],
                                                     lambda source=source, a=asset.id: _color(ref_study["media"], source, root / "color" / a))
         if not caps["color"]:
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
-        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.2"],
+        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.4"],
                                      lambda: _audio(ref_study, caps["audio"]))
         recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2-color2-samples"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
         recipe = StyleRecipe.from_dict(read(recipe_result["path"]))
         summary["recipe"] = recipe_result["path"]
         summary["reference_text_roles"] = next((f.value for f in recipe.measured if f.name == "text_roles"), None)
-        def get_brief():
-            selected = load_brief(brief) if brief else Brief.from_answers(answers) if answers is not None else load_brief(root / "brief.json")
-            save_brief(root, selected)
-            return {"outputs": [str(root / "brief.json")]}
-        checkpoints.step("brief", {"brief": projects.hash_file(Path(brief)) if brief else None, "answers": answers,
-                                   "saved": projects.hash_file(root / "brief.json") if brief is None and answers is None else None}, get_brief)
         from myzing.director.api import plan_drafts
         def direct():
             result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed, repair_asr=repair_asr,

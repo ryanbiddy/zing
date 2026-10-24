@@ -108,6 +108,7 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
             if abs(b.meta.duration - item.duration) > .05:
                 raise ValueError("study duration differs from project probe; rescan and restudy")
             item.duration = min(item.duration, b.meta.duration)
+            item.audio_tags = b.provenance.get("audio_tags", {})
             item.words, item.asr_repair = repair_words(b.words, item.duration, enabled=repair_asr)
             if item.asr_repair["repairs"]:
                 item.warnings.append(f"ASR repair {source.name}: {len(item.asr_repair['repairs'])} word timings "
@@ -147,6 +148,8 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                 if (str(audio_source.resolve()) not in paths | {str((path.parent / b.meta.media_path).resolve())}
                         or abs(audio.duration_seconds - item.duration) > .05 or audio.truncated):
                     raise ValueError("audio-map source/duration does not match this complete study")
+                if audio.tags:
+                    item.audio_tags = audio.tags.to_dict()
                 silence = []
                 for segment in audio.segments:
                     if segment.label != "silence" or segment.start >= item.duration:

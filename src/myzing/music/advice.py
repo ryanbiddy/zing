@@ -193,9 +193,12 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
             f"It rises less than {MONTAGE_RISE_DB:g} dB; for a reveal, choose an excerpt that builds into the moment." if active else
             f"It has no supported pulse and fewer than {MONTAGE_ATTACKS:g} attacks/s; for a driving montage choose a more active excerpt.")
     add("energy", energy_reason, time=start, points=points["energy"])
-    add("vocals", f"Vocals {vocal_status}. " + ("Prefer an instrumental alternative under speech; listen to confirm because harmonic instruments can trigger this warning." if speech and vocal_status == "possible" else
+    learned = s and s.vocals.get("method", "").startswith("sherpa-onnx/")
+    add("vocals", (f"Vocals {vocal_status}; CED singing confidence {s.vocals['confidence']:.3f}. "
+        "Prefer instrumental music under dialogue when singing is detected; audition quiet or masked voices."
+        if learned else f"Vocals {vocal_status} (heuristic). " + ("Prefer an instrumental alternative under speech; listen to confirm because harmonic instruments can trigger this warning." if speech and vocal_status == "possible" else
         "Listen for masked vocals before placing dialogue over this track; the heuristic cannot rule them out." if speech else
-        "Check that any lyrics suit the images; voices and harmonic instruments can look alike to this heuristic."), points=points.get("vocals"))
+        "Check that any lyrics suit the images; voices and harmonic instruments can look alike to this heuristic.")), points=points.get("vocals"))
     intro = window["intro_seconds"]
     add("intro", f"Energy arrives {intro:.2f}s into the suggested excerpt. " + ("Keep this start for a quick hook." if points["intro"] == weights["intro"] else "Trim the lead-in or reserve it for an intentional build.") if intro is not None else
         "Energy arrival is unknown; audition a start point before building the hook.", time=start + intro if intro is not None else None, points=points["intro"])
@@ -219,6 +222,7 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
     return Advice(audio.source, "good" if score >= 80 else "usable" if score >= 55 else "bad", score, reasons, licensing,
                   {"duration_seconds": audio.duration_seconds, "tempo": audio.tempo.to_dict(), "loudness": l.to_dict(),
                    "structure": s.to_dict() if s else None,
+                   "tags": audio.tags.to_dict() if audio.tags else None,
                    "scoring": {"mode": mode, "base": base, "weights": weights, "points": points, "quality_penalty": penalty,
                                "source_offset": start, "source_end": end, "rise_db": rise, "spread_db": spread,
                                "rule": "base + weighted excerpt suitability - quality penalties; good >=80, usable >=55"}})

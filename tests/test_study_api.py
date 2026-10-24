@@ -157,7 +157,8 @@ def test_study_assembles_and_persists(zing_workspace, monkeypatch):
     ]
     assert b.avg_shot_duration == 10.0
     assert b.cuts_per_10s == [0.0, 1.0]
-    assert b.warnings == ["ingest note", "shots note", "ocr note"]
+    assert b.warnings[:3] == ["ingest note", "shots note", "ocr note"]
+    assert "heuristic fallback" in b.warnings[3]
     for key in ("shot_detector", "whisper_model", "ocr_backend", "vad",
                 "zing_version", "measured_at"):
         assert key in b.provenance

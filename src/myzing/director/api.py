@@ -175,6 +175,11 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 evidence["continuity"] = {"version": 1, "status": "unavailable", "score": None, "basis": SKIP_NOTE}
                 evidence["captions"] = {"status": "unavailable", "basis": SKIP_NOTE}
                 plan.warnings.append(SKIP_NOTE)
+            evidence["audio_moment_candidates"] = [
+                {"asset_id": c.asset_id, **moment}
+                for c in clips if c.status == "ready"
+                for moment in c.audio_tags.get("moment_candidates", [])
+            ]
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},

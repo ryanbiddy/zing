@@ -68,19 +68,23 @@ def input_args(path: Path, seconds: float) -> list[str]:
             "-i", str(path), "-map", "0:a:0", "-vn", "-sn", "-dn"]
 
 
-def decode_mono(path: str | Path, *, max_seconds: float = MAX_SECONDS):
+def decode_mono(path: str | Path, *, max_seconds: float = MAX_SECONDS, sample_rate: int = SAMPLE_RATE):
     """Return (float32 samples, truncated). At most 600 s / 53 MB of PCM.
 
     Decode one extra sample to distinguish a full excerpt from an exact-length
-    file. The rate and first-stream selection are fixed for reproducibility.
+    file. The rate and first-stream selection are fixed for reproducibility;
+    learned tagging asks FFmpeg for its model's 16 kHz instead of the 22.05 kHz
+    analysis rate.
     """
     np = numpy()
     duration_limit(max_seconds)
+    if sample_rate not in (SAMPLE_RATE, 16_000):
+        raise ValueError(f"decode_mono supports {SAMPLE_RATE} or 16000 Hz")
     path = local_file(path)
-    limit = int(max_seconds * SAMPLE_RATE)
+    limit = int(max_seconds * sample_rate)
     result = run_ffmpeg([
-        "-loglevel", "error", *input_args(path, (limit + 1) / SAMPLE_RATE),
-        "-ac", "1", "-ar", str(SAMPLE_RATE), "-c:a", "pcm_f32le",
+        "-loglevel", "error", *input_args(path, (limit + 1) / sample_rate),
+        "-ac", "1", "-ar", str(sample_rate), "-c:a", "pcm_f32le",
         "-f", "f32le", "pipe:1",
     ], timeout=max(30, max_seconds * 2))
     samples = np.frombuffer(result.stdout, dtype="<f4")
