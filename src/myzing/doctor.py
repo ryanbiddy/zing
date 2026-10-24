@@ -128,33 +128,14 @@ def _has_module(name: str) -> bool:
 # ---------------------------------------------------------------------------
 
 def check_ffmpeg() -> Check:
+    from myzing.ffmpeg_setup import describe, inspect_build, install_hint
+
     ffmpeg = _which("ffmpeg")
     ffprobe = _which("ffprobe")
-    if ffmpeg and ffprobe:
-        version = _run_version([ffmpeg, "-version"])
-        return Check(
-            name="ffmpeg",
-            tier=REQUIRED,
-            ok=True,
-            detail=version or f"found at {ffmpeg}",
-            data={"path": ffmpeg},
-        )
-    missing = "ffmpeg and ffprobe" if not ffmpeg and not ffprobe else (
-        "ffprobe" if ffmpeg else "ffmpeg"
-    )
-    fix = (
-        "winget install Gyan.FFmpeg   (then restart the terminal)"
-        if sys.platform == "win32"
-        else "brew install ffmpeg"
-        if sys.platform == "darwin"
-        else "sudo apt install ffmpeg   (or see https://ffmpeg.org/download.html)"
-    )
+    build = inspect_build(ffmpeg, ffprobe)
     return Check(
-        name="ffmpeg",
-        tier=REQUIRED,
-        ok=False,
-        detail=f"{missing} not found on PATH — Zing cannot measure anything without it",
-        fix=fix,
+        name="ffmpeg", tier=REQUIRED, ok=build["ok"], detail=describe(build),
+        fix="" if build["ok"] else install_hint(), data=build,
     )
 
 

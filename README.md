@@ -10,6 +10,27 @@ the creative judgment through the CLI or **36 MCP tools**. No Zing API key neede
 
 ## Start here: zing studio
 
+## Get started
+
+Zing is pre-alpha and is not on PyPI yet. Use the [source checkout steps](docs/INSTALL.md#source-checkout-available-now)
+until release. The planned v1 package install is:
+
+```console
+pipx install "myzing[all]"
+```
+
+Or use `uv tool install "myzing[all]"`. Install FFmpeg with libx264 and libass
+through your OS package manager, then run `zing doctor`, followed by `zing studio`.
+Doctor checks FFmpeg 6+, ffprobe, encoders and filters and names what is missing.
+`zing setup --ffmpeg` shows the install command and requires a typed **yes**.
+
+Follow [Install](docs/INSTALL.md) for Windows, macOS or Linux,
+[Troubleshooting](docs/TROUBLESHOOTING.md) for failed checks,
+[Privacy](docs/PRIVACY.md) for downloads and AI-client boundaries, and
+[Studio](docs/STUDIO.md#your-first-draft-in-10-minutes) for a first draft with
+generated media. Package setup and model downloads can take longer than the
+walkthrough itself.
+
 Run `uv sync --all-extras` once in this checkout, put FFmpeg on PATH, then:
 
 ```console

@@ -19,7 +19,7 @@ _COMMANDS: dict[str, tuple[str, str]] = {
     "doctor": ("myzing.doctor",
                "check your environment and print the exact fix for each gap"),
     "setup": ("myzing.setup_flow",
-              "guided first run: study a preset pack or your own links"),
+              "set up FFmpeg or models; study a preset pack or your own links"),
     "study": ("myzing.study.command",
               "measure a video (URL or local file) into a breakdown"),
     "fonts": ("myzing.fonts.command",

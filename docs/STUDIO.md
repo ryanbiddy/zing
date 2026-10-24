@@ -1,5 +1,51 @@
 # Start with `zing studio`
 
+## Your first draft in 10 minutes
+
+Try this after [installation](INSTALL.md) and a successful FFmpeg check in
+`zing doctor`. Ten minutes is a walkthrough budget, not a measured guarantee
+for your computer. Package installation and model downloads take extra time.
+This sample uses generated video with no speech, so it needs no model download
+or personal media. The commands below use PowerShell from a source checkout.
+
+Create three clips with test shapes and color bars. Separate clips give the
+planner enough choices for three distinct edits:
+
+```powershell
+New-Item -ItemType Directory -Force zing-workspace/first-draft/clips | Out-Null
+ffmpeg -hide_banner -loglevel error -n -f lavfi -i "testsrc2=size=640x360:rate=30:duration=12" -c:v libx264 -pix_fmt yuv420p zing-workspace/first-draft/clips/shapes.mp4
+ffmpeg -hide_banner -loglevel error -n -f lavfi -i "smptebars=size=640x360:rate=30:duration=12" -c:v libx264 -pix_fmt yuv420p zing-workspace/first-draft/clips/bars.mp4
+ffmpeg -hide_banner -loglevel error -n -f lavfi -i "testsrc=size=640x360:rate=30:duration=12" -c:v libx264 -pix_fmt yuv420p zing-workspace/first-draft/clips/grid.mp4
+uv run --frozen zing studio
+```
+
+Use a fresh folder on reruns; `-n` refuses to overwrite the generated input.
+For macOS/Linux, create the folder in your file browser and use the same FFmpeg
+and uv commands in Terminal. Those shell variants were checked by docs only
+for REL2; the Windows flow was run locally.
+
+Answer the interview:
+
+1. Choose **2**, edit clips without a reference.
+2. For clips, paste `zing-workspace/first-draft/clips`.
+3. For the topic, enter **A first test with moving shapes**.
+4. Choose **YouTube** for landscape delivery.
+5. Set the length to **6** seconds.
+6. Choose **natural** for tone.
+7. Choose **none** for captions and **none** for added music.
+8. Read the plan, check that downloads says **none**, then type **yes**.
+
+The finish screen lists the draft paths and a recommendation with its reason.
+Open a listed MP4 in your video player. These test shapes are only a rendering
+check; there is no reference style or speech to match. Use the displayed output
+folder to find the saved plan, reports and `studio-result.json`. Missing
+measurements and failed drafts remain visible.
+
+Next, start a new Studio session with your own clips and choose **1** to use a
+reference video. Speech clips add a model choice and a separate download
+confirmation. Review names, caption timing and framing before sharing a draft.
+For help, see [Troubleshooting](TROUBLESHOOTING.md) and [Privacy](PRIVACY.md).
+
 ```powershell
 uv sync --all-extras
 uv run --frozen zing studio
