@@ -248,7 +248,7 @@ def read_lease(service_id: str) -> tuple[str | None, str | None, str]:
                     None,
                     "invalid_lease",
                     f"lease at {path} is larger than "
-                    f"{_LEASE_SIZE_LIMIT // 1024} KiB — a conformant lease is "
+                    f"{_LEASE_SIZE_LIMIT // 1024} KiB - a conformant lease is "
                     "well under a kilobyte; refusing to read it",
                 )
             raw = path.read_text(encoding="utf-8")
@@ -266,7 +266,7 @@ def read_lease(service_id: str) -> tuple[str | None, str | None, str]:
                 None,
                 "stale_lease",
                 f"lease at {path} names pid {payload['pid']}, which is not "
-                "running — the service exited without removing it",
+                "running - the service exited without removing it",
             )
         return payload["base_url"], None, f"runtime lease at {path}"
     return None, None, ""
@@ -509,7 +509,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     if status != 200 or manifest is None:
         return _bad(
             "contract_mismatch",
-            f"no suite manifest at {base} (HTTP {status}) — a service "
+            f"no suite manifest at {base} (HTTP {status}) - a service "
             "answered but does not speak INTEGRATION-CONTRACT v1; if this "
             "is uoink, update it",
             f"manifest fetch: HTTP {status}",
@@ -541,7 +541,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     if _REQUIRED_CAPABILITY not in capabilities:
         return _bad(
             "contract_mismatch",
-            f"uoink does not offer {_REQUIRED_CAPABILITY} — update uoink",
+            f"uoink does not offer {_REQUIRED_CAPABILITY} - update uoink",
             evidence,
             retryable=False,
         )
@@ -585,7 +585,7 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
         return _bad(
             "peer_unhealthy",
             "uoink reports required checks failed: "
-            + ", ".join(failed) + " — open uoink's own doctor for the fix",
+            + ", ".join(failed) + " - open uoink's own doctor for the fix",
             evidence + "; health read, ok=false",
             retryable=True,
         )

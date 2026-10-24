@@ -190,7 +190,7 @@ def markdown(summary):
              "|---|---|---|---|---|---|---|---|"]
     for label, row in summary["drafts"].items():
         grades = row.get("dimensions", {})
-        cells = [status_label(grades.get(k, {}).get("status", "—")) for k in
+        cells = [status_label(grades.get(k, {}).get("status", "-")) for k in
                  ("shot_pace", "first_cut", "caption_timing", "caption_placement", "color")]
         failed = [k for k, v in grades.items() if v["status"] == "miss"]
         state = "render complete" if row["status"] == "ready" else row["status"]

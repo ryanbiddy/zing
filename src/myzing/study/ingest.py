@@ -216,7 +216,7 @@ def _acquire_url_media(
             probed = probe(media)
         except MediaError as exc:
             warnings.append(
-                f"kept media failed probe ({exc}) — falling back to fetch"
+                f"kept media failed probe ({exc}) - falling back to fetch"
             )
             provenance.clear()
             fallback_reason = "integrity_mismatch"
@@ -263,7 +263,7 @@ def _stage_kept(
     name = src.name
     if not src.is_file():
         warnings.append(
-            f"kept media unavailable ({name}) — falling back to fetch"
+            f"kept media unavailable ({name}) - falling back to fetch"
         )
         return None, "missing"
     try:
@@ -290,7 +290,7 @@ def _stage_kept(
         if not sha_matches or not length_matches:
             warnings.append(
                 f"kept media integrity mismatch ({name}: "
-                f"sha/size differ from handoff) — falling back to fetch"
+                f"sha/size differ from handoff) - falling back to fetch"
             )
             return None, "integrity_mismatch"
         target = storage.media_target(slug, src.suffix or ".mp4")
@@ -298,7 +298,7 @@ def _stage_kept(
             shutil.copy2(src, target)
     except OSError as exc:
         warnings.append(
-            f"kept media unreadable ({exc}) — falling back to fetch"
+            f"kept media unreadable ({exc}) - falling back to fetch"
         )
         return None, "missing"
     if handoff is not None:
@@ -327,7 +327,7 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     if ytdlp is None:
         raise MediaError(
             "yt-dlp is not installed (no binary on PATH, module not "
-            'importable) — python -m pip install "myzing[study]"'
+            'importable) - python -m pip install "myzing[study]"'
         )
     cmd = [
         *ytdlp,
@@ -348,7 +348,7 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     media = storage.find_media(slug)
     if media is None:
         raise MediaError(
-            f"yt-dlp exited 0 but no media file landed in {dest} — "
+            f"yt-dlp exited 0 but no media file landed in {dest} - "
             "cannot measure a video we do not have"
         )
     return media
@@ -419,7 +419,7 @@ def _first_stream(probed: dict, kind: str) -> dict | None:
 def _video_stream(probed: dict, media: Path) -> dict:
     vstream = _first_stream(probed, "video")
     if vstream is None:
-        raise MediaError(f"{media.name} has no video stream — nothing to study")
+        raise MediaError(f"{media.name} has no video stream - nothing to study")
     return vstream
 
 
@@ -450,7 +450,7 @@ def _check_frame_timing(media: Path, warnings: list[str]) -> tuple[bool, str]:
     if problem:
         warnings.append(
             f"could not verify constant frame timing ({problem}); timestamps "
-            "assume CFR — residual risk: a variable-frame-rate source would "
+            "assume CFR - residual risk: a variable-frame-rate source would "
             "drift frame-index timestamps beyond the ±0.15s eval budget "
             "without detection"
         )
@@ -467,7 +467,7 @@ def _check_frame_timing(media: Path, warnings: list[str]) -> tuple[bool, str]:
         warnings.append(
             f"frame-timing jitter detected (per-frame PTS delta variation "
             f"{cv:.1%}, worst frame-index drift {drift:.3f}s) is under the "
-            "normalization thresholds, so normalization was skipped — "
+            "normalization thresholds, so normalization was skipped - "
             f"residual risk: frame-index timestamps may sit up to "
             f"{drift:.3f}s off true PTS (eval cut budget is ±0.15s)"
         )

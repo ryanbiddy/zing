@@ -55,7 +55,7 @@ def detect_shots(media_path: Path, duration: float, fps: float, *, min_scene_len
         return result
     except Exception as e:  # decode failure etc. — honest skip, never a guess
         result.warnings.append(
-            f"shot detection failed: {e} — scenedetect is installed but "
+            f"shot detection failed: {e} - scenedetect is installed but "
             "could not read this file; run 'zing doctor' to check the "
             "decode stack"
         )

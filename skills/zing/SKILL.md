@@ -1,6 +1,6 @@
 ---
 name: zing
-description: Study reference videos, plan and render local cuts, match SDR color, plan captions around faces, inspect timelines, and make memes with Zing through CLI or MCP. Use for Zing editing and creative-studio tasks with local media.
+description: A free, local creative studio for short videos and memes that runs in your terminal and that AI agents can drive. Use Zing through CLI or MCP to study references, plan and render local cuts, match video styles, inspect timelines, and make memes.
 ---
 
 # Zing

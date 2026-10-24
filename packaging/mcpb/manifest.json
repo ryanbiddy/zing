@@ -3,7 +3,8 @@
   "name": "myzing",
   "display_name": "Zing",
   "version": "1.0.0rc1",
-  "description": "Zing studies short videos: deterministic edit measurements (shots, word-timed transcript, caption OCR, audio) your AI turns into style judgments over MCP.",
+  "description": "Free, local video and meme studio your AI agents can drive.",
+  "long_description": "A free, local creative studio for short videos and memes that runs in your terminal and that AI agents can drive.",
   "author": {
     "name": "Ryan Biddy"
   },

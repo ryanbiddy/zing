@@ -14,6 +14,7 @@ from mcp_wire import (
 pytest.importorskip("mcp", reason='install "myzing[mcp]" for wire tests')
 GOLDEN = json.loads((FIXTURES / "sdk1.json").read_text(encoding="utf-8"))["exchanges"]
 
+COPY1 = json.loads((FIXTURES / "copy1.json").read_text(encoding="utf-8"))
 
 def without_protect(tool):
     """POLISH1 added an optional protect argument (and one description
@@ -61,6 +62,22 @@ def assert_wire(actual, expected):
                 option = tool["inputSchema"]["properties"].pop("studio_options")
                 assert option["default"] is None
                 assert "studio_options" not in tool["inputSchema"].get("required", [])
+    # COPY1 changes only these reviewed copy fields. Pin their new values
+    # exactly; preserve SDK1 as historical evidence and diff every other byte.
+    expected = copy.deepcopy(expected)
+    if isinstance(expected, dict) and isinstance(expected.get("result"), dict):
+        result = expected["result"]
+        if "instructions" in result:
+            result["instructions"] = COPY1["instructions"]
+        for tool in result.get("tools", []):
+            if tool["name"] in COPY1["tool_descriptions"]:
+                tool["description"] = COPY1["tool_descriptions"][tool["name"]]
+        payload = result.get("structuredContent", {})
+        if payload.get("state") == "absent" and "missing-wire-fixture" in payload.get("error", ""):
+            payload["error"] = COPY1["missing_breakdown_error"]
+            text_payload = json.loads(result["content"][0]["text"])
+            text_payload["error"] = COPY1["missing_breakdown_error"]
+            result["content"][0]["text"] = json.dumps(text_payload, indent=2)
     actual, expected = canonical(actual), canonical(expected)
     assert actual == expected, "".join(difflib.unified_diff(
         expected.splitlines(True), actual.splitlines(True),
@@ -156,3 +173,14 @@ def test_real_entry_point_and_version_refusal(tmp_path, modern):
         assert result["structuredContent"] == payload
         checks = payload["environment"]["checks"]
         assert any(check["name"] == "uoink" and not check["ok"] for check in checks)
+
+
+@pytest.mark.parametrize("field", ["instructions", "capabilities", "extra"])
+def test_copy1_replay_rejects_unreviewed_changes(field):
+    expected = legacy_expected(GOLDEN[0], LEGACY_VERSIONS[-1])
+    actual = copy.deepcopy(expected)
+    actual["result"]["instructions"] = COPY1["instructions"]
+    assert_wire(actual, expected)
+    actual["result"][field] = "unreviewed drift"
+    with pytest.raises(AssertionError):
+        assert_wire(actual, expected)

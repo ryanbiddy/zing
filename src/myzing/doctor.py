@@ -2,12 +2,12 @@
 
 Three tiers (binding, SPRINT-1-D1 §Critique resolutions B#5):
 
-- required     ffmpeg/ffprobe — without them Zing measures nothing;
+- required     ffmpeg/ffprobe - without them Zing measures nothing;
                missing required => exit 1.
-- recommended  yt-dlp, scenedetect, faster-whisper, rapidocr — each
+- recommended  yt-dlp, scenedetect, faster-whisper, rapidocr - each
                missing one names its degraded mode; never fails the
                machine, but "Ready." is qualified while any are missing.
-- optional     the uoink helper on localhost — silently absent is fine.
+- optional     the uoink helper on localhost - silently absent is fine.
 
 Doctor checks exactly what the study pipeline imports (F-05/F-10): the
 module names below are asserted against the study sources by tests, so a
@@ -257,7 +257,7 @@ def _youtube_js_advice(
         # D-9: what S2 warned about is now reality — YouTube fetches FAIL
         # without an external JS runtime, they don't just warn.
         note = (
-            "; no JS runtime (deno/node) found — YouTube fetches WILL fail "
+            "; no JS runtime (deno/node) found - YouTube fetches WILL fail "
             "(yt-dlp requires one for YouTube's signature solving)"
         )
         fix = "winget install DenoLand.Deno   (guide: " + _troubleshooting_ref() + ")"
@@ -277,7 +277,7 @@ def _youtube_js_advice(
             note = f"; node JS runtime enabled via yt-dlp config ({node_config})"
         else:
             note = (
-                "; node found but yt-dlp only uses deno by default — "
+                "; node found but yt-dlp only uses deno by default - "
                 "signature-challenge YouTube videos will 403 until configured"
             )
             fix = (
@@ -288,7 +288,7 @@ def _youtube_js_advice(
                 "signature-challenge YouTube videos 403 until node is "
                 "enabled: no '--js-runtimes node' line in the standard "
                 "yt-dlp config locations doctor checks (a custom "
-                "--config-locations file is invisible to doctor — ignore "
+                "--config-locations file is invisible to doctor - ignore "
                 "this if yours has the line); other platforms and local "
                 "files unaffected"
             )
@@ -297,7 +297,7 @@ def _youtube_js_advice(
     has_solver = _has_module("yt_dlp_ejs")
     if module and not has_solver:
         note += (
-            "; EJS solver scripts missing — YouTube challenge solving "
+            "; EJS solver scripts missing - YouTube challenge solving "
             "fails even with a JS runtime"
         )
         solver_fix = 'python -m pip install "yt-dlp[default]"'
@@ -326,7 +326,7 @@ def check_ytdlp(today: date | None = None) -> Check:
             ok=False,
             detail="yt-dlp not found (binary or module)",
             fix='python -m pip install "myzing[study]"   (or: pip install yt-dlp)',
-            degraded_mode="zing study works on local files only — no URL fetch",
+            degraded_mode="zing study works on local files only - no URL fetch",
         )
     version = _run_version_cached(argv + ["--version"])
     age = _ytdlp_version_age_days(version, today) if version else None
@@ -336,7 +336,7 @@ def check_ytdlp(today: date | None = None) -> Check:
     stale = age is not None and age > YTDLP_STALE_DAYS
     if stale:
         detail = (
-            f"version {version} is ~{age} days old — platform extractors "
+            f"version {version} is ~{age} days old - platform extractors "
             f"rot fast; TikTok/Instagram fetches may fail until updated"
         )
         fix = "python -m pip install -U yt-dlp" + (
@@ -456,7 +456,7 @@ def check_ocr() -> Check:
     detail = "the `rapidocr` package is not importable"
     if found_instead:
         detail += (
-            f" — found {' and '.join(found_instead)}, but Zing's OCR "
+            f" - found {' and '.join(found_instead)}, but Zing's OCR "
             "imports `rapidocr` only, so OCR is still skipped"
         )
     return Check(
@@ -519,7 +519,7 @@ def check_scenedetect() -> Check:
         name="scenedetect",
         tier=RECOMMENDED,
         ok=False,
-        detail="scenedetect not importable — Zing cannot detect shots without it",
+        detail="scenedetect not importable - Zing cannot detect shots without it",
         fix='python -m pip install "myzing[study]"',
         degraded_mode=(
             "shot detection is skipped: zero shots + a warning in the "
@@ -581,11 +581,11 @@ def check_tts() -> Check:
             # not work.
             "python -m pip install kokoro-onnx   (deliberately outside "
             "the extras: its runtime pulls espeakng-loader; needs Python "
-            "3.10-3.13) — or set ELEVENLABS_API_KEY to use the optional "
+            "3.10-3.13) - or set ELEVENLABS_API_KEY to use the optional "
             "cloud provider instead"
             if "not importable" in str(provider.get("detail", ""))
             else "download the kokoro model files to ~/.cache/myzing/kokoro "
-            "(or point ZING_KOKORO_MODEL/ZING_KOKORO_VOICES at them) — Zing "
+            "(or point ZING_KOKORO_MODEL/ZING_KOKORO_VOICES at them) - Zing "
             "never auto-downloads models (D-6); ElevenLabs is optional via "
             "ELEVENLABS_API_KEY"
         ),
@@ -638,7 +638,7 @@ def check_uoink() -> Check:
             tier=OPTIONAL,
             ok=True,
             detail=(
-                f"uoink available at {url} ({evidence}) — kept-media "
+                f"uoink available at {url} ({evidence}) - kept-media "
                 "study and corpus push ready. " + uoink_suite_hint(state)
             ),
             data={"url": url, "peer": peer, "evidence": evidence},
@@ -654,7 +654,7 @@ def check_uoink() -> Check:
                 "is configured. " + uoink_suite_hint(state)
             ),
             fix=(
-                "set UOINK_TOKEN to uoink's per-install token — "
+                "set UOINK_TOKEN to uoink's per-install token - "
                 + _token_location()
             ),
             data={"url": url, "peer": peer, "evidence": evidence},
@@ -682,7 +682,7 @@ def check_uoink() -> Check:
         name="uoink",
         tier=OPTIONAL,
         ok=False,
-        detail=f"no uoink at {url} (fine — Zing is fully standalone). " + uoink_suite_hint(state),
+        detail=f"no uoink at {url} (fine - Zing is fully standalone). " + uoink_suite_hint(state),
         # The consequence belongs in degraded_mode, not in a parenthetical:
         # zing_status serves these fields to an AI, and every other check
         # puts "what you lose" here. Found by the anti-stranding test —
@@ -878,14 +878,14 @@ def _verdict_line(checks: list[Check]) -> str:
     required_missing = [c.name for c in checks if c.tier == REQUIRED and not c.ok]
     if required_missing:
         return (
-            "Verdict: NOT ready — required missing: "
+            "Verdict: NOT ready - required missing: "
             f"{', '.join(required_missing)} (fix below, then re-run)"
         )
     degraded = [c.name for c in checks if c.tier == RECOMMENDED and not c.ok]
     if degraded:
         return (
             f"Verdict: ready for local-file study; {len(degraded)} feature(s) "
-            f"degraded ({', '.join(degraded)}) — details below"
+            f"degraded ({', '.join(degraded)}) - details below"
         )
     return "Verdict: fully ready"
 
@@ -908,18 +908,18 @@ def _next_step() -> str:
         return ""
     if studied == 0:
         return (
-            "Next: study your first reference —\n"
+            "Next: study your first reference -\n"
             "  zing setup --list                 (curated preset packs)\n"
             "  zing study <url or file>          (your own)"
         )
     if profiles == 0:
         return (
-            f"Next: {studied} studied video(s), no taste profile yet —\n"
+            f"Next: {studied} studied video(s), no taste profile yet -\n"
             "  zing setup --links <url> ... --name my-taste\n"
             "  (or connect an AI to judge them: zing serve-mcp --print-config)"
         )
     return (
-        f"Next: {studied} studied, {profiles} profile(s) — direct your own "
+        f"Next: {studied} studied, {profiles} profile(s) - direct your own "
         "footage by\nconnecting an AI: zing serve-mcp --print-config"
     )
 
@@ -943,12 +943,12 @@ def _print_human(checks: list[Check]) -> None:
     degraded = [c for c in checks if c.tier == RECOMMENDED and not c.ok]
     if missing:
         names = ", ".join(c.name for c in missing)
-        print(f"\nNOT ready: required tool(s) missing: {names} — fix above, then re-run.")
+        print(f"\nNOT ready: required tool(s) missing: {names} - fix above, then re-run.")
     elif degraded:
         # Never an unqualified "Ready." while a measurement is degraded (F-10).
         names = ", ".join(c.name for c in degraded)
         print(
-            f"\nReady for basic use, but degraded — missing recommended "
+            f"\nReady for basic use, but degraded - missing recommended "
             f"tool(s): {names} (fixes above)."
         )
     else:

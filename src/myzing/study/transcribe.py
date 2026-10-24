@@ -76,7 +76,7 @@ def transcribe(
     except Exception as e:  # model download/load failure — skip, don't guess
         result.warnings.append(
             f"transcription skipped: whisper model '{name}' could not be "
-            f"loaded: {e} — usually a download or disk-space problem; run "
+            f"loaded: {e} - usually a download or disk-space problem; run "
             "'zing doctor' and retry"
         )
         return result

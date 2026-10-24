@@ -374,10 +374,10 @@ def run(argv: list[str]) -> int:
         print("Preset packs:")
         for p in packs:
             if "error" in p:
-                print(f"  {p['name']}: BROKEN — {p['error']}")
+                print(f"  {p['name']}: BROKEN - {p['error']}")
             else:
                 print(
-                    f"  {p['name']} ({p['genre']}, {p['references']} refs) — "
+                    f"  {p['name']} ({p['genre']}, {p['references']} refs) - "
                     f"{p['description']}"
                 )
         print(
@@ -397,14 +397,14 @@ def run(argv: list[str]) -> int:
                     p["name"] for p in list_packs()
                 ) or "(none installed)"
                 print(
-                    f"zing setup: no pack named '{args.pack}' — "
+                    f"zing setup: no pack named '{args.pack}' - "
                     f"available: {names}"
                 )
                 return 1
         except ValueError as e:
             print(f"zing setup: {e}")
             return 1
-        print(f"Building taste from pack '{args.pack}' (studies run now —")
+        print(f"Building taste from pack '{args.pack}' (studies run now -")
         print("this can take a few minutes per un-studied reference)…")
         build = finish_pack(args.pack, study_missing=True)
         if not build.get("ok"):
@@ -497,7 +497,7 @@ def run(argv: list[str]) -> int:
     for url in links:
         slug = storage.slug_for(url)
         category, detail_text = ledger.get(slug, ("unknown", ""))
-        detail = f" — {detail_text}" if detail_text else ""
+        detail = f" - {detail_text}" if detail_text else ""
         print(f"  [{category:>11}] {slug}{detail}")
     print("Fix the causes above (zing doctor helps) and re-run.")
     return 1
