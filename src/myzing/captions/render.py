@@ -1,6 +1,7 @@
 """Libass preset writer: immutable word slots and metric-based baselines."""
 
 import math
+import unicodedata
 
 from myzing.composition import frame_index, frame_time
 from myzing.render.font_files import ass_em_scale
@@ -10,7 +11,18 @@ from myzing.render.positioned_captions import (
 )
 
 from .metrics import metrics
-from .presets import line_width
+from .presets import slot_lines
+
+
+def _rtl(text):
+    """Base direction from the first strong character (Unicode bidi rule P2)."""
+    for ch in text:
+        kind = unicodedata.bidirectional(ch)
+        if kind in ("R", "AL"):
+            return True
+        if kind == "L":
+            return False
+    return False
 
 
 def geometry(caption, width, height):
@@ -26,19 +38,29 @@ def geometry(caption, width, height):
     else:
         baseline = box.center[1]*height + font.cap*size/font.units/2
     slots = []
-    index = 0
-    for line_index, line in enumerate(lines):
-        words = line.split()
-        advances = [font.width(w,size) for w in words]
-        total = sum(advances) + space*(len(words)-1) + 2*pad*len(words)
+    for line_index, line in enumerate(slot_lines(caption)):
+        advances = [font.width(text,size) for text,_,_ in line]
+        gaps = [space if gap else 0 for _,gap,_ in line]
+        total = sum(advances) + sum(gaps) + 2*pad*len(line)
         x = box.center[0]*width - total/2
         y = baseline - (len(lines)-1-line_index)*line_h
-        for word, advance in zip(words,advances):
-            slots.append({"index":index,"text":word,"x":x+pad,"baseline":y,"width":advance,
-                          "plate_x":x,"plate_y":y-font.cap*size/font.units-size*.08,
-                          "plate_width":advance+2*pad,"plate_height":(font.cap-font.descent)*size/font.units+size*.16})
-            x += advance+space+2*pad
-            index += 1
+        order = list(range(len(line)))
+        if _rtl(lines[line_index]):
+            # Right-to-left lines read from the right: the first word's slot
+            # (and so the first highlight) sits at the right end.
+            order.reverse()
+        placed = {}
+        for position, k in enumerate(order):
+            if position:
+                previous = order[position-1]
+                x += gaps[max(k, previous)]
+            placed[k] = x
+            x += advances[k]+2*pad
+        for k, (text, _, index) in enumerate(line):
+            slots.append({"index":index,"text":text,"x":placed[k]+pad,"baseline":y,"width":advances[k],
+                          "plate_x":placed[k],"plate_y":y-font.cap*size/font.units-size*.08,
+                          "plate_width":advances[k]+2*pad,"plate_height":(font.cap-font.descent)*size/font.units+size*.16})
+    slots.sort(key=lambda slot: slot["index"])
     return {"version":1,"anchor_x":box.center[0]*width,"baseline":baseline,
             "font_ascent":font.ass_ascent*size/font.units,"size":size,"slots":slots,
             "line_count":len(lines),"scale":caption.layout.scale}
@@ -55,6 +77,16 @@ def compile_caption(caption, composition, font, data, frame_limit):
         raise ValueError("Caption presets need a shot rail; run place_captions before rendering.")
     geo = geometry(caption,composition.width,composition.height)
     first,last,words,_ = caption_frame_timing(caption,composition.fps,frame_limit)
+    # A scheduled 125/30 s start can arrive as 4.166666666666667. Treat
+    # numerical dust at a frame boundary as that boundary, not the next frame.
+    # Otherwise a 5/6 s Clean cue ending at a cut loses one of its 25 frames.
+    first = max(0, frame_index(max(0, caption.start-1e-9), composition.fps, rounding="ceil"))
+    # One-frame word minimums must not stretch a cue into the next one: two
+    # groups on one rail would overprint. Keep the cue's own frame window.
+    own = max(first+1, min(frame_limit, frame_index(max(0, caption.end-1e-9), composition.fps, rounding="ceil")))
+    if last > own:
+        last = own
+        words = [(min(s,last-1), max(min(s,last-1)+1, min(e,last))) for s,e in words]
     # Clean captions retain words for editing, but have no per-word highlight.
     if caption.preset == "clean":
         words = []

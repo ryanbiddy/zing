@@ -345,8 +345,13 @@ def next_step(answers=None, *, cache=None):
         if path == "b":
             ask("tone", "What tone should it have?", "natural",
                 "Semantic tone is unknown; natural is a restrained starting preference. Measured studies still determine draft candidates.", ["natural", "calm", "energetic"])
-        caption_choice = "clean" if a.get("aspects") == ["16:9"] else "punch"
-        caption_reason = "Clean gives dialogue up to two balanced lines and longer reading time." if caption_choice == "clean" else "Punch keeps short phrases large on one line for phone viewing."
+        # The platform answer decides the shapes before "aspects" is stored.
+        shapes = a.get("aspects") or selected
+        caption_choice = "clean" if shapes == ["16:9"] else "punch"
+        caption_reason = ("Clean suits a 16:9 delivery: up to two balanced lines and longer reading time."
+                          if caption_choice == "clean" else
+                          "Punch keeps short phrases large on one line for phone viewing"
+                          + (" (one style is used for every shape)." if len(shapes) > 1 else "."))
         ask("captions", "Which spoken-caption style?", caption_choice if facts["audio_streams"] else "none",
             f"{caption_reason} {facts['audio_streams']} probed videos have audio; speech and spelling still need checking."
             if facts["audio_streams"] else "No speech evidence is available; omit captions unless you want to try local transcription.",

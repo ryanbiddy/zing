@@ -5,13 +5,13 @@ Choose `punch` for short vertical clips, `box` for a moving word highlight, or
 and Clean for a single 16:9 delivery, with a reason in the caption question.
 `reference`, `phone`, and explicit existing styles retain their old behavior.
 
-| Preset | Type at 1080-wide output | Group | Highlight and motion |
+| Preset | Type at a 1080 px short side | Group | Highlight and motion |
 |---|---|---|---|
 | `punch` | Inter-derived ExtraBold 800, 97 px, capitals, black outline | 1–3 words, one line | `#FFD23F` active word; whole group enters over 140 ms, 80% → 105% → 100% |
 | `box` | Inter-derived ExtraBold 800, 81 px, capitals | 2–4 words when boundaries and width permit, one line | Yellow plate glides for 80 ms behind fixed text; 100 ms entry fade |
 | `clean` | Inter-derived Bold 700, 59 px, original case | Up to two balanced lines; 30 characters per line in portrait, 42 in landscape | White text; fixed bottom baseline, so a second line grows upward |
 
-Sizes scale by output width. Grouping uses the actual face's glyph advances,
+Sizes scale by the output's short side in 16:9, 1:1 and 9:16. Grouping uses the actual face's glyph advances,
 including the padding reserved by every Box word. Font metrics set the baseline;
 letters with descenders or different capitalization cannot change the anchor.
 These are chosen styles, not claims about the reference video's original font.
@@ -36,33 +36,46 @@ preset or change its ASS output. Presets use libass and add no runtime dependenc
 
 ## Timing and placement
 
-Sentence punctuation, substantial pauses, speaker changes when supplied, and
-shot boundaries close a cue. English articles, prepositions and conjunctions
+Sentence punctuation prefers a new cue; short fragments can merge with their
+neighbour. Substantial pauses, speaker changes and shot boundaries close a cue.
+English articles, prepositions and conjunctions
 stay with the following word. The grouping search penalizes broken pronoun/verb
 pairs, split names, single-word cues, short durations, and excessive reading speed.
 The two-line chooser prefers a natural break near the balanced midpoint.
 
 Clean targets at least 5/6 second, at most four seconds, and no more than
 20 characters per second. It aims for a two-frame gap. A cue may lead speech
-by up to two frames to reach the minimum duration. Pop presets target at least
-0.3 second. Holds use available silence and never overlap the next cue or cross
+by up to 250 ms into silence to reach the reading time. Pop presets target at least
+0.3 second. Holds use following silence first. When neighbouring cues have spare
+time, their display boundary may move by at most 100 ms within an edge word;
+`caption_display_sync` retains its original timing. Cues never overlap or cross
 a shot cut. Words and their source timing provenance remain available for review.
 
 Speech can make these rules incompatible. A sentence ending at the video cut
 may have less than 5/6 second available. A long word or a protected phrase can
-force a single-word cue; a phrase that cannot fit even at the size floor fails
-with a remedy. These shortages appear in plan warnings. Choose Clean or adjust
+force a single-word cue. Long words and URLs split at measured cluster boundaries,
+preferably after URL punctuation; splits retain the source timing and record
+proportional display timing. Numbers, acronyms and contractions stay intact when
+they fit. Punctuation-only tokens attach to their preceding word; CJK groups use
+character widths. English protected-pair lists are not multilingual NLP, and RTL
+uses per-word shaping with the first strong character setting the line direction.
+These shortages appear in plan warnings. Choose Clean or adjust
 the edit's cut points when Punch or Box would flash through dense speech.
 
 The caption layer uses faster-whisper's installed Silero VAD to trim overlapping
 word windows to detected speech. It never downloads a model. Missing VAD or a
 word with no speech overlap leaves the source timing in place with a warning.
-This is a silence clamp, not forced alignment or a claim of word-level accuracy.
+AUD1's successful `provenance.timing.method="vad_edge_snap"` and matching
+`adjusted` words become a per-word marker before timeline mapping. The caption
+VAD is a no-op for those words, including words AUD1 left unchanged. Unavailable
+or stale study evidence does not suppress the caption check. This is a silence
+clamp, not forced alignment or a claim of word-level accuracy.
 Highlights hold through gaps under 250 ms and through the final cue hold.
 
-Each shot gets one centered rail, checked against the swept supplied face
+Each shot gets one rail centered in the usable safe area, checked against swept supplied face
 tracks and existing UI reserves. The whole shot may shrink in 5% steps down to
-80% to fit. Clean starts near the 74% bottom rail in portrait; 78% is available
+80% to fit, while Punch and Box never go below the existing phone size floor.
+Clean uses subtitle sizing instead. Clean starts near the 74% bottom rail in portrait; 78% is available
 when a face needs more clearance. An unsafe result stays marked unsafe and
 requires the renderer's existing explicit acceptance. Detector coverage is not
 proof that every face was found.
@@ -78,19 +91,21 @@ After preparing the packet, run:
 
 ```powershell
 $env:UOINK_URL='http://127.0.0.1:1'
-uv run --frozen python tools/eval/caption2_acceptance.py
+uv run --frozen python tools/eval/caption2_acceptance.py --revision=-verified
 ```
 
-The generated examples below are local artifacts, not committed media:
+After that command, open these generated example sheets. They are local
+artifacts; a fresh checkout does not contain the media:
 
-- [Punch, Korky in 9:16](../zing-workspace/caption2/8.1.2/korky-9x16-punch/phone-contact.png)
-- [Box, Tears of Steel in 16:9](../zing-workspace/caption2/8.1.2/tos-dialogue-16x9-box/phone-contact.png)
-- [Clean, Korky in 9:16](../zing-workspace/caption2/8.1.2/korky-9x16-clean/phone-contact.png)
+- Punch, Korky in 9:16: `zing-workspace/caption2/8.1.2-verified/korky-9x16-punch/phone-contact.png`
+- Box, Tears of Steel in 16:9: `zing-workspace/caption2/8.1.2-verified/tos-dialogue-16x9-box/phone-contact.png`
+- Clean, Korky in 9:16: `zing-workspace/caption2/8.1.2-verified/korky-9x16-clean/phone-contact.png`
 
 Every combination has a video, four example frames, a 400-pixel-wide contact
 sheet, saved composition, ASS, and per-event metrics. The same packet is rendered
-with FFmpeg 6.1.1 under `caption2/6.1.1`. `tests/test_caption2_ffmpeg.py` checks
-glyph boxes across settled word states on both aspect ratios. Punch's deliberate
+with FFmpeg 6.1.1 under `caption2/6.1.1-verified`. `tests/test_caption2_ffmpeg.py` checks
+glyph boxes across settled word states on all three aspect ratios, including
+missing font paths and libass fallback glyphs. Punch's deliberate
 entry scale and Box's plate motion are excluded from the fixed-glyph comparison.
 
 ## Fonts and attribution
@@ -98,8 +113,12 @@ entry scale and Box's plate motion are excluded from the fixed-glyph comparison.
 The two bundled static faces derive from the existing pinned Inter source.
 Optional kerning and ligatures are disabled in these derivatives so their
 fixed word slots use reproducible advances. Required font shaping tables remain.
-Unsupported glyphs fail with a font remedy; Zing does not silently substitute
-a system font. English protected-pair lists do not constitute multilingual NLP.
+Missing bundled font paths resolve by SHA-256 to this installation's identical
+face. Libass receives those exact bytes under a private family name. Unsupported
+glyphs use libass's system fallback, measured by rendering the actual word and
+reported in plan warnings. This requires FFmpeg with libass; without it, Zing
+asks for that installation instead of estimating character widths. System fallback
+coverage varies by machine; a missing custom font requires reapplying the preset.
 
 `caption-presets.json` pins source and output font hashes. The OFL license travels
 with the fonts. `tools/eval/caption2_fonts.py` reproduces them using fontTools as

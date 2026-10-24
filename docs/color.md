@@ -76,6 +76,128 @@ at most 0.85, scaled by sample success, up to four usable samples, and shot
 coverage; capped at 0.6 for missing color metadata and 0.2 for flat/clipped samples.
 It is not a calibrated probability or a full-duration inspection.
 
+## COLOR2 match report bands
+
+`zing match` uses the existing CIELAB statistics on MATCH2's sharp picture
+regions. It crops before downsampling and excludes recorded mattes and fill.
+The following limits live together in `src/myzing/match/color.py` (`BANDS`).
+They are editorial distribution limits calibrated on generated differences,
+not just-noticeable differences, paired Delta E, or a guarantee of the same grade.
+
+| Component | Pass at or below | Miss above | Unit |
+|---|---:|---:|---|
+| Largest lightness percentile difference | 4 | 10 | L* |
+| Distance between mean a*/b* | 3 | 8 | a*/b* units |
+| Largest chroma percentile difference | 4 | 10 | Lab chroma |
+| Contrast difference (p95-p5) | 5 | 12 | L* |
+| Largest mean a*/b* distance in a lightness quartile | 4 | 8 | a*/b* units |
+
+There is no face or skin component in this comparison. The reference's people
+and the draft's people are different people under different light; comparing
+their skin measures who is on screen, not the grade, and judging one person's
+skin tone against another's is wrong. Skin is checked separately, against the
+same clip's ungraded source (see [Skin preservation](#skin-preservation)).
+
+Values between the limits are approximate. One measured miss makes color miss;
+every measured component must be within its pass band for color to pass. Sparse,
+incomplete or low-confidence sampling caps an otherwise passing result at
+approximate: both inputs need four usable samples, all requested samples and
+supplied shots covered, and measurement confidence at least 0.5. Confidence is
+the existing sampling/metadata/clipping heuristic, not a probability. Missing or
+legacy luma-only measurements remain unmeasured, represented as approximate in
+the dimension status for existing consumers. Studio counts only `pass` as a pass.
+
+Scene content versus grade: unpaired statistics cannot fully separate the two. A
+reference full of blue sky and a draft shot indoors differ in mean cast with no
+grading error at all. Each report therefore measures how much each video's own
+sampled shots differ from its pooled statistics (the sample standard deviation
+of every component) and turns it into an allowance of two standard errors of the
+pooled difference. A component misses only when it exceeds the miss limit by
+more than that allowance; otherwise it is approximate, marked `content_limited`,
+and the reason says "Scene content differs". The allowance never widens a pass.
+A single static picture has no allowance, so the generated calibration below is
+unchanged. A one-shot reference whose scene differs from a one-shot draft can
+still miss; compare the crops before regrading. The reference's per-sample
+statistics are kept in the recipe as `color.sample_stats`.
+
+Calibration uses the original RGB chart in `tools/eval/color2_fixture.py`, with
+headroom to avoid clipping. Blue/green shifts preserve encoded Rec.709 luma
+exactly before quantization. FFmpeg tests encode with explicit BT.709 matrices,
+limited YUV range, sRGB transfer and BT.709 primaries.
+
+| Generated difference | Expected status | Main measured difference before encoding |
+|---|---|---|
+| Same pixels | pass | zero |
+| RGB multiplied by 1.05 | pass | lightness 3.6; chroma 2.8 |
+| Equal-luma blue cast | miss | mean cast about 17 |
+| Equal-luma green cast | miss | mean cast about 17 |
+| Saturation reduced to 35% | miss | chroma about 43 |
+| Contrast multiplied by 1.4 about RGB 0.5 | miss | lightness 15; contrast 17 |
+| Full Zing teal-orange look versus neutral | miss | chroma 11; tonal cast 8.5 |
+| 35% of the blue cast above | approximate | mean cast about 6 |
+
+The same fixtures run as arrays in lean CI and as encoded media in the FFmpeg
+gate. A separate test fits and renders Zing's own LUT: the neutral-to-teal-orange
+case moves from miss to pass. Reproduce the calibration with:
+
+```sh
+uv run --frozen python -m tools.eval.color2_fixture --out zing-workspace/color2-calibration
+```
+
+Reports retain signed a*/b*, lightness/chroma percentile deltas, contrast and
+quartile distances alongside plain-language descriptions. A distribution pass
+does not identify a creator's LUT. Scene changes can exceed these bands without
+a grading error; compare sharp frame crops before changing a look.
+
+## Skin preservation
+
+`zing match` reports skin as its own dimension, `skin_preservation`, and it
+never feeds the draft-versus-reference color verdict. For every graded clip a
+draft uses, Zing decodes up to six frames of the ungraded source inside the
+trims the draft uses (640 pixels on the long side), finds faces with the verified
+local YuNet model (never downloaded), keeps the central 60% of each face box,
+and measures those same pixels twice: as decoded, and after that clip's own LUT
+at its plan strength. Each face is compared only with itself. No face is ever
+compared with another person, with the reference's faces, or with a population
+skin-tone norm, and pixels are not selected by skin hue. After a picture-in-frame
+crop ([framing](FRAMING.md)) only the live picture is sampled, so faces in the
+cropped-away broadcast chrome are never measured; the color comparison likewise
+measures only the live picture's sharp box, without a matte inset.
+
+The measure is the signed CIE 1976 hue difference (dH*ab, in a*/b* units), so a
+lightness or saturation change scores zero: those are part of the look. It
+counts toward green only while a* falls, and toward magenta only while a* rises
+and b* falls. A face with chroma below 4 has no reliable hue, so for it any push
+of a* onto the green side counts. The worst face decides the dimension.
+
+| Worst shift toward green or magenta | Status |
+|---|---|
+| At or below 2.5 a*/b* units | pass |
+| Above 2.5, at or below 5 | approximate (shown on the Studio finish screen) |
+| Above 5 | miss (a failed dimension) |
+
+Calibration in `tools/eval/skin_fixture.py` grades generated face patches and
+compares each with itself. On six generated skin tones from very light to very
+deep under neutral light, all eight looks at full strength and the bounded
+white-balance and exposure corrections stay at or below 2.4, except teal-orange,
+whose teal shadows shift the deepest tone by 3.2 (4.5 with the tint bound):
+approximate. A +0.014 green / -0.035 red and blue code-value cast reaches 6.6 to
+7.6 on every tone and a -0.02 green / +0.05 red and blue cast 6.4 to 7.1: miss.
+A cool look on an already pink-lit face is a cooler face, not a magenta one, and
+passes. Reproduce with:
+
+```sh
+uv run --frozen python -m tools.eval.skin_fixture --out zing-workspace/skin-calibration
+```
+
+Without the layout extra or the YuNet model, or when no face is found in the
+sampled frames, skin preservation is unmeasured (approximate, with the reason)
+and never a pass. A draft whose clips carry no grade has no skin dimension,
+because nothing changed the skin. Limits: sparse frames can miss faces, small
+faces give few pixels, and hair, glasses or makeup inside the box are measured
+with the skin. The check uses the LUT applied to decoded source pixels, the same
+trilinear operation the renderer uses, not a decode of the delivered file.
+
 ## Look bank and search
 
 The eight original procedural looks are neutral, warm, cool, teal-orange,
@@ -136,7 +258,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 369
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 395
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.

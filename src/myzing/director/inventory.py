@@ -107,7 +107,9 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
             if abs(b.meta.duration - item.duration) > .05:
                 raise ValueError("study duration differs from project probe; rescan and restudy")
             item.duration = min(item.duration, b.meta.duration)
-            item.words, item.asr_repair = repair_words(b.words, item.duration, enabled=repair_asr)
+            from myzing.captions.timing import mark_study_clamp
+            source_words = mark_study_clamp(b.words, b.provenance)
+            item.words, item.asr_repair = repair_words(source_words, item.duration, enabled=repair_asr)
             if item.asr_repair["repairs"]:
                 item.warnings.append(f"ASR repair {source.name}: {len(item.asr_repair['repairs'])} word timings "
                                      "interpolated within 2s windows; originals and per-word repairs retained in inventory.asr_repair.")

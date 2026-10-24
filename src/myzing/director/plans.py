@@ -313,7 +313,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
     if caption_mode in ("punch", "box", "clean"):
         from myzing.captions.presets import apply_preset
-        apply_preset(plan, caption_mode)
+        # Clip paths are project-relative: resolve them so the VAD clamp runs.
+        apply_preset(plan, caption_mode, base_dir=root)
         captions = plan.captions
         font_report = {"family": "Zing Caption (Inter)", "status": "explicit preset", "original_font": "unknown",
                        "reason": f"The {caption_mode} preset uses a pinned Inter derivative; the original font is unknown."}

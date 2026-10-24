@@ -201,12 +201,13 @@ def test_finish_pick_never_counts_abstentions_disagreements_or_unmeasured_color_
     result = {"project": inputs["project"], "result": {"drafts": rows}, "warnings": []}
     summary = creator_summary(result, {"aspects": ["16:9"]}, {"clips": []})
     assert summary["recommendation"].startswith("Start with draft B (16:9) because it passes shot pace, first cut (0 ")
-    assert "Not passes" not in summary["recommendation"]
+    assert "Not passes: color approximate." in summary["recommendation"]
     a = next(r for r in summary["deliveries"] if r["draft"] == "A")
     assert a["status"] == "unverified" and "pass" not in a["measurements"].values()
     assert summary["style_summary"] == [
         "Draft A (16:9, 9:16): shot pace detector disagreement; first cut not applicable for this footage; color unmeasured.",
-        "Draft C (16:9, 9:16): first cut miss."]
+        "Draft B (16:9, 9:16): color approximate.",
+        "Draft C (16:9, 9:16): first cut miss; color approximate."]
     screen = io.StringIO()
     command.show_result({**result, "status": "ready", "creator_summary": summary}, screen)
     text = screen.getvalue()
@@ -893,3 +894,18 @@ def test_project_lock_release_retries_a_transient_sharing_violation(tmp_path, mo
 def test_plan_reports_explicit_skip(inputs):
     _, plan = complete("b", inputs)
     assert any("captions and whole-line continuity are unavailable" in w for w in plan["warnings"])
+
+
+@pytest.mark.parametrize("platform,choice,reason", [
+    ("YouTube","clean","16:9"), ("TikTok/Reels","punch","phone"),
+    ("square","punch","phone"), ("all","punch","every shape"),
+])
+def test_caption_recommendation_uses_selected_delivery(inputs, platform, choice, reason):
+    answers, _ = complete("b", inputs)
+    answers.pop("captions", None)
+    answers.pop("aspects", None)
+    answers["platform"] = platform
+    question = flow.next_step(answers)["question"]
+    assert question["id"] == "captions"
+    assert question["recommended"] == choice
+    assert reason in question["reason"]

@@ -152,6 +152,15 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
     paths = {}
     for asset in composition.assets:
         paths[asset.id] = _path(asset.path, base_dir, f"asset {asset.id}")
+    # A plan may carry a bundled face's absolute path from another machine.
+    # Resolve the identical pinned bytes before passing a private family to libass.
+    from myzing.captions.metrics import bundled_path
+    for caption in composition.captions:
+        if caption.preset and caption.font and not (base_dir / caption.font.path).is_file():
+            local = bundled_path(caption.font.sha256)
+            if local:
+                caption.font.path = str(local)
+                warnings.append(f"caption {caption.id}: missing font path resolved to the identical bundled face.")
     font_paths = {
         caption.id: _path(caption.font.path, base_dir, f"caption {caption.id} font")
         for caption in composition.captions if caption.font is not None

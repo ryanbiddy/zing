@@ -8,12 +8,13 @@ from myzing.layout.framing import centered_framing, swept_output_box
 from myzing.composition.aspects import SAFE_INSETS, aspect_for
 
 from .metrics import metrics
-from .presets import line_width
+from .presets import line_widths, phone_floor
 
 
 def place_presets(plan, subjects, source_dimensions):
     insets = SAFE_INSETS[aspect_for(plan.width, plan.height)]
     l,t,r,b = insets
+    center = (l + 1-r)/2
     masks = [Mask("left", Box(0,0,l,1)), Mask("right", Box(1-r,0,r,1)),
              Mask("top", Box(0,0,1,t)), Mask("bottom", Box(0,1-b,1,b))]
     previous = None
@@ -44,17 +45,22 @@ def place_presets(plan, subjects, source_dimensions):
         for c in captions:
             f = metrics(c.font.path,c.font.sha256)
             pad = max(c.style.outline_width, c.style.highlight_box_padding if c.preset == "box" else 0)
-            w = max(line_width(s,f,c.style,c.preset) for s in c.text.splitlines()) + 2*pad
+            w = max(line_widths(c,f,c.style)) + 2*c.style.outline_width
             h = f.line_height(c.style.size)*len(c.text.splitlines()) + 2*pad
-            dimensions.append((w*1.05,h*1.05))
+            overshoot = 1.05 if c.preset == "punch" else 1.
+            dimensions.append((w*overshoot,h*overshoot))
         chosen = None
-        for scale in (1.,.95,.90,.85,.80):
+        # Shrinking to clear a face never goes below DOGFOOD1's phone floor.
+        floor = phone_floor(plan, clip.timeline_start, clip.timeline_end, captions[0].preset, source_dimensions)
+        size = min(c.style.size for c in captions)
+        scales = [s for s in (1.,.95,.90,.85,.80) if size*s >= min(floor, size)-1e-6]
+        for scale in scales:
             w,h = max(w for w,h in dimensions)*scale/plan.width, max(h for w,h in dimensions)*scale/plan.height
             for rail in rails:
                 y = rail-h if clean else rail-h/2
-                if min(.5-w/2,y) < 0 or max(.5+w/2,y+h) > 1:
+                if min(center-w/2,y) < 0 or max(center+w/2,y+h) > 1:
                     continue
-                box = Box(.5-w/2,y,w,h)
+                box = Box(center-w/2,y,w,h)
                 check = check_overlap([Keyframe(clip.timeline_start,box),Keyframe(clip.timeline_end,box)],obstacles,masks)
                 candidate = (box,check,scale,rail)
                 if chosen is None or check.safe:

@@ -18,6 +18,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-src",type=Path)
     parser.add_argument("--version",default="8.1.2")
+    parser.add_argument("--revision",default="")
+    parser.add_argument("--plan-only",action="store_true")
+    parser.add_argument("--aspects",nargs="+",default=["9x16","16x9","1x1"])
     args=parser.parse_args()
     if args.baseline_src:
         sys.path.insert(0,str(args.baseline_src.resolve()))
@@ -41,12 +44,13 @@ def main():
         transcript=json.loads((root/(name+"-words.json")).read_text())
         words=[Word(**w) for w in transcript["words"]]
         tracks=[FaceTrack.from_dict(t) for t in json.loads((root/(name+"-layout.json")).read_text())["tracks"]]
-        for aspect,w,h in (("9x16",360,640),("16x9",640,360)):
+        for aspect,w,h in (("9x16",360,640),("16x9",640,360),("1x1",360,360)):
+            if aspect not in args.aspects: continue
             for preset in (("before",) if args.baseline_src else ("punch","box","clean")):
-                folder=root/args.version/f"{name}-{aspect}-{preset}"
+                folder=root/(args.version+args.revision)/f"{name}-{aspect}-{preset}"
                 folder.mkdir(parents=True,exist_ok=True)
                 metadata=folder/"metrics.json"
-                if metadata.exists():
+                if metadata.exists() and not args.plan_only:
                     results.append(json.loads(metadata.read_text()))
                     continue
                 clips=[]
@@ -72,6 +76,9 @@ def main():
                 unsafe=[c.id for c in p.captions if not c.layout.overlap.safe]
                 p.accepted_unsafe_layouts=unsafe
                 (folder/"plan.json").write_text(p.to_json(),encoding="utf-8")
+                if args.plan_only:
+                    print(name,aspect,preset,[(c.text,round(c.end-c.start,3)) for c in p.captions if c.end-c.start < (.3 if preset!="clean" else 5/6)-1e-6], "orphans",sum(len(c.words)==1 for c in p.captions),flush=True)
+                    continue
                 output=folder/"render.mp4"
                 if not output.exists():
                     render_composition(p,output,work_dir=folder/"render-work")
@@ -124,7 +131,7 @@ def main():
                 sheet.save(folder/"phone-contact.png")
                 results.append(metrics)
                 print(name,aspect,preset,metrics["events"],metrics["movement_max_px"],"unsafe",len(unsafe),flush=True)
-    (root/f"metrics-{args.version}-{'before' if args.baseline_src else 'after'}.json").write_text(json.dumps(results,indent=2),encoding="utf-8")
+    (root/f"metrics-{args.version}{args.revision}-{'before' if args.baseline_src else 'after'}.json").write_text(json.dumps(results,indent=2),encoding="utf-8")
 
 
 if __name__=="__main__":
