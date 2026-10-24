@@ -77,7 +77,7 @@ def test_checks_actual_pypi_readme_source(listing):
 def test_version_is_compared_to_pyproject(listing):
     project = listing.parent / "pyproject.toml"
     project.write_text(project.read_text(encoding="utf-8").replace(
-        'version = "0.1.0"', 'version = "999.0.0"'
+        'version = "1.0.0rc1"', 'version = "999.0.0"'
     ), encoding="utf-8")
     assert any("version" in error for error in check(listing))
 

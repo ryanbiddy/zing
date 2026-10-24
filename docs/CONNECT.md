@@ -44,15 +44,17 @@ runtime. It installs the dependencies recorded in its included lockfile.
 zing serve-mcp --print-config
 ```
 
-Prerequisites — Zing is not on PyPI. Either download the wheel from the
-[public v0.1.0 pre-release](https://github.com/ryanbiddy/zing/releases/tag/v0.1.0)
-and install it with the MCP extra:
+Prerequisites: Zing is not on PyPI in this release-preparation checkout.
+For the current candidate, run `uv build` and install the resulting wheel
+with the MCP extra:
 
 ```
-python -m pip install "./myzing-0.1.0-py3-none-any.whl[mcp]"
+python -m pip install "./dist/myzing-1.0.0rc1-py3-none-any.whl[mcp]"
 ```
 
-Or install from source:
+The [public v0.1.0 pre-release](https://github.com/ryanbiddy/zing/releases/tag/v0.1.0)
+is an older build. See [the release guide](RELEASING.md) for the candidate's
+publication and one-command PyPI install instructions. Or install from source:
 
 ```
 git clone https://github.com/ryanbiddy/zing && cd zing

@@ -2,6 +2,7 @@
 name: taste
 description: Turn a built StyleProfile into "this taste in words" — a few plain sentences a creator recognizes as theirs.
 version: 0.1.1
+release_version: 1.0.0rc1
 ---
 
 # Saying a taste out loud

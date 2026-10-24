@@ -23,9 +23,14 @@ def test_skill_frontmatter_and_portable_references():
     text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
     assert text.startswith("---\nname: zing\ndescription: ")
     assert len(text.splitlines()) < 300
-    assert text.split("---", 2)[1].strip().splitlines()[1].removeprefix(
+    description = text.split("---", 2)[1].strip().splitlines()[1].removeprefix(
         "description: "
     ).strip()
+    assert len(description) <= 1024
+    assert description.startswith(
+        "A free, local creative studio for short videos and memes that runs "
+        "in your terminal and that AI agents can drive."
+    )
     for doc in DOCS:
         for target in re.findall(r"\]\(([^)]+)\)", doc.read_text(encoding="utf-8")):
             if "://" in target:

@@ -108,13 +108,13 @@ def run(argv: list[str]) -> int:
         names = available_prompts()
         if names:
             print(
-                f"zing prompt: no prompt named '{name}' — "
+                f"zing prompt: no prompt named '{name}' - "
                 f"available: {', '.join(names)}"
             )
         else:
             print(
                 f"zing prompt: no prompt pack found (looked in "
-                f"{prompts_dir()}) — set {PROMPTS_DIR_ENV} or reinstall Zing"
+                f"{prompts_dir()}) - set {PROMPTS_DIR_ENV} or reinstall Zing"
             )
         return 1
     _meta, text = loaded

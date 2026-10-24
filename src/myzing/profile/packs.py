@@ -63,7 +63,7 @@ def load_manifest(path: Path) -> dict[str, Any]:
         if size > MANIFEST_SIZE_LIMIT:
             raise PackError(
                 f"pack manifest is {size} bytes, over the "
-                f"{MANIFEST_SIZE_LIMIT}-byte limit: {path} — a manifest is "
+                f"{MANIFEST_SIZE_LIMIT}-byte limit: {path} - a manifest is "
                 "a short curated list, so this is almost certainly the "
                 "wrong file"
             )
@@ -81,7 +81,7 @@ def load_manifest(path: Path) -> dict[str, Any]:
         for key in REFERENCE_REQUIRED:
             if not reference.get(key):
                 raise PackError(
-                    f"reference {index} missing '{key}' — every reference "
+                    f"reference {index} missing '{key}' - every reference "
                     "carries a stable id, url, an OBSERVABLE why (something "
                     "a reader can check by watching the video), and its "
                     "live-verification date (reproducibility rules)"
@@ -153,7 +153,7 @@ def build_pack(
         )
         more = f" (+{len(failed) - 3} more)" if len(failed) > 3 else ""
         raise PackError(
-            f"pack '{manifest['pack_id']}': no reference could be studied — "
+            f"pack '{manifest['pack_id']}': no reference could be studied - "
             "a preset built from nothing would be a lie. Failures: "
             f"{causes}{more}"
         )

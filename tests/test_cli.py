@@ -33,23 +33,24 @@ def test_unknown_command_lists_commands(capsys):
 
 def test_redirected_output_is_utf8_not_mojibake():
     """P2-8: piped/redirected output on Windows got the legacy codepage
-    and turned em dashes into mojibake — including the print-config
-    header users pipe into a file. A piped child process is exactly the
-    redirect case; its bytes must be clean UTF-8 with the em dash
-    intact, no replacement characters."""
+    and corrupted non-ASCII output. Keep a Unicode probe after CLI setup:
+    the print-config header now uses ASCII punctuation, but user paths and
+    media titles still need clean UTF-8 when redirected."""
     env = dict(os.environ)
     env.pop("PYTHONIOENCODING", None)
     env["PYTHONPATH"] = str(REPO / "src")
     env["UOINK_URL"] = "http://127.0.0.1:1"
     result = subprocess.run(
-        [sys.executable, "-m", "myzing.cli", "serve-mcp", "--print-config"],
+        [sys.executable, "-c", "from myzing import cli; "
+         "cli.main(['serve-mcp', '--print-config']); print('caf\\u00e9')"],
         capture_output=True,
         env=env,
         timeout=60,
     )
     assert result.returncode == 0
     text = result.stdout.decode("utf-8")  # raises on non-UTF-8 bytes
-    assert "\N{EM DASH}" in text  # the character survived the pipe
+    assert "caf\u00e9" in text  # the character survived the pipe
+    assert "\N{EM DASH}" not in text
     assert "\N{REPLACEMENT CHARACTER}" not in text
 
 

@@ -6,6 +6,21 @@ paths; `SOURCE_SLUG` and `REFERENCE_SLUG` must come from study results. Use a
 fresh output directory. JSON is UTF-8 without a BOM; on Windows, prefer files
 over nested JSON in native-command arguments.
 
+## Installation and first use
+
+Run `zing doctor` before media work. `zing setup --ffmpeg` shows the OS package
+manager command and requires a typed yes in an interactive terminal. Neither
+`--yes` alone nor JSON/non-interactive mode installs FFmpeg. On macOS use
+`ffmpeg-full` and its keg-only PATH step. Doctor names missing libx264, libass,
+drawtext and delivery filters. Preserve model-download consent separately.
+
+The v1 guides are [Install](https://github.com/ryanbiddy/zing/blob/main/docs/INSTALL.md),
+[Troubleshooting](https://github.com/ryanbiddy/zing/blob/main/docs/TROUBLESHOOTING.md),
+[Privacy](https://github.com/ryanbiddy/zing/blob/main/docs/PRIVACY.md) and
+[Studio](https://github.com/ryanbiddy/zing/blob/main/docs/STUDIO.md).
+Until the PyPI release, use the source checkout. The planned package command
+is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
+
 ## Choose a command
 
 | Command | Use and boundary |

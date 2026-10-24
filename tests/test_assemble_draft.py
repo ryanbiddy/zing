@@ -259,10 +259,10 @@ def test_trim_inside_measured_words_warns_without_changing_edl(media):
         if "context-boundary risk" in warning
     ]
     assert boundary == [
-        "draft EDL: context-boundary risk — keeper 0 starts at 5.000s "
+        "draft EDL: context-boundary risk - keeper 0 starts at 5.000s "
         "inside measured word 'opening' (4.800-5.200s, confidence 0.90); "
         "adjust the trim or verify the audible cut",
-        "draft EDL: context-boundary risk — keeper 0 ends at 10.000s "
+        "draft EDL: context-boundary risk - keeper 0 ends at 10.000s "
         "inside measured word 'closing' (9.800-10.200s, confidence 0.90); "
         "adjust the trim or verify the audible cut",
     ]

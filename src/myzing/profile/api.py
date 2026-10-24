@@ -60,7 +60,7 @@ def build_profile(
                 sources.append((slug, storage.load_breakdown(slug)))
             except FileNotFoundError as exc:
                 raise ProfileError(
-                    f"no stored breakdown for source '{slug}' — study it "
+                    f"no stored breakdown for source '{slug}' - study it "
                     "first; a profile must not silently drop requested "
                     "sources"
                 ) from exc
@@ -237,7 +237,7 @@ def _aggregate(
         if low > 0 and high > 3 * low:
             warnings.append(
                 f"profile coherence: source durations span {low:g}–{high:g}s "
-                f"(more than 3× spread) — sources may not share a format"
+                f"(more than 3× spread) - sources may not share a format"
             )
     shot_stat = _stat(_collect(
         sources, warnings, "shot duration",

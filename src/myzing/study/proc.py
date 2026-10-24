@@ -19,7 +19,7 @@ class ToolMissing(MediaError):
 
     def __init__(self, tool: str) -> None:
         super().__init__(
-            f"'{tool}' was not found on PATH — it is required for this step. "
+            f"'{tool}' was not found on PATH - it is required for this step. "
             f"Run 'zing doctor' for setup guidance."
         )
         self.tool = tool

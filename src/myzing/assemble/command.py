@@ -60,7 +60,7 @@ def run(argv: list[str]) -> int:
 
                 media = storage.find_media(args.slug)
                 if media is None:
-                    raise AssembleError(f"no stored media for '{args.slug}' — re-run 'zing study' first")
+                    raise AssembleError(f"no stored media for '{args.slug}' - re-run 'zing study' first")
                 result = draft_for_slug(args.slug, direction, retry_word_timing=local_word_retry(
                     media, args.retry_word_timing_model,
                 ))

@@ -199,7 +199,7 @@ def study(
                 )
             except transitions_mod.TransitionProbeError as exc:
                 warnings.append(
-                    f"transition detection skipped: {exc} — transitions[] "
+                    f"transition detection skipped: {exc} - transitions[] "
                     "is NOT-MEASURED, not measured-empty; the detector is "
                     "recorded in provenance"
                 )

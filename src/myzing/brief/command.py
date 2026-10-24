@@ -24,7 +24,7 @@ def _print_result(result: dict, *, show_answers: bool):
     for fact in rec["basis"]:
         print(f"  - {fact}")
     for advice in rec.get("music_advice", []):
-        print(f"Music: {advice['track']} — {advice['rating']} ({advice['score']}/100)")
+        print(f"Music: {advice['track']} - {advice['rating']} ({advice['score']}/100)")
         for reason in advice["reasons"]:
             print(f"  - {reason['reason']}")
         print(f"  - {advice['licensing']}")

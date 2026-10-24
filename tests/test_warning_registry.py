@@ -59,10 +59,10 @@ REGISTERED: dict[str, str] = {
     "Fine source map unavailable:": "names myzing[study] and restudy; states fallback to public study shots",
     "backend failed to start": "names zing doctor + likely cause",
     "whisper model '{name}' could not be": "names zing doctor + download/disk cause",
-    "shot detection failed: {e} — scenedetect is installed but": "names zing doctor",
+    "shot detection failed: {e} - scenedetect is installed but": "names zing doctor",
     "could not read this file; run 'zing doctor'": "continuation of the above",
     # --- a CONSEQUENCE is named ------------------------------------------
-    "transition detection skipped: {exc} — transitions[]": "says NOT-MEASURED, not empty",
+    "transition detection skipped: {exc} - transitions[]": "says NOT-MEASURED, not empty",
     "frame(s) could not be extracted": "says those shots carry no image",
     "loudness curve skipped: ffmpeg failed": "says music + keeper checks lose their basis",
     "batched transcription failed ({e}); fell back to": "names the fallback",

@@ -65,7 +65,7 @@ class ElevenLabsProvider:
             raise TTSUnavailableError(
                 "ElevenLabs is key-gated: set the ELEVENLABS_API_KEY env var "
                 "(from elevenlabs.io -> Profile -> API keys). Zing never "
-                "requires it — the local kokoro provider is the default."
+                "requires it - the local kokoro provider is the default."
             )
         return key
 
@@ -111,11 +111,11 @@ class ElevenLabsProvider:
             if e.code in (401, 403):
                 raise TTSUnavailableError(
                     "ElevenLabs rejected the API key (HTTP "
-                    f"{e.code}) — check ELEVENLABS_API_KEY"
+                    f"{e.code}) - check ELEVENLABS_API_KEY"
                 ) from e
             if e.code == 429:
                 raise TTSGenerationError(
-                    "ElevenLabs rate/quota limit hit (HTTP 429) — retry "
+                    "ElevenLabs rate/quota limit hit (HTTP 429) - retry "
                     "later or check your plan"
                 ) from e
             raise TTSGenerationError(
@@ -124,7 +124,7 @@ class ElevenLabsProvider:
             ) from e
         except (urllib.error.URLError, OSError) as e:
             raise TTSGenerationError(
-                f"could not reach ElevenLabs: {e} — voiceover needs the "
+                f"could not reach ElevenLabs: {e} - voiceover needs the "
                 "network for this provider; the local kokoro provider "
                 "works offline"
             ) from e
@@ -173,7 +173,7 @@ def resolve_tts_provider(name: str | None = None) -> TTSProvider:
     factory = _REGISTRY.get(chosen)
     if factory is None:
         raise TTSUnavailableError(
-            f"unknown TTS provider '{chosen}' — available: "
+            f"unknown TTS provider '{chosen}' - available: "
             f"{', '.join(available_tts_providers())} (set {PROVIDER_ENV} or "
             "pass a provider name)"
         )
@@ -200,7 +200,7 @@ def tts_status() -> dict[str, Any]:
     elif not kokoro_runtime and kokoro_files:
         kokoro_detail = (
             "model files present but kokoro-onnx is not importable in this "
-            f"Python ({sys.version_info.major}.{sys.version_info.minor}) — "
+            f"Python ({sys.version_info.major}.{sys.version_info.minor}) - "
             "install kokoro-onnx separately (it is outside the extras "
             "by design), or use the elevenlabs provider"
         )

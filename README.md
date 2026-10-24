@@ -10,6 +10,27 @@ the creative judgment through the CLI or **36 MCP tools**. No Zing API key neede
 
 ## Start here: zing studio
 
+## Get started
+
+Zing is pre-alpha and is not on PyPI yet. Use the [source checkout steps](docs/INSTALL.md#source-checkout-available-now)
+until release. The planned v1 package install is:
+
+```console
+pipx install "myzing[all]"
+```
+
+Or use `uv tool install "myzing[all]"`. Install FFmpeg with libx264 and libass
+through your OS package manager, then run `zing doctor`, followed by `zing studio`.
+Doctor checks FFmpeg 6+, ffprobe, encoders and filters and names what is missing.
+`zing setup --ffmpeg` shows the install command and requires a typed **yes**.
+
+Follow [Install](docs/INSTALL.md) for Windows, macOS or Linux,
+[Troubleshooting](docs/TROUBLESHOOTING.md) for failed checks,
+[Privacy](docs/PRIVACY.md) for downloads and AI-client boundaries, and
+[Studio](docs/STUDIO.md#your-first-draft-in-10-minutes) for a first draft with
+generated media. Package setup and model downloads can take longer than the
+walkthrough itself.
+
 Run `uv sync --all-extras` once in this checkout, put FFmpeg on PATH, then:
 
 ```console
@@ -127,6 +148,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Check installed capabilities | [Doctor](docs/DOCTOR.md): optional runtimes, verified models and remedies. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
+| Prepare a release | [Releasing](docs/RELEASING.md): candidate checks, Trusted Publishing and Ryan's approval steps. |
 | Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |

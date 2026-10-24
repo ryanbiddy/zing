@@ -214,7 +214,7 @@ def find_keepers(
             if repeated_with is not None:
                 evidence.append(
                     f"NOTE: repeated take exists at "
-                    f"{repeated_with[0]:.1f}-{repeated_with[1]:.1f}s — "
+                    f"{repeated_with[0]:.1f}-{repeated_with[1]:.1f}s - "
                     "compare before choosing"
                 )
 
@@ -255,7 +255,7 @@ def measure_raw(
             total = sum(d.duration for d in result.dead_air)
             result.warnings.append(
                 f"raw: {len(result.dead_air)} dead-air span(s) totaling "
-                f"{total:.1f}s — {spans}{more}"
+                f"{total:.1f}s - {spans}{more}"
             )
 
     if not words:
@@ -273,13 +273,13 @@ def measure_raw(
             )
         )
         result.warnings.append(
-            f"raw: {sum(result.filler_counts.values())} filler word(s) — {counts}"
+            f"raw: {sum(result.filler_counts.values())} filler word(s) - {counts}"
         )
 
     result.repeated_takes = find_repeated_takes(words)
     for take in result.repeated_takes:
         result.warnings.append(
-            f"raw: repeated take (similarity {take.similarity:.2f}) — "
+            f"raw: repeated take (similarity {take.similarity:.2f}) - "
             f"{take.first_start:.1f}-{take.first_end:.1f}s vs "
             f"{take.second_start:.1f}-{take.second_end:.1f}s: "
             f'"{take.text[:80]}"'
@@ -291,7 +291,7 @@ def measure_raw(
     # evidence "no interior dead air". Skip derivation and say so.
     if speech_segments is None:
         result.warnings.append(
-            "raw: keeper derivation skipped — its definition requires "
+            "raw: keeper derivation skipped - its definition requires "
             "dead-air measurement, which was unavailable (VAD)"
         )
         return result
@@ -312,11 +312,11 @@ def measure_raw(
             if len(result.keepers) > 6 else ""
         )
         result.warnings.append(
-            f"raw: {len(result.keepers)} keeper segment(s) — {spans}{more}"
+            f"raw: {len(result.keepers)} keeper segment(s) - {spans}{more}"
         )
     else:
         result.warnings.append(
-            "raw: no keeper segments passed every check — every span has "
+            "raw: no keeper segments passed every check - every span has "
             "fillers, dead air, level drops, or is too short"
         )
     return result
