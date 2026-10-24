@@ -208,6 +208,8 @@ def run(argv):
             session.answers.pop("aspects", None)
         if key == "reference" and "tone" not in session.history:
             session.answers.pop("tone", None)
+        if key == "reference" and "reference_range" not in session.history and session.answers.get("reference_range") == "all":
+            session.answers.pop("reference_range", None)
         session.result = {}
         session.status = "interview"
 

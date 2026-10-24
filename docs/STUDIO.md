@@ -76,7 +76,13 @@ they require no Uoink connection, upload, or new model download.
 
 Studio probes the reference before its preview or study. A reference over 60
 seconds needs a selected range of at most 60 seconds for matching. The interview
-asks which part to use; a short reference also offers `all`.
+asks which part to use for a long or unknown-duration reference (including URLs
+and failed probes). A local reference of 60 seconds or less uses `all`, records
+that answer, and displays a short note without asking. Explicit trim flags or
+MCP fields still take precedence. When a long local reference needs a trim,
+the selected interval also supplies the default edit length, rounded to whole
+seconds within 1–60; an explicit `length` answer overrides it. This keeps the
+standard local reference interview within ten questions.
 
 These PowerShell examples select the same 50-second interval. Replace
 `reference.mp4` and `clips` with your local paths. The Studio command continues

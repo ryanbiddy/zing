@@ -30,7 +30,7 @@ def inputs(tmp_path, monkeypatch, zing_workspace):
 
 def complete(path, inputs):
     a = {"path": path, "project": inputs["project"]}
-    supplied = {"reference_kind": "file", "reference": inputs["source"], "reference_range": "all", "clips": inputs["clips"],
+    supplied = {"reference_kind": "file", "reference": inputs["source"], "clips": inputs["clips"],
                 "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix", "speech_model": "skip"}
     while True:
         step = flow.next_step(a)
@@ -77,6 +77,8 @@ def test_scripted_stdin_every_path(path, inputs, monkeypatch, capsys):
     assert "1. a." not in output
     if path == "a":
         assert state.questions_asked <= 10
+        assert "reference_range" not in state.history and state.answers["reference_range"] == "all"
+        assert "within 60s); using all of it" in output
 
 
 @pytest.mark.parametrize("path", ["a", "b"])
@@ -103,7 +105,7 @@ def test_required_path_empty_reprompts_without_enter_acceptance(inputs, monkeypa
     monkeypatch.setattr("sys.stdin", io.StringIO(f"1\n\n{inputs['source']}\nq\n"))
     assert command.run([]) == 0
     text = capsys.readouterr().out
-    required = text.split("Drag the reference video here", 1)[1].split("Which part of the reference", 1)[0]
+    required = text.split("Drag the reference video here", 1)[1].split("Which folder holds your clips", 1)[0]
     assert "Enter accepts" not in required and "Recommended:" not in required
     assert "Please type an answer" in required
     assert load_session(inputs["project"]).answers["reference"] == inputs["source"]
@@ -647,7 +649,7 @@ def test_reference_summary_once_and_recommended_option_labels(inputs, monkeypatc
                     "music_present": True, "text_present": False, "text_samples": 3})
     monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: ref)
     monkeypatch.setattr("sys.stdin", io.StringIO(
-        f"1\n{inputs['source']}\nall\n{inputs['clips']}\ngeneral\na local story\n\n\n\n\nq\n"))
+        f"1\n{inputs['source']}\n{inputs['clips']}\ngeneral\na local story\n\n\n\n\nq\n"))
     assert command.run([]) == 0
     text = capsys.readouterr().out
     assert text.count("Your reference is 20.0 s, 16:9; about 63 cuts/min") == 1
@@ -851,6 +853,97 @@ def test_long_reference_length_names_the_cap(inputs, monkeypatch):
     q = flow.next_step(a)["question"]
     assert q["id"] == "reference_range" and q["recommended"] is None
     assert "60s" in q["prompt"] and "before any study" in q["reason"]
+
+
+@pytest.mark.parametrize("duration", [18, 60, 120])
+def test_local_reference_interview_stays_within_ten_questions(inputs, monkeypatch, capsys, duration):
+    from myzing.studio.reference import describe
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(to_dict=lambda: {
+        "duration": duration, "width": 640, "height": 360, "orientation": "landscape", "has_audio": True}))
+    previews = []
+    def preview(path, **trim):
+        previews.append(trim)
+        if duration > 60:
+            assert trim == {"ref_start": 30., "ref_end": 80.}, "No preview before the chosen trim"
+        return describe({"duration": 50 if duration > 60 else duration, "aspect": "16:9"})
+    monkeypatch.setattr("myzing.studio.reference.quick_read", preview)
+    transcript = ["1", inputs["source"], *(["0:30-1:20"] if duration > 60 else []),
+                  inputs["clips"], "general", "A local story", "YouTube",
+                  *([] if duration > 60 else ["12"]), "none", "original", "skip", "q"]
+    monkeypatch.setattr("sys.stdin", io.StringIO("\n".join(transcript) + "\n"))
+    assert command.run([]) == 0
+    state = load_session(inputs["project"])
+    assert state.questions_asked == 10 and len(previews) == 1
+    assert state.answers["reference_range"] == ("0:30-1:20" if duration > 60 else "all")
+    assert ("reference_range" in state.history) == (duration > 60)
+    assert ("length" in state.history) == (duration <= 60)
+    assert state.answers["length"] == (50 if duration > 60 else 12)
+    text = capsys.readouterr().out
+    assert "Plan:" in text and "Cannot continue" not in text
+    if duration > 60:
+        assert text.index("supported limit is 60s") < text.index("Reading the reference")
+    else:
+        assert text.count(f"Reference is {duration}s (within 60s); using all of it.") == 1
+
+
+@pytest.mark.parametrize("source_kind", ["url", "failed_probe", "missing_duration", "invalid_duration"])
+def test_unknown_reference_duration_asks_before_preview(inputs, monkeypatch, source_kind):
+    def probe(path):
+        if source_kind == "failed_probe":
+            raise RuntimeError("probe unavailable")
+        return SimpleNamespace(to_dict=lambda: {"duration": float("nan") if source_kind == "invalid_duration" else None})
+    monkeypatch.setattr("myzing.project.probe.probe_file", probe)
+    monkeypatch.setattr(evidence, "collect", lambda *args: pytest.fail("No preview before range choice"))
+    source = "https://example.invalid/video.mp4" if source_kind == "url" else inputs["source"]
+    step = flow.next_step({"path": "a", "reference": source, "project": inputs["project"]})
+    assert step["question"]["id"] == "reference_range"
+    assert "duration is unknown" in step["question"]["prompt"]
+    assert "reference_range" not in step["answers"]
+
+
+@pytest.mark.parametrize("trim", [{"ref_start": "0:03", "ref_end": "0:15"}, {"reference_range": "0:03-0:15"}])
+def test_short_reference_keeps_explicit_cli_and_mcp_trims(inputs, monkeypatch, trim):
+    from myzing.mcp_server import h_zing_studio
+    calls = []
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p, **kwargs: (
+        calls.append(kwargs) or {"reason": "Selected twelve seconds.", "warnings": []}))
+    a, _ = complete("a", inputs)
+    a.pop("reference_range")
+    a.update(trim)
+    step = h_zing_studio(answers=a)
+    assert step["ok"] and step["status"] == "plan"
+    assert calls[-1] == {"ref_start": 3., "ref_end": 15.}
+    assert {k: step["answers"][k] for k in trim} == flow.normalize_answers(trim)
+    answers_file = Path(inputs["project"]).parent / "answers.json"
+    answers_file.write_text(json.dumps({k: v for k, v in a.items() if k not in trim}), encoding="utf-8")
+    monkeypatch.setattr("sys.stdin", io.StringIO("q\n"))
+    flags = [part for k, v in trim.items() for part in ("--" + k.replace("_", "-"), v)]
+    assert command.run(["--answers", str(answers_file), *flags]) == 0
+    state = load_session(inputs["project"])
+    assert {k: state.answers[k] for k in trim} == flow.normalize_answers(trim)
+    assert calls[-1] == {"ref_start": 3., "ref_end": 15.}
+
+
+def test_back_to_reference_clears_automatic_all_before_long_replacement(inputs, monkeypatch, capsys):
+    long = Path(inputs["source"]).with_name("long.mp4")
+    long.touch()
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(to_dict=lambda: {
+        "duration": 120 if Path(p) == long else 18}))
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"1\n{inputs['source']}\nb\n{long}\nq\n"))
+    assert command.run([]) == 0
+    state = load_session(inputs["project"])
+    assert state.answers["reference"] == str(long)
+    assert "reference_range" not in state.answers
+    assert "supported limit is 60s" in capsys.readouterr().out
+
+
+def test_long_reference_preserves_explicit_edit_length(inputs, monkeypatch):
+    a, _ = complete("a", inputs)
+    a.update(reference_range="0:30-1:20", length=12)
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(to_dict=lambda: {"duration": 120}))
+    monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p, **kwargs: {"reason": "Selected fifty seconds.", "warnings": []})
+    step = flow.next_step(a)
+    assert step["status"] == "plan" and step["answers"]["length"] == 12
 
 
 def test_caption_reason_reports_measured_speech_absence(inputs, monkeypatch):
