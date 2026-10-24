@@ -35,6 +35,7 @@ STAGE_FILES = [
     ("docs/THIRD-PARTY-NOTICES.md", True),
     ("README.md", True),
     ("LICENSE", True),
+    ("NOTICE.md", True),
 ]
 STAGE_TREES = [
     ("src/myzing", True),
@@ -54,8 +55,10 @@ def stage(build_dir: Path) -> Path:
             if required:
                 raise FileNotFoundError(f"bundle needs {rel} and it is missing")
             continue
-        dest_name = "manifest.json" if rel.endswith("manifest.json") else src.name
-        shutil.copy2(src, build_dir / dest_name)
+        dest_name = "manifest.json" if rel.endswith("manifest.json") else rel
+        destination = build_dir / dest_name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, destination)
 
     for rel, required in STAGE_TREES:
         src = REPO / rel

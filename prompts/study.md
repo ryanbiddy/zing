@@ -2,6 +2,7 @@
 name: study
 description: How to judge a Zing Breakdown — hook, beats, caption style, why it works — and write the judgment back.
 version: 0.6.0
+release_version: 1.0.0rc1
 required_keys: [hook, beats, caption_style, why_it_works]
 ---
 
