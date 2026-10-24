@@ -59,3 +59,32 @@ warning that names this setup command.
 If inference is unavailable, install `myzing[study]`, inspect the study warnings,
 and resume the saved Studio session. Missing timed words remain missing evidence;
 an audio stream alone does not prove speech or establish safe caption timing.
+
+## Learned audio tags (optional)
+
+The `audio` check reports NumPy availability. The optional `audio-ml` check
+reports sherpa-onnx package presence and version, and verifies both CED assets
+against pinned SHA-256 and byte size. It requires sherpa-onnx 2.0 or newer,
+because 1.x wheels link GPL espeak-ng; tagging falls back to the heuristic on
+an older runtime. It exposes the revision, runtime version, paths, and
+`network_used: false`. This is a package/cache check; it does not start native
+inference or promise that inference will succeed.
+
+Install `myzing[audio-ml]`, then prepare the Apache-2.0 CED-mini weights
+(about 10.5 MB) with the same consent rules as speech models:
+
+```console
+zing doctor --audio-model ced-mini
+zing setup --audio-model ced-mini --yes
+```
+
+Interactive runs ask for **yes**; scripts and `--json` need `--yes`, and `--yes`
+alone is invalid. `zing audio fetch-model --consent` is the same download.
+It uses the shared verified downloader above (HTTPS on every hop, pinned size
+and SHA-256, one downloader per folder) into `ZING_HOME/models/ced-mini`.
+Installing the extra does not fetch weights. Until both are available, audio
+and music use the labeled heuristic fallback. See [Audio](AUDIO.md) for
+confidence limits and [notices](THIRD-PARTY-NOTICES.md) for licenses and pins.
+
+Doctor's existing Uoink peer check is separate from the offline audio checks.
+During isolated acceptance, set `UOINK_URL=http://127.0.0.1:1` before running it.

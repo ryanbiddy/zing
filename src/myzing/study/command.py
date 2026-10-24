@@ -44,6 +44,9 @@ def run(argv: list[str]) -> int:
     )
     parser.add_argument("--fonts", action="store_true",
                         help="rank locally available fonts (requires --caption-geometry; never downloads fonts)")
+    parser.add_argument("--vocabulary", action="append", default=[], metavar="TERM,TERM",
+                        help="exact names/terms for ASR; repeat or comma-separate (64 terms, 500 UTF-8 bytes total)")
+    parser.add_argument("--brief", type=Path, help="creative brief supplying purpose and exact_spellings")
     args = parser.parse_args(argv)
     if args.fonts and not args.caption_geometry:
         parser.error("--fonts requires --caption-geometry")
@@ -65,8 +68,13 @@ def run(argv: list[str]) -> int:
             study_kwargs["raw_mode"] = True
         if args.kept_media is not None:
             study_kwargs["kept_media"] = args.kept_media
+        if args.vocabulary:
+            study_kwargs["vocabulary"] = [term for group in args.vocabulary for term in group.split(",")]
+        if args.brief:
+            from myzing.brief.api import load_brief
+            study_kwargs["brief"] = load_brief(args.brief)
         breakdown = study(args.source, **study_kwargs)
-    except MediaError as e:
+    except (MediaError, ValueError, OSError) as e:
         print(f"zing study: {e}")
         return 1
 

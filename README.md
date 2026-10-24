@@ -122,6 +122,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Choose and place music | [Music advice and editing](docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
 | Connect an AI or Uoink | [Connect](docs/CONNECT.md): 36 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
+| Check installed capabilities | [Doctor](docs/DOCTOR.md): optional runtimes, verified models and remedies. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
 | Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
@@ -148,6 +149,7 @@ extras below. To select features, use e.g. `uv sync --extra memes --extra render
 | `fonts` | Pillow and pinned headless OpenCV for font comparison; expanded font assets require an explicit fetch. |
 | `layout` | Pinned headless OpenCV; YuNet still needs an explicit model fetch. |
 | `color` | NumPy for SDR matching and LUT work. |
+| `audio-ml` | Optional CED audio tags via sherpa-onnx; weights via `zing doctor --audio-model ced-mini`. |
 | `audio` | NumPy for audio analysis. |
 | `all` | All feature extras above. |
 | `dev` | pytest, MCP and render dependencies for development. |
