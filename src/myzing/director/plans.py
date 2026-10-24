@@ -20,7 +20,7 @@ from myzing.timing import prepare_words, transform_word
 from myzing.style_ranges import timing_band, timing_distance
 
 from .models import shortage
-from .selection import EPS, first_caption, reference_band, shot_lengths, tokens
+from .selection import ALTERNATIVE, EPS, band_distance, first_caption, reference_band, shot_lengths, tokens
 from .continuity import clauses, score
 
 REPORT_PREFIX = "P17 planning evidence: "
@@ -370,6 +370,25 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         notes.append("Continuity not applicable: this draft selects no transcribed speech.")
     if numbers["median_shot_seconds"]["status"] == "deviation":
         notes.append("Pacing unmet: the selected complete-clause draft misses the reference envelope, including internal source cuts. The bounded search did not select a matching alternative.")
+    relaxed = next(iter(timing_selection.values()))["search"].get("distinctness_relaxed") if timing_selection else None
+    alternative = None
+    if relaxed and label in relaxed["alternatives"]:
+        # Name the final, rendered timing values; never present this as a pass.
+        outside = [f"{name.replace('_seconds', '').replace('_', ' ')} "
+                   + ("missing" if item["planned"] is None else f"{item['planned']:.3f} s")
+                   + f" is outside the {item['band']['lower']:.3f}-{item['band']['upper']:.3f} s reference band"
+                   for name, item in (("first_cut_seconds", numbers["first_cut_seconds"]),
+                                      ("median_shot_seconds", numbers["median_shot_seconds"]))
+                   if item.get("band", {}).get("lower") is not None
+                   and band_distance(item["planned"], item["band"]) > EPS]
+        count = relaxed["distinct_in_band_edits"]
+        why = "; ".join(outside or ["selected after every in-band edit was used"])
+        alternative = {"outside_reference_timing": True, "label": ALTERNATIVE,
+                       "reason": f"{why}; only {count} distinct completed edit{'s' if count != 1 else ''} "
+                                 "fit both timing bands"}
+        notes.insert(0, f"{label}: {ALTERNATIVE}: {alternative['reason']}.")
+    if relaxed and (label in relaxed["alternatives"] or any(label in pair for pair in relaxed["similar_pairs"])):
+        notes.append(relaxed["reason"])
     if font is None:
         notes.append(font_report["reason"])
     for key in used:
@@ -412,6 +431,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                         "repeated_source_ranges": False},
         "scope": "Planned values and structural continuity rules only. No semantic quality certification or original-style recovery.",
         "reference_match": brief.reference_match, "warnings": list(dict.fromkeys(notes)),
+        **({"alternative": alternative} if alternative else {}),
     }
     return plan, report
 
