@@ -330,10 +330,20 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--genre", default="", help="rubric genre key")
     parser.add_argument("--platform", default="", help="tiktok|youtube|instagram|x")
     parser.add_argument("--list", action="store_true", help="list preset packs")
+    parser.add_argument("--ffmpeg", action="store_true", help="show OS install command; requires typing yes in a terminal")
+    parser.add_argument("--json", action="store_true", help="print FFmpeg setup as JSON; never installs")
+    parser.add_argument("--non-interactive", action="store_true", help="print FFmpeg setup without prompting or installing")
     parser.add_argument("--speech-model", choices=["small.en", "large-v2", "skip"], help="set up speech without starting a taste study")
     parser.add_argument("--audio-model", choices=["ced-mini"], help="set up optional learned audio tags (myzing[audio-ml])")
     parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected model download")
     args = parser.parse_args(argv)
+    if args.ffmpeg:
+        if args.speech_model or args.audio_model or args.pack or args.links or args.list or args.name or args.genre or args.platform:
+            parser.error("--ffmpeg cannot be combined with model or taste setup")
+        from myzing import ffmpeg_setup
+        return ffmpeg_setup.run(json_output=args.json, non_interactive=args.non_interactive)
+    if args.json or args.non_interactive:
+        parser.error("--json and --non-interactive require --ffmpeg")
     from myzing.study import speech_models
     speech_models.print_inventory()
     if args.yes and not (args.speech_model or args.audio_model):
