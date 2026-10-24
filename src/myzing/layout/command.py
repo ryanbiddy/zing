@@ -32,6 +32,9 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     fetch = commands.add_parser("fetch-model", help="explicitly download and verify the pinned MIT YuNet model")
     fetch.add_argument("--workspace", type=Path, help="Zing workspace (default: ZING_HOME or ~/.zing)")
+    selection = fetch.add_mutually_exclusive_group()
+    selection.add_argument("--vision", action="store_true", help="explicitly download person + YOLOX-S int8 models (Apache-2.0, 21.1 MB)")
+    selection.add_argument("--all", action="store_true", help="explicitly download YuNet and both vision models")
     captions = commands.add_parser("captions", help="plan boxes and write a debug contact sheet")
     captions.add_argument("--video", type=Path, required=True)
     captions.add_argument("--events", type=Path, required=True)
@@ -136,9 +139,15 @@ def run(argv: list[str]) -> int:
     try:
         args = parser.parse_args(argv)
         if args.command == "fetch-model":
-            path = fetch_model(args.workspace)
-            print(json.dumps({"model": str(path), "sha256": MODEL_SHA256, "url": MODEL_URL,
-                              "license": MODEL_LICENSE, "verified": True}, indent=2))
+            receipt = {}
+            if not args.vision:
+                path = fetch_model(args.workspace)
+                receipt = {"model": str(path), "sha256": MODEL_SHA256, "url": MODEL_URL,
+                           "license": MODEL_LICENSE, "verified": True}
+            if args.vision or args.all:
+                from .vision_models import fetch_models
+                receipt["vision_models"] = fetch_models(workspace=args.workspace)
+            print(json.dumps(receipt, indent=2))
         else:
             print(json.dumps(_captions(args), indent=2))
         return 0

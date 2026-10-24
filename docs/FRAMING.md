@@ -234,7 +234,7 @@ More separate ranges than the budget keep one frame from evenly spaced ranges.
 Tracks are built per source shot and per used range: no linking, smoothing,
 endpoint hold or interpolation crosses a cut or an unused gap, at any rate.
 Director drafts and `zing match` deliveries analyze each source once over the
-union of the A/B/C trims. Priority is YuNet faces, OpenCV's bundled HOG pedestrian detector,
+union of the A/B/C trims. Priority is YuNet faces and optional DNN subjects (see below), with OpenCV's bundled HOG pedestrian detector as the no-model fallback,
 then stable contrast components. HOG needs no download, has limited recall for
 seated/occluded people and receives conservative .5 confidence; its SVM score
 is not treated as probability. Faces and people are framed together unless

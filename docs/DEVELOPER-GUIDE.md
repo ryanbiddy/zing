@@ -186,6 +186,10 @@ requires `ZING_CG2_REAL_ROOT` to name its local fixture directory. The shared
 `real_model(env=...)` marker skips before fixture/model loading; its reason is
 registered in `tests/test_skip_registry.py`.
 
+`ZING_REQUIRE_VISION=1` opts into the [person and pet tests](VIS1.md), using
+pre-provisioned models and the three small CC0 images in
+`tests/fixtures/vision`. These tests never download assets.
+
 Default `pytest` needs no HF offline environment variables to avoid real model
 loads. `tests/test_real_model_opt_in.py` removes those variables and poisons
 the ASR loader and hub download functions to prove the default skips first.

@@ -503,6 +503,22 @@
         "box": {
           "$ref": "#/$defs/myzing_layout_types_Box"
         },
+        "class_name": {
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "detector": {
+          "type": "string"
+        },
         "time": {
           "type": "number"
         },

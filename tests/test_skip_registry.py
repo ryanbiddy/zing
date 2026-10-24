@@ -28,6 +28,12 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "set ZING_REQUIRE_VISION=1": (
+        "real recognition requires explicitly provisioned Apache-2.0 models and licensed photos; "
+        "synthetic shapes cannot establish recall. PRODUCT SURFACE: doctor lists verified vision "
+        "models, layout fetch-model --vision provisions them explicitly, and docs/VIS1.md documents "
+        "offline fixtures and the opt-in. Missing models retain labeled HOG/saliency fallbacks."
+    ),
     "FFmpeg not installed": (
         "generated source-map media requires the encoder. PRODUCT SURFACE: zing doctor "
         "reports FFmpeg availability; the strict FFmpeg gate forbids this skip."

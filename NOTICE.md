@@ -4,6 +4,11 @@ The MIT licence in `LICENSE` covers **the software in this repository** — the
 code under `src/`, `tools/`, `tests/`, `packaging/`, and the documentation
 written for this project.
 
+The OpenCV Zoo-derived preprocessing, anchors and decoding in
+`src/myzing/layout/vision.py` retain Apache-2.0 terms. Both upstream license
+texts and Zing's modification notice ship in
+`myzing/_data/docs/OPENCV-ZOO-LICENSES.md` inside the wheel.
+
 It does **not** cover third-party material that is checked in as evaluation
 evidence. That material stays under the licence of its original author. This
 file aggregates the per-fixture rights records so the terms are visible at the
@@ -66,6 +71,11 @@ Bundled Anton and IBM Plex Sans fonts retain OFL-1.1 terms in
 [HyperFrames notices](tools/hyperframes-sidecar/NOTICES.md) record the
 optional runtimes and explicitly downloaded assets. None receives a new
 license from Zing's MIT grant.
+
+The three small recognition images in `tests/fixtures/vision/` are CC0:
+Christoffer G. Thomsen's cat, JasonAstros123's dog, and a frame from Mvolz's
+Korky Paul video. Their [manifest](tests/fixtures/vision/manifest.json)
+records source URLs, attribution, license links, hashes and derivation.
 
 ## V1 real-video evaluation
 

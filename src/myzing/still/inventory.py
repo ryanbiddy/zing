@@ -12,7 +12,8 @@ from myzing.memes import MemeError
 from myzing.memes.framing import saliency_box
 from myzing.memes.photo import HEIF_EXTENSIONS, load_photo
 from myzing.memes.render import require_pillow
-from myzing.memes.subject import describe_estimate, estimate_subject
+from myzing.memes.subject import describe_detections, describe_estimate, estimate_subject
+from myzing.layout.vision import photo_detections
 from myzing.project.api import hash_file
 from .models import Photo
 
@@ -129,9 +130,17 @@ def describe_photo(path: Path, detector=None) -> Photo:
             notes.append(FALLBACK)
         if origin.note():
             notes.append(origin.note())
-        subject = saliency_box(source)
-        estimate = estimate_subject(source)
-        notes.append(describe_estimate(estimate))
+        recognized, detection_notes = photo_detections(source)
+        notes.extend(detection_notes)
+        if recognized:
+            from myzing.memes.framing import union
+            subject = union([[d["box"][n] for n in ("x", "y", "width", "height")] for d in recognized])
+            estimate = None
+            notes.append(describe_detections(recognized))
+        else:
+            subject = saliency_box(source)
+            estimate = estimate_subject(source)
+            notes.append(describe_estimate(estimate))
         brightness = round(ImageStat.Stat(small.convert("L")).mean[0] / 255, 3)
         text = read_text(source)
     if before != (path.stat().st_size, path.stat().st_mtime_ns):
@@ -144,10 +153,10 @@ def describe_photo(path: Path, detector=None) -> Photo:
     text_part = f' Text read locally: "{text[:60]}".' if text else ""
     description = (f"{orientation.capitalize()} photo, {size_text}; "
                    f"dominant sampled colors {', '.join(colors)}; {face_text}.{text_part} "
-                   "Subject details have not been identified.")
+                   + (describe_detections(recognized) if recognized else "Subject details have not been identified."))
     return Photo("photo-" + digest[:16], str(path), digest, width, height, before[0],
                  description, colors, orientation, round(density, 6), round(band_density, 6),
-                 faces, method, notes, subject, origin.to_dict(), estimate, brightness, text)
+                 faces, method, notes, subject, origin.to_dict(), estimate, brightness, text, recognized)
 
 
 def inventory(folder: str | Path) -> tuple[list[Photo], list[str]]:

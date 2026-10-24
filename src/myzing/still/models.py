@@ -57,6 +57,7 @@ class Photo(Record):
     # unavailable or an older index). Offline lines may use both.
     brightness: float | None = None
     text: str | None = None
+    detections: list[dict] = field(default_factory=list)
 
 
 @dataclass

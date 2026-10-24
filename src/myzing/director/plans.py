@@ -434,6 +434,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                     "src_out": c.src_out, "output_start": c.timeline_start,
                                     "output_end": c.timeline_end} for c in clips],
         "framing": [{"clip_id": c.id, "framing": c.framing.to_dict()} for c in clips if c.framing is not None],
+        "subject_analysis": {key: {"tracks": [t.to_dict() for t in tracks], "warnings": warnings}
+                             for key, (tracks, warnings) in subject_evidence.items()},
         "resolution": resolution,
         "constraints": {"must_keep_word_safe": required, "forbidden_word_safe": forbidden,
                         "speech_cuts": "whole rule-derived clauses, or measured non-speech boundaries",
