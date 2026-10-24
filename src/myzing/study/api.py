@@ -50,6 +50,9 @@ def study(
     model_workspace: Path | None = None,
     speech_model: str | None = None,
     shot_min_scene_len_s: float | None = None,
+    vocabulary=(),
+    brief=None,
+    reference_metadata: dict | None = None,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -100,15 +103,27 @@ def study(
             ing.meta.duration, warnings,
         )
 
+        from .asr_hygiene import vocabulary_context
+        if brief is None:
+            brief_file = storage.workspace_root() / "brief.json"
+            if brief_file.is_file():
+                from myzing.brief.api import load_brief
+                brief = load_brief(brief_file)
+        metadata = reference_metadata or {}
+        if not metadata and handoff and isinstance(handoff.get("metadata"), dict):
+            metadata = handoff["metadata"]
+        context = vocabulary_context(vocabulary, brief=brief, metadata=metadata)
         _phase(phase_callback, "transcribe")
         with _workspace_override(model_workspace):
             words_r = transcribe_mod.transcribe(
                 ing.media_path, duration=ing.meta.duration,
                 **({"model_name": speech_model} if speech_model is not None else {}),
                 **({"local_files_only": True} if local_models_only else {}),
+                **({"vocabulary": context["terms"]} if context["terms"] else {}),
             )
         warnings += words_r.warnings
         provenance.update(words_r.provenance)
+        provenance["asr_vocabulary"] = context
 
         _phase(phase_callback, "ocr")
         if caption_geometry:
@@ -151,6 +166,21 @@ def study(
         audio_r = audio_mod.measure_audio(ing.media_path, ing.meta.duration)
         warnings += audio_r.warnings
         provenance.update(audio_r.provenance)
+
+        from myzing.audio.tagging import AudioTags
+        tags = AudioTags()
+        with _workspace_override(model_workspace):
+            from myzing.audio.tag_models import model_paths
+            try:
+                model_paths()
+            except (RuntimeError, OSError) as exc:
+                tags.warnings.append(f"Learned audio tagging unavailable; heuristic fallback: {exc}")
+            else:
+                # 16 kHz decode inside; at most 600 s, the analysis cap.
+                from myzing.audio.tagging import tag_file
+                tags = tag_file(ing.media_path, speech=[(w.start, w.end) for w in words_r.words])
+        provenance["audio_tags"] = tags.to_dict()
+        warnings.extend(tags.warnings)
 
         transitions = []
         if detect_transitions:

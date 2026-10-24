@@ -351,6 +351,16 @@ def audio_section(b, audio, error=None):
              "loudness": (audio or {}).get("loudness"), "structure": (audio or {}).get("structure"),
              "analyzed_seconds": (audio or {}).get("duration_seconds"), "truncated": (audio or {}).get("truncated"),
              "has_audio_stream": not no_stream, "ducking": None}
+    tags = (audio or {}).get("tags") or b.get("provenance", {}).get("audio_tags", {})
+    facts["tags"] = tags
+    if tags.get("status") == "measured":
+        facts["music_under_speech"] = tags.get("music_under_speech", [])
+        facts["moment_candidates"] = tags.get("moment_candidates", [])
+        if tags.get("music_under_speech"):
+            confidence = max(row["confidence"] for row in tags["music_under_speech"])
+            music_line = f"Clip already carries a candidate score under speech (CED confidence {confidence:.3f}); adding music may stack two scores."
+            strength = "learned candidate"
+            facts["music_evidence"] = strength
     if no_stream:
         lines = ["No audio track in this file."]
     else:
@@ -382,7 +392,7 @@ def audio_section(b, audio, error=None):
         unknowns.append("Tempo, drops and integrated loudness unavailable: " + (error or "install myzing[audio] or check the audio stream."))
     return Section("Audio and music", facts,
                    {"music_score": base.get("music_confidence"), "music_evidence": strength,
-                    "tempo": (audio or {}).get("tempo", {}).get("confidence"), "basis": "heuristics; loudness is EBU R128"},
+                    "tempo": (audio or {}).get("tempo", {}).get("confidence"), "basis": tags.get("method", "heuristics") + "; loudness is EBU R128"},
                    unknowns, lines, not_knowable=NOT_KNOWABLE["audio"])
 
 
