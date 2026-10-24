@@ -113,9 +113,10 @@ def parse_probe(data: dict) -> Probe:
 def video_duration(video, fmt):
     """Picture duration, excluding audio/container padding at the tail."""
     ticks, base = _number(video.get("duration_ts")), _rate(video.get("time_base"))
-    if ticks is not None and ticks > 0 and base:
-        return float(ticks * base)
     frames, rate = _number(video.get("nb_frames")), _rate(video.get("avg_frame_rate"))
+    # A broken muxer can report one time-base tick for many full frames.
+    if ticks is not None and ticks > 0 and base and (not rate or ticks * base >= 1 / rate):
+        return float(ticks * base)
     if frames is not None and frames > 0 and rate:
         return float(frames / rate)
     return _number(video.get("duration")) or _number(fmt.get("duration"))

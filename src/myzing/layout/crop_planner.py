@@ -312,13 +312,15 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
         # HOG sometimes labels the seated speaker plus their desk as one very
         # wide person. When a single reliable face spans the whole shot, that
         # enclosing box is duplicate subject evidence, not a second subject.
-        faces = [t for t in tracks if t.id.startswith("face")]
+        faces = [t for t in tracks if t.id.startswith("face")
+                 and min(t.keyframes[-1].time, clip.src_out) - max(t.keyframes[0].time, clip.src_in) > 1e-4]
         if len(faces) == 1:
             face = faces[0]
             if (face.confidence >= .8 and face.keyframes[0].time <= clip.src_in
-                    and face.keyframes[-1].time >= clip.src_out):
+                    and face.keyframes[-1].time >= clip.src_out - 1e-4):
                 def duplicate(track):
-                    if not track.id.startswith("person-"):
+                    if (not track.id.startswith("person-") or not track.observations
+                            or any(o.detector != "hog-fallback" for o in track.observations)):
                         return False
                     keys = [k for k in track.keyframes if clip.src_in <= k.time <= clip.src_out]
                     if not keys:

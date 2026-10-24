@@ -59,10 +59,13 @@ def options(args):
             if getattr(args, k, None) is not None}
 
 
-def slug(source, ref_start=None, ref_end=None, reference_range=None):
+def slug(source, ref_start=None, ref_end=None, reference_range=None, *, analysis_seconds=None, analysis_max_side=None):
     from myzing.storage import slug_for
     start, end = parse(ref_start, ref_end, reference_range)
-    return slug_for(source if start is None and end is None else f"{source}#reference={start or 0:g}-{end}")
+    key = source if start is None and end is None else f"{source}#reference={start or 0:g}-{end}"
+    if analysis_seconds is not None or analysis_max_side is not None:
+        key += f"#analysis={analysis_seconds};max-side={analysis_max_side}"
+    return slug_for(key)
 
 
 def validate_duration(duration, ref_start=None, ref_end=None, reference_range=None, *, limit=LIMIT_SECONDS):

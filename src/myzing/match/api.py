@@ -361,10 +361,12 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             if is_http_url(reference):
                 if not allow_download:
                     raise ValueError("URL acquisition requires explicit --allow-download consent. Supply a local reference instead.")
-                from myzing.study.ingest import ingest
-                with storage.use_workspace(root / "acquisition"):
-                    ingested = ingest(reference)
-                resolution = resolve_reference(root, file=ingested.media_path)
+                from myzing.explain.api import _resolve
+                from myzing.project.probe import probe_file
+                from myzing.reference_range import validate_duration
+                acquired = _resolve(reference, root / "acquisition", allow_download=True)
+                validate_duration(probe_file(acquired).duration, **trim, limit=60)
+                resolution = resolve_reference(root, file=acquired)
             else:
                 resolution = resolve_reference(root)
             if resolution.state != "resolved":
@@ -386,7 +388,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             name = speech["speech_model"]
             local = local_path(name) if name != "skip" else None
             caps["studio_speech"] = {"model": name, "path": str(local) if local else None}
-        resolved = checkpoints.step("reference-resolve", ref_key, resolve)
+        resolved = checkpoints.step("reference-resolve", [ref_key, trim, "acquire-before-study-v2"], resolve)
         reference_terms = vocabulary_context(terms, metadata={"title": resolved.get("title") or ""})["terms"]
         ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps, reference_terms, trim],
                                      lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60, **trim,

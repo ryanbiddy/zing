@@ -129,7 +129,8 @@ def ingest(
             "URL with a host, valid port, no whitespace, and no backslash"
         )
     from myzing import reference_range as ranges
-    slug = ranges.slug(source, ref_start, ref_end, reference_range)
+    slug = ranges.slug(source, ref_start, ref_end, reference_range,
+                       analysis_seconds=analysis_seconds, analysis_max_side=analysis_max_side)
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
     selecting = any(v is not None for v in (ref_start, ref_end, reference_range, analysis_seconds, analysis_max_side))

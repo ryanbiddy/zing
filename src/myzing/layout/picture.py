@@ -115,7 +115,24 @@ def _surround(mean, rectangle):
     if flat < CHROME_MIN_FLAT:
         return {**evidence, "kind": "scenery", "reason": "static surround is textured like camera scenery "
                 "(desk, wall or shelf), not flat broadcast graphics; existing framing keeps the source"}
-    return {**evidence, "kind": "chrome", "reason": "structured flat graphics outside the picture"}
+    # Require a wide, filled lower-third/logo bar. Sparse bright icons or
+    # titles can inflate spatial variance without any broadcast structure.
+    background = float(np.median(values))
+    graphic = (np.abs(mean - background) >= 12) & core
+    widths = []
+    for row in graphic:
+        edges = np.diff(np.r_[False, row, False].astype(int))
+        spans = np.flatnonzero(edges == -1) - np.flatnonzero(edges == 1)
+        widths.append(int(spans.max()) if len(spans) else 0)
+    wide_rows = np.asarray(widths) >= max(16, w * .35)
+    edges = np.diff(np.r_[False, wide_rows, False].astype(int))
+    heights = np.flatnonzero(edges == -1) - np.flatnonzero(edges == 1)
+    bar_height = int(heights.max()) if len(heights) else 0
+    evidence.update(widest_graphic_share=max(widths) / w, bar_height=bar_height)
+    if bar_height < max(3, h * .025):
+        return {**evidence, "kind": "unknown", "reason": "no wide lower-third or logo bar; "
+                "sparse icons/titles or flat UI panels are insufficient broadcast evidence"}
+    return {**evidence, "kind": "chrome", "reason": "wide broadcast bar in a structured flat surround"}
 
 
 def analyze_picture(path, ranges, size, *, ffmpeg="ffmpeg"):

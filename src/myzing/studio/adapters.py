@@ -41,11 +41,13 @@ def explain_video(source, out_dir, *, progress=None, fallback=True, **trim):
             progress(note)
         b = study(source, workspace=root, local_models_only=True, detect_transitions=True,
                   caption_geometry=True, model_workspace=storage.resolve_workspace(), phase_callback=progress,
+                  analysis_seconds=60, analysis_max_side=960,
                   **trim)
         with storage.use_workspace(root):
             from myzing.reference_range import slug
-            folder = storage.breakdown_dir(slug(source, **trim))
-            media = storage.resolve_relpath(slug(source, **trim), b.meta.media_path)
+            selected_slug = slug(source, analysis_seconds=60, analysis_max_side=960, **trim)
+            folder = storage.breakdown_dir(selected_slug)
+            media = storage.resolve_relpath(selected_slug, b.meta.media_path)
         png = root / "timeline.png"
         warnings = [note, *b.warnings,
                     "Fallback has no dedicated color-look or music-arrangement card; those details remain unmeasured. Original font, LUT and presets remain unknown."]

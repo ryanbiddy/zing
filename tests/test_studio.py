@@ -399,7 +399,9 @@ def test_missing_explain_falls_back_to_offline_study_and_inspect(inputs, tmp_pat
     def study(source, **kwargs):
         calls.append(kwargs)
         with storage.use_workspace(kwargs["workspace"]):
-            folder = storage.breakdown_dir(storage.slug_for(source))
+            from myzing.reference_range import slug
+            folder = storage.breakdown_dir(slug(source, analysis_seconds=kwargs["analysis_seconds"],
+                                                analysis_max_side=kwargs["analysis_max_side"]))
             folder.mkdir(parents=True, exist_ok=True)
             (folder / "breakdown.json").write_text("{}")
             (folder / "breakdown.md").write_text("Measured fallback")
@@ -412,6 +414,7 @@ def test_missing_explain_falls_back_to_offline_study_and_inspect(inputs, tmp_pat
     result = adapters.explain_video(inputs["source"], tmp_path / "out")
     assert result["fallback"] and Path(result["card_md"]).is_file()
     assert calls[0]["local_models_only"] is True and calls[0]["detect_transitions"] is True
+    assert calls[0]["analysis_seconds"] == 60 and calls[0]["analysis_max_side"] == 960
     assert "study + inspect" in result["summary"][0]
 
 

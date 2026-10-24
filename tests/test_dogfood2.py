@@ -125,8 +125,17 @@ def test_brief_only_one_twelve_second_moment_is_a_variety_limit():
 
 
 def test_creator_summary_names_variety_even_with_resolution_warnings(tmp_path):
+    from myzing.director.selection import choose, Candidate, Envelope
+    from myzing.director.models import ClipStudy
+    from myzing.schemas import Shot
     from myzing.studio.presentation import creator_summary
-    result = {"project": str(tmp_path), "status": "ready", "warnings": ["VARIETY limit: one distinct draft"],
+    study = ClipStudy("clip", "clip.mp4", "sha", 12, "ready", shots=[Shot(0, 0, 12)])
+    evidence = {}
+    selected = choose([Candidate("clip", "sha", 0, 12, 0, 0, None, "", False, False)], [], [study],
+                      Envelope(2, None, None, 3, 0, "lower", {}), 12, 30, 0, timing_evidence=evidence)
+    assert list(selected) == ["A"]
+    reason = next(iter(evidence["A"].values()))["search"]["distinctness_relaxed"]["reason"]
+    result = {"project": str(tmp_path), "status": "ready", "warnings": [reason],
               "result": {"deliveries": {"A": {"deliveries": {"9:16": {"video": "draft.mp4"}}}}}}
     summary = creator_summary(result, {"path": "b", "aspects": ["9:16"]}, {"clips": [{"width": 360, "height": 640}]})
     assert summary["notes"][0].startswith("VARIETY limit: delivered 1")
@@ -211,7 +220,7 @@ def test_mcp_reference_options_reach_study_and_explain(tmp_path, monkeypatch, zi
 def test_geometry_schedule_tracks_gaps_and_writer_are_bounded(tmp_path, monkeypatch):
     from myzing.study import caption_geometry as cg
     assert len(cg.sample_schedule(86400)) == cg.MAX_FRAMES
-    assert cg.sample_schedule(60) == cg.captions.sample_schedule(60)
+    assert len(cg.sample_schedule(60)) <= cg.MAX_FRAMES
     frames = [cg.FrameSample(i, i, 1, i, 640, 360, status="ocr_error") for i in range(600)]
     geometry = cg.CaptionGeometry(600, frames)
     geometry.coverage = cg._coverage(geometry, [(i, 1) for i in range(600)])
@@ -292,14 +301,17 @@ def test_dark_gradient_chrome_and_negative_guards():
 
 
 def test_single_head_does_not_shrink_to_fit_duplicate_hog_desk_box():
+    from dataclasses import replace
     from myzing.layout.crop_planner import select_framing
-    from myzing.layout.types import Box, FaceTrack, Keyframe
+    from myzing.layout.types import Box, FaceTrack, Keyframe, TrackObservation
     from myzing.composition import CompositionClip, SpeechWord
-    face = FaceTrack("face-0", [Keyframe(0, Box(.4, .15, .15, .35)), Keyframe(12, Box(.4, .15, .15, .35))], .95)
-    hog = FaceTrack("person-hog", [Keyframe(0, Box(.02, .02, .96, .96)), Keyframe(12, Box(.02, .02, .96, .96))], .5)
+    face = FaceTrack("face-0", [Keyframe(0, Box(.4, .15, .15, .35)), Keyframe(12-1e-7, Box(.4, .15, .15, .35))], .95)
+    hog = FaceTrack("person-hog", [Keyframe(0, Box(.02, .02, .96, .96)), Keyframe(12-1e-7, Box(.02, .02, .96, .96))], .5,
+                    observations=[TrackObservation(0, Box(.02, .02, .96, .96), detector="hog-fallback")])
     clip = CompositionClip("v", 0, 12, 0, id="c", asset_id="v")
     # The normal director route need not carry separate speech-word metadata.
-    framed = select_framing("auto", 640, 360, 720, 1280, clip, [face, hog])
+    later_face = replace(face, id="face-next-shot", keyframes=[Keyframe(12, face.keyframes[0].box), Keyframe(19, face.keyframes[0].box)])
+    framed = select_framing("auto", 640, 360, 720, 1280, clip, [face, hog, later_face])
     assert .50 <= framed.assessments[-1].sharp_height_share <= .70
     assert framed.assessments[-1].enlargement <= 2.5
     assert any("enclosing HOG" in w and "50-70%" in w for w in framed.warnings)

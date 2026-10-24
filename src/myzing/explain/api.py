@@ -133,8 +133,9 @@ def _measure(source, out, *, transitions, allow_download=False, **trim):
     b = Breakdown.from_dict(json.loads(json.dumps(b.to_dict(), allow_nan=False)))
     from myzing.reference_range import slug as reference_slug
     with storage.use_workspace(work):
-        folder = storage.breakdown_dir(reference_slug(str(media), **trim))
-        normalized = storage.resolve_relpath(reference_slug(str(media), **trim), b.meta.media_path)
+        slug = reference_slug(str(media), analysis_seconds=60, analysis_max_side=960, **trim)
+        folder = storage.breakdown_dir(slug)
+        normalized = storage.resolve_relpath(slug, b.meta.media_path)
     display["source_duration"] = display["duration"]
     display["duration"] = b.meta.duration
     geometry_path = folder / "caption-geometry.json"

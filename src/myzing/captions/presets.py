@@ -7,7 +7,7 @@ from myzing.composition import CaptionStyle, CompositionCaption
 from myzing.timing import transform_word
 
 from . import PRESETS
-from .grouping import separator, STOPWORDS, group_words, join, nospace, token
+from .grouping import display_boundaries, separator, STOPWORDS, group_words, join, nospace, token
 from .metrics import font_asset, metrics
 
 
@@ -34,11 +34,15 @@ def clusters(text):
 
 def normalize_words(words):
     """Attach standalone punctuation; expose no-space scripts to width grouping."""
+    words = list(words)
+    _, numeric = display_boundaries([w.text for w in words])
     out = []
-    for word in words:
+    for index, word in enumerate(words):
         text = unicodedata.normalize("NFC", word.text.strip())
         if (out and text and not any(ch.isalnum() for ch in text)
-                and text not in "$£€¥₹" and separator(out[-1].text, text)):
+                and text not in "$£€¥₹" and index not in numeric
+                and not (text in (",", ".") and out[-1].text[-1:].isdigit())
+                and separator(out[-1].text, text)):
             previous = out.pop()
             sep = " " if any(unicodedata.category(ch) == "So" for ch in text) else ""
             merged = transform_word(previous, previous.start, max(previous.end, word.end),
@@ -70,7 +74,7 @@ def words_width(texts, font, style, name):
     """Advance width of display words laid out as fixed slots on one line."""
     space = font.width(" ", style.size)
     total = sum(font.width(t, style.size) for t in texts)
-    gaps = sum(bool(separator(join(texts[:i]), texts[i])) for i in range(1, len(texts)))
+    gaps = sum(bool(space) for space in display_boundaries(texts)[0])
     total += space * gaps
     # Joined numeric tokens share a display run; padding must not reinsert a
     # visible space into "$3,000" while their original timings stay separate.

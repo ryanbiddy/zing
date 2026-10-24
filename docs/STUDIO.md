@@ -95,9 +95,15 @@ zing study reference.mp4 --workspace zing-workspace/study-range --reference-rang
 ```
 
 All four commands accept seconds (`30`, `80`) or `mm:ss`. Use either
-`--ref-start/--ref-end` or `--reference-range`, not both. MCP `study_video`,
+`--ref-start/--ref-end` or `--reference-range`, not both. MCP `study_video`, `study_uoink_item`,
 `match_start`, and `zing_explain` accept `ref_start`, `ref_end`, and
 `reference_range`; Studio accepts those keys in its answers.
+
+For an HTTP reference, Match downloads the source, then probes and checks the
+selected duration before normalization or study. A long untrimmed URL is refused
+at that point. General-purpose Study can analyze longer footage; Explain and
+its Studio fallback cap analysis at 60 seconds. Analysis budgets have separate
+cache identities, so a bounded study cannot replace the full study's media.
 
 Ranges include the start and exclude the end. CFR boundaries snap forward to
 the next source frame; the breakdown's `provenance.reference_range` records

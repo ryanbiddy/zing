@@ -34,6 +34,30 @@ def test_reference_trim_exact_non_keyframe_and_provenance(tmp_path):
     def pixels(path, seek):
         return np.frombuffer(ff("-ss", seek, "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"), dtype=np.uint8).astype(float)
     assert np.abs(pixels(source, 30.1)-pixels(selected, 0)).mean() < 5
+    selected_hash = hash_file(selected)
+    repeated, repeat_receipt = select_local(source, tmp_path / "selection", "0:30.1", "1:20.1", limit=60)
+    assert hash_file(repeated) == selected_hash
+    assert repeat_receipt == receipt and hash_file(source) == before
+
+
+def test_trim_uses_video_and_container_origins_before_accurate_seek(tmp_path):
+    np = pytest.importorskip("numpy")
+    source = tmp_path / "offset.mp4"
+    ff("-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=4", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono",
+       "-filter_complex", "[0:v]setpts=PTS+1.5/TB[v]", "-map", "[v]", "-map", "1:a", "-t", "6",
+       "-fps_mode", "passthrough", "-c:v", "libx264", "-threads", "1", "-c:a", "aac",
+       "-output_ts_offset", "2", source)
+    probe = probe_file(source)
+    video = next(s for s in probe.streams if s["codec_type"] == "video")
+    assert float(video["start_time"]) - float(probe.format["start_time"]) == pytest.approx(1.5, abs=.025)
+    assert float(probe.format["start_time"]) > 1
+    selected, receipt = select_local(source, tmp_path / "selected", .5, 2.5)
+    assert receipt["start_frame"] == 15 and receipt["end_frame"] == 75
+    assert int(probe_file(selected).streams[0]["nb_frames"]) == 60
+    expected = np.frombuffer(ff("-i", source, "-vf", "select=eq(n\\,15)", "-frames:v", "1",
+                                "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"), dtype=np.uint8).astype(float)
+    actual = np.frombuffer(ff("-i", selected, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1"), dtype=np.uint8).astype(float)
+    assert np.abs(expected-actual).mean() < 5
 
 
 def test_padded_audio_does_not_add_377th_picture_frame(tmp_path):
@@ -127,6 +151,8 @@ def test_cli_brief_single_moment_renders_box_in_all_shapes(tmp_path, monkeypatch
     assert command.run(["--answers", str(path), "--yes", "--caption-mode", "box", "--short-side", "180", "--target-mb", "2"]) == 0
     result = json.loads((root / "studio-result.json").read_text(encoding="utf-8"))
     assert result["ok"], result
+    assert result["creator_summary"]["notes"][0].startswith("VARIETY limit: delivered 1")
+    assert "Add clips or shorten" not in str(result["creator_summary"])
     deliveries = result["result"]["deliveries"]
     assert list(deliveries) == ["A"]
     rows = deliveries["A"]["deliveries"]

@@ -629,7 +629,8 @@ def h_import_shot_list(path: str, slug: str) -> dict[str, Any]:
 
 
 @_workspace_boundary
-def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
+def h_study_uoink_item(item_ref: str, ref_start: str | float | None = None,
+                       ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
     """INTEGRATION-CONTRACT v1 §9: study a uoink corpus item through the
     kept-media resolver. Accepts ONE uoink reference — never a peer
     path; paths only travel inside the token-gated handoff."""
@@ -656,6 +657,12 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
 
     from myzing import uoink_bridge
 
+    from myzing.reference_range import parse
+    try:
+        parse(ref_start, ref_end, reference_range)
+    except ValueError as exc:
+        return _err(str(exc))
+    trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
     resolved = uoink_bridge.resolve_kept_media(item_ref.strip())
     if not resolved.get("ok"):
         return _err(str(resolved.get("error", "kept-media resolution failed")))
@@ -702,6 +709,7 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
         hint_extra=hint_extra,
         item_ref=data["item_ref"],
         kept_state=state,
+        **({"trim": trim} if trim else {}),
     )
 
 

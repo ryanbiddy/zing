@@ -34,7 +34,9 @@ MAX_POLYGON_POINTS = 8
 def sample_schedule(duration):
     """Keep short-reference fidelity; bound work and coverage on long sources."""
     if duration <= 60:
-        return captions.sample_schedule(duration)
+        schedule = captions.sample_schedule(duration)
+        if len(schedule) <= MAX_FRAMES:
+            return schedule
     # 24 dense hook samples, then uniform coverage of the remaining duration.
     step = (duration - 3) / (MAX_FRAMES - 24)
     return [(i / 8, .125) for i in range(24)] + [(3 + i * step, step) for i in range(MAX_FRAMES - 24)]

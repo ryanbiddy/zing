@@ -46,16 +46,34 @@ def nospace(ch):
     return any(a <= code <= b for a, b in _NOSPACE)
 
 
-def number_continuation(left, right):
-    """Whether two timed pieces belong to one displayed numeric value."""
+_CURRENCY = "$£€¥₹"
+_INTEGER = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
+_NUMBER = rf"[{_CURRENCY}]?{_INTEGER}(?:\.\d+)?"
+_GROUPED = rf"[{_CURRENCY}]?\d{{1,3}}(?:,\d{{3}})*"
+
+
+def number_continuation(left, right, following=None):
+    """Continue a pure numeric run, never punctuation attached to prose.
+
+    Attached trailing punctuation (2026, or 3.) remains a sentence/list
+    boundary. Only detached separators get lookahead.
+    """
     if not left or not right:
         return False
-    if left[-1] in "$£€¥₹" and right[0].isdigit():
+    if len(left) == 1 and left in _CURRENCY and re.fullmatch(_NUMBER, right):
         return True
-    if left[-1].isdigit() and (re.match(r"^[,.]\d", right) or right in ("%", "‰", ",", ".")):
-        return True
-    if re.search(r"\d[,.]$", left) and right[0].isdigit():
-        return True
+    if right in ("%", "‰"):
+        return bool(re.fullmatch(_NUMBER, left))
+    if re.fullmatch(_GROUPED, left):
+        if re.fullmatch(r",\d{3}", right):
+            return True
+        if right == "," and following and re.fullmatch(r"\d{3}", following):
+            return True
+    if re.fullmatch(rf"[{_CURRENCY}]?{_INTEGER}", left):
+        if re.fullmatch(r"\.\d+", right):
+            return True
+        if right == "." and following and re.fullmatch(r"\d+", following):
+            return True
     return False
 
 
@@ -66,13 +84,29 @@ def separator(left, right):
     return " "
 
 
+def display_boundaries(texts):
+    """Spaces and protected numeric boundaries, in one linear token pass."""
+    texts = [t.strip() for t in texts]
+    spaces, numeric, run = [""], set(), texts[0] if texts else ""
+    for i in range(1, len(texts)):
+        right = texts[i]
+        continued = number_continuation(run, right, texts[i+1] if i+1 < len(texts) else None)
+        # A validated detached separator belongs to the following digits too.
+        if texts[i-1] in (",", ".") and i-1 in numeric:
+            continued = True
+        if continued:
+            numeric.add(i)
+        spaces.append("" if continued or right in (",", ".", ";", ":", "!", "?")
+                      or not run or not right or (nospace(run[-1]) and nospace(right[0])) else " ")
+        run = run + right if continued else right
+    return spaces[:len(texts)], numeric
+
+
 def join(texts):
-    """Join display words; no space between two no-space-script words."""
-    out = ""
-    for text in texts:
-        text = text.strip()
-        out += separator(out, text) + text
-    return out
+    """Join display words without changing timed tokens."""
+    texts = [t.strip() for t in texts]
+    spaces, _ = display_boundaries(texts)
+    return "".join(space + text for space, text in zip(spaces, texts))
 
 
 def glued(word):
@@ -102,6 +136,7 @@ def choose_lines(words, measure, width, cap, max_lines, hard_gap=.5, split=None)
     """
     texts = [w.text.strip() for w in words]
     whole = join(texts)
+    _, numeric = display_boundaries(texts)
     if split is None and len(whole) <= cap and measure(texts) <= width:
         return [whole]
     if max_lines == 1:
@@ -111,7 +146,7 @@ def choose_lines(words, measure, width, cap, max_lines, hard_gap=.5, split=None)
     for i in range(1, len(words)):
         if split is not None and i != split:
             continue
-        if token(words[i-1]) in STOPWORDS or glued(words[i]) or number_continuation(join(texts[:i]), texts[i]):
+        if token(words[i-1]) in STOPWORDS or glued(words[i]) or i in numeric:
             continue
         a, b = join(texts[:i]), join(texts[i:])
         if max(len(a), len(b)) > cap or max(measure(texts[:i]), measure(texts[i:])) > width:
@@ -196,7 +231,7 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
         return [], [], [], [], []
     n = len(words)
     texts = [w.text.strip() for w in words]
-    numeric = {i for i in range(1, n) if number_continuation(join(texts[:i]), texts[i])}
+    _, numeric = display_boundaries(texts)
     units = [0]
     for i in range(n):
         units.append(units[-1] + (i not in numeric))
