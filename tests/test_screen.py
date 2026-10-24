@@ -22,23 +22,23 @@ def plan(**kwargs):
     return ScreenPlan("demo.mp4","a"*64,960,540,10,**kwargs)
 
 
-@pytest.mark.parametrize("duration,want",[(.3,0),(.45,1),(1.8,1),(2.6,1),(3,0)])
+@pytest.mark.parametrize("duration,want",[(.3,0),(.45,1),(1.8,1),(2.6,1),(3,1)])
 def test_openscreen_dwell_duration(duration,want):
     assert len(dwell_candidates(samples(0,duration)))==want
 
 
-def test_dwell_gap_and_stronger_candidate_spacing():
+def test_dwell_gap_preserves_every_valid_nearby_rest():
     assert not dwell_candidates([{"type":"cursor","t":0,"x":.2,"y":.2},{"type":"cursor","t":1,"x":.2,"y":.2}])
     result=dwell_candidates(samples(0,.6)+samples(.8,1.8,.7)+samples(3.5,4.2))
-    assert len(result)==2 and result[0]["x"]==pytest.approx(.7)
+    assert len(result)==3 and result[1]["x"]==pytest.approx(.7)
 
 
-def test_merge_clicks_with_dwell_and_idle_no_zoom():
+def test_merge_clicks_with_dwell_despite_contradictory_freeze():
     events=samples(1,2)+[{"type":"click","t":1.7,"x":.31,"y":.4}]
     zooms=zoom_candidates(events,[],[],10)
     assert len(zooms)==1 and {e['kind'] for e in zooms[0].evidence}=={"click","dwell"}
     assert zooms[0].confidence==.95
-    assert not zoom_candidates(events,[],[{"start":0,"end":4}],10)
+    assert zoom_candidates(events,[],[{"start":0,"end":4}],10)
     rapid=[{"type":"click","t":1+i*.01,"x":.2 if i%2 else .8,"y":.5} for i in range(12)]
     scenes=zoom_candidates(rapid,[],[],10)
     cam=camera(plan(zooms=scenes),360,640)
@@ -227,6 +227,14 @@ def test_slow_pan_also_cuts_and_nearby_elements_share_view():
     near=replace(b,box=[.2,.3,.1,.4])
     assert len(focus_groups([a,near]))==1
 
+    # Both controls are readable separately; their union plus margins would
+    # miss the floor. Keep both views instead of reporting a false source limit.
+    controls=[Zoom(0,3,.31,.45,[{"kind":"click","t":1}],.95,box=[.2,.4,.22,.1]),
+              Zoom(3,8,.37,.45,[{"kind":"click","t":4}],.95,box=[.26,.4,.22,.1])]
+    fitted=camera(plan(zooms=controls,words=[{"text":"Build","start":1,"end":2}]),720,1280)
+    assert len(fitted["shots"])==2
+    assert all(24*s["source_enlargement"]>=s["phone_text_floor"]-1e-6 for s in fitted["shots"])
+
 
 def test_tall_portrait_target_fills_stage_and_missing_bounds_show_source():
     p=plan(zooms=[Zoom(0,5,.5,.5,[{"kind":"activity","t":1}],.45,box=[.4,.02,.2,.96])])
@@ -241,7 +249,7 @@ def test_tall_portrait_target_fills_stage_and_missing_bounds_show_source():
     assert all(k["window"][2]>=960 and k["window"][3]>=540 for k in unknown["keys"])
 
 
-def test_region_probe_prefers_complete_container_and_validates_box():
+def test_region_probe_prefers_clicked_control_and_validates_box():
     from myzing.screen.regions import enclosing_region
     w,h=100,80
     pixels=bytearray([0,0,0]*w*h)
@@ -250,9 +258,104 @@ def test_region_probe_prefers_complete_container_and_validates_box():
             color=(32,48,64) if not (70<=x<90 and 45<=y<60) else (64,224,160)
             pixels[(y*w+x)*3:(y*w+x)*3+3]=bytes(color)
     box=enclosing_region(pixels,w,h,(.8,.65))
-    assert box[0]<=.55 and box[0]+box[2]>=.95
-    assert box[1]<=.05 and box[1]+box[3]>=.9375
+    assert .65<=box[0]<=.70 and .90<=box[0]+box[2]<.95
+    assert .50<=box[1]<=.5625 and .75<=box[1]+box[3]<.85
     z=Zoom(0,2,.8,.65,[{"kind":"click","t":1}],.95,box=box)
     assert Zoom.from_dict(z.to_dict()).box==box
     with pytest.raises(ValueError,match="inside"):
         Zoom.from_dict({**z.to_dict(),"box":[.9,.2,.2,.2]})
+
+
+@pytest.mark.parametrize("duration",[2.,2.6,8.])
+def test_dwell_protects_entire_span_and_long_hover_holds(duration):
+    events=samples(1,1+duration)
+    frozen=[{"start":0,"end":10}]
+    idle=protected_idle(frozen,events,[],10)
+    zooms=zoom_candidates(events,[],frozen,10)
+    assert len(zooms)==1
+    assert zooms[0].start==pytest.approx(1)
+    assert zooms[0].end==pytest.approx(1+duration)
+    assert all(s["end"]<=1 or s["start"]>=1+duration for s in idle)
+    spans=time_segments(plan(zooms=zooms,idle=idle))
+    assert all(s["speed"]==1 for s in spans if s["end"]>1 and s["start"]<1+duration)
+
+
+def test_short_nearby_dwell_survives_without_duration_ranking():
+    events=samples(0,.55,.2)+samples(.7,2.1,.8)
+    zooms=zoom_candidates(events,[],[{"start":0,"end":10}],10)
+    assert len(zooms)==2
+    assert [n for z in zooms for n in (z.start,z.end)]==pytest.approx([0,.55,.7,2.1])
+    assert all(z.evidence[0]["kind"]=="dwell" for z in zooms)
+
+
+@pytest.mark.parametrize("velocity",[.05,.2,1.0])
+def test_slow_pan_is_activity_not_dwell(velocity):
+    events=[{"type":"cursor","t":i/60,"x":i/60*velocity,"y":.5} for i in range(60)]
+    assert not dwell_candidates(events)
+    idle=protected_idle([{"start":0,"end":5}],events,[],5)
+    assert all(s["start"]>=1 for s in idle)
+
+
+def test_subpixel_cursor_travel_vetoes_global_freeze():
+    events=[{"type":"cursor","t":i/60,"x":.3+i*.00001,"y":.5} for i in range(300)]
+    idle=protected_idle([{"start":0,"end":5}],events,[],5)
+    assert idle==[]
+
+
+def test_true_inactivity_can_still_be_compressed():
+    assert protected_idle([{"start":0,"end":10}],[],[],10)==[
+        {"start":.6,"end":9.4,"evidence":"freezedetect"}]
+
+
+@pytest.mark.parametrize("kind",["click","key","activity"])
+def test_each_input_protects_idle(kind):
+    event={"type":kind,"t":3,"x":.2,"y":.3}
+    idle=protected_idle([{"start":0,"end":6}],[event],[],6)
+    assert all(s["end"]<=2.4 or s["start"]>=3.8 for s in idle)
+
+
+def test_countdown_interrupt_removes_empty_log_and_reports_it(tmp_path):
+    class Sampler:
+        bounds=(0,0,800,600)
+    def interrupt(_): raise KeyboardInterrupt
+    dest=tmp_path/"cancelled.jsonl"
+    messages=[]
+    with pytest.raises(KeyboardInterrupt):
+        record(dest,source=Sampler(),sleep=interrupt,output=messages.append)
+    assert not dest.exists()
+    assert any("removed the empty cursor log" in s for s in messages)
+    dest.write_text("existing session")
+    with pytest.raises(FileExistsError):
+        record(dest,source=Sampler(),sleep=interrupt,output=messages.append)
+    assert dest.read_text()=="existing session"
+
+
+def test_interrupt_after_go_has_start_and_stop_markers(tmp_path):
+    class Sampler:
+        bounds=(0,0,800,600)
+        def poll(self): raise KeyboardInterrupt
+    dest=tmp_path/"stopped.jsonl"
+    record(dest,countdown=0,source=Sampler(),output=lambda _:None)
+    rows=[json.loads(s) for s in dest.read_text().splitlines()]
+    assert [r["type"] for r in rows]==["start","stop"]
+
+
+@pytest.mark.parametrize("x",[.01,.72])
+def test_phone_floor_focus_width_and_complete_visible_words(x):
+    from myzing.screen.regions import contains,intersects
+    box=[x,.40,.18,.10]
+    words=[[x+.01,.42,.15,.05],[x-.01,.27,.22,.04],[x+.19,.57,.12,.04]]
+    z=Zoom(0,9,x+.08,.45,[{"kind":"click","t":1}],.95,box=box,box_evidence={"words":words})
+    p=plan(zooms=[z],words=[{"text":"Run","start":1,"end":2}])
+    cam=camera(p,720,1280)
+    shot=cam["shots"][0]
+    assert shot["picture"]["height"]>=.57*1280
+    assert shot["picture"]["y"]+shot["picture"]["height"]<=.661*1280
+    for k in cam["keys"]:
+        view=k["window"]
+        assert p.ui_text_px*shot["picture"]["width"]/view[2]>=shot["phone_text_floor"]-1e-6
+        assert box[2]*p.width*shot["picture"]["width"]/view[2]>=.60*720-1e-6
+        assert contains(view,[box[0]*p.width,box[1]*p.height,box[2]*p.width,box[3]*p.height])
+        for word in words:
+            b=[word[0]*p.width,word[1]*p.height,word[2]*p.width,word[3]*p.height]
+            assert not intersects(view,b) or contains(view,b)

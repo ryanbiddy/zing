@@ -173,7 +173,7 @@ for runtime, model and fixture licensing.
 ```powershell
 uv run --frozen pytest -q tests/test_layout.py tests/test_layout_detector.py tests/test_layout_command.py
 $env:ZING_REQUIRE_FFMPEG = '1'
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 426
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 428
 
 # Explicit, optional fixture and model provisioning:
 uv run --frozen zing layout fetch-model

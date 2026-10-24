@@ -96,6 +96,7 @@ def deliver(root,source,log):
     from myzing.screen.api import plan_screen,save_plan
     from myzing.screen.render import render_screen
     from myzing.screen.planner import output_time,crop_window
+    from myzing.screen.regions import contains,intersects
     results=[]
     raw=[json.loads(s) for s in log.read_text().splitlines()]
     clicks=[r for r in raw if r['type']=='click']
@@ -151,6 +152,12 @@ def deliver(root,source,log):
                     edges[axis]['acceleration']=max(edges[axis]['acceleration'],max((abs(b-a)*plan.fps for a,b in zip(v,v[1:])),default=0.))
             results.append({**result,"contact_sheet":str(contact),"click_coverage":clicks,"motion":velocities,
                             "visible_edge_motion_within_shots":edges,
+                            "minimum_estimated_text_px":min(plan.ui_text_px*s["picture"]["width"]/k["window"][2] for s in cam["shots"] for k in s["keys"]),
+                            "phone_floor_met":all(plan.ui_text_px*s["picture"]["width"]/k["window"][2]>=s["phone_text_floor"]-1e-6 for s in cam["shots"] for k in s["keys"]),
+                            "focus_width_fractions":[s["focus_width_fraction"] for s in cam["shots"]],
+                            "complete_detected_words":all(not intersects(k["window"],b) or contains(k["window"],b)
+                                for s in cam["shots"] for k in s["keys"] for word in s["word_boxes"]
+                                for b in [[word[0]*plan.width,word[1]*plan.height,word[2]*plan.width,word[3]*plan.height]]),
                             "source_duration":plan.duration,"zoom_count":len(plan.zooms),"idle":plan.idle,
                             "cuts":cam['cuts'], "caption_source":"explicitly authored fixture guide",
                             "element_fit":all(

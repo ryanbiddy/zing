@@ -57,12 +57,13 @@ def frame(path,t,w,h):
 def test_screen_render_target_pixels_and_camera(tmp_path,screen_fixture,telemetry,aspect):
     source,log=screen_fixture
     plan=plan_screen(source,cursor=log if telemetry else None)
-    assert plan.zooms and plan.idle
+    assert plan.zooms
+    assert not plan.idle if telemetry else plan.idle
     if not telemetry:
         assert all(z.confidence==.45 for z in plan.zooms)
     out=tmp_path/"demo.mp4"
     result=render_screen(plan,out,aspect=aspect,short_side=180)
-    assert result["duration"]<plan.duration
+    assert result["duration"]==pytest.approx(plan.duration,abs=.05) if telemetry else result["duration"]<plan.duration
     cam=json.loads(Path(result["camera"]).read_text())
     # Colored UI target must be visible at the right source/output times.
     for t,color in [(1.6,0),(4.8,2)]:
@@ -205,3 +206,66 @@ def test_old_screen_plan_measures_bounds_before_render(tmp_path,screen_fixture):
     result=render_screen(plan,tmp_path/"legacy.mp4",aspect="9:16",short_side=180)
     cam=json.loads(Path(result["camera"]).read_text())
     assert all(s["box"]!=[0,0,1,1] for s in cam["shots"])
+
+
+@pytest.mark.parametrize("side",["left","right"])
+def test_generated_focus_phone_floor_and_no_midword_crop(tmp_path,side):
+    """Independent drawtext masks check actual ink, not detector-owned boxes."""
+    from myzing.screen.regions import contains,intersects
+    font=(Path(__file__).resolve().parents[1]/"src/myzing/_data/fonts/Anton-Regular.ttf").as_posix().replace(":",r"\:")
+    bx=4 if side=="left" else 448
+    text_x=bx+14
+    words=[("READY",text_x,173),("COMPLETE",text_x,108),
+           ("BACKGROUND",175 if side=="left" else 325,235),("FINAL",text_x,305)]
+    def draw(text,x,y):
+        return f"drawtext=fontfile='{font}':text='{text}':x={x}:y={y}:fontsize=22:fontcolor=white"
+    filters=[f"drawbox=x=1:y=10:w=638:h=340:color=0x203040:t=fill",
+             f"drawbox=x={bx}:y=155:w=188:h=62:color=blue:t=fill"]
+    filters += [draw(*item) for item in words]
+    video=tmp_path/"focus.mp4"
+    subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","color=0x101820:s=640x360:r=30:d=3",
+        "-vf",",".join(filters),"-c:v","libx264","-threads","1","-pix_fmt","yuv420p",str(video)],check=True)
+    truth=[]
+    for text,x,y in words:
+        raw=subprocess.run(["ffmpeg","-v","error","-f","lavfi","-i","color=black:s=640x360",
+            "-vf",draw(text,x,y),"-frames:v","1","-f","rawvideo","-pix_fmt","rgb24","pipe:1"],
+            capture_output=True,check=True).stdout
+        points=[(i//3%640,i//3//640) for i in range(0,len(raw),3) if min(raw[i:i+3])>150]
+        left,top=min(x for x,y in points),min(y for x,y in points)
+        truth.append([left,top,max(x for x,y in points)+1-left,max(y for x,y in points)+1-top])
+    rows=[{"type":"start","version":1,"t":0}]
+    rows += [{"type":"cursor","t":i/60,"x":(bx+80)/640,"y":185/360} for i in range(180)]
+    rows += [{"type":"stop","t":3,"samples":180}]
+    log=tmp_path/"cursor.jsonl"
+    log.write_text("".join(json.dumps(r)+"\n" for r in rows))
+    p=plan_screen(video,cursor=log,ui_text_px=22,words=[{"text":"Run","start":.5,"end":2}])
+    assert not p.idle and len(p.zooms)==1  # Long static hover is attention.
+    assert p.zooms[0].box[2]<.4  # Focus control, not the almost-full-frame panel.
+    result=render_screen(p,tmp_path/"portrait.mp4",aspect="9:16",short_side=360)
+    assert result["duration"]==pytest.approx(3,abs=.05)
+    cam=json.loads(Path(result["camera"]).read_text())
+    for shot in cam["shots"]:
+        for key in shot["keys"]:
+            view=key["window"]
+            scale=shot["picture"]["width"]/view[2]
+            assert 22*scale>=shot["phone_text_floor"]-1e-6
+            assert p.zooms[0].box[2]*640*scale>=.60*360-1e-6
+            assert contains(view,[bx,155,188,62])
+            for word in truth:
+                assert not intersects(view,word) or contains(view,word),(side,view,word)
+    # Verify rendered READY ink occupies the independently predicted full box.
+    key=cam["keys"][30]
+    pic=cam["shots"][key["shot"]]["picture"]
+    x,y,w,h=key["window"]
+    target=truth[0]
+    expected=[pic["x"]+(target[0]-x)*pic["width"]/w,
+              pic["y"]+(target[1]-y)*pic["height"]/h,
+              target[2]*pic["width"]/w,target[3]*pic["height"]/h]
+    data=frame(result["video"],1,360,640)
+    points=[(i//3%360,i//3//360) for i in range(0,len(data),3)
+            if min(data[i:i+3])>170 and expected[0]-3<=i//3%360<=expected[0]+expected[2]+3
+            and expected[1]-3<=i//3//360<=expected[1]+expected[3]+3]
+    assert points
+    actual=[min(a for a,b in points),min(b for a,b in points),
+            max(a for a,b in points)+1-min(a for a,b in points),max(b for a,b in points)+1-min(b for a,b in points)]
+    assert all(abs(a-b)<=3 for a,b in zip(actual,expected)),(actual,expected)

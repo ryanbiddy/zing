@@ -24,7 +24,8 @@ The default is the main display; Quartz coordinates are display points, which
 normalize independently of Retina scaling. Linux/Wayland recording is unsupported.
 Planning and rendering existing recordings work on all supported FFmpeg platforms.
 
-Ctrl+C or `--duration` closes the log with a stop marker. An interrupted file
+Ctrl+C after GO or `--duration` closes the log with a stop marker. Cancelling
+the countdown removes the empty log and prints a cancellation message. An interrupted file
 without that marker remains usable, with a warning. Polling can miss presses
 shorter than 1/60 second and does not reconstruct keyboard auto-repeat.
 
@@ -59,45 +60,52 @@ evidence (0.45), not recovered cursor positions or recognized text. Telemetry
 dwells score 0.75; clicks score 0.95. These are editorial weights, not calibrated
 probabilities. Each zoom stores its evidence and confidence in the plan.
 
-Each zoom also stores a normalized `box` and `box_evidence`. A small local pixel
-probe looks for the enclosing flat-color panel or control at the focus position,
-sampling the start, action and end of the scene. The union protects a widget
-that expands after a click. If no enclosing region is found, activity scenes
-use their changed-area rectangle; otherwise the camera shows the whole source.
-These are visual bounds, not recovered DOM elements. Gradients, overlays and
-unbordered controls can defeat this heuristic; inspect the saved boxes.
+Each zoom stores a normalized `box` and `box_evidence`. A local pixel probe
+finds the smallest clicked control with its label, or the changed area and the
+complete text lines it touches. It samples action frames and once per second
+through a hold. Flat-color components locate controls; contrast components
+group glyphs into word and line bounds without recognizing their contents.
+A large parent panel may extend beyond the crop. The focus content may not.
+If bounds are unknown, the camera shows the whole source.
 
-The camera fits the whole region with a 6% margin on each side. It zooms out
-when necessary and pads outside the source at frame edges. Nearby regions share
-a containing view. A move over 40% of the normalized frame, or one estimated
-to take over 0.6 seconds under the motion limits, becomes a cut at a click,
-activity event or nearby idle end. The previous view holds until that frame,
-so no frames travel through the empty space between targets. Each shot has
-a gentle, contained 0.6-second push-in with a smooth start and stop.
+The camera fits the focus with a 6% margin. Crop edges sit in detected whitespace
+so visible words stay complete. A small push-in is used only when every frame
+keeps the focus and word bounds intact; otherwise the view holds still.
+Nearby targets share a view only when the union remains legible. A move over
+40% of the frame, or one estimated to take over 0.6 seconds, becomes a cut at
+a click, dwell start, activity event or nearby idle end. The old view holds
+until the cut, with no travel through empty space.
 
-Portrait pictures follow the target's aspect: tall elements use up to 90% of
-the delivery height without captions, or 58% with a reserved lower caption band.
-Wide elements retain their full width and proportions; they cannot fill a tall
-frame without clipping or stretching. Oversampled 4:4:4 crop plus `zoompan`
-smooths source-pixel rounding. The work directory contains the region boxes,
-picture rectangles, camera keys, action-timed cuts, time map and FFmpeg graph.
-Balanced expressions and `filter_script_args` support FFmpeg 6, 8 and 9 syntax.
+Portrait uses a tall picture area: up to 90% of delivery height without
+captions, or 58% with CAPTION2 captions in the lower band. Magnification targets
+the shared phone text floor and at least 60% of output width for the focus.
+It can crop non-focus panel space. `--max-zoom` (default 1.8) is the preferred
+context zoom; the phone floor can require greater enlargement.
+`--ui-text-px` supplies the source text em-size estimate (default 24).
+Enlargement cannot restore missing source detail. If a complete focus line
+cannot fit at the floor, the camera preserves it and reports the conflict;
+record larger UI text or choose a wider delivery.
+
+These bounds are heuristics, not DOM or OCR results. Gradients, low contrast,
+unusual typography and changes between sampled frames can defeat detection.
+Inspect the phone sheets and saved boxes. Oversampled 4:4:4 crop and `zoompan`
+reduce source-pixel rounding. The work directory saves focus/word boxes,
+picture rectangles, camera keys, cuts, the time map and FFmpeg graph.
+Balanced expressions and `filter_script_args` support FFmpeg 6, 8 and 9.
 Older version-1 plans without boxes get a region probe at render time.
 
-`freezedetect` supplies idle evidence. The default speeds safe idle interiors
-to 4x, with reading handles and protection around clicks, key presses and supplied
-speech. Use `--idle-speed 1` to retain timing. Audio recordings without word
-timings stay at normal speed because a still screen can contain narration.
-Static UI is not proof the viewer has finished reading; review the shortened edit.
+`freezedetect` supplies possible idle spans. A cursor rest of at least 450 ms
+is attention, including long hovers: its entire span remains at normal speed
+and keeps a zoom hold. Runs must stay within 1.2% of their starting position
+and below 2.5% of a screen per second over the measured window. Slow pans
+therefore do not become dwells. Every valid rest survives; there is no
+duration ranking or 1.8-second exclusion zone.
 
-`--max-zoom` defaults to 1.8; source enlargement stays below 2.5x. Whole-region
-coverage takes priority over magnification. If the element cannot fit at the
-phone text floor, the view zooms out and reports the legibility tradeoff.
-`--ui-text-px` is the source UI's estimated em size (default 24), not an OCR
-measurement. The planner compares it to DOGFOOD1/CAPTION2's phone floor. A floor
-sets a *minimum* readable text size; a zoom cap limits enlargement and loss of
-context. When both cannot be met, the plan says to record larger UI text. It
-does not claim unreadable source text has been repaired.
+Only inactivity without dwell, cursor travel, clicks, keys, local image changes
+or supplied words is compressed. Even travel too small for the image tiles
+protects timing. Safe idle interiors default to 4x, with reading handles.
+Use `--idle-speed 1` to retain all timing. Audio without supplied word timings
+stays at normal speed because a still screen can contain narration.
 
 Supply `--words words.json` for captions, using source-time
 `[{"text":"Build","start":1,"end":1.5}]`. Words come from an explicit transcript,
@@ -118,13 +126,14 @@ requested duration and added music beds are not imposed; source audio is retaine
 ## Sources and adaptations
 
 - [OpenScreen](https://github.com/siddharthvaddem/openscreen/blob/ca8104c279da0d4b4481ec992ff103949e22c772/src/components/video-editor/timeline/zoomSuggestionUtils.ts),
-  MIT, copyright 2025 Siddharth Vaddem. Ported 450–2600 ms dwell runs, 0.02 movement
-  threshold, duration ranking and 1800 ms spacing. Zing also breaks telemetry
-  gaps over 100 ms and filters candidates against idle evidence.
+  MIT, copyright 2025 Siddharth Vaddem. Adapted its 450 ms dwell concept.
+  Zing retains long holds, checks window velocity and excursion, breaks gaps
+  over 100 ms, and keeps every valid run. Its original maximum duration,
+  per-sample movement threshold, duration ranking and spacing are not used.
 - [Screenize](https://github.com/syi0808/screenize/blob/027be96bbf2d855698bc67f1536ac8cef48cc3e4/Screenize/Generators/SegmentCamera/SegmentPlanner.swift),
   Apache-2.0. Adapted scene merging (distance <0.05, gap <0.5 s), transition/hold
   structure and minimum holds. Its ContinuousCamera informed the original
-  spring/dead-zone design. The revised whole-region camera uses stable containing
+  spring/dead-zone design. The revised focus-content camera uses stable containing
   views, eased push-ins and action-timed cuts for distant targets. This is not
   the full Swift planner.
 - [screenstudio-alt-skill](https://github.com/connerkward/screenstudio-alt-skill/blob/61a0b303ce3a73d103398fee7ecb5fa31f8a0994/src/polish.py),

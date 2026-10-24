@@ -96,7 +96,6 @@ def graph(plan, cam, width, height, has_audio, caption_filter=""):
             highlights += f",drawbox=x={px}:y={py}:w=20:h=20:color=0xFFD23F@0.8:t=3:enable='between(t,{start:.6f},{start+.28:.6f})'"
     lines.append(f"[timed]fps={plan.fps},setsar=1{highlights},format=yuv444p,"
                  f"pad={sw}:{sh}:{pl}:{pt}:color=0x101820,"
-                 f"scale={sw*factor}:{sh*factor}:flags=bicubic:in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,"
                  f"split={len(shots)}"+"".join(f"[shot{i}]" for i in range(len(shots))))
     for i, shot in enumerate(shots):
         picture = shot["picture"]
@@ -105,6 +104,7 @@ def graph(plan, cam, width, height, has_audio, caption_filter=""):
         x,y,w,h = keys[0]["window"]
         start, end = round(shot["start"]*plan.fps), round(shot["end"]*plan.fps)
         lines.append(f"[shot{i}]trim=start_frame={start}:end_frame={end},setpts=PTS-STARTPTS,"
+                     f"scale={sw*factor}:{sh*factor}:flags=bicubic:in_color_matrix=bt709:out_color_matrix=bt709:out_range=tv,"
                      f"crop={round(w*factor)}:{round(h*factor)}:{round((x+pl)*factor)}:{round((y+pt)*factor)}:exact=1,"
                      f"zoompan=z='{zoom}':x='(iw-iw/zoom)/2':y='(ih-ih/zoom)/2':d=1:"
                      f"s={picture['width']}x{picture['height']}:fps={plan.fps},setsar=1,"

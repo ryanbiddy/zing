@@ -92,9 +92,17 @@ def record(path, *, duration=None, countdown=3, region=None, source=None,
         def emit(row):
             handle.write(json.dumps(row, allow_nan=False, separators=(",", ":")) + "\n")
         output("Local cursor positions, mouse clicks and anonymous key-press times only. No key contents, codes, text, windows or network.")
-        for n in range(countdown, 0, -1):
-            output(f"Start video at GO: {n}")
-            sleep(1)
+        try:
+            for n in range(countdown, 0, -1):
+                output(f"Start video at GO: {n}")
+                sleep(1)
+        except KeyboardInterrupt:
+            # This exclusively-created file contains no session yet. Windows
+            # requires closing it before unlinking it.
+            handle.close()
+            path.unlink()
+            output("Countdown cancelled; removed the empty cursor log.")
+            raise
         start = clock()
         emit({"type": "start", "version": 1, "t": 0, "wall_time": datetime.now(timezone.utc).isoformat(),
               "hz": 60, "bounds": list(bounds), "coordinates": "normalized-capture-region",

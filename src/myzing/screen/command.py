@@ -14,7 +14,7 @@ def options(parser):
     parser.add_argument("--cursor-offset", type=float, default=0., help="video time in seconds of telemetry GO (may be negative)")
     parser.add_argument("--sync-creation-time", action="store_true", help="align UTC log start with video creation_time; verify recorder metadata")
     parser.add_argument("--idle-speed", type=float, default=4.)
-    parser.add_argument("--max-zoom", type=float, default=1.8)
+    parser.add_argument("--max-zoom", type=float, default=1.8, help="preferred context zoom; the phone text floor can require greater enlargement")
     parser.add_argument("--ui-text-px", type=float, default=24., help="source UI text em-size estimate; used with the DOGFOOD1 phone floor")
     parser.add_argument("--caption-preset", choices=["clean","punch","box","none"],default="clean")
     parser.add_argument("--click-highlights",action="store_true")

@@ -12,18 +12,25 @@ from .models import ScreenPlan, Zoom
 
 
 def dwell_candidates(events):
-    """Port of detectZoomDwellCandidates (OpenScreen, MIT).
+    """OpenScreen's 450ms dwell adapted to attention, including long holds.
 
-    Keep 450-2600ms, 0.02 movement, strength ranking, 1800ms spacing.
-    Adaptation: a missing >100ms sample also ends a run, avoiding fake dwells.
+    A run stays within 1.2% of the frame and travels at most 2.5%/second
+    over its window. A per-sample threshold alone mistakes slow pans for rests.
+    Keep every stable run: duration ranking/1.8s spacing loses valid attention.
     """
     samples = sorted((e for e in events if e["type"] == "cursor"), key=lambda e: e["t"])
-    runs, current = [], []
+    runs, current, distance = [], [], 0.
     for sample in samples:
-        if current and (sample["t"]-current[-1]["t"] > .1 or
-                        math.hypot(sample["x"]-current[-1]["x"], sample["y"]-current[-1]["y"]) > .02):
-            runs.append(current)
-            current = []
+        if current:
+            step = math.hypot(sample["x"]-current[-1]["x"], sample["y"]-current[-1]["y"])
+            elapsed = sample["t"]-current[0]["t"]
+            excursion = math.hypot(sample["x"]-current[0]["x"], sample["y"]-current[0]["y"])
+            if (sample["t"]-current[-1]["t"] > .1 or excursion > .012 or
+                    elapsed >= .15 and (distance+step)/elapsed > .025):
+                runs.append(current)
+                current, distance = [], 0.
+            else:
+                distance += step
         current.append(sample)
     runs.append(current)
     candidates = []
@@ -31,15 +38,32 @@ def dwell_candidates(events):
         if len(run) < 2:
             continue
         duration = run[-1]["t"]-run[0]["t"]
-        if .45-1e-6 <= duration <= 2.6+1e-6:
+        if duration >= .45-1e-6:
             candidates.append({"kind": "dwell", "t": (run[0]["t"]+run[-1]["t"])/2,
                                "x": sum(e["x"] for e in run)/len(run), "y": sum(e["y"] for e in run)/len(run),
+                               "start": run[0]["t"], "end": run[-1]["t"],
                                "duration": duration, "confidence": .75})
-    accepted = []
-    for candidate in sorted(candidates, key=lambda c: (-c["duration"], c["t"])):
-        if all(abs(candidate["t"]-c["t"]) >= 1.8 for c in accepted):
-            accepted.append(candidate)
-    return sorted(accepted, key=lambda c: c["t"])
+    return candidates
+
+
+def attention_intervals(events, words=()):
+    """Union of observed input/reading spans; a freeze cannot override these."""
+    spans = [(e["t"]-.6, e["t"]+.8) for e in events if e["type"] in {"click", "key", "activity"}]
+    spans += [(d["start"]-.15, d["end"]+.3) for d in dwell_candidates(events)]
+    samples = sorted((e for e in events if e["type"] == "cursor"), key=lambda e: e["t"])
+    # Even tiny travel matters when a cursor is too small for the pixel tiles.
+    spans += [(a["t"]-.1, b["t"]+.1) for a,b in zip(samples,samples[1:])
+              if math.hypot(b["x"]-a["x"], b["y"]-a["y"]) > 1e-7]
+    spans += [(e.get("start", e["t"]), e.get("end", e["t"]))
+              for e in events if e["type"] == "dwell"]
+    spans += [(w["start"]-.3, w["end"]+.3) for w in words]
+    merged = []
+    for a,b in sorted(spans):
+        if merged and a <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(b, merged[-1][1]))
+        else:
+            merged.append((a,b))
+    return merged
 
 
 def zoom_candidates(events, activity, idle, duration):
@@ -48,15 +72,10 @@ def zoom_candidates(events, activity, idle, duration):
                    for e in events if e["type"] == "click"]
     scenes = []
     for c in sorted(candidates, key=lambda e: e["t"]):
-        if not 0 <= c["t"] < duration or any(s["start"] <= c["t"] <= s["end"] for s in idle):
+        if not 0 <= c["t"] < duration:
             continue
-        a, b = max(0, c["t"]-.8), min(duration, c["t"]+1.2)
-        # Do not initiate/hold a zoom across a detected idle interval.
-        for span in idle:
-            if span["end"] <= c["t"]:
-                a = max(a, span["end"])
-            elif span["start"] >= c["t"]:
-                b = min(b, span["start"])
+        a, b = max(0, c.get("start", c["t"]-.8)), min(duration, c.get("end", c["t"]+1.2))
+        # Positive attention always wins over a contradictory freeze span.
         if b-a < .3:
             continue
         scene = Zoom(a, b, c["x"], c["y"], [c], c["confidence"])
@@ -79,8 +98,7 @@ def zoom_candidates(events, activity, idle, duration):
 
 def protected_idle(spans, events, words, duration):
     """Keep reading handles, and exclude any input or known speech from speedup."""
-    protected = [(e["t"]-.6, e["t"]+.8) for e in events if e["type"] in {"click", "key", "activity"}]
-    protected += [(w["start"]-.3, w["end"]+.3) for w in words]
+    protected = attention_intervals(events, words)
     result = []
     for span in spans:
         pieces = [(max(0, span["start"])+.6, min(duration, span["end"])-.6)]
@@ -128,7 +146,7 @@ def dimensions(aspect, short_side=720):
 
 
 def camera(plan, width, height):
-    """Fit whole UI regions; cut on actions when a pan would be empty or slow."""
+    """Fit focus content and complete words; cut when a pan would be empty or slow."""
     from .framing import element_camera
     return element_camera(plan, width, height)
 
