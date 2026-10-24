@@ -12,7 +12,7 @@ before a future submission; form fields and acceptance rules are unverified.
 | Name | Zing |
 | Repository | https://github.com/ryanbiddy/zing |
 | Website | https://myzing.app (only once it is live; today it is a placeholder) |
-| Short description | Cut your clips in the style of a video you like, with captions. Memes too. Pre-alpha; needs FFmpeg. |
+| Short description | Free, local video and meme studio your AI agents can drive. Pre-alpha. |
 | Tags | video-editing, ffmpeg, captions, memes, video-analysis, local-first, python, pre-alpha |
 | Logo | The 400x400 PNG from the Charge Z brand handoff (not in this repository yet) |
 | Install line | From the source checkout: `uv sync --extra mcp`, then `uv run --frozen zing serve-mcp`. |
