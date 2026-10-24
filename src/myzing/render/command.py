@@ -104,6 +104,14 @@ def run(argv: list[str]) -> int:
         return 2
     try:
         payload = json.loads(edl_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload.get("kind") == "screen-demo":
+            from myzing.screen.command import render_payload
+            try:
+                print(json.dumps(render_payload(payload, args), indent=2))
+                return 0
+            except (ValueError, OSError, RuntimeError) as exc:
+                print(f"zing render: {exc}", file=sys.stderr)
+                return 1
         edl = load_render_document(payload)
     except (OSError, TypeError, ValueError, KeyError) as exc:
         print(f"zing render: invalid EDL JSON: {exc}", file=sys.stderr)

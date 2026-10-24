@@ -266,3 +266,7 @@ SOFTWARE.
 ## CAPTION2 font derivatives (OFL-1.1)
 
 `ZingCaption-700.ttf` and `ZingCaption-800.ttf` are static, renamed derivatives of the existing pinned Inter source (Google Fonts revision `45e3d5269e4a17d823f6d84470bc084dc5ae46f6`), at optical size 32. Optional kerning and ligatures are disabled for fixed word slots. Copyright, designer and license records remain in the fonts; the complete license is `src/myzing/_data/fonts/ZingCaption-OFL.txt`. Source and derived SHA-256 pins are in `caption-presets.json`; `tools/eval/caption2_fonts.py` reproduces them with fontTools 4.62.1 (MIT, build tool only). No runtime dependency was added.
+
+## SCREEN1 screen-demo algorithms
+
+OpenScreen (MIT, copyright 2025 Siddharth Vaddem), Screenize (Apache-2.0), and screenstudio-alt-skill (MIT, copyright 2026 Conner K Ward) inform the ports in `src/myzing/screen`. Upstream revisions, modifications and links: [Screen demos](SCREEN-DEMO.md). Full upstream license texts: `docs/licenses/screen-openscreen.txt`, `screen-screenize.txt`, and `screen-screenstudio-alt-skill.txt`. Screenize has no upstream NOTICE file in the inspected revision. PyObjC (MIT) is an optional macOS-only dependency; no upstream application runtime or model weights are vendored.

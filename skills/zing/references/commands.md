@@ -25,6 +25,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 
 | Command | Use and boundary |
 |---|---|
+| `zing record-cursor` | Local 60 Hz cursor/click and anonymous key-press timestamps; never key contents. |
 | `zing studio` | Guided creative session; recommendations, confirmation, saved answers and resume. |
 | `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
@@ -256,6 +257,7 @@ itself may use the network; ask first when not already authorized.
 | render | pysubs2 for ASS captions. |
 | memes | Pillow for stills and timeline inspection. |
 | fonts | Pillow and pinned headless OpenCV for font comparison; expanded font assets need an explicit fetch. |
+| screen | Optional macOS Quartz cursor recording (PyObjC); Windows uses stdlib. |
 | layout | Pinned headless OpenCV; explicit MIT YuNet model fetch still required. |
 | color | NumPy for SDR look matching. |
 | audio-ml | Optional CED audio tags via sherpa-onnx; weights via `zing doctor --audio-model ced-mini`. |
@@ -277,3 +279,5 @@ Kokoro runtime/assets, OpenTimelineIO, and the pinned HyperFrames Node/browser/f
 sidecar require separate setup and are not installed by all-extras. The v2
 renderer composites HyperFrames captions with footage and audio; standalone
 sidecar output is silent. Cloud ElevenLabs is outside this local workflow.
+
+Screen demos: `zing record-cursor --out session.jsonl` records local cursor/click and anonymous key-press timestamps (no contents). Use `zing plan screen demo.mp4 --cursor session.jsonl --out screen.json`, then `zing render screen.json --aspect all`. Without a log, UI activity supplies lower-confidence targets. `zing match screen --clips <folder> --out <folder>` and Studio screen-footage answers use this continuous zoom/pan path.

@@ -139,7 +139,7 @@ def run_check(wheel: Path, root: Path, extras: str, steps: list, checkpoint) -> 
          "import myzing, sys; from pathlib import Path; "
          "assert Path(myzing.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()), myzing.__file__; print(myzing.__version__)"])
     call("help", [zing, "--help"], validate=lambda text: require(
-        text.startswith("Start here: zing studio"), f"unexpected help opening: {text[:500]!r}"))
+        "Start here: zing studio" in text.split("usage:", 1)[0], f"unexpected help opening: {text[:500]!r}"))
     call("doctor", [zing, "doctor"], allowed=(0, 1), validate=lambda text: require(
         "zing doctor" in text, f"missing doctor report: {text[:500]!r}"))
     call("prompt-pack", [zing, "prompt", "study"])

@@ -79,6 +79,26 @@ def test_scripted_stdin_every_path(path, inputs, monkeypatch, capsys):
         assert state.questions_asked <= 10
 
 
+@pytest.mark.parametrize("path", ["a", "b"])
+def test_screen_demo_questions_and_execution(path, inputs, monkeypatch):
+    from myzing.studio.execute import run_confirmed
+    a={"path":path,"project":inputs["project"],"clips":inputs["clips"],"reference":inputs["source"]}
+    assert flow.next_step(a)["question"]["id"]=="footage_kind"
+    a["footage_kind"]="screen"
+    q=flow.next_step(a)["question"]
+    assert q["id"]=="cursor_log" and q["recommended"]=="none"
+    a.update(cursor_log="none",topic="Local app",platform="YouTube",captions="none",music="original",speech_model="skip")
+    assert flow.next_step(a)["status"]=="plan"
+    calls=[]
+    def execute(*args,**kwargs):
+        calls.append((args,kwargs))
+        return {"status":"ready","screens":[],"warnings":[]}
+    monkeypatch.setattr("myzing.screen.api.run_folder",execute)
+    result=run_confirmed(a)
+    assert result["ok"] and len(calls)==1 and calls[0][1]["cursor"] is None
+    assert "screen demo" in result["next_actions"][0]
+
+
 def test_required_path_empty_reprompts_without_enter_acceptance(inputs, monkeypatch, capsys):
     monkeypatch.setattr("sys.stdin", io.StringIO(f"1\n\n{inputs['source']}\nq\n"))
     assert command.run([]) == 0
@@ -243,7 +263,7 @@ def test_back_explain_quit_and_resume(inputs, monkeypatch, capsys):
     assert state.answers["clips"] == inputs["clips"]
     output = capsys.readouterr().out
     assert '"unknowns"' in output and "Continue: zing studio --resume" in output
-    monkeypatch.setattr("sys.stdin", io.StringIO("a small demo\n\n\n\n\n\nq\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO("general\na small demo\n\n\n\n\n\nq\n"))
     assert command.run(["--resume", inputs["project"]]) == 0
     state = load_session(inputs["project"])
     assert state.answers["topic"] == "a small demo" and state.status == "paused"
@@ -627,7 +647,7 @@ def test_reference_summary_once_and_recommended_option_labels(inputs, monkeypatc
                     "music_present": True, "text_present": False, "text_samples": 3})
     monkeypatch.setattr("myzing.studio.reference.quick_read", lambda p: ref)
     monkeypatch.setattr("sys.stdin", io.StringIO(
-        f"1\n{inputs['source']}\nall\n{inputs['clips']}\na local story\n\n\n\n\nq\n"))
+        f"1\n{inputs['source']}\nall\n{inputs['clips']}\ngeneral\na local story\n\n\n\n\nq\n"))
     assert command.run([]) == 0
     text = capsys.readouterr().out
     assert text.count("Your reference is 20.0 s, 16:9; about 63 cuts/min") == 1
@@ -700,7 +720,7 @@ def test_single_quoted_folder_is_accepted(inputs):
 
 def test_output_folder_that_collides_is_refused_and_not_written(inputs, monkeypatch, capsys):
     clips = Path(inputs["clips"])
-    monkeypatch.setattr("sys.stdin", io.StringIO(f"2\n{clips}\ndemo\n2\n8\n\n\n\nskip\no\n{clips}\nq\n"))
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"2\n{clips}\ngeneral\ndemo\n2\n8\n\n\n\nskip\no\n{clips}\nq\n"))
     assert command.run([]) == 0
     assert "Keeping " + inputs["project"] in capsys.readouterr().out
     assert not (clips / "studio-session.json").exists()

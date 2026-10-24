@@ -733,6 +733,16 @@ def check_heic() -> Check:
     )
 
 
+def check_screen() -> Check:
+    import sys
+    supported = sys.platform in {"win32", "darwin"}
+    ready = sys.platform == "win32" or (sys.platform == "darwin" and _has_module("Quartz"))
+    return Check("screen-cursor", OPTIONAL, ready,
+                 "Local cursor recorder available" if ready else "Linux cursor capture is unsupported; pixel-activity planning works" if not supported else "macOS Quartz cursor capture is missing",
+                 fix='pip install "myzing[screen]"' if supported and not ready else "",
+                 degraded_mode="Plan existing screen recordings from frame-difference activity without telemetry." if not ready else "")
+
+
 def check_layout() -> Check:
     """Offline metadata/cache probe; never import native runtimes in MCP status."""
     from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
@@ -846,6 +856,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_pillow(),
         check_heic(),
         check_layout(),
+        check_screen(),
         check_color(),
         check_hyperframes(),
         check_audio(),

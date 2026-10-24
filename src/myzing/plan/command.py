@@ -12,11 +12,15 @@ from myzing.project.models import ProjectError
 
 
 def run(argv: list[str]) -> int:
+    if argv and argv[0] == "screen":
+        from myzing.screen.command import run as screen
+        return screen(argv[1:])
     parser = argparse.ArgumentParser(
         prog="zing plan",
         description="Plan three edits from local studies and a saved brief, then record your choice.",
     )
     sub = parser.add_subparsers(dest="action", required=True)
+    sub.add_parser("screen", help="plan a screen demo with smooth zoom/pan; zing plan screen --help")
     drafts = sub.add_parser("drafts", help="write Composition v2 plans, v1 derivatives where supported (music plans: picture and "
                                        "dialogue plus a music sidecar), and comparison.json")
     drafts.add_argument("project", type=Path)

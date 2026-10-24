@@ -34,7 +34,7 @@ def pins(monkeypatch):
 
 
 def interview(inputs):
-    return f"1\n{inputs['source']}\nall\n{inputs['clips']}\na local story\n\n12\nphone\n\n"
+    return f"1\n{inputs['source']}\nall\n{inputs['clips']}\ngeneral\na local story\n\n12\nphone\n\n"
 
 
 @pytest.mark.parametrize("choice,model", [("", "small.en"), ("1", "small.en"), ("2", "large-v2"), ("3", "skip")])

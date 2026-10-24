@@ -10,6 +10,9 @@ from .jobs import execute
 
 
 def run(argv):
+    if argv and argv[0] == "screen":
+        from myzing.screen.command import match
+        return match(argv[1:])
     parser = argparse.ArgumentParser(prog="zing match", description=__doc__)
     from myzing.delivery_options import add_options, overrides
     add_options(parser)
