@@ -91,8 +91,8 @@ release links and recorded fixture versions are not current release pins.
    zing studio
    ```
 
-   This gets the candidate from TestPyPI while resolving dependencies from
-   regular PyPI; TestPyPI need not contain every dependency. Keep the safe
+   This installs the wheel file you downloaded from TestPyPI; its
+   dependencies come from regular PyPI, so TestPyPI need not contain them. Keep the safe
    UOINK_URL setting during verification.
 
 ## PyPI and GitHub: Ryan only

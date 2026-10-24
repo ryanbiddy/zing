@@ -84,8 +84,8 @@ not automatically publish media. (#414, #430, #432)
 ### Packaging and release
 
 The release candidate includes runtime data and license notices in the wheel.
-Fresh-install checks exercise common extras and all extras, all 36 MCP tools
-and an offline studio still render on Windows, macOS and Linux in CI. A manual
+Fresh-install checks install common extras and all extras, list all 36 MCP
+tools, call `zing_status`, and render an offline studio still on Windows, macOS and Linux in CI. A manual
 release workflow builds and checks artifacts before an environment approval
 gate, then uses PyPI Trusted Publishing. GitHub releases start as drafts.
 No package or release was published as part of this packaging pass.
