@@ -88,44 +88,66 @@ def test_music_candidate_requires_same_window(monkeypatch):
     assert not tags.music_under_speech
 
 
-def test_download_requires_consent_and_https(monkeypatch, tmp_path):
+def _pin(monkeypatch, tmp_path, payload=b"verified weights"):
+    from myzing import model_fetch
     monkeypatch.setattr(tag_models, "cache_dir", lambda: tmp_path)
-    with pytest.raises(ValueError, match="consent"):
-        tag_models.fetch_models()
+    monkeypatch.setattr(tag_models, "ASSETS", {"weights": (hashlib.sha256(payload).hexdigest(), len(payload))})
+    return model_fetch
+
+
+def test_download_requires_consent_and_uses_the_shared_https_fetch(monkeypatch, tmp_path):
+    model_fetch = _pin(monkeypatch, tmp_path)
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: pytest.fail("unconsented network"))
+    for consent in (False, "yes", 1):
+        with pytest.raises(ValueError, match="consent"):
+            tag_models.fetch_models(consent=consent)
+    # The real seam refuses non-HTTPS before any request (ONBOARD1's model_fetch).
     with pytest.raises(ValueError, match="HTTPS"):
-        tag_models._https("http://example.com/model")
-    with pytest.raises(ValueError, match="HTTPS"):
-        tag_models._HTTPSRedirect().redirect_request(None, None, 302, "", {}, "http://example.com/model")
+        model_fetch.https_open("http://example.com/model")
+    assert tag_models.BASE_URL.startswith("https://huggingface.co/") and tag_models.REVISION in tag_models.BASE_URL
 
 
 @pytest.mark.parametrize("payload", [b"wrong", b"oversized payload"])
 def test_download_hash_and_size_failure_never_installs(monkeypatch, tmp_path, payload):
-    monkeypatch.setattr(tag_models, "cache_dir", lambda: tmp_path)
-    monkeypatch.setattr(tag_models, "ASSETS", {"weights": (hashlib.sha256(b"right").hexdigest(), 5)})
-    class Response(io.BytesIO):
-        def geturl(self):
-            return "https://example.com/pinned"
-    monkeypatch.setattr(tag_models.urllib.request, "build_opener", lambda *a: SimpleNamespace(open=lambda *a, **k: Response(payload)))
-    with pytest.raises(RuntimeError, match="verification failed"):
+    model_fetch = _pin(monkeypatch, tmp_path, b"right")
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: io.BytesIO(payload))
+    with pytest.raises(RuntimeError, match="pinned size|SHA-256"):
         tag_models.fetch_models(consent=True)
-    assert list(tmp_path.iterdir()) == []
+    assert not (tmp_path / "weights").exists() and not list(tmp_path.glob("*.part"))
 
 
 def test_verified_download_is_atomic_and_cached(monkeypatch, tmp_path):
     payload = b"verified weights"
-    monkeypatch.setattr(tag_models, "cache_dir", lambda: tmp_path)
-    monkeypatch.setattr(tag_models, "ASSETS", {"weights": (hashlib.sha256(payload).hexdigest(), len(payload))})
+    model_fetch = _pin(monkeypatch, tmp_path, payload)
     calls = []
-    class Response(io.BytesIO):
-        def geturl(self):
-            return "https://example.com/pinned"
     def open_url(url, **kwargs):
         calls.append(url)
-        return Response(payload)
-    monkeypatch.setattr(tag_models.urllib.request, "build_opener", lambda *a: SimpleNamespace(open=open_url))
+        return io.BytesIO(payload)
+    monkeypatch.setattr(model_fetch, "open_url", open_url)
     first = tag_models.fetch_models(consent=True)
     assert tag_models.fetch_models(consent=True) == first and len(calls) == 1
+    assert calls[0] == tag_models.BASE_URL + "weights"
     assert first[0].read_bytes() == payload and not list(tmp_path.glob("*.part"))
+
+
+@pytest.mark.parametrize("surface", ["doctor", "setup", "audio"])
+def test_doctor_setup_and_audio_share_the_audio_model_consent(monkeypatch, tmp_path, capsys, surface):
+    from myzing import doctor, setup_flow
+    from myzing.audio import command
+    payload = b"verified weights"
+    model_fetch = _pin(monkeypatch, tmp_path, payload)
+    monkeypatch.setattr(doctor, "run_checks", lambda: [])
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: pytest.fail("unconsented network"))
+    monkeypatch.setattr("sys.stdin", io.StringIO("yes\n"))  # a pipe is non-interactive
+    run = {"doctor": doctor.run, "setup": setup_flow.run, "audio": lambda argv: command.run(["fetch-model", *argv[2:]])}[surface]
+    if surface != "audio":
+        assert run(["--audio-model", "ced-mini"]) == 2
+        assert "explicit consent" in "".join(capsys.readouterr())
+        assert run(["--yes"]) == 2
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: io.BytesIO(payload))
+    assert run(["--audio-model", "ced-mini", "--yes"] if surface != "audio" else ["", "", "--consent"]) in (0, 1)
+    assert (tmp_path / "weights").read_bytes() == payload
+    assert '"downloaded_bytes": 16' in capsys.readouterr().out
 
 
 def test_doctor_reports_missing_model_without_inference(monkeypatch, tmp_path):
@@ -135,6 +157,60 @@ def test_doctor_reports_missing_model_without_inference(monkeypatch, tmp_path):
         result = doctor.check_audio_ml()
     assert not result.ok and result.data["network_used"] is False
     assert "--consent" in result.fix
+
+
+@pytest.mark.parametrize("answer,accepted", [("yes\n", True), ("y\n", True), ("\n", False), ("no\n", False)])
+def test_audio_setup_interactive_consent(monkeypatch, tmp_path, answer, accepted):
+    payload = b"verified weights"
+    model_fetch = _pin(monkeypatch, tmp_path, payload)
+    stream = io.StringIO(answer)
+    monkeypatch.setattr("sys.stdin", SimpleNamespace(isatty=lambda: True, readline=stream.readline))
+    calls = []
+    def download(*args, **kwargs):
+        calls.append(args)
+        return io.BytesIO(payload)
+    monkeypatch.setattr(model_fetch, "open_url", download)
+    if accepted:
+        assert tag_models.setup()["downloaded_bytes"] == len(payload)
+        assert len(calls) == 1
+    else:
+        with pytest.raises(ValueError, match="declined"):
+            tag_models.setup()
+        assert calls == [] and not (tmp_path / "weights").exists()
+
+
+@pytest.mark.parametrize("yes", [1, "yes"])
+def test_audio_setup_requires_boolean_yes_like_speech(monkeypatch, tmp_path, yes):
+    model_fetch = _pin(monkeypatch, tmp_path)
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: pytest.fail("invalid consent reached network"))
+    with pytest.raises(ValueError, match="consent"):
+        tag_models.setup(yes=yes)
+
+
+def test_audio_json_never_prompts_and_cached_setup_needs_no_consent(monkeypatch, tmp_path, capsys):
+    from myzing import doctor
+    payload = b"verified weights"
+    model_fetch = _pin(monkeypatch, tmp_path, payload)
+    monkeypatch.setattr(doctor, "run_checks", lambda: [])
+    monkeypatch.setattr("sys.stdin", SimpleNamespace(isatty=lambda: True,
+                        readline=lambda: pytest.fail("JSON setup must not prompt")))
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: pytest.fail("unconsented network"))
+    assert doctor.run(["--audio-model=ced-mini", "--json"]) == 2
+    assert "explicit consent" in json.loads(capsys.readouterr().out)["error"]
+    (tmp_path / "weights").write_bytes(payload)
+    assert doctor.run(["--audio-model=ced-mini", "--json"]) == 0
+    receipt = json.loads(capsys.readouterr().out)["audio_setup"]
+    assert receipt["verified"] and receipt["downloaded_bytes"] == 0
+
+
+def test_audio_receipt_counts_only_bytes_this_process_downloaded(monkeypatch, tmp_path):
+    payload = b"verified weights"
+    model_fetch = _pin(monkeypatch, tmp_path, payload)
+    def published_while_waiting(url, target, digest, limit, **kwargs):
+        target.write_bytes(payload)
+        return False  # another downloader published the verified asset under the folder lock
+    monkeypatch.setattr(model_fetch, "fetch_verified", published_while_waiting)
+    assert tag_models.setup(yes=True)["downloaded_bytes"] == 0
 
 
 def test_weak_singing_requires_heuristic_corroboration():
@@ -229,10 +305,11 @@ def test_explain_retains_candidate_scores():
     assert "laughter" in str(payload)
 
 
-@pytest.mark.ffmpeg
 @pytest.mark.parametrize("kind", ["piano", "voice", "mixed", "events"])
-def test_generated_file_tags_reach_audio_map_and_advice(monkeypatch, tmp_path, kind):
+def test_generated_decoded_tags_reach_audio_map_and_advice(monkeypatch, tmp_path, kind):
     import wave
+    from myzing.audio import api, media, structure
+    from myzing.audio.models import Loudness
     from myzing.audio import analyze, AudioMap
     from myzing.music.advice import rate
     np = pytest.importorskip("numpy")
@@ -246,9 +323,22 @@ def test_generated_file_tags_reach_audio_map_and_advice(monkeypatch, tmp_path, k
         out.setsampwidth(2)
         out.setframerate(16000)
         out.writeframes((generated(np, kind) * 32767).astype("<i2").tobytes())
+    # Exercise both consumers in lean CI. Existing media gates own FFmpeg;
+    # this test supplies its decoded signal and meter observations.
+    rates = []
+    def decoded(source, *, max_seconds, sample_rate=media.SAMPLE_RATE):
+        assert source == path.resolve()
+        rates.append(sample_rate)
+        return generated(np, kind, rate=sample_rate), False
+    monkeypatch.setattr(api, "decode_mono", decoded)
+    monkeypatch.setattr(media, "decode_mono", decoded)
+    monkeypatch.setattr(api, "measure_loudness", lambda *a, **k: Loudness(None, None, None))
+    monkeypatch.setattr(structure, "channel_quality", lambda *a, **k: {})
+    monkeypatch.setattr(api, "ffmpeg_version", lambda: "mocked decoder")
     result = analyze(path)
     assert result.tags.status == "measured"
     assert calls and {row["sample_rate"] for row in calls} == {16000}  # decoded at CED's rate
+    assert rates == [22050, 16000]
     assert AudioMap.from_dict(result.to_dict()) == result
     advice = rate(result, length=10, speech=True, pace=2, purpose="interview")
     assert advice.measurements["tags"]["status"] == "measured"
@@ -268,3 +358,19 @@ def test_old_runtime_degrades_to_the_labeled_heuristic(monkeypatch):
     monkeypatch.setattr(tag_models, "runtime_version", lambda: "1.13.8")
     tags = tagging.tag_samples([0.0] * 16000, 16000)
     assert tags.status == "unavailable" and "predates 2.0" in tags.warnings[0]
+
+
+def test_analysis_reuses_the_study_windows_only_for_the_identical_measurement(monkeypatch):
+    np = pytest.importorskip("numpy")
+    fake_engine(monkeypatch, {"Music": .8, "Speech": .1})
+    study = tagging.tag_samples(np.zeros(16000 * 12, dtype=np.float32), 16000, speech=[])
+    study.provenance["analyzed_seconds"] = 12.0
+    assert not study.music_under_speech  # no words, weak model speech
+    reused = tagging.reuse(study.to_dict(), speech=[(2.0, 4.0)], duration=12.0)
+    assert reused.windows == study.windows and "reused_from" in reused.provenance
+    assert reused.music_under_speech and reused.music_under_speech[0]["speech_intervals"] == [[2.0, 4.0]]
+    for change in ({"algorithm": "ced-windows-1"}, {"analyzed_seconds": 11.0}, {"model_sha256": "0" * 64}):
+        stale = tagging.AudioTags.from_dict({**study.to_dict(), "provenance": {**study.provenance, **change}})
+        assert tagging.reuse(stale, speech=[], duration=12.0) is None
+    assert tagging.reuse({"status": "unavailable"}, speech=[], duration=12.0) is None
+    assert tagging.reuse({"not": "tags"}, speech=[], duration=12.0) is None

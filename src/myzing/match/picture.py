@@ -22,7 +22,7 @@ def picture_regions(plan):
         elif f.mode in ("fit", "blurfill", "zoomfill"):
             w, h = f.foreground_size(plan.width, plan.height)
             x, y = f.foreground_origin(plan.width, plan.height)
-            if f.mode != "zoomfill":
+            if f.mode != "zoomfill" and not f.picture:
                 # A fit/blurfill foreground retains the whole source. Its
                 # measured bounds may exclude baked-in letter/pillarboxing.
                 b = f.bounds

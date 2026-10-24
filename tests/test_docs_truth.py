@@ -18,7 +18,7 @@ DOCS = [
 def test_documented_ffmpeg_counts_match_full_ci_gate():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     counts = re.findall(r"pytest -q -m ffmpeg --expected-ffmpeg-tests (\d+)", workflow)
-    assert counts and len(set(counts)) == 1
+    assert len(counts) == 3 and len(set(counts)) == 1
     expected = counts[0]
     quoted = []
     for doc in DOCS:

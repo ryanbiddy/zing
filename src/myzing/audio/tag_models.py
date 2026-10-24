@@ -2,18 +2,19 @@
 
 The GPL training implementation is neither imported nor distributed. Only the
 Apache-2.0 ONNX weights run, through sherpa-onnx's own feature extractor.
+Downloads use the shared ``myzing.model_fetch`` path (HTTPS on every hop,
+streamed with a byte limit, SHA-256 before publish, one downloader per folder)
+and the same explicit consent as speech-model setup.
 """
 from __future__ import annotations
 
-import hashlib
-import os
-import tempfile
-import urllib.parse
-import urllib.request
+import sys
 from pathlib import Path
 
+from myzing import model_fetch
 from myzing.storage import workspace_root
 
+MODEL = "ced-mini"
 REVISION = "4da6df50dc47b25f91074b5ef7df4c1cc0dd7d4d"
 REPOSITORY = "k2-fsa/sherpa-onnx-ced-mini-audio-tagging-2024-04-19"
 BASE_URL = f"https://huggingface.co/{REPOSITORY}/resolve/{REVISION}/"
@@ -22,16 +23,19 @@ ASSETS = {
     "class_labels_indices.csv": ("cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429", 14_675),
 }
 INSTALL_HINT = 'python -m pip install "myzing[audio-ml]"'
-FETCH_HINT = "zing audio fetch-model --consent (Apache-2.0 weights; about 10.5 MB)"
+FETCH_HINT = ("zing doctor --audio-model ced-mini (or zing audio fetch-model --consent; "
+              "Apache-2.0 weights, about 10.5 MB)")
+CHOICE = ("CED-mini audio tags (Apache-2.0, about 10.5 MB): tells singing from instruments, "
+          "flags a clip's own music under speech, and marks laughter/applause candidates.")
 
 
 def cache_dir() -> Path:
-    return workspace_root() / "models" / "ced-mini"
+    return workspace_root() / "models" / MODEL
 
 
 def verified(path: Path, digest: str, size: int) -> bool:
-    return (path.is_file() and path.stat().st_size == size
-            and hashlib.sha256(path.read_bytes()).hexdigest() == digest)
+    path = Path(path)
+    return path.is_file() and path.stat().st_size == size and model_fetch.verified(path, digest)
 
 
 def model_paths() -> dict[str, Path]:
@@ -42,45 +46,51 @@ def model_paths() -> dict[str, Path]:
     return paths
 
 
-def _https(url: str) -> None:
-    if urllib.parse.urlsplit(url).scheme != "https":
-        raise ValueError("CED downloads and redirects must use HTTPS")
+def fetch_models(*, consent: bool = False, progress=None) -> list[Path]:
+    return _fetch_models(consent=consent, progress=progress)[0]
 
 
-class _HTTPSRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        _https(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
-def fetch_models(*, consent: bool = False) -> list[Path]:
-    if not consent:
+def _fetch_models(*, consent: bool, progress=None) -> tuple[list[Path], int]:
+    if consent is not True:
         raise ValueError(f"Model download needs explicit consent. Run {FETCH_HINT}.")
     root = cache_dir()
-    root.mkdir(parents=True, exist_ok=True)
-    opener = urllib.request.build_opener(_HTTPSRedirect())
     paths = []
+    downloaded = 0
     for name, (digest, size) in ASSETS.items():
         target = root / name
         if not verified(target, digest, size):
-            url = BASE_URL + name
-            _https(url)
-            with opener.open(url, timeout=60) as response:
-                _https(response.geturl())
-                payload = response.read(size + 1)
-            if len(payload) != size or hashlib.sha256(payload).hexdigest() != digest:
+            if model_fetch.fetch_verified(BASE_URL + name, target, digest, size, progress=progress):
+                downloaded += size
+            if not verified(target, digest, size):
                 raise RuntimeError(f"CED size/SHA-256 verification failed: {name}; no asset installed")
-            temporary = None
-            try:
-                with tempfile.NamedTemporaryFile(dir=root, suffix=".part", delete=False) as out:
-                    temporary = Path(out.name)
-                    out.write(payload)
-                os.replace(temporary, target)
-            finally:
-                if temporary is not None:
-                    temporary.unlink(missing_ok=True)
         paths.append(target)
-    return paths
+    return paths, downloaded
+
+
+def receipt(paths, downloaded: int) -> dict:
+    return {"version": 1, "model": MODEL, "path": str(cache_dir()), "repository": REPOSITORY,
+            "revision": REVISION, "sha256": {name: digest for name, (digest, _) in ASSETS.items()},
+            "verified": True, "downloaded_bytes": downloaded, "license": "Apache-2.0",
+            "runtime_version": runtime_version(), "files": [str(p) for p in paths]}
+
+
+def setup(name: str = MODEL, *, yes: bool = False, json_mode: bool = False) -> dict:
+    """Shared doctor/setup consent, the same rules as speech-model setup."""
+    if name != MODEL:
+        raise ValueError(f"Choose {MODEL}.")
+    missing = [n for n, (digest, size) in ASSETS.items() if not verified(cache_dir() / n, digest, size)]
+    if not missing:
+        return receipt(model_paths().values(), 0)
+    if not yes:
+        if json_mode or not sys.stdin.isatty():
+            raise ValueError(f"Audio-tag download requires explicit consent: --audio-model {MODEL} --yes.")
+        print("For learned audio tags: " + CHOICE)
+        print("Download and verify these weights? Type yes; Enter cancels: ", end="", flush=True)
+        if sys.stdin.readline().strip().lower() not in {"yes", "y"}:
+            raise ValueError("Audio-tag download declined; tags keep the labeled heuristic fallback.")
+        yes = True
+    paths, downloaded = _fetch_models(consent=yes, progress=lambda text: print(text, file=sys.stderr if json_mode else sys.stdout, flush=True))
+    return receipt(paths, downloaded)
 
 
 # sherpa-onnx 1.x links espeak-ng (GPL-3.0-or-later) for TTS; 2.0.0 removed it.

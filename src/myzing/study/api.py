@@ -48,6 +48,7 @@ def study(
     fonts: bool = False,
     local_models_only: bool = False,
     model_workspace: Path | None = None,
+    speech_model: str | None = None,
     shot_min_scene_len_s: float | None = None,
     vocabulary=(),
     brief=None,
@@ -113,11 +114,13 @@ def study(
             metadata = handoff["metadata"]
         context = vocabulary_context(vocabulary, brief=brief, metadata=metadata)
         _phase(phase_callback, "transcribe")
-        words_r = transcribe_mod.transcribe(
-            ing.media_path, duration=ing.meta.duration,
-            **({"local_files_only": True} if local_models_only else {}),
-            **({"vocabulary": context["terms"]} if context["terms"] else {}),
-        )
+        with _workspace_override(model_workspace):
+            words_r = transcribe_mod.transcribe(
+                ing.media_path, duration=ing.meta.duration,
+                **({"model_name": speech_model} if speech_model is not None else {}),
+                **({"local_files_only": True} if local_models_only else {}),
+                **({"vocabulary": context["terms"]} if context["terms"] else {}),
+            )
         warnings += words_r.warnings
         provenance.update(words_r.provenance)
         provenance["asr_vocabulary"] = context

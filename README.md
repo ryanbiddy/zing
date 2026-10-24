@@ -20,11 +20,24 @@ Start with “What are we making?” Choose a reference edit, an edit from your
 clips, a photo meme, a style breakdown, music advice, or another delivery shape.
 Studio reads a local reference for up to eight seconds, then recommends length,
 pacing, captions, audio and shape from what it measured. A local reference edit
-takes eight questions plus confirmation. Enter accepts a recommendation; paths
+adds a speech-setup question when clips have audio. Enter accepts a recommendation; paths
 and topics need your answer. `?` explains, `b` goes back and `q` saves.
 The plan shows the default output folder, with an option to change it. The
 finish screen compares playable drafts by shape and recommends where to start.
 Continue with `zing studio --resume <project>`.
+
+On a first install, choose **small.en (~486 MB)** for a faster English draft,
+**large-v2 (~3.09 GB)** for multilingual speech and better accuracy, or **skip
+speech (0 MB)**. Enter recommends small.en for the shorter first download;
+you must then type **yes** to authorize it. Small.en can miss names, accents and
+quiet words, so review its captions. Large-v2 remains the `zing study` default.
+Studio verifies the download's SHA-256 and caches it under `ZING_HOME`.
+Skipping disables spoken captions and whole-line continuity; clips without safe
+speech timing may be excluded. The finish screen reports the model and download.
+
+`zing doctor` and `zing setup` list cached speech models. To prepare one before
+editing, run `zing doctor --speech-model small.en` and confirm the download.
+See [speech setup](docs/DOCTOR.md) for unattended use and cache details.
 
 See [Studio](docs/STUDIO.md) for a real transcript, JSON answers and agent use.
 Downloads are off by default. Missing evidence, failed drafts and blocked
@@ -93,6 +106,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Save creative intent | [Briefs](docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
 | Match a color look | [Color](docs/color.md): SDR LUT approximation, recipe and before/reference/after preview; separate apply step. |
 | Measure a reference's captions | [Caption geometry](docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
+| Style captions for delivery | [Captions](docs/CAPTIONS.md): active-word boxes, before/after colors, and minimum phone-readable sizing. |
 | Find the caption font | [Font candidates](docs/FONT-CANDIDATES.md): `zing fonts match` ranks a pinned OFL/Apache library against measured caption glyphs; low scores are labeled substitutes. |
 | Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; attach the resulting layout to a v2 caption for rendering. |
 | Fill portrait and square frames | [Framing](docs/FRAMING.md): fit, static fill, or bounded subject-following crops with captions placed inside the visible picture. |
@@ -135,7 +149,7 @@ extras below. To select features, use e.g. `uv sync --extra memes --extra render
 | `fonts` | Pillow and pinned headless OpenCV for font comparison; expanded font assets require an explicit fetch. |
 | `layout` | Pinned headless OpenCV; YuNet still needs an explicit model fetch. |
 | `color` | NumPy for SDR matching and LUT work. |
-| `audio-ml` | Optional CED audio tags via sherpa-onnx; explicit weight download. |
+| `audio-ml` | Optional CED audio tags via sherpa-onnx; weights via `zing doctor --audio-model ced-mini`. |
 | `audio` | NumPy for audio analysis. |
 | `all` | All feature extras above. |
 | `dev` | pytest, MCP and render dependencies for development. |
@@ -149,11 +163,14 @@ feature-specific gaps. The HyperFrames page documents its own pinned setup.
 ## Local work and network boundaries
 
 Zing itself needs no API key and opens no listening network service. It fetches
-a video URL only when you supply one. On the first `zing study`, faster-whisper
-downloads the selected speech model from Hugging Face if it is not already
-cached (the default `large-v2` model uses about 3.1 GB; select another with
-`ZING_WHISPER_MODEL`). RapidOCR may fetch missing weights too. Ask before an
-uncached study; a local input alone does not guarantee an offline run.
+a video URL only when you supply one. Speech models come from Hugging Face
+only through the consented, SHA-256-pinned setup: choose one in `zing studio`,
+or run `zing doctor --speech-model small.en` (or `large-v2`) and confirm. Even
+the first `zing study` never downloads one; without a cached model it leaves the
+transcript empty and names that command (the default `large-v2` model uses about
+3.1 GB; select another cached model or a local folder with `ZING_WHISPER_MODEL`).
+RapidOCR may fetch missing weights too. Ask before an uncached study; a local
+input alone does not guarantee an offline run.
 
 `zing match` uses local models only and requires `--allow-download` before
 acquiring a reference URL. Missing models remain warnings or planning shortages.

@@ -86,6 +86,8 @@ def lowering_blockers(composition: Composition) -> list[str]:
     """Every discarded v2 instruction/evidence is named, in stable order."""
     composition.to_dict()  # Revalidate mutable nested records before conversion.
     problems = []
+    if composition.delivery is not None:
+        problems.append("delivery encoding")
     if composition.speech_words:
         problems.append("speech_words")
     rate = rate_fraction(composition.fps)

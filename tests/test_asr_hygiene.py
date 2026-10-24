@@ -150,10 +150,12 @@ def test_study_combines_brief_and_reference_without_network(zing_workspace, monk
         received.update(kwargs)
         return TranscribeResult()
     monkeypatch.setattr(api.transcribe_mod, "transcribe", run)
-    result = api.study(SOURCE, vocabulary=["Korky Paul"],
+    monkeypatch.setattr(api.captions_mod, "read_captions", lambda *a, **k: api.captions_mod.CaptionsResult())
+    result = api.study(SOURCE, vocabulary=["Korky Paul"], speech_model="small.en", local_models_only=True,
                        brief={"exact_spellings": ["NASA"], "topic": "Space"},
                        reference_metadata={"title": "Tears of Steel"})
     assert received["vocabulary"] == ["Korky Paul", "NASA", "Tears of Steel"]
+    assert received["model_name"] == "small.en" and received["local_files_only"] is True
     assert result.provenance["asr_vocabulary"]["sources"][-1] == "reference.title"
 
 
@@ -243,7 +245,7 @@ def test_match_restudies_the_reference_only_when_spellings_change(tmp_path, monk
     reference.write_bytes(b"reference fixture")
     studies = []
     def study(source, workspace, **kwargs):
-        studies.append(kwargs.get("vocabulary", []))
+        studies.append((kwargs.get("vocabulary", []), kwargs.get("speech_model")))
         path = Path(workspace) / "breakdown.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}", encoding="utf-8")
@@ -253,13 +255,14 @@ def test_match_restudies_the_reference_only_when_spellings_change(tmp_path, monk
     monkeypatch.setattr(api, "_study", study)
     monkeypatch.setattr(api, "_audio", audio)
     out = tmp_path / "out"
-    run = lambda answers, resume: match(str(reference), str(clips), str(out), answers=answers, resume=resume)
+    run = lambda answers, resume: match(str(reference), str(clips), str(out), answers=answers, resume=resume,
+                                        studio_options={"speech_model": "skip"})
     assert run({"exact_spellings": ["Korky Paul"]}, False)["failures"][0]["step"] == "reference-audio"
     same = run({"exact_spellings": ["Korky Paul"], "purpose": "a different purpose"}, True)
     assert "reference-study" in same["reused_steps"]  # purpose never reaches ASR, so no restudy
     changed = run({"exact_spellings": ["Korky Paul", "Harare"]}, True)
     assert "reference-study" not in changed["reused_steps"]
-    assert studies == [["Korky Paul"], ["Korky Paul", "Harare"]]
+    assert studies == [(["Korky Paul"], "skip"), (["Korky Paul", "Harare"], "skip")]
 
 
 def _guarded(monkeypatch, hinted_words, plain_words, regions=((0.0, 20.0),)):

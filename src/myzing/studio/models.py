@@ -40,7 +40,7 @@ class Session(Record):
 
     def __post_init__(self):
         super().__post_init__()
-        if self.status not in {"interview", "paused", "planned", "running", "ready", "partial", "failed", "shortage", "cancelled"}:
+        if self.status not in {"interview", "paused", "planned", "running", "ready", "partial", "failed", "shortage", "cancelled", "interrupted"}:
             raise ValueError("Invalid studio session status")
         if self.questions_asked < 0 or len(set(self.history)) != len(self.history):
             raise ValueError("Invalid studio question history")
@@ -64,7 +64,16 @@ def write_json(path, value):
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        for attempt in range(50):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                # A Windows status reader can briefly hold the old file open
+                # without delete sharing. Keep the complete replacement intact.
+                if os.name != "nt" or attempt == 49:
+                    raise
+                time.sleep(.02)
     finally:
         Path(temporary).unlink(missing_ok=True)
 

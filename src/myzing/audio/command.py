@@ -28,10 +28,10 @@ def run(argv: list[str]) -> int:
     try:
         with storage.use_workspace(args.workspace or storage.workspace_root()):
             if args.command == "fetch-model":
-                from .tag_models import fetch_models, REVISION, ASSETS
-                paths = fetch_models(consent=args.consent)
-                print(json.dumps({"paths": [str(p) for p in paths], "revision": REVISION,
-                                  "assets": ASSETS, "license": "Apache-2.0"}, indent=2))
+                # --consent is required by the parser: the same explicit yes as
+                # zing doctor --audio-model ced-mini --yes.
+                from .tag_models import setup
+                print(json.dumps(setup(yes=args.consent, json_mode=args.json), indent=2))
                 return 0
             breakdown = storage.load_breakdown(args.breakdown) if args.breakdown else None
             result = analyze(args.file, breakdown=breakdown, max_seconds=args.max_seconds)

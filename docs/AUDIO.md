@@ -190,19 +190,22 @@ about 106 MB of float32 PCM, plus bounded working arrays.
 
 ## Learned tags (AUD1)
 
-Install `myzing[audio-ml]` for sherpa-onnx, then explicitly fetch the Apache-2.0
-CED-mini int8 weights:
+Install `myzing[audio-ml]` for sherpa-onnx (2.0 or newer), then explicitly
+fetch the Apache-2.0 CED-mini int8 weights:
 
 ```sh
-zing audio fetch-model --consent --workspace ./zing-workspace/home
-zing audio analyze clip.mp4 --workspace ./zing-workspace/home --json
+zing doctor --audio-model ced-mini        # asks for yes; scripts add --yes
+zing audio analyze clip.mp4 --json
 ```
 
-The fetch verifies HTTPS (including redirects), an immutable revision, exact
-byte limits, and SHA-256 before atomically installing each file. Verified
-files are reused. The 10,451,715-byte ONNX and 14,675-byte label file live in
-`models/ced-mini` under that workspace. No training code is downloaded.
-[Notices](THIRD-PARTY-NOTICES.md) records pins; [Doctor](DOCTOR.md) explains readiness.
+`zing setup --audio-model ced-mini --yes` and `zing audio fetch-model --consent`
+are the same download. It uses Zing's shared verified downloader: HTTPS on the
+first request and every redirect, an immutable revision, streamed reads with the
+pinned byte limit, and SHA-256 before a file is published, with one downloader
+per folder. Verified files are reused. The 10,451,715-byte ONNX and 14,675-byte
+label file live in `models/ced-mini` under `ZING_HOME`. No training code is
+downloaded. [Notices](THIRD-PARTY-NOTICES.md) records pins; [Doctor](DOCTOR.md)
+explains readiness.
 
 Analysis and study use only verified local assets. Missing assets, runtime,
 or failed inference produce `status: unavailable` and `heuristic_fallback`,
@@ -243,8 +246,10 @@ prove simultaneity at every word nor locate event boundaries. This pass does
 not separate or duck embedded music.
 
 Measured on this PC, tagging a 600-second file takes about 11 seconds and adds
-about 105 KB of JSON. Study and audio analysis each tag their file, so a match
-clip is tagged twice.
+about 105 KB of JSON. In `zing match`, a clip is tagged once: audio analysis
+re-derives its spans from the study's own windows (marked `reused_from`) when
+the algorithm, model revision, weights and analyzed duration all match, and
+tags afresh otherwise.
 
 ## ASR vocabulary and word edges
 

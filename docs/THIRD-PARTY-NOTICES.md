@@ -186,3 +186,18 @@ The audit reuses the OCR, YuNet and OFL/Apache font assets documented above.
 It adds no package dependency. See the
 [evaluation report](../tools/eval/real/REAL-EVAL-2026-10.md) for measured results
 and unvalidated capabilities.
+
+## Optional speech models
+
+Studio, doctor and setup offer these MIT-licensed Systran conversions of OpenAI
+Whisper. Downloads require explicit consent and remain outside the repository.
+`src/myzing/study/speech_pins.py` records each file's SHA-256 and byte size.
+
+| Model | Immutable revision | Source |
+|---|---|---|
+| small.en | `d1d751a5f8271d482d14ca55d9e2deeebbae577f` | [Systran model card](https://huggingface.co/Systran/faster-whisper-small.en) |
+| large-v2 | `f0fe81560cb8b68660e564f55dd99207059c092e` | [Systran model card](https://huggingface.co/Systran/faster-whisper-large-v2) |
+
+Small.en is English-only; large-v2 supports multiple languages. Zing recommends
+small.en for first-run download size and speed, with a caption-review warning.
+No new Python dependency is required; inference uses the existing `study` extra.

@@ -86,6 +86,61 @@ def unavailable(exc) -> AudioTags:
     return AudioTags(warnings=[f"Learned audio tagging unavailable ({exc}); heuristic fallback. Install {tag_models.INSTALL_HINT}; provision with {tag_models.FETCH_HINT}."])
 
 
+def _summarize(result: AudioTags, speech) -> None:
+    """Spans from the per-window rows; speech intervals decide score-under-speech."""
+    rows, music_rows = result.windows, []
+    for row in rows:
+        start, end = row["start"], row["end"]
+        overlaps = [(max(start, a), min(end, b)) for a, b in speech if max(start, a) < min(end, b)]
+        if row["music"] >= WEAK_THRESHOLD and (overlaps or row["speech"] >= THRESHOLD):
+            music_rows.append({**row, "overlap": round(min(row["music"], row["speech"]) if not overlaps else row["music"], 6)})
+    result.music_under_speech, result.moment_candidates, result.vocal_spans = [], [], []
+    for span in _spans(music_rows, "overlap", WEAK_THRESHOLD):
+        inside = [r for r in music_rows if span["start"] <= r["start"] and r["end"] <= span["end"]]
+        intervals = [[round(max(span["start"], a), 6), round(min(span["end"], b), 6)]
+                     for a, b in speech if max(span["start"], a) < min(span["end"], b)]
+        result.music_under_speech.append({
+            "start": span["start"], "end": span["end"], "confidence": span["peak"], "strength": _strength(span["peak"]),
+            "music_confidence": max(r["music"] for r in inside), "speech_confidence": max(r["speech"] for r in inside),
+            "speech_basis": "supplied word intervals" if intervals else "CED speech tags",
+            "speech_intervals": intervals, "windows": span["windows"], "peak_window": span["peak_window"],
+            "evidence": "Music and speech in the same context windows; candidate baked-in score, not source separation."})
+    for kind in ("laughter", "applause"):
+        for span in _spans(rows, kind, THRESHOLD):
+            result.moment_candidates.append({"start": span["start"], "end": span["end"], "kind": kind,
+                "confidence": span["peak"], "windows": span["windows"], "peak_window": span["peak_window"],
+                "evidence": "CED context tag; event boundary unmeasured"})
+    for span in _spans(rows, "vocals", WEAK_THRESHOLD):
+        inside = [r for r in rows if span["start"] <= r["start"] and r["end"] <= span["end"]]
+        result.vocal_spans.append({"start": span["start"], "end": span["end"], "confidence": span["peak"],
+            "label": max(inside, key=lambda r: r["vocals"])["vocal_label"], "strength": _strength(span["peak"]),
+            "windows": span["windows"], "peak_window": span["peak_window"],
+            "evidence": "singing-family CED tag in overlapping context windows; listen to confirm"})
+
+
+def reuse(tags, *, speech=(), duration: float) -> AudioTags | None:
+    """Re-derive spans from a study's own windows instead of tagging the same file again.
+
+    Only an identical, complete measurement qualifies: same algorithm, model
+    revision and weights, and the same analyzed duration. Anything else returns
+    None and the caller tags afresh.
+    """
+    try:
+        tags = tags if isinstance(tags, AudioTags) else AudioTags.from_dict(tags)
+        p = tags.provenance
+        if (tags.status != "measured" or not tags.windows or p.get("algorithm") != ALGORITHM
+                or p.get("revision") != tag_models.REVISION
+                or p.get("model_sha256") != tag_models.ASSETS["model.int8.onnx"][0]
+                or abs(float(p.get("analyzed_seconds", -1)) - duration) > 1e-3):
+            return None
+        reused = AudioTags.from_dict(tags.to_dict())
+        _summarize(reused, [(float(a), float(b)) for a, b in speech])
+        reused.provenance["reused_from"] = "study provenance audio_tags (same file, same windows)"
+        return reused
+    except (TypeError, ValueError, KeyError, AttributeError):
+        return None
+
+
 def tag_file(path, *, max_seconds=None, speech=()) -> AudioTags:
     """Tag a local file's first audio stream at CED's 16 kHz (at most 600 s).
 
@@ -121,7 +176,7 @@ def tag_samples(samples, sample_rate: int, *, speech=(), engine=None) -> AudioTa
         if duration > WINDOW_SECONDS and starts[-1] < duration - WINDOW_SECONDS:
             starts.append(round(duration - WINDOW_SECONDS, 6))
         peaks = dict.fromkeys(sorted(LABELS), 0.0)
-        rows, music_rows = [], []
+        rows = []
         for start in starts:
             end = round(min(duration, start + WINDOW_SECONDS), 6)
             stream = engine.create_stream()
@@ -135,37 +190,12 @@ def tag_samples(samples, sample_rate: int, *, speech=(), engine=None) -> AudioTa
             for name in peaks:
                 peaks[name] = max(peaks[name], scores.get(name, 0.0))
             vocal_label, vocal = _best(scores, VOCALS)
-            row = {"start": start, "end": end, "vocals": round(vocal, 6), "vocal_label": vocal_label,
-                   "music": round(_score(scores, MUSIC), 6), "speech": round(_score(scores, SPEECH), 6),
-                   "instrument": round(_score(scores, INSTRUMENTS), 6),
-                   "laughter": round(_score(scores, LAUGHTER), 6), "applause": round(_score(scores, APPLAUSE), 6)}
-            rows.append(row)
-            overlaps = [(max(start, a), min(end, b)) for a, b in speech if max(start, a) < min(end, b)]
-            if row["music"] >= WEAK_THRESHOLD and (overlaps or row["speech"] >= THRESHOLD):
-                music_rows.append({**row, "basis": "supplied word intervals" if overlaps else "CED speech tags",
-                                   "overlap": round(min(row["music"], row["speech"]) if not overlaps else row["music"], 6)})
+            rows.append({"start": start, "end": end, "vocals": round(vocal, 6), "vocal_label": vocal_label,
+                         "music": round(_score(scores, MUSIC), 6), "speech": round(_score(scores, SPEECH), 6),
+                         "instrument": round(_score(scores, INSTRUMENTS), 6),
+                         "laughter": round(_score(scores, LAUGHTER), 6), "applause": round(_score(scores, APPLAUSE), 6)})
         result.windows = rows
-        for span in _spans(music_rows, "overlap", WEAK_THRESHOLD):
-            inside = [r for r in music_rows if span["start"] <= r["start"] and r["end"] <= span["end"]]
-            intervals = [[round(max(span["start"], a), 6), round(min(span["end"], b), 6)]
-                         for a, b in speech if max(span["start"], a) < min(span["end"], b)]
-            result.music_under_speech.append({
-                "start": span["start"], "end": span["end"], "confidence": span["peak"], "strength": _strength(span["peak"]),
-                "music_confidence": max(r["music"] for r in inside), "speech_confidence": max(r["speech"] for r in inside),
-                "speech_basis": "supplied word intervals" if intervals else "CED speech tags",
-                "speech_intervals": intervals, "windows": span["windows"], "peak_window": span["peak_window"],
-                "evidence": "Music and speech in the same context windows; candidate baked-in score, not source separation."})
-        for kind in ("laughter", "applause"):
-            for span in _spans(rows, kind, THRESHOLD):
-                result.moment_candidates.append({"start": span["start"], "end": span["end"], "kind": kind,
-                    "confidence": span["peak"], "windows": span["windows"], "peak_window": span["peak_window"],
-                    "evidence": "CED context tag; event boundary unmeasured"})
-        for span in _spans(rows, "vocals", WEAK_THRESHOLD):
-            inside = [r for r in rows if span["start"] <= r["start"] and r["end"] <= span["end"]]
-            result.vocal_spans.append({"start": span["start"], "end": span["end"], "confidence": span["peak"],
-                "label": max(inside, key=lambda r: r["vocals"])["vocal_label"], "strength": _strength(span["peak"]),
-                "windows": span["windows"], "peak_window": span["peak_window"],
-                "evidence": "singing-family CED tag in overlapping context windows; listen to confirm"})
+        _summarize(result, speech)
         result.labels = [{"label": name, "confidence": round(value, 6)} for name, value in peaks.items()]
         result.status, result.method = "measured", "sherpa-onnx/ced-mini-int8"
         result.provenance = {"repository": tag_models.REPOSITORY, "revision": tag_models.REVISION,

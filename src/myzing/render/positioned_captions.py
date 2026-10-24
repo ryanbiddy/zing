@@ -152,14 +152,21 @@ def _tags(caption: CompositionCaption, style: CaptionStyle, font: str, font_scal
             rf"\3c{_color(style.outline_color)}")
 
 
-def _text(runs: list[tuple[str, int | None]], style: CaptionStyle, active: int | None = None) -> str:
-    return "".join("{" + rf"\1c{_color(style.highlight if index is not None and index == active else style.color)}"
-                   + "}" + escape_ass(value) for value, index in runs)
+def _text(runs: list[tuple[str, int | None]], style: CaptionStyle, active: int | None = None,
+          completed: set[int] = frozenset()) -> str:
+    def color(index):
+        if index is None:
+            return style.color
+        if index == active:
+            return style.highlight
+        return (style.after_color if index in completed else style.before_color) or style.color
+    return "".join("{" + rf"\1c{_color(color(index))}" + "}" + escape_ass(value) for value, index in runs)
 
 
 def _measure(caption: CompositionCaption, style: CaptionStyle, font: str,
              runs: list[tuple[str, int | None]], width: int, height: int,
-             directory: Path, ffmpeg: str, caption_filter: str, font_scale: float) -> tuple[float, float, float, float]:
+             directory: Path, ffmpeg: str, caption_filter: str, font_scale: float,
+             word_index: int | None = None) -> tuple[float, float, float, float]:
     """Measure libass ink+outline, relative to the ASS anchor, using raw gray.
 
     Calibration uses the actual registered font, shaping and explicit breaks.
@@ -168,7 +175,14 @@ def _measure(caption: CompositionCaption, style: CaptionStyle, font: str,
     width, height = max(width * 2, 1024), max(height * 2, 512)
     x, y = width // 2, height // 2
     probe_style = replace(style, color="#FFFFFF", highlight="#FFFFFF", outline_color="#FFFFFF")
-    text = "{" + _tags(caption, probe_style, font, font_scale) + rf"\pos({x},{y})" + "}" + _text(runs, probe_style)
+    probe_style = replace(probe_style, before_color=None, after_color=None)
+    # Preserve the whole shaped phrase and its whitespace. Only the requested
+    # word emits white ink; alpha/color changes do not alter glyph placement.
+    probe_text = _text(runs, probe_style) if word_index is None else "".join(
+        "{" + rf"\1c{_color('#FFFFFF' if i == word_index else '#000000')}"
+        + rf"\3c{_color('#FFFFFF' if i == word_index else '#000000')}" + "}" + escape_ass(value)
+        for value, i in runs)
+    text = "{" + _tags(caption, probe_style, font, font_scale) + rf"\pos({x},{y})" + "}" + probe_text
     (directory / "caption-probe.ass").write_text(_header(width, height, font) + _dialogue(0, 100, text),
                                                 encoding="utf-8", newline="\n")
     try:
@@ -213,6 +227,17 @@ def _motion(a: tuple[float, float], b: tuple[float, float], milliseconds: int, o
     return rf"\move({_n(a[0])},{_n(a[1])},{_n(b[0])},{_n(b[1])},{offset},{milliseconds})"
 
 
+def _rounded_rectangle(w, h, radius):
+    """ASS vector path; cubic corners work with libass on FFmpeg 6+."""
+    r = min(radius, w / 2, h / 2)
+    k = r * .55228475
+    return (f"m {_n(r)} 0 l {_n(w-r)} 0 "
+            f"b {_n(w-r+k)} 0 {_n(w)} {_n(r-k)} {_n(w)} {_n(r)} "
+            f"l {_n(w)} {_n(h-r)} b {_n(w)} {_n(h-r+k)} {_n(w-r+k)} {_n(h)} {_n(w-r)} {_n(h)} "
+            f"l {_n(r)} {_n(h)} b {_n(r-k)} {_n(h)} 0 {_n(h-r+k)} 0 {_n(h-r)} "
+            f"l 0 {_n(r)} b 0 {_n(r-k)} {_n(r-k)} 0 {_n(r)} 0")
+
+
 def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str, bytes]],
                             directory: Path, ffmpeg: str, caption_filter: str) -> Path:
     """Compile ordered frame highlights and sample the original piecewise path."""
@@ -236,7 +261,9 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
             outline_width=max(2, round(min(width, height) / 270)),
         )
         scale = caption.layout.scale if caption.layout else 1.0
-        style = replace(style, size=style.size * scale, outline_width=style.outline_width * scale)
+        style = replace(style, size=style.size * scale, outline_width=style.outline_width * scale,
+                        highlight_box_padding=style.highlight_box_padding * scale,
+                        highlight_box_radius=style.highlight_box_radius * scale)
         font = fonts[caption.id][0] if caption.id in fonts else "Arial"
         font_scale = ass_em_scale(fonts[caption.id][1]) if caption.id in fonts else 1.0
         runs = caption_runs(caption)
@@ -245,7 +272,16 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
             measurements[key] = _measure(caption, style, font, runs, width, height, directory, ffmpeg, caption_filter, font_scale)
         left, top, right, bottom = measurements[key]
         ink_width, ink_height = right - left, bottom - top
-        padding = 4 * scale if style.box_color is not None else 0
+        padding = max(4 * scale if style.box_color is not None else 0,
+                      style.highlight_box_padding if style.highlight_box_color else 0)
+        word_bounds = {}
+        if style.highlight_box_color and caption.word_timed:
+            for index in range(len(caption.words)):
+                word_key = (*key, index)
+                if word_key not in measurements:
+                    measurements[word_key] = _measure(caption, style, font, runs, width, height,
+                                                       directory, ffmpeg, caption_filter, font_scale, index)
+                word_bounds[index] = measurements[word_key]
         if caption.layout is not None:
             path = caption.layout.as_path()
             boxes = [k.box for k in path]
@@ -293,9 +329,26 @@ def generate_positioned_ass(composition: Composition, fonts: dict[str, tuple[str
             offset = math.ceil(a_time * 1000) - start * 10
             finish = math.ceil(b_time * 1000) - start * 10
             active = next((i for i, (a, b) in enumerate(word_frames) if a <= start_frame < b), None)
+            completed = {i for i, (_, b) in enumerate(word_frames) if b <= start_frame}
+            if style.highlight_box_color and word_frames:
+                # The active-word plate holds through pauses until the next
+                # word starts (and to the event end), so it never blinks off
+                # mid-phrase. Only colors change; glyph geometry never does.
+                active = max((i for i, (a, _) in enumerate(word_frames) if a <= start_frame), default=None)
+                completed = set(range(active)) if active is not None else set()
             position = _motion(anchor(a_time), anchor(b_time), finish, offset)
-            text = "{" + _tags(caption, style, font, font_scale) + position + "}" + _text(runs, style, active)
-            lines.append(_dialogue(start, end, text))
+            text = "{" + _tags(caption, style, font, font_scale) + position + "}" + _text(runs, style, active, completed)
+            lines.append(_dialogue(start, end, text, layer=2 if style.highlight_box_color else 1))
+            if active in word_bounds:
+                wl, wt, wr, wb = word_bounds[active]
+                pad = style.highlight_box_padding
+                a, b = anchor(a_time), anchor(b_time)
+                move = _motion((a[0] + wl - pad, a[1] + wt - pad),
+                               (b[0] + wl - pad, b[1] + wt - pad), finish, offset)
+                alpha = round(255 * (1 - style.highlight_box_opacity))
+                plate = ("{" + rf"\an7\bord0\shad0\1c{_color(style.highlight_box_color)}\1a&H{alpha:02X}&\p1"
+                         + move + "}" + _rounded_rectangle(wr-wl+2*pad, wb-wt+2*pad, style.highlight_box_radius))
+                lines.append(_dialogue(start, end, plate, layer=1))
             if style.box_color is not None:
                 a, b = box(a_time), box(b_time)
                 move = _motion((a.x * width, a.y * height), (b.x * width, b.y * height), finish, offset)

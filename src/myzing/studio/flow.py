@@ -21,7 +21,9 @@ PATHS = {
 }
 KEYS = {"path", "project", "reference_kind", "reference", "reference_query", "allow_download",
         "clips", "photos", "topic", "platform", "aspects", "length", "tone", "captions",
-        "music", "tracks", "source", "context", "speech", "draft"}
+        "music", "tracks", "source", "context", "speech", "draft", "speech_model", "speech_download"}
+DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps"}
+KEYS |= DELIVERY_KEYS
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -116,6 +118,10 @@ def _path(value, key, *, folder=False, exists=True):
 
 
 def normalize(key, value):
+    if key in DELIVERY_KEYS:
+        from myzing.brief.models import Brief
+        Brief.from_answers({key: value})
+        return value
     if key == "path":
         value = str(value).lower().strip()
         value = dict(zip("123456", PATHS)).get(value, value)
@@ -132,7 +138,21 @@ def normalize(key, value):
         if not isinstance(values, list) or not values or len(values) > 20:
             raise ValueError(f"{key}: supply 1-20 local paths, separated by semicolons.")
         value = [_path(v, key) for v in values]
+    elif key == "speech_model":
+        from myzing.study import speech_models
+        if not isinstance(value, str) or value not in speech_models.choices():
+            raise ValueError("speech_model: choose small.en, large-v2, skip, or a listed cached model.")
+    elif key == "speech_download":
+        if type(value) is not bool:
+            raise ValueError("speech_download must be a real boolean; true explicitly consents to the model download.")
     elif key == "reference":
+        from urllib.parse import urlsplit
+        if isinstance(value, str):
+            value = clean_path_text(value)
+        if isinstance(value, str) and value.lower().startswith(("http://", "https://")):
+            parsed = urlsplit(value)
+            if parsed.username is not None or parsed.password is not None:
+                raise ValueError("Credentials in URLs are refused for safety; download it yourself or remove the credentials.")
         if isinstance(value, str) and (is_http_url(value) or value.startswith("uoink:")):
             from myzing.uoink_bridge import credential_safe_url
             credential_safe_url(value)
@@ -161,7 +181,7 @@ def normalize(key, value):
         allowed = {"reference_kind": ["file", "url", "uoink"],
                    "platform": ["original", "TikTok/Reels", "YouTube", "square", "all", "custom"],
                    "tone": ["natural", "calm", "energetic"],
-                   "captions": ["none", "phone"], "draft": ["A", "B", "C", "keep all"]}[key]
+                   "captions": ["none", "phone", "reference"], "draft": ["A", "B", "C", "keep all"]}[key]
         if value not in allowed:
             raise ValueError(f"{key}: choose {', '.join(allowed)}.")
     elif not isinstance(value, str) or not value.strip() or len(value) > 500:
@@ -173,7 +193,12 @@ def normalize_answers(answers):
     if not isinstance(answers, dict) or set(answers) - KEYS:
         raise ValueError("answers must be an object using studio question IDs; unknown keys: " +
                          str(sorted(set(answers) - KEYS) if isinstance(answers, dict) else "not an object"))
-    return {key: normalize(key, value) for key, value in answers.items()}
+    result = {key: normalize(key, value) for key, value in answers.items()}
+    from myzing.brief.models import Brief
+    Brief.from_answers({key: result[key] for key in DELIVERY_KEYS if key in result})
+    if "caption_mode" in result:
+        result["captions"] = result["caption_mode"]
+    return result
 
 
 def brief_answers(answers):
@@ -183,7 +208,8 @@ def brief_answers(answers):
             "caption_language": "none" if answers["captions"] == "none" else "original",
             "music": {"source": "supplied files", "files": answers["music"]} if isinstance(answers["music"], list)
             else {"source": "none" if answers["music"] == "none" else "keep original audio"},
-            "framing": "auto"}
+            "framing": "auto", "caption_mode": answers["captions"] if answers["captions"] in ("phone", "none") else "reference",
+            **{key: answers[key] for key in DELIVERY_KEYS if key in answers}}
 
 
 def next_step(answers=None, *, cache=None):
@@ -348,12 +374,29 @@ def next_step(answers=None, *, cache=None):
     if path == "e" and a.get("context", "none") == "none":
         ask("speech", "Will someone be speaking over the music?", True,
             "Speech is unknown without an edit plan; checking as a speech bed is the conservative default.", {True: "Yes", False: "No"})
+    if path in "ab":
+        from myzing.study import speech_models
+        if facts.get("audio_streams"):
+            recommended, reason = speech_models.recommendation()
+            ask("speech_model", "Speech setup: to keep spoken lines whole and place captions, choose a local speech model.",
+                recommended, reason, speech_models.choices(), required=True)
+        # A supplied model is used (reference and output studies) even when no
+        # clip has audio, so its download needs the same consent before the plan.
+        chosen = a.get("speech_model")
+        if chosen and chosen != "skip" and speech_models.local_path(chosen) is None:
+            ask("speech_download", "Download and SHA-256 verify " + speech_models.CHOICES[chosen] + "?",
+                False, "Only an explicit yes authorizes this download. Enter declines; b changes the model; q saves and quits.",
+                {False: "No", True: "Yes"}, required=True)
+            if a.get("speech_download") is False:
+                return {"status": "blocked", "error": "Speech download declined. Go back to choose skip or a cached model.", "answers": a}
     for q in queue:
         if q.id not in a:
             return {"status": "question", "question": q.to_dict(), "answers": a}
     # Validate conditional prerequisites and any extra answer that could authorize IO.
     if path == "a" and "reference" not in a:
         raise ValueError("Choose a saved reference from the search results.")
+    if a.get("speech_download") and (path not in "ab" or a.get("speech_model") in (None, "skip")):
+        raise ValueError("speech_download requires a selected speech model on path a or b.")
     if a.get("allow_download") and (path != "a" or not is_http_url(a.get("reference", ""))):
         raise ValueError("allow_download applies only to the selected reference URL.")
     if path in "abcf" and "aspects" not in a:
@@ -377,7 +420,10 @@ def build_plan(a, facts):
     warnings = [w for w in facts["warnings"] if not (path == "d" and w.startswith("Low-resolution source"))]
     if path in "ab":
         warnings.append("A/B/C can be blocked by footage shortages or invalid speech timing; no missing words or style measurements are invented.")
-        if facts.get("audio_streams"):
+        if a.get("speech_model") == "skip":
+            from myzing.study.speech_models import SKIP_NOTE
+            warnings.append(SKIP_NOTE)
+        elif facts.get("audio_streams") and not a.get("speech_model"):
             note = evidence.speech_model_note()
             if note:
                 warnings.append(note)
@@ -390,12 +436,10 @@ def build_plan(a, facts):
     seconds = facts.get("duration")
     estimate = {"seconds": None, "basis": "Runtime is unknown on this machine; studies and renders depend on source duration, models and hardware.",
                 "source_seconds": seconds, "steps": len(steps)}
-    # Existing tools stay the preferred execution surface where they cover the plan.
-    if path == "a":
-        execution = [{"tool": "match_start", "arguments": {"reference": a["reference"], "clips": a["clips"], "out": str(root),
-                     "answers": brief_answers(a), "studio_options": {"captions": a["captions"], "music": a["music"]},
-                     "allow_download": a.get("allow_download", False), "resume": (root / "match-state.json").is_file()}},
-                     {"tool": "match_status", "arguments": {"project": str(root)}}]
+    # Clip edits use Studio's provisioning-aware runner; the worker delegates to match.
+    if path in "ab":
+        execution = [{"tool": "zing_studio_run", "arguments": {"answers": a, "confirmed": True},
+                      "after": "Only after the user confirms this plan and explicitly consents to any speech download."}]
     elif path == "c":
         execution = [{"tool": "still_concepts", "arguments": {"photos": a["photos"], "topic": a["topic"],
                      "out": str(root / ("stills-" + aspect.replace(":", "x"))), "aspect": aspect}}
@@ -409,7 +453,8 @@ def build_plan(a, facts):
                       "after": "Only after the user confirms this plan; poll the returned project using zing_studio_run."}]
     return {"version": 1, "path": path, "title": PATHS[path], "output_folder": str(root),
             "aspects": a.get("aspects", []), "steps": steps, "estimate": estimate,
-            "downloads": [a["reference"]] if a.get("allow_download") else [],
+            "downloads": ([a["reference"]] if a.get("allow_download") else []) +
+            (["Speech model: " + a["speech_model"]] if a.get("speech_download") else []),
             "warnings": warnings, "evidence": facts, "execution": execution,
-            "style": {key: a[key] for key in ("length", "tone", "captions", "music") if key in a},
+            "style": {key: a[key] for key in ("length", "tone", "captions", "music", *sorted(DELIVERY_KEYS)) if key in a},
             "confirmation_required": True}

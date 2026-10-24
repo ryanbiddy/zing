@@ -11,7 +11,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from myzing import storage
-from myzing.match.process import run_lock, run_owned
+from myzing.match.process import Cancelled, run_lock, run_owned
 from .models import read_json, write_json
 
 _LOCK = threading.Lock()
@@ -33,22 +33,71 @@ def busy_lock(root):
         lease.__exit__(None, None, None)
 
 
+def _discard_abandoned_speech(answers):
+    """A killed worker cannot run its download cleanup; do it for the chosen model."""
+    from myzing.model_fetch import discard_abandoned
+    from myzing.study import speech_models
+    if answers.get("speech_model") in speech_models.MODELS:
+        try:
+            discard_abandoned(speech_models.cache_dir(answers["speech_model"]))
+        except (OSError, ValueError):
+            pass  # the next download attempt removes them under its lock
+
+
 def execute(answers, *, progress=None, cancel=None, locked=False):
     root = Path(answers["project"])
     root.mkdir(parents=True, exist_ok=True)
     run_id = uuid4().hex
     result_path = root / f"studio-job-{run_id}.json"
     with nullcontext() if locked else busy_lock(root):
-        code = run_owned([sys.executable, "-m", "myzing.studio.worker"],
+        try:
+            code = run_owned([sys.executable, "-m", "myzing.studio.worker"],
                          json.dumps({"answers": answers, "result_path": str(result_path)}),
                          progress=progress, cancel=cancel,
                          env={**os.environ, "ZING_HOME": str(storage.resolve_workspace()),
                               "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "PYTHONIOENCODING": "utf-8"})
+        except Cancelled:
+            raise Cancelled("Studio run cancelled; owned processes stopped.") from None
+        finally:
+            _discard_abandoned_speech(answers)
     if code not in (0, 1) or not result_path.is_file():
         raise RuntimeError(f"Studio worker exited {code}; resume the saved session to retry.")
     result = read_json(result_path)
     result_path.unlink()
     return result
+
+
+def reconcile(project):
+    """Reconcile both durable records while holding the released production lock."""
+    root = Path(project).expanduser().resolve()
+    file = root / "studio-job.json"
+    if not file.is_file():
+        return None
+    with _LOCK:
+        state = read_json(file)
+        active = _JOBS.get(str(root))
+        if state.get("status") != "running" or (active and active[0].is_alive()):
+            return state
+        from myzing.project.locking import _pid_alive
+        if state.get("pid") != os.getpid() and _pid_alive(state.get("pid", -1)):
+            return state
+        try:
+            lease = run_lock(root)
+            lease.__enter__()
+        except ValueError:
+            return state
+        try:
+            from .models import SESSION_NAME, load_session, save_session
+            hint = f'Studio run interrupted. Resume with zing studio --resume "{root}".'
+            state.update(status="interrupted", error="Studio worker is gone.", hint=hint)
+            if (root / SESSION_NAME).is_file():
+                session = load_session(root)
+                session.status, session.result = "interrupted", {"status": "interrupted", "hint": hint}
+                save_session(root, session)
+            write_json(file, state)
+        finally:
+            lease.__exit__(None, None, None)
+        return state
 
 
 def job(answers=None, *, confirmed=False, project=None, cancel=False):
@@ -61,21 +110,17 @@ def job(answers=None, *, confirmed=False, project=None, cancel=False):
         file = root / "studio-job.json"
         if not file.is_file():
             raise ValueError("No studio job here. Start a confirmed plan first.")
+        reconcile(root)
         with _LOCK:
             active = _JOBS.get(str(root))
             live = active is not None and active[0].is_alive()
             if cancel and live:
                 active[1].set()
             state = read_json(file)
-            if state["status"] == "running" and not live:
-                from myzing.project.locking import _pid_alive
-                if state.get("pid") == os.getpid() or not _pid_alive(state.get("pid", -1)):
-                    state.update(status="failed", error="Studio worker is gone; resume the session to retry.")
-                    write_json(file, state)
         result = {k: v for k, v in state.items() if k != "pid"}
         if cancel:
             result["cancellation_requested"] = live
-            result["hint"] = ("Cancellation requested; poll until the owned worker stops." if live else
+            result["hint"] = state.get("hint") or ("Cancellation requested; poll until the owned worker stops." if live else
                               "No live job owned by this server. A job in another process must be cancelled through its owning server.")
         return result
     if not confirmed:
@@ -84,10 +129,11 @@ def job(answers=None, *, confirmed=False, project=None, cancel=False):
     if step["status"] != "plan":
         raise ValueError("Studio answers are incomplete; call zing_studio for the next question.")
     a = step["answers"]
-    if a["path"] not in "bdf":
+    if a["path"] not in "abdf":
         raise ValueError("Reuse the existing match_start, still_concepts/still_render or music_check tools listed in this plan.")
     root = Path(a["project"])
     root.mkdir(parents=True, exist_ok=True)
+    reconcile(root)
     file = root / "studio-job.json"
     from .models import Session, save_session
     session = Session(answers=a, status="running")

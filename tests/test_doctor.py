@@ -61,7 +61,12 @@ def _hermetic_whisper_cache(monkeypatch, tmp_path):
     states override this explicitly.
     """
     cache = tmp_path / "hf-hub"
-    (cache / "models--Systran--faster-whisper-large-v2").mkdir(parents=True)
+    snapshot = cache / "models--Systran--faster-whisper-large-v2" / "snapshots" / "fixture"
+    snapshot.mkdir(parents=True)
+    for name in ("model.bin", "config.json", "tokenizer.json"):
+        (snapshot / name).write_bytes(b"fixture")
+    monkeypatch.setenv("ZING_HOME", str(tmp_path / "zing"))
+    monkeypatch.delenv("ZING_WHISPER_MODEL", raising=False)
     monkeypatch.setenv("HF_HUB_CACHE", str(cache))
     return cache
 
@@ -191,19 +196,19 @@ def test_cli_rejects_unknown_and_mixed_flags_before_checks(
 
     assert doctor.run(["--unknown"]) == 2
     unknown = capsys.readouterr()
-    assert "unknown argument '--unknown'" in unknown.err
+    assert "unrecognized arguments: --unknown" in unknown.err
 
     assert doctor.run(["--unknown", "--help"]) == 2
     mixed = capsys.readouterr()
-    assert "unknown argument '--unknown'" in mixed.err
+    assert "unrecognized arguments: --unknown" in mixed.err
 
     assert doctor.run(["--json", "--unknown"]) == 2
     trailing = capsys.readouterr()
-    assert "unknown argument '--unknown'" in trailing.err
+    assert "unrecognized arguments: --unknown" in trailing.err
 
     assert doctor.run(["--help"]) == 0
     help_output = capsys.readouterr()
-    assert "usage: zing doctor [--json]" in help_output.out
+    assert "usage: zing doctor" in help_output.out
     assert help_output.err == ""
 
 
@@ -742,10 +747,11 @@ def test_absent_model_is_named_with_the_room_available(
     """Not downloaded yet is NOT a failure — it downloads on first run —
     but doctor must say so rather than implying the weights are here."""
     for entry in _hermetic_whisper_cache.iterdir():
-        entry.rmdir()
+        import shutil
+        shutil.rmtree(entry)
     check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
     assert check.ok
-    assert "downloads on the first" in check.detail
+    assert "--speech-model small.en" in check.detail
     assert check.data["cached"] is False
 
 
@@ -756,7 +762,8 @@ def test_no_room_for_the_model_is_a_fixable_failure(
     stranded the user: they were told to run doctor, and doctor said the
     package imports."""
     for entry in _hermetic_whisper_cache.iterdir():
-        entry.rmdir()
+        import shutil
+        shutil.rmtree(entry)
     monkeypatch.setattr(
         doctor.shutil, "disk_usage", lambda path: _Usage(free=int(1.2e9))
     )
@@ -766,19 +773,43 @@ def test_no_room_for_the_model_is_a_fixable_failure(
     assert "1.2 GB is free" in check.detail
     assert check.fix, "a disk problem must name what to do"
     assert check.degraded_mode, "and what it costs"
-    assert "ZING_WHISPER_MODEL=small" in check.fix
+    assert "--speech-model small.en" in check.fix
 
 
-def test_a_missing_cache_directory_is_unknown_never_asserted_absent(
+def test_free_space_is_measured_where_zing_downloads_not_the_hub_cache(
     monkeypatch, tmp_path
 ):
-    """No cache dir yet means Zing cannot tell whether the weights fit —
-    say that, do not report a size check that never happened."""
+    """The doctor remedy downloads into ZING_HOME/models/speech, so its free
+    space decides whether the weights fit. An absent or roomy Hugging Face
+    cache on another drive must not answer for it."""
+    from myzing.study import speech_models
+
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "nothing-here"))
+    target = speech_models.speech_root()
+    measured = []
+
+    def usage(path):
+        measured.append(Path(path))
+        return _Usage(free=int(0.2e9))
+
+    monkeypatch.setattr(doctor.shutil, "disk_usage", usage)
+    check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
+    assert measured and all(p == target or p in target.parents for p in measured)
+    assert not check.ok and "0.2 GB is free" in check.detail
+    assert check.data["cache"] == str(target)
+
+
+def test_unmeasurable_free_space_is_unknown_never_asserted(monkeypatch, tmp_path):
+    """If the drive cannot be measured, say so; never report a check that did not happen."""
+    def broken(path):
+        raise PermissionError("denied")
+
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "nothing-here"))
+    monkeypatch.setattr(doctor.shutil, "disk_usage", broken)
     check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
     assert check.ok
     assert "could not be checked" in check.detail
-    assert check.data["cache"] is None
+    assert "free_gb" not in check.data
 
 
 def test_the_model_checked_is_the_model_transcribe_will_load(

@@ -336,6 +336,19 @@
           },
           "type": "array"
         },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/myzing_layout_types_TrackObservation"
+          },
+          "type": "array"
+        },
+        "stitching": {
+          "items": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "type": "array"
+        },
         "version": {
           "const": 1,
           "type": "integer"
@@ -475,6 +488,33 @@
       "required": [
         "version",
         "safe"
+      ],
+      "type": "object"
+    },
+    "myzing_layout_types_TrackObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "appearance": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "box": {
+          "$ref": "#/$defs/myzing_layout_types_Box"
+        },
+        "time": {
+          "type": "number"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "time",
+        "box"
       ],
       "type": "object"
     },

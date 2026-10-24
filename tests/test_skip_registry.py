@@ -127,6 +127,12 @@ REGISTERED_SKIPS = {
         "windows-latest CI executes this case. PRODUCT SURFACE: none needed — a "
         "platform detail of lock cleanup, not a user-visible capability."
     ),
+    "Windows status-reader sharing": (
+        "Windows can briefly refuse replacement while a Studio status reader has the "
+        "old JSON file open; POSIX permits that replacement. windows-latest runs this "
+        "regression. PRODUCT SURFACE: studio.models.write_json retries the transient "
+        "sharing failure so polling does not turn a running Studio job into a failure."
+    ),
     "local OCR runtime/models are not installed": (
         "photo text is optional evidence for offline meme lines; it needs the study OCR runtime and "
         "verified local models, and the test never downloads them. PRODUCT SURFACE: doctor's ocr and "

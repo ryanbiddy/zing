@@ -40,7 +40,7 @@ list — update both together):
 1. **ffmpeg & ffprobe (required):** video and audio analysis. If missing on Windows: `winget install Gyan.FFmpeg`.
 2. **yt-dlp (recommended):** fetching remote reference videos, including its JS-runtime and EJS-solver readiness for YouTube.
 3. **scenedetect (recommended):** shot-boundary detection.
-4. **faster-whisper (recommended):** transcription with word-level timestamps.
+4. **faster-whisper (recommended):** transcription with word-level timestamps, cached model inventory and explicit verified model setup. See [doctor and speech setup](DOCTOR.md).
 5. **ocr — rapidocr (recommended):** burned-caption text extraction from frames.
 6. **tts (optional):** voiceover synthesis (kokoro local, or ElevenLabs with an API key).
 7. **uoink (optional):** the suite peer on port 5179, probed per INTEGRATION-CONTRACT v1 (absent is calm; unhealthy names its code).
@@ -158,7 +158,7 @@ FFmpeg gate with:
 
 ```bash
 uv run --frozen pytest -ra
-ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 353
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 374
 ```
 
 CI (`.github/workflows/ci.yml`) runs that gate on four FFmpeg stacks, with

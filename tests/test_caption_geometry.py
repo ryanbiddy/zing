@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from myzing import model_fetch
 from myzing.study import caption_geometry as cg, caption_models
 
 
@@ -146,7 +147,7 @@ def test_missing_backend_keeps_full_coverage_failure(monkeypatch):
 def test_missing_models_are_offline_and_actionable(tmp_path, monkeypatch):
     monkeypatch.setattr(caption_models, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(caption_models, "find_spec", lambda name: None)
-    monkeypatch.setattr(caption_models.urllib.request, "urlopen", lambda *a, **k: pytest.fail("network"))
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: pytest.fail("network"))
     with pytest.raises(RuntimeError, match="--fetch"):
         caption_models.model_paths()
 
@@ -173,13 +174,13 @@ def test_explicit_provision_checks_hash_and_reuses_cache(tmp_path, monkeypatch):
     payload = b"model-test"
     monkeypatch.setattr(caption_models, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(caption_models, "MODELS", {"Det": ("det.onnx", hashlib.sha256(payload).hexdigest())})
-    monkeypatch.setattr(caption_models.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(payload))
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: io.BytesIO(payload))
     path, = caption_models.fetch_models()
     assert path.read_bytes() == payload
-    monkeypatch.setattr(caption_models.urllib.request, "urlopen", lambda *a, **k: pytest.fail("cache fetched"))
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: pytest.fail("cache fetched"))
     assert caption_models.fetch_models() == [path]
     path.write_bytes(b"corrupt")
-    monkeypatch.setattr(caption_models.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(b"bad"))
+    monkeypatch.setattr(model_fetch, "open_url", lambda *a, **k: io.BytesIO(b"bad"))
     with pytest.raises(RuntimeError, match="SHA-256"):
         caption_models.fetch_models()
     assert path.read_bytes() == b"corrupt" and not list(tmp_path.glob("*.part"))

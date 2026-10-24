@@ -20,17 +20,36 @@ def _wrap(parts, limit):
     return "\n".join(lines)
 
 
-def _fit(caption, style, scale, width, height, font, em, plan, root):
+def _source_dimensions(plan):
+    """Display sizes of unframed assets, so the default fit's picture is known."""
+    import subprocess
+    from myzing.render.framing import probe_dimensions
+    sizes = {}
+    for asset in plan.assets:
+        if any(c.asset_id == asset.id and c.framing is None for c in plan.clips):
+            try:
+                sizes[asset.id] = probe_dimensions(Path(asset.path))
+            except (OSError, ValueError, subprocess.SubprocessError):
+                continue  # Unknown size keeps the full-width floor.
+    return sizes
+
+
+def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None):
     """(style, None) when the wrapped caption fits its box at >= 24 px, else (None, reason)."""
     for _ in range(10):
         measured = replace(style, size=style.size * scale, outline_width=style.outline_width * scale)
         left, top, right, bottom = _measure(caption, measured, font, caption_runs(caption),
             plan.width, plan.height, root, "ffmpeg", "ass", em)
-        padding = 8 * scale if style.box_color else 0
+        padding = max(8 * scale if style.box_color else 0,
+                      2 * style.highlight_box_padding * scale if style.highlight_box_color else 0)
         if right - left + padding <= width and bottom - top + padding <= height:
             return style, None
         size = style.size * min(width / (right - left + padding), height / (bottom - top + padding)) * .95
-        if size * scale < 24:
+        from myzing.layout.readability import phone_minimum
+        # The same picture-relative floor place_captions applies.
+        minimum = (phone_minimum(plan, caption, sizes)
+                   if plan.brief and plan.brief.caption_mode == "phone" else 24)
+        if size * scale < minimum:
             return None, (f"Caption {caption.id} cannot fit as a readable complete clause; shorten the selected "
                           "speech or enlarge its layout.")
         style = replace(style, size=size)
@@ -42,6 +61,7 @@ def fit_captions(plan, folder):
         return
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
+    sizes = _source_dimensions(plan) if plan.brief and plan.brief.caption_mode == "phone" else {}
     with tempfile.TemporaryDirectory(dir=folder) as temporary:
         root = Path(temporary)
         (root / "fonts").mkdir()
@@ -69,7 +89,7 @@ def fit_captions(plan, folder):
             longest = max((len(part) for part in parts), default=0)
             while True:
                 caption.text = _wrap(parts, limit)
-                fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root)
+                fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes)
                 if fitted is not None:
                     caption.style = fitted
                     break

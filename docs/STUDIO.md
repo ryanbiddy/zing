@@ -5,6 +5,25 @@ uv sync --all-extras
 uv run --frozen zing studio
 ```
 
+Caption and delivery preferences can be supplied before the interview:
+
+```powershell
+zing studio --caption-options '{"highlight_box_color":"#FFD23F","highlight":"#0A0A0A","highlight_box_radius":4}' --picture-crop auto --target-mb 2.5
+```
+
+The confirmation plan shows these choices. Saved studio answers accept
+`caption_options`, `caption_mode`, `picture_crop`, `target_mb`, and
+`video_bitrate_kbps`; the size and bitrate fields are mutually exclusive.
+They apply to edited drafts and re-deliveries of existing plans. A flattened
+video still needs timed caption events to add word backgrounds. Choose phone
+captions for the [documented size floor](CAPTIONS.md); existing captions cannot
+be extracted or resized from flattened pixels by this option.
+
+The target applies to each delivered file. Encoding receipts beside the MP4s
+report achieved size and encoder quality risk. The framing evidence records
+whether static broadcast chrome was removed. These are local operations;
+they require no Uoink connection, upload, or new model download.
+
 FFmpeg and ffprobe must be on PATH for video work. The interview itself uses
 plain stdin/stdout and the Python standard library; media work uses Zing's
 existing optional extras. It works in PowerShell and macOS/Linux shells.
@@ -25,7 +44,7 @@ also pick their rows, but `b` always means back, so type 2 for clips without a
 reference. Dragged paths may keep the quotes Windows Explorer, Windows Terminal
 or GNOME Terminal add, or macOS Terminal's backslash-escaped spaces.
 
-A local reference match takes eight questions plus confirmation: reference,
+A local reference match takes eight creative questions, plus speech setup for audio clips plus confirmation: reference,
 clips, topic, destination, length, captions and music after the opening choice.
 The reference supplies the pacing default. The output folder defaults to a fresh
 `zing-workspace/studio[-N]`, claimed as the session starts, so a second terminal
@@ -52,9 +71,27 @@ interview style evidence remains unknown.
 Production studies, renders and downloads wait for plan confirmation. The plan
 lists steps, shapes, downloads and output folder. Runtime is unknown until
 measured on the machine; source duration is not an encoding-speed benchmark.
-Clips with speech need timed words from a local speech model. When clips have
-audio and that model is not downloaded, the plan says so before you confirm;
-studio never downloads models.
+Clips with speech need timed words from a local speech model. Paths a/b ask
+about speech before the plan when clips have audio:
+
+- `small.en` (~486 MB): recommended for a faster first English draft. Names,
+  accents and quiet speech can be less accurate; review spelling and timing.
+- `large-v2` (~3.09 GB): slower, multilingual, with better speech accuracy.
+  It remains the default for `zing study`.
+- `skip` (0 MB): spoken captions and whole-line continuity are unavailable.
+  Clips without validated words or measured silence may be excluded, so this
+  choice can finish with a shortage instead of drafts.
+
+Enter selects the recommendation, preferring your configured cached model.
+An uncached model then needs an explicit **yes** to download. Enter declines;
+`b` changes the choice and `q` saves. Confirming the plan is a separate step.
+The download runs after plan confirmation, reports byte progress, and verifies
+every file against a pinned revision and SHA-256. Files are stored under
+`ZING_HOME/models/speech`; partial or corrupt files are never accepted as a model.
+The finish screen and `studio-result.json` report the model, bytes downloaded,
+verification and cache path. Existing complete local model directories and Hugging
+Face snapshots remain usable offline; their native loading is not preflighted.
+See [doctor and setup](DOCTOR.md) for the same download outside Studio.
 
 ## A real photo session
 
@@ -177,9 +214,18 @@ Example `answers.json` for a reference match:
   "length": 15,
   "tone": "natural",
   "captions": "phone",
-  "music": "original"
+  "music": "original",
+  "speech_model": "small.en",
+  "speech_download": true
 }
 ```
+
+For audio clips, `--answers` and `--json` require an explicit `speech_model`.
+Use `speech_download: true` only after approving that model's download; it must
+be a JSON boolean. `--yes` confirms the plan and grants no download consent.
+For `speech_model: "skip"` or a cached model, omit `speech_download`. A supplied
+uncached model needs the same consent even when no clip has audio: Studio still
+uses it for the run's studies, such as the reference's speech.
 
 Paths in an answers file resolve from the working directory. Saved answers use
 absolute paths. Moving source media requires updating those answers. `aspects`
@@ -193,13 +239,18 @@ Other paths use these fields after `path`. The project defaults automatically;
 
 | Path | Answer fields |
 |---|---|
-| b | `clips`, `topic`, `platform`, `aspects`, `length`, `tone`, `captions`, `music` |
+| b | `clips`, `topic`, `platform`, `aspects`, `length`, `tone`, `captions`, `music`; with audio, `speech_model` and consent if uncached |
 | c | `photos`, `topic`, `platform`, `aspects` |
 | d | `source` (local video) |
 | e | `tracks` (array), `context` (composition plan JSON or `none`); with `none`, also `length` and boolean `speech` |
 | f | `source` (video, v1 EDL or v2 composition JSON), `platform`, `aspects` |
 
-`q`, EOF and Ctrl+C save the interview. Reference matches retain the existing
+A URL containing a username or password is refused with a credential-specific
+message. Download it yourself or remove the credentials.
+
+`q`, EOF and Ctrl+C save the interview. An orphaned MCP job updates both its job
+record and saved session to `interrupted` on status, cancel or resume, with a
+resume command. Cancellation reports "Studio run cancelled." Reference matches retain the existing
 hash-checked match checkpoints. Other interrupted operations retry into fresh
 attempt folders, leaving earlier artifacts available for diagnosis. A finished
 non-match session returns its saved result on resume after checking output hashes;
@@ -218,8 +269,9 @@ project for a new edit.
   can produce nine videos. Reports keep render completion separate from style
   fidelity. Failed drafts, missing words, shortages and soft upscales are named.
 - `phone` requests spoken captions in groups of up to four timed words, with
-  a 60px starting size and the renderer's default font. Safe placement may
-  shrink them; review the delivery at phone size. Missing or
+  the renderer's default font and a [picture-relative size floor](CAPTIONS.md).
+  Safe placement may shrink them only to that floor; otherwise shorten the
+  phrase or change framing. Review the delivery at phone size. Missing or
   invalid speech can block captions or planning. `none` disables new captions
   for studio edits. Neither choice erases text already baked into source media.
 - Re-delivering a plan rebuilds framing and caption placement from its sources.
@@ -239,7 +291,8 @@ project for a new edit.
   semantic image recognition or a prediction that a joke will land.
 
 URL references are recognized from the URL and need explicit
-`allow_download: true`; `--yes` cannot supply that consent. Models stay local.
+`allow_download: true`; `--yes` cannot supply that consent. Speech-model consent
+is separate; media studies remain offline after setup.
 Saved references appear only with a configured, reachable Uoink peer advertising
 the existing search contract. `reference_query` searches through `uoink_bridge`
 using `corpus.read/1` GET with `q` and `limit` only. A selected retained file is
@@ -256,12 +309,13 @@ Without a `project` answer, agent sessions default to `studio[-N]` inside the
 Zing workspace (`ZING_HOME`, else `~/.zing`), never the MCP server's working
 directory, which clients often set to a system folder.
 
-After confirmation, follow the plan's `execution` metadata. Paths a, c and e
-reuse `match_start` / `match_status`, `still_concepts` / `still_render`, and
-`music_check`. The optional `studio_options` argument to `match_start` carries
-studio's caption and supplied-music choices; omit it for the previous behavior.
-Paths b, d and f use `zing_studio_run(answers=..., confirmed=true)` because the
-existing job tools do not cover those orchestrations. Poll with
-`zing_studio_run(project=...)`; `cancel=true` stops an owned job. The runner uses
-the existing process-tree supervisor. Both studio tools return paths and
-metadata, never media bytes.
+After confirmation, follow the plan's `execution` metadata. Paths a, b, d and f
+use `zing_studio_run(answers=..., confirmed=true)`. `confirmed` must be a real JSON
+boolean: strings and numbers are refused. Model downloads also need the explicit
+`speech_model` answer and `speech_download: true`; plan confirmation alone never
+authorizes them. The worker delegates reference edits to the existing match API.
+Paths c/e reuse `still_concepts` / `still_render` and `music_check`.
+
+Poll with `zing_studio_run(project=...)`; `cancel=true` stops an owned job. The
+runner uses the existing process-tree supervisor. Both studio tools return paths
+and metadata, never media bytes.
