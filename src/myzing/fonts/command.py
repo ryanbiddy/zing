@@ -36,7 +36,7 @@ def run(argv: list[str]) -> int:
                 for track in result.tracks:
                     candidates = track["candidates"]
                     best = f"{candidates[0]['family']} ({candidates[0]['score']:.3f})" if candidates else "no usable comparison"
-                    print(f"  {track['track_id']}: {track['status']} — {best}")
+                    print(f"  {track['track_id']}: {track['status']} - {best}")
                 for warning in result.warnings:
                     print(f"  note: {warning}")
             return 0

@@ -36,7 +36,7 @@ def render_direction(direct: dict[str, Any], slug: str) -> str:
     Tolerant of missing keys (save_judgment validates required ones, but
     a hand-written or older judgment should still render something
     honest rather than crash)."""
-    lines: list[str] = [f"# Direction — {slug}", ""]
+    lines: list[str] = [f"# Direction - {slug}", ""]
 
     verdict = direct.get("verdict", "")
     if verdict:
@@ -47,9 +47,9 @@ def render_direction(direct: dict[str, Any], slug: str) -> str:
     if keepers:
         for k in keepers:
             span = f"{_fmt_time(k.get('start'))}–{_fmt_time(k.get('end'))}"
-            lines.append(f"- **Keep {span}** — {k.get('why', '')}")
+            lines.append(f"- **Keep {span}** - {k.get('why', '')}")
     else:
-        lines.append("- Nothing was marked keepable — see the gaps below.")
+        lines.append("- Nothing was marked keepable - see the gaps below.")
     lines.append("")
 
     gaps = sorted(
@@ -75,7 +75,7 @@ def render_direction(direct: dict[str, Any], slug: str) -> str:
             hint_txt = f" (~{_fmt_time(hint)})" if hint else ""
             lines.append(f"{sp.get('n', '?')}. {sp.get('instruction', '')}{hint_txt}")
     else:
-        lines.append("Nothing to film — the footage covers the target.")
+        lines.append("Nothing to film - the footage covers the target.")
     lines.append("")
 
     notes = direct.get("assembly_notes", "")

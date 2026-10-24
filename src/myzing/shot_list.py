@@ -175,7 +175,7 @@ def import_shot_list(path: str | Path, slug: str) -> dict[str, Any]:
         return _fail(
             "unsupported_version",
             f"writer.shot-list version {front.get('schema_version')} is not "
-            f"supported (this zing speaks version {DOCUMENT_VERSION}) — "
+            f"supported (this zing speaks version {DOCUMENT_VERSION}) - "
             "update zing",
         )
     if defect is not None:
@@ -185,7 +185,7 @@ def import_shot_list(path: str | Path, slug: str) -> dict[str, Any]:
     if not breakdown_json.is_file():
         return _fail(
             "target_not_found",
-            f"no studied breakdown for slug '{slug}' — study the video "
+            f"no studied breakdown for slug '{slug}' - study the video "
             "first (study_video), then import",
         )
 
@@ -201,7 +201,7 @@ def import_shot_list(path: str | Path, slug: str) -> dict[str, Any]:
                 return _fail(
                     "conflict",
                     "a different imported document already occupies this "
-                    "content address — rename nothing, report this as a bug",
+                    "content address - rename nothing, report this as a bug",
                 )
             # Same bytes, same target: idempotent by construction — the
             # receipt below is deterministic and the copy count stays 1.

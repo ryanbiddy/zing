@@ -119,7 +119,7 @@ def read_captions(media_path: Path, duration: float, *, local_models_only: bool 
         return result
     except Exception as e:
         result.warnings = [
-            f"caption OCR skipped: backend failed to start: {e} — the "
+            f"caption OCR skipped: backend failed to start: {e} - the "
             "package is present but unusable here; run 'zing doctor' for "
             "the environment check"
         ]
@@ -469,7 +469,7 @@ def _ocr(engine, frame) -> list[Line]:
     if txts and len(scores) != len(txts):
         raise OcrNoScores(
             f"{len(txts)} recognized line(s) but {len(scores)} confidence "
-            "score(s) — rapidocr result API drift"
+            "score(s) - rapidocr result API drift"
         )
     height = frame.shape[0] or 1
     width = frame.shape[1] or 1

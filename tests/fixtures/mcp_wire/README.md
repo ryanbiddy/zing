@@ -29,3 +29,13 @@ Its home, model cache and user roots are disposable, credentials are removed,
 and an invalid explicit Uoink URL prevents peer discovery.
 
 See [MCP-SDK2.md](../../../docs/MCP-SDK2.md) for replay and regeneration commands.
+
+## COPY1 copy changes
+
+`tests/fixtures/mcp_wire/copy1.json` pins the reviewed current server
+instructions, tool descriptions with ASCII punctuation, and the missing-breakdown
+error. Replay substitutes these exact expected fields in memory for both protocol
+eras. It does not strip instructions or normalize arbitrary strings; unexpected
+copy, schemas, envelopes and payloads still fail. The error is pinned in both
+text and structured content. A negative test checks that instructions and other
+initialization fields cannot drift. The SDK1 capture and its SHA-256 stay unchanged.

@@ -70,7 +70,8 @@ def test_studio_entry_point_and_mcp_counts():
         text = (ROOT / file).read_text(encoding="utf-8")
         counts = re.findall(r"\b(\d+) (?:MCP )?tools\b", text)
         assert counts and all(int(n) == len(tools) for n in counts), (file, counts)
-    assert _usage().startswith("Start here: zing studio")
+    assert _usage().splitlines()[0] == "Match your clips to a reference video and make memes from local images."
+    assert "Start here: zing studio" in _usage()
     assert (ROOT / "docs/STUDIO.md").is_file()
     presets = (ROOT / "docs/CAPTION-PRESETS.md").read_text(encoding="utf-8")
     assert all(name in presets for name in ("punch", "box", "clean"))
