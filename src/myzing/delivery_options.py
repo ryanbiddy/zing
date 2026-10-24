@@ -3,7 +3,7 @@
 
 def add_options(parser):
     parser.add_argument("--caption-options", help='JSON CaptionStyle overrides, e.g. {"highlight_box_color":"#FFD23F","highlight":"#0A0A0A"}')
-    parser.add_argument("--caption-mode", choices=["reference", "phone", "none"])
+    parser.add_argument("--caption-mode", choices=["reference", "phone", "punch", "box", "clean", "none"])
     parser.add_argument("--picture-crop", choices=["auto", "on", "off"], help="crop static broadcast chrome when confident; on requires a confident picture")
     budget = parser.add_mutually_exclusive_group()
     budget.add_argument("--target-mb", type=float, help="target file size in decimal MB, x264 two-pass")
@@ -21,7 +21,7 @@ def overrides(args):
     return values
 
 
-def apply_plan(plan, values):
+def apply_plan(plan, values, *, base_dir=None):
     from dataclasses import replace
     from myzing.brief.models import Brief
     from myzing.composition import CaptionStyle
@@ -36,6 +36,9 @@ def apply_plan(plan, values):
     plan.brief = replace(plan.brief or Brief(), **values)
     if "target_mb" in values or "video_bitrate_kbps" in values:
         plan.delivery = DeliveryEncoding(values.get("target_mb"), values.get("video_bitrate_kbps"))
+    if values.get("caption_mode") in ("phone", "reference"):
+        for caption in plan.captions:
+            caption.preset = None
     if values.get("caption_mode") == "none":
         plan.captions = []
         plan.accepted_unsafe_layouts = []
@@ -56,8 +59,14 @@ def apply_plan(plan, values):
             hold_short_events(groups, max(c.timeline_end for c in plan.clips))
         plan.captions = groups
         plan.accepted_unsafe_layouts = []
+    preset = values.get("caption_mode")
+    if preset not in ("punch", "box", "clean") and "caption_mode" not in values and values.get("caption_options"):
+        preset = next((c.preset for c in plan.captions if c.preset), None)
+    if preset in ("punch", "box", "clean"):
+        from myzing.captions.presets import apply_preset
+        apply_preset(plan, preset, base_dir=base_dir)
     for caption in plan.captions:
-        if values.get("caption_options"):
+        if values.get("caption_options") and not caption.preset:
             caption.style = CaptionStyle.from_dict({**(caption.style or CaptionStyle(60)).to_dict(), **values["caption_options"]})
             if caption.style.highlight_box_color and caption.words:
                 caption.word_timed = True

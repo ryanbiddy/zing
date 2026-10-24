@@ -95,8 +95,8 @@ class Brief:
     video_bitrate_kbps: float | None = field(default=None, metadata={"omit_default": True})
 
     def __post_init__(self):
-        if self.caption_mode not in ("reference", "phone", "none"):
-            raise BriefError("caption_mode: choose reference, phone, or none")
+        if self.caption_mode not in ("reference", "phone", "punch", "box", "clean", "none"):
+            raise BriefError("caption_mode: choose reference, phone, punch, box, clean, or none")
         if self.picture_crop not in ("auto", "off", "on"):
             raise BriefError("picture_crop: choose auto, on (require confident detection), or off")
         if not isinstance(self.caption_options, dict):

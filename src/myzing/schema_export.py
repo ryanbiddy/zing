@@ -38,7 +38,7 @@ def _constraints(cls: type, properties: dict) -> None:
         for key in ("width", "height"):
             properties[key]["minimum"] = 1
     if name == "Brief":
-        properties["caption_mode"]["enum"] = ["reference", "phone", "none"]
+        properties["caption_mode"]["enum"] = ["reference", "phone", "punch", "box", "clean", "none"]
         properties["picture_crop"]["enum"] = ["auto", "on", "off"]
         properties["framing"]["enum"] = ["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"]
         properties["aspects"]["items"] = {"enum": ["16:9", "1:1", "9:16"]}

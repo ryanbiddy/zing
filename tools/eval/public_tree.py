@@ -54,6 +54,8 @@ def allowed_assets(root: Path) -> set[str]:
         "tests/fixtures/vision/Cat-on-couch.jpg",
         "tests/fixtures/vision/Dog_IMG_1057.jpg",
         "tests/fixtures/vision/korky-1s.jpg",
+        "src/myzing/_data/fonts/ZingCaption-700.ttf",
+        "src/myzing/_data/fonts/ZingCaption-800.ttf",
     })
     return allowed
 

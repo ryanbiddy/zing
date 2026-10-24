@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "source_sha256": "29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031",
+  "source_url": "https://raw.githubusercontent.com/google/fonts/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf",
+  "license_sha256": "5b9321a4298cfeb6b34354164a1c3afc3db114569984c502b9b35d988fd58c57",
+  "faces": {
+    "700": {
+      "file": "ZingCaption-700.ttf",
+      "sha256": "c20b6166a04dffc7002f92cf49442f2ac8032aee4744b35ba9261ffab83e5fb7",
+      "weight": 700
+    },
+    "800": {
+      "file": "ZingCaption-800.ttf",
+      "sha256": "04ff3820f0f39f83e27d5fba6323d788d7168f5be61ef48406baf43828d8aa8b",
+      "weight": 800
+    }
+  }
+}

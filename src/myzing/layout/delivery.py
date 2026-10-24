@@ -48,6 +48,10 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
                                           policy=plan.brief.picture_crop if plan.brief else "auto")
             clips.append(part)
     plan.clips = clips
+    preset = next((c.preset for c in plan.captions if c.preset), None)
+    if preset:
+        from myzing.captions.presets import apply_preset
+        apply_preset(plan, preset, vad=False)
     place_captions(plan, subjects, source_dimensions)
     plan.warnings.append(f"Delivery {aspect_for(width, height)}: source framing and caption layout replanned; "
                          "generic UI reserves are conservative defaults, not a platform guarantee.")

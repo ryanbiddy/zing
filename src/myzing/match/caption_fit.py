@@ -66,6 +66,8 @@ def fit_captions(plan, folder):
         root = Path(temporary)
         (root / "fonts").mkdir()
         for caption in plan.captions:
+            if caption.preset:
+                continue
             font, em = "Arial", 1.
             if caption.font:
                 source = Path(caption.font.path)

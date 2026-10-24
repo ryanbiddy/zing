@@ -20,7 +20,7 @@ from myzing.timing import prepare_words, transform_word
 from myzing.style_ranges import timing_band, timing_distance
 
 from .models import shortage
-from .selection import EPS, first_caption, reference_band, shot_lengths, tokens
+from .selection import ALTERNATIVE, EPS, band_distance, first_caption, reference_band, shot_lengths, tokens
 from .continuity import clauses, score
 
 REPORT_PREFIX = "P17 planning evidence: "
@@ -103,7 +103,7 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         from myzing.layout.readability import phone_word_groups
         groups = [(part, offset) for window, offset in groups for part in phone_word_groups(window)]
     result = []
-    caps_count = round(style.all_caps_rate * len(groups))
+    caps_count = 0 if getattr(brief, "caption_mode", "reference") in ("punch", "box", "clean") else round(style.all_caps_rate * len(groups))
     layout = recipe.approximations.layout
     for i, (words, offset) in enumerate(groups):
         all_caps = (round((i + 1) * caps_count / len(groups)) > round(i * caps_count / len(groups)))
@@ -189,8 +189,8 @@ def audio_for(brief, manifest, root, duration, first_cut, *, include_music=True)
 def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manifest, root, seed, required, forbidden,
               subject_evidence=None, music_cache=None, timing_selection=None, caption_mode=None, picture_evidence=None):
     caption_mode = caption_mode or brief.caption_mode
-    if caption_mode == "phone":
-        brief = replace(brief, caption_mode="phone")
+    if caption_mode in ("phone", "punch", "box", "clean"):
+        brief = replace(brief, caption_mode=caption_mode)
     from myzing.music.planning import plan_music
     from myzing.audio.media import AudioError
     try:
@@ -201,7 +201,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     except AudioError as exc:
         shortage("music_analysis", str(exc), "Check the local track and zing doctor; install myzing[audio] for music analysis.")
     lookup = {s.asset_id: s for s in studies}
-    if caption_mode == "phone":
+    if caption_mode in ("phone", "punch", "box", "clean"):
         font, font_report = None, {"family": "Arial", "status": "studio preference",
                                   "reason": "Phone captions use the renderer's default Arial bold with system fallback; original font unknown."}
     else:
@@ -311,6 +311,15 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             mark_auto_declined(resolution, lowered[2])
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
+    if caption_mode in ("punch", "box", "clean"):
+        from myzing.captions.presets import apply_preset
+        # Clip paths are project-relative: resolve them so the VAD clamp runs.
+        apply_preset(plan, caption_mode, base_dir=root)
+        captions = plan.captions
+        font_report = {"family": "Zing Caption (Inter)", "status": "explicit preset", "original_font": "unknown",
+                       "reason": f"The {caption_mode} preset uses a pinned Inter derivative; the original font is unknown."}
+        if not source_dimensions:
+            place_captions(plan, {}, {})
     if source_dimensions:
         place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions,
                        keep_safe_defaults=True)
@@ -370,6 +379,25 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         notes.append("Continuity not applicable: this draft selects no transcribed speech.")
     if numbers["median_shot_seconds"]["status"] == "deviation":
         notes.append("Pacing unmet: the selected complete-clause draft misses the reference envelope, including internal source cuts. The bounded search did not select a matching alternative.")
+    relaxed = next(iter(timing_selection.values()))["search"].get("distinctness_relaxed") if timing_selection else None
+    alternative = None
+    if relaxed and label in relaxed["alternatives"]:
+        # Name the final, rendered timing values; never present this as a pass.
+        outside = [f"{name.replace('_seconds', '').replace('_', ' ')} "
+                   + ("missing" if item["planned"] is None else f"{item['planned']:.3f} s")
+                   + f" is outside the {item['band']['lower']:.3f}-{item['band']['upper']:.3f} s reference band"
+                   for name, item in (("first_cut_seconds", numbers["first_cut_seconds"]),
+                                      ("median_shot_seconds", numbers["median_shot_seconds"]))
+                   if item.get("band", {}).get("lower") is not None
+                   and band_distance(item["planned"], item["band"]) > EPS]
+        count = relaxed["distinct_in_band_edits"]
+        why = "; ".join(outside or ["selected after every in-band edit was used"])
+        alternative = {"outside_reference_timing": True, "label": ALTERNATIVE,
+                       "reason": f"{why}; only {count} distinct completed edit{'s' if count != 1 else ''} "
+                                 "fit both timing bands"}
+        notes.insert(0, f"{label}: {ALTERNATIVE}: {alternative['reason']}.")
+    if relaxed and (label in relaxed["alternatives"] or any(label in pair for pair in relaxed["similar_pairs"])):
+        notes.append(relaxed["reason"])
     if font is None:
         notes.append(font_report["reason"])
     for key in used:
@@ -414,6 +442,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                         "repeated_source_ranges": False},
         "scope": "Planned values and structural continuity rules only. No semantic quality certification or original-style recovery.",
         "reference_match": brief.reference_match, "warnings": list(dict.fromkeys(notes)),
+        **({"alternative": alternative} if alternative else {}),
     }
     return plan, report
 

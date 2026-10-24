@@ -331,20 +331,24 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--platform", default="", help="tiktok|youtube|instagram|x")
     parser.add_argument("--list", action="store_true", help="list preset packs")
     parser.add_argument("--speech-model", choices=["small.en", "large-v2", "skip"], help="set up speech without starting a taste study")
-    parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected speech model download")
+    parser.add_argument("--audio-model", choices=["ced-mini"], help="set up optional learned audio tags (myzing[audio-ml])")
+    parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected model download")
     args = parser.parse_args(argv)
     from myzing.study import speech_models
     speech_models.print_inventory()
-    if args.yes and not args.speech_model:
-        print("--yes requires --speech-model")
+    if args.yes and not (args.speech_model or args.audio_model):
+        print("--yes requires --speech-model or --audio-model")
         return 2
-    if args.speech_model:
+    if args.speech_model or args.audio_model:
+        from myzing.audio import tag_models
         try:
-            receipt = speech_models.setup(args.speech_model, yes=args.yes)
+            if args.speech_model:
+                print(json.dumps(speech_models.setup(args.speech_model, yes=args.yes), indent=2))
+            if args.audio_model:
+                print(json.dumps(tag_models.setup(args.audio_model, yes=args.yes), indent=2))
         except (ValueError, OSError, RuntimeError) as exc:
             print(str(exc))
             return 2
-        print(json.dumps(receipt, indent=2))
         return 0
 
     if args.list or (not args.pack and not args.links):

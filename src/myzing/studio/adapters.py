@@ -13,8 +13,8 @@ def validate_options(value):
     if "speech_model" in value:
         from .flow import normalize
         normalize("speech_model", value["speech_model"])
-    if "captions" in value and value["captions"] not in {"none", "phone"}:
-        raise ValueError("studio_options.captions: choose none or phone")
+    if "captions" in value and value["captions"] not in {"none", "phone", "punch", "box", "clean"}:
+        raise ValueError("studio_options.captions: choose none, phone, punch, box or clean")
     if "no_reference" in value and type(value["no_reference"]) is not bool:
         raise ValueError("studio_options.no_reference must be boolean")
     if value.get("no_reference") and value.get("tone") not in {"natural", "calm", "energetic"}:
@@ -140,7 +140,7 @@ def deliver(source, output, aspects, *, delivery_options=None):
     plan = load_edit(source)
     if delivery_options:
         from myzing.delivery_options import apply_plan
-        apply_plan(plan, delivery_options)
+        apply_plan(plan, delivery_options, base_dir=Path(source).parent)
     fallback = None
     try:
         result = render_deliveries(plan, output, aspects=aspects,

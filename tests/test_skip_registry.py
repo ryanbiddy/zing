@@ -34,6 +34,10 @@ REGISTERED_SKIPS = {
         "models, layout fetch-model --vision provisions them explicitly, and docs/VIS1.md documents "
         "offline fixtures and the opt-in. Missing models retain labeled HOG/saliency fallbacks."
     ),
+    "FFmpeg not installed": (
+        "generated source-map media requires the encoder. PRODUCT SURFACE: zing doctor "
+        "reports FFmpeg availability; the strict FFmpeg gate forbids this skip."
+    ),
     "real-model test requires explicit opt-in": (
         "normal pytest never loads real Whisper, OCR, YuNet or Kokoro models without an explicit test opt-in. "
         "PRODUCT SURFACE: docs/DEVELOPER-GUIDE.md lists each environment variable; the real-ASR fixture "

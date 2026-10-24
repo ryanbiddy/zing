@@ -831,6 +831,26 @@ def check_audio() -> Check:
     )
 
 
+def check_audio_ml() -> Check:
+    from .audio.tag_models import model_paths, runtime_supported, runtime_version, INSTALL_HINT, FETCH_HINT, REVISION
+    present = _has_module("sherpa_onnx")
+    version = runtime_version() if present else None
+    supported = present and runtime_supported(version)
+    try:
+        paths = model_paths()
+        valid, detail = True, "CED weights verified"
+    except (OSError, RuntimeError) as exc:
+        paths, valid, detail = {}, False, str(exc)
+    runtime = (f"sherpa-onnx {version} installed; " if supported else
+               f"sherpa-onnx {version or 'of unknown version'} predates 2.0 (1.x links GPL espeak-ng); " if present else
+               "sherpa-onnx absent; ")
+    return Check("audio-ml", OPTIONAL, supported and valid, runtime + detail,
+                 fix="" if supported and valid else f"{INSTALL_HINT}; {FETCH_HINT}",
+                 degraded_mode="" if supported and valid else "vocal/music heuristics remain active; learned tags unavailable",
+                 data={"paths": {k: str(v) for k, v in paths.items()}, "revision": REVISION, "runtime_version": version,
+                       "model_verified": valid, "network_used": False, "runtime_probe": "package-metadata-only"})
+
+
 def run_checks(today: date | None = None) -> list[Check]:
     return [
         check_ffmpeg(),
@@ -848,6 +868,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_color(),
         check_hyperframes(),
         check_audio(),
+        check_audio_ml(),
         check_uoink(),
     ]
 
@@ -957,7 +978,7 @@ def _print_human(checks: list[Check]) -> None:
             print("\n" + step)
 
 
-_USAGE = "usage: zing doctor [--json] [--speech-model small.en|large-v2|skip] [--yes]"
+_USAGE = "usage: zing doctor [--json] [--speech-model small.en|large-v2|skip] [--audio-model ced-mini] [--yes]"
 
 
 def run(argv: list[str]) -> int:
@@ -966,9 +987,10 @@ def run(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="zing doctor", description=__doc__)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--speech-model", choices=["small.en", "large-v2", "skip"])
-    parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected speech model download")
+    parser.add_argument("--audio-model", choices=["ced-mini"], help="set up optional learned audio tags (myzing[audio-ml])")
+    parser.add_argument("--yes", action="store_true", help="explicitly consent to the selected model download")
     unknown = [a for a in argv if a.startswith("--") and a not in {"--json", "--yes", "--help"}
-               and a.split("=", 1)[0] != "--speech-model"]  # --speech-model=small.en is the same option
+               and a.split("=", 1)[0] not in {"--speech-model", "--audio-model"}]  # --speech-model=small.en is the same option
     if unknown:
         print("unrecognized arguments: " + " ".join(unknown), file=sys.stderr)
         return 2
@@ -976,13 +998,17 @@ def run(argv: list[str]) -> int:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         return int(exc.code)
-    if args.yes and not args.speech_model:
-        print("--yes requires --speech-model", file=sys.stderr)
+    if args.yes and not (args.speech_model or args.audio_model):
+        print("--yes requires --speech-model or --audio-model", file=sys.stderr)
         return 2
-    receipt = None
-    if args.speech_model:
+    receipt = audio_receipt = None
+    if args.speech_model or args.audio_model:
+        from .audio import tag_models
         try:
-            receipt = speech_models.setup(args.speech_model, yes=args.yes, json_mode=args.json)
+            if args.speech_model:
+                receipt = speech_models.setup(args.speech_model, yes=args.yes, json_mode=args.json)
+            if args.audio_model:
+                audio_receipt = tag_models.setup(args.audio_model, yes=args.yes, json_mode=args.json)
         except (ValueError, OSError, RuntimeError) as exc:
             if args.json:
                 print(json.dumps({"ok": False, "error": str(exc)}))
@@ -993,11 +1019,14 @@ def run(argv: list[str]) -> int:
     summary = summarize(checks)
     if receipt:
         summary["speech_setup"] = receipt
+    if audio_receipt:
+        summary["audio_setup"] = audio_receipt
     if args.json:
         print(json.dumps(summary, indent=2))
     else:
         _print_human(checks)
         speech_models.print_inventory()
-        if receipt:
-            print(json.dumps(receipt, indent=2))
+        for item in (receipt, audio_receipt):
+            if item:
+                print(json.dumps(item, indent=2))
     return 0 if summary["ok"] else 1
