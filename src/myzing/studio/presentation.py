@@ -100,7 +100,7 @@ def creator_summary(result, answers, facts):
     elif counts:
         notes.append("Your clips include " + ", ".join(f"{n} at {w}x{h}" for (w, h), n in counts.items()) + "; HD versions can look soft.")
     warnings = result.get("warnings", [])
-    notes.extend(w for w in warnings if w.startswith("Skipped ") and "still image" in w)
+    still_notices = list(dict.fromkeys(w for w in warnings if w.startswith("Skipped ") and "still image" in w))
     length = detail.get("target_length", {})
     if length.get("mode") == "usable":
         notes.append(f"Default edit length: {length['target_seconds']:.3f}s of usable footage after trimming.")
@@ -132,6 +132,10 @@ def creator_summary(result, answers, facts):
                      if rows else "Studio stopped before any draft was made. The full result has the failure details.")
     if "stills" in detail:
         notes.append("Readability scores help with layout; you still need to judge the joke.")
+    # Reserve one of the five notes even when failures and several shortages
+    # take priority over resolution and delivery caveats.
+    if still_notices:
+        notes = list(dict.fromkeys(notes))[:4] + [" ".join(still_notices)]
     if not notes and any(r["rendered"] for r in rows):
         # Finished edits carry dozens of measurement disclaimers (color tags,
         # sampling limits); count them instead of listing engine jargon.

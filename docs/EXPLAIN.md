@@ -59,6 +59,38 @@ Use `--ref-start 0:30 --ref-end 1:20` or `--reference-range 0:30-1:20` to select
 another interval. OCR samples and font comparisons have the limits documented
 in [Caption geometry](CAPTION-GEOMETRY.md).
 
+- Hook and loop gives each value a `method`, `basis`, `status` and unit in
+  `sections.hook.facts`. First word, cut and caption reuse the profile helpers:
+  earliest stored word start, second shot start and earliest caption-event
+  start. No words or captions means unknown, never zero; no detected cut also
+  has unknown first-cut timing. Caption onset is sampled OCR evidence and may
+  include text whose speech-caption role is uncertain.
+  Opening cuts per 10 seconds uses `[0, min(3 seconds, 10% of duration))`;
+  the rest starts at that boundary. Each rate is `cut count * 10 / seconds`.
+  A completed shot check with no cuts gives zero rates. An unavailable check
+  gives unknown rates, and detector disagreements are disclosed.
+- Loop seam compares the actual first and last decoded frames, only for studied
+  clips shorter than 60 seconds. Both visual checks reuse the study's mean
+  absolute frame-distance function on 32 x 32 RGB frames scaled with area
+  averaging. Similarity is `1 - mean absolute RGB difference / 255`;
+  **only a score strictly above 0.98** earns "loops cleanly by this pixel
+  check." This is a visual endpoint check; motion and audio are untested.
+- Flash-forward cold open searches sampled opening frames before
+  `min(3 seconds, midpoint)` against frames strictly after the midpoint.
+  Samples are about 0.5 seconds apart, with the last frame included. The same
+  similarity threshold yields a candidate and its opening/later timestamps;
+  otherwise the card reports no sampled match. The closest later frame and
+  score remain in JSON. Similar backgrounds can match unrelated moments;
+  a candidate does not prove narrative intent, and sparse sampling can miss
+  repeats. Times use the study's CFR frame timeline. Visual decoding is bounded
+  to 60 seconds and 7,201 small frames (about 22 MB); incomplete decoding or
+  reaching the cap produces unknowns.
+- Payoff spacing uses existing `breakdown.judgment.beats` with `label: payoff`,
+  valid nonoverlapping spans and an evidence string. It reports the median and
+  min/max of consecutive start-to-start gaps as `status: judgment`, not measured
+  payoff detection. Fewer than two annotations means unknown. Explain does not
+  invent payoff labels or treat musical beats as story payoffs. Fresh studies
+  normally have no stored story judgments.
 - Pacing uses detected shot boundaries. It gives a shot-length distribution,
   cut rates in ten-second windows (a final window under two seconds joins the
   previous one), and nearest supported beats/drops. A zero-length timeline has
@@ -100,6 +132,15 @@ The PNG is 800 pixels wide, with text at least 13 pixels high when displayed at
 padded with bars), what a viewer notices, a shot strip, caption/title boxes,
 swatches, a mix-level strip and the get-this-look commands. It is a summary: the Markdown and JSON retain
 details that cannot fit legibly on the page.
+Hook and loop follows Cuts and pacing, with at most four plain lines in the
+terminal and PNG. For example: "Possible flash-forward: the opening image returns
+at 6.0s (pixel match only)." Missing word timings stay unknown; "No speech" requires
+evidence that the file has no audio track. Markdown keeps a "How these were
+measured" list with each metric's method, basis and status, including the visual
+threshold. JSON retains every fact and also returns the plain lines under `hook`. All hook
+timings describe the studied interval; a selected excerpt's loop seam says
+nothing about the full source's endpoints. `--against` retains each video's
+hook measurements but does not assign a hook comparison verdict.
 
 ## Compare a draft
 

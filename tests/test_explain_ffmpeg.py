@@ -22,6 +22,11 @@ def test_explain_generated_transition(tmp_path, monkeypatch, kind):
     result = explain_video(path, tmp_path / "card")
     assert result["ok"], result
     card = json.loads(Path(result["card_json"]).read_text(encoding="utf-8"))
+    hook = card["sections"]["hook"]
+    assert hook["facts"]["loop_seam"]["status"] == "measured"
+    assert hook["facts"]["time_to_first_word"]["value"] is None
+    assert "Hook and loop" in Path(result["card_md"]).read_text(encoding="utf-8")
+    assert result["hook"] == hook["lines"]
     events = card["sections"]["transitions"]["facts"]["events"]
     match = next(e for e in events if e["signature"] == kind)
     truth = case.truth_events()[0]

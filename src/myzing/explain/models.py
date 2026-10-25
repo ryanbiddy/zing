@@ -51,6 +51,27 @@ class Section(Record):
 
 
 @dataclass
+class HookMetric(Record):
+    """A hook observation always travels with its method and evidence basis."""
+
+    method: str
+    basis: str
+    value: object = None
+    status: str = "unknown"
+    unit: str = ""
+    version: int = 1
+
+    def __post_init__(self):
+        super().__post_init__()
+        if not self.method or not self.basis:
+            raise ValueError("Hook metrics need a method and basis")
+        if self.status not in {"measured", "judgment", "unknown", "not_applicable"}:
+            raise ValueError("Unsupported hook metric status")
+        if (self.value is None) != (self.status in {"unknown", "not_applicable"}):
+            raise ValueError("Unknown hook metrics must have no value; observations need a value")
+
+
+@dataclass
 class StyleCard(Record):
     source: str
     source_sha256: str
