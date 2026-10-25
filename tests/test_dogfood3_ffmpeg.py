@@ -9,6 +9,62 @@ import pytest
 pytestmark = pytest.mark.ffmpeg
 
 
+@pytest.mark.parametrize("preset", ["box", "punch"])
+@pytest.mark.parametrize("detached_comma", [False, True])
+def test_joined_number_highlights_whole_display_unit_on_every_piece(tmp_path, preset, detached_comma):
+    import subprocess
+    np = pytest.importorskip("numpy")
+    from test_caption2 import plan
+    from myzing.schemas import Word
+    from myzing.captions.presets import apply_preset
+    from myzing.captions.render import geometry
+    from myzing.layout.framing import place_captions
+    from myzing.render.font_files import private_font
+    from myzing.render.positioned_captions import generate_positioned_ass
+    p = plan("WANTED $5,000.", 1920, 1080)
+    p.clips[0].src_out = p.assets[0].duration = 2.3
+    c = p.captions[0]
+    c.start, c.end = .2, 2.1
+    pieces = ([Word("$5", .8, .95), Word(",", .95, 1.), Word("000.", 1.9, 2.1)] if detached_comma
+              else [Word("$5", .8, 1.), Word(",000.", 1.9, 2.1)])
+    c.words = [Word("WANTED", .2, .7), *pieces]
+    apply_preset(p, preset, vad=False)
+    place_captions(p, {}, {})
+    assert len(p.captions) == 1 and p.captions[0].text == "WANTED $5,000."
+    c = p.captions[0]
+    slots = geometry(c, p.width, p.height)["slots"]
+    fonts = {c.id: private_font(Path(c.font.path).read_bytes())}
+    generate_positioned_ass(p, fonts, tmp_path, "ffmpeg", "ass")
+    # White reference, first piece, 0.9-second pause, and final piece.
+    # Return only four frames (25 MB) instead of buffering the whole render.
+    run = subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
+        "color=black:s=1920x1080:r=30:d=2.2", "-vf",
+        r"ass=filename=captions.ass:fontsdir=fonts,select=eq(n\,18)+eq(n\,24)+eq(n\,42)+eq(n\,60)",
+        "-vsync", "0", "-threads", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1"],
+        cwd=tmp_path, capture_output=True, timeout=60)
+    assert run.returncode == 0, run.stderr.decode(errors="replace")
+    frames = np.frombuffer(run.stdout, dtype=np.uint8).reshape(4, 1080, 1920, 3)
+    for slot in slots[1:]:
+        x0,x1 = int(slot["x"]), int(np.ceil(slot["x"]+slot["width"]))
+        ys,xs = np.nonzero(frames[0][:,x0:x1].min(axis=2) > 220)
+        assert len(xs) > 5
+        for active in frames[1:]:
+            # Chroma subsampling softens tiny punctuation; compare hue as
+            # well as brightness so pale yellow counts but white cannot.
+            rgb = active.astype(np.int16)
+            yellow = (rgb[:,:,0] > 180) & (rgb[:,:,1] > 130) & (rgb[:,:,0]-rgb[:,:,2] > 60) & (rgb[:,:,1]-rgb[:,:,2] > 40)
+            if preset == "punch":
+                assert yellow[ys,xs+x0].mean() > .95, slot["text"]
+            else:
+                assert (active[ys,xs+x0].max(axis=1) < 100).mean() > .95, slot["text"]
+                for y in np.unique(ys):
+                    span, ink = np.flatnonzero(yellow[y]), xs[ys==y]+x0
+                    assert len(span) and span.min() <= ink.min() and span.max() >= ink.max(), slot["text"]
+    # Selecting a numeric unit must not select the previous ordinary word.
+    first = slots[0]
+    assert (frames[1][:,int(first["x"]):int(first["x"]+first["width"])].min(axis=2) > 220).sum() > 100
+
+
 def test_landscape_active_plate_covers_were_during_first_80ms(tmp_path):
     import subprocess
     np = pytest.importorskip('numpy')

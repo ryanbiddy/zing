@@ -71,8 +71,10 @@ VAD is a no-op for those words, including words AUD1 left unchanged. Unavailable
 or stale study evidence does not suppress the caption check. This is a silence
 clamp, not forced alignment or a claim of word-level accuracy.
 Highlights hold through gaps under 250 ms and through the final cue hold.
-Joined numeric tokens also hold their plate across longer gaps: `$3` followed
-by `,000,` keeps the number highlighted during the pause.
+Joined numeric tokens form one display unit: `$5` followed by `,000.` highlights
+the whole `$5,000.` while either piece is active and across the pause between
+them. Box covers the complete unit, including currency glyphs above cap height;
+Punch colors every piece together. Original word timings remain available.
 
 Each shot gets one rail centered in the usable safe area, checked against swept supplied face
 tracks and existing UI reserves. The whole shot may shrink in 5% steps down to
@@ -108,7 +110,7 @@ sheet, saved composition, ASS, and per-event metrics. The same packet is rendere
 with FFmpeg 6.1.1 under `caption2/6.1.1-verified`. `tests/test_caption2_ffmpeg.py` checks
 glyph boxes across settled word states on all three aspect ratios, including
 missing font paths and libass fallback glyphs. Punch's deliberate
-entry scale and Box's plate motion are excluded from the fixed-glyph comparison.
+entry scale and Box's entry fade are excluded from the fixed-glyph comparison.
 
 ## Fonts and attribution
 

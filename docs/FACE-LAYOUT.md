@@ -195,10 +195,20 @@ as additional stage speakers. One edge keyframe cannot remove an otherwise
 in-stage track. The plan records retained-area shares and the 50% threshold.
 If the only confident full-shot face is in the secondary tile, the large-stage
 crop is rejected and normal full-source framing considers that face.
-A confident face present for the whole shot can drive portrait framing when
-other faces are transient (under half the shot), small (at most 25% of its
-area), and below 0.8 confidence. Persistent, substantial or confident peers
-remain constraints. The plan discloses incidental tracks and persistent peers.
+A confident face present for the whole shot can drive portrait framing while
+smaller background faces are disclosed as bystanders. A second face remains a
+plausible participant when its median area is at least 12% of the primary's,
+or its height is at least half the primary's and their vertical centers are
+within half the larger face's height. These measurements use raw observations
+inside the shot when available; padded tracking boxes still govern crop safety.
+Without raw observations, the plan discloses the tracked-box fallback.
+Plausible participants present for at least half the shot constrain framing,
+including a peer at 19.9% area and 0.70 confidence. Transient plausible faces
+remain constraints unless they are at most 25% of the primary's area and below
+0.8 confidence. The plan lists bystanders, persistent peers, ratios and thresholds.
+Vertical position and scale estimate a shared depth band; this is not identity
+recognition or physical depth measurement. Speaking and mouth activity are
+unavailable in these tracks and are explicitly marked unavailable.
 Portrait stage focus targets 70% sharp-picture
 height, subject to the existing upscale and coverage limits; this measures the
 sharp picture, not the face's own pixel height.
@@ -212,7 +222,7 @@ the stage pixels; cropping does not reconstruct the picture behind it.
 ```powershell
 uv run --frozen pytest -q tests/test_layout.py tests/test_layout_detector.py tests/test_layout_command.py
 $env:ZING_REQUIRE_FFMPEG = '1'
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 440
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 444
 
 # Explicit, optional fixture and model provisioning:
 uv run --frozen zing layout fetch-model

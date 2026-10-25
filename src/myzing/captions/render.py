@@ -60,9 +60,10 @@ def geometry(caption, width, height):
             placed[k] = x
             x += advances[k]+left[k]+right[k]
         for k, (text, _, index) in enumerate(line):
+            top = font.ink_top(text, size)
             slots.append({"index":index,"text":text,"x":placed[k]+left[k],"baseline":y,"width":advances[k],
-                          "plate_x":placed[k],"plate_y":y-font.cap*size/font.units-size*.08,
-                          "plate_width":advances[k]+left[k]+right[k],"plate_height":(font.cap-font.descent)*size/font.units+size*.16})
+                          "plate_x":placed[k],"plate_y":y-top-size*.08,
+                          "plate_width":advances[k]+left[k]+right[k],"plate_height":top-font.descent*size/font.units+size*.16})
     slots.sort(key=lambda slot: slot["index"])
     return {"version":1,"anchor_x":box.center[0]*width,"baseline":baseline,
             "font_ascent":font.ass_ascent*size/font.units,"size":size,"slots":slots,
@@ -81,6 +82,12 @@ def compile_caption(caption, composition, font, data, frame_limit):
     geo = geometry(caption,composition.width,composition.height)
     first,last,words,_ = caption_frame_timing(caption,composition.fps,frame_limit)
     _, numeric = display_boundaries([word.text for word in caption.words])
+    units = []
+    for index in range(len(caption.words)):
+        if index not in numeric:
+            units.append([])
+        units[-1].append(index)
+    unit_for = {index: unit for unit in units for index in unit}
     # A scheduled 125/30 s start can arrive as 4.166666666666667. Treat
     # numerical dust at a frame boundary as that boundary, not the next frame.
     # Otherwise a 5/6 s Clean cue ending at a cut loses one of its 25 frames.
@@ -115,11 +122,12 @@ def compile_caption(caption, composition, font, data, frame_limit):
             if next_start-word_end >= .25 and a >= words[active][1] and active+1 not in numeric:
                 active = None
         pop = _pop(now-float(frame_time(first,composition.fps))) if caption.preset == "punch" else 1.
+        active_unit = unit_for.get(active, [])
         ink_layers = []
         for slot in geo["slots"]:
             x = geo["anchor_x"] + (slot["x"]-geo["anchor_x"])*pop
             y = geo["baseline"] + (slot["baseline"]-geo["baseline"]-geo["font_ascent"])*pop
-            color = style.color if caption.preset == "box" else style.highlight if active == slot["index"] else style.color
+            color = style.color if caption.preset == "box" else style.highlight if slot["index"] in active_unit else style.color
             tags = (rf"\an7\q2\fn{font}\b100\fs{_n(geo['size']*ass_em_scale(data)*pop)}"
                     rf"\bord{_n(style.outline_width*geo['scale']*pop)}\shad0"
                     rf"\1c{_color(color)}\3c{_color(style.outline_color)}\pos({_n(x)},{_n(y)})")
@@ -130,11 +138,12 @@ def compile_caption(caption, composition, font, data, frame_limit):
             lines.append(_dialogue(start,end,"{"+tags+"}"+escape_ass(slot["text"]),layer=1))
             ink_layers.append((tags, slot["text"]))
         if caption.preset == "box" and active is not None:
-            slot = geo["slots"][active]
-            rect = [slot[k] for k in ("plate_x","plate_y","plate_width","plate_height")]
-            # The active glyphs must be covered from their first frame. A
-            # glide from the previous slot leaves the new word unhighlighted.
-            x,y,w,h = rect
+            # Timed numeric fragments form one visible unit. Cover all its
+            # slots from the first fragment through the last, including gaps.
+            slots = [slot for slot in geo["slots"] if slot["index"] in active_unit]
+            x, y = min(s["plate_x"] for s in slots), min(s["plate_y"] for s in slots)
+            w = max(s["plate_x"]+s["plate_width"] for s in slots)-x
+            h = max(s["plate_y"]+s["plate_height"] for s in slots)-y
             alpha = round(255*(1-style.highlight_box_opacity*min(1,max(0,(now-caption.start)/.1))))
             plate = ("{"+rf"\an7\bord0\shad0\1c{_color(style.highlight_box_color)}\1a&H{alpha:02X}&\p1\pos({_n(x)},{_n(y)})"+"}"
                      + _rounded_rectangle(w,h,style.highlight_box_radius*geo["scale"]))

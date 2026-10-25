@@ -32,6 +32,43 @@ def test_persistent_unequal_second_speaker_is_not_incidental():
     assert result.assessments[-1].subject_coverage >= .98
 
 
+@pytest.mark.parametrize("raw_observations", [False, True])
+def test_persistent_background_faces_do_not_widen_main_speaker(raw_observations):
+    from math import sqrt
+    from myzing.layout.types import TrackObservation
+    main_box = Box(.36, .22, .19, .38)
+    boxes = [main_box, *(Box(x, .43, .19*sqrt(ratio), .38*sqrt(ratio))
+                        for x,ratio in zip((.05, .66, .22), (.03, .05, .08)))]
+    tracks = []
+    for i,box in enumerate(boxes):
+        t = track("face-main" if i == 0 else f"face-bystander-{i}",
+                  box.pad(.04) if raw_observations else box, .95)
+        if raw_observations:
+            t.observations.extend(TrackObservation(k.time, box, detector="yunet") for k in t.keyframes)
+        tracks.append(t)
+    result = frame(tracks)
+    selection = result.picture["subject_selection"]
+    assert selection["focused"]
+    assert selection["bystander_tracks"] == [t.id for t in tracks[1:]]
+    assert selection["persistent_stage_faces"] == []
+    for t,ratio in zip(tracks[1:], (.03, .05, .08)):
+        assert selection["participant_evidence"][t.id]["face_area_ratio"] == pytest.approx(ratio)
+        assert t.id in selection["incidental_tracks"]
+    assert .50 <= result.assessments[-1].sharp_height_share <= .70
+
+
+def test_small_persistent_face_in_similar_depth_band_remains_a_participant():
+    main = track("face-main", Box(.36, .22, .19, .38))
+    # A narrow/partly occluded face can have little area but comparable height.
+    peer = track("face-peer", Box(.05, .25, .024, .30), .70)
+    result = frame([main, peer])
+    selection = result.picture["subject_selection"]
+    evidence = selection["participant_evidence"][peer.id]
+    assert evidence["face_area_ratio"] < .12 and evidence["similar_depth_band"]
+    assert not selection["focused"] and peer.id in selection["persistent_stage_faces"]
+    assert peer.id not in selection["bystander_tracks"]
+
+
 def test_one_edge_keyframe_does_not_drop_a_stage_speaker():
     main = track("face-main", Box(.36, .22, .19, .38))
     inside, edge = Box(.65, .25, .10, .20), Box(.73, .25, .10, .20)

@@ -251,7 +251,7 @@ def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, pi
     details = {"outside_stage_tracks": excluded, "stage_inside_area_share": shares,
                "minimum_stage_inside_area_share": .5}
     if picture.get("kind") == "broadcast-composite":
-        projected, focus = _stage_subjects(clip, projected)
+        projected, focus = _stage_subjects(clip, projected, measurements={t.id: t for t in tracks})
         details.update(focus)
     mode = ("zoomfill" if requested == "auto" and width < height and details.get("focused") else requested)
     f = select_framing(mode, pw, ph, width, height, clip, projected, **kwargs)
@@ -284,36 +284,62 @@ def _covers_shot(track, clip):
     return track.keyframes[0].time <= clip.src_in+1e-4 and track.keyframes[-1].time >= clip.src_out-1e-4
 
 
-def _stage_subjects(clip, tracks):
-    """Persistent stage faces remain constraints regardless of their size."""
+def _stage_subjects(clip, tracks, *, measurements=None):
+    """Keep plausible participants; disclose small background faces separately."""
     from statistics import median
     tracks = [t for t in tracks if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
     faces = [t for t in tracks if t.id.startswith("face")]
-    size = lambda t: median(k.box.width*k.box.height for k in t.keyframes)
+    def measure(t):
+        source = (measurements or {}).get(t.id, t)
+        observed = [o.box for o in source.observations if clip.src_in <= o.time <= clip.src_out]
+        boxes = observed or [k.box for k in source.keyframes]
+        return {"area": median(b.width*b.height for b in boxes),
+                "height": median(b.height for b in boxes), "center_y": median(b.center[1] for b in boxes),
+                "basis": "raw face observations" if observed else "tracked boxes (raw observations unavailable)"}
+    measured = {t.id: measure(t) for t in faces}
+    size = lambda t: measured[t.id]["area"]
     primary = max(faces, key=size, default=None)
     if (primary is None or primary.confidence < .8 or primary.keyframes[0].time > clip.src_in
             or primary.keyframes[-1].time < clip.src_out-1e-4):
         return tracks, {"focused": False, "reason": "no confident full-shot stage face"}
     others = [t for t in faces if t is not primary]
     ratio = max((size(t)/size(primary) for t in others), default=0.)
-    persistent = [t.id for t in others if t.keyframes[-1].time-t.keyframes[0].time >= .5*(clip.src_out-clip.src_in)]
+    main, evidence = measured[primary.id], {}
+    for t in others:
+        peer = measured[t.id]
+        scale = min(peer["height"], main["height"]) / max(peer["height"], main["height"])
+        vertical = abs(peer["center_y"]-main["center_y"]) / max(peer["height"], main["height"])
+        depth = scale >= .5 and vertical <= .5
+        evidence[t.id] = {"face_area_ratio": size(t)/size(primary), "relative_height": scale,
+                          "vertical_distance_in_face_heights": vertical, "similar_depth_band": depth,
+                          "basis": peer["basis"], "plausible_participant": size(t)/size(primary) >= .12 or depth}
+    bystanders = [t.id for t in others if not evidence[t.id]["plausible_participant"]]
+    persistent = [t.id for t in others if t.id not in bystanders
+                  and t.keyframes[-1].time-t.keyframes[0].time >= .5*(clip.src_out-clip.src_in)]
+    details = {"main_face": primary.id, "face_confidence": primary.confidence,
+               "primary_measurement_basis": main["basis"], "bystander_tracks": bystanders,
+               "participant_evidence": evidence, "persistent_stage_faces": persistent,
+               "participant_thresholds": {"minimum_face_area_ratio": .12, "minimum_relative_height": .5,
+                   "maximum_vertical_distance_in_face_heights": .5, "speaking_activity_available": False}}
     def incidental(t):
-        return ((t in others and t.id not in persistent and size(t)/size(primary) <= .25 and t.confidence < .8)
+        return (t.id in bystanders or
+                (t in others and t.id not in persistent and size(t)/size(primary) <= .25 and t.confidence < .8)
                 or t.id.startswith("saliency-") or
                 (t.id.startswith("person-") and t.confidence <= .5 and t.observations
                  and all(o.detector == "hog-fallback" for o in t.observations)))
     kept = [t for t in tracks if not incidental(t)]
     incidental_ids = [t.id for t in tracks if t not in kept]
-    if ratio > .25 or persistent or any(t.confidence >= .8 for t in others):
-        return kept, {"focused": False, "persistent_stage_faces": persistent,
+    if any(t in kept for t in others):
+        return kept, {**details, "focused": False,
                       "incidental_tracks": incidental_ids,
-                      "reason": "another persistent, substantial or confident stage face remains"}
+                      "reason": "another plausible persistent, substantial or confident stage participant remains"}
     if any(t is not primary for t in kept):
-        return kept, {"focused": False, "incidental_tracks": incidental_ids,
+        return kept, {**details, "focused": False, "incidental_tracks": incidental_ids,
                       "reason": "independent person evidence remains in the stage"}
-    return kept, {"focused": True, "main_face": primary.id, "face_confidence": primary.confidence,
+    return kept, {**details, "focused": True,
                   "maximum_incidental_face_area_ratio": ratio,
                   "incidental_tracks": incidental_ids,
                   "reason": f"Stage focus: one full-shot face at confidence {primary.confidence:.3f}; "
-                            f"other stage faces are at most {ratio:.1%} of its area and below 0.8 confidence. "
-                            "Only transient small faces and low-confidence HOG scenery are incidental; review sampled framing."}
+                            f"other stage faces are at most {ratio:.1%} of its measured area. "
+                            "Disclosed small background faces, transient incidental detections and low-confidence HOG scenery "
+                            "do not widen the shot; geometry estimates participant depth, not identity or speaking activity."}
