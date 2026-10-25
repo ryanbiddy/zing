@@ -41,13 +41,21 @@ def media_files(folder, exclude=None, *, include_stills=False):
     return sorted(paths)
 
 
-def collect(answers, cache=None):
-    """Cache by file stats only within one interview; MCP calls retain no state."""
-    from myzing.project.probe import STILL_EXTENSIONS, skipped_stills_notice
+def refuse_still_source(answers):
+    """A style breakdown measures a video; refuse a photo before any probe."""
+    from myzing.project.probe import STILL_EXTENSIONS
 
     source = answers.get("source")
     if answers.get("path") == "d" and source and Path(source).suffix.lower() in STILL_EXTENSIONS:
         raise ValueError(f"Style breakdown needs a video; {Path(source).name} is a still image.")
+
+
+def collect(answers, cache=None):
+    """Cache by file stats only within one interview; MCP calls retain no state."""
+    from myzing.project.probe import STILL_EXTENSIONS, skipped_stills_notice
+
+    refuse_still_source(answers)
+    source = answers.get("source")
     cache = cache if cache is not None else {}
     result = {"measured": [], "unknowns": [], "clips": [], "duration": None,
               "orientations": {}, "audio_streams": 0, "warnings": []}

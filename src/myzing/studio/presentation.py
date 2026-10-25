@@ -122,6 +122,10 @@ def creator_summary(result, answers, facts):
     for needles, message in categories:
         if any(word in joined for word in needles):
             notes.append(message)
+    if still_notices:
+        # Behind the variety limit here, and behind the failures and shortages
+        # inserted at the front below; ahead of resolution and delivery caveats.
+        notes.insert(int("variety limit" in joined), " ".join(still_notices))
     shortages = [s for s in detail.get("shortages") or [] if isinstance(s, dict)]
     for message in reversed(list(dict.fromkeys(map(_shortage_note, shortages)))):
         notes.insert(0, message)
@@ -132,10 +136,6 @@ def creator_summary(result, answers, facts):
                      if rows else "Studio stopped before any draft was made. The full result has the failure details.")
     if "stills" in detail:
         notes.append("Readability scores help with layout; you still need to judge the joke.")
-    # Reserve one of the five notes even when failures and several shortages
-    # take priority over resolution and delivery caveats.
-    if still_notices:
-        notes = list(dict.fromkeys(notes))[:4] + [" ".join(still_notices)]
     if not notes and any(r["rendered"] for r in rows):
         # Finished edits carry dozens of measurement disclaimers (color tags,
         # sampling limits); count them instead of listing engine jargon.

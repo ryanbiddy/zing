@@ -136,7 +136,29 @@ def test_sixty_seconds_is_not_loop_eligible():
     assert hook._compare_frames(bytes(120), 120, 1, 60, 2)["loop_seam"]["status"] == "not_applicable"
     lines = section(breakdown(60)).lines
     assert "Loop not checked: 60s or longer." in lines
-    assert "Flash-forward not checked: 60s or longer." in lines
+    assert "Flash-forward not checked: frame comparison unavailable." in lines
+
+
+def test_sixty_second_decode_failure_is_not_reported_as_too_long(monkeypatch):
+    # Grok HOOKCARD: at exactly 60 s the flash-forward check runs, so its
+    # abstention must keep its own reason rather than the loop's.
+    def fail(*a):
+        raise ValueError("ffmpeg timed out")
+    monkeypatch.setattr("myzing.inspect.media.Decoder.run", fail)
+    observed = hook.measure_visual("unused.mp4", 60, 30)
+    assert observed["loop_seam"]["status"] == "not_applicable"
+    assert observed["flash_forward"]["status"] == "unknown" and "timed out" in observed["flash_forward"]["basis"]
+    assert "Flash-forward not checked: frame comparison unavailable." in section(breakdown(60), visual=observed).lines
+
+
+def test_long_clip_is_beyond_budget_not_missing_a_timeline(monkeypatch):
+    monkeypatch.setattr("myzing.inspect.media.Decoder.run", lambda *a: pytest.fail("no decode over 60 s"))
+    observed = hook.measure_visual("unused.mp4", 90, 30)
+    assert {row["status"] for row in observed.values()} == {"not_applicable"}
+    assert "CFR" not in observed["flash_forward"]["basis"]
+    lines = section(breakdown(90), visual=observed).lines
+    assert "Loop not checked: 60s or longer." in lines and "Flash-forward not checked: over 60s." in lines
+    assert hook.measure_visual("unused.mp4", 8, 0)["flash_forward"]["basis"] == "No usable CFR timeline."
 
 
 @pytest.mark.parametrize("data", [b"", b"short", bytes(3 * hook.FRAME_SIDE**2 * 3)], ids=["missing", "partial", "capped"])

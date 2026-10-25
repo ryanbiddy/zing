@@ -170,9 +170,8 @@ def hook_lines(facts, *, has_audio_stream=None):
         lines[-1] += (f" Labeled payoffs: median gap {payoff['median']:g}s "
                       f"(range {payoff['min']:g}-{payoff['max']:g}s).")
     row = facts["loop_seam"]
-    # Frames are compared only under 60s, so a long video skips both checks.
-    reason = "60s or longer" if row["status"] == "not_applicable" else "too little frame evidence"
     if row["value"] is None:
+        reason = "60s or longer" if row["status"] == "not_applicable" else "frame comparison unavailable"
         lines.append(f"Loop not checked: {reason}.")
     elif row["value"]["loops_cleanly"]:
         lines.append("Ending matches the opening frame, so it loops cleanly by this pixel check; motion and audio untested.")
@@ -180,6 +179,7 @@ def hook_lines(facts, *, has_audio_stream=None):
         lines.append("Ending does not match the opening frame, so it does not loop cleanly by this pixel check.")
     row = facts["flash_forward"]
     if row["value"] is None:
+        reason = "over 60s" if row["status"] == "not_applicable" else "frame comparison unavailable"
         lines.append(f"Flash-forward not checked: {reason}.")
     elif row["value"]["candidate"]:
         lines.append(f"Possible flash-forward: the opening image returns at {row['value']['matched_seconds']:.1f}s (pixel match only).")

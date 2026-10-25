@@ -29,10 +29,14 @@ def _metric(method, basis, value=None, *, status=None, unit=""):
 
 
 def visual_unknown(reason, duration):
+    # Loops are judged under 60 s; frames are decoded at all only up to 60 s.
+    finite = math.isfinite(duration)
     return {
-        "loop_seam": _metric(VISUAL_METHOD, "Only clips under 60 s are eligible." if duration >= 60 else reason,
-                             status="not_applicable" if duration >= 60 else "unknown"),
-        "flash_forward": _metric(VISUAL_METHOD, reason),
+        "loop_seam": _metric(VISUAL_METHOD, "Only clips under 60 s are eligible." if finite and duration >= 60 else reason,
+                             status="not_applicable" if finite and duration >= 60 else "unknown"),
+        "flash_forward": _metric(VISUAL_METHOD, "Only clips up to 60 s are frame-compared (analysis budget)."
+                                 if finite and duration > 60 else reason,
+                                 status="not_applicable" if finite and duration > 60 else "unknown"),
     }
 
 
@@ -43,8 +47,10 @@ def measure_visual(media, duration, fps):
     No fps filter can duplicate/drop the endpoint. A hard output cap bounds RAM;
     hitting it abstains rather than treating the cap as the end of the clip.
     """
-    if not all(math.isfinite(v) and v > 0 for v in (duration, fps)) or duration > 60:
-        return visual_unknown("No usable CFR timeline within the 60 s analysis budget.", duration)
+    if not all(math.isfinite(v) and v > 0 for v in (duration, fps)):
+        return visual_unknown("No usable CFR timeline.", duration)
+    if duration > 60:
+        return visual_unknown("Beyond the 60 s frame-comparison budget.", duration)
     from myzing.inspect.media import Decoder
 
     decoder = Decoder()

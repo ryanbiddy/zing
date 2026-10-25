@@ -87,17 +87,23 @@ def test_studio_discloses_stills_without_probing_them(tmp_path, monkeypatch):
     assert notice in summary["notes"]
 
 
-def test_stills_notice_survives_failures_and_many_shortages(tmp_path):
+def test_stills_notice_follows_failures_and_shortages(tmp_path):
     from myzing.studio.presentation import creator_summary
 
     notice = "Skipped 3 still images; Studio cuts video clips."
-    result = {"project": str(tmp_path), "warnings": [notice, notice, "variety limit", "blocked captions"],
-              "result": {"failures": ["failed"], "shortages": [
-                  {"code": code} for code in ("target_length", "distinct_edits", "edit_constraints", "audio_asset")]}}
-    summary = creator_summary(result, {"path": "b"}, {"clips": [{"width": 640, "height": 360}]})
-    assert len(summary["notes"]) == 5
-    assert summary["notes"].count(notice) == 1
-    assert "stopped" in summary["notes"][0]
+
+    def notes(codes):
+        result = {"project": str(tmp_path), "warnings": [notice, notice, "variety limit", "blocked captions"],
+                  "result": {"failures": ["failed"], "shortages": [{"code": code} for code in codes]}}
+        return creator_summary(result, {"path": "b"}, {"clips": [{"width": 640, "height": 360}]})["notes"]
+
+    few = notes(("target_length", "distinct_edits"))
+    # Failure, two shortages and the variety limit lead; resolution and caption caveats follow.
+    assert "stopped" in few[0] and few.count(notice) == 1 and few.index(notice) == 4
+    # Grok HOOKCARD: every shortage outranks the stills notice, which stays in warnings.
+    many = notes(("target_length", "distinct_edits", "edit_constraints", "audio_asset"))
+    assert len(many) == 5 and notice not in many
+    assert any("music track" in note for note in many)
 
 
 @pytest.mark.parametrize("suffix", [".JPG", ".png", ".webp"])
@@ -110,6 +116,10 @@ def test_style_breakdown_refuses_explicit_still_before_any_probe(tmp_path, monke
     monkeypatch.setattr("myzing.studio.evidence.cached_probe", lambda *a: pytest.fail("probe before still refusal"))
     with pytest.raises(ValueError, match=f"Style breakdown needs a video; photo{suffix} is a still image."):
         collect({"path": "d", "source": str(path), "clips": str(tmp_path)})
+    # The interview reads a breakdown source's length before collect runs.
+    from myzing.studio.flow import next_step
+    with pytest.raises(ValueError, match=f"Style breakdown needs a video; photo{suffix} is a still image."):
+        next_step({"path": "d", "source": str(path), "project": str(tmp_path.parent / (tmp_path.name + "-out"))})
 
 
 def test_terminal_default_does_not_write_in_cwd(tmp_path, monkeypatch, zing_workspace):
