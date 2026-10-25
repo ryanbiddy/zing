@@ -179,8 +179,9 @@ or GNOME Terminal add, or macOS Terminal's backslash-escaped spaces.
 A local reference match takes eight creative questions, plus speech setup for audio clips plus confirmation: reference,
 clips, topic, destination, length, captions and music after the opening choice.
 The reference supplies the pacing default. The output folder defaults to a fresh
-`zing-workspace/studio[-N]`, claimed as the session starts, so a second terminal
-in the same folder gets its own. Change it with `o` on the plan screen; a folder
+`ZING_HOME/studio[-N]` (`~/.zing/studio[-N]` when unset), claimed as the session
+starts so each terminal gets its own. Starting Studio does not write into the
+current directory. Change it with `o` on the plan screen; a folder
 that would overwrite or equal an input is refused and the old one is kept. A
 style breakdown (option 4) moves the default out of the video's folder, because
 Explain writes its cards outside it. Use `t` on the plan screen to change an
@@ -188,6 +189,10 @@ edit's tone. Destination determines shape; type a shape list in that question
 to choose a custom set without another question.
 
 Studio probes local inputs and reads a local reference before style questions.
+Still images in a clip folder are skipped with a count; option 3 uses photos.
+For speechless clips, planning uses measured shots. If pacing candidates cannot
+fill the requested length, the last speechless shot can be shortened to finish
+the edit. Any difference from reference timing remains in the comparison.
 The preview has an eight-second deadline, samples at most the first 20 seconds
 at reduced resolution, and checks three text frames with locally installed OCR.
 It reuses the study cut detector and audio measurements. It reports speech,
@@ -273,7 +278,7 @@ Shapes: 1:1
   3. Export the highest readability-scored concept per shape
 Estimated steps: 3. Time: Runtime is unknown on this machine; studies and renders depend on source duration, models and hardware.
 Downloads: none
-Output folder: <cwd>\zing-workspace\studio
+Output folder: <ZING_HOME>\studio
 Note: Readability scores do not judge the joke. Face coverage is sampled or unknown; review the contact sheet.
 
 Run this plan? Recommended: yes.
@@ -288,8 +293,8 @@ Finished still (1:1): stills-vj2psxlg\1x1\finished-still-57812695cd9c8fda.png
 Contact sheet (1:1): stills-vj2psxlg\1x1\contact-sheet.png
 Note: Some photos need a blurred background to keep faces and subjects inside the frame.
 Note: Readability scores help with layout; you still need to judge the joke.
-Output folder: <cwd>\zing-workspace\studio
-Full result: <cwd>\zing-workspace\studio\studio-result.json
+Output folder: <ZING_HOME>\studio
+Full result: <ZING_HOME>\studio\studio-result.json
 Next: Open the contact sheet and check the joke and text placement.
 Next: Pick another concept with zing still pick <folder> --id <id>.
 Next: Try a more specific topic in a fresh studio session.

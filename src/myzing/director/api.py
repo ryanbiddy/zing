@@ -168,7 +168,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         report["subject_analysis"] = {key: {"tracks": [t.to_dict() for t in tracks], "warnings": notes}
                                       for key, (tracks, notes) in subject_evidence.items()}
         report["envelope"] = style.to_dict()
-        report["search"] = {"candidate_count": len(pool), "method": "deterministic bounded beam; 96 states per expansion",
+        report["search"] = {"candidate_count": len(pool), "method": "deterministic bounded beam; 96 states per expansion; speechless final shots may trim to target",
                             "distinctness": "Different opening content with <50% overlap, or >=max(1s, reference median, 20% target) changed footage.",
                             "duration_tolerance_seconds": 2 / 30}
         relaxed = next(iter(timing_evidence["A"].values()))["search"].get("distinctness_relaxed")

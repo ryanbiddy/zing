@@ -18,7 +18,7 @@ def progress_label(text, answers):
     if key.startswith(("study-asset_", "audio-asset_", "color-asset_")):
         try:
             assets = read_json(Path(answers["project"]) / "project.json")["assets"]
-            videos = [a for a in assets if a.get("probe", {}).get("width")]
+            videos = [a for a in assets if (a.get("probe") or {}).get("width")]
             asset = next(a for a in videos if a["id"] == key.split("-", 1)[1])
             verb = {"study": "Studying", "audio": "Checking audio in", "color": "Checking color in"}[key.split("-", 1)[0]]
             return f"{verb} {Path(asset['path']).name} ({videos.index(asset) + 1} of {len(videos)})"
@@ -100,6 +100,7 @@ def creator_summary(result, answers, facts):
     elif counts:
         notes.append("Your clips include " + ", ".join(f"{n} at {w}x{h}" for (w, h), n in counts.items()) + "; HD versions can look soft.")
     warnings = result.get("warnings", [])
+    notes.extend(w for w in warnings if w.startswith("Skipped ") and "still image" in w)
     length = detail.get("target_length", {})
     if length.get("mode") == "usable":
         notes.append(f"Default edit length: {length['target_seconds']:.3f}s of usable footage after trimming.")

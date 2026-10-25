@@ -284,11 +284,9 @@ def _explain(source, out_dir, *, transitions=True, offline=True, against=None, a
             probe_video(path)
         if out_dir is None:
             workspace = storage.resolve_workspace()
-            # Resolve first: a symlinked cwd or workspace must not slip past the
-            # source-folder guard, which compares resolved paths.
-            cwd, workspace = Path.cwd().resolve(), workspace.resolve()
-            candidates = [cwd / "zing-workspace" / "explain", workspace.with_name(workspace.name + "-explain"),
-                          cwd.with_name(cwd.name + "-explain")]
+            # Resolve before the source-folder guard; never create output in cwd.
+            workspace = workspace.resolve()
+            candidates = [workspace / "explain", workspace.with_name(workspace.name + "-explain")]
             base = next((p for p in candidates if safe(p)), None)
             if base is None:
                 raise ValueError("Choose --out outside the source folders.")
