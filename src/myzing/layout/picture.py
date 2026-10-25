@@ -287,14 +287,18 @@ def _covers_shot(track, clip):
 def _stage_subjects(clip, tracks, *, measurements=None):
     """Keep plausible participants; disclose small background faces separately."""
     from statistics import median
-    from .tracking import build_tracks
     tracks = [t for t in tracks if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
     faces = [t for t in tracks if t.id.startswith("face")]
     sources = {t.id: (measurements or {}).get(t.id, t) for t in faces}
     observed = {t.id: [o.box for o in sources[t.id].observations if clip.src_in <= o.time <= clip.src_out]
                 for t in faces}
     use_raw = all(observed.values())
-    basis = "raw face observations" if use_raw else "keyframes minus tracking padding"
+    # A track without recorded padding may hold raw boxes. Guessing an inset
+    # can shrink a real speaker into a bystander, so compare every face's
+    # keyframes as stored instead (the 775f30f behavior).
+    legacy = not use_raw and any(sources[t.id].padding is None for t in faces)
+    basis = ("raw face observations" if use_raw else
+             "keyframes as stored (padding unknown on a track)" if legacy else "keyframes minus tracking padding")
     def unpad(box, margin):
         # Clipped frame edges cannot be reconstructed: preserve them rather
         # than inventing an inset. Bound the inset for tiny legacy boxes.
@@ -305,12 +309,12 @@ def _stage_subjects(clip, tracks, *, measurements=None):
         return Box(left, top, right-left, bottom-top)
     def measure(t):
         source = sources[t.id]
-        margin = source.padding if source.padding is not None else build_tracks.__kwdefaults__["margin"]
+        margin = 0. if use_raw or legacy else source.padding
         boxes = observed[t.id] if use_raw else [unpad(k.box, margin) for k in source.keyframes]
         return {"area": median(b.width*b.height for b in boxes),
                 "height": median(b.height for b in boxes), "center_y": median(b.center[1] for b in boxes),
-                "basis": basis, "padding_removed": 0 if use_raw else margin,
-                "padding_source": "track" if source.padding is not None else "build_tracks default (legacy track)"}
+                "basis": basis, "padding_removed": margin,
+                "padding_source": "track" if source.padding is not None else "unknown (compared as stored)"}
     measured = {t.id: measure(t) for t in faces}
     size = lambda t: measured[t.id]["area"]
     primary = max(faces, key=size, default=None)

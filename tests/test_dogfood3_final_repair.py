@@ -44,9 +44,10 @@ def test_stage_comparison_uses_one_unpadded_basis(raw, ratios, focused, margin):
         assert (peer.id in selection["persistent_stage_faces"]) is (ratio >= .12)
 
 
-def test_legacy_padding_comes_from_build_tracks_parameter(monkeypatch):
-    # A changed builder default must change the legacy fallback too.
-    monkeypatch.setitem(build_tracks.__kwdefaults__, "margin", .03)
+def test_legacy_tracks_without_padding_are_compared_as_stored():
+    # No inset is guessed for a track that never recorded its padding (Grok R3:
+    # a guess shrank a raw 0.199 speaker into a bystander). Padded legacy boxes
+    # then read larger, which keeps a face in frame: the safe direction.
     tracks = []
     for t in built_faces([.05]):
         data = t.to_dict()
@@ -55,9 +56,10 @@ def test_legacy_padding_comes_from_build_tracks_parameter(monkeypatch):
         tracks.append(FaceTrack.from_dict(data))
     selection = frame(tracks).picture["subject_selection"]
     peer = selection["participant_evidence"][tracks[1].id]
-    assert selection["focused"] and peer["face_area_ratio"] == pytest.approx(.05)
-    assert peer["padding_removed"] == .03
-    assert peer["padding_source"] == "build_tracks default (legacy track)"
+    assert selection["primary_measurement_basis"] == "keyframes as stored (padding unknown on a track)"
+    assert peer["padding_removed"] == 0
+    assert peer["padding_source"] == "unknown (compared as stored)"
+    assert peer["face_area_ratio"] > .05 and not selection["focused"]
 
 
 def test_unpadding_preserves_clipped_frame_edges_and_positive_boxes():

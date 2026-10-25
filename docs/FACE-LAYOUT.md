@@ -202,7 +202,9 @@ or its height is at least half the primary's and their vertical centers are
 within half the larger face's height. Every face in a comparison uses the same
 basis: raw observations only when all compared faces have observations inside
 the shot; otherwise keyframes with tracking padding removed. New tracks record
-their actual padding; legacy tracks use the builder's default. Clipped frame
+their actual padding. If any compared track has no recorded padding (legacy or
+built outside the tracker), every face is compared on its keyframes as stored,
+because a guessed inset could shrink a real speaker into a bystander. Clipped frame
 edges are preserved because their original inset is unknown. Plans disclose
 the shared basis and padding removed. Padded boxes still govern crop safety.
 Plausible participants present for at least half the shot constrain framing,

@@ -67,6 +67,22 @@ def test_persistent_background_faces_do_not_widen_main_speaker(raw_observations)
     assert .50 <= result.assessments[-1].sharp_height_share <= .70
 
 
+def test_unknown_padding_compares_keyframes_as_stored():
+    # Grok R3: tracks built outside build_tracks carry raw boxes and no
+    # padding. Subtracting a guessed inset shrank a 0.199 speaker to 0.0129.
+    main = replace(track("face-main", Box(.36, .22, .19, .38)), padding=None)
+    peer = replace(track("face-peer", Box(.12, .43, .10, .143678), .70), padding=None)
+    selection = frame([main, peer]).picture["subject_selection"]
+    assert not selection["focused"]
+    assert selection["primary_measurement_basis"] == "keyframes as stored (padding unknown on a track)"
+    assert selection["participant_evidence"][peer.id]["face_area_ratio"] == pytest.approx(.199, rel=.01)
+    assert peer.id not in selection["bystander_tracks"]
+    # One known-padding face doesn't put the others back on a guessed basis.
+    mixed = frame([replace(main, padding=.04), peer]).picture["subject_selection"]
+    assert mixed["primary_measurement_basis"] == "keyframes as stored (padding unknown on a track)"
+    assert not mixed["focused"]
+
+
 def test_small_persistent_face_in_similar_depth_band_remains_a_participant():
     main = track("face-main", Box(.36, .22, .19, .38))
     # A narrow/partly occluded face can have little area but comparable height.
