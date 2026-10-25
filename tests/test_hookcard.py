@@ -195,7 +195,7 @@ def test_hook_summary_is_four_plain_lines_without_changing_facts():
 
 
 def test_png_hook_has_the_same_caps_and_keeps_not_knowable(monkeypatch, tmp_path):
-    pytest.importorskip("PIL")
+    pytest.importorskip("PIL.Image")
     from PIL import ImageDraw
     from myzing.explain import presentation
 
