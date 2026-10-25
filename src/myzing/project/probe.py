@@ -17,6 +17,13 @@ MEDIA_EXTENSIONS = frozenset({
     ".3gp", ".3g2", ".ogv", ".ogg", ".mxf", ".mp3", ".wav", ".m4a",
     ".aac", ".flac", ".opus", ".aif", ".aiff", ".wma",
 })
+STILL_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".heif", ".gif"})
+
+
+def skipped_stills_notice(count):
+    return f"Skipped {count} still {'image' if count == 1 else 'images'}; Studio cuts video clips."
+
+
 # Exclude reference-following formats (concat, HLS, DASH, SDP, image2, ...),
 # even when a playlist has been renamed to an allowed media extension.
 MEDIA_DEMUXERS = (

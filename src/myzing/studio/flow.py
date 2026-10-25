@@ -41,7 +41,7 @@ def question(key, prompt, recommended, reason, facts, choices=(), required=False
 
 
 def default_project():
-    return default_project_in(Path("zing-workspace/studio"))
+    return agent_default_project()
 
 
 def default_project_in(base):
@@ -55,8 +55,7 @@ def default_project_in(base):
 
 
 def agent_default_project():
-    """MCP servers run from the client's working directory (often / or a system
-    folder), so agent sessions default inside the Zing workspace instead."""
+    """Default sessions to the Zing workspace, independent of the caller's cwd."""
     from myzing import storage
     return default_project_in(storage.resolve_workspace() / "studio")
 
@@ -297,8 +296,9 @@ def next_step(answers=None, *, cache=None):
         # automatic default; an explicitly chosen folder gets a plain refusal.
         if not _is_default_project(root):
             raise ValueError(f"Style breakdown writes outside the video's folder; choose an output folder that is not inside {Path(a['source']).parent}.")
-        cwd = Path.cwd().resolve()
-        candidates = [agent_default_project(), *([default_project_in(cwd.with_name(cwd.name + "-zing-studio"))] if cwd.name else [])]
+        from myzing import storage
+        workspace = storage.resolve_workspace()
+        candidates = [agent_default_project(), default_project_in(workspace.with_name(workspace.name + "-studio"))]
         a["project"] = next((p for p in candidates if not _inside(Path(p), Path(a["source"]).parent)), a["project"])
         if _inside(Path(a["project"]), Path(a["source"]).parent):
             raise ValueError(f"Style breakdown writes outside the video's folder; choose an output folder that is not inside {Path(a['source']).parent}.")

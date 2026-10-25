@@ -1,7 +1,6 @@
 """Standalone local match-to-recipe workflow."""
 
 import json
-import tempfile
 from pathlib import Path
 
 from myzing import __version__, storage
@@ -50,10 +49,7 @@ def match_video(reference, clip, out, *, samples=12):
         result.confidence = min(result.confidence, 0.2)
     out.mkdir(parents=True, exist_ok=True)
     cube_path = write_cube(cube, out / "look.cube")
-    preview_root = Path.cwd() / "zing-workspace" / "color"
-    preview_root.mkdir(parents=True, exist_ok=True)
-    preview_dir = Path(tempfile.mkdtemp(prefix=f"{measured_clip.sha256[:8]}-", dir=preview_root))
-    preview = contact_sheet(ref, measured_clip, cube_path, preview_dir)
+    preview = contact_sheet(ref, measured_clip, cube_path, out / "preview")
     recipe = Recipe(ref, measured_clip, result, graded, str(cube_path), sha256(cube_path),
                     str(preview), COLOR_SPACE, warnings, __version__, COLOR_VERSION)
     payload = json.dumps(recipe.to_dict(), indent=2, allow_nan=False) + "\n"

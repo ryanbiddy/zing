@@ -131,12 +131,6 @@ def frame(path, timestamp, width=160, height=90, *, lut_dir=None, region=None):
     return np.frombuffer(data, dtype=np.uint8).reshape(height, width, 3).astype(float) / 255
 
 
-def workspace_tmp():
-    root = Path.cwd() / "zing-workspace" / "tmp"
-    root.mkdir(parents=True, exist_ok=True)
-    return root
-
-
 def apply_video(lut: Path | str, source: Path | str, output: Path | str) -> dict:
     from .cube import read_cube, write_cube
     cube = read_cube(lut)
@@ -151,7 +145,7 @@ def apply_video(lut: Path | str, source: Path | str, output: Path | str) -> dict
     output.parent.mkdir(parents=True, exist_ok=True)
     # A controlled basename avoids filtergraph quoting of Windows drives,
     # apostrophes, commas, brackets and user-supplied LUT paths.
-    with tempfile.TemporaryDirectory(prefix="color-apply-", dir=workspace_tmp()) as work:
+    with tempfile.TemporaryDirectory(prefix="color-apply-", dir=output.parent) as work:
         write_cube(cube, Path(work) / "look.cube")
         staged = Path(work) / ("graded" + (output.suffix or ".mp4"))
         run_media([

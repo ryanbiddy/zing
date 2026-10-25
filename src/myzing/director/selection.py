@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from statistics import median
 
 from myzing.brief.models import Brief
@@ -495,7 +495,7 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                   if style.first_caption is not None and caption is not None else int(style.first_caption is not None)]
         return errors
 
-    complete = {}
+    complete, speechless_complete = {}, {}
     if preferred_a is not None:
         indices = tuple(pool.index(c) for c in preferred_a)
         complete[(indices[0], tuple(sorted(indices)))] = preferred_a
@@ -559,6 +559,34 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
             for indices, mask, duration in selected:
                 for i in ordered:
                     c = pool[i]
+                    # A measured speechless shot may end at the target clock.
+                    # Pace-sized candidates alone cannot combine 3s takes into
+                    # a 4s edit. Only shorten an already safe candidate; retain
+                    # shot/exclusion boundaries and every required moment.
+                    finish = None
+                    remaining = target - duration
+                    if (not complete and prefer_bands and len(speechless_complete) < 512
+                            and not by_id[c.asset_id].words
+                            and not by_id[c.asset_id].asr_repair.get("quarantined")
+                            and .2 <= remaining < c.duration):
+                        end = c.start + remaining
+                        parts = [(1 << n, (a, b)) for n, (key, a, b) in enumerate(required) if key == c.asset_id]
+                        if not any(overlaps((c.start, end), span) and not
+                                   (c.start <= span[0] + EPS and end >= span[1] - EPS) for _, span in parts):
+                            covers = sum(bit for bit, (a, b) in parts if c.start <= a + EPS and end >= b - EPS)
+                            finish = replace(c, end=end, covers=covers)
+                    if finish is not None and mask | finish.covers == needed:
+                        seq = [pool[j] for j in indices]
+                        prev = seq[-1]
+                        overlap = any(finish.content == old.content and overlaps(
+                            (finish.start, finish.end), (old.start, old.end)) for old in seq)
+                        reversed_source = not allow_reordering and any(
+                            finish.content == old.content and finish.start < old.end - EPS for old in seq)
+                        adjacent = (prev.content == finish.content and abs(prev.end - finish.start) < EPS
+                                    and not any(abs(s.start - finish.start) < EPS for s in by_id[c.asset_id].shots[1:]))
+                        if not (overlap or reversed_source or adjacent):
+                            completed = [*seq, finish]
+                            speechless_complete[edit_key(completed, fps)] = completed
                     if duration + c.duration > target + tolerance + EPS:
                         continue
                     if any(c.content == pool[j].content and overlaps((c.start, c.end), (pool[j].start, pool[j].end))
@@ -578,6 +606,11 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
             frontier = list(next_states.values())
             if len(complete) >= 512:
                 break
+    # Preserve existing complete choices. Target fills repair a dead end;
+    # they do not replace passing drafts with arbitrarily shorter shots.
+    used_speechless_finish = not complete and bool(speechless_complete)
+    if used_speechless_finish:
+        complete = speechless_complete
     if not complete:
         shortage("edit_constraints", "No complete target-length edit was found by the bounded word-safe search.",
                  "Film a clean take near the recipe's shot length, shorten must-keeps, or relax the target length.")
@@ -695,7 +728,8 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
         if timing_evidence is not None:
             examined = clean or list(complete.values())
             closest = min(timing_rank(seq) for seq in examined)
-            search = {"feasible_edits_examined": len(examined), "jointly_in_band_edits": len(in_band),
+            search = {"speechless_target_fill": used_speechless_finish,
+                      "feasible_edits_examined": len(examined), "jointly_in_band_edits": len(in_band),
                       "closest_violations": closest[0],
                       # JSON has no infinity: a missing first cut is an unbounded distance.
                       "closest_seconds_outside": closest[1] if closest[1] != float("inf") else None,
@@ -762,6 +796,8 @@ def selection_timing_evidence(sequence, studies, opening_band, pace_band, search
                            f"dimension(s), {'an unbounded distance' if best is None else f'{best:.3f} s'} outside in total), but they did "
                            "not form three meaningfully distinct drafts; this edit completes the trio.")
             reason += " This does not prove that every possible edit of the footage is outside band."
+        if search.get("speechless_target_fill"):
+            reason += " The final speechless shot was shortened to reach the requested edit length."
         entry = {"band": band, "planned": value,
                  "distance_outside_seconds": distance if distance != float("inf") else None,
                  "feasible_edits_examined": search["feasible_edits_examined"],

@@ -74,6 +74,18 @@ def test_known_grade_cli_recipe_and_rendered_delta_e_gate(tmp_path, monkeypatch,
     make_video(source, rgb)
     make_video(reference, apply_transform(rgb, transform_for("teal-orange", 0.67)))
     out = tmp_path / "result's [color], grade"
+    readonly = tmp_path / "readonly-cwd"
+    readonly.mkdir()
+    readonly.chmod(0o555)
+    monkeypatch.chdir(readonly)
+    mkdir = Path.mkdir
+    def guarded_mkdir(path, *args, **kwargs):
+        # chmod alone does not deny directory writes on Windows. Enforce the
+        # same boundary there, while POSIX also has real filesystem protection.
+        if path.resolve().is_relative_to(readonly):
+            raise PermissionError("read-only current directory")
+        return mkdir(path, *args, **kwargs)
+    monkeypatch.setattr(Path, "mkdir", guarded_mkdir)
     assert run(["match", "--reference", str(reference), "--clip", str(source),
                 "--out", str(out), "--samples", "4", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -89,7 +101,7 @@ def test_known_grade_cli_recipe_and_rendered_delta_e_gate(tmp_path, monkeypatch,
     assert recipe.color_space and recipe.color_version and recipe.tool_version
     assert "approximation" in recipe.interpretation
     preview = Path(recipe.preview_path)
-    assert preview.is_relative_to(tmp_path / "zing-workspace")
+    assert preview.is_relative_to(out / "preview")
     assert preview.read_bytes().startswith(b"\x89PNG")
     run_media(["ffmpeg", "-v", "error", "-i", str(preview), "-f", "null", "-"])
     output = tmp_path / "after.mp4"
@@ -97,6 +109,7 @@ def test_known_grade_cli_recipe_and_rendered_delta_e_gate(tmp_path, monkeypatch,
     assert json.loads(capsys.readouterr().out)["sha256"] == sha256(output)
     target, after = frame(reference, 0.5, 160, 120), frame(output, 0.5, 160, 120)
     median_de = float(np.median(delta_e_2000(rgb_to_lab(after), rgb_to_lab(target))))
+    assert not list(readonly.iterdir())
     assert median_de <= 3, f"rendered median Delta E 2000 = {median_de:.6f}"
 
 

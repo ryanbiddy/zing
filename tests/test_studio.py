@@ -252,7 +252,11 @@ def test_progress_translates_internal_asset_and_draft_ids(inputs, tmp_path):
     from myzing.studio.presentation import progress_label
     root = Path(inputs["project"])
     root.mkdir()
-    (root / "project.json").write_text(json.dumps({"assets": [{"id": "asset_secret", "path": "korky.mp4", "probe": {"width": 640}}]}))
+    (root / "project.json").write_text(json.dumps({"assets": [
+        {"id": "asset_still", "path": "frame.jpg", "probe": None},
+        {"id": "asset_missing", "path": "unknown.dat"},
+        {"id": "asset_secret", "path": "korky.mp4", "probe": {"width": 640}},
+    ]}))
     a = {"project": str(root), "aspects": ["16:9", "1:1", "9:16"]}
     assert progress_label("study-asset_secret: starting", a) == "Studying korky.mp4 (1 of 1)"
     assert progress_label("render-B.1x1: starting", a) == "Rendering draft B, 1:1 (5 of 9)"
@@ -276,11 +280,12 @@ def test_back_explain_quit_and_resume(inputs, monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("termination", ["q\n", ""])
-def test_quit_before_project_saves_resumable_session(tmp_path, monkeypatch, termination):
+def test_quit_before_project_saves_resumable_session(tmp_path, monkeypatch, termination, zing_workspace):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sys.stdin", io.StringIO(termination))
     assert command.run([]) == 0
-    assert load_session(tmp_path / "zing-workspace/studio").status == "paused"
+    from myzing import storage
+    assert load_session(storage.resolve_workspace() / "studio").status == "paused"
 
 
 def test_unknown_evidence_and_missing_ffprobe(inputs, monkeypatch):

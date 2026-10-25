@@ -22,7 +22,7 @@ The Python `measure_video(..., shots=...)` interface also accepts shots for a cl
 No CUDA, model weights, cloud calls, or third-party LUT assets are used.
 
 Each match writes `look.cube` and `recipe.json` to `--out`. The contact sheet goes
-under `./zing-workspace/color/`, with its absolute path in the recipe. Columns
+under `--out/preview/`, with its absolute path in the recipe. Columns
 are BEFORE, REFERENCE, AFTER; rows include the requested sample timestamps.
 Reference rows span the reference's sampled timeline. They are visual comparisons,
 not aligned frames from the same scene.
@@ -258,7 +258,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 444
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 446
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.

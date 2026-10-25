@@ -166,6 +166,11 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                         item.warnings.append("Audio-map silence clipped to the video duration; decoded audio tail and original interval retained in provenance.")
                     silence.append(row)
                 item.dead_air += _intervals(silence, item.duration, "audio-map silence")
+            if not item.words and not item.asr_repair["quarantined"]:
+                # This clip passed the no-audio/measured-no-speech check above.
+                # Audio silence does not establish visually idle screen footage.
+                item.dead_air = []
+                item.warnings.append("No speech: selection uses measured shots; audio silence is retained as visual footage.")
             if "source_sha256" not in b.provenance:
                 item.warnings.append("Study matched by exact source path and duration; historical source checksum unreported.")
             item.warnings.extend(b.warnings)

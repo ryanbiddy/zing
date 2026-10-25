@@ -353,6 +353,10 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             from myzing.studio.adapters import register_music
             register_music(root, studio_options.get("music"))
         manifest = projects.load_project(root)
+        from myzing.project.probe import STILL_EXTENSIONS, skipped_stills_notice
+        stills = {a.id for a in manifest.assets if a.state != "missing" and Path(a.path).suffix.lower() in STILL_EXTENSIONS}
+        if stills:
+            summary["warnings"].append(skipped_stills_notice(len(stills)))
         caps = capabilities()
         local = not is_http_url(reference) and not reference.startswith("uoink:")
         ref_key = {"reference": reference, "sha256": projects.hash_file(Path(reference)) if local else None}
@@ -403,6 +407,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
 
         clips_studied, colors, audio_maps = {}, {}, {}
         for asset in manifest.assets:
+            if asset.id in stills:
+                continue  # Retain source inventory records, but never study stills as video.
             if asset.state != "ready" or not asset.probe or not any(s["codec_type"] == "video" for s in asset.probe.streams):
                 summary["warnings"].append(f"Inventory {asset.id}: {asset.state}; {asset.error or 'not a usable video clip'}")
                 continue
@@ -432,7 +438,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v4", repair_asr, "aspect-stage-common-measurements-v15", caps["layout"],
+                                                 "continuity-v5-speechless-target", repair_asr, "aspect-stage-common-measurements-v15", caps["layout"],
                                                  "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):

@@ -19,9 +19,9 @@ hedged. **Get this look** follows with the real commands and this card's paths:
 `style-recipe.json` is the reusable StyleRecipe contract. Evidence files retain
 the full study, OCR geometry, audio map and sampled color statistics.
 
-The default output is a new folder under the current project's
-`zing-workspace/explain`. If that is inside an input folder, explain chooses a
-sibling of the configured workspace or current project. Outputs must be outside
+The default output is a new folder under `ZING_HOME/explain` (or
+`~/.zing/explain` when `ZING_HOME` is unset). If that is inside an input folder,
+explain chooses a sibling of the configured workspace. Outputs must be outside
 the input video folders; `--out` selects another location. Existing
 nonempty output folders are refused. A failed run removes what it wrote. An
 interrupted run (a crash or power loss) leaves `.zing-explain-incomplete`; a

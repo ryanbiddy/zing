@@ -22,8 +22,10 @@ def cached_probe(path, cache):
     return cache[key]
 
 
-def media_files(folder, exclude=None):
-    from myzing.project.probe import MEDIA_EXTENSIONS
+def media_files(folder, exclude=None, *, include_stills=False):
+    from myzing.project.probe import MEDIA_EXTENSIONS, STILL_EXTENSIONS
+
+    extensions = MEDIA_EXTENSIONS | STILL_EXTENSIONS if include_stills else MEDIA_EXTENSIONS
 
     # Match accepts a tree; avoid links and generated output subdirectories.
     import os
@@ -35,7 +37,7 @@ def media_files(folder, exclude=None):
                                   & stat.FILE_ATTRIBUTE_REPARSE_POINT)
                          and (exclude is None or (Path(directory) / d).resolve() != Path(exclude).resolve()))
         paths.extend(Path(directory) / n for n in sorted(names)
-                     if Path(n).suffix.lower() in MEDIA_EXTENSIONS and not (Path(directory) / n).is_symlink())
+                     if Path(n).suffix.lower() in extensions and not (Path(directory) / n).is_symlink())
     return sorted(paths)
 
 
@@ -66,7 +68,12 @@ def collect(answers, cache=None):
             result["warnings"].extend(cache[key].get("warnings", []))
         else:
             result["unknowns"].append("Reference quick read unavailable until the saved or remote reference is resolved after confirmation; style is unknown.")
-    files = media_files(answers["clips"], answers.get("project")) if answers.get("clips") else []
+    from myzing.project.probe import STILL_EXTENSIONS, skipped_stills_notice
+    files = media_files(answers["clips"], answers.get("project"), include_stills=True) if answers.get("clips") else []
+    stills = [p for p in files if p.suffix.lower() in STILL_EXTENSIONS]
+    if stills:
+        result["warnings"].append(skipped_stills_notice(len(stills)))
+        files = [p for p in files if p.suffix.lower() not in STILL_EXTENSIONS]
     source = answers.get("source")
     if source and Path(source).is_file() and Path(source).suffix.lower() != ".json":
         files.append(Path(source))
