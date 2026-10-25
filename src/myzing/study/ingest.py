@@ -101,6 +101,8 @@ def ingest(
     source: str,
     kept_media: str | Path | None = None,
     handoff: dict[str, Any] | None = None,
+    ref_start=None, ref_end=None, reference_range=None,
+    analysis_seconds=None, analysis_max_side=None,
 ) -> IngestResult:
     """Workspace routing is storage's job (ContextVar pin via
     use_workspace); ingest never carries roots around.
@@ -126,23 +128,48 @@ def ingest(
             f"invalid source URL {source!r}: expected an absolute HTTP(S) "
             "URL with a host, valid port, no whitespace, and no backslash"
         )
-    slug = storage.slug_for(source)
+    from myzing import reference_range as ranges
+    slug = ranges.slug(source, ref_start, ref_end, reference_range,
+                       analysis_seconds=analysis_seconds, analysis_max_side=analysis_max_side)
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
+    selecting = any(v is not None for v in (ref_start, ref_end, reference_range, analysis_seconds, analysis_max_side))
 
     if is_url(source):
+        # Keep the original download separate from the canonical studied media.
+        # Otherwise a repeat trim would select from the already-trimmed cache.
+        acquired_slug = slug + "-reference-source" if selecting else slug
+        acquired_dir = storage.breakdown_dir(acquired_slug)
+        acquired_dir.mkdir(parents=True, exist_ok=True)
         media, info, probed = _acquire_url_media(
-            source, slug, dest, kept_media, handoff, warnings, provenance
+            source, acquired_slug, acquired_dir, kept_media, handoff, warnings, provenance
         )
     else:
         if kept_media is not None:
             warnings.append(
                 "kept_media ignored: source is already a local file"
             )
-        media = _stage_local(source, slug)
+        if selecting:
+            selected, selection = ranges.select_local(source, dest, ref_start, ref_end, reference_range,
+                                                      analysis_seconds=analysis_seconds, max_side=analysis_max_side)
+            media = _stage_local(str(selected), slug)
+            if selection:
+                provenance["reference_range"] = selection
+                if selection["analysis_limited"]:
+                    warnings.append(f"Analysis limited to {selection['end']-selection['start']:g}s of the reference; remaining footage is unmeasured.")
+        else:
+            media = _stage_local(source, slug)
         info = {}
         probed = None
 
+    if is_url(source) and selecting:
+        selected, selection = ranges.select_local(media, dest, ref_start, ref_end, reference_range,
+                                                  analysis_seconds=analysis_seconds, max_side=analysis_max_side)
+        media, probed = _stage_local(str(selected), slug), None
+        if selection:
+            provenance["reference_range"] = selection
+            if selection["analysis_limited"]:
+                warnings.append(f"Analysis limited to {selection['end']-selection['start']:g}s of the reference; remaining footage is unmeasured.")
     if probed is None:
         probed = probe(media)
     vstream = _video_stream(probed, media)
@@ -170,7 +197,7 @@ def ingest(
         platform=detect_platform(source),
         author=str(info.get("uploader") or info.get("channel") or ""),
         title=str(info.get("title") or ("" if is_url(source) else Path(source).stem)),
-        duration=round(duration, 3),
+        duration=duration,
         width=int(vstream.get("width", 0) or 0),
         height=int(vstream.get("height", 0) or 0),
         fps=round(_fps(vstream.get("avg_frame_rate", "0/0")), 3),
@@ -216,7 +243,7 @@ def _acquire_url_media(
             probed = probe(media)
         except MediaError as exc:
             warnings.append(
-                f"kept media failed probe ({exc}) — falling back to fetch"
+                f"kept media failed probe ({exc}) - falling back to fetch"
             )
             provenance.clear()
             fallback_reason = "integrity_mismatch"
@@ -263,7 +290,7 @@ def _stage_kept(
     name = src.name
     if not src.is_file():
         warnings.append(
-            f"kept media unavailable ({name}) — falling back to fetch"
+            f"kept media unavailable ({name}) - falling back to fetch"
         )
         return None, "missing"
     try:
@@ -290,7 +317,7 @@ def _stage_kept(
         if not sha_matches or not length_matches:
             warnings.append(
                 f"kept media integrity mismatch ({name}: "
-                f"sha/size differ from handoff) — falling back to fetch"
+                f"sha/size differ from handoff) - falling back to fetch"
             )
             return None, "integrity_mismatch"
         target = storage.media_target(slug, src.suffix or ".mp4")
@@ -298,7 +325,7 @@ def _stage_kept(
             shutil.copy2(src, target)
     except OSError as exc:
         warnings.append(
-            f"kept media unreadable ({exc}) — falling back to fetch"
+            f"kept media unreadable ({exc}) - falling back to fetch"
         )
         return None, "missing"
     if handoff is not None:
@@ -327,7 +354,7 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     if ytdlp is None:
         raise MediaError(
             "yt-dlp is not installed (no binary on PATH, module not "
-            'importable) — python -m pip install "myzing[study]"'
+            'importable) - python -m pip install "myzing[study]"'
         )
     cmd = [
         *ytdlp,
@@ -348,7 +375,7 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     media = storage.find_media(slug)
     if media is None:
         raise MediaError(
-            f"yt-dlp exited 0 but no media file landed in {dest} — "
+            f"yt-dlp exited 0 but no media file landed in {dest} - "
             "cannot measure a video we do not have"
         )
     return media
@@ -419,7 +446,7 @@ def _first_stream(probed: dict, kind: str) -> dict | None:
 def _video_stream(probed: dict, media: Path) -> dict:
     vstream = _first_stream(probed, "video")
     if vstream is None:
-        raise MediaError(f"{media.name} has no video stream — nothing to study")
+        raise MediaError(f"{media.name} has no video stream - nothing to study")
     return vstream
 
 
@@ -450,7 +477,7 @@ def _check_frame_timing(media: Path, warnings: list[str]) -> tuple[bool, str]:
     if problem:
         warnings.append(
             f"could not verify constant frame timing ({problem}); timestamps "
-            "assume CFR — residual risk: a variable-frame-rate source would "
+            "assume CFR - residual risk: a variable-frame-rate source would "
             "drift frame-index timestamps beyond the ±0.15s eval budget "
             "without detection"
         )
@@ -467,7 +494,7 @@ def _check_frame_timing(media: Path, warnings: list[str]) -> tuple[bool, str]:
         warnings.append(
             f"frame-timing jitter detected (per-frame PTS delta variation "
             f"{cv:.1%}, worst frame-index drift {drift:.3f}s) is under the "
-            "normalization thresholds, so normalization was skipped — "
+            "normalization thresholds, so normalization was skipped - "
             f"residual risk: frame-index timestamps may sit up to "
             f"{drift:.3f}s off true PTS (eval cut budget is ±0.15s)"
         )
@@ -564,11 +591,5 @@ def _fps(rate: str) -> float:
 
 
 def _duration(probed: dict, vstream: dict) -> float:
-    for holder in (probed.get("format", {}), vstream):
-        raw = holder.get("duration")
-        if raw is not None:
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                continue
-    return 0.0
+    from myzing.project.probe import video_duration
+    return video_duration(vstream, probed.get("format", {})) or 0.0

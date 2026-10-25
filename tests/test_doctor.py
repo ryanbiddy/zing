@@ -16,6 +16,14 @@ from myzing import doctor
 @pytest.fixture(autouse=True)
 def _hermetic_caption_filter(monkeypatch):
     monkeypatch.setattr(doctor, "caption_filter", lambda _: "ass")
+    from myzing import ffmpeg_setup
+    def probe(argv):
+        if argv[-1] == "-version":
+            return "ffmpeg version 8.1.2"
+        if argv[-1] == "-filters":
+            return "\n".join(f" T.. {name} V->V description" for name in ffmpeg_setup.REQUIRED_FILTERS | {"ass"})
+        return " V....D libx264 H.264 encoder"
+    monkeypatch.setattr(ffmpeg_setup, "_probe", probe)
 
 
 @pytest.fixture(autouse=True)
@@ -155,7 +163,7 @@ def test_json_output_is_parseable_and_complete(full_machine, capsys):
     names = {c["name"] for c in payload["checks"]}
     assert names == {
         "ffmpeg", "yt-dlp", "scenedetect", "faster-whisper", "ocr",
-        "tts", "uoink", "pillow", "heic", "layout", "color", "hyperframes", "audio", "audio-ml", "libass", "caption_geometry", "fonts",
+        "tts", "uoink", "pillow", "heic", "layout", "screen-cursor", "color", "hyperframes", "audio", "audio-ml", "libass", "caption_geometry", "fonts",
     }
     tiers = {c["name"]: c["tier"] for c in payload["checks"]}
     assert tiers["ffmpeg"] == "required"

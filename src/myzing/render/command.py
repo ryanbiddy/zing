@@ -46,9 +46,6 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--aspect", help="replan from sources for all, or a comma-separated list: 16:9,1:1,9:16")
     parser.add_argument("--framing", choices=["auto", "fit", "fill", "reframe", "zoomfill", "blurfill"], help="delivery framing override")
     parser.add_argument("--max-upscale", type=float, help="auto crop enlargement ceiling (default 2.5x)")
-    parser.add_argument("--short-side", type=_short_side, default=None,
-                        help="delivery short side (multiple of 18; default: the brief's, else 1080) or auto: "
-                             "lower it when a low-resolution source cannot stay sharp")
     parser.add_argument(
         "--keep-work",
         type=Path,
@@ -107,6 +104,14 @@ def run(argv: list[str]) -> int:
         return 2
     try:
         payload = json.loads(edl_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict) and payload.get("kind") == "screen-demo":
+            from myzing.screen.command import render_payload
+            try:
+                print(json.dumps(render_payload(payload, args), indent=2))
+                return 0
+            except (ValueError, OSError, RuntimeError) as exc:
+                print(f"zing render: {exc}", file=sys.stderr)
+                return 1
         edl = load_render_document(payload)
     except (OSError, TypeError, ValueError, KeyError) as exc:
         print(f"zing render: invalid EDL JSON: {exc}", file=sys.stderr)

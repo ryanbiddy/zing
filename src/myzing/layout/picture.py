@@ -32,6 +32,13 @@ def detect_picture(frames):
     # Side chrome must not dilute horizontal borders: inspect the central 70%
     # first, then require the full candidate's outside to be static below.
     support = (differences[:, :, int(w*.15):int(w*.85)] > 10).mean(axis=2).min(axis=0)
+    # Dark/gradient chrome need not have a bright one-pixel edge. A stable
+    # transition from static graphics to motion across most of the picture
+    # width is independent border evidence. The same static-surround, matte
+    # and scenery guards below still apply; a moving face alone is too narrow.
+    center_motion = moving[:, int(w*.15):int(w*.85)].mean(axis=1)
+    motion_border = np.abs(np.diff(center_motion))
+    support = np.maximum(support, np.where(motion_border >= .8, motion_border, 0))
     candidates = [i+1 for i, score in enumerate(support) if score >= .8]
     top = [y for y in candidates if h*.02 <= y <= min(active[0]+2, h*.4)
            and (temporal[:y] <= 3).mean() >= .98]
@@ -43,6 +50,9 @@ def detect_picture(frames):
     # Side chrome is optional; determine it only with equally strong borders.
     horizontal = data[:, y0:y1]
     col_support = (np.abs(np.diff(horizontal, axis=2)) > 10).mean(axis=1).min(axis=0)
+    motion_columns = moving[y0:y1].mean(axis=0)
+    motion_border = np.abs(np.diff(motion_columns))
+    col_support = np.maximum(col_support, np.where(motion_border >= .8, motion_border, 0))
     col_active = np.flatnonzero(moving[y0:y1].mean(axis=0) > .03)
     x0, x1 = 0, w
     if len(col_active):
@@ -105,7 +115,24 @@ def _surround(mean, rectangle):
     if flat < CHROME_MIN_FLAT:
         return {**evidence, "kind": "scenery", "reason": "static surround is textured like camera scenery "
                 "(desk, wall or shelf), not flat broadcast graphics; existing framing keeps the source"}
-    return {**evidence, "kind": "chrome", "reason": "structured flat graphics outside the picture"}
+    # Require a wide, filled lower-third/logo bar. Sparse bright icons or
+    # titles can inflate spatial variance without any broadcast structure.
+    background = float(np.median(values))
+    graphic = (np.abs(mean - background) >= 12) & core
+    widths = []
+    for row in graphic:
+        edges = np.diff(np.r_[False, row, False].astype(int))
+        spans = np.flatnonzero(edges == -1) - np.flatnonzero(edges == 1)
+        widths.append(int(spans.max()) if len(spans) else 0)
+    wide_rows = np.asarray(widths) >= max(16, w * .35)
+    edges = np.diff(np.r_[False, wide_rows, False].astype(int))
+    heights = np.flatnonzero(edges == -1) - np.flatnonzero(edges == 1)
+    bar_height = int(heights.max()) if len(heights) else 0
+    evidence.update(widest_graphic_share=max(widths) / w, bar_height=bar_height)
+    if bar_height < max(3, h * .025):
+        return {**evidence, "kind": "unknown", "reason": "no wide lower-third or logo bar; "
+                "sparse icons/titles or flat UI panels are insufficient broadcast evidence"}
+    return {**evidence, "kind": "chrome", "reason": "wide broadcast bar in a structured flat surround"}
 
 
 def analyze_picture(path, ranges, size, *, ffmpeg="ffmpeg"):

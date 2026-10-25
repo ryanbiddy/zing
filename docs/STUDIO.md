@@ -1,5 +1,53 @@
 # Start with `zing studio`
 
+## Your first draft in 10 minutes
+
+Try this after [installation](INSTALL.md) and a successful FFmpeg check in
+`zing doctor`. Ten minutes is a walkthrough budget, not a measured guarantee
+for your computer. Package installation and model downloads take extra time.
+This sample uses generated video with no speech, so it needs no model download
+or personal media. The commands below use PowerShell from a source checkout.
+
+Create three clips with test shapes and color bars. Separate clips give the
+planner enough choices for three distinct edits:
+
+```powershell
+New-Item -ItemType Directory -Force zing-workspace/first-draft/clips | Out-Null
+ffmpeg -hide_banner -loglevel error -n -f lavfi -i "testsrc2=size=640x360:rate=30:duration=12" -c:v libx264 -pix_fmt yuv420p zing-workspace/first-draft/clips/shapes.mp4
+ffmpeg -hide_banner -loglevel error -n -f lavfi -i "smptebars=size=640x360:rate=30:duration=12" -c:v libx264 -pix_fmt yuv420p zing-workspace/first-draft/clips/bars.mp4
+ffmpeg -hide_banner -loglevel error -n -f lavfi -i "testsrc=size=640x360:rate=30:duration=12" -c:v libx264 -pix_fmt yuv420p zing-workspace/first-draft/clips/grid.mp4
+uv run --frozen zing studio
+```
+
+Use a fresh folder on reruns; `-n` refuses to overwrite the generated input.
+For macOS/Linux, create the folder in your file browser and use the same FFmpeg
+and uv commands in Terminal. Those shell variants were checked by docs only
+for REL2; the Windows flow was run locally.
+
+Answer the interview:
+
+1. Choose **2**, edit clips without a reference.
+2. For clips, paste `zing-workspace/first-draft/clips`.
+3. Choose **general** footage.
+4. For the topic, enter **A first test with moving shapes**.
+5. Choose **YouTube** for landscape delivery.
+6. Set the length to **6** seconds.
+7. Choose **natural** for tone.
+8. Choose **none** for captions and **none** for added music.
+9. Read the plan, check that downloads says **none**, then type **yes**.
+
+The finish screen lists the draft paths and a recommendation with its reason.
+Open a listed MP4 in your video player. These test shapes are only a rendering
+check; there is no reference style or speech to match. Use the displayed output
+folder to find the saved plan, reports and `studio-result.json`. Missing
+measurements and failed drafts remain visible.
+
+Next, start a new Studio session with your own clips and choose **1** to use a
+reference video. Speech clips add one model question: choose a cached model,
+skip speech, or explicitly choose a download option. Enter never authorizes a
+model download. Review names, caption timing and framing before sharing a draft.
+For help, see [Troubleshooting](TROUBLESHOOTING.md) and [Privacy](PRIVACY.md).
+
 ```powershell
 uv sync --all-extras
 uv run --frozen zing studio
@@ -8,12 +56,14 @@ uv run --frozen zing studio
 Caption and delivery preferences can be supplied before the interview:
 
 ```powershell
-zing studio --caption-options '{"highlight_box_color":"#FFD23F","highlight":"#0A0A0A","highlight_box_radius":4}' --picture-crop auto --target-mb 2.5
+zing studio --caption-mode box --short-side 720 --picture-crop auto --target-mb 2
 ```
 
 The confirmation plan shows these choices. Saved studio answers accept
 `caption_options`, `caption_mode`, `picture_crop`, `target_mb`, and
-`video_bitrate_kbps`; the size and bitrate fields are mutually exclusive.
+`video_bitrate_kbps`, and `short_side` (`auto` or a multiple of 18, such as 720);
+the size and bitrate fields are mutually exclusive. `zing brief new` also accepts
+`--short-side`, and brief/MCP answers accept the same `short_side` field.
 They apply to edited drafts and re-deliveries of existing plans. A flattened
 video still needs timed caption events to add word backgrounds. Choose phone
 captions for the [documented size floor](CAPTIONS.md); existing captions cannot
@@ -23,6 +73,88 @@ The target applies to each delivered file. Encoding receipts beside the MP4s
 report achieved size and encoder quality risk. The framing evidence records
 whether static broadcast chrome was removed. These are local operations;
 they require no Uoink connection, upload, or new model download.
+
+## Use reference 0:30 to 1:20
+
+Studio probes the reference before its preview or study. A reference over 60
+seconds needs a selected range of at most 60 seconds for matching. The interview
+asks which part to use for a long or unknown-duration reference (including URLs
+and failed probes). A local reference of 60 seconds or less uses `all`, records
+that answer, and displays a short note without asking. Explicit trim flags or
+MCP fields still take precedence. When a long local reference needs a trim,
+the selected interval also supplies the default edit length, rounded to whole
+seconds within 1–60; an explicit `length` answer overrides it. This keeps the
+reference interview within ten questions, including speech setup.
+
+For a URL, range and download consent share a question: enter `yes 0:30-1:20`,
+`yes all`, or `no`. A requested interval over 60 seconds is rejected even when
+the source duration is unknown. A bounded interval supplies the default edit
+length; `all` with unknown duration uses a disclosed 15-second target. The
+downloaded reference still has to pass the duration check before study.
+
+Local metadata is cached by resolved path, size and modification time within
+the terminal interview. Failed or timed-out probes leave duration unknown.
+Going back removes an automatically recorded `all`, but preserves an explicit
+CLI or MCP range, including after resume.
+
+For screen footage, Studio uses `cursor_log: "none"` with a note when the project
+contains no JSONL log. Supply a log path in answers to override it. Screen demos
+keep source audio; their planner does not apply added music. Custom delivery
+shapes can be entered in the destination answer, for example `16:9,1:1`.
+
+These PowerShell examples select the same 50-second interval. Replace
+`reference.mp4` and `clips` with your local paths. The Studio command continues
+the interview; Match uses default brief answers. Replace `--answers '{}'` with
+`--brief brief.json` to use a saved brief.
+
+```powershell
+$env:UOINK_URL='http://127.0.0.1:1'
+zing studio --ref-start 0:30 --ref-end 1:20
+$env:UOINK_URL='http://127.0.0.1:1'
+zing match reference.mp4 --clips clips --out zing-workspace/match-range --answers '{}' --ref-start 0:30 --ref-end 1:20
+$env:UOINK_URL='http://127.0.0.1:1'
+zing explain reference.mp4 --out zing-workspace/explain-range --ref-start 0:30 --ref-end 1:20
+$env:UOINK_URL='http://127.0.0.1:1'
+zing study reference.mp4 --workspace zing-workspace/study-range --reference-range 0:30-1:20
+```
+
+All four commands accept seconds (`30`, `80`) or `mm:ss`. Use either
+`--ref-start/--ref-end` or `--reference-range`, not both. MCP `study_video`, `study_uoink_item`,
+`match_start`, and `zing_explain` accept `ref_start`, `ref_end`, and
+`reference_range`; Studio accepts those keys in its answers.
+
+For an HTTP reference, Match downloads the source, then probes and checks the
+selected duration before normalization or study. A long untrimmed URL is refused
+at that point. General-purpose Study can analyze longer footage; Explain and
+its Studio fallback cap analysis at 60 seconds. Analysis budgets have separate
+cache identities, so a bounded study cannot replace the full study's media.
+
+Ranges include the start and exclude the end. CFR boundaries snap forward to
+the next source frame; the breakdown's `provenance.reference_range` records
+requested times, selected frame indices, effective times, frame rate and hashes.
+Only the selected interval is encoded. VFR selections use source time and record
+their conversion to CFR. Audio is encoded with the selected interval; source
+files are unchanged.
+
+Explain analyzes at most the first 60 seconds of the selected interval and uses
+a maximum image side of 960 pixels. Its card records this budget and identifies
+unmeasured footage. `--against` applies the reference range to the first video;
+the comparison video has its own 60-second analysis budget. Caption geometry
+keeps at most 256 sampled frames, 16 detections per frame, 128 tracks, 64 samples
+per track and 512 gap examples, with total and omitted counts. Font comparison
+uses at most 16 tracks, three samples per track and two lines per sample. Text
+between sampled frames remains unknown. A fractional-rate selection may end
+within one frame after its requested endpoint; its source frame choices are
+recorded explicitly.
+
+## One usable moment can make a draft
+
+Studio can deliver one or two drafts when the footage cannot support three
+distinct edits. It reports a **VARIETY limit**, keeps the usable drafts and names
+the missing choices. Another opening or a different visual moment can add
+variety; shortening a complete moment is not required just to fill three slots.
+The `box` caption mode and its active-word plate apply to brief-only drafts,
+reference matches and captioned plan re-deliveries.
 
 FFmpeg and ffprobe must be on PATH for video work. The interview itself uses
 plain stdin/stdout and the Python standard library; media work uses Zing's
@@ -223,7 +355,10 @@ Example `answers.json` for a reference match:
 }
 ```
 
-For audio clips, `--answers` and `--json` require an explicit `speech_model`.
+For audio clips, `--answers` and `--json` require a speech choice. The combined
+`speech_setup` question accepts `skip`, a cached model name, or an explicit
+`download small.en` / `download large-v2` choice. It expands into `speech_model`
+and, for downloads, `speech_download: true`. Existing separate fields also work.
 Use `speech_download: true` only after approving that model's download; it must
 be a JSON boolean. `--yes` confirms the plan and grants no download consent.
 For `speech_model: "skip"` or a cached model, omit `speech_download`. A supplied
@@ -315,8 +450,9 @@ directory, which clients often set to a system folder.
 After confirmation, follow the plan's `execution` metadata. Paths a, b, d and f
 use `zing_studio_run(answers=..., confirmed=true)`. `confirmed` must be a real JSON
 boolean: strings and numbers are refused. Model downloads also need the explicit
-`speech_model` answer and `speech_download: true`; plan confirmation alone never
-authorizes them. The worker delegates reference edits to the existing match API.
+`speech_model` answer and `speech_download: true`, or an explicit combined
+`speech_setup` download choice; plan confirmation alone never authorizes them.
+The worker delegates reference edits to the existing match API.
 Paths c/e reuse `still_concepts` / `still_render` and `music_check`.
 
 Poll with `zing_studio_run(project=...)`; `cancel=true` stops an owned job. The

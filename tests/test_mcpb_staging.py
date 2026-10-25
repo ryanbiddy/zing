@@ -21,7 +21,8 @@ def test_staged_tree_is_complete(tmp_path):
     assert (staged / "manifest.json").is_file()
     assert (staged / "pyproject.toml").is_file()
     assert (staged / "uv.lock").read_bytes() == (build_mcpb.REPO / "uv.lock").read_bytes()
-    assert (staged / "THIRD-PARTY-NOTICES.md").is_file()
+    assert (staged / "docs/THIRD-PARTY-NOTICES.md").is_file()
+    assert (staged / "NOTICE.md").is_file()
     assert (staged / "LICENSE").is_file()
     assert (staged / "src" / "myzing" / "mcp_server.py").is_file()
     assert (staged / "prompts" / "study.md").is_file()
@@ -38,6 +39,8 @@ def test_manifest_agrees_with_staged_layout(tmp_path):
     assert manifest["manifest_version"] == "0.4"
     assert manifest["name"] == "myzing"
     assert manifest["license"] == "MIT"
+    assert manifest["description"] == 'Free, local video and meme studio your AI agents can drive.'
+    assert manifest["long_description"] == 'A free, local creative studio for short videos and memes that runs in your terminal and that AI agents can drive.'
     server = manifest["server"]
     assert server["type"] == "uv"
     # entry_point must exist inside the bundle

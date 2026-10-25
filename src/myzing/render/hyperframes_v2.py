@@ -46,7 +46,8 @@ def captions_to_plan(
             continue
         if not event.word_timed or not event.words:
             raise HyperframesError(f"Caption {event.id}: HyperFrames requires word_timed=true and per-word timings")
-        if " ".join(event.text.split()) != " ".join(" ".join(w.text for w in event.words).split()):
+        from myzing.captions.grouping import join
+        if " ".join(event.text.split()) != " ".join(join(w.text for w in event.words).split()):
             raise HyperframesError(f"Caption {event.id}: phrase text must match the ordered words")
         layout, font = event.layout, event.font
         if layout.scale != 1:

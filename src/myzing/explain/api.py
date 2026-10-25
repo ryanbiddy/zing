@@ -77,9 +77,15 @@ def _resolve(source, work, *, allow_download):
     if is_http_url(source):
         if not allow_download:
             raise ValueError("URL download needs explicit consent: use --allow-download; models remain local.")
-        from myzing.study.ingest import ingest
+        from myzing.study.ingest import _acquire_url_media
         with storage.use_workspace(work):
-            return ingest(source).media_path
+            slug = storage.slug_for(source)
+            folder = storage.breakdown_dir(slug)
+            folder.mkdir(parents=True, exist_ok=True)
+            # Acquisition only. The duration/resolution budget is applied below
+            # before ingest normalizes or analyzes any downloaded video.
+            media, _, _ = _acquire_url_media(source, slug, folder, None, None, [], {})
+            return media
     path = Path(source).expanduser().resolve()
     if not path.is_file():
         raise ValueError("Video not found; supply a local file, uoink:<id>, or URL with --allow-download.")
@@ -106,7 +112,7 @@ def _first_line(exc):
     return (text.splitlines()[0] if text else type(exc).__name__)[:300]
 
 
-def _measure(source, out, *, transitions, allow_download=False):
+def _measure(source, out, *, transitions, allow_download=False, **trim):
     from myzing.study.api import study
     from myzing.style_recipe import build_style_recipe, MeasuredFact, Coverage, FontCandidate
     work = out / "evidence"
@@ -118,15 +124,20 @@ def _measure(source, out, *, transitions, allow_download=False):
     sha = hash_file(media)
     model_workspace = storage.resolve_workspace()
     b = study(str(media), workspace=work, caption_geometry=True, fonts=True,
-              detect_transitions=transitions, local_models_only=True, model_workspace=model_workspace)
+              detect_transitions=transitions, local_models_only=True, model_workspace=model_workspace,
+              analysis_seconds=60, analysis_max_side=960, **trim)
     # Some local ASR runtimes return NumPy float64 timestamps. Load the saved
     # wire form, whose JSON numbers are ordinary Python values, before passing
     # it to the strict StyleRecipe contract. No timing value is repaired here.
     from myzing.schemas import Breakdown
     b = Breakdown.from_dict(json.loads(json.dumps(b.to_dict(), allow_nan=False)))
+    from myzing.reference_range import slug as reference_slug
     with storage.use_workspace(work):
-        folder = storage.breakdown_dir(storage.slug_for(str(media)))
-        normalized = storage.resolve_relpath(storage.slug_for(str(media)), b.meta.media_path)
+        slug = reference_slug(str(media), analysis_seconds=60, analysis_max_side=960, **trim)
+        folder = storage.breakdown_dir(slug)
+        normalized = storage.resolve_relpath(slug, b.meta.media_path)
+    display["source_duration"] = display["duration"]
+    display["duration"] = b.meta.duration
     geometry_path = folder / "caption-geometry.json"
     geometry = json.loads(geometry_path.read_text(encoding="utf-8")) if geometry_path.exists() else {}
     warnings = list(b.warnings)
@@ -195,13 +206,15 @@ def _measure(source, out, *, transitions, allow_download=False):
     _write(recipe_path, recipe.to_dict())
     from .notices import viewer_notices
     summary = viewer_notices(sections, b.meta.duration, ocr_ran=bool(geometry.get("frames")))
-    card = StyleCard(str(media), sha, b.meta.duration, sections, str(recipe_path), get_look_commands(media, recipe_path),
+    look_source = normalized if b.provenance.get("reference_range") else media
+    card = StyleCard(str(media), sha, b.meta.duration, sections, str(recipe_path), get_look_commands(look_source, recipe_path),
                      summary, warnings,
                      evidence={"breakdown": str(folder / "breakdown.json"), "caption_geometry": str(geometry_path),
                                "audio_map": str(work / "audio-map.json") if audio else None,
                                "color": str(work / "color.json") if color else None,
                                "normalized_media": str(normalized), "offline_models": True,
-                               "display": display, "requested_source": source})
+                               "display": display, "requested_source": source, "reference_range": b.provenance.get("reference_range"),
+                               "analysis_budget": {"max_seconds": 60, "max_side": 960}})
     if hash_file(media) != sha:
         raise ValueError("Source changed during measurement; retry after writes finish.")
     return card, normalized
@@ -233,7 +246,7 @@ def _remove_partial(out, created, preexisting):
             child.unlink(missing_ok=True)
 
 
-def _explain(source, out_dir, *, transitions=True, offline=True, against=None, allow_download=False):
+def _explain(source, out_dir, *, transitions=True, offline=True, against=None, allow_download=False, ref_start=None, ref_end=None, reference_range=None):
     out, created, preexisting, armed = None, False, set(), False
     try:
         if type(transitions) is not bool or type(offline) is not bool:
@@ -293,7 +306,10 @@ def _explain(source, out_dir, *, transitions=True, offline=True, against=None, a
         preexisting, armed = {p.name for p in out.iterdir()}, True
         _write(out / PARTIAL_MARKER, {"version": 1, "source": source,
                                       "note": "zing explain did not finish; rerun with the same --out to replace this folder."})
-        card, media = _measure(source, out, transitions=transitions, allow_download=allow_download)
+        from myzing.reference_range import parse
+        parse(ref_start, ref_end, reference_range)
+        trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
+        card, media = _measure(source, out, transitions=transitions, allow_download=allow_download, **trim)
         if against:
             other_out = out / "against"
             other_out.mkdir()
@@ -330,11 +346,11 @@ def _publish(card, media, out):
             "card_png": str(png) if png else None, "summary": card.summary}
 
 
-def explain_video(source, out_dir, *, transitions=True, offline=True) -> dict:
+def explain_video(source, out_dir, *, transitions=True, offline=True, ref_start=None, ref_end=None, reference_range=None) -> dict:
     """Write a style card. offline=False explicitly consents to URL acquisition.
 
     Models are ALWAYS local-only; provision them explicitly outside this call.
     Existing/nonempty outputs are refused, and a failed call removes what it
     wrote. Failures use MCP's _err wire shape.
     """
-    return _explain(source, out_dir, transitions=transitions, offline=offline, allow_download=not offline)
+    return _explain(source, out_dir, transitions=transitions, offline=offline, allow_download=not offline, ref_start=ref_start, ref_end=ref_end, reference_range=reference_range)

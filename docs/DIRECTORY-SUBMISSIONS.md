@@ -50,7 +50,7 @@ The package entry describes future distribution metadata. It deliberately has
 no inferred `uvx myzing` launcher: the executable is named `zing`, and the MCP
 dependency is optional. Clients must install the `mcp` extra and use the launch
 command above. Once the matching version exists on PyPI, the explicit uv command
-will be `uvx --from "myzing[mcp]==0.1.0" zing serve-mcp`. That command does not
+will be `uvx --from "myzing[mcp]==1.0.0rc1" zing serve-mcp`. That command does not
 work from PyPI today. Reconcile its version with `pyproject.toml` before release.
 
 Run `python scripts/check_registry_server_json.py` with Python 3.11+ before

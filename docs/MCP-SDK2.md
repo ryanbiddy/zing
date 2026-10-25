@@ -24,7 +24,7 @@ SDK 2 matches those normalized payloads, including embedded JSON text,
 
 | Boundary | SDK 2 behavior and reason |
 |---|---|
-| Legacy initialization | Omits `capabilities.experimental: {}`. The native `MCPServer` runner leaves unused experimental capabilities unset; SDK 1 emitted an empty object. This is the only difference in the legacy fixture. |
+| Legacy initialization | Omits `capabilities.experimental: {}`. The native `MCPServer` runner leaves unused experimental capabilities unset; SDK 1 emitted an empty object. This is the only SDK migration difference in the legacy fixture; COPY1 product copy changes are listed below. |
 | Modern opening | `server/discover`, or an ordinary request with metadata, replaces the legacy initialize/initialized exchange under the stateless specification. |
 | Modern results | Include `resultType: "complete"` and `_meta["io.modelcontextprotocol/serverInfo"]`. Discovery and list results also include `ttlMs: 0` and `cacheScope: "private"`. These fields are required by the SDK's modern serialization; tool payloads and prompt bodies are unchanged. |
 
@@ -82,3 +82,13 @@ output as the old contract. `.gitattributes` pins fixture line endings to LF.
 
 Dependency versions and verified wheel licenses are in
 [third-party notices](THIRD-PARTY-NOTICES.md#mcp-sdk-2-october-2026).
+
+## COPY1 copy changes
+
+`tests/fixtures/mcp_wire/copy1.json` pins the reviewed current server
+instructions, tool descriptions with ASCII punctuation, and the missing-breakdown
+error. Replay substitutes these exact expected fields in memory for both protocol
+eras. It does not strip instructions or normalize arbitrary strings; unexpected
+copy, schemas, envelopes and payloads still fail. The error is pinned in both
+text and structured content. A negative test checks that instructions and other
+initialization fields cannot drift. The SDK1 capture and its SHA-256 stay unchanged.

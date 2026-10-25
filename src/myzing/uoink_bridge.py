@@ -138,7 +138,7 @@ def _nonconformant(what: str) -> dict[str, Any]:
     return _err(
         f"uoink's kept-media response is not contract-conformant: {what} "
         "(expected uoink.media.handoff v1, exact keys). This is version "
-        "drift, not absence — update uoink or zing so both speak "
+        "drift, not absence - update uoink or zing so both speak "
         "INTEGRATION-CONTRACT v1."
     )
 
@@ -246,7 +246,7 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
         return _err(
             "item_ref must identify one corpus item like "
             "'uoink://item/short-123' using Uoink's canonical reference "
-            "encoding — never a file path"
+            "encoding - never a file path"
         )
     token = _token()
     if not token:
@@ -259,7 +259,7 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
         base = helper_url()
     except suite_peer.UoinkResolutionError as error:
         return _err(
-            f"uoink discovery failed: {error.code} — {error}",
+            f"uoink discovery failed: {error.code} - {error}",
             code=error.code,
         )
     url = (
@@ -279,18 +279,18 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
             return _err(
-                f"uoink rejected the credential (HTTP {e.code}) — check "
+                f"uoink rejected the credential (HTTP {e.code}) - check "
                 f"{UOINK_TOKEN_ENV} against uoink's token ({TOKEN_LOCATION})"
             )
         try:
             body = json.loads(e.read().decode("utf-8"))
         except (ValueError, OSError):
             return _err(
-                f"uoink answered HTTP {e.code} — is your uoink up to date?"
+                f"uoink answered HTTP {e.code} - is your uoink up to date?"
             )
     except (urllib.error.URLError, OSError, ValueError):
         return _err(
-            f"no uoink helper at {base} — is Uoink running? "
+            f"no uoink helper at {base} - is Uoink running? "
             "Zing works fine without it; kept-media study needs it once."
         )
 
@@ -304,7 +304,7 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
         code = str(err.get("code", ""))
         message = str(err.get("message", ""))
         return _err(
-            f"uoink could not resolve {item_ref}: {code} — {message}",
+            f"uoink could not resolve {item_ref}: {code} - {message}",
             code=code,
         )
     defect = handoff_defect(body)
@@ -577,11 +577,11 @@ def push_breakdown(slug: str) -> dict[str, Any]:
     try:
         storage.validate_slug(slug)  # F-02: slugs are caller input, never paths
     except storage.SlugError as e:
-        return _err(f"invalid slug: {e} — use a slug from list_breakdowns()")
+        return _err(f"invalid slug: {e} - use a slug from list_breakdowns()")
     md_path = storage.breakdown_dir(slug) / "breakdown.md"
     if not md_path.is_file():
         return _err(
-            f"no breakdown.md for slug '{slug}' — study the video first "
+            f"no breakdown.md for slug '{slug}' - study the video first "
             "(the markdown render is written when a study completes)"
         )
     text = md_path.read_text(encoding="utf-8")
@@ -594,7 +594,7 @@ def push_breakdown(slug: str) -> dict[str, Any]:
         base = helper_url()
     except suite_peer.UoinkResolutionError as error:
         return _err(
-            f"uoink discovery failed: {error.code} — {error}",
+            f"uoink discovery failed: {error.code} - {error}",
             code=error.code,
         )
     try:
@@ -624,11 +624,11 @@ def push_breakdown(slug: str) -> dict[str, Any]:
                 "and restart zing serve-mcp."
             )
         return _err(
-            f"uoink answered HTTP {e.code} — is your uoink up to date?"
+            f"uoink answered HTTP {e.code} - is your uoink up to date?"
         )
     except (urllib.error.URLError, OSError, ValueError):
         return _err(
-            f"no uoink helper at {base} — is Uoink running? "
+            f"no uoink helper at {base} - is Uoink running? "
             "Zing works fine without it; this push is optional."
         )
 

@@ -643,6 +643,22 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                    "alternatives": alternatives, "similar_pairs": similar, "missing_drafts": missing,
                    "reason": distinctness_reason(len(in_band), similar, alternatives, missing)}
     result = result or trio(clean) or trio(complete.values())
+    if result is None and complete:
+        # A brief-only single moment is a usable edit. Do not manufacture A/B/C
+        # by repeating it or by making barely different trims.
+        chosen = {}
+        for mode in "ABC":
+            candidate = next((s for s in sorted(clean or list(complete.values()), key=lambda s: final_rank(s, mode))
+                              if all(different(s, old, target, pace) for old in chosen.values())), None)
+            if candidate is not None:
+                chosen[mode] = candidate
+        result = chosen
+        missing = [label for label in "ABC" if label not in result]
+        relaxed = {"policy": "VARIETY limit; never repeat an edit", "missing_drafts": missing,
+                   "distinct_in_band_edits": len(in_band), "in_band_drafts": list(result),
+                   "alternatives": [], "similar_pairs": [],
+                   "reason": f"VARIETY limit: this footage supports {len(result)} distinct draft(s) in this search. "
+                               "Returning the usable edit plans. Film another opening or a different visual moment for more choices."}
     if result is not None:
         if timing_evidence is not None:
             examined = clean or list(complete.values())

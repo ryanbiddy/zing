@@ -9,6 +9,8 @@ AI over MCP, not this file.
 
 from __future__ import annotations
 
+from myzing.captions.grouping import join
+
 from myzing.schemas import Breakdown, CaptionEvent, Shot, Word
 
 from . import formats
@@ -31,7 +33,7 @@ def render_markdown(b: Breakdown) -> str:
 def _header(b: Breakdown) -> str:
     m = b.meta
     title = m.title or m.source_url
-    lines = [f"# Edit breakdown — {title}"]
+    lines = [f"# Edit breakdown - {title}"]
     facts = [
         f"platform: {m.platform}",
         f"duration: {m.duration:.1f}s",
@@ -46,7 +48,7 @@ def _header(b: Breakdown) -> str:
 
 def _pacing(b: Breakdown) -> str:
     if not b.shots:
-        return "## Pacing\n\n(no shot data — see warnings)"
+        return "## Pacing\n\n(no shot data - see warnings)"
     cuts = max(0, len(b.shots) - 1)
     lines = [
         "## Pacing",
@@ -92,7 +94,7 @@ def _transition_line(t) -> str:
             if t.audio_onset_delta is not None
             else ""
         )
-        line += f" — audio-aligned{delta}"
+        line += f" - audio-aligned{delta}"
     return line
 
 
@@ -128,7 +130,7 @@ def _first_seconds(b: Breakdown) -> str:
         lines.append("- shots: (none measured)")
 
     if words:
-        spoken = " ".join(w.text for w in words)
+        spoken = join(w.text for w in words)
         lines.append(f'- spoken: "{spoken}"')
     else:
         lines.append("- spoken: (nothing transcribed in this window)")
@@ -159,7 +161,7 @@ def _shot_table(shots: list[Shot]) -> str:
     for s in shots:
         lines.append(
             f"| {s.index} | {s.start:.2f} | {s.end:.2f} | "
-            f"{s.duration:.2f}s | {s.keyframe or '—'} |"
+            f"{s.duration:.2f}s | {s.keyframe or '-'} |"
         )
     return "\n".join(lines)
 
@@ -167,7 +169,7 @@ def _shot_table(shots: list[Shot]) -> str:
 def _captions(captions: list[CaptionEvent]) -> str:
     lines = ["## Captions", ""]
     if not captions:
-        lines.append("(no on-screen text observed — see warnings for OCR "
+        lines.append("(no on-screen text observed - see warnings for OCR "
                       "sampling limits)")
         return "\n".join(lines)
     style = _caption_style(captions)

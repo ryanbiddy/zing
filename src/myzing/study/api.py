@@ -53,6 +53,8 @@ def study(
     vocabulary=(),
     brief=None,
     reference_metadata: dict | None = None,
+    ref_start=None, ref_end=None, reference_range=None,
+    analysis_seconds=None, analysis_max_side=None,
 ) -> Breakdown:
     """Measure one video (URL or local path) into a persisted Breakdown.
 
@@ -82,7 +84,9 @@ def study(
     with _workspace_override(workspace):
         _phase(phase_callback, "ingest")
         ing = ingest_mod.ingest(
-            source, kept_media=kept_media, handoff=handoff
+            source, kept_media=kept_media, handoff=handoff,
+            **{k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range,
+                                     analysis_seconds=analysis_seconds, analysis_max_side=analysis_max_side).items() if v is not None}
         )
         warnings: list[str] = list(ing.warnings)
         # A-S6: ingest provenance (kept-media evidence) merges first so
@@ -143,10 +147,14 @@ def study(
             with _workspace_override(model_workspace):
                 geometry = read_geometry(ing.media_path, ing.meta.duration)
                 if fonts:
-                    from .font_match import match_geometry, failed_candidates
+                    from .font_match import match_geometry, failed_candidates, budget_geometry
                     _phase(phase_callback, "font_candidates")
                     try:
-                        candidates = match_geometry(ing.media_path, geometry)
+                        font_geometry, budget = budget_geometry(geometry)
+                        candidates = match_geometry(ing.media_path, font_geometry)
+                        if budget["observations_omitted"]:
+                            candidates.provenance["work_budget"] = budget
+                            candidates.warnings.append(f"Font comparison sampled {budget['observations_measured']} of {budget['observations_total']} line observations across {budget['tracks_measured']} tracks; remaining fonts are unmeasured.")
                     except Exception as exc:
                         # Optional font matching must never prevent saving the study,
                         # including OpenCV errors and unexpected backend failures.
@@ -199,7 +207,7 @@ def study(
                 )
             except transitions_mod.TransitionProbeError as exc:
                 warnings.append(
-                    f"transition detection skipped: {exc} — transitions[] "
+                    f"transition detection skipped: {exc} - transitions[] "
                     "is NOT-MEASURED, not measured-empty; the detector is "
                     "recorded in provenance"
                 )

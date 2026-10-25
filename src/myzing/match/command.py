@@ -10,9 +10,14 @@ from .jobs import execute
 
 
 def run(argv):
+    if argv and argv[0] == "screen":
+        from myzing.screen.command import match
+        return match(argv[1:])
     parser = argparse.ArgumentParser(prog="zing match", description=__doc__)
     from myzing.delivery_options import add_options, overrides
     add_options(parser)
+    from myzing.reference_range import add_options as add_range_options
+    add_range_options(parser)
     parser.add_argument("reference")
     parser.add_argument("--clips", required=True)
     parser.add_argument("--out", required=True)
@@ -28,7 +33,7 @@ def run(argv):
     parser.add_argument("--json", action="store_true", help="final summary on stdout; progress on stderr")
     args = parser.parse_args(argv)
     options = vars(args).copy()
-    override_names = ("caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps")
+    override_names = ("caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps", "short_side")
     for name in override_names:
         options.pop(name, None)
     json_output = options.pop("json")

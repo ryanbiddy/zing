@@ -1,4 +1,4 @@
-"""``zing serve-mcp``: the MCP stdio server — how AIs touch Zing.
+"""``zing serve-mcp``: the MCP stdio server - how AIs touch Zing.
 
 Tool handlers + prompt delivery, built on the official MCP Python SDK
 (MCPServer), stdio transport. Design is bound by SPRINT-1-D1 §Critique
@@ -8,13 +8,13 @@ resolutions and the B#2 ruling (2026-07-18):
   worker thread; returns ``{ok, slug, status: "started"}`` in under a
   second. Claude Desktop hard-caps tool calls at ~60s, so a synchronous
   minutes-long study would silently fail there (R1-B evidence). Job state
-  lives in ``status.json`` in the slug's directory — a crashed process
+  lives in ``status.json`` in the slug's directory - a crashed process
   leaves honest state on disk. The runner stamps a liveness marker (pid +
   heartbeat) and readers reclassify a ``running`` state whose runner is
-  dead or silent as ``failed`` (F-03) — no phantom jobs, ever.
+  dead or silent as ``failed`` (F-03) - no phantom jobs, ever.
 - Errors are DATA: tools return ``{"ok": false, "error": actionable}``
   (uoink house envelope); protocol errors are reserved for malformed calls.
-- ``zing_status`` is built on doctor's checks — one source of truth.
+- ``zing_status`` is built on doctor's checks - one source of truth.
 - Prompts are served three ways: MCP prompts capability (slash commands in
   Claude clients), the ``get_prompt`` tool (for clients without prompts
   support), and ``zing prompt <name>`` on the CLI.
@@ -138,11 +138,12 @@ def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = F
         return _err(str(exc))
 
 def h_zing_explain(source: str, out_dir: str, transitions: bool = True,
-                   offline: bool = True, against: str | None = None) -> dict[str, Any]:
+                   offline: bool = True, against: str | None = None, ref_start: str | float | None = None,
+                   ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
     """Write local card files and return paths/metadata only."""
     from myzing.explain.api import _explain
     return _explain(source, out_dir, transitions=transitions, offline=offline,
-                    against=against, allow_download=not offline)
+                    against=against, allow_download=not offline, ref_start=ref_start, ref_end=ref_end, reference_range=reference_range)
 
 
 def h_brief_questions() -> dict[str, Any]:
@@ -182,7 +183,7 @@ def _check_slug(slug: Any) -> dict[str, Any] | None:
         storage.validate_slug(slug)
     except storage.SlugError as e:
         return _err(
-            f"invalid slug: {e} — slugs are storage-owned names, never "
+            f"invalid slug: {e} - slugs are storage-owned names, never "
             "paths; use one returned by study_video() or list_breakdowns()"
         )
     return None
@@ -191,7 +192,7 @@ def _check_slug(slug: Any) -> dict[str, Any] | None:
 def _missing_slug_err(slug: str) -> dict[str, Any]:
     """The one canonical unknown-slug message (was duplicated and drifting)."""
     return _err(
-        f"no breakdown for slug '{slug}' — call list_breakdowns() to see "
+        f"no breakdown for slug '{slug}' - call list_breakdowns() to see "
         "what exists, or study_video() to create it"
     )
 
@@ -273,7 +274,7 @@ def _reconcile_running(slug: str, status: dict[str, Any]) -> dict[str, Any]:
     pid = status.get("pid")
     if not isinstance(pid, int) or pid <= 0:
         reason = (
-            "it carries no runner pid — the study was started by a server "
+            "it carries no runner pid - the study was started by a server "
             "that crashed or an older Zing"
         )
     elif pid == os.getpid():
@@ -293,7 +294,7 @@ def _reconcile_running(slug: str, status: dict[str, Any]) -> dict[str, Any]:
         else:
             reason = f"process {pid} is alive but has never heartbeat"
     error = (
-        f"study interrupted — status said 'running' but {reason}; "
+        f"study interrupted - status said 'running' but {reason}; "
         "call study_video again to restart it"
     )
     _write_status(slug, state="failed", error=error, updated_at=_now())
@@ -404,6 +405,7 @@ def _run_study(
     root: Path,
     kept_media: str | None = None,
     handoff: dict[str, Any] | None = None,
+    trim: dict | None = None,
 ) -> None:
     """Worker-thread body: run the engine, persist, record honest state.
 
@@ -423,7 +425,7 @@ def _run_study(
             slug, phase=str(phase), heartbeat_at=_now(), updated_at=_now()
         )
 
-    kwargs = _study_kwargs(study_fn, kept_media, handoff, set_phase)
+    kwargs = {**_study_kwargs(study_fn, kept_media, handoff, set_phase), **(trim or {})}
 
     stop_beating = threading.Event()
 
@@ -477,7 +479,8 @@ def _run_study(
 
 @_workspace_boundary
 def h_study_video(
-    url_or_path: str, kept_media: str | None = None
+    url_or_path: str, kept_media: str | None = None, ref_start: str | float | None = None,
+    ref_end: str | float | None = None, reference_range: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(url_or_path, str) or not url_or_path.strip():
         return _err("url_or_path required: a video URL or a local file path")
@@ -503,7 +506,7 @@ def h_study_video(
         )
     if not shutil.which("ffmpeg"):
         return _err(
-            "ffmpeg not found on PATH — Zing cannot measure anything without "
+            "ffmpeg not found on PATH - Zing cannot measure anything without "
             "it. Run `zing doctor` for the install command."
         )
     if not is_http_url(source):
@@ -514,7 +517,7 @@ def h_study_video(
         expanded = Path(source).expanduser().resolve()
         if not expanded.is_file():
             return _err(
-                f"file not found: {source} — pass a video URL or an existing "
+                f"file not found: {source} - pass a video URL or an existing "
                 "local file path"
             )
         source = str(expanded)
@@ -525,10 +528,16 @@ def h_study_video(
         )
     if kept is not None and not _engine_supports(api, "kept_media"):
         return _err(
-            "this build's study engine has no kept-media support — "
+            "this build's study engine has no kept-media support - "
             "update myzing, or call study_video without kept_media"
         )
-    return _dispatch_study(api, source, kept)
+    from myzing.reference_range import parse
+    try:
+        parse(ref_start, ref_end, reference_range)
+    except ValueError as exc:
+        return _err(str(exc))
+    trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
+    return _dispatch_study(api, source, kept, **({"trim": trim} if trim else {}))
 
 
 def _engine_supports(api: Any, param: str) -> bool:
@@ -545,12 +554,14 @@ def _dispatch_study(
     kept: str | None,
     handoff: dict[str, Any] | None = None,
     hint_extra: str = "",
+    trim: dict | None = None,
     **echo: Any,
 ) -> dict[str, Any]:
     """Shared job dispatch for study_video and study_uoink_item: status
     stamped under the jobs lock, worker pinned to the captured workspace,
     honest already_studying answer for live jobs."""
-    slug = storage.slug_for(source)
+    from myzing.reference_range import slug as reference_slug
+    slug = reference_slug(source, **(trim or {}))
     # F-15: capture the workspace NOW and pin the whole job to it — the
     # worker thread must not re-resolve env that may change under it.
     root = storage.workspace_root()
@@ -577,7 +588,7 @@ def _dispatch_study(
         )
         thread = threading.Thread(
             target=_run_study,
-            args=(api.study, source, slug, root, kept, handoff),
+            args=(api.study, source, slug, root, kept, handoff, *([trim] if trim else [])),
             daemon=True,
         )
         _JOBS[slug] = thread
@@ -587,7 +598,7 @@ def _dispatch_study(
         extra["kept_media"] = kept
         if not hint_extra:
             hint_extra = (
-                " Using the kept local copy — zero network fetch when it "
+                " Using the kept local copy - zero network fetch when it "
                 "checks out; any fallback to fetching is named in the "
                 "breakdown's warnings."
             )
@@ -618,7 +629,8 @@ def h_import_shot_list(path: str, slug: str) -> dict[str, Any]:
 
 
 @_workspace_boundary
-def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
+def h_study_uoink_item(item_ref: str, ref_start: str | float | None = None,
+                       ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
     """INTEGRATION-CONTRACT v1 §9: study a uoink corpus item through the
     kept-media resolver. Accepts ONE uoink reference — never a peer
     path; paths only travel inside the token-gated handoff."""
@@ -629,7 +641,7 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
         )
     if not shutil.which("ffmpeg"):
         return _err(
-            "ffmpeg not found on PATH — Zing cannot measure anything without "
+            "ffmpeg not found on PATH - Zing cannot measure anything without "
             "it. Run `zing doctor` for the install command."
         )
     api = _study_api()
@@ -640,11 +652,17 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
     if not (_engine_supports(api, "kept_media") and _engine_supports(api, "handoff")):
         return _err(
             "this build's study engine predates the kept-media handoff "
-            "contract — update myzing"
+            "contract - update myzing"
         )
 
     from myzing import uoink_bridge
 
+    from myzing.reference_range import parse
+    try:
+        parse(ref_start, ref_end, reference_range)
+    except ValueError as exc:
+        return _err(str(exc))
+    trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
     resolved = uoink_bridge.resolve_kept_media(item_ref.strip())
     if not resolved.get("ok"):
         return _err(str(resolved.get("error", "kept-media resolution failed")))
@@ -658,7 +676,7 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
         # nothing honest to study when the kept file is absent, and no
         # slug for it when present.
         return _err(
-            f"uoink has no source_url for {item_ref} (state={state}) — "
+            f"uoink has no source_url for {item_ref} (state={state}) - "
             "zing derives a study's identity from the source URL. If you "
             "have the file, study it directly as a local path instead."
         )
@@ -675,11 +693,11 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
     }
     kept = str(media["path"]) if state == "available" else None
     hint_extra = (
-        " Studying from uoink's kept file — zero network fetch when "
+        " Studying from uoink's kept file - zero network fetch when "
         "integrity checks out."
         if kept
         else (
-            f" uoink kept no usable file (state={state}) — fetching from the "
+            f" uoink kept no usable file (state={state}) - fetching from the "
             "source URL; provenance will record the refetch and its reason."
         )
     )
@@ -691,6 +709,7 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
         hint_extra=hint_extra,
         item_ref=data["item_ref"],
         kept_state=state,
+        **({"trim": trim} if trim else {}),
     )
 
 
@@ -752,7 +771,7 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
     state = (status or {}).get("state", "")
     if state == "running":
         prior_exists = (storage.breakdown_dir(slug) / "breakdown.json").is_file()
-        hint = "still studying — poll again shortly"
+        hint = "still studying - poll again shortly"
         if prior_exists:
             hint += (
                 "; an older, superseded breakdown exists on disk and is "
@@ -774,7 +793,7 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
             return {
                 **_err(
                     f"study of '{slug}' failed: {status.get('error', 'unknown')} "
-                    "— fix the cause (zing doctor helps) and call study_video again"
+                    "- fix the cause (zing doctor helps) and call study_video again"
                 ),
                 "state": "failed",
             }
@@ -800,7 +819,7 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
             dir=b_dir,
             breakdown=data,
             hint=(
-                "the most recent re-study FAILED — this breakdown is the "
+                "the most recent re-study FAILED - this breakdown is the "
                 "last successful study's measurement. Fix the cause (zing "
                 "doctor helps) and call study_video again, or judge this "
                 "data knowingly."
@@ -859,7 +878,7 @@ def h_save_judgment(
         return bad
     if not isinstance(judgment, dict) or not judgment:
         return _err(
-            "judgment must be a non-empty JSON object — the shape is defined "
+            "judgment must be a non-empty JSON object - the shape is defined "
             "in the prompt pack (get_prompt('study'))"
         )
     if not re.fullmatch(r"[a-z0-9_-]+", section or ""):
@@ -876,7 +895,7 @@ def h_save_judgment(
             if missing:
                 return _err(
                     f"judgment for section '{section}' is missing required "
-                    f"key(s): {', '.join(missing)} — the expected shape is "
+                    f"key(s): {', '.join(missing)} - the expected shape is "
                     f"defined in get_prompt('{section}')"
                 )
 
@@ -892,7 +911,7 @@ def h_save_judgment(
     try:
         updated = storage.save_judgment(slug, {section: body})
     except FileNotFoundError as e:
-        return _err(f"{e} — study the video first (study_video)")
+        return _err(f"{e} - study the video first (study_video)")
     receipt: dict[str, Any] = {
         "slug": slug,
         "section_written": section,
@@ -992,7 +1011,7 @@ def h_build_profile(
         return _err(f"invalid profile name: {e}")
     if not isinstance(slugs, list) or not slugs:
         return _err(
-            "slugs required: the studied videos to aggregate — see "
+            "slugs required: the studied videos to aggregate - see "
             "list_breakdowns()"
         )
     for slug in slugs:
@@ -1005,7 +1024,7 @@ def h_build_profile(
     ]
     if missing:
         return _err(
-            f"no breakdown for: {', '.join(missing)} — study these first "
+            f"no breakdown for: {', '.join(missing)} - study these first "
             "(study_video), or drop them from the list"
         )
     api = _profile_api()
@@ -1053,7 +1072,7 @@ def h_get_profile(name: str) -> dict[str, Any]:
         p = storage.load_profile(name)
     except FileNotFoundError:
         return _err(
-            f"no profile named '{name}' — call list_profiles() to see what "
+            f"no profile named '{name}' - call list_profiles() to see what "
             "exists, or build_profile(name, slugs) to create it"
         )
     except ValueError as e:
@@ -1084,7 +1103,7 @@ def h_list_presets() -> dict[str, Any]:
             count=0,
             presets=[],
             hint=(
-                "no preset packs installed yet — onboard a personal taste "
+                "no preset packs installed yet - onboard a personal taste "
                 "with setup_taste(name, links=[...]) today"
             ),
         )
@@ -1110,7 +1129,7 @@ def h_setup_taste(
             names = ", ".join(
                 p["name"] for p in setup_flow.list_packs()
             ) or "(none installed)"
-            return _err(f"no preset pack named '{pack}' — available: {names}")
+            return _err(f"no preset pack named '{pack}' - available: {names}")
         links = [r["url"] for r in manifest["references"]]
         genre = genre or manifest.get("genre", "")
         platform = platform or manifest.get("platform", "")
@@ -1120,7 +1139,7 @@ def h_setup_taste(
     if not links:
         return _err(
             "provide links=[...] (your reference URLs) or pack=<preset name> "
-            "— see list_presets()"
+            "- see list_presets()"
         )
     try:
         outcome = setup_flow.advance_setup(
@@ -1136,7 +1155,7 @@ def h_setup_taste(
             build=outcome["build"],
             hint=(
                 "judge the references with the study prompt, then call "
-                "setup_taste again — rebuilds fold judgments in"
+                "setup_taste again - rebuilds fold judgments in"
             ),
         )
     if plan["ready_to_build"]:
@@ -1151,7 +1170,7 @@ def h_setup_taste(
         start_errors=outcome["start_errors"],
         failed=plan["failed"],
         hint=(
-            "studies run in the background — call setup_taste again with the "
+            "studies run in the background - call setup_taste again with the "
             "same arguments once zing_status() shows them done (idempotent)"
         ),
     )
@@ -1201,12 +1220,14 @@ def _run_match(options, root, workspace, stop, lease):
 def h_match_start(reference: str, clips: str, out: str, brief: str | None = None,
                   answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
                   resume: bool = False, allow_download: bool = False,
-                  studio_options: dict[str, Any] | None = None) -> dict[str, Any]:
+                  studio_options: dict[str, Any] | None = None, ref_start: str | float | None = None,
+                  ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
     """Start the same supervised pipeline as the CLI; no media bytes returned."""
     from myzing.match.api import validate
     from myzing.match.process import run_lock
     options = dict(reference=reference, clips=clips, out=out, brief=brief, answers=answers,
                    drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    options.update({k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None})
     if studio_options is not None:
         options["studio_options"] = studio_options
     try:
@@ -1272,7 +1293,7 @@ def _load_edl(edl_path: str, *, allow_composition: bool = False):
     p = Path(edl_path).expanduser()
     if not p.is_file():
         return None, None, _err(
-            f"EDL file not found: {edl_path} — pass a path to an edl.json"
+            f"EDL file not found: {edl_path} - pass a path to an edl.json"
         )
     try:
         text = p.read_text(encoding="utf-8")
@@ -1283,7 +1304,7 @@ def _load_edl(edl_path: str, *, allow_composition: bool = False):
             edl = EDL.from_json(text)
     except (OSError, ValueError, KeyError, TypeError) as e:
         return None, None, _err(
-            f"could not parse EDL {p.name}: {e} — the EDL contract is in "
+            f"could not parse EDL {p.name}: {e} - the EDL contract is in "
             "schemas.py (clips/captions/audio)"
         )
     return edl, p.resolve().parent, None
@@ -1348,7 +1369,7 @@ def _run_render(
 def h_render_edl(edl_path: str, output_path: str = "") -> dict[str, Any]:
     if not shutil.which("ffmpeg"):
         return _err(
-            "ffmpeg not found on PATH — run `zing doctor` for the install "
+            "ffmpeg not found on PATH - run `zing doctor` for the install "
             "command."
         )
     edl, base_dir, bad = _load_edl(edl_path, allow_composition=True)
@@ -1430,7 +1451,7 @@ def h_get_render(render_id: str) -> dict[str, Any]:
     status = storage.read_status_at(d)
     if status is None:
         return _err(
-            f"no render named '{render_id}' — render_edl(edl_path) starts one"
+            f"no render named '{render_id}' - render_edl(edl_path) starts one"
         )
     if status.get("state") == "running":
         with _JOBS_LOCK:
@@ -1441,7 +1462,7 @@ def h_get_render(render_id: str) -> dict[str, Any]:
                 # crash honesty, same rule as studies: a running state
                 # without its worker is rewritten, not believed
                 error = (
-                    "render interrupted — status said 'running' but its "
+                    "render interrupted - status said 'running' but its "
                     "worker is gone; call render_edl again"
                 )
                 storage.write_status_at(
@@ -1536,7 +1557,7 @@ def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
         )
     if len(timestamps) > FRAMES_HARD_CAP:
         return _err(
-            f"{len(timestamps)} timestamps requested — the cap is "
+            f"{len(timestamps)} timestamps requested - the cap is "
             f"{FRAMES_HARD_CAP} per call ({FRAMES_RECOMMENDED} recommended "
             "for token budget). Split into a second call."
         )
@@ -1556,7 +1577,7 @@ def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
         return _err("timestamps must be non-negative seconds")
     if not shutil.which("ffmpeg"):
         return _err(
-            "ffmpeg not found on PATH — run `zing doctor` for the install "
+            "ffmpeg not found on PATH - run `zing doctor` for the install "
             "command."
         )
     bad = _check_slug(slug)
@@ -1572,7 +1593,7 @@ def h_get_frames(slug: str, timestamps: list[float]) -> dict[str, Any]:
     if media is None:
         return _err(
             f"breakdown '{slug}' exists but its media file is gone "
-            "(media.* not in the workspace) — re-run study_video to refetch "
+            "(media.* not in the workspace) - re-run study_video to refetch "
             "before requesting frames"
         )
     duration = b.meta.duration
@@ -1774,10 +1795,10 @@ def h_get_prompt(name: str = "study") -> dict[str, Any]:
         where = str(prompts_dir())
         if have:
             return _err(
-                f"no prompt named '{name}' — available: {', '.join(have)}"
+                f"no prompt named '{name}' - available: {', '.join(have)}"
             )
         return _err(
-            f"no prompt pack found (looked in {where}) — this build shipped "
+            f"no prompt pack found (looked in {where}) - this build shipped "
             "without prompts; update Zing or set "
             f"{PROMPTS_DIR_ENV} to the pack directory"
         )
@@ -1808,7 +1829,7 @@ def mcp_sdk_defect() -> str | None:
         import mcp  # noqa: F401
     except ImportError:
         return (
-            "the MCP SDK is not installed in this Python — run "
+            "the MCP SDK is not installed in this Python - run "
             'python -m pip install "myzing[mcp]" '
             '(from a source checkout: pip install -e ".[mcp]")'
         )
@@ -1841,13 +1862,17 @@ def build_server():
         # in both protocol eras instead of advertising SDK 2's default bus.
         subscriptions=False,
         instructions=(
-            "Zing studies short videos: deterministic measurements (shots, "
-            "word-timed transcript, caption OCR, audio) become a Breakdown "
-            "your judgment turns into a style read. Typical flow: "
-            "study_video(url) -> poll zing_status() -> get_breakdown(slug) "
-            "-> judge it using the 'study' prompt (get_prompt) -> "
-            "save_judgment(slug, judgment). For still memes: get_prompt('meme-writer') "
-            "-> write text -> meme_check -> meme_render. Meme tools make no model calls."
+            "A free, local creative studio for short videos and memes that runs in your "
+            "terminal and that AI agents can drive. Start with zing_studio to ask the "
+            "user the right questions and get a plan. Confirm the plan before running its "
+            "tool calls. Typical flow: zing_studio -> confirm -> zing_studio_run and poll "
+            "the returned project, or use the tools listed in the plan. Explain a "
+            "reference with zing_explain. Match local clips with match_start -> "
+            "match_status. For memes: get_prompt('meme-writer') -> write text -> "
+            "meme_check -> meme_render. Meme tools make no model calls. Keep measured "
+            "facts, confidence, chosen approximations and unknowns separate. Never claim "
+            "to recover an original font, LUT, preset or editor project. Downloads "
+            "require explicit consent. Return paths and metadata, never media bytes."
         ),
     )
     mcp.tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
@@ -1859,7 +1884,7 @@ def build_server():
     h_zing_studio_run.__annotations__["cancel"] = StrictBool
     mcp.tool(
         name="zing_studio_run",
-        description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For c/e reuse still_concepts/still_render and music_check. Speech downloads require speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
+        description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For c/e reuse still_concepts/still_render and music_check. Speech downloads require an explicit speech_setup download choice or speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
     )(h_zing_studio_run)
     mcp.tool(
         name="brief_questions",
@@ -1882,7 +1907,7 @@ def build_server():
             "minutes): shot boundaries, word-timed transcript, caption OCR, "
             "audio layout. Poll zing_status() for phase, then "
             "get_breakdown(slug). Optional kept_media: path to a locally "
-            "kept copy of the URL's media (e.g. a uoink keep_media file) — "
+            "kept copy of the URL's media (e.g. a uoink keep_media file) - "
             "studies from it with zero network fetch when it checks out; "
             "falls back to fetching with the reason named in warnings."
         ),
@@ -1896,7 +1921,7 @@ def build_server():
             "a usable kept file is studied with zero network fetch and "
             "integrity-verified provenance; otherwise zing refetches from "
             "the item's source URL and the provenance names why. Needs "
-            "UOINK_URL/UOINK_TOKEN configured; references only — this tool "
+            "UOINK_URL/UOINK_TOKEN configured; references only - this tool "
             "never accepts a file path."
         ),
     )(h_study_uoink_item)
@@ -1909,7 +1934,7 @@ def build_server():
             "the path-free zing.shot-list.import receipt (document sha256 + "
             "writer://script ref + zing://breakdown target). Re-importing "
             "the same file for the same slug is idempotent. The imported "
-            "plan is editorial context — zing's measured direction stays "
+            "plan is editorial context - zing's measured direction stays "
             "the authority for keeper spans."
         ),
     )(h_import_shot_list)
@@ -1919,7 +1944,7 @@ def build_server():
             "Fetch a studied video's Breakdown JSON by slug. Every response "
             "carries a `state` field: running | done | failed | absent. The "
             "job status is checked FIRST: while a (re-)study runs you get "
-            "ready=false with the current phase — never superseded "
+            "ready=false with the current phase - never superseded "
             "measurements (`stale_breakdown_exists` flags that an older "
             "snapshot is on disk). If the latest re-study failed but an "
             "earlier study succeeded, the last successful breakdown is "
@@ -1954,7 +1979,7 @@ def build_server():
         name="save_judgment",
         description=(
             "Write your judgment of a breakdown back to Zing (hook type, "
-            "structure beats, caption style, why it works — the shape is "
+            "structure beats, caption style, why it works - the shape is "
             "defined by get_prompt('study')). Each top-level section is "
             "replaced wholesale; pass model=<your model name> for "
             "provenance."
@@ -1965,7 +1990,7 @@ def build_server():
         description=(
             "Zing's health and state: tool availability (ffmpeg, yt-dlp, "
             "whisper, OCR), workspace stats, running/failed study jobs, "
-            "available prompts. Cheap — call freely."
+            "available prompts. Cheap - call freely."
         ),
     )(h_zing_status)
     mcp.tool(
@@ -1973,7 +1998,7 @@ def build_server():
         description=(
             "Optional: push a studied video's breakdown.md into the user's "
             "uoink corpus as a note (only works when the uoink helper is "
-            "running locally — zing_status shows it under environment). "
+            "running locally - zing_status shows it under environment). "
             "Zing is fully standalone without it."
         ),
     )(h_push_to_uoink)
@@ -1990,7 +2015,7 @@ def build_server():
         name="setup_taste",
         description=(
             "Onboard a named taste: from a preset pack OR your own "
-            "reference links. Idempotent — starts missing studies in the "
+            "reference links. Idempotent - starts missing studies in the "
             "background, builds the StyleProfile when all references are "
             "studied; call again with the same arguments to advance. "
             "Multiple named tastes are first-class."
@@ -2003,7 +2028,7 @@ def build_server():
             "(cuts, positioned ASS word captions, voiceover/music mix). V2 checks "
             "asset/font SHA-256, supported features and layout safety before dispatch. Returns "
             "a render_id immediately; rendering runs in the background "
-            "(seconds to a few minutes) — poll get_render(render_id). "
+            "(seconds to a few minutes) - poll get_render(render_id). "
             "Renders without voiceover when no TTS is available (stated)."
         ),
     )(h_render_edl)
@@ -2076,7 +2101,7 @@ def build_server():
             f"Up to {FRAMES_HARD_CAP} per call ({FRAMES_RECOMMENDED} "
             "recommended). Sample at shot boundaries (shots[].start), "
             "hook window 0-3s first, and judge frames together with the "
-            "transcript — frames alone under-perform. Frames are "
+            "transcript - frames alone under-perform. Frames are "
             f"{FRAME_MAX_EDGE}px longest-edge JPEGs extracted on demand; "
             "nothing is cached."
         ),
@@ -2198,13 +2223,13 @@ def _print_connect_config(target: str) -> int:
     )
     code_cmd = f'claude mcp add zing -- "{python}" -m myzing.cli serve-mcp'
     if target in ("desktop", ""):
-        print("# Claude Desktop — merge into claude_desktop_config.json")
+        print("# Claude Desktop - merge into claude_desktop_config.json")
         print("# (Windows: %APPDATA%\\Claude\\  macOS: ~/Library/Application Support/Claude/)")
         print(desktop)
     if target in ("code", ""):
         if target == "":
             print()
-        print("# Claude Code — run this once:")
+        print("# Claude Code - run this once:")
         print(code_cmd)
     defect = mcp_sdk_defect()
     if defect is not None:

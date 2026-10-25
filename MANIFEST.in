@@ -1,0 +1,13 @@
+include CHANGELOG.md
+include docs/RELEASING.md
+include docs/DIRECTORY-SUBMISSIONS.md
+include docs/CONNECT.md
+include server.json
+include uv.lock
+recursive-include packaging *.py *.json
+recursive-include prompts *.md
+prune tests
+prune tools
+prune handoff
+prune zing-workspace
+global-exclude __pycache__ *.py[cod]

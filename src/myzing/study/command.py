@@ -14,6 +14,8 @@ def run(argv: list[str]) -> int:
         description="Measure a short video into an edit breakdown.",
     )
     parser.add_argument("source", help="video URL (tiktok/instagram/youtube) or local file")
+    from myzing.reference_range import add_options, options, slug as reference_slug
+    add_options(parser)
     parser.add_argument(
         "--workspace", type=Path, default=None,
         help="override the zing workspace directory (default: ~/.zing or $ZING_HOME)",
@@ -47,6 +49,8 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--vocabulary", action="append", default=[], metavar="TERM,TERM",
                         help="exact names/terms for ASR; repeat or comma-separate (64 terms, 500 UTF-8 bytes total)")
     parser.add_argument("--brief", type=Path, help="creative brief supplying purpose and exact_spellings")
+    parser.add_argument("--local-models-only", action="store_true",
+                        help="use only provisioned local models; never download during study")
     args = parser.parse_args(argv)
     if args.fonts and not args.caption_geometry:
         parser.error("--fonts requires --caption-geometry")
@@ -57,7 +61,9 @@ def run(argv: list[str]) -> int:
 
     root = storage.resolve_workspace(args.workspace)
     try:
-        study_kwargs = {"workspace": root}
+        study_kwargs = {"workspace": root, **options(args)}
+        if args.local_models_only:
+            study_kwargs["local_models_only"] = True
         if args.transitions:
             study_kwargs["detect_transitions"] = True
         if args.caption_geometry:
@@ -82,7 +88,7 @@ def run(argv: list[str]) -> int:
         print(breakdown.to_json(indent=2))
         return 0
 
-    slug = storage.slug_for(args.source)
+    slug = reference_slug(args.source, **options(args))
     with storage.use_workspace(root):
         folder = storage.breakdown_dir(slug)
     m = breakdown.meta

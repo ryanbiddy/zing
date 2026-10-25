@@ -16,6 +16,8 @@ Failures are loud: an EDL that cannot be honest does not get produced.
 
 from __future__ import annotations
 
+from myzing.captions.grouping import join
+
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -64,7 +66,7 @@ def draft_edl(
     chosen = direction.get("keepers") or []
     if not chosen:
         raise AssembleError(
-            "direction has no keepers — nothing measurable to assemble; "
+            "direction has no keepers - nothing measurable to assemble; "
             "the gaps/shot_prompts must be filmed first"
         )
     if not media_path.is_file():
@@ -91,13 +93,13 @@ def draft_edl(
         if duration > 0 and (start >= duration or end > duration + 0.05):
             raise AssembleError(
                 f"direction keeper {index} ({start:.2f}-{end:.2f}s) exceeds "
-                f"the measured media duration ({duration:.2f}s) — refusing "
+                f"the measured media duration ({duration:.2f}s) - refusing "
                 "to trim footage that does not exist"
             )
         if end - start < MIN_CLIP_S:
             warnings.append(
                 f"draft EDL: keeper {index} ({start:.2f}-{end:.2f}s) shorter "
-                f"than {MIN_CLIP_S}s — dropped"
+                f"than {MIN_CLIP_S}s - dropped"
             )
             continue
         warnings.extend(
@@ -111,7 +113,7 @@ def draft_edl(
         if measured is not None and not _matches_measured(start, end, measured):
             warnings.append(
                 f"draft EDL: chosen span {start:.2f}-{end:.2f}s is not a "
-                "measured keeper (AI's call — flagged, not blocked): "
+                "measured keeper (AI's call - flagged, not blocked): "
                 f'"{str(keeper.get("why", ""))[:60]}"'
             )
         clips.append(Clip(
@@ -124,7 +126,7 @@ def draft_edl(
 
     if not clips:
         raise AssembleError(
-            "every direction keeper was too short to trim — no draft EDL"
+            "every direction keeper was too short to trim - no draft EDL"
         )
 
     # Lane C P2 finding: inventing 1080x1920@30 for missing measurements
@@ -135,7 +137,7 @@ def draft_edl(
         raise AssembleError(
             "breakdown lacks measured width/height/fps "
             f"({breakdown.meta.width}x{breakdown.meta.height}"
-            f"@{breakdown.meta.fps:g}) — re-run 'zing study' rather than "
+            f"@{breakdown.meta.fps:g}) - re-run 'zing study' rather than "
             "inventing an output orientation"
         )
     output_width, output_height, output_warning = _output_dimensions(
@@ -150,17 +152,17 @@ def draft_edl(
         warnings.append(
             f"draft EDL: caption style came from {len(breakdown.captions)} "
             f"on-screen text event(s) and was applied to {len(captions)} "
-            f"derived caption(s) — {'; '.join(style_risks)}. Treat the "
+            f"derived caption(s) - {'; '.join(style_risks)}. Treat the "
             "style as a guess and verify it against a frame"
         )
     if not captions and breakdown.words:
         warnings.append(
-            "draft EDL: no transcript words fall inside the chosen spans — "
+            "draft EDL: no transcript words fall inside the chosen spans - "
             "captions omitted"
         )
     elif not breakdown.words:
         warnings.append(
-            "draft EDL: captions omitted — the breakdown has no transcript"
+            "draft EDL: captions omitted - the breakdown has no transcript"
         )
 
     edl = EDL(
@@ -366,7 +368,7 @@ def _spec(
     all_caps: bool,
     word_timed: bool,
 ) -> CaptionSpec:
-    text = " ".join(w.text.strip() for w in window)
+    text = join(w.text for w in window)
     if all_caps:
         text = text.upper()
     return CaptionSpec(
@@ -437,7 +439,7 @@ def _trim_boundary_warnings(
             word = max(matches, key=lambda item: boundary - item.start)
         text = " ".join(str(word.text).split())[:40].replace("'", "’")
         warnings.append(
-            "draft EDL: context-boundary risk — "
+            "draft EDL: context-boundary risk - "
             f"keeper {keeper_index} {label} at {boundary:.3f}s inside "
             f"{(word.timing or {}).get('status', 'measured')} word '{text}' "
             f"({word.start:.3f}-{word.end:.3f}s, "
@@ -480,7 +482,7 @@ def draft_for_slug(slug: str, direction: dict[str, Any], *,
     media = storage.find_media(slug)
     if media is None:
         raise AssembleError(
-            f"no stored media for '{slug}' — re-run 'zing study' first"
+            f"no stored media for '{slug}' - re-run 'zing study' first"
         )
     target = storage.breakdown_dir(slug) / "draft-edl.json"
     result = draft_edl(breakdown, direction, media, retry_word_timing=retry_word_timing)

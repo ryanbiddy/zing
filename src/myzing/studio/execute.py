@@ -122,13 +122,19 @@ def run_confirmed(answers, *, progress=None, locked=False):
     root.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     progress("Starting " + plan["title"])
-    if path == "a":
+    if path in "ab" and a.get("footage_kind") == "screen":
+        from myzing.screen.api import run_folder
+        result = run_folder(a["clips"], root, cursor=None if a.get("cursor_log", "none") == "none" else a["cursor_log"],
+                            aspects=a["aspects"], caption_preset=a["captions"] if a["captions"] in {"clean","punch","box"} else "none",
+                            progress=progress, speech_model=a.get("speech_model"), music=a.get("music"))
+    elif path == "a":
         from myzing.match.jobs import execute
         from .jobs import busy_lock
         with nullcontext() if locked else busy_lock(root):
             result = execute({"reference": a["reference"], "clips": a["clips"], "out": str(root),
                               "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),
                               "allow_download": a.get("allow_download", False),
+                              **{k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a},
                               "studio_options": {"captions": a["captions"], "music": a["music"], **({"speech_model": a["speech_model"]} if "speech_model" in a else {})}},
                              progress=progress, locked=True)
     elif path == "b":
@@ -147,7 +153,7 @@ def run_confirmed(answers, *, progress=None, locked=False):
         result = {"status": "ready", "stills": rows}
     elif path == "d":
         attempt = Path(tempfile.mkdtemp(prefix="style-", dir=root))
-        result = adapters.explain_video(a["source"], attempt, progress=progress)
+        result = adapters.explain_video(a["source"], attempt, progress=progress, **{k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a})
         result["status"] = "ready" if result.get("ok") else "failed"
     elif path == "e":
         from myzing.music.advice import check_tracks
@@ -206,6 +212,9 @@ def run_confirmed(answers, *, progress=None, locked=False):
         "f": ["Watch the new delivery and check its crop.",
               "Want another shape? Run zing studio, choose 6 and give it the original plan."],
     }[path]
+    if path in "ab" and a.get("footage_kind") == "screen":
+        next_actions = ["Watch each screen demo at phone size; check UI text and the focus at clicks.",
+                        "Adjust its saved screen plan and use zing render <plan.json> --aspect all to re-deliver."]
     status = result.get("status", "failed")
     if status in ("failed", "shortage", "cancelled"):
         # Nothing finished to review: point at the blocker and the saved session.

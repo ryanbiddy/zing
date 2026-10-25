@@ -49,7 +49,7 @@ def sample() -> Breakdown:
 
 def test_render_contains_all_sections():
     md = report.render_markdown(sample())
-    assert "# Edit breakdown — why ice" in md
+    assert "# Edit breakdown - why ice" in md
     assert "author: cleo" in md
     assert "## Pacing" in md and "3 shots, 2 cuts" in md
     assert "densest window: 0-10s" in md
@@ -72,7 +72,7 @@ def test_render_empty_breakdown_is_honest():
         warnings=["shot detection skipped: scenedetect not installed"],
     )
     md = report.render_markdown(b)
-    assert "(no shot data — see warnings)" in md
+    assert "(no shot data - see warnings)" in md
     assert "(nothing transcribed in this window)" in md
     assert "(no on-screen text observed" in md
     assert "no meaningful speech" in md
@@ -93,7 +93,7 @@ def test_transitions_render_plain_language():
     b.provenance["transition_detector"] = "prototype-1"
     md = report.render_markdown(b)
     assert "## Transitions" in md
-    assert "- 1.40s: hard cut — audio-aligned, onset +0.030s" in md
+    assert "- 1.40s: hard cut - audio-aligned, onset +0.030s" in md
     assert "- 3.20-3.80s (over 0.60s): dissolve" in md
     assert "- 12.10-12.50s (over 0.40s): zoom punch" in md
     assert "transitions: 3 observed" in md

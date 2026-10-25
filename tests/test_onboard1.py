@@ -34,10 +34,10 @@ def pins(monkeypatch):
 
 
 def interview(inputs):
-    return f"1\n{inputs['source']}\n{inputs['clips']}\na local story\n\n12\nphone\n\n"
+    return f"1\n{inputs['source']}\n{inputs['clips']}\ngeneral\na local story\n\n12\nphone\n\n"
 
 
-@pytest.mark.parametrize("choice,model", [("", "small.en"), ("1", "small.en"), ("2", "large-v2"), ("3", "skip")])
+@pytest.mark.parametrize("choice,model", [("", "skip"), ("1", "small.en"), ("2", "large-v2"), ("3", "skip")])
 def test_model_stdin_choices_and_finish_receipt(inputs, monkeypatch, capsys, pins, choice, model):
     calls = []
     def download(url, **kwargs):
@@ -49,7 +49,7 @@ def test_model_stdin_choices_and_finish_receipt(inputs, monkeypatch, capsys, pin
         receipt = speech.prepare(a, progress=kwargs["progress"])
         return {"ok": True, "status": "ready", "speech_setup": receipt, "outputs": [], "warnings": []}
     monkeypatch.setattr("myzing.studio.execute.run_confirmed", execute)
-    transcript = interview(inputs) + choice + "\n" + ("yes\n" if model != "skip" else "") + "yes\n"
+    transcript = interview(inputs) + choice + "\nyes\n"
     monkeypatch.setattr("sys.stdin", io.StringIO(transcript))
     assert command.run([]) == 0
     output = capsys.readouterr().out
@@ -65,7 +65,7 @@ def test_model_stdin_choices_and_finish_receipt(inputs, monkeypatch, capsys, pin
         assert state.result["speech_setup"]["continuity"] == "unavailable"
 
 
-@pytest.mark.parametrize("tail", ["q\n", "\nq\n", "\n\nb\nb\n3\nq\n", "\nb\n3\nq\n"])
+@pytest.mark.parametrize("tail", ["q\n", "\nq\n", "\nb\nq\n", "\nb\n3\nq\n"])
 def test_model_back_quit_and_enter_never_authorize_fetch(inputs, monkeypatch, tail):
     monkeypatch.setattr("sys.stdin", io.StringIO(interview(inputs) + tail))
     assert command.run([]) == 0
@@ -78,6 +78,7 @@ def test_model_back_quit_and_enter_never_authorize_fetch(inputs, monkeypatch, ta
 def test_noninteractive_requires_model_then_explicit_consent(inputs, flags, capsys):
     answers, _ = complete("a", inputs)
     answers.pop("speech_model")
+    answers.pop("speech_setup", None)
     file = Path(inputs["project"]).with_suffix(".json")
     file.write_text(json.dumps(answers))
     assert command.run(["--answers", str(file), *flags]) == 2
@@ -453,9 +454,13 @@ def test_supplied_model_for_silent_clips_needs_consent_before_the_plan(inputs, m
 
 
 def test_back_after_a_declined_download_returns_to_the_model_choice(inputs, monkeypatch):
-    # Enter picks small.en, Enter declines its download, b, then 3 = skip, q.
-    monkeypatch.setattr("sys.stdin", io.StringIO(interview(inputs) + "\n\nb\n3\nq\n"))
-    assert command.run([]) == 0
+    # Resume an older split model/download interview after declining its download.
+    answers, _ = complete("a", inputs)
+    answers.pop("speech_setup", None)
+    answers.update(speech_model="small.en", speech_download=False)
+    save_session(inputs["project"], Session(answers=answers, history=["speech_model", "speech_download"]))
+    monkeypatch.setattr("sys.stdin", io.StringIO("b\n3\nq\n"))
+    assert command.run(["--resume", inputs["project"]]) == 0
     state = load_session(inputs["project"])
     assert state.answers["speech_model"] == "skip" and "speech_download" not in state.answers
 

@@ -12,6 +12,7 @@ import sys
 # the remaining drift class — a command added here appears in help by
 # construction, ordered as listed).
 _COMMANDS: dict[str, tuple[str, str]] = {
+    "record-cursor": ("myzing.screen.recorder", "record local cursor/click and anonymous key-press times for a screen demo"),
     "studio": ("myzing.studio.command", "start here: guided questions, recommendations and creative outputs"),
 
     "explain": ("myzing.explain.command", "explain a video's editing style as JSON, Markdown and a phone-readable card"),
@@ -19,7 +20,7 @@ _COMMANDS: dict[str, tuple[str, str]] = {
     "doctor": ("myzing.doctor",
                "check your environment and print the exact fix for each gap"),
     "setup": ("myzing.setup_flow",
-              "guided first run: study a preset pack or your own links"),
+              "set up FFmpeg or models; study a preset pack or your own links"),
     "study": ("myzing.study.command",
               "measure a video (URL or local file) into a breakdown"),
     "fonts": ("myzing.fonts.command",
@@ -79,8 +80,8 @@ def _usage() -> str:
         for name, (_, help_line) in _COMMANDS.items()
     )
     return (
-        "Start here: zing studio\n\n"
         "Match your clips to a reference video and make memes from local images.\n\n"
+        "Start here: zing studio\n\n"
         "usage: zing [--version] <command> [args]\n\n"
         f"commands:\n{rows}\n\n"
         "Most commands accept --help. To connect an AI client, start with:\n"
@@ -129,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         module = importlib.import_module(module_name)
     except ImportError:
         print(
-            f"zing {command}: this install is missing {module_name} — "
+            f"zing {command}: this install is missing {module_name} - "
             "reinstall zing (pip install --force-reinstall)"
         )
         return 2

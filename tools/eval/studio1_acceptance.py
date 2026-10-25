@@ -17,6 +17,7 @@ import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
 
 
 def digest(path):
@@ -77,7 +78,7 @@ def prepare(out, source):
     print(f"Verified and copied {len(receipts)} licensed clips; extracted 3 photos. No downloads.")
 
 
-def transcript(stage, out):
+def transcript(stage, out, *, generated=False):
     working = out / stage
     working.mkdir(exist_ok=True)
     project = working / "zing-workspace/studio"
@@ -86,8 +87,9 @@ def transcript(stage, out):
         project = working / f"zing-workspace/studio-{suffix}"
         suffix += 1
     if stage == "a":
-        lines = ["1", str(out / "verified/nasa-montage.mp4"), str(out / "clips"),
-                 "a short introduction to people making things", "all", "", "", "", "yes"]
+        from tools.eval.studio_generated import match_answers
+        lines = match_answers(out / "verified/nasa-montage.mp4", out / "clips", generated=generated,
+                              platform="YouTube" if generated else "all", speech="")
     elif stage == "f":
         matched = json.loads((out / "a-metrics.json").read_text(encoding="utf-8"))["project"]
         result = json.loads((Path(matched) / "studio-result.json").read_text(encoding="utf-8"))
@@ -103,6 +105,9 @@ def transcript(stage, out):
     started = time.monotonic()
     first = None
     env = {**os.environ, "UOINK_URL": "http://127.0.0.1:1", "PYTHONIOENCODING": "utf-8",
+           "HF_HOME": str(ROOT / "zing-workspace/models"),
+           "HF_HUB_CACHE": str(ROOT / "zing-workspace/models/hub"),
+           "HUGGINGFACE_HUB_CACHE": str(ROOT / "zing-workspace/models/hub"),
            "ZING_WHISPER_MODEL": str(ROOT / "zing-workspace/models/tiny.en"),
            "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1"}
     with (out / f"{stage}-transcript.txt").open("w", encoding="utf-8") as log:
@@ -122,6 +127,8 @@ def transcript(stage, out):
                 first = round(elapsed, 3)
         code = process.wait()
     state = json.loads((project / "studio-session.json").read_text(encoding="utf-8"))
+    if code == 0 and state["status"] != "ready":
+        code = 1  # EOF can pause Studio successfully; that is not acceptance.
     metrics = {"stage": stage, "exit_code": code, "questions_asked": state["questions_asked"],
                "confirmation_questions": 1, "seconds": round(time.monotonic() - started, 3),
                "time_to_first_output_seconds": first,
@@ -137,12 +144,17 @@ def main():
     parser.add_argument("stage", choices=["prepare", "a", "f", "c"])
     parser.add_argument("--source", type=Path, default=Path("E:/AI/projects/zing/worktrees/v1-realeval/zing-workspace/real-eval/clips"))
     parser.add_argument("--out", type=Path, default=ROOT / "zing-workspace/studio1-real")
+    parser.add_argument("--generated", action="store_true", help="Use generated silent media; no model download or ASR claim")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     if args.stage == "prepare":
-        prepare(args.out.resolve(), args.source)
+        if args.generated:
+            from tools.eval.studio_generated import prepare as generate
+            generate(args.out)
+        else:
+            prepare(args.out.resolve(), args.source)
         return 0
-    return transcript(args.stage, args.out.resolve())
+    return transcript(args.stage, args.out.resolve(), generated=args.generated)
 
 
 if __name__ == "__main__":

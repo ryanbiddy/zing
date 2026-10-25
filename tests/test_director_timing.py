@@ -317,11 +317,12 @@ def test_alternative_never_counts_as_a_pass_on_match_and_studio_screens(tmp_path
     assert "It is an alternative outside the reference timing" in only["recommendation"]
 
 
-def test_unmeasured_bands_keep_the_distinctness_shortage():
-    from myzing.director.models import PlanningShortage
+def test_unmeasured_bands_deliver_one_edit_with_a_variety_limit():
     studies, pool = few_in_band_openings()
     pool = [c for c in pool if c.asset_id == "x"]
     style = envelope(build_style_recipe(Breakdown(VideoMeta("fixture", "file", duration=4, fps=30))))
-    with pytest.raises(PlanningShortage) as caught:
-        choose(pool, [], studies[:1], style, .8, 30, 0, timing_evidence={})
-    assert caught.value.shortage.code == "distinct_edits"
+    evidence = {}
+    selected = choose(pool, [], studies[:1], style, .8, 30, 0, timing_evidence=evidence)
+    assert list(selected) == ["A"]
+    policy = next(iter(evidence["A"].values()))["search"]["distinctness_relaxed"]
+    assert "VARIETY" in policy["reason"] and policy["missing_drafts"] == ["B", "C"]

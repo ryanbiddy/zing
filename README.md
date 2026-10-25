@@ -16,6 +16,27 @@ the creative judgment through the CLI or **36 MCP tools**. No Zing API key neede
 
 ## Start here: zing studio
 
+## Get started
+
+Zing is pre-alpha and is not on PyPI yet. Use the [source checkout steps](docs/INSTALL.md#source-checkout-available-now)
+until release. The planned v1 package install is:
+
+```console
+pipx install "myzing[all]"
+```
+
+Or use `uv tool install "myzing[all]"`. Install FFmpeg with libx264 and libass
+through your OS package manager, then run `zing doctor`, followed by `zing studio`.
+Doctor checks FFmpeg 6+, ffprobe, encoders and filters and names what is missing.
+`zing setup --ffmpeg` shows the install command and requires a typed **yes**.
+
+Follow [Install](docs/INSTALL.md) for Windows, macOS or Linux,
+[Troubleshooting](docs/TROUBLESHOOTING.md) for failed checks,
+[Privacy](docs/PRIVACY.md) for downloads and AI-client boundaries, and
+[Studio](docs/STUDIO.md#your-first-draft-in-10-minutes) for a first draft with
+generated media. Package setup and model downloads can take longer than the
+walkthrough itself.
+
 Run `uv sync --all-extras` once in this checkout, put FFmpeg on PATH, then:
 
 ```console
@@ -133,6 +154,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Check installed capabilities | [Doctor](docs/DOCTOR.md): optional runtimes, verified models and remedies. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
+| Prepare a release | [Releasing](docs/RELEASING.md): candidate checks, Trusted Publishing and Ryan's approval steps. |
 | Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
 | Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
 | Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
@@ -148,6 +170,9 @@ to v2 compositions; standalone treatment artifacts still need explicit planning.
 Core Zing is stdlib-only. FFmpeg/ffprobe are external binaries; install a build
 with libx264 and libass. In a checkout, `uv sync --all-extras` installs all Python
 extras below. To select features, use e.g. `uv sync --extra memes --extra render`.
+`uv sync` makes the environment match exactly what you name, so a later plain
+`uv sync` (or `uv sync --frozen`) removes every extra, including yt-dlp and the
+study models. Repeat `--all-extras` or your `--extra` list each time.
 
 | Extra | Enables |
 |---|---|
@@ -156,6 +181,7 @@ extras below. To select features, use e.g. `uv sync --extra memes --extra render
 | `render` | pysubs2 for ASS captions. |
 | `memes` | Pillow for still rendering and timeline inspection. |
 | `fonts` | Pillow and pinned headless OpenCV for font comparison; expanded font assets require an explicit fetch. |
+| `screen` | Optional macOS Quartz cursor recording (PyObjC); Windows uses stdlib. |
 | `layout` | Pinned headless OpenCV; YuNet still needs an explicit model fetch. |
 | `color` | NumPy for SDR matching and LUT work. |
 | `audio-ml` | Optional CED audio tags via sherpa-onnx; weights via `zing doctor --audio-model ced-mini`. |
@@ -215,3 +241,5 @@ See [Connect](docs/CONNECT.md) for the actual MCP handoff and explicit credentia
 Match reports separate playable output from style fidelity. Current director
 plans use cuts; sparse OCR, font substitutions, sampled face detection and color
 distribution comparisons remain approximations that need review.
+
+Screen recordings: [Screen-demo planning and cursor privacy](docs/SCREEN-DEMO.md).

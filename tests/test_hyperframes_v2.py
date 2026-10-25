@@ -48,6 +48,15 @@ def test_converter_exact_values_selection_and_immutability(caption, tmp_path):
     assert caption.to_dict() == original
 
 
+def test_converter_accepts_joined_currency_without_retiming(caption):
+    from myzing.captions.grouping import join
+    caption.words = [Word("$3", .2, .5), Word(",000", .5, .9), Word(".50", .9, 1.4)]
+    caption.text = join(w.text for w in caption.words)
+    assert caption.text == "$3,000.50"
+    event = convert([caption]).captions[0]
+    assert event["words"] == [{"text": w.text, "start": w.start, "end": w.end} for w in caption.words]
+
+
 def test_converter_path_caps_colors_and_reducible_rate(caption):
     caption.template, caption.all_caps = "kinetic", True
     caption.style.box_color = "#204080"
