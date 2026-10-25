@@ -8,7 +8,7 @@ and Clean for a single 16:9 delivery, with a reason in the caption question.
 | Preset | Type at a 1080 px short side | Group | Highlight and motion |
 |---|---|---|---|
 | `punch` | Inter-derived ExtraBold 800, 97 px, capitals, black outline | 1–3 words, one line | `#FFD23F` active word; whole group enters over 140 ms, 80% → 105% → 100% |
-| `box` | Inter-derived ExtraBold 800, 81 px, capitals | 2–4 words when boundaries and width permit, one line | Yellow plate glides for 80 ms behind fixed text; 100 ms entry fade |
+| `box` | Inter-derived ExtraBold 800, 81 px, capitals | 2–4 words when boundaries and width permit, one line | Yellow plate covers the active word from its first frame; 100 ms entry fade |
 | `clean` | Inter-derived Bold 700, 59 px, original case | Up to two balanced lines; 30 characters per line in portrait, 42 in landscape | White text; fixed bottom baseline, so a second line grows upward |
 
 Sizes scale by the output's short side in 16:9, 1:1 and 9:16. Grouping uses the actual face's glyph advances,
@@ -71,6 +71,8 @@ VAD is a no-op for those words, including words AUD1 left unchanged. Unavailable
 or stale study evidence does not suppress the caption check. This is a silence
 clamp, not forced alignment or a claim of word-level accuracy.
 Highlights hold through gaps under 250 ms and through the final cue hold.
+Joined numeric tokens also hold their plate across longer gaps: `$3` followed
+by `,000,` keeps the number highlighted during the pause.
 
 Each shot gets one rail centered in the usable safe area, checked against swept supplied face
 tracks and existing UI reserves. The whole shot may shrink in 5% steps down to

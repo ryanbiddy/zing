@@ -458,9 +458,9 @@ def next_step(answers=None, *, cache=None):
             {"TikTok/Reels": "TikTok / Reels (9:16)", "YouTube": "YouTube (16:9)", "square": "Feed (1:1)", "all": "All three shapes", "original": "Keep source / reference shape"})
         aspect = {"portrait": "9:16", "landscape": "16:9", "square": "1:1"}.get(orientation, "1:1" if path == "c" else "16:9")
         selected = {"TikTok/Reels": ["9:16"], "YouTube": ["16:9"], "square": ["1:1"], "all": ASPECTS}.get(a.get("platform"), [aspect])
-        if a.get("platform") == "custom":
-            ask("aspects", "Which shapes? (16:9, 1:1, 9:16 or all)", selected,
-                "Choose your delivery set; auto framing checks crops before delivery.")
+        # Legacy "custom" without explicit aspects keeps the default shape.
+        # Shape lists are answered in the platform question itself, so this
+        # compatibility spelling must not introduce an eleventh question.
     if (path in "ab" and a.get("footage_kind") != "screen" and reference_length is None) or (path == "e" and a.get("context", "none") == "none"):
         seconds = min((15, 20, 30, 45, 60), key=lambda n: abs(n - min(30, facts["duration"] / 3))) if facts["duration"] else 15
         ref = facts.get("reference", {}) if path == "a" else {}

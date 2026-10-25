@@ -9,6 +9,47 @@ import pytest
 pytestmark = pytest.mark.ffmpeg
 
 
+def test_landscape_active_plate_covers_were_during_first_80ms(tmp_path):
+    import subprocess
+    np = pytest.importorskip('numpy')
+    from test_caption2 import plan
+    from myzing.captions.presets import apply_preset
+    from myzing.captions.render import geometry
+    from myzing.layout.framing import place_captions
+    from myzing.render.font_files import private_font
+    from myzing.render.positioned_captions import generate_positioned_ass
+    p = plan('WHEN WE WERE TRYING', 1920, 1080)
+    apply_preset(p, 'box', vad=False)
+    place_captions(p, {}, {})
+    assert len(p.captions) == 1
+    c = p.captions[0]
+    assert c.style.size == 81 and c.layout.scale == 1
+    geo = geometry(c, 1920, 1080)
+    word = geo['slots'][2]
+    assert word['text'] == 'WERE'
+    fonts = {c.id: private_font(Path(c.font.path).read_bytes())}
+    generate_positioned_ass(p, fonts, tmp_path, 'ffmpeg', 'ass')
+    # Frame 24 supplies this word's white ink bounds; 30/31 are 0/33 ms
+    # into WERE, before the old 80 ms plate glide finished. Only three RGB
+    # frames are returned, keeping the 1080p regression's memory bounded.
+    run = subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+        'color=black:s=1920x1080:r=30:d=1.2', '-vf',
+        r'ass=filename=captions.ass:fontsdir=fonts,select=eq(n\,24)+eq(n\,30)+eq(n\,31)',
+        '-vsync', '0', '-threads', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'],
+        cwd=tmp_path, capture_output=True, timeout=60)
+    assert run.returncode == 0, run.stderr.decode(errors='replace')
+    frames = np.frombuffer(run.stdout, dtype=np.uint8).reshape(3, 1080, 1920, 3)
+    x0,x1 = int(word['x'])-1, int(np.ceil(word['x']+word['width']))+1
+    ys,xs = np.nonzero(frames[0][:,x0:x1].min(axis=2) > 170)
+    assert len(xs) > 100
+    for early in frames[1:]:
+        yellow = (early[:,:,0]>180)&(early[:,:,1]>130)&(early[:,:,2]<120)
+        for y in np.unique(ys):
+            span = np.flatnonzero(yellow[y])
+            ink = xs[ys==y]+x0
+            assert len(span) and span.min() <= ink.min() and span.max() >= ink.max(), (y, span, ink)
+
+
 def test_generated_composite_encodes_and_delivers_safe_box_in_three_shapes(tmp_path,monkeypatch):
     from dogfood3_media import write_composite
     from test_dogfood3 import track
@@ -83,12 +124,21 @@ def test_cli_and_mcp_keep_two_deliveries_when_landscape_fails(tmp_path,monkeypat
     assert failed['shape']=='16:9' and 'caption' in failed['error'] and failed['next_step']
     output=capsys.readouterr().out
     assert 'Failed A 16:9' in output and 'clean captions' in output
-    # Poll the durable job through the actual MCP handler; metadata keeps partial
-    # and the failed-shape remedy rather than flattening it into an empty error.
-    (root/'studio-job.json').write_text(json.dumps({'status':'partial','project':str(root),'result':result}),encoding='utf-8')
-    polled=mcp_server.h_zing_studio_run(project=str(root))
-    assert polled['status']=='partial'
-    assert polled['result']['creator_summary']['deliveries']==rows
+    # Start and poll a real durable job; never manufacture its status file.
+    mcp_root=tmp_path/'mcp-studio'
+    started=mcp_server.h_zing_studio_run(answers={**answers,'project':str(mcp_root),
+        'short_side':180,'target_mb':2},confirmed=True)
+    assert started['ok'] and started['status']=='started'
+    active=jobs._JOBS.get(str(mcp_root.resolve()))
+    if active:
+        active[0].join(timeout=60)
+        assert not active[0].is_alive()
+    polled=mcp_server.h_zing_studio_run(project=str(mcp_root))
+    assert polled['status']=='partial' and polled['ok'] is False
+    assert polled['result']['ok'] is False
+    mcp_rows=polled['result']['creator_summary']['deliveries']
+    assert len(mcp_rows)==3 and sum(r['rendered'] for r in mcp_rows)==2
+    assert next(r for r in mcp_rows if not r['rendered'])['next_step']
 
 
 def test_in_place_ingest_never_stages_or_normalizes_original(tmp_path,monkeypatch,zing_workspace):

@@ -29,7 +29,9 @@ def test_generated_composite_stage_and_guards():
     assert result["sustained_motion_fraction"] >= .8
     assert not detect_picture(gray(composite_frames(frozen=True)))["confident"]
     assert not detect_picture(gray(composite_frames(split=True)))["confident"]
-    assert not detect_picture(gray(composite_frames(ui=True)))["confident"]
+    # The existing bordered-picture detector has independent positive evidence
+    # on this fixture; an uncertain inner-stage candidate must not erase it.
+    assert detect_picture(gray(composite_frames(ui=True)))["confident"]
     # Existing matte/scenery/UI fixtures exercise the original path too.
     from test_dogfood2 import dark_chrome
     import numpy as np
@@ -49,6 +51,7 @@ def test_stage_framing_excludes_secondary_face_and_focuses_persistent_speaker():
     primary = track("face-main",Box(.36,.22,.19,.38))
     secondary = track("face-guest",Box(.91,.55,.08,.18))
     tiny = track("face-background",Box(.26,.48,.06,.08),.65)
+    tiny = replace(tiny, keyframes=[Keyframe(1, tiny.keyframes[0].box), Keyframe(1.3, tiny.keyframes[0].box)])
     hog = track("person-hog",Box(.60,.29,.25,.70),.5)
     hog.observations.append(TrackObservation(0,hog.keyframes[0].box,detector="hog-fallback"))
     picture = {"confident":True,"confidence":.86,"kind":"broadcast-composite","bounds_pixels":[18,120,1494,838]}
@@ -144,9 +147,9 @@ def test_delivery_continues_after_failed_shape_and_records_next_step(tmp_path,mo
     seen = []
     def render(p,video,**kwargs):
         seen.append((p.width,p.height))
+        video.write_bytes(b"generated test placeholder")
         if p.width > p.height:
             raise ValueError("caption fixture: no readable caption band fits")
-        video.write_bytes(b"generated test placeholder")
         return SimpleNamespace(warnings=[],audio_measurements=None)
     monkeypatch.setattr(deliveries,"render_composition",render)
     result = deliveries._render_deliveries(shapes["16:9"],tmp_path/"out.mp4",tmp_path,list(shapes),tmp_path/"deliveries.json",
@@ -154,6 +157,7 @@ def test_delivery_continues_after_failed_shape_and_records_next_step(tmp_path,mo
     assert len(seen) == 3 and result["status"] == "partial" and result["ready"] == 2
     failed = result["deliveries"]["16:9"]
     assert failed["status"] == "failed" and "video" not in failed
+    assert not (tmp_path/"out.16x9.mp4").exists()
     assert "caption" in failed["error"] and "clean" in failed["next_step"]
     assert all(Path(result["deliveries"][s]["video"]).is_file() for s in ("1:1","9:16"))
     assert json.loads((tmp_path/"deliveries.json").read_text())["status"] == "partial"
@@ -193,6 +197,8 @@ def test_decode_timeout_keeps_other_studio_deliveries(tmp_path,monkeypatch):
     monkeypatch.setattr(adapters,"load_edit",lambda *a:p)
     shapes=["16:9","1:1","9:16"]
     rows={shape:{"status":"ready","video":str(tmp_path/(shape.replace(":","x")+".mp4")),"plan":str(saved)} for shape in shapes}
+    for row in rows.values():
+        Path(row["video"]).write_bytes(b"generated decode placeholder")
     monkeypatch.setattr("myzing.render.deliveries.render_deliveries",lambda *a,**k:{"deliveries":rows})
     checked=[]
     def decode(path,plan):
@@ -205,6 +211,8 @@ def test_decode_timeout_keeps_other_studio_deliveries(tmp_path,monkeypatch):
     assert len(checked)==3 and result["status"]=="partial" and result["ready"]==2
     failed=result["deliveries"]["16:9"]
     assert "timed out" in failed["error"] and failed["next_step"] and "video" not in failed
+    assert not (tmp_path/"16x9.mp4").exists()
+    assert (tmp_path/"1x1.mp4").is_file() and (tmp_path/"9x16.mp4").is_file()
 
 
 def test_usable_default_uses_same_whole_word_trims_as_selection():

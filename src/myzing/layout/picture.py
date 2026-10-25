@@ -4,7 +4,7 @@ import subprocess
 from dataclasses import replace
 
 from myzing.composition.framing import CropBounds, CropKeyframe
-from .types import Box, Keyframe
+from .types import Box, Keyframe, box_at
 
 
 def detect_picture(frames):
@@ -15,7 +15,7 @@ def detect_picture(frames):
     if data.ndim == 3 and len(data) >= 6 and min(data.shape[1:]) >= 16:
         from .stage import detect_stage
         stage = detect_stage(data, content_bounds=result["bounds_normalized"] if result.get("confident") else None)
-        if stage is not None:
+        if stage is not None and (stage.get("confident") or not result.get("confident")):
             return stage
     return result
 
@@ -218,23 +218,38 @@ def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, pi
                          reason + "; inspect source or use --picture-crop off")
     if policy == "off" or not picture or not picture.get("confident"):
         return select_framing(requested, sw, sh, width, height, clip, tracks, **kwargs)
+    tracks = [_used_track(t, clip) for t in tracks
+              if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
+    if picture.get("kind") == "broadcast-composite" and picture.get("secondary_bounds_normalized"):
+        faces = [t for t in tracks if t.id.startswith("face") and t.confidence >= .8
+                 and _covers_shot(t, clip)]
+        if len(faces) == 1 and _inside_share(faces[0], picture["secondary_bounds_normalized"]) > .5:
+            reason = "Only confident full-shot face is in the inset tile; plan framing from the full source."
+            f = select_framing(requested, sw, sh, width, height, clip, tracks, **kwargs)
+            return replace(f, picture={**picture, "confident": False, "confidence": 0.,
+                "reason": reason, "decision": "reject large-stage crop", "subject_selection": {
+                    "focused": False, "inset_speaker": faces[0].id}}, warnings=[*f.warnings, reason])
     x, y, pw, ph = picture["bounds_pixels"]
     projected, excluded = [], []
+    shares = {}
     for track in tracks:
+        share = shares[track.id] = _inside_share(track, (x/sw, y/sh, pw/sw, ph/sh))
+        if share <= (.5 if track.id.startswith("face") else 0):
+            excluded.append(track.id)
+            continue
         keys = []
         for k in track.keyframes:
             left, top = max(x, k.box.x*sw), max(y, k.box.y*sh)
             right, bottom = min(x+pw, k.box.right*sw), min(y+ph, k.box.bottom*sh)
             if right <= left or bottom <= top:
-                break
-            if track.id.startswith("face") and (right-left)*(bottom-top) < .8*k.box.width*sw*k.box.height*sh:
-                break  # A face on a neighbouring tile is not a stage speaker.
+                continue
             keys.append(Keyframe(k.time, Box((left-x)/pw, (top-y)/ph, (right-left)/pw, (bottom-top)/ph)))
-        if len(keys) == len(track.keyframes):
+        if keys:
             projected.append(replace(track, keyframes=keys))
         else:
             excluded.append(track.id)
-    details = {"outside_stage_tracks": excluded}
+    details = {"outside_stage_tracks": excluded, "stage_inside_area_share": shares,
+               "minimum_stage_inside_area_share": .5}
     if picture.get("kind") == "broadcast-composite":
         projected, focus = _stage_subjects(clip, projected)
         details.update(focus)
@@ -248,8 +263,29 @@ def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, pi
                    f"Crop to live picture: {pw}x{ph} at ({x},{y}); static-frame confidence {picture['confidence']:.3f}; sampled evidence, not semantic recognition."])
 
 
+def _used_track(track, clip):
+    start, end = max(clip.src_in, track.keyframes[0].time), min(clip.src_out, track.keyframes[-1].time)
+    times = sorted({start, end, *(k.time for k in track.keyframes if start < k.time < end)})
+    return replace(track, keyframes=[Keyframe(t, box_at(track.keyframes, t)) for t in times])
+
+
+def _inside_share(track, bounds):
+    """Time-weighted retained face area, not a veto by one edge sample."""
+    x,y,w,h = bounds
+    values = [max(0, min(x+w,k.box.right)-max(x,k.box.x)) *
+              max(0, min(y+h,k.box.bottom)-max(y,k.box.y)) / (k.box.width*k.box.height)
+              for k in track.keyframes]
+    span = track.keyframes[-1].time-track.keyframes[0].time
+    return (sum((a+b)/2*(right.time-left.time) for a,b,left,right in
+                zip(values,values[1:],track.keyframes,track.keyframes[1:])) / span if span else values[0])
+
+
+def _covers_shot(track, clip):
+    return track.keyframes[0].time <= clip.src_in+1e-4 and track.keyframes[-1].time >= clip.src_out-1e-4
+
+
 def _stage_subjects(clip, tracks):
-    """Focus a dominant persistent stage face; equal or authoritative peers stay."""
+    """Persistent stage faces remain constraints regardless of their size."""
     from statistics import median
     tracks = [t for t in tracks if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
     faces = [t for t in tracks if t.id.startswith("face")]
@@ -260,18 +296,24 @@ def _stage_subjects(clip, tracks):
         return tracks, {"focused": False, "reason": "no confident full-shot stage face"}
     others = [t for t in faces if t is not primary]
     ratio = max((size(t)/size(primary) for t in others), default=0.)
-    if ratio > .25 or any(t.confidence >= .8 for t in others):
-        return tracks, {"focused": False, "reason": "another substantial or confident stage face remains"}
+    persistent = [t.id for t in others if t.keyframes[-1].time-t.keyframes[0].time >= .5*(clip.src_out-clip.src_in)]
     def incidental(t):
-        return (t in others or t.id.startswith("saliency-") or
+        return ((t in others and t.id not in persistent and size(t)/size(primary) <= .25 and t.confidence < .8)
+                or t.id.startswith("saliency-") or
                 (t.id.startswith("person-") and t.confidence <= .5 and t.observations
                  and all(o.detector == "hog-fallback" for o in t.observations)))
     kept = [t for t in tracks if not incidental(t)]
+    incidental_ids = [t.id for t in tracks if t not in kept]
+    if ratio > .25 or persistent or any(t.confidence >= .8 for t in others):
+        return kept, {"focused": False, "persistent_stage_faces": persistent,
+                      "incidental_tracks": incidental_ids,
+                      "reason": "another persistent, substantial or confident stage face remains"}
     if any(t is not primary for t in kept):
-        return tracks, {"focused": False, "reason": "independent person evidence remains in the stage"}
+        return kept, {"focused": False, "incidental_tracks": incidental_ids,
+                      "reason": "independent person evidence remains in the stage"}
     return kept, {"focused": True, "main_face": primary.id, "face_confidence": primary.confidence,
                   "maximum_incidental_face_area_ratio": ratio,
-                  "incidental_tracks": [t.id for t in tracks if t not in kept],
+                  "incidental_tracks": incidental_ids,
                   "reason": f"Stage focus: one full-shot face at confidence {primary.confidence:.3f}; "
                             f"other stage faces are at most {ratio:.1%} of its area and below 0.8 confidence. "
-                            "Small incidental faces and low-confidence HOG scenery do not determine speaker size; review sampled framing."}
+                            "Only transient small faces and low-confidence HOG scenery are incidental; review sampled framing."}

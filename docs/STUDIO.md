@@ -184,7 +184,8 @@ in the same folder gets its own. Change it with `o` on the plan screen; a folder
 that would overwrite or equal an input is refused and the old one is kept. A
 style breakdown (option 4) moves the default out of the video's folder, because
 Explain writes its cards outside it. Use `t` on the plan screen to change an
-edit's tone. Destination determines shape; only custom asks another shape question.
+edit's tone. Destination determines shape; type a shape list in that question
+to choose a custom set without another question.
 
 Studio probes local inputs and reads a local reference before style questions.
 The preview has an eight-second deadline, samples at most the first 20 seconds
@@ -373,7 +374,8 @@ embedded audio. Optional `draft: "B"` records a local choice through the existin
 choice API after a completed draft is available. Nothing is shared to Uoink.
 
 Other paths use these fields after `path`. The project defaults automatically;
-`aspects` is asked only for a custom destination and remains accepted in JSON:
+custom shapes are entered in the destination question, and `aspects` remains
+accepted in JSON:
 
 | Path | Answer fields |
 |---|---|
@@ -463,8 +465,15 @@ Studio keeps every successful shape when another shape fails. Its final status
 is `partial`, with each failed shape's `error` and `next_step` beside the saved
 plans and successful videos. The CLI exits 2 for a partial delivery (0 for ready,
 1 for failed); inspect the JSON status to distinguish it from an unfinished
-interview. MCP polling retains the same status, paths and remedies. Full decode
-must pass before a Studio delivery counts as ready.
+interview. MCP polling retains the same status, paths and remedies, with
+`ok: false` for partial or failed runs. Full decode must pass before a Studio
+delivery counts as ready. Failed MP4s are renamed with a `.failed` suffix;
+their diagnostic paths appear as `failed_artifact`, outside the playable outputs.
+Screen deliveries preserve their actual status in the creator summary.
+
+Type a shape list such as `16:9,1:1` in the publishing question to customize
+the delivery set. The legacy answer `custom` by itself uses the default shape
+without asking another question. Explicit saved `aspects` remain honored.
 
 On the reference route, accepting the default length uses the footage available
 after silence and exclusion trims. An explicit number remains a fixed target

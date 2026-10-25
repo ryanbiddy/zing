@@ -171,8 +171,8 @@ for runtime, model and fixture licensing.
 ## Verification
 
 Broadcast composites use a separate stage detector alongside the existing
-border detector. It can veto a border crop when moving panels resemble dark
-UI without a broadcast card. Twelve local gray samples must show a dominant rectangle
+border detector. An uncertain stage candidate preserves a confident bordered
+picture crop. Twelve local gray samples must show a dominant rectangle
 (40–86% of the source), with four persistent edges and motion in at least 80%
 of adjacent sample pairs. Rounded corners are omitted from edge scoring. Each
 edge needs 55% support and their mean needs 80%. A secondary moving region may
@@ -190,11 +190,16 @@ calibrated probability or recognition of a broadcaster. Ambiguous layouts
 keep the full source. The detector deliberately abstains on some composites
 without cards or a moving secondary tile.
 
-Faces outside the stage do not count as additional stage speakers. A confident
-face present for the whole shot can drive portrait framing when remaining face
-tracks are both small (at most 25% of its area) and below 0.8 confidence. The
-plan discloses discarded incidental tracks. Substantial or confident peers
-remain framing constraints. Portrait stage focus targets 70% sharp-picture
+Faces whose time-weighted box area stays mostly outside the stage do not count
+as additional stage speakers. One edge keyframe cannot remove an otherwise
+in-stage track. The plan records retained-area shares and the 50% threshold.
+If the only confident full-shot face is in the secondary tile, the large-stage
+crop is rejected and normal full-source framing considers that face.
+A confident face present for the whole shot can drive portrait framing when
+other faces are transient (under half the shot), small (at most 25% of its
+area), and below 0.8 confidence. Persistent, substantial or confident peers
+remain constraints. The plan discloses incidental tracks and persistent peers.
+Portrait stage focus targets 70% sharp-picture
 height, subject to the existing upscale and coverage limits; this measures the
 sharp picture, not the face's own pixel height.
 
@@ -207,7 +212,7 @@ the stage pixels; cropping does not reconstruct the picture behind it.
 ```powershell
 uv run --frozen pytest -q tests/test_layout.py tests/test_layout_detector.py tests/test_layout_command.py
 $env:ZING_REQUIRE_FFMPEG = '1'
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 439
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 440
 
 # Explicit, optional fixture and model provisioning:
 uv run --frozen zing layout fetch-model

@@ -12,6 +12,7 @@ from myzing.render.positioned_captions import (
 
 from .metrics import metrics
 from .presets import slot_lines
+from .grouping import display_boundaries
 
 
 def _rtl(text):
@@ -79,6 +80,7 @@ def compile_caption(caption, composition, font, data, frame_limit):
         raise ValueError("Caption presets need a shot rail; run place_captions before rendering.")
     geo = geometry(caption,composition.width,composition.height)
     first,last,words,_ = caption_frame_timing(caption,composition.fps,frame_limit)
+    _, numeric = display_boundaries([word.text for word in caption.words])
     # A scheduled 125/30 s start can arrive as 4.166666666666667. Treat
     # numerical dust at a frame boundary as that boundary, not the next frame.
     # Otherwise a 5/6 s Clean cue ending at a cut loses one of its 25 frames.
@@ -98,8 +100,6 @@ def compile_caption(caption, composition, font, data, frame_limit):
         boundaries.update(range(first,min(last,first+math.ceil(.14*composition.fps.numerator/composition.fps.denominator))+1))
     if caption.preset == "box":
         boundaries.update(range(first,min(last,first+math.ceil(.1*composition.fps.numerator/composition.fps.denominator))+1))
-        for start,_ in words[1:]:
-            boundaries.update(range(start,min(last,start+math.ceil(.08*composition.fps.numerator/composition.fps.denominator))+1))
     ordered = sorted(boundaries)
     lines = []
     style = caption.style
@@ -112,7 +112,7 @@ def compile_caption(caption, composition, font, data, frame_limit):
             # round to eight frames at 30 fps and must still keep its highlight.
             next_start = caption.words[active+1].start
             word_end = caption.words[active].end
-            if next_start-word_end >= .25 and a >= words[active][1]:
+            if next_start-word_end >= .25 and a >= words[active][1] and active+1 not in numeric:
                 active = None
         pop = _pop(now-float(frame_time(first,composition.fps))) if caption.preset == "punch" else 1.
         ink_layers = []
@@ -132,18 +132,15 @@ def compile_caption(caption, composition, font, data, frame_limit):
         if caption.preset == "box" and active is not None:
             slot = geo["slots"][active]
             rect = [slot[k] for k in ("plate_x","plate_y","plate_width","plate_height")]
-            if active > 0:
-                elapsed = now-float(frame_time(words[active][0],composition.fps))
-                ratio = 1-(1-min(1,max(0,elapsed/.08)))**2
-                old = geo["slots"][active-1]
-                rect = [old[k]+(v-old[k])*ratio for k,v in zip(("plate_x","plate_y","plate_width","plate_height"),rect)]
+            # The active glyphs must be covered from their first frame. A
+            # glide from the previous slot leaves the new word unhighlighted.
             x,y,w,h = rect
             alpha = round(255*(1-style.highlight_box_opacity*min(1,max(0,(now-caption.start)/.1))))
             plate = ("{"+rf"\an7\bord0\shad0\1c{_color(style.highlight_box_color)}\1a&H{alpha:02X}&\p1\pos({_n(x)},{_n(y)})"+"}"
                      + _rounded_rectangle(w,h,style.highlight_box_radius*geo["scale"]))
             lines.append(_dialogue(start,end,plate,layer=0))
-            # Identical glyphs clipped to the moving plate: black inside,
-            # white outside, including during the glide between words.
+            # Identical glyphs clipped to the active plate: black inside,
+            # white outside. Text positions remain fixed between word states.
             for tags, text in ink_layers:
                 clipped = tags + rf"\1c{_color(style.highlight)}\clip({_n(x)},{_n(y)},{_n(x+w)},{_n(y+h)})"
                 lines.append(_dialogue(start,end,"{"+clipped+"}"+escape_ass(text),layer=2))

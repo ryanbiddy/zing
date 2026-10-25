@@ -31,9 +31,9 @@ def place_presets(plan, subjects, source_dimensions):
             from myzing.layout.types import box_at
             tracks = subjects.get(clip.asset_id, [])
             selection = (framing.picture or {}).get("subject_selection", {})
-            if selection.get("focused"):
-                # The stage has already made a disclosed dominant-face decision.
-                # Incidental HOG scenery must not reserve the entire caption band.
+            if selection:
+                # Respect disclosed exclusions even when persistent peer faces
+                # prevent single-speaker focus. Those peers remain obstacles.
                 excluded = set(selection.get("outside_stage_tracks", []) + selection.get("incidental_tracks", []))
                 tracks = [track for track in tracks if track.id not in excluded]
             for track in tracks:

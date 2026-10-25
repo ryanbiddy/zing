@@ -432,7 +432,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v4", repair_asr, "aspect-stage-focus-speakers-v11", caps["layout"],
+                                                 "continuity-v4", repair_asr, "aspect-stage-speaker-persistence-v13", caps["layout"],
                                                  "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):
@@ -490,14 +490,15 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     return {"plans": outputs, "failures": analysis.get("failures", {}),
                             "outputs": [*outputs.values(), str(evidence_path)]}
                 adapted = checkpoints.step("aspects-" + label, [projects.hash_file(Path(plan_path)), all_plans, delivery_aspects,
-                                                               caps, "aspect-delivery-v4-composite-partial"], adapt)
+                                                               caps, "aspect-delivery-v6-speaker-persistence-rail"], adapt)
                 plans_to_render.update(adapted["plans"])
                 for aspect,failure in adapted.get("failures", {}).items():
                     name = label + "." + aspect.replace(":", "x")
                     summary["drafts"][name] = failure
                     summary["failures"].append({**failure,"step":"aspects-"+name})
         for label, plan_path in plans_to_render.items():
-            row = {"status": "failed"}
+            video = root / "drafts" / f"draft-{label}.mp4"
+            row = {"status": "failed", "video": str(video)}
             if label.split(".")[0] in alternatives:
                 row["alternative"] = {"outside_reference_timing": True, "label": ALTERNATIVE,
                                       "reason": alternatives[label.split(".")[0]]}
@@ -519,7 +520,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                         outputs.append(str(video.with_suffix(".encoding.json")))
                     return {"outputs": outputs, "warnings": list(result.warnings), "audio_measurements": result.audio_measurements,
                             "delivery_measurements": getattr(result, "delivery_measurements", None)}
-                rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps, "frame-clock-audio-headroom-v2", "music1-duck-envelope-v2"], render)
+                rendered_result = checkpoints.step("render-" + label, [projects.hash_file(Path(prepared["path"])), caps, "frame-clock-audio-headroom-v2", "music1-duck-envelope-v2", "active-slot-numeric-hold-v1"], render)
                 rendered_result = {**rendered_result, "warnings": evidence.user_warnings(rendered_result["warnings"])}
                 summary["warnings"].extend(rendered_result["warnings"])
                 def verify():
@@ -578,8 +579,9 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 if rendered_result.get("delivery_measurements") is not None:
                     row["encoding"] = rendered_result["delivery_measurements"]
             except StepFailed as exc:
-                from myzing.render.deliveries import delivery_failure
+                from myzing.render.deliveries import delivery_failure, quarantine_failed_delivery
                 row.update(delivery_failure(label.split(".")[-1].replace("x", ":"),exc))
+                quarantine_failed_delivery(row)
     except (StepFailed, ValueError, OSError) as exc:
         summary["error"] = str(exc)
         if not checkpoints.failures():

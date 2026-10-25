@@ -67,6 +67,8 @@ def test_match_three_decodable_drafts_resume_and_failed_render(tmp_path, monkeyp
     code, failed, _ = command("--resume")
     assert code == 1 and failed["summary"].startswith("2 of 3 render complete")
     assert failed["drafts"]["B"]["status"] == "failed"
+    assert not Path(result["drafts"]["B"]["video"]).exists()
+    assert Path(failed["drafts"]["B"]["failed_artifact"]).read_bytes() == b"truncated output"
     assert failed["failures"][0]["step"] == "render-B"
     assert "forced B encoder failure" in Path(failed["failures"][0]["log"]).read_text()
     assert "2 of 3 render complete" in (out / "comparison.md").read_text()

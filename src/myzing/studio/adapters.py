@@ -180,9 +180,9 @@ def deliver(source, output, aspects, *, delivery_options=None):
         try:
             receipt = decode(Path(row["video"]), Composition.from_dict(read_json(row["plan"])))
         except (ValueError, OSError, RuntimeError, SubprocessError) as exc:
-            from myzing.render.deliveries import delivery_failure
+            from myzing.render.deliveries import delivery_failure, quarantine_failed_delivery
             row.update(delivery_failure(aspect, exc))
-            row.pop("video", None)
+            quarantine_failed_delivery(row)
             continue
         receipt_path = Path(row["video"]).with_suffix(".decode.json")
         write_json(receipt_path, receipt)
