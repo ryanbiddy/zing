@@ -9,7 +9,7 @@ from pathlib import Path
 BUDGET_SECONDS = 8
 
 
-def quick_read(source):
+def quick_read(source, **trim):
     from myzing.match.process import Cancelled, run_owned
     result = {"warnings": []}
     cancel = threading.Event()
@@ -29,7 +29,7 @@ def quick_read(source):
         # its Python finally blocks run. The process supervisor first reaps
         # every owned child, then this temporary sample can be removed safely.
         with tempfile.TemporaryDirectory(prefix="zing-reference-") as workspace:
-            run_owned([sys.executable, "-m", __name__], json.dumps({"source": source, "workspace": workspace}),
+            run_owned([sys.executable, "-m", __name__], json.dumps({"source": source, "workspace": workspace, **trim}),
                       cancel=cancel, progress=receive)
     except Cancelled:
         result["warnings"].append(f"Reference quick read reached its {BUDGET_SECONDS}s limit; unfinished measurements are unknown.")
@@ -83,7 +83,7 @@ def aspect_label(width, height):
     return "about " + near if error(near) <= .01 else f"{width}x{height}"
 
 
-def _worker(source, workspace):
+def _worker(source, workspace, ref_start=None, ref_end=None, reference_range=None):
     from myzing.project.probe import probe_file
     from myzing.study import shots, audio, captions, proc
     def emit(data):
@@ -98,7 +98,10 @@ def _worker(source, workspace):
     if "no_video" in probe.get("flags", []):
         emit({"no_video": True})
         raise ValueError("Reference has no video stream")
-    duration = probe.get("duration") or 0
+    from myzing.reference_range import validate_duration
+    source_duration = probe.get("duration") or 0
+    start, end = validate_duration(source_duration, ref_start, ref_end, reference_range, limit=None)
+    duration = end-start
     w, h = probe.get("width"), probe.get("height")
     if not w or not h or not duration:
         raise ValueError("Reference video dimensions or duration unavailable")
@@ -111,7 +114,7 @@ def _worker(source, workspace):
           "sample_width": 480, "scope": "first 20 seconds at most, reduced resolution; full study follows confirmation"})
     tmp = workspace
     sample = Path(tmp) / "sample.mp4"
-    proc.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-i", source,
+    proc.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-ss", str(start), "-i", source,
               "-t", str(seconds), "-vf", "scale=480:-2", "-c:v", "libx264", "-preset", "ultrafast",
               "-threads", "1", "-c:a", "aac", str(sample)], timeout=BUDGET_SECONDS)
     fps = probe.get("fps") or 30
@@ -153,6 +156,6 @@ def _worker(source, workspace):
 if __name__ == "__main__":
     payload = json.loads(sys.stdin.readline())  # ownership handshake before children
     try:
-        _worker(payload["source"], payload["workspace"])
+        _worker(**payload)
     except Exception as exc:
         print(json.dumps({"studio_reference": True, "data": {"error": str(exc)}}), flush=True)

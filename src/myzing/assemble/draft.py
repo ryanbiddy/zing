@@ -16,6 +16,8 @@ Failures are loud: an EDL that cannot be honest does not get produced.
 
 from __future__ import annotations
 
+from myzing.captions.grouping import join
+
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -366,7 +368,7 @@ def _spec(
     all_caps: bool,
     word_timed: bool,
 ) -> CaptionSpec:
-    text = " ".join(w.text.strip() for w in window)
+    text = join(w.text for w in window)
     if all_caps:
         text = text.upper()
     return CaptionSpec(

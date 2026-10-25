@@ -23,6 +23,22 @@ MATCH_THRESHOLD = .90
 MAX_SAMPLES = 8
 
 
+def budget_geometry(geometry):
+    """Bound study/explain font work independently of OCR track density."""
+    from dataclasses import replace
+    from .caption_geometry import sampled
+    tracks = []
+    total = sum(len(s["detection_indices"]) for t in geometry.tracks for s in t.samples)
+    for track in geometry.tracks[:16]:
+        samples = [{**s, "detection_indices": s["detection_indices"][:2]}
+                   for s in sampled(track.samples, 3)]
+        tracks.append(replace(track, samples=samples))
+    measured = sum(len(s["detection_indices"]) for t in tracks for s in t.samples)
+    return replace(geometry, tracks=tracks), {"tracks_total": len(geometry.tracks), "tracks_measured": len(tracks),
+        "observations_total": total, "observations_measured": measured, "observations_omitted": total-measured,
+        "max_tracks": 16, "max_samples_per_track": 3, "max_lines_per_sample": 2}
+
+
 @dataclass
 class FontCandidates:
     available_fonts: list[dict] = field(default_factory=list)
@@ -359,7 +375,10 @@ def match_geometry(media: Path, geometry: CaptionGeometry, workspace: Path | Non
                     continue
                 try:
                     if pixels.shape[:2] != (frame.height, frame.width):
-                        raise ValueError("caption geometry frame dimensions changed; repeat study --caption-geometry")
+                        from .caption_geometry import MAX_SIDE
+                        if max(frame.width, frame.height) != MAX_SIDE or abs(pixels.shape[1]/pixels.shape[0]-frame.width/frame.height) > .01:
+                            raise ValueError("caption geometry frame dimensions changed; repeat study --caption-geometry")
+                        pixels = cv2.resize(pixels, (frame.width, frame.height), interpolation=cv2.INTER_AREA)
                     mask, detail = crop_ink(pixels, detection)
                 except Exception as exc:
                     mask, detail = None, f"{type(exc).__name__}: {exc}"

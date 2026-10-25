@@ -134,6 +134,7 @@ def run_confirmed(answers, *, progress=None, locked=False):
             result = execute({"reference": a["reference"], "clips": a["clips"], "out": str(root),
                               "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),
                               "allow_download": a.get("allow_download", False),
+                              **{k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a},
                               "studio_options": {"captions": a["captions"], "music": a["music"], **({"speech_model": a["speech_model"]} if "speech_model" in a else {})}},
                              progress=progress, locked=True)
     elif path == "b":
@@ -152,7 +153,7 @@ def run_confirmed(answers, *, progress=None, locked=False):
         result = {"status": "ready", "stills": rows}
     elif path == "d":
         attempt = Path(tempfile.mkdtemp(prefix="style-", dir=root))
-        result = adapters.explain_video(a["source"], attempt, progress=progress)
+        result = adapters.explain_video(a["source"], attempt, progress=progress, **{k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a})
         result["status"] = "ready" if result.get("ok") else "failed"
     elif path == "e":
         from myzing.music.advice import check_tracks

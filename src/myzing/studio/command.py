@@ -139,6 +139,8 @@ def run(argv):
     parser = argparse.ArgumentParser(prog="zing studio", description=__doc__)
     from myzing.delivery_options import add_options, overrides
     add_options(parser)
+    from myzing.reference_range import add_options as add_range_options, options as range_options
+    add_range_options(parser)
     parser.add_argument("--resume", metavar="PROJECT")
     parser.add_argument("--answers", metavar="JSON_FILE", help="question IDs and answers; paths resolve from the current directory")
     parser.add_argument("--yes", action="store_true", help="confirm the displayed plan; does not grant download consent")
@@ -206,6 +208,8 @@ def run(argv):
             session.answers.pop("aspects", None)
         if key == "reference" and "tone" not in session.history:
             session.answers.pop("tone", None)
+        if key == "reference" and "reference_range" not in session.history and session.answers.get("reference_range") == "all":
+            session.answers.pop("reference_range", None)
         session.result = {}
         session.status = "interview"
 
@@ -232,6 +236,11 @@ def run(argv):
                 session.answers.pop("target_mb", None)
             session.answers.update(supplied)
             session.result = {}
+        trim = range_options(args)
+        if trim:
+            for key in ("ref_start", "ref_end", "reference_range"):
+                session.answers.pop(key, None)
+            session.answers.update(trim)
         delivery_values = overrides(args)
         if delivery_values:
             if "target_mb" in delivery_values:

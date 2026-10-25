@@ -110,13 +110,14 @@ def test_url_resume_reuses_verified_acquisition_without_new_consent(tmp_path, mo
     reference = tmp_path / "kept.mp4"
     reference.write_bytes(b"locally retained media")
     acquisitions = []
-    def acquire(source):
+    def acquire(source, *args, **kwargs):
         acquisitions.append(source)
-        return SimpleNamespace(media_path=reference)
+        return reference, {}, None
     def study(source, *args, **kwargs):
         assert source == str(reference)
         raise RuntimeError("stop at study seam")
-    monkeypatch.setattr("myzing.study.ingest.ingest", acquire)
+    monkeypatch.setattr("myzing.study.ingest._acquire_url_media", acquire)
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda p: SimpleNamespace(duration=12))
     monkeypatch.setattr(api, "_study", study)
     out = tmp_path / "out"
     first = match("https://example.test/video", str(clips), str(out), answers={}, allow_download=True)

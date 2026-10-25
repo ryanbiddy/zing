@@ -61,6 +61,15 @@ uncertain detections in coverage.
 Missing observations inside a linked track are also reported, even when a
 watermark remains readable in those frames.
 
+DOGFOOD2 bounds each read to 256 sampled frames, 16 detections per frame,
+128 tracks, 64 stored samples per track and 512 gap examples. Counts retain the
+total observed and omitted records; gap counts are also grouped by reason.
+Frames are measured at a maximum 960-pixel long side. Longer references retain
+dense hook samples plus evenly spaced coverage, so text between samples remains
+unknown. JSON is written one frame or track at a time without copying the whole
+geometry tree. Study's optional font comparison uses at most 16 tracks, three
+samples per track and two lines per sample.
+
 ## Acceptance and limits
 
 The caption-geometry FFmpeg tests generate all media using the bundled OFL Anton
@@ -72,7 +81,7 @@ outline width tolerance is 1.5 pixels on a three-pixel stroke. The low-confidenc
 test deliberately lowers two real inference scores to exercise the gap contract.
 
 ```text
-ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 429
+ZING_REQUIRE_OCR=1 ZING_REQUIRE_FFMPEG=1 uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 436
 ```
 
 The tests establish those limits for the generated cases. Real footage, gradients,
@@ -138,4 +147,4 @@ uv run --frozen pytest -q -m real_caption
 The replay verifies media/label/baseline hashes and refuses changed frozen code
 for held-out runs. It writes sidecars, exact-frame PNG overlays and per-frame font
 evidence. The opt-in test reads 2.6 seconds of Korky without seams or downloads;
-its skip is registered. It is separate from the 429-test FFmpeg gate.
+its skip is registered. It is separate from the 436-test FFmpeg gate.

@@ -9,6 +9,8 @@ from .api import _explain
 def run(argv):
     parser = argparse.ArgumentParser(prog="zing explain", description=__doc__)
     parser.add_argument("video")
+    from myzing.reference_range import add_options, options
+    add_options(parser)
     parser.add_argument("--out", help="new output folder, outside the source folder")
     parser.add_argument("--against", help="compare a second video with this reference")
     parser.add_argument("--no-transitions", dest="transitions", action="store_false")
@@ -16,7 +18,7 @@ def run(argv):
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     result = _explain(args.video, args.out, transitions=args.transitions,
-                      against=args.against, allow_download=args.allow_download)
+                      against=args.against, allow_download=args.allow_download, **options(args))
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif result["ok"]:

@@ -42,6 +42,8 @@ def run(argv: list[str]) -> int:
                          + '. Optional framing: auto (default), fit, fill, reframe, zoomfill, or blurfill. Auto checks subject coverage, crop loss and framing_max_upscale (default 2.5). Optional aspects: ["16:9", "1:1", "9:16"] for multiple deliveries.'
                          + ". JSON examples: " + json.dumps(brief_questions()["answer_examples"]))
     new.add_argument("project", type=Path)
+    from myzing.delivery_options import short_side
+    new.add_argument("--short-side", type=short_side, help="delivery short side: auto or a multiple of 18, e.g. 720")
     source = new.add_mutually_exclusive_group()
     source.add_argument("--brief", type=Path, help="import a versioned brief file without prompting")
     source.add_argument("--answers", help="JSON object of answers; omitted keys use disclosed defaults")
@@ -70,6 +72,9 @@ def run(argv: list[str]) -> int:
             if args.json:
                 raise BriefError("No saved brief to reuse. Supply --answers '{}' or --brief <file> with --json, or omit --json for the interview.")
             brief = save_brief(args.project, interview(args.project, sys.stdin, sys.stdout), replace=args.restart)
+        if args.action == "new" and args.short_side is not None:
+            from dataclasses import replace
+            brief = save_brief(args.project, replace(brief, short_side=args.short_side))
         result = brief_result(args.project, brief)
     except KeyboardInterrupt:
         print("\nzing brief: interview cancelled; no completed answers were saved.", file=sys.stderr)

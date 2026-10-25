@@ -54,12 +54,14 @@ uv run --frozen zing studio
 Caption and delivery preferences can be supplied before the interview:
 
 ```powershell
-zing studio --caption-options '{"highlight_box_color":"#FFD23F","highlight":"#0A0A0A","highlight_box_radius":4}' --picture-crop auto --target-mb 2.5
+zing studio --caption-mode box --short-side 720 --picture-crop auto --target-mb 2
 ```
 
 The confirmation plan shows these choices. Saved studio answers accept
 `caption_options`, `caption_mode`, `picture_crop`, `target_mb`, and
-`video_bitrate_kbps`; the size and bitrate fields are mutually exclusive.
+`video_bitrate_kbps`, and `short_side` (`auto` or a multiple of 18, such as 720);
+the size and bitrate fields are mutually exclusive. `zing brief new` also accepts
+`--short-side`, and brief/MCP answers accept the same `short_side` field.
 They apply to edited drafts and re-deliveries of existing plans. A flattened
 video still needs timed caption events to add word backgrounds. Choose phone
 captions for the [documented size floor](CAPTIONS.md); existing captions cannot
@@ -69,6 +71,72 @@ The target applies to each delivered file. Encoding receipts beside the MP4s
 report achieved size and encoder quality risk. The framing evidence records
 whether static broadcast chrome was removed. These are local operations;
 they require no Uoink connection, upload, or new model download.
+
+## Use reference 0:30 to 1:20
+
+Studio probes the reference before its preview or study. A reference over 60
+seconds needs a selected range of at most 60 seconds for matching. The interview
+asks which part to use for a long or unknown-duration reference (including URLs
+and failed probes). A local reference of 60 seconds or less uses `all`, records
+that answer, and displays a short note without asking. Explicit trim flags or
+MCP fields still take precedence. When a long local reference needs a trim,
+the selected interval also supplies the default edit length, rounded to whole
+seconds within 1–60; an explicit `length` answer overrides it. This keeps the
+standard local reference interview within ten questions.
+
+These PowerShell examples select the same 50-second interval. Replace
+`reference.mp4` and `clips` with your local paths. The Studio command continues
+the interview; Match uses default brief answers. Replace `--answers '{}'` with
+`--brief brief.json` to use a saved brief.
+
+```powershell
+$env:UOINK_URL='http://127.0.0.1:1'
+zing studio --ref-start 0:30 --ref-end 1:20
+$env:UOINK_URL='http://127.0.0.1:1'
+zing match reference.mp4 --clips clips --out zing-workspace/match-range --answers '{}' --ref-start 0:30 --ref-end 1:20
+$env:UOINK_URL='http://127.0.0.1:1'
+zing explain reference.mp4 --out zing-workspace/explain-range --ref-start 0:30 --ref-end 1:20
+$env:UOINK_URL='http://127.0.0.1:1'
+zing study reference.mp4 --workspace zing-workspace/study-range --reference-range 0:30-1:20
+```
+
+All four commands accept seconds (`30`, `80`) or `mm:ss`. Use either
+`--ref-start/--ref-end` or `--reference-range`, not both. MCP `study_video`, `study_uoink_item`,
+`match_start`, and `zing_explain` accept `ref_start`, `ref_end`, and
+`reference_range`; Studio accepts those keys in its answers.
+
+For an HTTP reference, Match downloads the source, then probes and checks the
+selected duration before normalization or study. A long untrimmed URL is refused
+at that point. General-purpose Study can analyze longer footage; Explain and
+its Studio fallback cap analysis at 60 seconds. Analysis budgets have separate
+cache identities, so a bounded study cannot replace the full study's media.
+
+Ranges include the start and exclude the end. CFR boundaries snap forward to
+the next source frame; the breakdown's `provenance.reference_range` records
+requested times, selected frame indices, effective times, frame rate and hashes.
+Only the selected interval is encoded. VFR selections use source time and record
+their conversion to CFR. Audio is encoded with the selected interval; source
+files are unchanged.
+
+Explain analyzes at most the first 60 seconds of the selected interval and uses
+a maximum image side of 960 pixels. Its card records this budget and identifies
+unmeasured footage. `--against` applies the reference range to the first video;
+the comparison video has its own 60-second analysis budget. Caption geometry
+keeps at most 256 sampled frames, 16 detections per frame, 128 tracks, 64 samples
+per track and 512 gap examples, with total and omitted counts. Font comparison
+uses at most 16 tracks, three samples per track and two lines per sample. Text
+between sampled frames remains unknown. A fractional-rate selection may end
+within one frame after its requested endpoint; its source frame choices are
+recorded explicitly.
+
+## One usable moment can make a draft
+
+Studio can deliver one or two drafts when the footage cannot support three
+distinct edits. It reports a **VARIETY limit**, keeps the usable drafts and names
+the missing choices. Another opening or a different visual moment can add
+variety; shortening a complete moment is not required just to fill three slots.
+The `box` caption mode and its active-word plate apply to brief-only drafts,
+reference matches and captioned plan re-deliveries.
 
 FFmpeg and ffprobe must be on PATH for video work. The interview itself uses
 plain stdin/stdout and the Python standard library; media work uses Zing's

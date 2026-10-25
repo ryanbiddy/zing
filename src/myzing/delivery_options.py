@@ -1,7 +1,18 @@
 """Shared opt-in CLI overrides for render, match and studio."""
 
 
+def short_side(value):
+    import argparse
+    if value == "auto":
+        return value
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError("use auto or a multiple of 18 such as 720 or 1080") from None
+
+
 def add_options(parser):
+    parser.add_argument("--short-side", type=short_side, help="delivery short side: auto or a multiple of 18, e.g. 720")
     parser.add_argument("--caption-options", help='JSON CaptionStyle overrides, e.g. {"highlight_box_color":"#FFD23F","highlight":"#0A0A0A"}')
     parser.add_argument("--caption-mode", choices=["reference", "phone", "punch", "box", "clean", "none"])
     parser.add_argument("--picture-crop", choices=["auto", "on", "off"], help="crop static broadcast chrome when confident; on requires a confident picture")
@@ -13,7 +24,7 @@ def add_options(parser):
 def overrides(args):
     import json
     from myzing.brief.models import Brief
-    values = {name: getattr(args, name) for name in ("caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps")
+    values = {name: getattr(args, name) for name in ("caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps", "short_side")
               if getattr(args, name, None) is not None}
     if "caption_options" in values:
         values["caption_options"] = json.loads(values["caption_options"])
@@ -44,6 +55,7 @@ def apply_plan(plan, values, *, base_dir=None):
         plan.accepted_unsafe_layouts = []
     elif values.get("caption_mode") == "phone":
         from myzing.layout.readability import hold_short_events, phone_word_groups
+        from myzing.captions.grouping import join
         groups = []
         for caption in plan.captions:
             parts = phone_word_groups(caption.words)
@@ -52,7 +64,7 @@ def apply_plan(plan, values, *, base_dir=None):
                 continue
             for index, words in enumerate(parts):
                 groups.append(replace(caption, id=f"{caption.id}-phone-{index+1}",
-                    text=" ".join(w.text for w in words), words=words,
+                    text=join(w.text for w in words), words=words,
                     start=caption.start if index == 0 else words[0].start,
                     end=caption.end if index == len(parts) - 1 else words[-1].end, layout=None))
         if plan.clips:

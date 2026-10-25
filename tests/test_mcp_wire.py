@@ -56,6 +56,15 @@ def assert_wire(actual, expected):
         actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
                                      if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run"}]
         for tool in actual["result"]["tools"]:
+            if tool["name"] in {"study_video", "study_uoink_item", "match_start"}:
+                # DOGFOOD2 adds optional reference trims. Preserve the historical
+                # schema and pin the new fields' optional/default behavior.
+                for name in ("ref_start", "ref_end", "reference_range"):
+                    option = tool["inputSchema"]["properties"].pop(name)
+                    assert option["default"] is None
+                    assert name not in tool["inputSchema"].get("required", [])
+                    assert {part["type"] for part in option["anyOf"]} == (
+                        {"string", "null"} if name == "reference_range" else {"string", "number", "null"})
             if tool["name"] == "match_start":
                 # STUDIO1 adds an optional adapter argument. The historical
                 # input fields and their required/default behavior stay pinned.

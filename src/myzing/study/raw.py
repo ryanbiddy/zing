@@ -18,6 +18,8 @@ re-phrasings below the similarity floor will not match.
 
 from __future__ import annotations
 
+from myzing.captions.grouping import join
+
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
@@ -218,7 +220,7 @@ def find_keepers(
                     "compare before choosing"
                 )
 
-            preview = " ".join(w.text.strip() for w in stretch)
+            preview = join(w.text for w in stretch)
             keepers.append(Keeper(
                 start=round(start, 3),
                 end=round(end, 3),
@@ -419,6 +421,6 @@ def find_repeated_takes(words: list[Word]) -> list[RepeatedTake]:
                     second_start=round(chunks[j][0].start, 3),
                     second_end=round(chunks[j][-1].end, 3),
                     similarity=round(similarity, 3),
-                    text=" ".join(w.text.strip() for w in longer),
+                    text=join(w.text for w in longer),
                 ))
     return takes

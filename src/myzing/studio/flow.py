@@ -22,8 +22,8 @@ PATHS = {
 KEYS = {"path", "project", "reference_kind", "reference", "reference_query", "allow_download",
         "clips", "photos", "topic", "platform", "aspects", "length", "tone", "captions",
         "music", "tracks", "source", "context", "speech", "draft", "speech_model", "speech_download"}
-DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps"}
-KEYS |= DELIVERY_KEYS
+DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps", "short_side"}
+KEYS |= DELIVERY_KEYS | {"ref_start", "ref_end", "reference_range"}
 KEYS |= {"footage_kind", "cursor_log"}
 ASPECTS = ["16:9", "1:1", "9:16"]
 
@@ -119,6 +119,13 @@ def _path(value, key, *, folder=False, exists=True):
 
 
 def normalize(key, value):
+    if key in {"ref_start", "ref_end"}:
+        from myzing.reference_range import seconds
+        return seconds(value)
+    if key == "reference_range":
+        from myzing.reference_range import parse
+        parse(reference_range=value)
+        return value
     if key == "footage_kind":
         if value not in {"general", "screen"}:
             raise ValueError("footage_kind: choose general or screen.")
@@ -201,6 +208,8 @@ def normalize_answers(answers):
         raise ValueError("answers must be an object using studio question IDs; unknown keys: " +
                          str(sorted(set(answers) - KEYS) if isinstance(answers, dict) else "not an object"))
     result = {key: normalize(key, value) for key, value in answers.items()}
+    from myzing.reference_range import parse
+    parse(**{k: result[k] for k in ("ref_start", "ref_end", "reference_range") if k in result})
     from myzing.brief.models import Brief
     Brief.from_answers({key: result[key] for key in DELIVERY_KEYS if key in result})
     if "caption_mode" in result:
@@ -253,7 +262,50 @@ def next_step(answers=None, *, cache=None):
         if _inside(Path(a["project"]), Path(a["source"]).parent):
             raise ValueError(f"Style breakdown writes outside the video's folder; choose an output folder that is not inside {Path(a['source']).parent}.")
         root = Path(a["project"])
+    # Probe before the preview, model setup, or any full study. Long references
+    # get a required range question immediately, even with all other answers set.
+    reference = a.get("reference") if path == "a" else a.get("source") if path == "d" else None
+    reference_note, reference_length = None, None
+    duration = None
+    trim = {k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a}
+    if path == "a" and is_http_url(reference or "") and a.get("allow_download") is False:
+        return {"status": "blocked", "error": "Download declined. Go back to use a local reference or save and quit.", "answers": a}
+    if reference and "://" not in reference and not reference.startswith("uoink:"):
+        from myzing.project.probe import probe_file
+        from myzing.reference_range import parse, validate_duration
+        parse(**trim)
+        try:
+            duration = probe_file(Path(reference)).to_dict().get("duration")
+        except (OSError, ValueError, RuntimeError):
+            duration = None  # existing unreadable-file diagnostics below
+        if duration is not None and (not math.isfinite(duration) or duration <= 0):
+            duration = None
+    if path == "a" and reference and not trim:
+        if duration is None or duration > 60:
+            facts = {"measured": [f"Reference duration: {duration:g}s."] if duration else [],
+                     "warnings": [], "unknowns": [] if duration else ["Reference duration is unknown."]}
+            prompt = (f"Reference is {duration:g}s; the supported limit is 60s. Which part should I use (e.g. 0:30-1:20)?"
+                      if duration else "Reference duration is unknown. Which part should I use (all, or e.g. 0:30-1:20)?")
+            q = question("reference_range", prompt, None if duration else "all",
+                         "Choose a range before any study. The selected reference must be at most 60s.", facts, required=True)
+            return {"status": "question", "question": q.to_dict(), "answers": a}
+        a["reference_range"] = "all"
+        reference_note = f"Reference is {duration:g}s (within 60s); using all of it."
+        if cache and cache.get("progress"):
+            cache["progress"](reference_note)
+    if reference and duration is not None:
+        start, end = validate_duration(duration, **trim, limit=60 if path == "a" else None)
+        if path == "a" and duration > 60:
+            # Choosing the reference interval also supplies the default edit
+            # length, keeping the long-reference interview within ten questions.
+            reference_length = min(60, max(1, round(end - start)))
+            reference_note = (f"Selected reference: {end-start:g}s; edit length: "
+                              f"{a.get('length', reference_length):g}s (change length in answers to override).")
+        elif path == "a" and a.get("reference_range") == "all":
+            reference_note = f"Reference is {duration:g}s (within 60s); using all of it."
     facts = evidence.collect(a, cache)
+    if reference_note:
+        facts["measured"].append(reference_note)
     queue = []
 
     def ask(key, prompt, default, why, choices=(), required=False):
@@ -300,8 +352,6 @@ def next_step(answers=None, *, cache=None):
             if kind == "url":
                 ask("allow_download", "Allow downloading this reference URL?", False,
                     "No download is allowed by default. Yes authorizes only this reference, never model downloads.", {False: "No", True: "Yes"})
-                if a.get("allow_download") is False:
-                    return {"status": "blocked", "error": "Download declined. Go back to use a local reference or save and quit.", "answers": a}
     if path in "ab":
         ask("clips", "Which folder holds your clips?", None,
             "Clip paths are unknown; local probes will measure size, duration and audio streams.", required=True)
@@ -346,7 +396,7 @@ def next_step(answers=None, *, cache=None):
         if a.get("platform") == "custom":
             ask("aspects", "Which shapes? (16:9, 1:1, 9:16 or all)", selected,
                 "Choose your delivery set; auto framing checks crops before delivery.")
-    if (path in "ab" and a.get("footage_kind") != "screen") or (path == "e" and a.get("context", "none") == "none"):
+    if (path in "ab" and a.get("footage_kind") != "screen" and reference_length is None) or (path == "e" and a.get("context", "none") == "none"):
         seconds = min((15, 20, 30, 45, 60), key=lambda n: abs(n - min(30, facts["duration"] / 3))) if facts["duration"] else 15
         ref = facts.get("reference", {}) if path == "a" else {}
         if ref.get("duration"):
@@ -427,6 +477,8 @@ def next_step(answers=None, *, cache=None):
         a["aspects"] = selected
     if path == "a":
         a.setdefault("tone", facts.get("reference", {}).get("tone", "natural"))
+        if reference_length is not None and a.get("footage_kind") != "screen":
+            a.setdefault("length", reference_length)
     if path in "ab" and a.get("footage_kind") == "screen":
         a.setdefault("length", min(60, max(1, facts.get("duration") or 15)))
         a.setdefault("tone", "natural")

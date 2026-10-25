@@ -41,7 +41,9 @@ def geometry(caption, width, height):
     for line_index, line in enumerate(slot_lines(caption)):
         advances = [font.width(text,size) for text,_,_ in line]
         gaps = [space if gap else 0 for _,gap,_ in line]
-        total = sum(advances) + sum(gaps) + 2*pad*len(line)
+        left = [pad if k == 0 or line[k][1] else 0 for k in range(len(line))]
+        right = [pad if k+1 == len(line) or line[k+1][1] else 0 for k in range(len(line))]
+        total = sum(advances) + sum(gaps) + sum(left) + sum(right)
         x = box.center[0]*width - total/2
         y = baseline - (len(lines)-1-line_index)*line_h
         order = list(range(len(line)))
@@ -55,11 +57,11 @@ def geometry(caption, width, height):
                 previous = order[position-1]
                 x += gaps[max(k, previous)]
             placed[k] = x
-            x += advances[k]+2*pad
+            x += advances[k]+left[k]+right[k]
         for k, (text, _, index) in enumerate(line):
-            slots.append({"index":index,"text":text,"x":placed[k]+pad,"baseline":y,"width":advances[k],
+            slots.append({"index":index,"text":text,"x":placed[k]+left[k],"baseline":y,"width":advances[k],
                           "plate_x":placed[k],"plate_y":y-font.cap*size/font.units-size*.08,
-                          "plate_width":advances[k]+2*pad,"plate_height":(font.cap-font.descent)*size/font.units+size*.16})
+                          "plate_width":advances[k]+left[k]+right[k],"plate_height":(font.cap-font.descent)*size/font.units+size*.16})
     slots.sort(key=lambda slot: slot["index"])
     return {"version":1,"anchor_x":box.center[0]*width,"baseline":baseline,
             "font_ascent":font.ass_ascent*size/font.units,"size":size,"slots":slots,

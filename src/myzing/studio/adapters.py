@@ -24,7 +24,7 @@ def validate_options(value):
         normalize("music", value["music"])
 
 
-def explain_video(source, out_dir, *, progress=None, fallback=True):
+def explain_video(source, out_dir, *, progress=None, fallback=True, **trim):
     """EXPLAIN integration point. Only a missing module invokes the fallback."""
     try:
         from myzing.explain.api import explain_video as explain
@@ -40,14 +40,19 @@ def explain_video(source, out_dir, *, progress=None, fallback=True):
         if progress:
             progress(note)
         b = study(source, workspace=root, local_models_only=True, detect_transitions=True,
-                  caption_geometry=True, model_workspace=storage.resolve_workspace(), phase_callback=progress)
+                  caption_geometry=True, model_workspace=storage.resolve_workspace(), phase_callback=progress,
+                  analysis_seconds=60, analysis_max_side=960,
+                  **trim)
         with storage.use_workspace(root):
-            folder = storage.breakdown_dir(storage.slug_for(source))
+            from myzing.reference_range import slug
+            selected_slug = slug(source, analysis_seconds=60, analysis_max_side=960, **trim)
+            folder = storage.breakdown_dir(selected_slug)
+            media = storage.resolve_relpath(selected_slug, b.meta.media_path)
         png = root / "timeline.png"
         warnings = [note, *b.warnings,
                     "Fallback has no dedicated color-look or music-arrangement card; those details remain unmeasured. Original font, LUT and presets remain unknown."]
         try:
-            inspected = inspect_timeline(source, str(png), start=0, end=min(b.meta.duration, 30))
+            inspected = inspect_timeline(str(media), str(png), start=0, end=min(b.meta.duration, 30))
             warnings.extend(inspected.warnings)
         except (ValueError, OSError, RuntimeError, ImportError) as exc:
             warnings.append(f"Timeline inspection unavailable: {exc}")
@@ -57,7 +62,7 @@ def explain_video(source, out_dir, *, progress=None, fallback=True):
                 "warnings": warnings}
     if progress:
         progress("Reading the video and making its style card...")
-    return explain(source, str(out_dir), transitions=True, offline=True)
+    return explain(source, str(out_dir), transitions=True, offline=True, **trim)
 
 
 def register_music(root, tracks):
@@ -125,7 +130,8 @@ def load_edit(source):
     probe = probe_file(path)
     if not probe.duration or not probe.width or not probe.height:
         raise ValueError("Existing edit needs a video stream and a known duration.")
-    return Composition(assets=[AssetRef("edit", str(path), hash_file(path), probe.duration)],
+    from myzing.project.models import Rational
+    return Composition(fps=Rational(probe.fps.numerator, probe.fps.denominator) if probe.fps else Rational(30, 1), assets=[AssetRef("edit", str(path), hash_file(path), probe.duration)],
                        clips=[CompositionClip(id="edit", asset_id="edit", src=str(path), src_in=0,
                                               src_out=probe.duration, timeline_start=0)],
                        width=probe.width, height=probe.height,

@@ -46,14 +46,67 @@ def nospace(ch):
     return any(a <= code <= b for a, b in _NOSPACE)
 
 
+_CURRENCY = "$£€¥₹"
+_INTEGER = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
+_NUMBER = rf"[{_CURRENCY}]?{_INTEGER}(?:\.\d+)?"
+_GROUPED = rf"[{_CURRENCY}]?\d{{1,3}}(?:,\d{{3}})*"
+
+
+def number_continuation(left, right, following=None):
+    """Continue a pure numeric run, never punctuation attached to prose.
+
+    Attached trailing punctuation (2026, or 3.) remains a sentence/list
+    boundary. Only detached separators get lookahead.
+    """
+    if not left or not right:
+        return False
+    if len(left) == 1 and left in _CURRENCY and re.fullmatch(_NUMBER, right):
+        return True
+    if right in ("%", "‰"):
+        return bool(re.fullmatch(_NUMBER, left))
+    if re.fullmatch(_GROUPED, left):
+        if re.fullmatch(r",\d{3}", right):
+            return True
+        if right == "," and following and re.fullmatch(r"\d{3}", following):
+            return True
+    if re.fullmatch(rf"[{_CURRENCY}]?{_INTEGER}", left):
+        if re.fullmatch(r"\.\d+", right):
+            return True
+        if right == "." and following and re.fullmatch(r"\d+", following):
+            return True
+    return False
+
+
+def separator(left, right):
+    """Display boundary only: currency, grouped numbers, decimals, percent."""
+    if not left or not right or (nospace(left[-1]) and nospace(right[0])) or number_continuation(left, right):
+        return ""
+    return " "
+
+
+def display_boundaries(texts):
+    """Spaces and protected numeric boundaries, in one linear token pass."""
+    texts = [t.strip() for t in texts]
+    spaces, numeric, run = [""], set(), texts[0] if texts else ""
+    for i in range(1, len(texts)):
+        right = texts[i]
+        continued = number_continuation(run, right, texts[i+1] if i+1 < len(texts) else None)
+        # A validated detached separator belongs to the following digits too.
+        if texts[i-1] in (",", ".") and i-1 in numeric:
+            continued = True
+        if continued:
+            numeric.add(i)
+        spaces.append("" if continued or right in (",", ".", ";", ":", "!", "?")
+                      or not run or not right or (nospace(run[-1]) and nospace(right[0])) else " ")
+        run = run + right if continued else right
+    return spaces[:len(texts)], numeric
+
+
 def join(texts):
-    """Join display words; no space between two no-space-script words."""
-    out = ""
-    for text in texts:
-        if out and text and not (nospace(out[-1]) and nospace(text[0])):
-            out += " "
-        out += text
-    return out
+    """Join display words without changing timed tokens."""
+    texts = [t.strip() for t in texts]
+    spaces, _ = display_boundaries(texts)
+    return "".join(space + text for space, text in zip(spaces, texts))
 
 
 def glued(word):
@@ -83,6 +136,7 @@ def choose_lines(words, measure, width, cap, max_lines, hard_gap=.5, split=None)
     """
     texts = [w.text.strip() for w in words]
     whole = join(texts)
+    _, numeric = display_boundaries(texts)
     if split is None and len(whole) <= cap and measure(texts) <= width:
         return [whole]
     if max_lines == 1:
@@ -92,7 +146,7 @@ def choose_lines(words, measure, width, cap, max_lines, hard_gap=.5, split=None)
     for i in range(1, len(words)):
         if split is not None and i != split:
             continue
-        if token(words[i-1]) in STOPWORDS or glued(words[i]):
+        if token(words[i-1]) in STOPWORDS or glued(words[i]) or i in numeric:
             continue
         a, b = join(texts[:i]), join(texts[i:])
         if max(len(a), len(b)) > cap or max(measure(texts[:i]), measure(texts[i:])) > width:
@@ -176,6 +230,11 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
     if not words:
         return [], [], [], [], []
     n = len(words)
+    texts = [w.text.strip() for w in words]
+    _, numeric = display_boundaries(texts)
+    units = [0]
+    for i in range(n):
+        units.append(units[-1] + (i not in numeric))
     clean = preset == "clean"
     limit, cap = (24, 30 if portrait else 42) if clean else (3 if preset == "punch" else 4, 1000)
     if all(all(nospace(c) or not c.isalnum() for c in w.text) for w in words):
@@ -188,7 +247,7 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
     end = words[-1].end + .5 if end is None else end
     start = max(0., words[0].start - LEAD) if start is None else start
     solo = set(solo)
-    sentence = {i for i in range(1, n) if terminal(words[i-1])}
+    sentence = {i for i in range(1, n) if terminal(words[i-1]) and i not in numeric}
     # Port AutoSubs' sentence/pause/speaker boundaries, without discarding words.
     hard = {i for i in range(1, n)
             if (words[i].start-words[i-1].end >= gap and token(words[i-1]) not in STOPWORDS)
@@ -204,8 +263,11 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
     best = [math.inf] * (n+1)
     paths = [None] * (n+1)
     best[0] = 0
+    from bisect import bisect_left
     for j in range(1, n+1):
-        for i in range(max(0, j-limit), j):
+        if j in numeric:
+            continue  # Do not put half a currency/decimal value in another cue.
+        for i in range(bisect_left(units, units[j]-limit), j):
             if not math.isfinite(best[i]) or any(i < k < j for k in hard):
                 continue
             part = words[i:j]
@@ -218,7 +280,7 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
             if len(split) > 1:
                 continue
             lines = choose_lines(part, measure, width, cap, 2 if clean else 1, gap, split[0] if split else None)
-            if lines is None or (len(part) > 1 and part[-1].end-part[0].start > maximum):
+            if lines is None or (units[j]-units[i] > 1 and part[-1].end-part[0].start > maximum):
                 continue
             chars = sum(len(s) for s in lines)
             need = max(minimum, chars/20, len(part)*.3 if clean else 0)

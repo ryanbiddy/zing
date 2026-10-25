@@ -135,7 +135,7 @@ def test_named_shortages(project, kind, expected):
     assert not list((project / "plans").glob("plan-*.json"))
 
 
-def test_shortage_does_not_pad_or_leave_previous_success(project):
+def test_variety_limit_delivers_one_and_removes_stale_alternatives(project):
     assert run(project)["status"] == "ready"
     # Exactly one available source shot, all of which is required. Permuting
     # clip labels and splitting adjacent source ranges cannot make three edits.
@@ -145,9 +145,12 @@ def test_shortage_does_not_pad_or_leave_previous_success(project):
                             {"clip": "take-1", "start": 0, "end": 8},
                             {"clip": "take-2", "start": 0, "end": 8}])
     result = run(project)
-    assert result["status"] == "shortage"
-    assert report(result)["shortages"][0]["code"] == "distinct_edits"
-    assert not list((project / "plans").glob("plan-*.json"))
+    assert result["status"] == "ready"
+    assert list(result["plans"]) == ["A"]
+    assert "VARIETY" in result["missing_drafts"]["reason"]
+    assert result["missing_drafts"]["drafts"] == ["B", "C"]
+    assert not (project / "plans/plan-B.json").exists()
+    assert not (project / "plans/plan-C.json").exists()
 
 
 def test_unstudied_clip_is_reported_and_not_guessed(project):

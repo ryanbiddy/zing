@@ -101,13 +101,19 @@ def creator_summary(result, answers, facts):
         notes.append("Your clips include " + ", ".join(f"{n} at {w}x{h}" for (w, h), n in counts.items()) + "; HD versions can look soft.")
     warnings = result.get("warnings", [])
     joined = "\n".join(warnings).lower()
+    if "variety limit" in joined:
+        labels = sorted({r["draft"] for r in rows if r["rendered"] and r["draft"] in DRAFTS})
+        available = (f"delivered {len(labels)} distinct draft(s) ({', '.join(labels)}). " if labels else
+                     "the footage supports fewer than three distinct edit plans. ")
+        notes.insert(0, "VARIETY limit: " + available +
+                     "The moment has enough length; another opening or visual moment would add variety.")
     categories = [
         (("crop-motion bound",), "A crop-motion check failed; this delivery used full-picture blurfill as a last resort."),
         (("blocked captions",), "Some requested spoken captions could not be made from valid timing. Review the speech before publishing."),
         (("phone captions need review",), "Some captions were reduced to fit safely. Check their readability on a phone."),
         (("detected faces do not fit", "measured subject does not fit"), "Some photos need a blurred background to keep faces and subjects inside the frame."),
         (("saliency/center fallback", "subject evidence has gaps"), "Some crops rely on estimated subject positions. Check that faces and important details stay visible."),
-        (("exceeds 2.5x", "exceeds stated 2.5x"), "Some shots are enlarged more than 2.5x to fill the frame; check them for softness."),
+        (("exceeds stated 2.5x",), "Some shots are enlarged more than 2.5x to fill the frame; check them for softness."),
     ]
     for needles, message in categories:
         if any(word in joined for word in needles):
@@ -168,6 +174,8 @@ LENGTH_SHORTAGES = {"target_length", "distinct_edits", "edit_constraints", "must
 def _shortage_note(shortage):
     """Name the producer's actual blocker; a missing study is not a length problem."""
     code = shortage.get("code")
+    if code == "distinct_edits":
+        return "VARIETY limit: the footage has too few distinct edits for three drafts. Use the available draft(s), or film another opening or visual moment."
     if code in LENGTH_SHORTAGES:
         return "There are not enough usable moments for the requested length. Add clips or shorten the edit."
     if code == "study_required":

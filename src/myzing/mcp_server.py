@@ -138,11 +138,12 @@ def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = F
         return _err(str(exc))
 
 def h_zing_explain(source: str, out_dir: str, transitions: bool = True,
-                   offline: bool = True, against: str | None = None) -> dict[str, Any]:
+                   offline: bool = True, against: str | None = None, ref_start: str | float | None = None,
+                   ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
     """Write local card files and return paths/metadata only."""
     from myzing.explain.api import _explain
     return _explain(source, out_dir, transitions=transitions, offline=offline,
-                    against=against, allow_download=not offline)
+                    against=against, allow_download=not offline, ref_start=ref_start, ref_end=ref_end, reference_range=reference_range)
 
 
 def h_brief_questions() -> dict[str, Any]:
@@ -404,6 +405,7 @@ def _run_study(
     root: Path,
     kept_media: str | None = None,
     handoff: dict[str, Any] | None = None,
+    trim: dict | None = None,
 ) -> None:
     """Worker-thread body: run the engine, persist, record honest state.
 
@@ -423,7 +425,7 @@ def _run_study(
             slug, phase=str(phase), heartbeat_at=_now(), updated_at=_now()
         )
 
-    kwargs = _study_kwargs(study_fn, kept_media, handoff, set_phase)
+    kwargs = {**_study_kwargs(study_fn, kept_media, handoff, set_phase), **(trim or {})}
 
     stop_beating = threading.Event()
 
@@ -477,7 +479,8 @@ def _run_study(
 
 @_workspace_boundary
 def h_study_video(
-    url_or_path: str, kept_media: str | None = None
+    url_or_path: str, kept_media: str | None = None, ref_start: str | float | None = None,
+    ref_end: str | float | None = None, reference_range: str | None = None,
 ) -> dict[str, Any]:
     if not isinstance(url_or_path, str) or not url_or_path.strip():
         return _err("url_or_path required: a video URL or a local file path")
@@ -528,7 +531,13 @@ def h_study_video(
             "this build's study engine has no kept-media support - "
             "update myzing, or call study_video without kept_media"
         )
-    return _dispatch_study(api, source, kept)
+    from myzing.reference_range import parse
+    try:
+        parse(ref_start, ref_end, reference_range)
+    except ValueError as exc:
+        return _err(str(exc))
+    trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
+    return _dispatch_study(api, source, kept, **({"trim": trim} if trim else {}))
 
 
 def _engine_supports(api: Any, param: str) -> bool:
@@ -545,12 +554,14 @@ def _dispatch_study(
     kept: str | None,
     handoff: dict[str, Any] | None = None,
     hint_extra: str = "",
+    trim: dict | None = None,
     **echo: Any,
 ) -> dict[str, Any]:
     """Shared job dispatch for study_video and study_uoink_item: status
     stamped under the jobs lock, worker pinned to the captured workspace,
     honest already_studying answer for live jobs."""
-    slug = storage.slug_for(source)
+    from myzing.reference_range import slug as reference_slug
+    slug = reference_slug(source, **(trim or {}))
     # F-15: capture the workspace NOW and pin the whole job to it — the
     # worker thread must not re-resolve env that may change under it.
     root = storage.workspace_root()
@@ -577,7 +588,7 @@ def _dispatch_study(
         )
         thread = threading.Thread(
             target=_run_study,
-            args=(api.study, source, slug, root, kept, handoff),
+            args=(api.study, source, slug, root, kept, handoff, *([trim] if trim else [])),
             daemon=True,
         )
         _JOBS[slug] = thread
@@ -618,7 +629,8 @@ def h_import_shot_list(path: str, slug: str) -> dict[str, Any]:
 
 
 @_workspace_boundary
-def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
+def h_study_uoink_item(item_ref: str, ref_start: str | float | None = None,
+                       ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
     """INTEGRATION-CONTRACT v1 §9: study a uoink corpus item through the
     kept-media resolver. Accepts ONE uoink reference — never a peer
     path; paths only travel inside the token-gated handoff."""
@@ -645,6 +657,12 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
 
     from myzing import uoink_bridge
 
+    from myzing.reference_range import parse
+    try:
+        parse(ref_start, ref_end, reference_range)
+    except ValueError as exc:
+        return _err(str(exc))
+    trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
     resolved = uoink_bridge.resolve_kept_media(item_ref.strip())
     if not resolved.get("ok"):
         return _err(str(resolved.get("error", "kept-media resolution failed")))
@@ -691,6 +709,7 @@ def h_study_uoink_item(item_ref: str) -> dict[str, Any]:
         hint_extra=hint_extra,
         item_ref=data["item_ref"],
         kept_state=state,
+        **({"trim": trim} if trim else {}),
     )
 
 
@@ -1201,12 +1220,14 @@ def _run_match(options, root, workspace, stop, lease):
 def h_match_start(reference: str, clips: str, out: str, brief: str | None = None,
                   answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
                   resume: bool = False, allow_download: bool = False,
-                  studio_options: dict[str, Any] | None = None) -> dict[str, Any]:
+                  studio_options: dict[str, Any] | None = None, ref_start: str | float | None = None,
+                  ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
     """Start the same supervised pipeline as the CLI; no media bytes returned."""
     from myzing.match.api import validate
     from myzing.match.process import run_lock
     options = dict(reference=reference, clips=clips, out=out, brief=brief, answers=answers,
                    drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+    options.update({k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None})
     if studio_options is not None:
         options["studio_options"] = studio_options
     try:

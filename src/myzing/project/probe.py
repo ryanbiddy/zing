@@ -69,9 +69,7 @@ def parse_probe(data: dict) -> Probe:
     avg = _rate(video.get("avg_frame_rate"))
     nominal = _rate(video.get("r_frame_rate"))
     rate = avg or nominal
-    duration = _number(fmt.get("duration"))
-    if duration is None:
-        duration = _number(video.get("duration"))
+    duration = video_duration(video, fmt)
     flags, notes = [], []
     if not video or not width or not height:
         flags.append("no_video")
@@ -110,6 +108,18 @@ def parse_probe(data: dict) -> Probe:
         has_audio=any(s.get("codec_type") == "audio" for s in streams),
         orientation=orientation, flags=sorted(set(flags)), notes=notes,
     )
+
+
+def video_duration(video, fmt):
+    """Picture duration, excluding audio/container padding at the tail."""
+    ticks, base = _number(video.get("duration_ts")), _rate(video.get("time_base"))
+    frames, rate = _number(video.get("nb_frames")), _rate(video.get("avg_frame_rate"))
+    # A broken muxer can report one time-base tick for many full frames.
+    if ticks is not None and ticks > 0 and base and (not rate or ticks * base >= 1 / rate):
+        return float(ticks * base)
+    if frames is not None and frames > 0 and rate:
+        return float(frames / rate)
+    return _number(video.get("duration")) or _number(fmt.get("duration"))
 
 
 def probe_file(path: Path) -> Probe:

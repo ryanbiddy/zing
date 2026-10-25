@@ -27,7 +27,7 @@ from . import evidence
 from .state import Checkpoints, StepFailed, read, write
 
 
-def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, studio_options=None, **_):
+def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, studio_options=None, ref_start=None, ref_end=None, reference_range=None, **_):
     if studio_options is not None:
         from myzing.studio.adapters import validate_options
         validate_options(studio_options)
@@ -49,6 +49,8 @@ def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=
         raise ValueError("--out must differ from the clip folder so generated outputs do not become inputs.")
     if not is_http_url(reference) and not reference.startswith("uoink:") and not Path(reference).expanduser().is_file():
         raise ValueError("Reference file does not exist; use a local file, HTTP(S) URL, or uoink:<id>.")
+    from myzing.reference_range import parse
+    parse(ref_start, ref_end, reference_range)
     if brief is not None:
         load_brief(brief)
     elif answers is not None:
@@ -104,9 +106,14 @@ def capabilities():
             "whisper_cache": whisper}
 
 
-def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False, vocabulary=(), speech_model=None):
+def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verification=False, vocabulary=(), speech_model=None, ref_start=None, ref_end=None, reference_range=None):
+    from myzing.reference_range import validate_duration, slug as reference_slug
+    if max_seconds:
+        from myzing.project.probe import probe_file
+        validate_duration(probe_file(Path(source)).duration, ref_start, ref_end, reference_range, limit=max_seconds)
     before = projects.hash_file(Path(source))
     b = study(str(source), workspace=workspace, raw_mode=raw, caption_geometry=True,
+              **{k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None},
               fonts=fonts, detect_transitions=not raw, local_models_only=True,
               model_workspace=storage.resolve_workspace(),
               **({"vocabulary": vocabulary} if vocabulary else {}),
@@ -114,11 +121,15 @@ def _study(source, workspace, *, raw=False, fonts=False, max_seconds=None, verif
               **({"speech_model": speech_model} if speech_model is not None else {}))
     if projects.hash_file(Path(source)) != before:
         raise ValueError("Source changed during study; wait for writes to finish and --resume.")
-    if max_seconds and b.meta.duration > max_seconds:
+    # A half-open 60s selection at fractional fps can contain a final frame
+    # whose exposure ends just beyond 60s. The requested interval was checked
+    # before study; allow only that one-frame quantization at this late guard.
+    frame_slack = 1 / b.meta.fps if b.meta.fps and b.meta.fps > 0 else 0
+    if max_seconds and b.meta.duration > max_seconds + frame_slack + 1e-6:
         raise ValueError("Reference exceeds v0.1's 60-second limit; trim it and use a new project.")
     b.provenance["source_sha256"] = before
     with storage.use_workspace(workspace):
-        slug = storage.slug_for(str(source))
+        slug = reference_slug(str(source), ref_start, ref_end, reference_range)
         storage.save_breakdown(b, slug=slug)
         folder = storage.breakdown_dir(slug)
         media = storage.resolve_relpath(slug, b.meta.media_path)
@@ -312,12 +323,15 @@ def _layout(plan, folder, recipe):
 
 
 def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
-          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None):
+          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None, ref_start=None, ref_end=None, reference_range=None):
     """Synchronous worker API. CLI/MCP run this inside an owned process tree."""
     validate(reference, clips, out, brief=brief, answers=answers, drafts=drafts, seed=seed, resume=resume, allow_download=allow_download,
              **({"studio_options": studio_options} if studio_options is not None else {}))
     if type(repair_asr) is not bool:
         raise ValueError("repair_asr must be a boolean")
+    from myzing.reference_range import parse
+    parse(ref_start, ref_end, reference_range)
+    trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
     started = time.monotonic()
     root = Path(out).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -347,10 +361,12 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             if is_http_url(reference):
                 if not allow_download:
                     raise ValueError("URL acquisition requires explicit --allow-download consent. Supply a local reference instead.")
-                from myzing.study.ingest import ingest
-                with storage.use_workspace(root / "acquisition"):
-                    ingested = ingest(reference)
-                resolution = resolve_reference(root, file=ingested.media_path)
+                from myzing.explain.api import _resolve
+                from myzing.project.probe import probe_file
+                from myzing.reference_range import validate_duration
+                acquired = _resolve(reference, root / "acquisition", allow_download=True)
+                validate_duration(probe_file(acquired).duration, **trim, limit=60)
+                resolution = resolve_reference(root, file=acquired)
             else:
                 resolution = resolve_reference(root)
             if resolution.state != "resolved":
@@ -372,10 +388,10 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             name = speech["speech_model"]
             local = local_path(name) if name != "skip" else None
             caps["studio_speech"] = {"model": name, "path": str(local) if local else None}
-        resolved = checkpoints.step("reference-resolve", ref_key, resolve)
+        resolved = checkpoints.step("reference-resolve", [ref_key, trim, "acquire-before-study-v2"], resolve)
         reference_terms = vocabulary_context(terms, metadata={"title": resolved.get("title") or ""})["terms"]
-        ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps, reference_terms],
-                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60.05,
+        ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps, reference_terms, trim],
+                                     lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60, **trim,
                                                     **({"vocabulary": reference_terms} if reference_terms else {}), **speech))
         # Keep the existing brief recommendation and reference contracts useful.
         from myzing.project.locking import project_lock

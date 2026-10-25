@@ -111,7 +111,7 @@ def test_comparison_close_differs_unknown_have_numbers():
 
 
 def test_public_signature_and_download_consent(tmp_path, monkeypatch):
-    assert list(inspect.signature(explain_video).parameters) == ["source", "out_dir", "transitions", "offline"]
+    assert list(inspect.signature(explain_video).parameters) == ["source", "out_dir", "transitions", "offline", "ref_start", "ref_end", "reference_range"]
     monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: pytest.fail("unexpected network"))
     result = explain_video("https://example.com/video.mp4", tmp_path / "out")
     assert not result["ok"] and "consent" in result["error"]

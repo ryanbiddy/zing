@@ -101,6 +101,8 @@ def ingest(
     source: str,
     kept_media: str | Path | None = None,
     handoff: dict[str, Any] | None = None,
+    ref_start=None, ref_end=None, reference_range=None,
+    analysis_seconds=None, analysis_max_side=None,
 ) -> IngestResult:
     """Workspace routing is storage's job (ContextVar pin via
     use_workspace); ingest never carries roots around.
@@ -126,23 +128,48 @@ def ingest(
             f"invalid source URL {source!r}: expected an absolute HTTP(S) "
             "URL with a host, valid port, no whitespace, and no backslash"
         )
-    slug = storage.slug_for(source)
+    from myzing import reference_range as ranges
+    slug = ranges.slug(source, ref_start, ref_end, reference_range,
+                       analysis_seconds=analysis_seconds, analysis_max_side=analysis_max_side)
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
+    selecting = any(v is not None for v in (ref_start, ref_end, reference_range, analysis_seconds, analysis_max_side))
 
     if is_url(source):
+        # Keep the original download separate from the canonical studied media.
+        # Otherwise a repeat trim would select from the already-trimmed cache.
+        acquired_slug = slug + "-reference-source" if selecting else slug
+        acquired_dir = storage.breakdown_dir(acquired_slug)
+        acquired_dir.mkdir(parents=True, exist_ok=True)
         media, info, probed = _acquire_url_media(
-            source, slug, dest, kept_media, handoff, warnings, provenance
+            source, acquired_slug, acquired_dir, kept_media, handoff, warnings, provenance
         )
     else:
         if kept_media is not None:
             warnings.append(
                 "kept_media ignored: source is already a local file"
             )
-        media = _stage_local(source, slug)
+        if selecting:
+            selected, selection = ranges.select_local(source, dest, ref_start, ref_end, reference_range,
+                                                      analysis_seconds=analysis_seconds, max_side=analysis_max_side)
+            media = _stage_local(str(selected), slug)
+            if selection:
+                provenance["reference_range"] = selection
+                if selection["analysis_limited"]:
+                    warnings.append(f"Analysis limited to {selection['end']-selection['start']:g}s of the reference; remaining footage is unmeasured.")
+        else:
+            media = _stage_local(source, slug)
         info = {}
         probed = None
 
+    if is_url(source) and selecting:
+        selected, selection = ranges.select_local(media, dest, ref_start, ref_end, reference_range,
+                                                  analysis_seconds=analysis_seconds, max_side=analysis_max_side)
+        media, probed = _stage_local(str(selected), slug), None
+        if selection:
+            provenance["reference_range"] = selection
+            if selection["analysis_limited"]:
+                warnings.append(f"Analysis limited to {selection['end']-selection['start']:g}s of the reference; remaining footage is unmeasured.")
     if probed is None:
         probed = probe(media)
     vstream = _video_stream(probed, media)
@@ -170,7 +197,7 @@ def ingest(
         platform=detect_platform(source),
         author=str(info.get("uploader") or info.get("channel") or ""),
         title=str(info.get("title") or ("" if is_url(source) else Path(source).stem)),
-        duration=round(duration, 3),
+        duration=duration,
         width=int(vstream.get("width", 0) or 0),
         height=int(vstream.get("height", 0) or 0),
         fps=round(_fps(vstream.get("avg_frame_rate", "0/0")), 3),
@@ -564,11 +591,5 @@ def _fps(rate: str) -> float:
 
 
 def _duration(probed: dict, vstream: dict) -> float:
-    for holder in (probed.get("format", {}), vstream):
-        raw = holder.get("duration")
-        if raw is not None:
-            try:
-                return float(raw)
-            except (TypeError, ValueError):
-                continue
-    return 0.0
+    from myzing.project.probe import video_duration
+    return video_duration(vstream, probed.get("format", {})) or 0.0

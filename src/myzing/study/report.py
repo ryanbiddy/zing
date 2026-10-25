@@ -9,6 +9,8 @@ AI over MCP, not this file.
 
 from __future__ import annotations
 
+from myzing.captions.grouping import join
+
 from myzing.schemas import Breakdown, CaptionEvent, Shot, Word
 
 from . import formats
@@ -128,7 +130,7 @@ def _first_seconds(b: Breakdown) -> str:
         lines.append("- shots: (none measured)")
 
     if words:
-        spoken = " ".join(w.text for w in words)
+        spoken = join(w.text for w in words)
         lines.append(f'- spoken: "{spoken}"')
     else:
         lines.append("- spoken: (nothing transcribed in this window)")
