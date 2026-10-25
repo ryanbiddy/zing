@@ -8,6 +8,19 @@ from .types import Box, Keyframe
 
 
 def detect_picture(frames):
+    """Try the established border guards, then a dominant composite stage."""
+    result = _detect_bordered_picture(frames)
+    import numpy as np
+    data = np.asarray(frames, dtype=float)
+    if data.ndim == 3 and len(data) >= 6 and min(data.shape[1:]) >= 16:
+        from .stage import detect_stage
+        stage = detect_stage(data, content_bounds=result["bounds_normalized"] if result.get("confident") else None)
+        if stage is not None:
+            return stage
+    return result
+
+
+def _detect_bordered_picture(frames):
     """Gray samples -> rectangle/evidence. Requires two persistent horizontal borders.
 
     This is a static-frame detector, not semantic lower-third removal. Moving
@@ -206,7 +219,7 @@ def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, pi
     if policy == "off" or not picture or not picture.get("confident"):
         return select_framing(requested, sw, sh, width, height, clip, tracks, **kwargs)
     x, y, pw, ph = picture["bounds_pixels"]
-    projected = []
+    projected, excluded = [], []
     for track in tracks:
         keys = []
         for k in track.keyframes:
@@ -214,12 +227,51 @@ def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, pi
             right, bottom = min(x+pw, k.box.right*sw), min(y+ph, k.box.bottom*sh)
             if right <= left or bottom <= top:
                 break
+            if track.id.startswith("face") and (right-left)*(bottom-top) < .8*k.box.width*sw*k.box.height*sh:
+                break  # A face on a neighbouring tile is not a stage speaker.
             keys.append(Keyframe(k.time, Box((left-x)/pw, (top-y)/ph, (right-left)/pw, (bottom-top)/ph)))
         if len(keys) == len(track.keyframes):
             projected.append(replace(track, keyframes=keys))
-    f = select_framing(requested, pw, ph, width, height, clip, projected, **kwargs)
+        else:
+            excluded.append(track.id)
+    details = {"outside_stage_tracks": excluded}
+    if picture.get("kind") == "broadcast-composite":
+        projected, focus = _stage_subjects(clip, projected)
+        details.update(focus)
+    mode = ("zoomfill" if requested == "auto" and width < height and details.get("focused") else requested)
+    f = select_framing(mode, pw, ph, width, height, clip, projected, **kwargs)
     return replace(f, source_width=sw, source_height=sh, bounds=CropBounds(x, y, pw, ph),
                    center_x=f.center_x+x, center_y=f.center_y+y,
                    keyframes=[CropKeyframe(k.time, k.center_x+x, k.center_y+y) for k in f.keyframes],
-                   picture=dict(picture), warnings=[*f.warnings,
+                   picture={**picture, "subject_selection": details}, warnings=[*f.warnings,
+                   *([focus["reason"]] if picture.get("kind") == "broadcast-composite" and focus.get("focused") else []),
                    f"Crop to live picture: {pw}x{ph} at ({x},{y}); static-frame confidence {picture['confidence']:.3f}; sampled evidence, not semantic recognition."])
+
+
+def _stage_subjects(clip, tracks):
+    """Focus a dominant persistent stage face; equal or authoritative peers stay."""
+    from statistics import median
+    tracks = [t for t in tracks if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
+    faces = [t for t in tracks if t.id.startswith("face")]
+    size = lambda t: median(k.box.width*k.box.height for k in t.keyframes)
+    primary = max(faces, key=size, default=None)
+    if (primary is None or primary.confidence < .8 or primary.keyframes[0].time > clip.src_in
+            or primary.keyframes[-1].time < clip.src_out-1e-4):
+        return tracks, {"focused": False, "reason": "no confident full-shot stage face"}
+    others = [t for t in faces if t is not primary]
+    ratio = max((size(t)/size(primary) for t in others), default=0.)
+    if ratio > .25 or any(t.confidence >= .8 for t in others):
+        return tracks, {"focused": False, "reason": "another substantial or confident stage face remains"}
+    def incidental(t):
+        return (t in others or t.id.startswith("saliency-") or
+                (t.id.startswith("person-") and t.confidence <= .5 and t.observations
+                 and all(o.detector == "hog-fallback" for o in t.observations)))
+    kept = [t for t in tracks if not incidental(t)]
+    if any(t is not primary for t in kept):
+        return tracks, {"focused": False, "reason": "independent person evidence remains in the stage"}
+    return kept, {"focused": True, "main_face": primary.id, "face_confidence": primary.confidence,
+                  "maximum_incidental_face_area_ratio": ratio,
+                  "incidental_tracks": [t.id for t in tracks if t not in kept],
+                  "reason": f"Stage focus: one full-shot face at confidence {primary.confidence:.3f}; "
+                            f"other stage faces are at most {ratio:.1%} of its area and below 0.8 confidence. "
+                            "Small incidental faces and low-confidence HOG scenery do not determine speaker size; review sampled framing."}

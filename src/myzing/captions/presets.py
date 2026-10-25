@@ -7,7 +7,7 @@ from myzing.composition import CaptionStyle, CompositionCaption
 from myzing.timing import transform_word
 
 from . import PRESETS
-from .grouping import display_boundaries, separator, STOPWORDS, group_words, join, nospace, token
+from .grouping import display_boundaries, separator, STOPWORDS, group_words, join, nospace, token, numeric_token
 from .metrics import font_asset, metrics
 
 
@@ -165,8 +165,20 @@ def split_word(text, fits, display=str):
 def fit_long_words(words, display, measure, available):
     """Keep every word inside the line by measured cluster splits, at the phone floor."""
     kept, shown, solo, notes = [], [], {}, []
-    for word in words:
+    _, numeric = display_boundaries([w.text for w in words])
+    protected = set(numeric) | {i-1 for i in numeric}
+    for index, word in enumerate(words):
         value = display(word.text)
+        if index in protected or numeric_token(word.text):
+            if index not in numeric:
+                stop = index+1
+                while stop in numeric:
+                    stop += 1
+                if measure([display(w.text) for w in words[index:stop]]) > available:
+                    raise ValueError("A joined number cannot fit at this caption size; reduce the size within readable limits or choose clean.")
+            kept.append(word)
+            shown.append(value)
+            continue
         prefix = []
         for prev in reversed(kept):
             if token(prev) not in STOPWORDS:
@@ -250,7 +262,10 @@ def apply_preset(plan, name, *, vad=True, base_dir=None):
             cap = (30 if plan.height > plan.width else 42) if name == "clean" else None
             measure = lambda texts, trial=trial: (float("inf") if cap and len(join(texts)) > cap
                                                    else words_width(texts, face, trial, name))
-            fitted, shown, solo, long_notes = fit_long_words(source_words, display, measure, available)
+            try:
+                fitted, shown, solo, long_notes = fit_long_words(source_words, display, measure, available)
+            except ValueError:
+                continue
             alone = {shown[i]: factor for i, factor in solo.items()}
 
             def fits(texts, measure=measure, alone=alone):

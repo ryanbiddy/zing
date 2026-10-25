@@ -11,6 +11,8 @@ from myzing.render.positioned_captions import _measure, caption_runs
 
 
 def _wrap(parts, limit):
+    from myzing.captions.grouping import display_units
+    parts = display_units(parts)
     lines = [""]
     for part in parts:
         if lines[-1] and len(lines[-1]) + 1 + len(part) > limit:
@@ -88,7 +90,8 @@ def fit_captions(plan, folder):
             # their wrap and size. A narrow box (a 9:16 source fit into 16:9)
             # re-wraps to shorter lines before the size may drop below 24 px.
             limit = 52 if plan.width >= plan.height else 30
-            longest = max((len(part) for part in parts), default=0)
+            from myzing.captions.grouping import display_units
+            longest = max((len(part) for part in display_units(parts)), default=0)
             while True:
                 caption.text = _wrap(parts, limit)
                 fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes)

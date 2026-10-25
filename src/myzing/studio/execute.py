@@ -103,9 +103,11 @@ def no_reference(a, root, progress):
         progress(f"Render draft {label}: {', '.join(a['aspects'])}")
         try:
             deliveries[label] = adapters.deliver(plan, attempt / f"draft-{label}.mp4", a["aspects"])
+            failures.extend(dict(f, draft=label) for f in deliveries[label].get("failures", []))
         except (ValueError, OSError, RuntimeError) as exc:
             failures.append({"step": f"render-{label}", "error": str(exc)})
-    return {"status": "ready" if not failures else "partial" if deliveries else "failed",
+    ready = sum(r.get("status", "ready") == "ready" for d in deliveries.values() for r in d.get("deliveries", {}).values())
+    return {"status": "ready" if not failures else "partial" if ready else "failed",
             "plans": planned, "deliveries": deliveries, "failures": failures, "recommendation": recommendation}
 
 
@@ -135,7 +137,9 @@ def run_confirmed(answers, *, progress=None, locked=False):
                               "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),
                               "allow_download": a.get("allow_download", False),
                               **{k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a},
-                              "studio_options": {"captions": a["captions"], "music": a["music"], **({"speech_model": a["speech_model"]} if "speech_model" in a else {})}},
+                              "studio_options": {"captions": a["captions"], "music": a["music"],
+                                                 **({"target_length_mode": "usable"} if a.get("length_mode") == "usable" else {}),
+                                                 **({"speech_model": a["speech_model"]} if "speech_model" in a else {})}},
                              progress=progress, locked=True)
     elif path == "b":
         result = no_reference(a, root, progress)

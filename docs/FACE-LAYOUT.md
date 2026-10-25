@@ -170,10 +170,44 @@ for runtime, model and fixture licensing.
 
 ## Verification
 
+Broadcast composites use a separate stage detector alongside the existing
+border detector. It can veto a border crop when moving panels resemble dark
+UI without a broadcast card. Twelve local gray samples must show a dominant rectangle
+(40–86% of the source), with four persistent edges and motion in at least 80%
+of adjacent sample pairs. Rounded corners are omitted from edge scoring. Each
+edge needs 55% support and their mean needs 80%. A secondary moving region may
+occupy at most 35% of the stage area; equal speaker panels fail this guard.
+The surrounding backdrop must be at least 75% static and 75% locally flat,
+with spatial variation and an overlapping lower-third card. A plain matte,
+textured scenery, or dark UI without that card is insufficient evidence.
+When an outer bordered picture is already known, its padding cannot supply
+the backdrop evidence for a smaller stage inside it.
+
+The plan records every threshold, the observed motion and edge scores, the
+stage bounds, and detected graphic cards. Confidence is the smaller of mean
+edge support and sustained-motion support; it is a geometric score, not a
+calibrated probability or recognition of a broadcaster. Ambiguous layouts
+keep the full source. The detector deliberately abstains on some composites
+without cards or a moving secondary tile.
+
+Faces outside the stage do not count as additional stage speakers. A confident
+face present for the whole shot can drive portrait framing when remaining face
+tracks are both small (at most 25% of its area) and below 0.8 confidence. The
+plan discloses discarded incidental tracks. Substantial or confident peers
+remain framing constraints. Portrait stage focus targets 70% sharp-picture
+height, subject to the existing upscale and coverage limits; this measures the
+sharp picture, not the face's own pixel height.
+
+Box and punch captions try the preferred band, then clear space above or below
+detected cards and subjects, including the top band. Size reductions retain the
+existing readable floor. A refusal names the blockers and suggests shortening
+the phrase or choosing clean captions. An overlaid name card remains baked into
+the stage pixels; cropping does not reconstruct the picture behind it.
+
 ```powershell
 uv run --frozen pytest -q tests/test_layout.py tests/test_layout_detector.py tests/test_layout_command.py
 $env:ZING_REQUIRE_FFMPEG = '1'
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 436
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 439
 
 # Explicit, optional fixture and model provisioning:
 uv run --frozen zing layout fetch-model

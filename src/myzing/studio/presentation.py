@@ -59,7 +59,7 @@ def creator_summary(result, answers, facts):
         for label, value in detail.get("deliveries", {}).items():
             if "deliveries" in value:
                 rows.extend(_row(label, shape, row) for shape, row in value["deliveries"].items())
-            elif isinstance(value, dict) and value.get("video"):
+            elif isinstance(value, dict) and (value.get("video") or value.get("status") == "failed"):
                 rows.append(_row("Edit", label, value))
     recommendation = None
     chosen = None
@@ -100,10 +100,13 @@ def creator_summary(result, answers, facts):
     elif counts:
         notes.append("Your clips include " + ", ".join(f"{n} at {w}x{h}" for (w, h), n in counts.items()) + "; HD versions can look soft.")
     warnings = result.get("warnings", [])
+    length = detail.get("target_length", {})
+    if length.get("mode") == "usable":
+        notes.append(f"Default edit length: {length['target_seconds']:.3f}s of usable footage after trimming.")
     joined = "\n".join(warnings).lower()
     if "variety limit" in joined:
         labels = sorted({r["draft"] for r in rows if r["rendered"] and r["draft"] in DRAFTS})
-        available = (f"delivered {len(labels)} distinct draft(s) ({', '.join(labels)}). " if labels else
+        available = (f"delivered {len(labels)} distinct {'draft' if len(labels) == 1 else 'drafts'} ({', '.join(labels)}). " if labels else
                      "the footage supports fewer than three distinct edit plans. ")
         notes.insert(0, "VARIETY limit: " + available +
                      "The moment has enough length; another opening or visual moment would add variety.")
@@ -175,7 +178,9 @@ def _shortage_note(shortage):
     """Name the producer's actual blocker; a missing study is not a length problem."""
     code = shortage.get("code")
     if code == "distinct_edits":
-        return "VARIETY limit: the footage has too few distinct edits for three drafts. Use the available draft(s), or film another opening or visual moment."
+        return "VARIETY limit: the footage has too few distinct edits for three drafts. Use the available edits, or film another opening or visual moment."
+    if code in {"edit_constraints", "planner_capacity"}:
+        return "The planner could not assemble a complete edit under these constraints. Review the selected spans or simplify the brief; this does not establish a footage shortage."
     if code in LENGTH_SHORTAGES:
         return "There are not enough usable moments for the requested length. Add clips or shorten the edit."
     if code == "study_required":
@@ -237,6 +242,7 @@ def _row(draft, shape, row):
     video = row.get("video")
     if not video or row.get("status", "ready") != "ready":
         status = "render failed"
-    return {"draft": draft, "shape": shape, "file": video, "plan": row.get("plan"),
+    return {"draft": draft, "shape": shape, "file": video if status != "render failed" else None, "plan": row.get("plan"),
+            "error": row.get("error"), "next_step": row.get("next_step"),
             "status": status, "rendered": bool(video) and status != "render failed", "measurements": measurements,
             "disclosures": _disclosures(row.get("dimensions", {})), "alternative": alternative}

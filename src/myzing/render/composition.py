@@ -132,7 +132,7 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
                       or any(w.startswith("infeasible:") for w in layout.warnings))
             if unsafe and caption.id not in composition.accepted_unsafe_layouts:
                 raise EDLValidationError(
-                    f"caption {caption.id}: unsafe/infeasible layout; review it and explicitly add "
+                    f"caption {caption.id}: unsafe/infeasible layout; {'; '.join(caption.layout.warnings)}; review it and explicitly add "
                     "its id to composition.accepted_unsafe_layouts to render it",
                 )
             warnings.extend(f"caption {caption.id}: {w}" for w in layout.warnings)

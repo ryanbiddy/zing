@@ -134,6 +134,8 @@ def ingest(
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
     selecting = any(v is not None for v in (ref_start, ref_end, reference_range, analysis_seconds, analysis_max_side))
+    import os
+    in_place = not is_url(source) and os.environ.get("ZING_LOCAL_MEDIA_IN_PLACE") == "1"
 
     if is_url(source):
         # Keep the original download separate from the canonical studied media.
@@ -149,7 +151,16 @@ def ingest(
             warnings.append(
                 "kept_media ignored: source is already a local file"
             )
-        if selecting:
+        if in_place:
+            # Explicit read-only route for media that must not be staged. Never
+            # normalize or extract a trim beside the original (or copy it).
+            if any(v is not None for v in (ref_start,ref_end,analysis_seconds,analysis_max_side)) or reference_range not in (None,"all"):
+                raise MediaError("In-place local study cannot extract a reference trim or analysis copy; use the complete source.")
+            media = Path(source).expanduser().resolve()
+            if not media.is_file():
+                raise MediaError(f"no such file: {media}")
+            provenance["local_media"] = {"mode": "read-only-in-place", "copied": False}
+        elif selecting:
             selected, selection = ranges.select_local(source, dest, ref_start, ref_end, reference_range,
                                                       analysis_seconds=analysis_seconds, max_side=analysis_max_side)
             media = _stage_local(str(selected), slug)
@@ -180,6 +191,9 @@ def ingest(
         # per-frame PTS before trusting frame-index timestamps (F-06).
         need, why = _check_frame_timing(media, warnings)
     if need:
+        if in_place:
+            raise MediaError("In-place local study needs normalization (" + why + "); source kept unchanged. "
+                             "Use a separately authorized normalized source or disable in-place mode for media you may copy.")
         warnings.append(why)
         target_fps = _fps(vstream.get("avg_frame_rate", "0/0")) or 30.0
         media = _normalize(media, target_fps)
@@ -203,7 +217,7 @@ def ingest(
         fps=round(_fps(vstream.get("avg_frame_rate", "0/0")), 3),
         # Relative to the breakdown folder (contract rule): the folder
         # survives being moved; storage resolves to absolute at load.
-        media_path=media.name,
+        media_path=str(media) if in_place else media.name,
     )
     return IngestResult(
         slug=slug, meta=meta, media_path=media, breakdown_dir=dest,

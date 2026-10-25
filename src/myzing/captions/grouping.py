@@ -60,6 +60,14 @@ def number_continuation(left, right, following=None):
     """
     if not left or not right:
         return False
+    # ASR often attaches sentence punctuation to the last numeric fragment:
+    # "$3" / ",000,". It closes this run after joining, never opens another.
+    if len(right) > 1:
+        right = right.rstrip(",;:!?\u3002")
+        if right.endswith(".") and any(ch.isdigit() for ch in right):
+            right = right[:-1]
+    if following and len(following) > 1:
+        following = following.rstrip(",.;:!?")
     if len(left) == 1 and left in _CURRENCY and re.fullmatch(_NUMBER, right):
         return True
     if right in ("%", "‰"):
@@ -75,6 +83,11 @@ def number_continuation(left, right, following=None):
         if right == "." and following and re.fullmatch(r"\d+", following):
             return True
     return False
+
+
+def numeric_token(text):
+    """A complete display number is indivisible even when too wide."""
+    return bool(re.fullmatch(rf"{_NUMBER}(?:[%‰])?[,.;:!?]?", text))
 
 
 def separator(left, right):
@@ -107,6 +120,19 @@ def join(texts):
     texts = [t.strip() for t in texts]
     spaces, _ = display_boundaries(texts)
     return "".join(space + text for space, text in zip(spaces, texts))
+
+
+def display_units(texts):
+    """Indivisible display units, retaining the timed tokens elsewhere."""
+    texts = [t.strip() for t in texts]
+    _, numeric = display_boundaries(texts)
+    units = []
+    for i,text in enumerate(texts):
+        if i in numeric:
+            units[-1] += text
+        else:
+            units.append(text)
+    return units
 
 
 def glued(word):
@@ -258,6 +284,7 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
         for a, k, b in zip(edges, edges[1:], edges[2:]):
             if words[k-1].end-words[a].start >= minimum and words[b-1].end-words[k].start >= minimum:
                 hard.add(k)
+    hard.difference_update(numeric)
     # Sentence breaks are preferred. Short fragments may join a neighbour;
     # a pause or speaker change remains a hard boundary.
     best = [math.inf] * (n+1)

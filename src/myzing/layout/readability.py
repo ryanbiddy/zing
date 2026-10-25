@@ -54,6 +54,15 @@ def phone_word_groups(words):
     words = list(words)
     if not words:
         return []
+    from myzing.captions.grouping import display_boundaries
+    _, numeric = display_boundaries([w.text for w in words])
+    units = []
+    for i,word in enumerate(words):
+        if i in numeric:
+            units[-1].append(word)
+        else:
+            units.append([word])
+    words = units
     count = math.ceil(len(words) / PHONE_MAX_WORDS)
     sizes = [len(words) // count + (1 if i < len(words) % count else 0) for i in range(count)]
     groups, cursor = [], 0
@@ -62,7 +71,7 @@ def phone_word_groups(words):
         cursor += size
 
     def seconds(group):
-        return group[-1].end - group[0].start
+        return group[-1][-1].end - group[0][0].start
 
     merged = True
     while merged and len(groups) > 1:
@@ -79,7 +88,7 @@ def phone_word_groups(words):
             groups[a:b + 1] = [groups[a] + groups[b]]
             merged = True
             break
-    return groups
+    return [[word for unit in group for word in unit] for group in groups]
 
 
 def hold_short_events(captions, end_limit):

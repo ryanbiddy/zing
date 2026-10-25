@@ -436,3 +436,28 @@ Paths c/e reuse `still_concepts` / `still_render` and `music_check`.
 Poll with `zing_studio_run(project=...)`; `cancel=true` stops an owned job. The
 runner uses the existing process-tree supervisor. Both studio tools return paths
 and metadata, never media bytes.
+
+Studio keeps every successful shape when another shape fails. Its final status
+is `partial`, with each failed shape's `error` and `next_step` beside the saved
+plans and successful videos. The CLI exits 2 for a partial delivery (0 for ready,
+1 for failed); inspect the JSON status to distinguish it from an unfinished
+interview. MCP polling retains the same status, paths and remedies. Full decode
+must pass before a Studio delivery counts as ready.
+
+On the reference route, accepting the default length uses the footage available
+after silence and exclusion trims. An explicit number remains a fixed target
+and can produce a length shortage. Answers files and agents can request the
+default with `length_mode: "usable"`; `length` then remains the provisional
+pre-study value. The saved plans and result report the measured usable target.
+A shortage of distinct drafts is reported as VARIETY, separately from length.
+Silence inside a protected clause stays when it falls wholly between words;
+trimming that pause would make the complete clause unavailable. Silence that
+conflicts with word timings is still excluded. The default length and the
+candidate search use the same exclusions.
+
+For local footage that must stay in place, set `ZING_LOCAL_MEDIA_IN_PLACE=1`
+before the CLI command. Study reads the original path, records that it made no
+copy, and saves analysis artifacts in the chosen workspace. It refuses trim
+extraction and sources requiring normalization. The default staging behavior is
+unchanged when this variable is absent. Keep the original available when using
+the saved plan or breakdown.
