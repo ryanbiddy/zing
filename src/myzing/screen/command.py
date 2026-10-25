@@ -6,6 +6,7 @@ import sys
 import subprocess
 from pathlib import Path
 
+from myzing import storage
 from .api import plan_screen, save_plan, run_folder
 
 
@@ -36,7 +37,7 @@ def run(argv):
     a=p.parse_args(argv)
     try:
         plan=plan_screen(a.video,**values(a))
-        target=a.out or Path("zing-workspace")/(a.video.stem+"-screen.json")
+        target=a.out or storage.resolve_workspace()/"screen"/(a.video.stem+"-screen.json")
         print(save_plan(plan,target))
         for note in plan.warnings:
             print(note,file=sys.stderr)

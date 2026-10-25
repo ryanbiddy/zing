@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -95,6 +96,21 @@ def test_terminal_default_does_not_write_in_cwd(tmp_path, monkeypatch, zing_work
     monkeypatch.chdir(cwd)
     project = Path(reserve_project())
     assert project.parent == storage.resolve_workspace()
+    assert list(cwd.iterdir()) == []
+
+
+def test_screen_plan_default_does_not_write_in_cwd(tmp_path, monkeypatch, zing_workspace):
+    from myzing import storage
+    from myzing.screen import command
+
+    cwd = tmp_path / "other-checkout"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    saved = []
+    monkeypatch.setattr(command, "plan_screen", lambda video, **_: SimpleNamespace(warnings=[]))
+    monkeypatch.setattr(command, "save_plan", lambda plan, out: saved.append(Path(out)) or out)
+    assert command.run([str(tmp_path / "demo.mp4")]) == 0
+    assert saved == [storage.resolve_workspace() / "screen" / "demo-screen.json"]
     assert list(cwd.iterdir()) == []
 
 @pytest.mark.parametrize("measured_silence", [False, True])
