@@ -40,7 +40,7 @@ def test_joined_number_highlights_whole_display_unit_on_every_piece(tmp_path, pr
     run = subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i",
         "color=black:s=1920x1080:r=30:d=2.2", "-vf",
         r"ass=filename=captions.ass:fontsdir=fonts,select=eq(n\,18)+eq(n\,24)+eq(n\,42)+eq(n\,60)",
-        "-vsync", "0", "-threads", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1"],
+        "-fps_mode", "passthrough", "-threads", "1", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1"],
         cwd=tmp_path, capture_output=True, timeout=60)
     assert run.returncode == 0, run.stderr.decode(errors="replace")
     frames = np.frombuffer(run.stdout, dtype=np.uint8).reshape(4, 1080, 1920, 3)
@@ -91,7 +91,7 @@ def test_landscape_active_plate_covers_were_during_first_80ms(tmp_path):
     run = subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
         'color=black:s=1920x1080:r=30:d=1.2', '-vf',
         r'ass=filename=captions.ass:fontsdir=fonts,select=eq(n\,24)+eq(n\,30)+eq(n\,31)',
-        '-vsync', '0', '-threads', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'],
+        '-fps_mode', 'passthrough', '-threads', '1', '-pix_fmt', 'rgb24', '-f', 'rawvideo', 'pipe:1'],
         cwd=tmp_path, capture_output=True, timeout=60)
     assert run.returncode == 0, run.stderr.decode(errors='replace')
     frames = np.frombuffer(run.stdout, dtype=np.uint8).reshape(3, 1080, 1920, 3)
