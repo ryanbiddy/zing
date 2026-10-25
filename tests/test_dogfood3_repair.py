@@ -1,11 +1,17 @@
 """Grok's caption, speaker selection and delivery-status counterexamples."""
 from pathlib import Path
+from dataclasses import replace
 
 import pytest
 
 from myzing.composition import CompositionClip
 from myzing.layout.types import Box, FaceTrack, Keyframe
-from test_dogfood3 import track
+from test_dogfood3 import track as fixture_track
+
+
+def track(name, box, confidence=.95):
+    # These direct-box fixtures are unpadded. Builder padding is tested below.
+    return replace(fixture_track(name, box, confidence), padding=0)
 
 
 def stage():
@@ -35,20 +41,24 @@ def test_persistent_unequal_second_speaker_is_not_incidental():
 @pytest.mark.parametrize("raw_observations", [False, True])
 def test_persistent_background_faces_do_not_widen_main_speaker(raw_observations):
     from math import sqrt
+    from myzing.layout.tracking import build_tracks
     from myzing.layout.types import TrackObservation
+    margin = build_tracks.__kwdefaults__["margin"] if raw_observations else 0
     main_box = Box(.36, .22, .19, .38)
     boxes = [main_box, *(Box(x, .43, .19*sqrt(ratio), .38*sqrt(ratio))
                         for x,ratio in zip((.05, .66, .22), (.03, .05, .08)))]
     tracks = []
     for i,box in enumerate(boxes):
         t = track("face-main" if i == 0 else f"face-bystander-{i}",
-                  box.pad(.04) if raw_observations else box, .95)
+                  box.pad(margin), .95)
+        t = replace(t, padding=margin)
         if raw_observations:
             t.observations.extend(TrackObservation(k.time, box, detector="yunet") for k in t.keyframes)
         tracks.append(t)
     result = frame(tracks)
     selection = result.picture["subject_selection"]
     assert selection["focused"]
+    assert selection["primary_measurement_basis"] == ("raw face observations" if raw_observations else "keyframes minus tracking padding")
     assert selection["bystander_tracks"] == [t.id for t in tracks[1:]]
     assert selection["persistent_stage_faces"] == []
     for t,ratio in zip(tracks[1:], (.03, .05, .08)):
@@ -72,7 +82,7 @@ def test_small_persistent_face_in_similar_depth_band_remains_a_participant():
 def test_one_edge_keyframe_does_not_drop_a_stage_speaker():
     main = track("face-main", Box(.36, .22, .19, .38))
     inside, edge = Box(.65, .25, .10, .20), Box(.73, .25, .10, .20)
-    peer = FaceTrack("face-peer", [Keyframe(0, inside), Keyframe(6, edge), Keyframe(12.533333, inside)], .70)
+    peer = FaceTrack("face-peer", [Keyframe(0, inside), Keyframe(6, edge), Keyframe(12.533333, inside)], .70, padding=0)
     result = frame([main, peer])
     selection = result.picture["subject_selection"]
     assert peer.id not in selection["outside_stage_tracks"]

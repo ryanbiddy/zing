@@ -199,9 +199,12 @@ A confident face present for the whole shot can drive portrait framing while
 smaller background faces are disclosed as bystanders. A second face remains a
 plausible participant when its median area is at least 12% of the primary's,
 or its height is at least half the primary's and their vertical centers are
-within half the larger face's height. These measurements use raw observations
-inside the shot when available; padded tracking boxes still govern crop safety.
-Without raw observations, the plan discloses the tracked-box fallback.
+within half the larger face's height. Every face in a comparison uses the same
+basis: raw observations only when all compared faces have observations inside
+the shot; otherwise keyframes with tracking padding removed. New tracks record
+their actual padding; legacy tracks use the builder's default. Clipped frame
+edges are preserved because their original inset is unknown. Plans disclose
+the shared basis and padding removed. Padded boxes still govern crop safety.
 Plausible participants present for at least half the shot constrain framing,
 including a peer at 19.9% area and 0.70 confidence. Transient plausible faces
 remain constraints unless they are at most 25% of the primary's area and below
@@ -209,6 +212,8 @@ remain constraints unless they are at most 25% of the primary's area and below
 Vertical position and scale estimate a shared depth band; this is not identity
 recognition or physical depth measurement. Speaking and mouth activity are
 unavailable in these tracks and are explicitly marked unavailable.
+A farther panelist at 10% area and 0.32 relative height remains a disclosed
+bystander under these thresholds; speaking-role recognition is a known limit.
 Portrait stage focus targets 70% sharp-picture
 height, subject to the existing upscale and coverage limits; this measures the
 sharp picture, not the face's own pixel height.

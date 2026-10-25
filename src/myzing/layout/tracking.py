@@ -82,7 +82,7 @@ def build_tracks(
                                 [TrackObservation(t, d.box, d.appearance,
                                                   d.confidence if d.class_name else None,
                                                   d.class_name, d.detector) for _, t, d in chain]
-                                if any(d.appearance or d.class_name for _, _, d in chain) else []))
+                                if any(d.appearance or d.class_name for _, _, d in chain) else [], padding=margin))
     return result
 
 

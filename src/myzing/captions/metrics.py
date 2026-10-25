@@ -64,7 +64,7 @@ class FontMetrics:
         self.cap = struct.unpack_from(">h", tables[b"OS/2"], 88)[0]
         count = struct.unpack_from(">H", tables[b"hhea"], 34)[0]
         self.advances = [struct.unpack_from(">H", tables[b"hmtx"], i * 4)[0] for i in range(count)]
-        self.glyph_tops = {}
+        self.glyph_tops = None
         if b"loca" in tables and b"glyf" in tables:
             short = struct.unpack_from(">h", tables[b"head"], 50)[0] == 0
             stride, fmt = (2, ">H") if short else (4, ">I")
@@ -150,7 +150,10 @@ class FontMetrics:
 
     def ink_top(self, text, size):
         """Height above the baseline, including currency and accented glyphs."""
-        return max([self.cap, *(self.glyph_tops.get(self.cmap.get(ord(c)), self.ascent)
+        if self.glyph_tops is None:
+            return self.cap * size / self.units
+        return max([self.cap, *(self.glyph_tops.get(self.cmap.get(ord(c)), self.cap)
+                               if self.cmap.get(ord(c)) else self.ascent
                                for c in unicodedata.normalize("NFC", text) if not ignorable(c))]) * size / self.units
 
 

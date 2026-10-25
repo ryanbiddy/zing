@@ -287,15 +287,30 @@ def _covers_shot(track, clip):
 def _stage_subjects(clip, tracks, *, measurements=None):
     """Keep plausible participants; disclose small background faces separately."""
     from statistics import median
+    from .tracking import build_tracks
     tracks = [t for t in tracks if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
     faces = [t for t in tracks if t.id.startswith("face")]
+    sources = {t.id: (measurements or {}).get(t.id, t) for t in faces}
+    observed = {t.id: [o.box for o in sources[t.id].observations if clip.src_in <= o.time <= clip.src_out]
+                for t in faces}
+    use_raw = all(observed.values())
+    basis = "raw face observations" if use_raw else "keyframes minus tracking padding"
+    def unpad(box, margin):
+        # Clipped frame edges cannot be reconstructed: preserve them rather
+        # than inventing an inset. Bound the inset for tiny legacy boxes.
+        dx, dy = min(margin, box.width*.499999), min(margin, box.height*.499999)
+        left, top = box.x + (dx if box.x > 1e-12 else 0), box.y + (dy if box.y > 1e-12 else 0)
+        right = box.right - (dx if box.right < 1-1e-12 else 0)
+        bottom = box.bottom - (dy if box.bottom < 1-1e-12 else 0)
+        return Box(left, top, right-left, bottom-top)
     def measure(t):
-        source = (measurements or {}).get(t.id, t)
-        observed = [o.box for o in source.observations if clip.src_in <= o.time <= clip.src_out]
-        boxes = observed or [k.box for k in source.keyframes]
+        source = sources[t.id]
+        margin = source.padding if source.padding is not None else build_tracks.__kwdefaults__["margin"]
+        boxes = observed[t.id] if use_raw else [unpad(k.box, margin) for k in source.keyframes]
         return {"area": median(b.width*b.height for b in boxes),
                 "height": median(b.height for b in boxes), "center_y": median(b.center[1] for b in boxes),
-                "basis": "raw face observations" if observed else "tracked boxes (raw observations unavailable)"}
+                "basis": basis, "padding_removed": 0 if use_raw else margin,
+                "padding_source": "track" if source.padding is not None else "build_tracks default (legacy track)"}
     measured = {t.id: measure(t) for t in faces}
     size = lambda t: measured[t.id]["area"]
     primary = max(faces, key=size, default=None)
@@ -312,12 +327,15 @@ def _stage_subjects(clip, tracks, *, measurements=None):
         depth = scale >= .5 and vertical <= .5
         evidence[t.id] = {"face_area_ratio": size(t)/size(primary), "relative_height": scale,
                           "vertical_distance_in_face_heights": vertical, "similar_depth_band": depth,
-                          "basis": peer["basis"], "plausible_participant": size(t)/size(primary) >= .12 or depth}
+                          "basis": peer["basis"], "padding_removed": peer["padding_removed"],
+                          "padding_source": peer["padding_source"],
+                          "plausible_participant": size(t)/size(primary) >= .12 or depth}
     bystanders = [t.id for t in others if not evidence[t.id]["plausible_participant"]]
     persistent = [t.id for t in others if t.id not in bystanders
                   and t.keyframes[-1].time-t.keyframes[0].time >= .5*(clip.src_out-clip.src_in)]
     details = {"main_face": primary.id, "face_confidence": primary.confidence,
-               "primary_measurement_basis": main["basis"], "bystander_tracks": bystanders,
+               "primary_measurement_basis": main["basis"], "primary_padding_removed": main["padding_removed"],
+               "primary_padding_source": main["padding_source"], "bystander_tracks": bystanders,
                "participant_evidence": evidence, "persistent_stage_faces": persistent,
                "participant_thresholds": {"minimum_face_area_ratio": .12, "minimum_relative_height": .5,
                    "maximum_vertical_distance_in_face_heights": .5, "speaking_activity_available": False}}

@@ -76,6 +76,19 @@ def _pop(elapsed):
     return 1.05-.05*min(1,(elapsed-.08)/.06)
 
 
+def _plate_rects(slots):
+    """One rectangle per baseline, even for a manually wrapped numeric unit."""
+    rows = {}
+    for slot in slots:
+        rows.setdefault(slot["baseline"], []).append(slot)
+    rectangles = []
+    for row in rows.values():
+        x, y = min(s["plate_x"] for s in row), min(s["plate_y"] for s in row)
+        rectangles.append((x, y, max(s["plate_x"]+s["plate_width"] for s in row)-x,
+                           max(s["plate_y"]+s["plate_height"] for s in row)-y))
+    return rectangles
+
+
 def compile_caption(caption, composition, font, data, frame_limit):
     if caption.layout is None or caption.layout.box is None:
         raise ValueError("Caption presets need a shot rail; run place_captions before rendering.")
@@ -141,16 +154,13 @@ def compile_caption(caption, composition, font, data, frame_limit):
             # Timed numeric fragments form one visible unit. Cover all its
             # slots from the first fragment through the last, including gaps.
             slots = [slot for slot in geo["slots"] if slot["index"] in active_unit]
-            x, y = min(s["plate_x"] for s in slots), min(s["plate_y"] for s in slots)
-            w = max(s["plate_x"]+s["plate_width"] for s in slots)-x
-            h = max(s["plate_y"]+s["plate_height"] for s in slots)-y
             alpha = round(255*(1-style.highlight_box_opacity*min(1,max(0,(now-caption.start)/.1))))
-            plate = ("{"+rf"\an7\bord0\shad0\1c{_color(style.highlight_box_color)}\1a&H{alpha:02X}&\p1\pos({_n(x)},{_n(y)})"+"}"
-                     + _rounded_rectangle(w,h,style.highlight_box_radius*geo["scale"]))
-            lines.append(_dialogue(start,end,plate,layer=0))
-            # Identical glyphs clipped to the active plate: black inside,
-            # white outside. Text positions remain fixed between word states.
-            for tags, text in ink_layers:
-                clipped = tags + rf"\1c{_color(style.highlight)}\clip({_n(x)},{_n(y)},{_n(x+w)},{_n(y+h)})"
-                lines.append(_dialogue(start,end,"{"+clipped+"}"+escape_ass(text),layer=2))
+            for x,y,w,h in _plate_rects(slots):
+                plate = ("{"+rf"\an7\bord0\shad0\1c{_color(style.highlight_box_color)}\1a&H{alpha:02X}&\p1\pos({_n(x)},{_n(y)})"+"}"
+                         + _rounded_rectangle(w,h,style.highlight_box_radius*geo["scale"]))
+                lines.append(_dialogue(start,end,plate,layer=0))
+                # Clip independently on each line so other words stay white.
+                for tags, text in ink_layers:
+                    clipped = tags + rf"\1c{_color(style.highlight)}\clip({_n(x)},{_n(y)},{_n(x+w)},{_n(y+h)})"
+                    lines.append(_dialogue(start,end,"{"+clipped+"}"+escape_ass(text),layer=2))
     return lines, {"event_id":caption.id,"start":caption.start,"end":caption.end,**geo}

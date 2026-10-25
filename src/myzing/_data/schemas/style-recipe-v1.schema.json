@@ -342,6 +342,16 @@
           },
           "type": "array"
         },
+        "padding": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "stitching": {
           "items": {
             "additionalProperties": {},
