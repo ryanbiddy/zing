@@ -47,6 +47,13 @@ def markdown(card):
             drops = facts.get("drop_alignment")
             if drops:
                 lines.append(f"{sum(abs(p['delta_seconds']) <= .08 for p in drops)} of {len(drops)} cuts land within 80 ms of a detected drop.")
+        if key == "hook":
+            lines += ["", "### How these were measured", "",
+                      "Times refer to the studied interval (source range in card.json).", ""]
+            for name, fact in section.facts.items():
+                label = name.replace("time_to_", "").replace("_", " ").capitalize()
+                lines.append(f"- {label} ({fact['status'].replace('_', ' ')}): "
+                             f"{fact['method'].rstrip('.')}. {fact['basis']}")
         lines += ["", "Confidence: " + confidence_text(section)]
         if section.not_knowable:
             lines.append("Not knowable from pixels: " + section.not_knowable)
@@ -204,7 +211,8 @@ def render_png(card, media, path):
     for key, section in card.sections.items():
         rule()
         text(section.title, heading)
-        for line in (section.lines or ["Unknown; measurement unavailable."])[:4]:
+        shown = section.lines or ["Unknown; measurement unavailable."]
+        for line in shown[:4]:
             text(line[:240])
         if key == "captions":
             rows = [r for r in section.facts.get("tracks", []) if r["kind"] in CAPTION_ROLES]

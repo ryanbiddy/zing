@@ -173,8 +173,11 @@ def _measure(source, out, *, transitions, allow_download=False, **trim):
         matte = detect_matte(normalized, b.meta.duration, display["display_width"], display["display_height"])
     except Exception as exc:  # an optional observation; never fail the card
         matte = {"version": 1, "status": "unknown", "reason": _first_line(exc)}
+    from .hook import measure_visual
+    hook_visual = measure_visual(normalized, b.meta.duration, b.meta.fps)
     sections = build_sections(b.to_dict(), geometry, audio.to_dict() if audio else None, color,
-                              display=display, matte=matte, color_error=color_error, audio_error=audio_error)
+                              display=display, matte=matte, color_error=color_error, audio_error=audio_error,
+                              hook_visual=hook_visual)
     from myzing.study.text_roles import classify_text, caption_geometry
     from myzing.composition.models import FontAsset
     roles = classify_text(b, geometry)
@@ -341,7 +344,8 @@ def _publish(card, media, out):
     _write(out / "card.json", card.to_dict())
     (out / "card.md").write_text(markdown(card), encoding="utf-8")
     return {"ok": True, "card_json": str(out / "card.json"), "card_md": str(out / "card.md"),
-            "card_png": str(png) if png else None, "summary": card.summary}
+            "card_png": str(png) if png else None, "summary": card.summary,
+            "hook": card.sections["hook"].lines if "hook" in card.sections else []}
 
 
 def explain_video(source, out_dir, *, transitions=True, offline=True, ref_start=None, ref_end=None, reference_range=None) -> dict:

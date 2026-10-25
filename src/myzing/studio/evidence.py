@@ -41,8 +41,21 @@ def media_files(folder, exclude=None, *, include_stills=False):
     return sorted(paths)
 
 
+def refuse_still_source(answers):
+    """A style breakdown measures a video; refuse a photo before any probe."""
+    from myzing.project.probe import STILL_EXTENSIONS
+
+    source = answers.get("source")
+    if answers.get("path") == "d" and source and Path(source).suffix.lower() in STILL_EXTENSIONS:
+        raise ValueError(f"Style breakdown needs a video; {Path(source).name} is a still image.")
+
+
 def collect(answers, cache=None):
     """Cache by file stats only within one interview; MCP calls retain no state."""
+    from myzing.project.probe import STILL_EXTENSIONS, skipped_stills_notice
+
+    refuse_still_source(answers)
+    source = answers.get("source")
     cache = cache if cache is not None else {}
     result = {"measured": [], "unknowns": [], "clips": [], "duration": None,
               "orientations": {}, "audio_streams": 0, "warnings": []}
@@ -68,13 +81,11 @@ def collect(answers, cache=None):
             result["warnings"].extend(cache[key].get("warnings", []))
         else:
             result["unknowns"].append("Reference quick read unavailable until the saved or remote reference is resolved after confirmation; style is unknown.")
-    from myzing.project.probe import STILL_EXTENSIONS, skipped_stills_notice
     files = media_files(answers["clips"], answers.get("project"), include_stills=True) if answers.get("clips") else []
     stills = [p for p in files if p.suffix.lower() in STILL_EXTENSIONS]
     if stills:
         result["warnings"].append(skipped_stills_notice(len(stills)))
         files = [p for p in files if p.suffix.lower() not in STILL_EXTENSIONS]
-    source = answers.get("source")
     if source and Path(source).is_file() and Path(source).suffix.lower() != ".json":
         files.append(Path(source))
     elif source and Path(source).suffix.lower() == ".json":

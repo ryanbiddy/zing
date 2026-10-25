@@ -141,3 +141,48 @@ def word_count(text: str) -> int:
 def quote(text: str, limit: int = 60) -> str:
     text = " ".join(text.split()).rstrip(",;:")
     return '"' + (text if len(text) <= limit else text[:limit - 1].rstrip() + "…") + '"'
+
+
+def hook_lines(facts, *, has_audio_stream=None):
+    """Four plain observations; methods and full bases stay in Markdown and JSON."""
+    timings = []
+    for key, label in (("time_to_first_word", "First word"), ("time_to_first_cut", "first cut"),
+                       ("time_to_first_caption", "first caption")):
+        value = facts[key]["value"]
+        if key == "time_to_first_word" and value is None and has_audio_stream is False:
+            timings.append("No speech")  # No audio track, not merely missing word timings.
+        else:
+            timings.append(f"{label} at {value:.1f}s" if value is not None else f"{label} unknown")
+    lines = ["; ".join(timings) + "."]
+    row = facts["opening_cut_rate"]
+    if row["value"] is None:
+        lines.append("Opening pace unknown: cuts were not measured.")
+    else:
+        v = row["value"]
+        opening, rest = v["opening_cuts_per_10s"], v["rest_cuts_per_10s"]
+        pace = "Opens faster" if opening > rest else "Opens slower" if opening < rest else "Steady opening"
+        cuts = f"{opening:.1f} cuts per 10s" if v["opening_cuts"] else "no cuts"
+        lines.append(f"{pace}: {cuts} in the first {v['opening_end_seconds']:.1f}s, then {rest:.1f} per 10s.")
+        if "disagree" in row["basis"]:
+            lines[-1] += " Cut detectors disagree."
+    payoff = facts["payoff_spacing"]["value"]
+    if payoff is not None:
+        lines[-1] += (f" Labeled payoffs: median gap {payoff['median']:g}s "
+                      f"(range {payoff['min']:g}-{payoff['max']:g}s).")
+    row = facts["loop_seam"]
+    if row["value"] is None:
+        reason = "60s or longer" if row["status"] == "not_applicable" else "frame comparison unavailable"
+        lines.append(f"Loop not checked: {reason}.")
+    elif row["value"]["loops_cleanly"]:
+        lines.append("Ending matches the opening frame, so it loops cleanly by this pixel check; motion and audio untested.")
+    else:
+        lines.append("Ending does not match the opening frame, so it does not loop cleanly by this pixel check.")
+    row = facts["flash_forward"]
+    if row["value"] is None:
+        reason = "over 60s" if row["status"] == "not_applicable" else "frame comparison unavailable"
+        lines.append(f"Flash-forward not checked: {reason}.")
+    elif row["value"]["candidate"]:
+        lines.append(f"Possible flash-forward: the opening image returns at {row['value']['matched_seconds']:.1f}s (pixel match only).")
+    else:
+        lines.append("No flash-forward match found in the sampled frames (pixel check only).")
+    return lines

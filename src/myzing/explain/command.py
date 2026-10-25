@@ -24,6 +24,9 @@ def run(argv):
     elif result["ok"]:
         print("What a viewer notices:")
         print("\n".join("- " + line for line in result["summary"]))
+        if result.get("hook"):
+            print("Hook and loop:")
+            print("\n".join("- " + line for line in result["hook"]))
         print(result["card_md"])
         print(result["card_png"] or "card.png skipped: install myzing[memes] for Pillow; card.md and card.json are complete.")
     else:

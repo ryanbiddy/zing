@@ -303,6 +303,7 @@ def next_step(answers=None, *, cache=None):
         if _inside(Path(a["project"]), Path(a["source"]).parent):
             raise ValueError(f"Style breakdown writes outside the video's folder; choose an output folder that is not inside {Path(a['source']).parent}.")
         root = Path(a["project"])
+    evidence.refuse_still_source(a)
     # Probe before the preview, model setup, or any full study. Long references
     # get a required range question immediately, even with all other answers set.
     reference = a.get("reference") if path == "a" else a.get("source") if path == "d" else None

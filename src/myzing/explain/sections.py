@@ -397,12 +397,18 @@ def audio_section(b, audio, error=None):
 
 
 def build_sections(b, geometry=None, audio=None, color_measurement=None, *, display=None, matte=None,
-                   color_error=None, audio_error=None):
+                   color_error=None, audio_error=None, hook_visual=None):
     geometry = geometry or {}
     shown = b
     if display and display.get("display_width") and display.get("display_height"):
         # Caption sizes and framing use the displayed picture, not storage.
         shown = {**b, "meta": {**b["meta"], "width": display["display_width"], "height": display["display_height"]}}
-    return {"pacing": pacing(b, audio), "transitions": transitions(b), "captions": captions(shown, geometry),
+    from .hook import hook
+    from .plain import hook_lines
+    cuts = pacing(b, audio)
+    sound = audio_section(b, audio, audio_error)
+    opening = hook(b, cuts, hook_visual)
+    opening.lines = hook_lines(opening.facts, has_audio_stream=sound.facts["has_audio_stream"])
+    return {"pacing": cuts, "hook": opening, "transitions": transitions(b), "captions": captions(shown, geometry),
             "color": color(color_measurement, color_error), "framing": framing(b, geometry, display, matte),
-            "audio": audio_section(b, audio, audio_error)}
+            "audio": sound}
