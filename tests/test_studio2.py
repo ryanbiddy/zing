@@ -17,7 +17,7 @@ from test_studio import inputs
 @pytest.mark.parametrize("footage", ["general", "screen"])
 @pytest.mark.parametrize("kind", ["short", "long", "url"])
 @pytest.mark.parametrize("speech", ["skip", "download small.en"])
-@pytest.mark.parametrize("custom", [False, True])
+@pytest.mark.parametrize("custom", [False, True, "legacy"])
 def test_every_interview_branch_has_at_most_ten_questions(inputs, monkeypatch, path, footage, kind, speech, custom):
     source = Path(inputs["source"])
     duration = 120 if kind == "long" else 18
@@ -30,7 +30,7 @@ def test_every_interview_branch_has_at_most_ten_questions(inputs, monkeypatch, p
                 "reference_range": "0:30-1:20", "reference_download": "yes 0:30-1:20",
                 "topic": "A local demonstration", "speech_setup": speech}
     if custom:
-        supplied["platform"] = "16:9,1:1"
+        supplied["platform"] = "custom" if custom == "legacy" else "16:9,1:1"
         # A discovered cursor log adds one question on screen branches.
         root = Path(inputs["project"])
         root.mkdir()

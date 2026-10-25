@@ -170,10 +170,66 @@ for runtime, model and fixture licensing.
 
 ## Verification
 
+Broadcast composites use a separate stage detector alongside the existing
+border detector. An uncertain stage candidate preserves a confident bordered
+picture crop. Twelve local gray samples must show a dominant rectangle
+(40–86% of the source), with four persistent edges and motion in at least 80%
+of adjacent sample pairs. Rounded corners are omitted from edge scoring. Each
+edge needs 55% support and their mean needs 80%. A secondary moving region may
+occupy at most 35% of the stage area; equal speaker panels fail this guard.
+The surrounding backdrop must be at least 75% static and 75% locally flat,
+with spatial variation and an overlapping lower-third card. A plain matte,
+textured scenery, or dark UI without that card is insufficient evidence.
+When an outer bordered picture is already known, its padding cannot supply
+the backdrop evidence for a smaller stage inside it.
+
+The plan records every threshold, the observed motion and edge scores, the
+stage bounds, and detected graphic cards. Confidence is the smaller of mean
+edge support and sustained-motion support; it is a geometric score, not a
+calibrated probability or recognition of a broadcaster. Ambiguous layouts
+keep the full source. The detector deliberately abstains on some composites
+without cards or a moving secondary tile.
+
+Faces whose time-weighted box area stays mostly outside the stage do not count
+as additional stage speakers. One edge keyframe cannot remove an otherwise
+in-stage track. The plan records retained-area shares and the 50% threshold.
+If the only confident full-shot face is in the secondary tile, the large-stage
+crop is rejected and normal full-source framing considers that face.
+A confident face present for the whole shot can drive portrait framing while
+smaller background faces are disclosed as bystanders. A second face remains a
+plausible participant when its median area is at least 12% of the primary's,
+or its height is at least half the primary's and their vertical centers are
+within half the larger face's height. Every face in a comparison uses the same
+basis: raw observations only when all compared faces have observations inside
+the shot; otherwise keyframes with tracking padding removed. New tracks record
+their actual padding. If any compared track has no recorded padding (legacy or
+built outside the tracker), every face is compared on its keyframes as stored,
+because a guessed inset could shrink a real speaker into a bystander. Clipped frame
+edges are preserved because their original inset is unknown. Plans disclose
+the shared basis and padding removed. Padded boxes still govern crop safety.
+Plausible participants present for at least half the shot constrain framing,
+including a peer at 19.9% area and 0.70 confidence. Transient plausible faces
+remain constraints unless they are at most 25% of the primary's area and below
+0.8 confidence. The plan lists bystanders, persistent peers, ratios and thresholds.
+Vertical position and scale estimate a shared depth band; this is not identity
+recognition or physical depth measurement. Speaking and mouth activity are
+unavailable in these tracks and are explicitly marked unavailable.
+A farther panelist at 10% area and 0.32 relative height remains a disclosed
+bystander under these thresholds; speaking-role recognition is a known limit.
+Portrait stage focus targets 70% sharp-picture
+height, subject to the existing upscale and coverage limits; this measures the
+sharp picture, not the face's own pixel height.
+
+Box and punch captions try the preferred band, then clear space above or below
+detected cards and subjects, including the top band. Size reductions retain the
+existing readable floor. A refusal names the blockers and suggests shortening
+the phrase or choosing clean captions. An overlaid name card remains baked into
+the stage pixels; cropping does not reconstruct the picture behind it.
+
 ```powershell
 uv run --frozen pytest -q tests/test_layout.py tests/test_layout_detector.py tests/test_layout_command.py
 $env:ZING_REQUIRE_FFMPEG = '1'
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 436
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 444
 
 # Explicit, optional fixture and model provisioning:
 uv run --frozen zing layout fetch-model

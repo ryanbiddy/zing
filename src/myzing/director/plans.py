@@ -90,10 +90,12 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         source_clauses = clauses(lookup[c.asset_id].words)
         clause_ends = {s.end for s in source_clauses}
         window = []
-        for word in lookup[c.asset_id].words:
+        from myzing.captions.grouping import display_boundaries
+        _, numeric = display_boundaries([w.text for w in lookup[c.asset_id].words])
+        for index,word in enumerate(lookup[c.asset_id].words):
             if not (word.start >= c.start - EPS and word.end <= c.end + EPS):
                 continue
-            if window and window[-1].end in clause_ends:
+            if window and window[-1].end in clause_ends and index not in numeric:
                 groups.append((window, cursor - c.start))
                 window = []
             window.append(word)

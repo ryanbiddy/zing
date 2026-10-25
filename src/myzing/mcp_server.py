@@ -133,7 +133,10 @@ def h_zing_studio_run(answers: dict[str, Any] | None = None, confirmed: bool = F
             return _err("confirmed and cancel must be real booleans; start with confirmed: true after reviewing the plan.")
         if isinstance(answers, dict) and "path" in answers and "project" not in answers:
             answers = {**answers, "project": agent_default_project()}
-        return _ok(**job(answers, confirmed=confirmed, project=project, cancel=cancel))
+        result = job(answers, confirmed=confirmed, project=project, cancel=cancel)
+        successful = result.get("status") not in {"partial", "failed", "interrupted", "cancelled", "shortage"}
+        successful = successful and result.get("result", {}).get("ok", True)
+        return {**result, "ok": bool(successful)}
     except (ValueError, OSError, RuntimeError, ImportError) as exc:
         return _err(str(exc))
 

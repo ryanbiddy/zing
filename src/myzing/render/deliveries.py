@@ -72,7 +72,7 @@ def used_ranges(plan):
 
 
 def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=None, max_upscale=None,
-                   short_side=None, ffprobe="ffprobe", measured=None):
+                   short_side=None, ffprobe="ffprobe", measured=None, continue_on_error=False):
     """Hash local inputs first, measure once, then independently adapt each plan.
 
     measured may carry measure_sources results shared with other plans; any
@@ -137,8 +137,9 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
                               "picture": pictures[asset_id],
                               "cuts": cuts[asset_id], "analyzed_ranges": [list(r) for r in item["ranges"]],
                               "warnings": item["warnings"]}
-    results, resolution = {}, {}
-    for aspect in selected:
+    results, resolution, failures = {}, {}, {}
+
+    def adapt_one(aspect):
         size = dimensions(aspect, 1080 if short_side == "auto" else short_side)
         result = adapt_plan(plan, *size, sizes, tracks, requested=requested, max_upscale=limit, cuts=cuts, pictures=pictures)
         advice = resolution_advice(result.clips, sizes, *size, max_upscale=limit,
@@ -157,7 +158,15 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
         if advice["limited"] or advice.get("auto_selected"):
             # Up front: the first thing a reader of the delivery plan sees.
             result.warnings.insert(0, advice["summary"])
-        results[aspect], resolution[aspect] = result, advice
+        return result, advice
+
+    for aspect in selected:
+        try:
+            results[aspect], resolution[aspect] = adapt_one(aspect)
+        except (ValueError, OSError, RuntimeError) as exc:
+            if not continue_on_error:
+                raise
+            failures[aspect] = delivery_failure(aspect, exc)
     for result in results.values():
         result.warnings.extend(w for item in evidence.values() for w in item["warnings"])
         # Composition schemas are shared: carry versioned detector evidence in
@@ -166,12 +175,20 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
         result.warnings = [w for w in result.warnings if not w.startswith(prefix)]
         result.warnings.append(prefix + json.dumps({"version": 1, "sources": evidence}, sort_keys=True))
     return results, {"version": 1, "sources": evidence, "framing": requested, "max_upscale": limit,
-                     "short_side": short_side, "resolution": resolution}
+                     "short_side": short_side, "resolution": resolution, **({"failures": failures} if failures else {})}
+
+
+def delivery_failure(aspect, error):
+    reason = str(error)
+    remedy = ("Choose clean captions or shorten the affected phrase, then retry this shape."
+              if "caption" in reason.lower() else
+              "Review the saved plan and source paths, fix the reported error, then retry this shape.")
+    return {"status": "failed", "shape": aspect, "error": reason, "next_step": remedy}
 
 
 def render_deliveries(composition, output, *, aspects=None, base_dir=None, work_dir=None,
                       framing=None, max_upscale=None, short_side=None, ffmpeg="ffmpeg", ffprobe="ffprobe",
-                      inputs=()):
+                      inputs=(), continue_on_error=False):
     """Render each aspect; inputs are extra read-only paths (e.g. the source plan).
 
     Without work_dir the analysis/render work lives in a temporary folder next
@@ -198,18 +215,28 @@ def render_deliveries(composition, output, *, aspects=None, base_dir=None, work_
             raise EDLValidationError(f"delivery output {destination} is a symlink; choose a different -o/output path")
     if work_dir is not None:
         return _render_deliveries(composition, output, Path(work_dir).expanduser().resolve(), selected, report_path,
-                                  base_dir, framing, max_upscale, short_side, ffmpeg, ffprobe)
+                                  base_dir, framing, max_upscale, short_side, ffmpeg, ffprobe, continue_on_error)
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=f".{output.stem}-delivery-", dir=output.parent) as temporary:
         return _render_deliveries(composition, output, Path(temporary), selected, report_path,
-                                  base_dir, framing, max_upscale, short_side, ffmpeg, ffprobe)
+                                  base_dir, framing, max_upscale, short_side, ffmpeg, ffprobe, continue_on_error)
+
+
+def quarantine_failed_delivery(row):
+    """Keep diagnostic bytes out of the playable delivery filenames."""
+    video = row.pop("video", None)
+    if video and Path(video).is_file():
+        failed = Path(video).with_suffix(Path(video).suffix + ".failed")
+        Path(video).replace(failed)
+        row["failed_artifact"] = str(failed)
 
 
 def _render_deliveries(composition, output, work, selected, report_path, base_dir, framing, max_upscale,
-                       short_side, ffmpeg, ffprobe):
+                       short_side, ffmpeg, ffprobe, continue_on_error=False):
     plans, evidence = delivery_plans(composition, selected, work, base_dir=base_dir, framing=framing,
-                                     max_upscale=max_upscale, short_side=short_side, ffprobe=ffprobe)
-    rows = {}
+                                     max_upscale=max_upscale, short_side=short_side, ffprobe=ffprobe,
+                                     continue_on_error=continue_on_error)
+    rows = dict(evidence.get("failures", {}))
     report = {"version": 1, "status": "rendering", "deliveries": rows, "analysis": evidence}
     _write(report_path, report)
     try:
@@ -220,8 +247,16 @@ def _render_deliveries(composition, output, work, selected, report_path, base_di
                                   "width": plan.width, "height": plan.height,
                                   "resolution": evidence["resolution"][aspect]}
             _write(saved, plan.to_dict())
-            result = render_composition(plan, video, base_dir=saved.parent, work_dir=work / aspect.replace(":", "x"),
-                                        ffmpeg=ffmpeg, ffprobe=ffprobe)
+            try:
+                result = render_composition(plan, video, base_dir=saved.parent, work_dir=work / aspect.replace(":", "x"),
+                                            ffmpeg=ffmpeg, ffprobe=ffprobe)
+            except Exception as exc:
+                row.update(delivery_failure(aspect, exc))
+                quarantine_failed_delivery(row)
+                if not continue_on_error:
+                    raise
+                _write(report_path, report)
+                continue
             row.update(status="ready", warnings=list(result.warnings))
             if getattr(result, "delivery_measurements", None) is not None:
                 row["encoding"] = result.delivery_measurements
@@ -230,10 +265,13 @@ def _render_deliveries(composition, output, work, selected, report_path, base_di
                 # so its mix is measured against the same speech spans.
                 row["music"] = str(video.with_suffix(".music.json"))
             _write(report_path, report)
-        report["status"] = "ready"
+        ready = sum(r["status"] == "ready" for r in rows.values())
+        report["status"] = "ready" if ready == len(selected) else "partial" if ready else "failed"
+        report["ready"], report["requested"] = ready, len(selected)
+        report["failures"] = [dict(row, shape=shape) for shape,row in rows.items() if row["status"] == "failed"]
     except Exception as exc:
         report.update(status="failed", error=str(exc))
         _write(report_path, report)
         raise
     _write(report_path, report)
-    return {"status": report["status"], "report": str(report_path), "deliveries": rows}
+    return {key: report[key] for key in ("status", "deliveries", "ready", "requested", "failures")} | {"report": str(report_path)}

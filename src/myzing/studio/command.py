@@ -79,6 +79,11 @@ def show_result(result, out):
                     print(label.ljust(5) + " | " + " | ".join((cell[line] if line < len(cell) else "").ljust(width) for cell in cells), file=out)
         for line in summary.get("style_summary", []):
             print(line, file=out)
+        for row in rows:
+            if row.get("error"):
+                print(f"Failed {row['draft']} {row['shape']}: {row['error']}", file=out)
+                if row.get("next_step"):
+                    print("Next: " + row["next_step"], file=out)
         for item in summary["highlights"]:
             print(item["label"] + ": " + relative(item["file"]), file=out)
         if summary["recommendation"]:
@@ -239,6 +244,8 @@ def run(argv):
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{args.answers} is not valid JSON ({exc}); write one object keyed by question IDs.") from None
             supplied = flow.normalize_answers(raw_answers)
+            if "length" in supplied and "length_mode" not in supplied:
+                session.answers.pop("length_mode", None)
             if "speech_model" in supplied and supplied["speech_model"] != session.answers.get("speech_model"):
                 session.answers.pop("speech_setup", None)
                 if "speech_setup" in session.history:
@@ -340,6 +347,8 @@ def run(argv):
                         value = value if type(value) is bool else str(value).lower() in {"yes", "y"}
                     session.answers[q["id"]] = flow.normalize(q["id"], value)
                     session.automatic_answers.pop(q["id"], None)
+                    if q["id"] == "length" and session.answers.get("path") == "a":
+                        session.answers["length_mode"] = "usable" if raw == "" else "explicit"
                 except (ValueError, OSError) as exc:
                     print(str(exc))
                     continue
@@ -427,7 +436,7 @@ def run(argv):
         emit("result", {**result, "questions_asked": session.questions_asked})
         if not args.json:
             show_result(result, sys.stdout)
-        return 0 if result.get("ok") else 1
+        return 0 if result.get("ok") else 2 if result.get("status") == "partial" else 1
     except KeyboardInterrupt:
         return pause()
     except (ValueError, OSError, RuntimeError, ImportError) as exc:

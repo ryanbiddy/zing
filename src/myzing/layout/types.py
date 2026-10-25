@@ -192,6 +192,7 @@ class FaceTrack(Record):
     warnings: list[str] = field(default_factory=list)
     observations: list[TrackObservation] = field(default_factory=list, metadata={"omit_default": True})
     stitching: list[dict] = field(default_factory=list, metadata={"omit_default": True})
+    padding: float | None = None
     _nested: ClassVar = {"keyframes": (Keyframe, True), "observations": (TrackObservation, True)}
 
     def __post_init__(self) -> None:
@@ -199,6 +200,8 @@ class FaceTrack(Record):
         identifier(self.id, "track id")
         validate_path(self.keyframes)
         number(self.confidence, "confidence", 0, 1)
+        if self.padding is not None:
+            number(self.padding, "track padding", 0, .5)
 
 
 ZONES = {

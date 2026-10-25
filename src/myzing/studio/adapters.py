@@ -8,8 +8,10 @@ from .models import read_json, write_json
 
 
 def validate_options(value):
-    if not isinstance(value, dict) or set(value) - {"captions", "music", "tone", "no_reference", "speech_model"}:
-        raise ValueError("studio_options must contain only captions, music, tone, no_reference and speech_model")
+    if not isinstance(value, dict) or set(value) - {"captions", "music", "tone", "no_reference", "speech_model", "target_length_mode"}:
+        raise ValueError("studio_options must contain only captions, music, tone, no_reference, speech_model and target_length_mode")
+    if "target_length_mode" in value and value["target_length_mode"] != "usable":
+        raise ValueError("studio_options.target_length_mode: choose usable or omit for a fixed target")
     if "speech_model" in value:
         from .flow import normalize
         normalize("speech_model", value["speech_model"])
@@ -139,6 +141,7 @@ def load_edit(source):
 
 
 def deliver(source, output, aspects, *, delivery_options=None):
+    from subprocess import SubprocessError
     from myzing.render.deliveries import render_deliveries
     from myzing.composition import Composition
     from myzing.match.evidence import decode
@@ -150,7 +153,7 @@ def deliver(source, output, aspects, *, delivery_options=None):
     fallback = None
     try:
         result = render_deliveries(plan, output, aspects=aspects,
-                                   base_dir=Path(source).parent, inputs=(Path(source),))
+                                   base_dir=Path(source).parent, inputs=(Path(source),), continue_on_error=True)
     except ValueError as exc:
         # A measured V1 re-delivery exposed a rejected auto-motion candidate.
         # Keep the renderer's bound intact and retry its full-picture policy.
@@ -159,14 +162,37 @@ def deliver(source, output, aspects, *, delivery_options=None):
             raise
         fallback = "Auto framing could not satisfy its crop-motion bound; studio used full-picture blurfill for this delivery."
         result = render_deliveries(plan, output, aspects=aspects, framing="blurfill",
-                                   base_dir=Path(source).parent, inputs=(Path(source),))
+                                   base_dir=Path(source).parent, inputs=(Path(source),), continue_on_error=True)
         result["warnings"] = [fallback, *result.get("warnings", [])]
         report = read_json(result["report"])
         report["warnings"] = [fallback, *report.get("warnings", [])]
         write_json(result["report"], report)
-    for row in result["deliveries"].values():
-        receipt = decode(Path(row["video"]), Composition.from_dict(read_json(row["plan"])))
+    for aspect, row in result["deliveries"].items():
+        if row.get("error") == "reframe keyframes exceed max_velocity":
+            safe_output = Path(output).with_name(Path(output).stem + "-safe-" + aspect.replace(":", "x") + ".mp4")
+            retried = render_deliveries(plan,safe_output,aspects=[aspect],framing="blurfill",
+                                       base_dir=Path(source).parent,inputs=(Path(source),),continue_on_error=True)
+            row.clear()
+            row.update(retried["deliveries"][aspect])
+            row.setdefault("warnings", []).append("Auto framing could not satisfy its crop-motion bound; studio used full-picture blurfill for this delivery.")
+        if row.get("status", "ready") != "ready":
+            continue
+        try:
+            receipt = decode(Path(row["video"]), Composition.from_dict(read_json(row["plan"])))
+        except (ValueError, OSError, RuntimeError, SubprocessError) as exc:
+            from myzing.render.deliveries import delivery_failure, quarantine_failed_delivery
+            row.update(delivery_failure(aspect, exc))
+            quarantine_failed_delivery(row)
+            continue
         receipt_path = Path(row["video"]).with_suffix(".decode.json")
         write_json(receipt_path, receipt)
         row["decode"] = str(receipt_path)
+    result["ready"] = sum(r.get("status", "ready") == "ready" for r in result["deliveries"].values())
+    result["requested"] = len(aspects)
+    result["status"] = "ready" if result["ready"] == len(aspects) else "partial" if result["ready"] else "failed"
+    result["failures"] = [dict(row, shape=shape) for shape,row in result["deliveries"].items() if row.get("status") == "failed"]
+    if result.get("report"):
+        report = read_json(result["report"])
+        report.update({k: result[k] for k in ("status", "deliveries", "ready", "requested", "failures")})
+        write_json(result["report"], report)
     return result

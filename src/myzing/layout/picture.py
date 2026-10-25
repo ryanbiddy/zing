@@ -4,10 +4,23 @@ import subprocess
 from dataclasses import replace
 
 from myzing.composition.framing import CropBounds, CropKeyframe
-from .types import Box, Keyframe
+from .types import Box, Keyframe, box_at
 
 
 def detect_picture(frames):
+    """Try the established border guards, then a dominant composite stage."""
+    result = _detect_bordered_picture(frames)
+    import numpy as np
+    data = np.asarray(frames, dtype=float)
+    if data.ndim == 3 and len(data) >= 6 and min(data.shape[1:]) >= 16:
+        from .stage import detect_stage
+        stage = detect_stage(data, content_bounds=result["bounds_normalized"] if result.get("confident") else None)
+        if stage is not None and (stage.get("confident") or not result.get("confident")):
+            return stage
+    return result
+
+
+def _detect_bordered_picture(frames):
     """Gray samples -> rectangle/evidence. Requires two persistent horizontal borders.
 
     This is a static-frame detector, not semantic lower-third removal. Moving
@@ -205,21 +218,150 @@ def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, pi
                          reason + "; inspect source or use --picture-crop off")
     if policy == "off" or not picture or not picture.get("confident"):
         return select_framing(requested, sw, sh, width, height, clip, tracks, **kwargs)
+    tracks = [_used_track(t, clip) for t in tracks
+              if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
+    if picture.get("kind") == "broadcast-composite" and picture.get("secondary_bounds_normalized"):
+        faces = [t for t in tracks if t.id.startswith("face") and t.confidence >= .8
+                 and _covers_shot(t, clip)]
+        if len(faces) == 1 and _inside_share(faces[0], picture["secondary_bounds_normalized"]) > .5:
+            reason = "Only confident full-shot face is in the inset tile; plan framing from the full source."
+            f = select_framing(requested, sw, sh, width, height, clip, tracks, **kwargs)
+            return replace(f, picture={**picture, "confident": False, "confidence": 0.,
+                "reason": reason, "decision": "reject large-stage crop", "subject_selection": {
+                    "focused": False, "inset_speaker": faces[0].id}}, warnings=[*f.warnings, reason])
     x, y, pw, ph = picture["bounds_pixels"]
-    projected = []
+    projected, excluded = [], []
+    shares = {}
     for track in tracks:
+        share = shares[track.id] = _inside_share(track, (x/sw, y/sh, pw/sw, ph/sh))
+        if share <= (.5 if track.id.startswith("face") else 0):
+            excluded.append(track.id)
+            continue
         keys = []
         for k in track.keyframes:
             left, top = max(x, k.box.x*sw), max(y, k.box.y*sh)
             right, bottom = min(x+pw, k.box.right*sw), min(y+ph, k.box.bottom*sh)
             if right <= left or bottom <= top:
-                break
+                continue
             keys.append(Keyframe(k.time, Box((left-x)/pw, (top-y)/ph, (right-left)/pw, (bottom-top)/ph)))
-        if len(keys) == len(track.keyframes):
+        if keys:
             projected.append(replace(track, keyframes=keys))
-    f = select_framing(requested, pw, ph, width, height, clip, projected, **kwargs)
+        else:
+            excluded.append(track.id)
+    details = {"outside_stage_tracks": excluded, "stage_inside_area_share": shares,
+               "minimum_stage_inside_area_share": .5}
+    if picture.get("kind") == "broadcast-composite":
+        projected, focus = _stage_subjects(clip, projected, measurements={t.id: t for t in tracks})
+        details.update(focus)
+    mode = ("zoomfill" if requested == "auto" and width < height and details.get("focused") else requested)
+    f = select_framing(mode, pw, ph, width, height, clip, projected, **kwargs)
     return replace(f, source_width=sw, source_height=sh, bounds=CropBounds(x, y, pw, ph),
                    center_x=f.center_x+x, center_y=f.center_y+y,
                    keyframes=[CropKeyframe(k.time, k.center_x+x, k.center_y+y) for k in f.keyframes],
-                   picture=dict(picture), warnings=[*f.warnings,
+                   picture={**picture, "subject_selection": details}, warnings=[*f.warnings,
+                   *([focus["reason"]] if picture.get("kind") == "broadcast-composite" and focus.get("focused") else []),
                    f"Crop to live picture: {pw}x{ph} at ({x},{y}); static-frame confidence {picture['confidence']:.3f}; sampled evidence, not semantic recognition."])
+
+
+def _used_track(track, clip):
+    start, end = max(clip.src_in, track.keyframes[0].time), min(clip.src_out, track.keyframes[-1].time)
+    times = sorted({start, end, *(k.time for k in track.keyframes if start < k.time < end)})
+    return replace(track, keyframes=[Keyframe(t, box_at(track.keyframes, t)) for t in times])
+
+
+def _inside_share(track, bounds):
+    """Time-weighted retained face area, not a veto by one edge sample."""
+    x,y,w,h = bounds
+    values = [max(0, min(x+w,k.box.right)-max(x,k.box.x)) *
+              max(0, min(y+h,k.box.bottom)-max(y,k.box.y)) / (k.box.width*k.box.height)
+              for k in track.keyframes]
+    span = track.keyframes[-1].time-track.keyframes[0].time
+    return (sum((a+b)/2*(right.time-left.time) for a,b,left,right in
+                zip(values,values[1:],track.keyframes,track.keyframes[1:])) / span if span else values[0])
+
+
+def _covers_shot(track, clip):
+    return track.keyframes[0].time <= clip.src_in+1e-4 and track.keyframes[-1].time >= clip.src_out-1e-4
+
+
+def _stage_subjects(clip, tracks, *, measurements=None):
+    """Keep plausible participants; disclose small background faces separately."""
+    from statistics import median
+    tracks = [t for t in tracks if t.keyframes[0].time < clip.src_out and t.keyframes[-1].time > clip.src_in]
+    faces = [t for t in tracks if t.id.startswith("face")]
+    sources = {t.id: (measurements or {}).get(t.id, t) for t in faces}
+    observed = {t.id: [o.box for o in sources[t.id].observations if clip.src_in <= o.time <= clip.src_out]
+                for t in faces}
+    use_raw = all(observed.values())
+    # A track without recorded padding may hold raw boxes. Guessing an inset
+    # can shrink a real speaker into a bystander, so compare every face's
+    # keyframes as stored instead (the 775f30f behavior).
+    legacy = not use_raw and any(sources[t.id].padding is None for t in faces)
+    basis = ("raw face observations" if use_raw else
+             "keyframes as stored (padding unknown on a track)" if legacy else "keyframes minus tracking padding")
+    def unpad(box, margin):
+        # Clipped frame edges cannot be reconstructed: preserve them rather
+        # than inventing an inset. Bound the inset for tiny legacy boxes.
+        dx, dy = min(margin, box.width*.499999), min(margin, box.height*.499999)
+        left, top = box.x + (dx if box.x > 1e-12 else 0), box.y + (dy if box.y > 1e-12 else 0)
+        right = box.right - (dx if box.right < 1-1e-12 else 0)
+        bottom = box.bottom - (dy if box.bottom < 1-1e-12 else 0)
+        return Box(left, top, right-left, bottom-top)
+    def measure(t):
+        source = sources[t.id]
+        margin = 0. if use_raw or legacy else source.padding
+        boxes = observed[t.id] if use_raw else [unpad(k.box, margin) for k in source.keyframes]
+        return {"area": median(b.width*b.height for b in boxes),
+                "height": median(b.height for b in boxes), "center_y": median(b.center[1] for b in boxes),
+                "basis": basis, "padding_removed": margin,
+                "padding_source": "track" if source.padding is not None else "unknown (compared as stored)"}
+    measured = {t.id: measure(t) for t in faces}
+    size = lambda t: measured[t.id]["area"]
+    primary = max(faces, key=size, default=None)
+    if (primary is None or primary.confidence < .8 or primary.keyframes[0].time > clip.src_in
+            or primary.keyframes[-1].time < clip.src_out-1e-4):
+        return tracks, {"focused": False, "reason": "no confident full-shot stage face"}
+    others = [t for t in faces if t is not primary]
+    ratio = max((size(t)/size(primary) for t in others), default=0.)
+    main, evidence = measured[primary.id], {}
+    for t in others:
+        peer = measured[t.id]
+        scale = min(peer["height"], main["height"]) / max(peer["height"], main["height"])
+        vertical = abs(peer["center_y"]-main["center_y"]) / max(peer["height"], main["height"])
+        depth = scale >= .5 and vertical <= .5
+        evidence[t.id] = {"face_area_ratio": size(t)/size(primary), "relative_height": scale,
+                          "vertical_distance_in_face_heights": vertical, "similar_depth_band": depth,
+                          "basis": peer["basis"], "padding_removed": peer["padding_removed"],
+                          "padding_source": peer["padding_source"],
+                          "plausible_participant": size(t)/size(primary) >= .12 or depth}
+    bystanders = [t.id for t in others if not evidence[t.id]["plausible_participant"]]
+    persistent = [t.id for t in others if t.id not in bystanders
+                  and t.keyframes[-1].time-t.keyframes[0].time >= .5*(clip.src_out-clip.src_in)]
+    details = {"main_face": primary.id, "face_confidence": primary.confidence,
+               "primary_measurement_basis": main["basis"], "primary_padding_removed": main["padding_removed"],
+               "primary_padding_source": main["padding_source"], "bystander_tracks": bystanders,
+               "participant_evidence": evidence, "persistent_stage_faces": persistent,
+               "participant_thresholds": {"minimum_face_area_ratio": .12, "minimum_relative_height": .5,
+                   "maximum_vertical_distance_in_face_heights": .5, "speaking_activity_available": False}}
+    def incidental(t):
+        return (t.id in bystanders or
+                (t in others and t.id not in persistent and size(t)/size(primary) <= .25 and t.confidence < .8)
+                or t.id.startswith("saliency-") or
+                (t.id.startswith("person-") and t.confidence <= .5 and t.observations
+                 and all(o.detector == "hog-fallback" for o in t.observations)))
+    kept = [t for t in tracks if not incidental(t)]
+    incidental_ids = [t.id for t in tracks if t not in kept]
+    if any(t in kept for t in others):
+        return kept, {**details, "focused": False,
+                      "incidental_tracks": incidental_ids,
+                      "reason": "another plausible persistent, substantial or confident stage participant remains"}
+    if any(t is not primary for t in kept):
+        return kept, {**details, "focused": False, "incidental_tracks": incidental_ids,
+                      "reason": "independent person evidence remains in the stage"}
+    return kept, {**details, "focused": True,
+                  "maximum_incidental_face_area_ratio": ratio,
+                  "incidental_tracks": incidental_ids,
+                  "reason": f"Stage focus: one full-shot face at confidence {primary.confidence:.3f}; "
+                            f"other stage faces are at most {ratio:.1%} of its measured area. "
+                            "Disclosed small background faces, transient incidental detections and low-confidence HOG scenery "
+                            "do not widen the shot; geometry estimates participant depth, not identity or speaking activity."}

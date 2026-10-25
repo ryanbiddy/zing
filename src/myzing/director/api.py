@@ -96,6 +96,18 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             shortage("study_required", "No project clip has a usable study.",
                      f'Run zing study <clip> --raw --workspace "{root}" for each needed clip.')
         keep, forbidden = constraints(brief, manifest, clips)
+        if studio_options and studio_options.get("target_length_mode") == "usable":
+            from dataclasses import replace
+            from .selection import usable_length
+            usable = usable_length(clips, keep, forbidden)
+            if usable <= 0:
+                shortage("target_length", "No usable footage remains after trimming.",
+                         "Review the excluded spans or add usable footage.")
+            brief = replace(brief, target_length_seconds=min(60, usable))
+            report["brief"] = brief.to_dict()
+            report["target_length"] = {"mode": "usable", "usable_seconds": usable,
+                                       "target_seconds": brief.target_length_seconds,
+                                       "reason": "Default follows usable footage after whole-word silence and exclusion trims."}
         required_seconds = sum(b - a for spans in keep.values() for a, b in spans)
         if required_seconds > brief.target_length_seconds + 2 / 30:
             shortage("must_keep_length", f"Whole-word must-keeps require {required_seconds:.3f}s, beyond the brief target.",
@@ -239,6 +251,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                                for label in report["plans"] if report["plans"][label]["v1"].get("music_sidecar")},
             "alternatives": report.get("alternatives", {}), "missing_drafts": report.get("missing_drafts"),
             "summary": {"drafts": len(report["plans"]), "shortages": report["shortages"],
+                        **({"target_length": report["target_length"]} if "target_length" in report else {}),
                         # Low-resolution advice first: it changes what to render.
                         "warnings": [*dict.fromkeys(p["resolution"]["summary"] for p in report["plans"].values()
                                                     if p["resolution"]["limited"]),

@@ -112,7 +112,7 @@ def test_required_path_empty_reprompts_without_enter_acceptance(inputs, monkeypa
     assert load_session(inputs["project"]).answers["reference"] == inputs["source"]
 
 
-def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs, monkeypatch):
+def test_reference_measures_drive_defaults_and_legacy_custom_needs_no_extra_question(inputs, monkeypatch):
     from myzing.studio.reference import describe
     reference = describe({"duration": 19.7, "aspect": "9:16", "sample_seconds": 19.7,
                          "cuts_per_minute": 66, "has_audio": True, "speech_present": False,
@@ -137,7 +137,10 @@ def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs
     assert step["answers"]["length"] == 20 and step["answers"]["tone"] == "energetic"
     assert step["answers"]["captions"] == "none" and step["answers"]["music"] == "original"
     a["platform"] = "custom"
-    assert flow.next_step(a, cache=cache)["question"]["id"] == "aspects"
+    custom = flow.next_step(a, cache=cache)
+    assert custom["status"] == "plan" and custom["answers"]["aspects"] == ["9:16"]
+    a["aspects"] = ["16:9", "1:1"]
+    assert flow.next_step(a, cache=cache)["answers"]["aspects"] == ["16:9", "1:1"]
 
 
 def test_output_folder_can_change_on_plan_screen(inputs, tmp_path, monkeypatch, capsys):
@@ -636,7 +639,7 @@ def test_studio_cannot_cancel_a_foreign_job(inputs, monkeypatch, owner_alive):
     write_json(root / "studio-job.json", {"status": "running", "project": str(root), "pid": os.getpid() + 100000})
     monkeypatch.setattr("myzing.project.locking._pid_alive", lambda pid: owner_alive)
     result = h_zing_studio_run(project=str(root), cancel=True)
-    assert result["ok"] and result["cancellation_requested"] is False
+    assert result["ok"] is owner_alive and result["cancellation_requested"] is False
     assert result["status"] == ("running" if owner_alive else "interrupted")
     assert ("owning server" if owner_alive else "--resume") in result["hint"]
     assert "pid" not in result

@@ -26,6 +26,7 @@ DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb",
 KEYS |= DELIVERY_KEYS | {"ref_start", "ref_end", "reference_range"}
 KEYS |= {"footage_kind", "cursor_log"}
 KEYS |= {"reference_download", "speech_setup"}
+KEYS.add("length_mode")
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -198,6 +199,9 @@ def normalize(key, value):
             value = ASPECTS[:] if value == "all" else [v.strip() for v in value.split(",")]
         if not isinstance(value, list) or not value or any(v not in ASPECTS for v in value) or len(set(value)) != len(value):
             raise ValueError("aspects: use 16:9, 1:1, 9:16, all, or a comma-separated selection.")
+    elif key == "length_mode":
+        if value not in {"usable", "explicit"}:
+            raise ValueError("length_mode: choose usable (after trimming) or explicit (requested seconds).")
     elif key == "length":
         if isinstance(value, bool):
             raise ValueError("length: use seconds, greater than 0 and at most 60.")
@@ -345,7 +349,8 @@ def next_step(answers=None, *, cache=None):
             # length, keeping the long-reference interview within ten questions.
             reference_length = min(60, max(1, round(end - start)))
             reference_note = (f"Selected reference: {end-start:g}s; edit length: "
-                              f"{a.get('length', reference_length):g}s (change length in answers to override).")
+                              f"{a['length']:g}s." if 'length' in a else
+                              f"Selected reference: {end-start:g}s; the edit defaults to usable footage after trimming.")
         elif path == "a" and a.get("reference_range") == "all":
             reference_note = f"Reference is {duration:g}s (within 60s); using all of it."
     if path == "a" and reference and duration is None:
@@ -453,20 +458,21 @@ def next_step(answers=None, *, cache=None):
             {"TikTok/Reels": "TikTok / Reels (9:16)", "YouTube": "YouTube (16:9)", "square": "Feed (1:1)", "all": "All three shapes", "original": "Keep source / reference shape"})
         aspect = {"portrait": "9:16", "landscape": "16:9", "square": "1:1"}.get(orientation, "1:1" if path == "c" else "16:9")
         selected = {"TikTok/Reels": ["9:16"], "YouTube": ["16:9"], "square": ["1:1"], "all": ASPECTS}.get(a.get("platform"), [aspect])
-        if a.get("platform") == "custom":
-            ask("aspects", "Which shapes? (16:9, 1:1, 9:16 or all)", selected,
-                "Choose your delivery set; auto framing checks crops before delivery.")
+        # Legacy "custom" without explicit aspects keeps the default shape.
+        # Shape lists are answered in the platform question itself, so this
+        # compatibility spelling must not introduce an eleventh question.
     if (path in "ab" and a.get("footage_kind") != "screen" and reference_length is None) or (path == "e" and a.get("context", "none") == "none"):
         seconds = min((15, 20, 30, 45, 60), key=lambda n: abs(n - min(30, facts["duration"] / 3))) if facts["duration"] else 15
         ref = facts.get("reference", {}) if path == "a" else {}
         if ref.get("duration"):
             seconds = min(60, max(1, round(ref["duration"])))
-        ask("length", "How many seconds?", seconds,
-            (f"The reference is {ref['duration']:g} s; recommend {seconds:g} s to follow it." if seconds == round(ref["duration"]) else
-             f"The reference is {ref['duration']:g} s; {seconds:g} s is the closest length studio supports (1-60 s).")
-            if ref.get("duration") else
-            f"{facts['duration']:g} source seconds; {seconds:g} s is a starting target. Distinct usable moments are unknown."
-            if facts["duration"] else "Usable duration is unknown; 15 seconds is a disclosed starting target.")
+        if path == "a":
+            reason = ((f"The reference is {ref['duration']:g} s. " if ref.get("duration") else "") +
+                      "Enter uses the usable footage length after trimming; type seconds to choose a fixed target.")
+        else:
+            reason = (f"{facts['duration']:g} source seconds; {seconds:g} s is a starting target. Distinct usable moments are unknown."
+                      if facts["duration"] else "Usable duration is unknown; 15 seconds is a disclosed starting target.")
+        ask("length", "How many seconds?", seconds, reason)
     if path in "ab":
         ref = facts.get("reference", {}) if path == "a" else {}
         if path == "b" and a.get("footage_kind") != "screen":
@@ -547,6 +553,8 @@ def next_step(answers=None, *, cache=None):
     if path == "a":
         a.setdefault("tone", facts.get("reference", {}).get("tone", "natural"))
         if reference_length is not None and a.get("footage_kind") != "screen":
+            if "length" not in a:
+                a.setdefault("length_mode", "usable")
             a.setdefault("length", reference_length)
     if path in "ab" and a.get("footage_kind") == "screen":
         a.setdefault("length", min(60, max(1, facts.get("duration") or 15)))

@@ -191,6 +191,28 @@ class Candidate(Record):
         return self.content, self.start, self.end
 
 
+def usable_spans(clip, kept, forbidden):
+    """The same whole-word exclusions determine both default length and search."""
+    quarantine = [(q["start"], q["end"]) for q in clip.asr_repair.get("quarantined", [])]
+    dead = subtract([(d["start"], d["end"]) for d in clip.dead_air], kept)
+    # A short pause inside an indivisible clause is not an edit boundary.
+    # Removing it would make the entire clause unavailable to the search.
+    # Retain only verified gaps between words; silence that contradicts word
+    # timings remains excluded rather than blessing potentially invented ASR.
+    speech = clauses(clip.words)
+    dead = [span for span in dead if not (
+        any(c.start <= span[0] and c.end >= span[1] for c in speech)
+        and not any(overlaps(span, (w.start, w.end)) for w in clip.words))]
+    removed = merge(forbidden + [expand_words(s, clip.words) for s in dead])
+    removed = merge(forbidden + subtract(removed, kept) + quarantine)
+    return subtract([(0, clip.duration)], removed), removed, quarantine
+
+
+def usable_length(studies, keep, forbidden):
+    return sum(b-a for clip in studies if clip.status == "ready"
+               for a,b in usable_spans(clip, keep.get(clip.asset_id, []), forbidden.get(clip.asset_id, []))[0])
+
+
 def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
     """Candidate trims stay within shot regions snapped out of spoken words.
 
@@ -213,12 +235,7 @@ def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
             continue
         kept = keep.get(clip.asset_id, [])
         speech = clauses(clip.words)
-        quarantine = [(q["start"], q["end"]) for q in clip.asr_repair.get("quarantined", [])]
-        dead = subtract([(d["start"], d["end"]) for d in clip.dead_air], kept)
-        removed = merge(forbidden.get(clip.asset_id, []) + [expand_words(s, clip.words) for s in dead])
-        # A must-keep wins over a dead-air heuristic, including a word-expanded edge.
-        removed = merge(forbidden.get(clip.asset_id, []) + subtract(removed, kept) + quarantine)
-        allowed = subtract([(0, clip.duration)], removed)
+        allowed, removed, quarantine = usable_spans(clip, kept, forbidden.get(clip.asset_id, []))
         available += sum(b - a for a, b in allowed)
         bits = [(1 << i, (a, b)) for i, (key, a, b) in enumerate(required) if key == clip.asset_id]
 
@@ -482,6 +499,21 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
     if preferred_a is not None:
         indices = tuple(pool.index(c) for c in preferred_a)
         complete[(indices[0], tuple(sorted(indices)))] = preferred_a
+    # Preserve a feasible whole-footage edit before pace ranking prunes the
+    # beam. This matters when the default is exactly the usable length: a
+    # long reference shot must not discard the only opening that can include
+    # every remaining clause. Seed only existing, non-overlapping candidates;
+    # all duration, source-order and required-span constraints still apply.
+    whole, ends, covered = [], {}, 0
+    for i in sorted(range(len(pool)), key=lambda i: (pool[i].asset_id, pool[i].start, -pool[i].end)):
+        c = pool[i]
+        if c.start < ends.get(c.content, -1) - EPS:
+            continue
+        whole.append(i)
+        ends[c.content] = c.end
+        covered |= c.covers
+    if whole and covered == needed and abs(sum(pool[i].duration for i in whole) - target) <= tolerance + EPS:
+        complete[(whole[0], tuple(sorted(whole)))] = [pool[i] for i in whole]
     bucket_count = len({(c.content, c.shot) for c in pool})
     # All openings compete; distinct opening buckets stop one appealing line
     # consuming the entire beam before B or C has an alternative.
@@ -657,7 +689,7 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
         relaxed = {"policy": "VARIETY limit; never repeat an edit", "missing_drafts": missing,
                    "distinct_in_band_edits": len(in_band), "in_band_drafts": list(result),
                    "alternatives": [], "similar_pairs": [],
-                   "reason": f"VARIETY limit: this footage supports {len(result)} distinct draft(s) in this search. "
+                   "reason": f"VARIETY limit: this footage supports {len(result)} distinct {'draft' if len(result) == 1 else 'drafts'} in this search. "
                                "Returning the usable edit plans. Film another opening or a different visual moment for more choices."}
     if result is not None:
         if timing_evidence is not None:

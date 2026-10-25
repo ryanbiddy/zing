@@ -12,6 +12,7 @@ from myzing.render.positioned_captions import (
 
 from .metrics import metrics
 from .presets import slot_lines
+from .grouping import display_boundaries
 
 
 def _rtl(text):
@@ -59,9 +60,10 @@ def geometry(caption, width, height):
             placed[k] = x
             x += advances[k]+left[k]+right[k]
         for k, (text, _, index) in enumerate(line):
+            top = font.ink_top(text, size)
             slots.append({"index":index,"text":text,"x":placed[k]+left[k],"baseline":y,"width":advances[k],
-                          "plate_x":placed[k],"plate_y":y-font.cap*size/font.units-size*.08,
-                          "plate_width":advances[k]+left[k]+right[k],"plate_height":(font.cap-font.descent)*size/font.units+size*.16})
+                          "plate_x":placed[k],"plate_y":y-top-size*.08,
+                          "plate_width":advances[k]+left[k]+right[k],"plate_height":top-font.descent*size/font.units+size*.16})
     slots.sort(key=lambda slot: slot["index"])
     return {"version":1,"anchor_x":box.center[0]*width,"baseline":baseline,
             "font_ascent":font.ass_ascent*size/font.units,"size":size,"slots":slots,
@@ -74,11 +76,31 @@ def _pop(elapsed):
     return 1.05-.05*min(1,(elapsed-.08)/.06)
 
 
+def _plate_rects(slots):
+    """One rectangle per baseline, even for a manually wrapped numeric unit."""
+    rows = {}
+    for slot in slots:
+        rows.setdefault(slot["baseline"], []).append(slot)
+    rectangles = []
+    for row in rows.values():
+        x, y = min(s["plate_x"] for s in row), min(s["plate_y"] for s in row)
+        rectangles.append((x, y, max(s["plate_x"]+s["plate_width"] for s in row)-x,
+                           max(s["plate_y"]+s["plate_height"] for s in row)-y))
+    return rectangles
+
+
 def compile_caption(caption, composition, font, data, frame_limit):
     if caption.layout is None or caption.layout.box is None:
         raise ValueError("Caption presets need a shot rail; run place_captions before rendering.")
     geo = geometry(caption,composition.width,composition.height)
     first,last,words,_ = caption_frame_timing(caption,composition.fps,frame_limit)
+    _, numeric = display_boundaries([word.text for word in caption.words])
+    units = []
+    for index in range(len(caption.words)):
+        if index not in numeric:
+            units.append([])
+        units[-1].append(index)
+    unit_for = {index: unit for unit in units for index in unit}
     # A scheduled 125/30 s start can arrive as 4.166666666666667. Treat
     # numerical dust at a frame boundary as that boundary, not the next frame.
     # Otherwise a 5/6 s Clean cue ending at a cut loses one of its 25 frames.
@@ -98,8 +120,6 @@ def compile_caption(caption, composition, font, data, frame_limit):
         boundaries.update(range(first,min(last,first+math.ceil(.14*composition.fps.numerator/composition.fps.denominator))+1))
     if caption.preset == "box":
         boundaries.update(range(first,min(last,first+math.ceil(.1*composition.fps.numerator/composition.fps.denominator))+1))
-        for start,_ in words[1:]:
-            boundaries.update(range(start,min(last,start+math.ceil(.08*composition.fps.numerator/composition.fps.denominator))+1))
     ordered = sorted(boundaries)
     lines = []
     style = caption.style
@@ -112,14 +132,15 @@ def compile_caption(caption, composition, font, data, frame_limit):
             # round to eight frames at 30 fps and must still keep its highlight.
             next_start = caption.words[active+1].start
             word_end = caption.words[active].end
-            if next_start-word_end >= .25 and a >= words[active][1]:
+            if next_start-word_end >= .25 and a >= words[active][1] and active+1 not in numeric:
                 active = None
         pop = _pop(now-float(frame_time(first,composition.fps))) if caption.preset == "punch" else 1.
+        active_unit = unit_for.get(active, [])
         ink_layers = []
         for slot in geo["slots"]:
             x = geo["anchor_x"] + (slot["x"]-geo["anchor_x"])*pop
             y = geo["baseline"] + (slot["baseline"]-geo["baseline"]-geo["font_ascent"])*pop
-            color = style.color if caption.preset == "box" else style.highlight if active == slot["index"] else style.color
+            color = style.color if caption.preset == "box" else style.highlight if slot["index"] in active_unit else style.color
             tags = (rf"\an7\q2\fn{font}\b100\fs{_n(geo['size']*ass_em_scale(data)*pop)}"
                     rf"\bord{_n(style.outline_width*geo['scale']*pop)}\shad0"
                     rf"\1c{_color(color)}\3c{_color(style.outline_color)}\pos({_n(x)},{_n(y)})")
@@ -130,21 +151,16 @@ def compile_caption(caption, composition, font, data, frame_limit):
             lines.append(_dialogue(start,end,"{"+tags+"}"+escape_ass(slot["text"]),layer=1))
             ink_layers.append((tags, slot["text"]))
         if caption.preset == "box" and active is not None:
-            slot = geo["slots"][active]
-            rect = [slot[k] for k in ("plate_x","plate_y","plate_width","plate_height")]
-            if active > 0:
-                elapsed = now-float(frame_time(words[active][0],composition.fps))
-                ratio = 1-(1-min(1,max(0,elapsed/.08)))**2
-                old = geo["slots"][active-1]
-                rect = [old[k]+(v-old[k])*ratio for k,v in zip(("plate_x","plate_y","plate_width","plate_height"),rect)]
-            x,y,w,h = rect
+            # Timed numeric fragments form one visible unit. Cover all its
+            # slots from the first fragment through the last, including gaps.
+            slots = [slot for slot in geo["slots"] if slot["index"] in active_unit]
             alpha = round(255*(1-style.highlight_box_opacity*min(1,max(0,(now-caption.start)/.1))))
-            plate = ("{"+rf"\an7\bord0\shad0\1c{_color(style.highlight_box_color)}\1a&H{alpha:02X}&\p1\pos({_n(x)},{_n(y)})"+"}"
-                     + _rounded_rectangle(w,h,style.highlight_box_radius*geo["scale"]))
-            lines.append(_dialogue(start,end,plate,layer=0))
-            # Identical glyphs clipped to the moving plate: black inside,
-            # white outside, including during the glide between words.
-            for tags, text in ink_layers:
-                clipped = tags + rf"\1c{_color(style.highlight)}\clip({_n(x)},{_n(y)},{_n(x+w)},{_n(y+h)})"
-                lines.append(_dialogue(start,end,"{"+clipped+"}"+escape_ass(text),layer=2))
+            for x,y,w,h in _plate_rects(slots):
+                plate = ("{"+rf"\an7\bord0\shad0\1c{_color(style.highlight_box_color)}\1a&H{alpha:02X}&\p1\pos({_n(x)},{_n(y)})"+"}"
+                         + _rounded_rectangle(w,h,style.highlight_box_radius*geo["scale"]))
+                lines.append(_dialogue(start,end,plate,layer=0))
+                # Clip independently on each line so other words stay white.
+                for tags, text in ink_layers:
+                    clipped = tags + rf"\1c{_color(style.highlight)}\clip({_n(x)},{_n(y)},{_n(x+w)},{_n(y+h)})"
+                    lines.append(_dialogue(start,end,"{"+clipped+"}"+escape_ass(text),layer=2))
     return lines, {"event_id":caption.id,"start":caption.start,"end":caption.end,**geo}
