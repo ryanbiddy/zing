@@ -31,7 +31,7 @@ def inputs(tmp_path, monkeypatch, zing_workspace):
 def complete(path, inputs):
     a = {"path": path, "project": inputs["project"]}
     supplied = {"reference_kind": "file", "reference": inputs["source"], "clips": inputs["clips"],
-                "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix", "speech_model": "skip"}
+                "photos": inputs["photos"], "source": inputs["source"], "tracks": [inputs["track"]], "topic": "one quick fix", "speech_setup": "skip"}
     while True:
         step = flow.next_step(a)
         if step["status"] == "plan":
@@ -88,7 +88,8 @@ def test_screen_demo_questions_and_execution(path, inputs, monkeypatch):
     assert flow.next_step(a)["question"]["id"]=="footage_kind"
     a["footage_kind"]="screen"
     q=flow.next_step(a)["question"]
-    assert q["id"]=="cursor_log" and q["recommended"]=="none"
+    assert q["id"]=="topic"
+    assert flow.next_step(a)["answers"]["cursor_log"] == "none"
     a.update(cursor_log="none",topic="Local app",platform="YouTube",captions="none",music="original",speech_model="skip")
     assert flow.next_step(a)["status"]=="plan"
     calls=[]
@@ -126,8 +127,8 @@ def test_reference_measures_drive_defaults_and_custom_shape_is_only_extra(inputs
             break
         q = step["question"]
         questions.append(q)
-        a[q["id"]] = "skip" if q["id"] == "speech_model" else q["recommended"]
-    assert [q["id"] for q in questions] == ["platform", "length", "captions", "music", "speech_model"]
+        a[q["id"]] = "skip" if q["id"] == "speech_setup" else q["recommended"]
+    assert [q["id"] for q in questions] == ["platform", "length", "captions", "music", "speech_setup"]
     assert ["9:16" in questions[0]["reason"], "19.7 s" in questions[1]["reason"],
             "No text detected" in questions[2]["reason"], "Music observed" in questions[3]["reason"]] == [True] * 4
     assert all("66 cuts/min" not in q["reason"] for q in questions)
@@ -896,7 +897,7 @@ def test_unknown_reference_duration_asks_before_preview(inputs, monkeypatch, sou
     monkeypatch.setattr(evidence, "collect", lambda *args: pytest.fail("No preview before range choice"))
     source = "https://example.invalid/video.mp4" if source_kind == "url" else inputs["source"]
     step = flow.next_step({"path": "a", "reference": source, "project": inputs["project"]})
-    assert step["question"]["id"] == "reference_range"
+    assert step["question"]["id"] == ("reference_download" if source_kind == "url" else "reference_range")
     assert "duration is unknown" in step["question"]["prompt"]
     assert "reference_range" not in step["answers"]
 

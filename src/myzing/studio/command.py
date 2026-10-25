@@ -204,12 +204,25 @@ def run(argv):
             session.answers.pop("speech_download", None)
             if "speech_download" in session.history:
                 session.history.remove("speech_download")
+        if key == "speech_setup":
+            for derived in ("speech_model", "speech_download"):
+                if derived in session.automatic_answers:
+                    session.answers.pop(derived, None)
+                    session.automatic_answers.pop(derived, None)
         if key == "platform":
             session.answers.pop("aspects", None)
         if key == "reference" and "tone" not in session.history:
             session.answers.pop("tone", None)
-        if key == "reference" and "reference_range" not in session.history and session.answers.get("reference_range") == "all":
-            session.answers.pop("reference_range", None)
+        if key in {"reference", "reference_download"}:
+            for derived in ("reference_range", "allow_download", "length"):
+                if derived in session.automatic_answers:
+                    session.answers.pop(derived, None)
+                    session.automatic_answers.pop(derived, None)
+        if key in {"footage_kind", "reference_range"}:
+            for derived in (("cursor_log", "music", "length", "tone") if key == "footage_kind" else ("length",)):
+                if derived in session.automatic_answers:
+                    session.answers.pop(derived, None)
+                    session.automatic_answers.pop(derived, None)
         session.result = {}
         session.status = "interview"
 
@@ -227,6 +240,9 @@ def run(argv):
                 raise ValueError(f"{args.answers} is not valid JSON ({exc}); write one object keyed by question IDs.") from None
             supplied = flow.normalize_answers(raw_answers)
             if "speech_model" in supplied and supplied["speech_model"] != session.answers.get("speech_model"):
+                session.answers.pop("speech_setup", None)
+                if "speech_setup" in session.history:
+                    session.history.remove("speech_setup")
                 session.answers.pop("speech_download", None)
                 if "speech_download" in session.history:
                     session.history.remove("speech_download")
@@ -235,12 +251,16 @@ def run(argv):
             elif supplied.get("video_bitrate_kbps") is not None:
                 session.answers.pop("target_mb", None)
             session.answers.update(supplied)
+            for key in supplied:
+                session.automatic_answers.pop(key, None)
             session.result = {}
         trim = range_options(args)
         if trim:
             for key in ("ref_start", "ref_end", "reference_range"):
                 session.answers.pop(key, None)
             session.answers.update(trim)
+            for key in ("ref_start", "ref_end", "reference_range"):
+                session.automatic_answers.pop(key, None)
         delivery_values = overrides(args)
         if delivery_values:
             if "target_mb" in delivery_values:
@@ -273,6 +293,7 @@ def run(argv):
                 if raw.strip() == "b":
                     back()
                 continue
+            session.automatic_answers.update({k: v for k, v in step["answers"].items() if k not in session.answers})
             session.answers = step["answers"]
             if step["status"] == "blocked":
                 if args.answers or args.json:
@@ -318,6 +339,7 @@ def run(argv):
                     if q["id"] == "speech_download":
                         value = value if type(value) is bool else str(value).lower() in {"yes", "y"}
                     session.answers[q["id"]] = flow.normalize(q["id"], value)
+                    session.automatic_answers.pop(q["id"], None)
                 except (ValueError, OSError) as exc:
                     print(str(exc))
                     continue

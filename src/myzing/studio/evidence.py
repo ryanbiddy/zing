@@ -4,6 +4,22 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
+import subprocess
+
+
+def cached_probe(path, cache):
+    """One metadata probe per file version in an interview, including failures."""
+    from myzing.project.probe import probe_file
+
+    path = Path(path).resolve()
+    stat = path.stat()
+    key = ("studio_probe", str(path), stat.st_size, stat.st_mtime_ns)
+    if key not in cache:
+        try:
+            cache[key] = (probe_file(path).to_dict(), None)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            cache[key] = ({}, str(exc))
+    return cache[key]
 
 
 def media_files(folder, exclude=None):
@@ -25,8 +41,6 @@ def media_files(folder, exclude=None):
 
 def collect(answers, cache=None):
     """Cache by file stats only within one interview; MCP calls retain no state."""
-    from myzing.project.probe import probe_file
-
     cache = cache if cache is not None else {}
     result = {"measured": [], "unknowns": [], "clips": [], "duration": None,
               "orientations": {}, "audio_streams": 0, "warnings": []}
@@ -67,11 +81,10 @@ def collect(answers, cache=None):
             result["unknowns"].append(f"Saved plan dimensions unavailable: {exc}")
     for path in files:
         try:
-            stat = path.stat()
-            key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
-            if key not in cache:
-                cache[key] = probe_file(path).to_dict()
-            probe = cache[key]
+            probe, error = cached_probe(path, cache)
+            if error is not None:
+                result["unknowns"].append(f"Cannot probe {path.name}: {error}")
+                continue
             if not probe.get("width") or not probe.get("height"):
                 continue
             result["clips"].append({"path": str(path.resolve()), **probe})

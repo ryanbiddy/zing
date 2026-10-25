@@ -25,6 +25,7 @@ KEYS = {"path", "project", "reference_kind", "reference", "reference_query", "al
 DELIVERY_KEYS = {"caption_options", "caption_mode", "picture_crop", "target_mb", "video_bitrate_kbps", "short_side"}
 KEYS |= DELIVERY_KEYS | {"ref_start", "ref_end", "reference_range"}
 KEYS |= {"footage_kind", "cursor_log"}
+KEYS |= {"reference_download", "speech_setup"}
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -119,6 +120,26 @@ def _path(value, key, *, folder=False, exists=True):
 
 
 def normalize(key, value):
+    if key == "speech_setup":
+        from myzing.study import speech_models
+        if not isinstance(value, str):
+            raise ValueError("speech_setup: choose skip, a cached model, or download followed by a listed model.")
+        name = value.removeprefix("download ")
+        normalize("speech_model", name)
+        if value.startswith("download "):
+            if name not in speech_models.MODELS:
+                raise ValueError("Only small.en or large-v2 can be downloaded.")
+        elif name != "skip" and speech_models.local_path(name) is None:
+            raise ValueError(f"Model is not cached; enter download {name} to consent, or skip.")
+        return value
+    if key == "reference_download":
+        if value == "no":
+            return value
+        if not isinstance(value, str) or not value.startswith("yes "):
+            raise ValueError("reference_download: enter no, or yes followed by all or a range (e.g. yes 0:30-1:20).")
+        from myzing.reference_range import parse, validate_length
+        validate_length(*parse(reference_range=value[4:].strip()))
+        return "yes " + value[4:].strip()
     if key in {"ref_start", "ref_end"}:
         from myzing.reference_range import seconds
         return seconds(value)
@@ -192,6 +213,8 @@ def normalize(key, value):
         if type(value) is not bool:
             raise ValueError(f"{key}: enter yes or no.")
     elif key in {"reference_kind", "platform", "tone", "captions", "draft"}:
+        if key == "platform" and isinstance(value, str) and ":" in value:
+            return ",".join(normalize("aspects", value))
         allowed = {"reference_kind": ["file", "url", "uoink"],
                    "platform": ["original", "TikTok/Reels", "YouTube", "square", "all", "custom"],
                    "tone": ["natural", "calm", "energetic"],
@@ -208,6 +231,19 @@ def normalize_answers(answers):
         raise ValueError("answers must be an object using studio question IDs; unknown keys: " +
                          str(sorted(set(answers) - KEYS) if isinstance(answers, dict) else "not an object"))
     result = {key: normalize(key, value) for key, value in answers.items()}
+    if ":" in result.get("platform", ""):
+        result.setdefault("aspects", result["platform"].split(","))
+        result["platform"] = "custom"
+    if "reference_download" in result:
+        choice = result["reference_download"]
+        result.setdefault("allow_download", choice != "no")
+        if choice != "no" and not any(k in result for k in ("ref_start", "ref_end", "reference_range")):
+            result["reference_range"] = choice[4:]
+    if "speech_setup" in result:
+        choice = result["speech_setup"]
+        result.setdefault("speech_model", choice.removeprefix("download "))
+        if choice.startswith("download ") and result["speech_model"] == choice.removeprefix("download "):
+            result.setdefault("speech_download", True)
     from myzing.reference_range import parse
     parse(**{k: result[k] for k in ("ref_start", "ref_end", "reference_range") if k in result})
     from myzing.brief.models import Brief
@@ -231,6 +267,7 @@ def brief_answers(answers):
 def next_step(answers=None, *, cache=None):
     """Return the next question or a reviewable plan. Never assumes consent."""
     a = normalize_answers(answers or {})
+    cache = cache if cache is not None else {}
     # Pre-SCREEN1 saved briefs/API callers already past the topic question
     # retain their general-footage route. New interviews ask before topic.
     if "topic" in a:
@@ -268,14 +305,16 @@ def next_step(answers=None, *, cache=None):
     reference_note, reference_length = None, None
     duration = None
     trim = {k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a}
+    from myzing.reference_range import parse, validate_duration, validate_length
+    start, end = parse(**trim)
+    if path == "a":
+        validate_length(start, end)
     if path == "a" and is_http_url(reference or "") and a.get("allow_download") is False:
         return {"status": "blocked", "error": "Download declined. Go back to use a local reference or save and quit.", "answers": a}
     if reference and "://" not in reference and not reference.startswith("uoink:"):
-        from myzing.project.probe import probe_file
-        from myzing.reference_range import parse, validate_duration
-        parse(**trim)
         try:
-            duration = probe_file(Path(reference)).to_dict().get("duration")
+            probe, _ = evidence.cached_probe(reference, cache)
+            duration = probe.get("duration")
         except (OSError, ValueError, RuntimeError):
             duration = None  # existing unreadable-file diagnostics below
         if duration is not None and (not math.isfinite(duration) or duration <= 0):
@@ -286,16 +325,22 @@ def next_step(answers=None, *, cache=None):
                      "warnings": [], "unknowns": [] if duration else ["Reference duration is unknown."]}
             prompt = (f"Reference is {duration:g}s; the supported limit is 60s. Which part should I use (e.g. 0:30-1:20)?"
                       if duration else "Reference duration is unknown. Which part should I use (all, or e.g. 0:30-1:20)?")
+            if is_http_url(reference) and "allow_download" not in a:
+                q = question("reference_download",
+                             "Reference duration is unknown. Allow downloading this URL, and which part? Enter no, yes all, or yes 0:30-1:20.",
+                             "no", "Only yes authorizes this reference download. Choose at most 60s; no model downloads are authorized.",
+                             facts, required=True)
+                return {"status": "question", "question": q.to_dict(), "answers": a}
             q = question("reference_range", prompt, None if duration else "all",
                          "Choose a range before any study. The selected reference must be at most 60s.", facts, required=True)
             return {"status": "question", "question": q.to_dict(), "answers": a}
         a["reference_range"] = "all"
         reference_note = f"Reference is {duration:g}s (within 60s); using all of it."
-        if cache and cache.get("progress"):
+        if cache.get("progress"):
             cache["progress"](reference_note)
     if reference and duration is not None:
         start, end = validate_duration(duration, **trim, limit=60 if path == "a" else None)
-        if path == "a" and duration > 60:
+        if path == "a" and (duration > 60 or end - start < duration):
             # Choosing the reference interval also supplies the default edit
             # length, keeping the long-reference interview within ten questions.
             reference_length = min(60, max(1, round(end - start)))
@@ -303,9 +348,14 @@ def next_step(answers=None, *, cache=None):
                               f"{a.get('length', reference_length):g}s (change length in answers to override).")
         elif path == "a" and a.get("reference_range") == "all":
             reference_note = f"Reference is {duration:g}s (within 60s); using all of it."
+    if path == "a" and reference and duration is None:
+        reference_length = min(60, max(1, round(end - (start or 0)))) if end is not None else 15
+        reference_note = (f"Reference duration is unknown; edit length defaults to {reference_length:g}s "
+                          "from the requested range." if end is not None else
+                          "Reference duration is unknown; edit length defaults to 15s. Change length in answers to override.")
     facts = evidence.collect(a, cache)
     if reference_note:
-        facts["measured"].append(reference_note)
+        facts["measured" if duration is not None else "unknowns"].append(reference_note)
     queue = []
 
     def ask(key, prompt, default, why, choices=(), required=False):
@@ -359,8 +409,18 @@ def next_step(answers=None, *, cache=None):
             "Choose screen for smooth zooms, pans and idle speed-up. Pixel probes alone cannot reliably identify an app demo.",
             {"general": "General footage", "screen": "Screen recordings: recommend the screen-demo plan"})
         if a.get("footage_kind") == "screen":
-            ask("cursor_log", "Optional cursor JSONL for this recording, or none?", "none",
-                "A log gives stronger zoom evidence. Without it, screen-demo follows UI changes at lower confidence. One log requires one source video.")
+            logs = sorted(root.glob("*.jsonl")) if root.is_dir() else []
+            if logs:
+                ask("cursor_log", "Optional cursor JSONL for this recording, or none?", "none",
+                    "A log gives stronger zoom evidence. Without it, screen-demo follows UI changes at lower confidence. One log requires one source video.")
+            else:
+                a.setdefault("cursor_log", "none")
+                if a["cursor_log"] == "none":
+                    note = "No cursor log found in the project; using UI changes at lower confidence. Supply cursor_log in answers to override."
+                    facts["warnings"].append(note)
+                    if not cache.get("cursor_note") and cache.get("progress"):
+                        cache["progress"](note)
+                        cache["cursor_note"] = True
     if path == "c":
         ask("photos", "Which folder holds your photos?", None,
             "Photo content is unknown; use a local folder of JPEG, PNG, WebP, BMP or TIFF files.", required=True)
@@ -389,8 +449,8 @@ def next_step(answers=None, *, cache=None):
             why = (f"Your reference is {reference['aspect']}. Keep its shape unless your destination needs another."
                    if reference["aspect"] == shape or shape is None else
                    f"Your reference is {reference['aspect']} ({orientation}); keeping its shape delivers {shape}. Change it if your destination needs another.")
-        ask("platform", "Where will this go?", default_platform, why,
-            {"TikTok/Reels": "TikTok / Reels (9:16)", "YouTube": "YouTube (16:9)", "square": "Feed (1:1)", "all": "All three shapes", "original": "Keep source / reference shape", "custom": "Custom shapes"})
+        ask("platform", "Where will this go? For custom shapes, type e.g. 16:9,1:1.", default_platform, why,
+            {"TikTok/Reels": "TikTok / Reels (9:16)", "YouTube": "YouTube (16:9)", "square": "Feed (1:1)", "all": "All three shapes", "original": "Keep source / reference shape"})
         aspect = {"portrait": "9:16", "landscape": "16:9", "square": "1:1"}.get(orientation, "1:1" if path == "c" else "16:9")
         selected = {"TikTok/Reels": ["9:16"], "YouTube": ["16:9"], "square": ["1:1"], "all": ASPECTS}.get(a.get("platform"), [aspect])
         if a.get("platform") == "custom":
@@ -427,6 +487,9 @@ def next_step(answers=None, *, cache=None):
             "Keep the measured audio streams; supplied tracks will be rated and ducked only under known speech."
             if facts["audio_streams"] else "No source audio was measured; supply a local track if you want added music.",
             {"original": "Keep my clips' audio", "none": "No music bed (keep speech)"})
+        if a.get("footage_kind") == "screen":
+            a.setdefault("music", "original")
+            facts["warnings"].append("Screen demos keep source audio; added music is not applied.")
         if ref.get("duration"):
             for q in queue:
                 if q.id == "captions":
@@ -452,8 +515,14 @@ def next_step(answers=None, *, cache=None):
         from myzing.study import speech_models
         if facts.get("audio_streams"):
             recommended, reason = speech_models.recommendation()
-            ask("speech_model", "Speech setup: to keep spoken lines whole and place captions, choose a local speech model.",
-                recommended, reason, speech_models.choices(), required=True)
+            if "speech_model" not in a:
+                choices = {name if name == "skip" or speech_models.local_path(name) else "download " + name:
+                           label if name == "skip" or speech_models.local_path(name) else "Download and SHA-256 verify: " + label
+                           for name, label in speech_models.choices().items()}
+                ask("speech_setup", "Speech setup: to keep spoken lines whole and place captions, choose a cached model or explicitly download one.",
+                    recommended if recommended in choices else "skip",
+                    reason + " Choosing a download option explicitly consents to that model. Enter never authorizes a download.",
+                    choices, required=True)
         # A supplied model is used (reference and output studies) even when no
         # clip has audio, so its download needs the same consent before the plan.
         chosen = a.get("speech_model")
