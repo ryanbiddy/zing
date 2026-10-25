@@ -1884,7 +1884,7 @@ def build_server():
     h_zing_studio_run.__annotations__["cancel"] = StrictBool
     mcp.tool(
         name="zing_studio_run",
-        description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For c/e reuse still_concepts/still_render and music_check. Speech downloads require speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
+        description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For c/e reuse still_concepts/still_render and music_check. Speech downloads require an explicit speech_setup download choice or speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
     )(h_zing_studio_run)
     mcp.tool(
         name="brief_questions",

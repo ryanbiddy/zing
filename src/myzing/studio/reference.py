@@ -100,7 +100,7 @@ def _worker(source, workspace, ref_start=None, ref_end=None, reference_range=Non
         raise ValueError("Reference has no video stream")
     from myzing.reference_range import validate_duration
     source_duration = probe.get("duration") or 0
-    start, end = validate_duration(source_duration, ref_start, ref_end, reference_range, limit=None)
+    start, end = validate_duration(source_duration, ref_start, ref_end, reference_range)
     duration = end-start
     w, h = probe.get("width"), probe.get("height")
     if not w or not h or not duration:

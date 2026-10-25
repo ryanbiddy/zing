@@ -28,12 +28,13 @@ Answer the interview:
 
 1. Choose **2**, edit clips without a reference.
 2. For clips, paste `zing-workspace/first-draft/clips`.
-3. For the topic, enter **A first test with moving shapes**.
-4. Choose **YouTube** for landscape delivery.
-5. Set the length to **6** seconds.
-6. Choose **natural** for tone.
-7. Choose **none** for captions and **none** for added music.
-8. Read the plan, check that downloads says **none**, then type **yes**.
+3. Choose **general** footage.
+4. For the topic, enter **A first test with moving shapes**.
+5. Choose **YouTube** for landscape delivery.
+6. Set the length to **6** seconds.
+7. Choose **natural** for tone.
+8. Choose **none** for captions and **none** for added music.
+9. Read the plan, check that downloads says **none**, then type **yes**.
 
 The finish screen lists the draft paths and a recommendation with its reason.
 Open a listed MP4 in your video player. These test shapes are only a rendering
@@ -42,8 +43,9 @@ folder to find the saved plan, reports and `studio-result.json`. Missing
 measurements and failed drafts remain visible.
 
 Next, start a new Studio session with your own clips and choose **1** to use a
-reference video. Speech clips add a model choice and a separate download
-confirmation. Review names, caption timing and framing before sharing a draft.
+reference video. Speech clips add one model question: choose a cached model,
+skip speech, or explicitly choose a download option. Enter never authorizes a
+model download. Review names, caption timing and framing before sharing a draft.
 For help, see [Troubleshooting](TROUBLESHOOTING.md) and [Privacy](PRIVACY.md).
 
 ```powershell
@@ -82,7 +84,23 @@ that answer, and displays a short note without asking. Explicit trim flags or
 MCP fields still take precedence. When a long local reference needs a trim,
 the selected interval also supplies the default edit length, rounded to whole
 seconds within 1–60; an explicit `length` answer overrides it. This keeps the
-standard local reference interview within ten questions.
+reference interview within ten questions, including speech setup.
+
+For a URL, range and download consent share a question: enter `yes 0:30-1:20`,
+`yes all`, or `no`. A requested interval over 60 seconds is rejected even when
+the source duration is unknown. A bounded interval supplies the default edit
+length; `all` with unknown duration uses a disclosed 15-second target. The
+downloaded reference still has to pass the duration check before study.
+
+Local metadata is cached by resolved path, size and modification time within
+the terminal interview. Failed or timed-out probes leave duration unknown.
+Going back removes an automatically recorded `all`, but preserves an explicit
+CLI or MCP range, including after resume.
+
+For screen footage, Studio uses `cursor_log: "none"` with a note when the project
+contains no JSONL log. Supply a log path in answers to override it. Screen demos
+keep source audio; their planner does not apply added music. Custom delivery
+shapes can be entered in the destination answer, for example `16:9,1:1`.
 
 These PowerShell examples select the same 50-second interval. Replace
 `reference.mp4` and `clips` with your local paths. The Studio command continues
@@ -337,7 +355,10 @@ Example `answers.json` for a reference match:
 }
 ```
 
-For audio clips, `--answers` and `--json` require an explicit `speech_model`.
+For audio clips, `--answers` and `--json` require a speech choice. The combined
+`speech_setup` question accepts `skip`, a cached model name, or an explicit
+`download small.en` / `download large-v2` choice. It expands into `speech_model`
+and, for downloads, `speech_download: true`. Existing separate fields also work.
 Use `speech_download: true` only after approving that model's download; it must
 be a JSON boolean. `--yes` confirms the plan and grants no download consent.
 For `speech_model: "skip"` or a cached model, omit `speech_download`. A supplied
@@ -429,8 +450,9 @@ directory, which clients often set to a system folder.
 After confirmation, follow the plan's `execution` metadata. Paths a, b, d and f
 use `zing_studio_run(answers=..., confirmed=true)`. `confirmed` must be a real JSON
 boolean: strings and numbers are refused. Model downloads also need the explicit
-`speech_model` answer and `speech_download: true`; plan confirmation alone never
-authorizes them. The worker delegates reference edits to the existing match API.
+`speech_model` answer and `speech_download: true`, or an explicit combined
+`speech_setup` download choice; plan confirmation alone never authorizes them.
+The worker delegates reference edits to the existing match API.
 Paths c/e reuse `still_concepts` / `still_render` and `music_check`.
 
 Poll with `zing_studio_run(project=...)`; `cancel=true` stops an owned job. The
