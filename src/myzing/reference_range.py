@@ -75,11 +75,17 @@ def validate_duration(duration, ref_start=None, ref_end=None, reference_range=No
         raise ValueError("Reference duration is unknown; supply a readable video before study.")
     if start >= duration or end > duration + 1e-6:
         raise ValueError(f"Reference range is outside the {duration:g}s video.")
-    if limit is not None and end - start > limit + 1e-6:
+    validate_length(start, end, limit=limit)
+    return start, end
+
+
+def validate_length(start, end, *, limit=LIMIT_SECONDS):
+    """Reject an oversized requested interval even before source metadata exists."""
+    if end is not None and limit is not None and end - (start or 0) > limit + 1e-6:
+        start = start or 0
         raise ValueError(f"Reference is {end-start:g}s; the supported limit is {limit:g}s. "
                          "Choose a trim before study, e.g. --ref-start 0:30 --ref-end 1:20 "
                          "or --reference-range 0:30-1:20.")
-    return start, end
 
 
 @dataclass

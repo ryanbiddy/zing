@@ -164,6 +164,9 @@ to v2 compositions; standalone treatment artifacts still need explicit planning.
 Core Zing is stdlib-only. FFmpeg/ffprobe are external binaries; install a build
 with libx264 and libass. In a checkout, `uv sync --all-extras` installs all Python
 extras below. To select features, use e.g. `uv sync --extra memes --extra render`.
+`uv sync` makes the environment match exactly what you name, so a later plain
+`uv sync` (or `uv sync --frozen`) removes every extra, including yt-dlp and the
+study models. Repeat `--all-extras` or your `--extra` list each time.
 
 | Extra | Enables |
 |---|---|

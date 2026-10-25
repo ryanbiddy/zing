@@ -36,6 +36,7 @@ class Session(Record):
     questions_asked: int = 0
     status: str = "interview"
     result: dict = field(default_factory=dict)
+    automatic_answers: dict = field(default_factory=dict)
     version: int = 1
 
     def __post_init__(self):
