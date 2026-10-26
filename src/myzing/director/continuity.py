@@ -11,21 +11,25 @@ from dataclasses import dataclass
 from myzing.contracts import Record
 
 PAUSE_SECONDS = .6
+MAX_CLAUSE_SECONDS = 20.
+MAX_CLAUSE_SENTENCES = 3
 TAILS = set("a an the to of for with from in on at by and or but because if when where whose which that already is are was were produced".split())
 PRONOUNS = set("we you i he she they it".split())
 DEPENDENT = set("because although unless whereas while if when since".split())
+DEPENDENT_OPENERS = DEPENDENT | {"and", "but", "so", "which", "with", "just"}
 
 
 def lex(text):
     return re.findall(r"[\w]+(?:['’][\w]+)*", text.casefold())
 
 
-def dangling(text):
+def dangling(text, *, check_opening=True):
+    """Check editorial hazards; closure can check the ending independently."""
     parts = lex(text)
     terminal = bool(re.search(r"[.!?;][\"'’)]*$", text)) and not text.endswith("...")
     return (not parts or parts[-1] in TAILS or (parts[-1] in PRONOUNS and not terminal)
-            or (parts[0] in DEPENDENT and ("," not in text or not lex(text.rsplit(",", 1)[1])))
-            or parts[0] in {"and", "but", "which", "with"} or text.endswith("...")
+            or (check_opening and parts[0] in DEPENDENT and ("," not in text or not lex(text.rsplit(",", 1)[1])))
+            or (check_opening and parts[0] in {"and", "but", "which", "with"}) or text.endswith("...")
             or (len(parts) == 1 and text.rstrip().endswith(",") and parts[0] not in {"hello", "yes", "no", "thanks"}))
 
 
@@ -40,25 +44,55 @@ class Clause(Record):
 
 
 def clauses(words):
-    """Split at terminal punctuation or >=600 ms silence, never inside a word.
+    """Close thoughts independently of their opening, then attach context.
 
-    Commas only split when followed by a pause >=300 ms and the prefix is
-    independent. A dependent prefix stays attached to the next clause. A
-    truncated final clause remains visible as incomplete, never certified.
+    Dependent openings join the previous complete clause across short gaps,
+    up to three boundary units (at most three sentences) and 20 seconds.
+    Terminal punctuation always closes a unit; >=600 ms pauses close units
+    with clean endings. Commas need >=300 ms and an independent prefix.
+    Unbroken speech is capped at whole-word boundaries before 20 seconds;
+    both pieces of a forced split remain incomplete through the next natural
+    boundary. A single word is indivisible even if its timing exceeds the cap.
     """
-    result, group = [], []
+    units, group = [], []
+    fragment = False
     for i, word in enumerate(words):
+        if group and word.end - group[0].start > MAX_CLAUSE_SECONDS:
+            units.append(Clause(group[0].start, group[-1].end,
+                                " ".join(w.text.strip() for w in group), "limit", False))
+            group = []
+            fragment = True
         group.append(word)
         text = " ".join(w.text.strip() for w in group)
         gap = words[i + 1].start - word.end if i + 1 < len(words) else 0
-        terminal = bool(re.search(r"[.!?;][\"'’)]*$", word.text))
+        terminal = bool(re.search(r"[.!?;][\"'’)]*$", word.text.strip())) and not text.endswith("...")
         comma = bool(re.search(r",[\"'’)]*$", word.text)) and gap >= .3
-        continuation = i + 1 < len(words) and lex(words[i + 1].text)[:1] in (["which"], ["just"], ["because"])
-        reason = "punctuation" if terminal or comma else "pause" if gap >= PAUSE_SECONDS else "source_end"
-        if i + 1 == len(words) or ((terminal or comma or gap >= PAUSE_SECONDS) and not dangling(text) and not continuation):
-            complete = not dangling(text) and (terminal or comma or gap >= PAUSE_SECONDS)
-            result.append(Clause(group[0].start, group[-1].end, text, reason, complete))
+        clean_end = not dangling(text, check_opening=False)
+        comma_boundary = comma and not dangling(text)
+        pause_boundary = gap >= PAUSE_SECONDS and clean_end and (not comma or comma_boundary)
+        boundary = terminal or comma_boundary or pause_boundary
+        if i + 1 == len(words) or boundary:
+            reason = "punctuation" if terminal or comma else "pause" if gap >= PAUSE_SECONDS else "source_end"
+            complete = clean_end and boundary and not fragment
+            units.append(Clause(group[0].start, group[-1].end, text, reason, complete))
             group = []
+            fragment = False
+
+    result, count = [], 0
+    for unit in units:
+        opening = lex(unit.text)[:1]
+        if (result and opening and opening[0] in DEPENDENT_OPENERS
+                and result[-1].complete and unit.complete
+                and unit.start - result[-1].end < PAUSE_SECONDS
+                and count < MAX_CLAUSE_SENTENCES
+                and unit.end - result[-1].start <= MAX_CLAUSE_SECONDS):
+            previous = result[-1]
+            result[-1] = Clause(previous.start, unit.end, previous.text + " " + unit.text,
+                                unit.boundary, True)
+            count += 1
+        else:
+            result.append(unit)
+            count = 1
     return result
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from myzing.director.asr_repair import repair_words
-from myzing.director.continuity import Clause, clauses, dangling, score
+from myzing.director.continuity import Clause, clauses, dangling, expand_clauses, score
 from myzing.director.inventory import inventory
 from myzing.director.models import ClipStudy
 from myzing.director.selection import Candidate, shot_lengths
@@ -39,6 +39,75 @@ def test_pause_only_boundary_and_dependent_prefix_stays_attached():
 def test_object_pronoun_is_complete_but_unfinished_pronoun_is_not():
     assert not dangling("Ask an older person to help you.")
     assert dangling("Know where you")
+
+
+@pytest.mark.parametrize("pause", [.3, .8])
+def test_dependent_comma_prefix_keeps_its_continuation(pause):
+    prefix = words("When danger comes,")
+    w = prefix + words("stay calm.", start=prefix[-1].end + pause)
+    result = clauses(w)
+    assert [(c.text, c.complete) for c in result] == [("When danger comes, stay calm.", True)]
+
+
+def test_conversational_opener_attaches_without_swallowing_later_sentences():
+    result = clauses(words("I applied twice. And they called me. Then I flew."))
+    assert [(c.text, c.complete) for c in result] == [
+        ("I applied twice. And they called me.", True), ("Then I flew.", True)]
+
+
+@pytest.mark.parametrize("opener", ["And", "But", "So", "which", "with", "Because", "When"])
+def test_dependent_opener_can_close_at_terminal_or_pause(opener):
+    for punctuation in (".", ""):
+        w = words(f"{opener} they called me{punctuation}") + words("Then I flew.", start=2)
+        result = clauses(w)
+        assert len(result) == 2 and all(c.complete for c in result)
+        assert result[0].boundary == ("punctuation" if punctuation else "pause")
+
+
+def test_repeated_dependent_sentences_have_bounded_attachment():
+    w = words(" ".join("And they called me." for _ in range(600)))
+    result = clauses(w)
+    assert len(result) == 200
+    assert all(c.complete and c.text.count(".") == 3 for c in result)
+    assert max(c.end - c.start for c in result) < 2.4
+    assert " ".join(c.text for c in result) == " ".join(word.text for word in w)
+
+
+def test_alternating_conversational_sentences_keep_expansion_local():
+    sentences = ["I applied twice." if i % 2 == 0 else
+                 f"{('And', 'But', 'So')[(i // 2) % 3]} they called me." for i in range(600)]
+    w = words(" ".join(sentences))
+    result = clauses(w)
+    assert len(result) == 300 and all(c.complete for c in result)
+    assert max(c.end - c.start for c in result) < 1.4
+    middle = result[150]
+    assert expand_clauses((middle.start + .3, middle.end - .3), w) == (middle.start, middle.end)
+
+
+def test_attachment_respects_duration_limit():
+    w = words("We arrived safely. And they called me. But I stayed home.", step=2)
+    # Slow continuous speech: no pause, two sentences fit but three exceed 20s.
+    for word in w:
+        word.end = word.start + 2
+    result = clauses(w)
+    assert [c.text for c in result] == ["We arrived safely. And they called me.", "But I stayed home."]
+    assert all(c.complete and c.end - c.start <= 20 for c in result)
+
+
+def test_unpunctuated_run_is_bounded_and_forced_fragments_stay_incomplete():
+    w = words("And " + "talking " * 500 + "finished. Then I flew.")
+    result = clauses(w)
+    assert len(result) > 5
+    assert all(c.end - c.start <= 20 for c in result)
+    assert all(not c.complete for c in result[:-1])
+    assert all(c.boundary == "limit" for c in result[:-2])
+    assert result[-1].text == "Then I flew." and result[-1].complete
+    assert " ".join(c.text for c in result) == " ".join(word.text for word in w)
+
+
+def test_incomplete_sentence_does_not_swallow_a_later_complete_thought():
+    result = clauses(words("We went to. Then I flew."))
+    assert [(c.text, c.complete) for c in result] == [("We went to.", False), ("Then I flew.", True)]
 
 
 @pytest.mark.parametrize("bad", [(1., 1.), (1.2, .9), (-1., 1.), (float("nan"), 1.)])
