@@ -191,8 +191,9 @@ def audio_duration_notes(audio_seconds: float, video_seconds: float) -> list[str
     materially incomplete maps.
     """
     drift = abs(audio_seconds - video_seconds)
+    drift_text = (f"is more than 0.250s ({drift:.9f}s)" if drift > .25 + 1e-8 else f"{drift:.3f}s")
     detail = (f"audio {audio_seconds:.3f}s, video {video_seconds:.3f}s; "
-              f"measured drift {drift:.3f}s")
+              f"measured drift {drift_text}")
     if drift > .25 + 1e-8:
         raise ValueError(f"audio-map duration mismatch ({detail}) exceeds 0.250s tolerance")
     if drift <= 1e-8:

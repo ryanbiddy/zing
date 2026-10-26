@@ -247,5 +247,171 @@ def test_first_line_heuristics_and_repaired_evidence_are_disclosed():
     assert all(r["start"] >= 1.2 for r in suggest_moments(clip))
 
 
+@pytest.mark.parametrize("kept,full", [([(1., 2.), (2698., 2699.)], True),
+                                      ([(400., 402.), (2300., 2302.)], False)])
+def test_distant_keeps_report_actual_scope_and_capacity_remedy(kept, full):
+    clip = interview()
+    windows = {}
+    with pytest.raises(PlanningShortage) as caught:
+        candidates([clip], {clip.asset_id: kept}, {}, style(), 22, search_windows=windows)
+    failure = caught.value.shortage
+    assert failure.code == "planner_capacity"
+    assert "2400" in failure.missing
+    assert "Move or drop a must-keep" in failure.remedy and "split the job" in failure.remedy
+    window = windows[clip.asset_id]
+    assert "all your must-keep moments, including the time between them" in window["text"]
+    if full:
+        assert (window["start"], window["end"]) == (0., 2700.)
+        assert "full clip (0:00.000-45:00.000)" in window["text"]
+        assert "did not narrow" in window["text"]
+        assert "whole interview was not searched" not in window["text"]
+    else:
+        assert 0 < window["start"] < kept[0][0] < kept[-1][1] < window["end"] < clip.duration
+        assert "in one window" in window["text"]
+        assert "whole interview was not searched" in window["text"]
+
+
+@pytest.mark.parametrize("edge", ["start", "end"])
+def test_focus_clamps_one_edge_and_remains_plannable(edge):
+    clip = interview()
+    clause = clauses(clip.words)[0 if edge == "start" else -1]
+    keep = {clip.asset_id: [(clause.start, clause.end)]}
+    windows = {}
+    pool, required = candidates([clip], keep, {}, style(), 22, search_windows=windows)
+    window = windows[clip.asset_id]
+    assert window["start"] == 0 if edge == "start" else window["end"] == clip.duration
+    assert window["end"] - window["start"] < 70
+    assert "your must-keep moment;" in window["text"]
+    assert "full clip" not in window["text"]
+    assert all(window["start"] <= c.start < c.end <= window["end"] for c in pool)
+    assert choose(pool, required, [clip], style(), 22, 30, 0)
+
+
+def even_speech():
+    # Binary-exact timestamps and identical clauses make equal-score ties real.
+    return ClipStudy("take-0", "interview.mp4", "a" * 64, 18., "ready",
+                     words=[Word("Hello." if i % 4 == 3 else "hello", i / 2 + .125, i / 2 + .375)
+                            for i in range(36)], shots=[Shot(0, 0., 18.)])
+
+
+@pytest.mark.parametrize("gap", [0., .2])
+def test_moment_shot_coverage_and_constraint_planning(gap):
+    from types import SimpleNamespace
+    from myzing.director.selection import subtract
+    clip = even_speech()
+    clip.shots = [Shot(0, 0., 4.), Shot(1, 4. + gap, 18.)]
+    rows = suggest_moments(clip, target=6, top=3)
+    assert rows
+    assert rows[0]["start"] == (.125 if gap == 0 else 6.125)
+    if gap == 0:
+        assert rows[0]["start"] < 4. < rows[0]["end"]
+    manifest = SimpleNamespace(assets=[SimpleNamespace(id=clip.asset_id, path=clip.path,
+                                                       original_path=clip.path, previous_paths=[])])
+    for row in rows:
+        assert not subtract([(row["start"], row["end"])], [(s.start, s.end) for s in clip.shots])
+        keep, forbidden = constraints(Brief(must_keep=row["must_keep"]), manifest, [clip])
+        pool, required = candidates([clip], keep, forbidden, style(), 6)
+        assert choose(pool, required, [clip], style(), 6, 30, 0)
+
+
+def test_equal_score_moments_use_source_order():
+    rows = suggest_moments(even_speech(), target=6, top=3)
+    assert len(rows) == 3 and len({r["score"] for r in rows}) == 1
+    assert [r["start"] for r in rows] == [.125, 6.125, 12.125]
+
+
+@pytest.mark.parametrize("kind", ["static_slate", "no_transcript", "very_short"])
+def test_no_moments_without_sufficient_observed_speech(kind):
+    clip = even_speech()
+    if kind == "very_short":
+        clip.duration, clip.words, clip.shots = .5, [Word("Hello.", .1, .4)], [Shot(0, 0., .5)]
+    else:
+        clip.words = []
+        clip.shots = [Shot(0, 0., 18.)] if kind == "static_slate" else [Shot(0, 0., 9.), Shot(1, 9., 18.)]
+    assert suggest_moments(clip) == []
+
+
+@pytest.mark.parametrize("external", [False, True])
+@pytest.mark.parametrize("source_kind", ["media", "study"])
+def test_moments_cli_inventory_constraint_roundtrip(tmp_path, zing_workspace, capsys, external, source_kind):
+    from tools.plan_examples import example_project, write_json
+    from myzing.cli import main
+    from myzing.director.inventory import inventory
+    from myzing.project.api import load_project
+    root, _, _ = example_project(tmp_path / "project")
+    media = root / "clips/take-0.mp4"
+    study = root / "breakdowns/take-0/breakdown.json"
+    if external:
+        external_dir = tmp_path / "external-clips"
+        external_dir.mkdir()
+        outside = external_dir / media.name
+        outside.write_bytes(media.read_bytes())
+        manifest = json.loads((root / "project.json").read_text())
+        manifest["assets"][0].update(path=str(outside), original_path=str(outside),
+                                     mtime_ns=outside.stat().st_mtime_ns)
+        write_json(root / "project.json", manifest)
+        data = json.loads(study.read_text())
+        data["meta"].update(source_url=str(outside), media_path=str(outside))
+        write_json(study, data)
+        media = outside
+    source = media if source_kind == "media" else study
+    assert main(["moments", str(source), "--workspace", str(root), "--target", "6", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["ok"] and data["suggestions"]
+    clips, _ = inventory(root)
+    for row in data["suggestions"]:
+        assert row["must_keep"][0]["clip"] == "take-0"
+        brief = Brief.from_dict({**Brief(target_length_seconds=6).to_dict(), "must_keep": row["must_keep"]})
+        keep, forbidden = constraints(brief, load_project(root), clips)
+        assert keep["take-0"] == [(row["start"], row["end"])]
+        pool, required = candidates(clips, keep, forbidden, style(), 6)
+        assert choose(pool, required, clips, style(), 6, 30, 0)
+
+
+@pytest.mark.parametrize("direction", [-1, 1])
+def test_audio_drift_exact_boundary_and_just_over(direction):
+    from myzing.director.inventory import audio_duration_notes
+    assert "accepted" in audio_duration_notes(120 + direction * .25, 120)[0]
+    with pytest.raises(ValueError, match="measured drift is more than 0.250s"):
+        audio_duration_notes(120 + direction * .25001, 120)
+
+
+@pytest.mark.parametrize("speech_elsewhere", [False, True])
+def test_silent_single_shot_selection_warns_in_plan_and_report(tmp_path, zing_workspace, monkeypatch, speech_elsewhere):
+    from tools.plan_examples import example_project, write_json
+    from myzing.director.api import plan_drafts
+    from myzing.director.plans import REPORT_PREFIX
+    from myzing.composition import Composition
+    from myzing.layout import framing
+    root, _, _ = example_project(tmp_path / "project")
+    manifest = json.loads((root / "project.json").read_text())
+    manifest["assets"] = manifest["assets"][:1]
+    manifest["assets"][0]["probe"]["duration"] = 40.
+    write_json(root / "project.json", manifest)
+    study = root / "breakdowns/take-0/breakdown.json"
+    data = json.loads(study.read_text())
+    data["meta"]["duration"] = 40.
+    data["shots"] = [Shot(0, 0., 40.).__dict__]
+    data["words"] = [Word("Hello.", 35., 36.).__dict__] if speech_elsewhere else []
+    if not speech_elsewhere:
+        data["provenance"]["vad"] = {"method": "synthetic measured silence"}
+        data["audio"]["speech_ratio"] = 0.
+    write_json(study, data)
+    brief = Brief(target_length_seconds=30, caption_mode="none", picture_crop="off",
+                  must_keep=[{"clip": "take-0", "start": 0., "end": 30.}])
+    write_json(root / "brief.json", brief.to_dict())
+    monkeypatch.setattr(framing, "analyze_subjects", lambda *a, **k: ([], []))
+    result = plan_drafts(root, root / "recipe.json", root / "plans")
+    comparison = json.loads(Path(result["comparison_path"]).read_text())
+    assert result["status"] == "ready", comparison["shortages"]
+    for label, path in result["plans"].items():
+        plan = Composition.from_json(Path(path).read_text())
+        warning = next(w for w in plan.warnings if "may be a static title slate" in w)
+        assert "no transcribed speech and one observed shot" in warning
+        assert warning in comparison["plans"][label]["warnings"]
+        evidence = json.loads(next(w[len(REPORT_PREFIX):] for w in plan.warnings if w.startswith(REPORT_PREFIX)))
+        assert warning in evidence["warnings"]
+
+
 # Reuse the real MCP stdio fixture; the registry and schema travel over the wire.
 from test_mcp_stdio import client

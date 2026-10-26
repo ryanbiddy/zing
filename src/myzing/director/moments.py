@@ -1,7 +1,7 @@
 """Deterministic transcript suggestions. Scores are editorial estimates, not facts.
 
 For each complete clause start, keep the closest complete-clause ending in
-0.65..1.0 times target. Reject measured dead air, >=600 ms word gaps,
+0.65..1.0 times target. Require full observed-shot coverage. Reject measured dead air, >=600 ms word gaps,
 quarantine and forbidden spans. Rank by 50% timed speech density, 30% length
 fit, 10% opening cues, 5% keeper coverage and 5% measured shot coverage.
 Opening cues are question punctuation, a numeric token and contrast wording;
@@ -26,7 +26,7 @@ from .models import ClipStudy
 
 
 def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
-    from .selection import merge, overlaps
+    from .selection import merge, overlaps, subtract
     if not finite(target) or not 0 < target <= 60:
         raise ValueError("target must be finite seconds greater than 0 and at most 60")
     if type(top) is not int or not 1 <= top <= 100:
@@ -56,6 +56,8 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
             if not candidate.complete or candidate.end - first.start > target + 1e-8:
                 break
             span = (first.start, candidate.end)
+            if subtract([span], shots):
+                break  # Same observed-shot coverage rule as selection.add.
             if any(overlaps(span, b) or (b[0] == b[1] and span[0] < b[0] < span[1]) for b in blocked):
                 break
             last = candidate
@@ -126,9 +128,24 @@ def load_clip(source: str) -> ClipStudy:
     if not original.is_absolute():
         original = study.parent / b.meta.media_path
     selector = str(original.resolve())
+    # Match's inventory stores in-project paths relative to the project root.
+    # Emit its stable ID so the copied constraint resolves exactly in either
+    # an in-project or external clips folder. Standalone studies keep the path.
+    from myzing.project.api import load_project, resolve_path
+    roots = [storage.workspace_root().resolve(), *study.parents]
+    root = next((r for r in roots if (r / "project.json").is_file()), None)
+    asset_id = selector
+    if root is not None:
+        manifest = load_project(root)
+        assets = [a for a in manifest.assets if any(
+            resolve_path(p, root) == original.resolve()
+            for p in [a.path, a.original_path, *a.previous_paths])]
+        if len(assets) != 1:
+            raise ValueError("Study source does not resolve to one project video; run zing project scan or use the matching --workspace.")
+        asset_id = assets[0].id
     words, repair = repair_words(b.words, b.meta.duration)
     raw = b.provenance.get("raw_mode", {})
-    clip = ClipStudy(selector, selector, b.provenance.get("source_sha256", ""), b.meta.duration, "ready",
+    clip = ClipStudy(asset_id, selector, b.provenance.get("source_sha256", ""), b.meta.duration, "ready",
                      study_path=str(study), words=words, shots=planning_shots(b),
                      keepers=_intervals(raw.get("keepers", []), b.meta.duration, "keepers"),
                      dead_air=_intervals(raw.get("dead_air", []), b.meta.duration, "dead air"),
@@ -156,7 +173,7 @@ def moments(source: str, *, target=22., top=3):
     return {"version": 1, "source": clip.path, "study_path": clip.study_path,
             "target": target, "suggestions": suggest_moments(clip, target=target, top=top),
             "warnings": clip.warnings,
-            "basis": "Estimated editorial ranking from measured transcript timings and optional keeper/shot evidence; semantic quality and ASR accuracy unverified."}
+            "basis": "Estimated editorial ranking from measured transcript timings and shot coverage, with optional keeper evidence; semantic quality and ASR accuracy unverified."}
 
 
 def run(argv):

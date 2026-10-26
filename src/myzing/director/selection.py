@@ -231,9 +231,15 @@ def focus_window(clip, kept, target):
     def clock(value):
         minutes, seconds = divmod(value, 60)
         return f"{int(minutes)}:{seconds:06.3f}"
+    scope = f"{clock(low)}-{clock(high)}"
+    keeps = "your must-keep moment" if len(kept) == 1 else "all your must-keep moments, including the time between them"
+    text = (f"Search window spans the full clip ({scope}) to include {keeps}; "
+            "snapping did not narrow the search."
+            if low <= EPS and high >= clip.duration - EPS else
+            f"Search focused on {scope} in one window around {keeps}; the whole interview was not searched.")
     return {"asset_id": clip.asset_id, "start": low, "end": high, "label": "Measured",
             "reason": "Candidate pool exceeded the limit; 1.5x target padding, snapped outward to clause/shot boundaries.",
-            "text": f"Search focused on {clock(low)}-{clock(high)} around your must-keep line; the whole interview was not searched."}
+            "text": text}
 
 
 def candidates(studies, keep, forbidden, style, target, *, expand_timing=True, search_windows=None):
@@ -246,7 +252,7 @@ def candidates(studies, keep, forbidden, style, target, *, expand_timing=True, s
             clip = exc.clip
             if clip.asset_id in windows:
                 shortage("planner_capacity", f"Focused window for {clip.asset_id} still exceeds {MAX_CANDIDATES} candidates.",
-                         "Use closer must-keep moments, shorter target, or forbidden ranges to narrow this window.", clip.asset_id)
+                         "Move or drop a must-keep moment to narrow the window, or split the job into separate briefs.", clip.asset_id)
             if keep.get(clip.asset_id):
                 windows[clip.asset_id] = focus_window(clip, keep[clip.asset_id], target)
                 continue
