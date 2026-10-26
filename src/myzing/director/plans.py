@@ -87,12 +87,16 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
     lookup = {s.asset_id: s for s in studies}
     groups, cursor = [], 0.0
     for c in sequence:
-        source_clauses = clauses(lookup[c.asset_id].words)
+        source_words = lookup[c.asset_id].words
+        if not phone and getattr(brief, "caption_mode", "reference") == "reference":
+            from myzing.captions.presets import normalize_words
+            source_words = normalize_words(source_words)
+        source_clauses = clauses(source_words)
         clause_ends = {s.end for s in source_clauses}
         window = []
         from myzing.captions.grouping import display_boundaries
-        _, numeric = display_boundaries([w.text for w in lookup[c.asset_id].words])
-        for index,word in enumerate(lookup[c.asset_id].words):
+        _, numeric = display_boundaries([w.text for w in source_words])
+        for index,word in enumerate(source_words):
             if not (word.start >= c.start - EPS and word.end <= c.end + EPS):
                 continue
             if window and window[-1].end in clause_ends and index not in numeric:
@@ -107,9 +111,13 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
         from myzing.layout.readability import phone_word_groups
         groups = [(part, offset) for window, offset in groups for part in phone_word_groups(window)]
     elif getattr(brief, "caption_mode", "reference") == "reference":
-        from myzing.captions.reference import groups as reference_groups
+        from myzing.captions.reference import groups as reference_groups, word_band
+        counts = [f.value["words_visible"] for f in getattr(recipe, "measured", [])
+                  if f.name.startswith("captions[")]
+        band = word_band(counts) if counts else {"median": style.words_visible,
+                "lower": min(2, style.words_visible), "upper": style.words_visible}
         groups = [(part, offset) for window, offset in groups
-                  for part in reference_groups(window, style.words_visible)]
+                  for part in reference_groups(window, band)]
     result = []
     caps_count = 0 if getattr(brief, "caption_mode", "reference") in ("punch", "box", "clean") else round(style.all_caps_rate * len(groups))
     layout = recipe.approximations.layout
@@ -291,11 +299,16 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         for clip in framed:
             f = clip.framing
             cuts = [clip.src_in]
-            if (f is not None and (f.mode != "fit" or lookup[clip.asset_id].text_geometry)
+            from myzing.layout.text_safety import text_cards
+            cards = text_cards(clip, lookup[clip.asset_id].text_geometry)
+            if (f is not None and (f.mode != "fit" or cards)
                     and brief.framing in ("auto", "reframe", "zoomfill")):
                 for shot in lookup[clip.asset_id].shots:
-                    if shot.start - cuts[-1] >= 1 / 30 and clip.src_out - shot.start >= 1 / 30:
-                        cuts.append(shot.start)
+                    if f.mode == "fit" and not any(shot.start <= t < shot.end for t, *_ in cards):
+                        continue
+                    for boundary in (shot.start, shot.end) if f.mode == "fit" else (shot.start,):
+                        if boundary - cuts[-1] >= 1 / 30 and clip.src_out - boundary >= 1 / 30:
+                            cuts.append(boundary)
             cuts.append(clip.src_out)
             for i, (start, end) in enumerate(zip(cuts, cuts[1:])):
                 part = replace(clip, id=clip.id if len(cuts) == 2 else f"{clip.id}-shot-{i + 1}",
@@ -352,6 +365,11 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     if caption_mode == "reference":
         from myzing.captions.reference import place
         place(plan, recipe, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions)
+        if plan.captions:
+            font_report = {"family": Path(plan.captions[0].font.path).stem,
+                           "status": "disclosed default", "original_font": "unknown",
+                           "asset": plan.captions[0].font.to_dict(),
+                           "reason": next(w for w in plan.warnings if w.startswith("CAPREF typography:"))}
     elif source_dimensions:
         place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions,
                        keep_safe_defaults=True, safety_context=caption_safety)

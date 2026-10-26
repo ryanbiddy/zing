@@ -39,6 +39,14 @@ def normalize_words(words):
     out = []
     for index, word in enumerate(words):
         text = unicodedata.normalize("NFC", word.text.strip())
+        if out and (text in ("'s", "’s", "'re", "’re", "'ve", "’ve", "'ll", "’ll", "'d", "’d", "'m", "’m", "n't", "n’t")
+                    or text.startswith("-")
+                    or out[-1].text.endswith(("-", "'", "’"))):
+            previous = out.pop()
+            merged = transform_word(previous, previous.start, max(previous.end, word.end),
+                                    "caption_attach_punctuation", attached=word.text)
+            out.append(replace(merged, text=previous.text + text))
+            continue
         if (out and text and not any(ch.isalnum() for ch in text)
                 and text not in "$£€¥₹" and index not in numeric
                 and not (text in (",", ".") and out[-1].text[-1:].isdigit())

@@ -3,9 +3,8 @@
 from dataclasses import replace
 
 
-def protect_text(framing, clip, geometry, requested, width, height):
-    if requested not in ("auto", "reframe", "zoomfill"):
-        return framing
+def text_cards(clip, geometry):
+    """Text-heavy samples within this source interval (also used for cuts)."""
     samples = [(s["t"], s["boxes"], s["words"]) for s in geometry.get("protected_samples", [])
                if clip.src_in <= s["t"] < clip.src_out]
     for frame in geometry.get("frames", []):
@@ -32,6 +31,13 @@ def protect_text(framing, clip, geometry, requested, width, height):
         tall = max(b[3] for b in boxes)-min(b[1] for b in boxes)
         if words >= 8 and (area >= .08 or (span >= .55 and tall >= .18)):
             cards.append((time, boxes, words, area))
+    return cards
+
+
+def protect_text(framing, clip, geometry, requested, width, height):
+    if requested not in ("auto", "reframe", "zoomfill"):
+        return framing
+    cards = text_cards(clip, geometry)
     if not cards:
         return framing
     # Check every crop extremum against all observed card text. Interpolation

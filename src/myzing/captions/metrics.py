@@ -65,6 +65,7 @@ class FontMetrics:
         count = struct.unpack_from(">H", tables[b"hhea"], 34)[0]
         self.advances = [struct.unpack_from(">H", tables[b"hmtx"], i * 4)[0] for i in range(count)]
         self.glyph_tops = None
+        self.glyph_bottoms = None
         if b"loca" in tables and b"glyf" in tables:
             short = struct.unpack_from(">h", tables[b"head"], 50)[0] == 0
             stride, fmt = (2, ">H") if short else (4, ">I")
@@ -72,6 +73,8 @@ class FontMetrics:
                        for i in range(0, len(tables[b"loca"]), stride)]
             self.glyph_tops = {gid: struct.unpack_from(">h", tables[b"glyf"], start + 8)[0]
                                for gid, (start, end) in enumerate(zip(offsets, offsets[1:])) if end > start}
+            self.glyph_bottoms = {gid: struct.unpack_from(">h", tables[b"glyf"], start + 4)[0]
+                                  for gid, (start, end) in enumerate(zip(offsets, offsets[1:])) if end > start}
         self.cmap = {}
         cmap = tables[b"cmap"]
         for i in range(struct.unpack_from(">H", cmap, 2)[0]):
@@ -155,6 +158,15 @@ class FontMetrics:
         return max([self.cap, *(self.glyph_tops.get(self.cmap.get(ord(c)), self.cap)
                                if self.cmap.get(ord(c)) else self.ascent
                                for c in unicodedata.normalize("NFC", text) if not ignorable(c))]) * size / self.units
+
+    def ink_height(self, text, size):
+        """Fill-ink extent of a line in the pinned face, excluding outline."""
+        gids = [self.cmap.get(ord(c)) for c in unicodedata.normalize("NFC", text) if not ignorable(c)]
+        if self.glyph_tops is None or any(not gid for gid in gids) or not gids:
+            return self.line_height(size)
+        top = max(self.glyph_tops.get(gid, 0) for gid in gids)
+        bottom = min(self.glyph_bottoms.get(gid, 0) for gid in gids)
+        return max(1, top-bottom) * size / self.units
 
 
 @lru_cache(maxsize=256)

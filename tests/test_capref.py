@@ -91,7 +91,9 @@ def test_measured_position_alignment_and_appearance_reach_plan():
     assert caption.alignment == "left" and caption.layout.box.x == .1
     assert caption.layout.box.center[1] == pytest.approx(.575)
     assert caption.style.color == caption.style.highlight == "#FAF0E6"
-    assert caption.style.outline_width == 1.92 and caption.style.outline_color == "#123456"
+    # Unmeasured shadow gets a disclosed legibility outline, even when the
+    # measured outline alone is thinner; retain its measured color.
+    assert caption.style.outline_width == pytest.approx(5.76) and caption.style.outline_color == "#123456"
     assert caption.style.box_color == "#111111"
 
 
@@ -158,7 +160,7 @@ def test_reference_fit_splits_before_shrinking_and_discloses(monkeypatch, tmp_pa
     plan = caption_plan("extraordinarily astronomical")
     original = plan.captions[0].style.size
     def measure(caption, style, *args):
-        return (0, 0, style.size*12*len(caption.words), style.size)
+        return (0, 0, style.size*10*len(caption.words), style.size)
     monkeypatch.setattr("myzing.match.caption_fit._measure", measure)
     fit_captions(plan, tmp_path)
     assert len(plan.captions) == 2
@@ -206,3 +208,135 @@ def test_delivery_retains_reference_style_and_text_card_protection():
     adapted = adapt_plan(plan, 720, 1280, {"a": (1920,1080)}, {}, requested="reframe")
     assert adapted.clips[0].framing.mode == "blurfill"
     assert all(c.style.box_color is None and c.style.highlight == c.style.color and c.word_timed for c in adapted.captions)
+
+
+def timed(text):
+    return [Word(t, i*.2, (i+1)*.2) for i, t in enumerate(text.split())]
+
+
+def test_band_keeps_three_word_clause_and_rebalances_tails():
+    band = {"median": 2, "lower": 2, "upper": 3}
+    words = timed("From the web,")
+    assert groups(words, band) == [words]
+    for count in range(2, 41):
+        words = timed(" ".join(f"word{i}" for i in range(count)))
+        parts = groups(words, band)
+        assert all(2 <= len(p) <= 3 for p in parts)
+        assert [w for p in parts for w in p] == words
+    plan = caption_plan("Yes.")
+    assert [c.text for c in plan.captions] == ["Yes."]
+    assert any("single-word caption retained" in w for w in plan.warnings)
+
+
+def test_reference_uses_band_in_planner_and_glues_contractions_and_hyphens():
+    recipe = reference()
+    for fact in recipe.measured:
+        if fact.name.startswith("captions["):
+            fact.value["words_visible"] = 3 if fact.value["text"] in ("Be brave", "Stay curious") else 2
+    words = timed("From the web, I 'm well - known and do n't worry.")
+    # Make the opening a separate source clause.
+    words = [replace(w, start=w.start+.4, end=w.end+.4) if i >= 3 else w for i,w in enumerate(words)]
+    seq = [SimpleNamespace(asset_id="a", start=0, end=4, duration=4)]
+    captions = captions_for(seq, [SimpleNamespace(asset_id="a", words=words)], envelope(recipe), recipe, None,
+                            Brief(caption_mode="reference"))
+    assert captions[0].text == "From the web,"
+    displayed = " ".join(c.text for c in captions)
+    assert "I'm" in displayed and "well-known" in displayed and "don't" in displayed
+    assert all(2 <= len(c.text.split()) <= 3 for c in captions)
+    assert captions[-1].words[-1].end == words[-1].end
+
+
+@pytest.mark.parametrize("ratio,weight", [(.07,400), (.13,700), (.21,None)])
+def test_fill_stroke_selects_weight_only_with_plausible_measured_ink(ratio, weight):
+    sample = {"text_height": .03, "geometry_confidence": .9,
+              "ink_evidence": {"stroke_to_ink_height": ratio, "component_count": 8}}
+    geometry = {"frames": [{"detections": [{"appearance": sample}]}],
+                "tracks": [{"kind": "caption", "samples": [{"sample_index": 0, "detection_indices": [0]}]}]}
+    measured = appearance(geometry)
+    assert measured.get("weight") == weight
+    assert measured["text_height"] == .03
+    sample["geometry_confidence"] = .2
+    assert "weight" not in appearance(geometry)
+
+
+def test_cached_stroke_fraction_uses_proposal_pixels_and_ink_height():
+    sample = {"text_height": .03, "geometry_confidence": .9,
+              "ink_evidence": {"stroke_fraction": .09, "component_count": 8}}
+    geometry = {"frames": [{"height": 1000, "detections": [{"appearance": sample,
+        "polygon": [[.1,.1],[.8,.1],[.8,.14],[.1,.14]]}]}],
+        "tracks": [{"kind": "caption", "samples": [{"sample_index": 0, "detection_indices": [0]}]}]}
+    measured = appearance(geometry)
+    assert measured["ink_stroke_ratio"] == pytest.approx(.12)
+    assert measured["weight"] == 700
+    assert "stroke_to_ink_height" not in sample["ink_evidence"]  # cached evidence is immutable
+
+
+def test_bold_substitute_ink_size_and_shadow_fallback_are_disclosed():
+    from myzing.captions.metrics import font_asset, metrics
+    recipe = reference()
+    recipe.measured.append(replace(recipe.measured[0], name="caption_appearance", value={"text_height": .03}))
+    plan = caption_plan("Trust yourself")
+    place(plan, recipe, {}, {})
+    c = plan.captions[0]
+    assert c.font == font_asset("clean")
+    assert metrics(c.font.path, c.font.sha256).ink_height(c.text, c.style.size) == pytest.approx(57.6)
+    assert c.style.outline_width == pytest.approx(57.6*.06)
+    note = next(w for w in plan.warnings if w.startswith("CAPREF typography:"))
+    assert "Estimated weight 700" in note and "Estimated shadow" in note and "not a font match" in note
+    assert any("Measured median text_height" in w for w in plan.warnings)
+
+
+def test_matching_median_does_not_hide_outside_band_distribution():
+    events = [CaptionEvent(text, i, i+.8, "lower", False, len(text.split())) for i,text in enumerate(
+        ["One", "Two words", "Three words here", "Four", "Five words", "Six words here"])]
+    output = Breakdown(VideoMeta("fixture", "file", duration=6, fps=30), shots=[Shot(0,0,6)],
+        captions=events, words=[Word(c.text, c.start, c.end) for c in events])
+    metric = report(reference(), output, {}, None, {}, Composition())["dimensions"]["caption_words"]
+    assert metric["target"] == metric["observed"] == 2
+    assert metric["status"] == "miss"
+    assert metric["outside_band_share"]["observed"] == pytest.approx(4/6)
+    assert metric["outside_band_share"]["reference"] == 0
+
+
+def test_two_second_caption_beside_three_changes_is_not_a_title():
+    from myzing.study.captions import persistent_lines
+    observations = [Observation(i*.25, .25, [Line("Hold this thought", .95, .66, .5),
+        Line(("One phrase", "Next phrase", "Last phrase")[min(i//3,2)], .95, .72, .5)]) for i in range(8)]
+    assert persistent_lines(observations, 8) == []
+    _, notes = cluster_regions(observations, 8)
+    assert not any("persistent" in n for n in notes)
+    frames = []
+    for obs in observations:
+        detections = [cg.Detection(l.text, l.score, [[.15,l.y_center],[.85,l.y_center],
+            [.85,l.y_center+.04],[.15,l.y_center+.04]], [.15,l.y_center,.85,l.y_center+.04]) for l in obs.lines]
+        frames.append(cg.FrameSample(obs.t,obs.t,obs.step,round(obs.t*30),640,360,detections))
+    assert all(t.kind == "caption" for t in cg.track_frames(frames, 8))
+
+
+def test_square_text_card_preserves_full_source():
+    clip = CompositionClip(id="square-card",asset_id="a",src="card.mp4",src_in=0,src_out=2,timeline_start=0)
+    cropped = centered_framing("fill",1920,1080,1080,1080)
+    protected = protect_text(cropped,clip,card_geometry(),"auto",1080,1080)
+    assert protected.mode == "blurfill" and (protected.width,protected.height) == (1920,1080)
+    square = centered_framing("fit",1080,1080,1080,1080)
+    retained = protect_text(square,clip,card_geometry(),"auto",1080,1080)
+    assert retained.mode == "fit" and retained.picture["text_safety"]["decision"] == "retain crop"
+
+
+@pytest.mark.ffmpeg
+def test_reference_bold_fill_ink_matches_measured_height_in_libass(tmp_path):
+    from pathlib import Path
+    from myzing.render.font_files import private_font, ass_em_scale
+    from myzing.render.positioned_captions import _measure, caption_runs
+    recipe = reference()
+    recipe.measured.append(replace(recipe.measured[0],name="caption_appearance",value={"text_height":.03}))
+    plan = caption_plan("Trust yourself")
+    place(plan,recipe,{}, {})
+    c = plan.captions[0]
+    alias, payload = private_font(Path(c.font.path).read_bytes())
+    (tmp_path/"fonts").mkdir()
+    (tmp_path/"fonts"/(alias+".ttf")).write_bytes(payload)
+    left,top,right,bottom = _measure(c,replace(c.style,outline_width=0),alias,caption_runs(c),
+        plan.width,plan.height,tmp_path,"ffmpeg","ass",ass_em_scale(payload))
+    assert bottom-top == pytest.approx(.03*plan.height,abs=2)
+    assert right-left < .84*plan.width

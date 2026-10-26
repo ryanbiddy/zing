@@ -239,11 +239,11 @@ def _overlay_threshold_s(duration: float) -> float:
     return max(OVERLAY_MIN_S, OVERLAY_MIN_FRACTION * duration)
 
 
-def persistent_lines(observations):
+def persistent_lines(observations, duration=None):
     """Find static lines beside changing text before vertical blob merging.
 
-    Repetition alone is insufficient: require two seconds, four samples and
-    three distinct neighbouring lines. Coordinates stop repeated speech in a
+    Require six neighbouring texts, or at least four seconds covering half
+    the reference beside three neighbours. Coordinates stop repeated speech in a
     different part of the frame from becoming title evidence.
     """
     tracks, by_text = [], {}
@@ -259,8 +259,11 @@ def persistent_lines(observations):
             track['hits'].append((obs.t, obs.t+obs.step))
             track['neighbours'].update(_normalize(other.text) for other in obs.lines
                 if other is not line and .015 < abs(other.y_center-line.y_center) < .2)
+    duration = duration or max((o.t + o.step for o in observations), default=0)
     return [t for t in tracks if len(t['hits']) >= 4 and len(t['neighbours']) >= 3
-            and sum(b-a for a,b in t['hits']) >= 2]
+            and sum(b-a for a,b in t['hits']) >= 2
+            and (len(t['neighbours']) >= 6
+                 or sum(b-a for a,b in t['hits']) >= max(4, duration * .5))]
 
 
 def is_persistent(line, tracks):
@@ -296,7 +299,7 @@ def cluster_regions(
                 })
         bounded.append(replace(obs, t=start, step=stop - start))
     threshold = _overlay_threshold_s(duration)
-    static = persistent_lines(bounded)
+    static = persistent_lines(bounded, duration)
     if static:
         notes.extend(f"persistent on-screen text excluded from captions before region merging: {t['text']!r}" for t in static)
         bounded = [replace(o, lines=[line for line in o.lines if not is_persistent(line, static)]) for o in bounded]

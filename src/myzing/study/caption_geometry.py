@@ -454,7 +454,7 @@ def _similarity(a, b):
 def track_frames(frames: list[FrameSample], duration: float, *, counts=None) -> list[CaptionTrack]:
     raw = [captions.Observation(f.t, f.step, [captions.Line(d.text, d.confidence or 0,
            _center(d.box)[1], _center(d.box)[0]) for d in f.detections]) for f in frames]
-    persistent = captions.persistent_lines(raw)
+    persistent = captions.persistent_lines(raw, duration)
     streams: list[list[dict]] = []
     for sample_index, frame in enumerate(frames):
         if frame.status == "ocr_error":

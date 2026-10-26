@@ -130,13 +130,19 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
     target = band["median"] if captions else None
     dimensions["caption_words"] = _metric(target,
         median(c.words_visible for c in output_captions) if output_captions else None,
-        0, "Median caption-only OCR words per event; compared against reference IQR.", approximate=True)
+        0, "Caption-only word-count distribution outside reference IQR; medians retained as diagnostics.", approximate=True)
     words_metric = dimensions["caption_words"]
     words_metric["band"] = band
     if target is not None and words_metric["observed"] is not None:
-        within = band["lower"] <= words_metric["observed"] <= band["upper"]
+        reference_outside = sum(not band["lower"] <= c["words_visible"] <= band["upper"] for c in captions) / len(captions)
+        observed_outside = sum(not band["lower"] <= c.words_visible <= band["upper"] for c in output_captions) / len(output_captions)
+        tolerance = .5 / len(output_captions)
+        words_metric["outside_band_share"] = {"reference": reference_outside, "observed": observed_outside,
+                                              "tolerance": tolerance}
+        within = observed_outside <= reference_outside + tolerance
         words_metric.update(status="approximate" if within else "miss",
-                            reason="Within measured word-count band." if within else "Outside measured word-count band.")
+                            reason="Outside-band share does not exceed reference plus half-event tolerance." if within else
+                                   "Too many caption groups outside the measured word-count band, regardless of median.")
     dimensions["caption_case"] = _metric(
         sum(c["all_caps"] for c in captions)/len(captions) if captions else None,
         sum(c.all_caps for c in output_captions)/len(output_captions) if output_captions else None,

@@ -228,6 +228,23 @@ def test_source_text_geometry_survives_inventory_and_protects_only_card_shot(pro
                    if not (c.asset_id == "take-0" and c.src_in <= 4.5 < c.src_out))
 
 
+@pytest.mark.parametrize("requested", ["auto", "fit"])
+def test_small_lower_third_does_not_split_talking_head_fit_plan(project, requested):
+    from myzing.study.caption_geometry import CaptionGeometry, Detection, FrameSample
+    change_brief(project, framing=requested, aspect="16:9", caption_mode="none",
+                 must_keep=[{"clip":"take-0", "start":0, "end":6}])
+    before = plans(run(project, "before-lower-third"))
+    geometry = CaptionGeometry(8, [FrameSample(4.5,4.5,.25,135,320,180,
+        [Detection("Dr Jane Smith",.95,[[.1,.85],[.4,.85],[.4,.89],[.1,.89]],[.1,.85,.4,.89])])])
+    geometry.write(project / "breakdowns" / "take-0")
+    after = plans(run(project, "after-lower-third"))
+    def spans(plans):
+        return [[(c.asset_id,c.src_in,c.src_out,c.timeline_start) for c in p.clips] for p in plans]
+    assert spans(before) == spans(after)
+    assert any(c.src_out-c.src_in > 2 for p in after for c in p.clips if c.asset_id == "take-0")
+    assert all(c.framing is None or c.framing.mode == "fit" for p in after for c in p.clips)
+
+
 def test_cli_and_mcp_paths_and_shortage_envelope(project, capsys):
     from myzing.cli import main
     from myzing.mcp_server import h_plan_drafts
@@ -302,7 +319,7 @@ def test_recipe_timing_deviations_are_measured_and_named(project):
         assert any(d["metric"] == "first_caption_seconds" and d["reason"] for d in draft["deviations"])
 
 
-def test_pinned_font_substitution_survives_and_blocks_legacy(project):
+def test_unmeasured_regular_candidate_uses_disclosed_bold_and_blocks_legacy(project):
     from myzing.project.api import hash_file
     path = project / "recipe.json"
     recipe = json.loads(path.read_text(encoding="utf-8"))
@@ -313,8 +330,10 @@ def test_pinned_font_substitution_survives_and_blocks_legacy(project):
     write_json(path, recipe)
     result = run(project)
     assert result["status"] == "ready" and not result["v1_edls"]
+    from myzing.captions.metrics import font_asset
     for plan in plans(result):
-        assert all(c.font and c.font.sha256 == hash_file(font) for c in plan.captions)
+        assert all(c.font and c.font.sha256 == font_asset("clean").sha256 for c in plan.captions)
+        assert any("Estimated weight 700" in w and "not a font match" in w for w in plan.warnings)
     recipe["approximations"]["font_candidates"][0]["asset"] = None
     write_json(path, recipe)
     result = run(project)
