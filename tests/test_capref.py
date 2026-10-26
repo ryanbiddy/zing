@@ -250,7 +250,7 @@ def test_reference_uses_band_in_planner_and_glues_contractions_and_hyphens():
 def test_fill_stroke_selects_weight_only_with_plausible_measured_ink(ratio, weight):
     sample = {"text_height": .03, "geometry_confidence": .9,
               "ink_evidence": {"stroke_to_ink_height": ratio, "component_count": 8}}
-    geometry = {"frames": [{"detections": [{"appearance": sample}]}],
+    geometry = {"frames": [{"height": 1920, "detections": [{"appearance": sample}]}],
                 "tracks": [{"kind": "caption", "samples": [{"sample_index": 0, "detection_indices": [0]}]}]}
     measured = appearance(geometry)
     assert measured.get("weight") == weight
@@ -262,7 +262,7 @@ def test_fill_stroke_selects_weight_only_with_plausible_measured_ink(ratio, weig
 def test_cached_stroke_fraction_uses_proposal_pixels_and_ink_height():
     sample = {"text_height": .03, "geometry_confidence": .9,
               "ink_evidence": {"stroke_fraction": .09, "component_count": 8}}
-    geometry = {"frames": [{"height": 1000, "detections": [{"appearance": sample,
+    geometry = {"frames": [{"height": 2000, "detections": [{"appearance": sample,
         "polygon": [[.1,.1],[.8,.1],[.8,.14],[.1,.14]]}]}],
         "tracks": [{"kind": "caption", "samples": [{"sample_index": 0, "detection_indices": [0]}]}]}
     measured = appearance(geometry)
@@ -340,3 +340,30 @@ def test_reference_bold_fill_ink_matches_measured_height_in_libass(tmp_path):
         plan.width,plan.height,tmp_path,"ffmpeg","ass",ass_em_scale(payload))
     assert bottom-top == pytest.approx(.03*plan.height,abs=2)
     assert right-left < .84*plan.width
+
+
+def test_low_resolution_reference_leaves_weight_estimated():
+    # Grok R2: 360x640 reference, ~18 px ink; ratio .1333 is within 1 px of the 0.10 cut.
+    sample = {"text_height": .028, "geometry_confidence": .9,
+              "ink_evidence": {"stroke_to_ink_height": .1333, "component_count": 8}}
+    geometry = {"frames": [{"height": 640, "detections": [{"appearance": sample}]}],
+                "tracks": [{"kind": "caption", "samples": [{"sample_index": 0, "detection_indices": [0]}]}]}
+    measured = appearance(geometry)
+    assert "weight" not in measured and "weight_basis" not in measured
+    assert "within 1 px" in measured["weight_unmeasured"]
+    assert "weight" not in appearance({**geometry, "frames": [{"detections": [{"appearance": sample}]}]})
+
+
+@pytest.mark.parametrize("tokens,expected", [
+    ("I 'm here", ["I'm", "here"]), ("do n't go", ["don't", "go"]),
+    ("well - known", ["well-known"]), ("well -known", ["well-known"]),
+    ("the students' work", ["the", "students'", "work"]),
+    ("rock 'n' roll", ["rock", "'n'", "roll"]),
+    ("the end. -next", ["the", "end.", "-next"]),
+    ("it was -5 today", ["it", "was", "-5", "today"]),
+])
+def test_normalize_words_glues_only_clitics_and_compound_hyphens(tokens, expected):
+    from myzing.captions.presets import normalize_words
+    from myzing.schemas import Word
+    words = [Word(t, i * .5, i * .5 + .4) for i, t in enumerate(tokens.split())]
+    assert [w.text for w in normalize_words(words)] == expected

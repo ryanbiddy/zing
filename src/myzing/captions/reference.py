@@ -68,6 +68,7 @@ def appearance(geometry):
     for f, i in sorted(indices):
         detection = frames[f]["detections"][i]
         sample = dict(detection.get("appearance", {}))
+        sample["_frame_height"] = frames[f].get("height")
         ink = dict(sample.get("ink_evidence", {}))
         # v2 cached segmentation records stroke / OCR-proposal height. Recover
         # the exact pixel denominator without decoding or rerunning OCR.
@@ -90,10 +91,20 @@ def appearance(geometry):
                and s.get("ink_evidence", {}).get("component_count", 0) >= 3
                and 0 < s.get("ink_evidence", {}).get("stroke_to_ink_height", 0) <= .2]
     if weights:
-        result["ink_stroke_ratio"] = median(weights)
-        result["weight"] = 700 if result["ink_stroke_ratio"] >= .10 else 400
-        result["weight_basis"] = (f"Measured fill stroke / ink height {result['ink_stroke_ratio']:.4f}; "
-                                  f"weight {result['weight']} selected (regular below 0.10, bold otherwise; heuristic face selection).")
+        result["ink_stroke_ratio"] = ratio = median(weights)
+        pixels = [s["text_height"] * s["_frame_height"] for s in samples if s.get("_frame_height")
+                  and (s.get("text_height") or 0) > 0 and s.get("geometry_confidence", 0) >= .5]
+        ink_px = median(pixels) if pixels else None
+        # A 1 px stroke error moves the ratio by 1/ink_px. Call the weight measured
+        # only when that cannot cross the 0.10 regular/bold cut (Grok R2: 18 px
+        # ink on a 360x640 reference cannot tell regular from bold).
+        if ink_px and abs(ratio - .10) > 1 / ink_px:
+            result["weight"] = 700 if ratio >= .10 else 400
+            result["weight_basis"] = (f"Measured fill stroke / ink height {ratio:.4f} on {ink_px:.0f} px median ink; "
+                                      f"weight {result['weight']} selected (regular below 0.10, bold otherwise; heuristic face selection).")
+        else:
+            result["weight_unmeasured"] = (f"stroke / ink height {ratio:.4f} on {ink_px:.0f} px ink is within 1 px of the regular/bold cut"
+                                           if ink_px else f"stroke / ink height {ratio:.4f} without source pixel height")
     def plausible_outline(sample):
         stroke, ink = sample.get("stroke_width_fraction"), sample.get("text_height")
         return stroke is None or ink is None or stroke <= .2 * ink
@@ -153,7 +164,8 @@ def place(plan, recipe, subjects, source_dimensions):
         face = FontAsset(str(path), sha256(path.read_bytes()).hexdigest(), "OFL-1.1")
     font_metrics = metrics(face.path, face.sha256)
     face_name = "IBM Plex Sans Regular" if weight == 400 else "ZingCaption Bold (Inter derivative)"
-    disclosure = (f"CAPREF typography: {measured.get('weight_basis', 'Estimated weight 700 bold: short-form default; reference weight unmeasured.')} "
+    unmeasured = f" ({measured['weight_unmeasured']})" if measured.get("weight_unmeasured") else ""
+    disclosure = (f"CAPREF typography: {measured.get('weight_basis', f'Estimated weight 700 bold: short-form default; reference weight unmeasured{unmeasured}.')} "
                   f"{face_name}, OFL-1.1; face is a substitute, not a font match. "
                   "Estimated shadow treatment: shadow unmeasured; use an outline at least 6% of fill-ink height for legibility instead of a shadow (black unless outline color is measured).")
     plan.warnings[:] = [w for w in plan.warnings if not w.startswith("CAPREF typography:")]
