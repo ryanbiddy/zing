@@ -17,10 +17,21 @@ from .models import ClipStudy
 from .asr_repair import repair_words
 
 
+# Study timestamps are rounded to 1 ms, so an interval ending at the media end
+# can sit up to 0.5 ms past a duration that is not a whole millisecond
+# (a 3901.38083 s podcast ended its last shot at 3901.381 and was excluded).
+ROUNDING = .0005 + 1e-9
+
+
+def _snap_end(end, duration):
+    return duration if duration < end <= duration + ROUNDING else end
+
+
 def _intervals(items, duration, label):
     if not isinstance(items, list):
         raise ValueError(f"{label} must be an array")
     for item in items:
+        item["end"] = _snap_end(item["end"], duration)
         problem = interval_problem(item["start"], item["end"], duration)
         if problem:
             raise ValueError(f"{label}: {problem}")
@@ -126,6 +137,7 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                 raise ValueError("no measured shots")
             previous = 0.0
             for shot in b.shots:
+                shot.end = _snap_end(shot.end, item.duration)
                 problem = interval_problem(shot.start, shot.end, item.duration)
                 if problem or shot.start < previous:
                     raise ValueError(f"invalid shot intervals: {problem or 'overlap/order'}")

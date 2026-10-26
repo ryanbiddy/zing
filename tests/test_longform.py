@@ -466,3 +466,28 @@ def test_silent_single_shot_selection_warns_in_plan_and_report(tmp_path, zing_wo
 
 # Reuse the real MCP stdio fixture; the registry and schema travel over the wire.
 from test_mcp_stdio import client
+
+
+def test_millisecond_rounded_shot_end_past_duration_is_snapped(tmp_path, zing_workspace):
+    # Real NASA podcast: duration 3901.38083 s, last shot rounded to 3901.381 s,
+    # and the whole 65-minute study was excluded as "time beyond media duration".
+    from tools.plan_examples import example_project, write_json
+    from myzing.director.inventory import inventory
+    root, _, _ = example_project(tmp_path / "project")
+    manifest = json.loads((root / "project.json").read_text())
+    manifest["assets"][0]["probe"]["duration"] = 120.0004
+    write_json(root / "project.json", manifest)
+    path = root / "breakdowns/take-0/breakdown.json"
+    data = json.loads(path.read_text())
+    data["meta"]["duration"] = 120.0004
+    data["shots"][-1]["end"] = 120.0009  # 0.5 ms past: rounding, snapped
+    data["provenance"]["raw_mode"]["dead_air"] = [{"start": 119., "end": 120.0009}]
+    write_json(path, data)
+    clip = inventory(root)[0][0]
+    assert clip.status == "ready", clip.warnings
+    assert clip.shots[-1].end == clip.duration and clip.dead_air[-1]["end"] == clip.duration
+    data["shots"][-1]["end"] = 120.002  # 1.6 ms past: a real error, still refused
+    write_json(path, data)
+    clip = inventory(root)[0][0]
+    assert clip.status == "needs_study"
+    assert any("beyond media duration" in w for w in clip.warnings)
