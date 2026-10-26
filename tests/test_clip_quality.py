@@ -81,6 +81,18 @@ def test_source_plan_clears_an_old_grade(tmp_path):
     assert Composition.from_dict(read(result["path"])).clips[0].color is None
 
 
+def test_recipe_defaults_to_source_for_new_and_legacy_payloads():
+    from myzing.style_recipe import StyleRecipe, ObservationProvenance, build_style_recipe
+    recipe = StyleRecipe(ObservationProvenance("reference"))
+    assert recipe.color_mode == "source"
+    payload = recipe.to_dict()
+    del payload["color_mode"]
+    assert StyleRecipe.from_dict(payload).color_mode == "source"
+    payload["color_mode"] = "reference"
+    assert StyleRecipe.from_dict(payload).color_mode == "reference"
+    assert build_style_recipe(Breakdown(VideoMeta("fixture", "file", duration=1))).color_mode == "source"
+
+
 def test_nasa_skin_chroma_loss_is_miss_and_report_warning():
     from myzing.match.evidence import report, markdown
     from myzing.style_recipe import build_style_recipe
@@ -92,6 +104,7 @@ def test_nasa_skin_chroma_loss_is_miss_and_report_warning():
     skin = summarize([dict(source="nasa.mp4", timestamp=459.04, **face)], [])
     b = Breakdown(VideoMeta("fixture", "file", duration=1), shots=[Shot(0, 0, 1)])
     recipe = build_style_recipe(b)
+    recipe.color_mode = "reference"
     result = report(recipe, b, {}, None, {}, Composition(), skin=skin)
     assert any("Skin preservation miss" in w for w in result["warnings"])
     text = markdown({"summary": "fixture", "project": ".", "drafts": {}, "warnings": result["warnings"], "color_mode": "reference"})
@@ -141,6 +154,49 @@ def test_presets_have_one_size_across_shots_and_rails(preset):
     assert all(c.style.size >= phone_floor(p, c.start, c.end, preset) for c in p.captions)
 
 
+@pytest.mark.parametrize("mixed_preset", [False, True])
+def test_fallback_captions_share_one_size_including_earlier_and_preset_cues(tmp_path, monkeypatch, mixed_preset):
+    from myzing.composition import Composition, CompositionCaption, CaptionStyle, CompositionClip, AssetRef
+    from myzing.layout import Box
+    from myzing.layout.types import EventLayout, OverlapCheck
+    from myzing.match import caption_fit
+    captions = [CompositionCaption(text, i, i+1, id=f"c{i}", word_timed=False, style=CaptionStyle(size))
+                for i, (text, size) in enumerate([("as much", 60), ("applications", 48), ("that folks", 72)])]
+    captions[0].layout = EventLayout("c0", 0, 1, "fixture", OverlapCheck(True),
+                                   box=Box(.1, .7, .8, .2), scale=.8)
+    if mixed_preset:
+        from myzing.captions.metrics import font_asset
+        captions[0].preset = "clean"
+        captions[0].font = font_asset("clean")
+    plan = Composition(width=600, height=1000, captions=captions,
+                       assets=[AssetRef("a", "fixture.mp4", None)],
+                       clips=[CompositionClip("fixture.mp4", 0, 3, 0, id="clip", asset_id="a")])
+    def ink(caption, style, *args):
+        lines = caption.text.splitlines()
+        return 0, 0, max(map(len, lines)) * style.size, len(lines) * style.size
+    monkeypatch.setattr(caption_fit, "_measure", ink)
+    caption_fit.fit_captions(plan, tmp_path)
+    assert len({c.style.size for c in plan.captions}) == 1
+    assert len({c.style.size * (c.layout.scale if c.layout else 1.) for c in plan.captions}) == 1
+    assert 24 <= captions[0].style.size < 48
+    assert [c.text.replace("\n", " ") for c in plan.captions] == ["as much", "applications", "that folks"]
+
+
+def test_fallback_rewraps_before_lowering_whole_draft_size(tmp_path, monkeypatch):
+    from myzing.composition import Composition, CompositionCaption, CaptionStyle, CompositionClip, AssetRef
+    from myzing.match import caption_fit
+    plan = Composition(width=600, height=1000, captions=[
+        CompositionCaption("alpha beta gamma delta", 0, 1, id="long", word_timed=False, style=CaptionStyle(40)),
+        CompositionCaption("short", 1, 2, id="short", word_timed=False, style=CaptionStyle(40))],
+        assets=[AssetRef("a", "fixture.mp4", None)],
+        clips=[CompositionClip("fixture.mp4", 0, 2, 0, id="clip", asset_id="a")])
+    monkeypatch.setattr(caption_fit, "_measure", lambda c, s, *a:
+                        (0, 0, max(map(len, c.text.splitlines())) * s.size, len(c.text.splitlines()) * s.size))
+    caption_fit.fit_captions(plan, tmp_path)
+    assert {c.style.size for c in plan.captions} == {40}
+    assert "\n" in plan.captions[0].text
+
+
 def test_answer_after_question_and_sentence_end_not_pause():
     from myzing.director.moments import suggest_moments
     from myzing.director.models import ClipStudy
@@ -152,11 +208,62 @@ def test_answer_after_question_and_sentence_end_not_pause():
     assert rows[0]["first_sentence"] == "So we tried."
 
 
-def test_missing_question_mark_does_not_make_host_a_hook():
+@pytest.mark.parametrize("text", [
+    "Is what we learned useful.", "Are is a unit of area.", "Do the work first.",
+    "Have a plan before applying.", "Will was our pilot.", "Can is the word we used.",
+    "Where do we sit right now in terms of applications because I heard 600.",
+])
+def test_question_detection_uses_terminal_punctuation(text):
     from myzing.director.moments import opens_question
-    assert opens_question("Where do we sit right now in terms of applications because I heard 600.")
-    assert not opens_question("We received 600 applications.")
-    assert not opens_question("What we've found is that experience matters.")
+    assert not opens_question(text)
+    assert opens_question(text[:-1] + '?"  ')
+
+
+@pytest.mark.parametrize("text", [
+    "You know, training matters.", "And it's like Anne was saying, training matters.",
+    "Like I said, training matters.", "As Anne was saying, training matters.",
+    "That's why training matters.", "It takes two years.", "That takes two years.",
+    "This takes two years.", "They take two years.", "It's a long process.",
+])
+def test_filler_and_back_reference_openings_are_rejected_even_after_question(text):
+    from myzing.director.moments import usable_opening
+    assert not usable_opening(text)
+    assert not usable_opening(text, "What happened?")
+
+
+@pytest.mark.parametrize("conjunction", ["So", "And", "But"])
+def test_conjunction_opening_requires_previous_question(conjunction):
+    from myzing.director.moments import usable_opening
+    text = f"{conjunction} we tried."
+    assert not usable_opening(text)
+    assert not usable_opening(text, "Training matters.")
+    assert usable_opening(text, "What happened?")
+
+
+@pytest.mark.parametrize("answer_end,expected", [(2., True), (1.8, False)])
+def test_moment_stops_before_question_at_minimum_length(answer_end, expected):
+    from myzing.director.moments import suggest_moments
+    from myzing.director.models import ClipStudy
+    words = [Word("Training", 0, .5), Word("changed", .5, 1.), Word("everything.", 1., answer_end),
+             Word("Why?", answer_end + .1, answer_end + .6)]
+    clip = ClipStudy("a", "a.mp4", "a"*64, 3, "ready", words=words, shots=[Shot(0, 0, 3)])
+    rows = suggest_moments(clip, target=3, top=5)
+    assert bool(rows) == expected
+    if rows:
+        assert rows[0]["end"] == answer_end
+        assert rows[0]["last_sentence"] == "Training changed everything."
+
+
+def test_complete_claim_beats_denser_fragment_and_actually_is_not_contrast():
+    from myzing.director.moments import suggest_moments
+    from myzing.director.models import ClipStudy
+    words = [Word("Actually", 0, .5), Word("training", .5, 1), Word("every", 1, 1.5),
+             Word("day.", 1.5, 3), Word("Our", 4, 4.4), Word("initial", 4.5, 4.9),
+             Word("training", 5, 5.4), Word("is", 5.5, 5.9), Word("two", 6, 6.4), Word("years.", 6.5, 7)]
+    clip = ClipStudy("a", "a.mp4", "a"*64, 8, "ready", words=words, shots=[Shot(0, 0, 8)])
+    rows = suggest_moments(clip, target=3, top=2)
+    assert rows[0]["start"] == 4
+    assert not any("contrast" in reason for row in rows for reason in row["reasons"])
 
 
 def test_misplaced_punctuation_does_not_promote_a_continuation():
@@ -170,15 +277,20 @@ def test_misplaced_punctuation_does_not_promote_a_continuation():
 
 def test_visual_rejection_one_second_graphics_and_unknown_gaps():
     from myzing.director.visual_quality import excluded_spans, filter_candidates
-    clip = SimpleNamespace(duration=10, text_geometry={"frames": [{"t": 5., "detections": [
-        {"text": "NASA", "confidence": .9, "box": [.1, .1, .9, .4]}]}]})
+    from myzing.director.models import ClipStudy
+    from myzing.director.selection import Candidate
+    clip = ClipStudy("a", "a.mp4", "a"*64, 10, "ready", shots=[Shot(0, 0, 10)],
+        text_geometry={"frames": [{"t": 5., "detections": [
+        {"text": "How do I apply to be an astronaut?", "confidence": .9, "box": [.1, .1, .9, .4]}]}]})
     samples = [{"time": t, "present": face} for t, face in
                [(0, True), (.5, False), (1., False), (1.5, True), (3, False), (5., False), (8., False)]]
     excluded = excluded_spans(clip, {"samples": samples})
     assert (.5, 1.5) in excluded and (4.75, 5.5) in excluded
     assert not any(a <= 3 <= b or a <= 8 <= b for a, b in excluded)
-    pool = [SimpleNamespace(asset_id="a", start=a, end=b) for a, b in [(0, .5), (.4, 2), (4, 6), (6, 7)]]
-    assert filter_candidates(pool, {"a": excluded}) == [pool[0], pool[-1]]
+    pool = [Candidate("a", "a"*64, a, b, 0, 0, None, "", False, False)
+            for a, b in [(0, .5), (.4, 2), (4, 6), (6, 7)]]
+    assert [(c.start, c.end) for c in filter_candidates(pool, {"a": excluded}, [clip])] == [
+        (0, .5), (1.5, 2), (4, 4.75), (5.5, 6), (6, 7)]
     assert excluded_spans(clip, {}) == []
     assert excluded_spans(SimpleNamespace(duration=10, text_geometry={}), {"samples": samples[1:3]}) == []
     for geometry in (
@@ -186,25 +298,56 @@ def test_visual_rejection_one_second_graphics_and_unknown_gaps():
         {"protected_samples": [{"t": 5., "boxes": [[.1, .1, .9, .4]], "words": 1}]},
     ):
         clip.text_geometry = geometry
-        assert (4.75, 5.5) in excluded_spans(clip, {"samples": [{"time": 5., "present": False}]})
+        assert excluded_spans(clip, {"samples": [{"time": 0., "present": True}, {"time": 5., "present": False}]}) == []
 
 
-def test_director_filters_slates_before_choosing_and_keeps_music_exclusions(tmp_path, monkeypatch):
+def test_screen_recording_with_large_multiline_text_is_not_excluded():
+    from myzing.director.visual_quality import excluded_spans
+    clip = SimpleNamespace(duration=10, text_geometry={"protected_samples": [
+        {"t": 5., "boxes": [[.1, .1, .9, .8]], "words": 15}]})
+    assert excluded_spans(clip, {"samples": [{"time": i*.5, "present": False} for i in range(20)]}) == []
+
+
+def test_visual_trim_preserves_complete_words_and_recomputes_required_coverage():
+    from myzing.director.visual_quality import filter_candidates
+    from myzing.director.models import ClipStudy
+    from myzing.director.selection import Candidate
+    words = [Word("Training", .5, 1), Word("matters.", 1, 2),
+             Word("Practice", 2.2, 3), Word("helps.", 3, 4)]
+    clip = ClipStudy("a", "a.mp4", "a"*64, 6, "ready", words=words, shots=[Shot(0, 0, 6)])
+    candidate = Candidate("a", "a"*64, 0, 6, 0, 4, .5,
+                          "Training matters. Practice helps.", False, False, covers=1)
+    result = filter_candidates([candidate], {"a": [(0, .8), (5, 6)]}, [clip], [("a", 2.2, 4)])
+    assert len(result) == 1
+    trim = result[0]
+    assert (trim.start, trim.end, trim.covers, trim.word_count) == (2, 5, 1, 2)
+    assert trim.first_word == pytest.approx(.2) and trim.text == "Practice helps."
+    assert filter_candidates([candidate], {"a": [(0, .8), (5, 6)]}, [clip], [("a", .5, 4)]) == []
+
+
+@pytest.mark.parametrize("required_is_slate", [False, True])
+def test_director_filters_slates_before_choosing_and_keeps_music_exclusions(tmp_path, monkeypatch, required_is_slate):
     from tools.plan_examples import example_project
     from myzing.director.api import plan_drafts
     from myzing.match.state import read, write
     root, _, _ = example_project(tmp_path / "project")
     brief = read(root / "brief.json")
     brief["picture_crop"] = "off"
+    if required_is_slate:
+        brief["must_keep"] = [{"clip": "take-0", "start": .25, "end": 1}]
     write(root / "brief.json", brief)
     def subjects(*a, presence=None, **kw):
         presence["samples"] = [{"time": i*.5, "present": i >= 2} for i in range(16)]
         return [], []
     monkeypatch.setattr("myzing.layout.framing.analyze_subjects", subjects)
     result = plan_drafts(root, root / "recipe.json", tmp_path / "plans")
+    if required_is_slate:
+        assert not result["plans"]
+        assert result["summary"]["shortages"][0]["code"] == "visual_quality"
+        return
     assert result["plans"], result
     report = read(result["comparison_path"])
-    assert report["visual_selection"]["rejected_candidates"] > 0
+    assert report["visual_selection"]["affected_candidates"] > 0
     for path in result["plans"].values():
         plan = read(path)
         assert all(c["src_in"] >= 1 for c in plan["clips"])

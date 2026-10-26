@@ -487,7 +487,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
         ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.5-longform"],
                                      lambda: _audio(ref_study, caps["audio"]))
-        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, color, "clip-quality-v1"],
+        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, color, "clip-quality-r1"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json", color_mode=color))
         recipe = StyleRecipe.from_dict(read(recipe_result["path"]))
         summary["recipe"] = recipe_result["path"]
@@ -499,7 +499,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "clip-quality-v1", color, repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
+                                                 "clip-quality-r1", color, repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
                                                  "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", "capref-r1", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):
@@ -572,7 +572,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                       "reason": alternatives[label.split(".")[0]]}
             summary["drafts"][label] = row
             try:
-                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "uniform-caption-fit-v2", "aspect-safe-layout-v4"],
+                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "uniform-caption-fit-v3-all-paths", "aspect-safe-layout-v4"],
                     lambda p=plan_path, label=label: _prepare_plan(p, root / "drafts" / f"plan-{label}.json", colors, recipe, caps))
                 summary["warnings"].extend(prepared["warnings"])
                 row["plan"] = prepared["path"]

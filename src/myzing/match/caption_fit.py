@@ -36,10 +36,11 @@ def _source_dimensions(plan):
     return sizes
 
 
-def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None):
+def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None, *, draft_minimum=24.):
     """(style, None) when the wrapped caption fits its box at >= 24 px, else (None, reason)."""
     from myzing.layout.readability import phone_minimum
     minimum = phone_minimum(plan, caption, sizes) if plan.brief and plan.brief.caption_mode == "phone" else 24
+    minimum = max(minimum, draft_minimum)
     style = replace(style, size=max(style.size, minimum / scale))
     for _ in range(10):
         measured = replace(style, size=style.size * scale, outline_width=style.outline_width * scale)
@@ -94,12 +95,26 @@ def fit_captions(plan, folder, *, safety_context=None):
                 from myzing.layout.readability import recover_placement
                 recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
         return _fit_reference(plan, folder)
+    from statistics import median
+    from myzing.layout.readability import phone_minimum
+    minimum = max(phone_minimum(plan, c, sizes) for c in plan.captions) if (
+        plan.brief and plan.brief.caption_mode == "phone") else 24.
+    from myzing.captions.presets import phone_floor
+    minimum = max(minimum, *(phone_floor(plan, c.start, c.end, c.preset, sizes)
+                             for c in plan.captions if c.preset), 24.)
+    target = max(minimum, median(
+        (c.style or CaptionStyle(max(24, min(plan.width, plan.height) / 20))).size
+        * (c.layout.scale if c.layout else 1.) for c in plan.captions))
+    for caption in plan.captions:
+        caption.style = replace(caption.style or CaptionStyle(target), size=target)
+        if caption.layout:
+            caption.layout = replace(caption.layout, scale=1.)
+    pending = list(plan.captions)
     with tempfile.TemporaryDirectory(dir=folder) as temporary:
         root = Path(temporary)
         (root / "fonts").mkdir()
-        for caption in plan.captions:
-            if caption.preset:
-                continue
+        while pending:
+            caption = pending.pop(0)
             if caption.layout and not caption.layout.overlap.safe and caption.id not in plan.accepted_unsafe_layouts:
                 from myzing.layout.readability import recover_placement
                 recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
@@ -114,7 +129,7 @@ def fit_captions(plan, folder, *, safety_context=None):
             # Preserve each ASR word's text atomically, including multi-token
             # words. Explicit visual wraps do not cut or reorder speech.
             parts = [w.text.strip() for w in caption.words] or caption.text.split()
-            style = caption.style or CaptionStyle(max(24, min(plan.width, plan.height) / 20), outline_width=2)
+            style = replace(caption.style, size=target)
             boxes = [k.box for k in caption.layout.as_path()] if caption.layout else []
             width = min((b.width for b in boxes), default=.8) * plan.width
             height = min((b.height for b in boxes), default=.2) * plan.height
@@ -126,23 +141,40 @@ def fit_captions(plan, folder, *, safety_context=None):
             from myzing.captions.grouping import display_units
             longest = max((len(part) for part in display_units(parts)), default=0)
             recovered = False
+            best = None
             while True:
-                caption.text = _wrap(parts, limit)
-                fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes)
-                if fitted is not None:
-                    caption.style = fitted
+                if not caption.preset:
+                    caption.text = _wrap(parts, limit)
+                fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes,
+                                       draft_minimum=minimum)
+                if fitted is not None and fitted.size >= target - .01:
                     break
-                if limit <= longest:
+                if fitted is not None and (best is None or fitted.size > best[0].size):
+                    best = (fitted, caption.text)
+                if limit <= longest or caption.preset:
+                    if best is not None:
+                        fitted, caption.text = best
+                        break
                     if not recovered:
                         from myzing.layout.readability import recover_placement
                         recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
-                        style, scale = caption.style, 1.
+                        style, scale = replace(caption.style, size=target), 1.
                         width, height = caption.layout.box.width * plan.width, caption.layout.box.height * plan.height
                         limit, recovered = (52 if plan.width >= plan.height else 30), True
                         continue
                     raise ValueError(failure)
                 limit = max(longest, int(limit * .85))
-    plan.warnings.append("Complete clause captions use explicit visual wraps and libass-measured sizes; caption width and typography may differ from the reference.")
+            if fitted.size < target - .01:
+                target = fitted.size
+                # Include already fitted captions and mixed-in presets. No
+                # caption retains a larger size or a separate layout scale.
+                for item in plan.captions:
+                    item.style = replace(item.style, size=target)
+                    if item.layout:
+                        item.layout = replace(item.layout, scale=1.)
+                pending = list(plan.captions)
+            caption.style = replace(fitted, size=target)
+    plan.warnings.append("Complete clause captions use explicit visual wraps and one libass-measured draft size; caption width and typography may differ from the reference.")
 
 
 def _fit_reference(plan, folder):

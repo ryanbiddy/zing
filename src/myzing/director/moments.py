@@ -2,8 +2,9 @@
 
 For each answer sentence start, keep the closest complete-sentence ending in
 0.65..1.0 times target. Require full observed-shot coverage. Reject measured dead air, >=600 ms word gaps,
-quarantine and forbidden spans. Rank by 50% timed speech density, 30% length
-fit, 10% opening cues, 5% keeper coverage and 5% measured shot coverage.
+quarantine and forbidden spans. Rank by 30% timed speech density, 25% length
+fit, 30% complete-opening cues, 5% number/contrast cues, 5% keeper coverage
+and 5% measured shot coverage.
 Opening cues are a numeric token and contrast wording; each contributes half
 of the cue score. Question openings are excluded. Ties use source time. Greedy
 non-overlap gives distinct suggestions, so fewer than top may be returned.
@@ -52,13 +53,36 @@ def sentences(words):
 
 
 def opens_question(text):
-    # ASR sometimes loses the question mark and merges a host question with
-    # its answer. Do not promote that merged sentence as an answer hook.
-    return bool(re.search(r'\?[\"\u201d\u2019\x27)]*$', text) or re.match(
-        r"(?i)^[\s\"\u201c\u2018\x27]*(?:(?:what|where|when|why|how|who|which)\s+"
-        r"(?:(?:many|much|long|often|far)\s+)?"
-        r"(?:do|does|did|is|are|was|were|can|could|would|will|have|has)\b|"
-        r"(?:do|does|did|can|could|would|will|are|is|have|has)\b)", text))
+    return bool(re.search(r'\?[\"\u201d\u2019\x27)]*$', text.strip()))
+
+
+def usable_opening(text, previous=""):
+    """Conservative opening hazards; antecedents outside the window do not count."""
+    opening = text.casefold().replace("\u2019", "'").lstrip(' \t\n"\u201c\u2018\'(')
+    if re.match(r"(?:so|and|but)\b", opening):
+        if not opens_question(previous):
+            return False
+        opening = re.sub(r"^(?:so|and|but)\b[\s,]*", "", opening)
+    return not dangling(opening) and not re.match(
+        r"(?:you know|like i said|as\b.+?\bwas saying|that's why|it's like|"
+        r"speaking of|i mean|well|yeah|yes|no|okay|ok|right|uh|um|it|that|this|they)\b", opening)
+
+
+def complete_opening(text):
+    """Prefer a substantive first statement over short acknowledgments/fragments.
+
+    This is an English surface cue, not a semantic completeness guarantee.
+    """
+    # Reward a declarative lead with its own predicate. A topic label before
+    # a comma, or an inverted WH lead, supplies less evidence of a claim.
+    lead = text.split(",", 1)[0]
+    if lead[:1].islower():
+        return False  # Lowercase ASR fragments lack evidence of a fresh claim.
+    if re.match(r"(?:what|where|when|why|how|who|which)\s+(?:do|does|did|is|are|was|were|can|could|would|will|have|has)\b", lead, re.I):
+        return False
+    return len(re.findall(r"\b[\w']+\b", text)) >= 5 and bool(re.search(
+        r"\b(?:am|is|are|was|were|be|have|has|had|can|could|will|would|"
+        r"do|does|did|\w+ed)\b|\b(?:i|we|you)'(?:m|re|ve|d|ll)\b", lead, re.I))
 
 
 def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
@@ -84,11 +108,16 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
     shots = merge([(s.start, s.end) for s in clip.shots])
     ranked = []
     for i, first in enumerate(speech):
-        if not first.complete or opens_question(first.text):
+        if (not first.complete or opens_question(first.text)
+                or not usable_opening(first.text, speech[i - 1].text if i else "")):
             continue
         last = None
         for j in range(i, len(speech)):
             candidate = speech[j]
+            if opens_question(candidate.text):
+                # Keep the answer if it reaches the minimum; otherwise drop
+                # this start rather than padding it with a new host exchange.
+                break
             if not candidate.complete or candidate.end - first.start > target + 1e-8:
                 break
             span = (first.start, candidate.end)
@@ -108,7 +137,7 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         cues = []
         if re.search(r"\b\d+(?:[.,]\d+)?\b", first.text):
             cues.append("number in first clause")
-        if re.search(r"\b(?:but|actually|however|the truth)\b", first.text, re.I):
+        if re.search(r"\b(?:but|however|the truth)\b", first.text, re.I):
             cues.append("contrast wording in first clause")
         reasons.extend(f"Opening heuristic: {cue}" for cue in cues)
         def coverage(spans):
@@ -116,9 +145,14 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         keeper, shot = coverage(keepers), coverage(shots)
         reasons += [f"Measured keeper coverage {keeper:.1%}" if clip.keepers else "Keeper evidence unavailable",
                     f"Measured shot coverage {shot:.1%}" if clip.shots else "Shot evidence unavailable"]
-        score = .5 * density + .3 * duration / target + .1 * len(cues) / 2 + .05 * keeper + .05 * shot
+        opening = complete_opening(first.text)
+        if opening:
+            reasons.append("Opening heuristic: substantive first statement with a predicate")
+        score = (.3 * density + .25 * duration / target + .3 * opening
+                 + .05 * len(cues) / 2 + .05 * keeper + .05 * shot)
         ranked.append({"start": start, "end": end, "text": " ".join(w.text for w in clip.words[left:right]),
-                       "first_sentence": first.text, "score": round(score, 6), "label": "Estimated", "reasons": reasons,
+                       "first_sentence": first.text, "last_sentence": last.text,
+                       "score": round(score, 6), "label": "Estimated", "reasons": reasons,
                        "must_keep": [{"clip": clip.asset_id, "start": start, "end": end}]})
     chosen = []
     for row in sorted(ranked, key=lambda r: (-r["score"], r["start"], r["end"])):

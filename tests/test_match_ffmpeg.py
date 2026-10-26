@@ -120,6 +120,7 @@ def test_color_ignores_differently_colored_fill(tmp_path, size, mode, portrait):
     full = measure_video(video, count=4)[0].to_dict()
     sharp = measure_output_color(video, plan, count=4)
     recipe = build_style_recipe(Breakdown(VideoMeta("ref", "file", duration=1, fps=30)))
+    recipe.color_mode = "reference"
     from myzing.style_recipe import Coverage
     recipe.measured.extend(replace(recipe.measured[0], name="color."+key, value=value,
                                    coverage=Coverage(4, 1, "generated", target.coverage),

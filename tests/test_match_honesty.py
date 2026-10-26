@@ -176,6 +176,7 @@ def test_matte_edges_are_inset_and_an_all_gap_sample_set_is_unmeasured(monkeypat
     assert len(color["picture_area"]["samples"]) == 6
     assert all(s["rect"] is None for s in color["picture_area"]["samples"])
     recipe = build_style_recipe(breakdown([.8] * 4))
+    recipe.color_mode = "reference"
     from dataclasses import replace
     recipe.measured.append(replace(recipe.measured[0], name="color.luma_percentiles", value=[.1] * 7))
     dimension = report(recipe, breakdown([.8] * 4), {}, color, {}, plan)["dimensions"]["color"]

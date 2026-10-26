@@ -1,8 +1,9 @@
-"""Reject candidate footage with measured face-free gaps or graphic slates."""
+"""Trim measured face-free gaps and graphic slates from interview candidates."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 
-from .selection import merge, overlaps
+from .selection import EPS, merge, overlaps, subtract
 
 
 def excluded_spans(clip, presence):
@@ -16,25 +17,10 @@ def excluded_spans(clip, presence):
     if not samples:
         return []
     has_faces = any(s["present"] for s in samples)
+    if not has_faces:
+        return []  # Screen recordings and other faceless sources remain usable.
     cards = text_cards(SimpleNamespace(src_in=0, src_out=clip.duration), clip.text_geometry)
     card_times = {t for t, *_ in cards}
-    def large(boxes):
-        return sum((b[2]-b[0])*(b[3]-b[1]) for b in boxes) >= .08
-    for frame in clip.text_geometry.get("frames", []):
-        boxes = [d.get("appearance", {}).get("ink_box") or d["box"] for d in frame.get("detections", [])
-                 if (d.get("confidence") or 0) >= .5]
-        if large(boxes):
-            card_times.add(frame["t"])
-    # Compact and older OCR sidecars may omit raw frames. Keep the same rule
-    # for their retained geometry, including a single large logo/title word.
-    for sample in clip.text_geometry.get("protected_samples", []):
-        if large(sample["boxes"]):
-            card_times.add(sample["t"])
-    tracked = {}
-    for track in clip.text_geometry.get("tracks", []):
-        for sample in track.get("samples", []):
-            tracked.setdefault(sample["t"], []).extend(sample.get("line_boxes") or [sample["box"]])
-    card_times.update(t for t, boxes in tracked.items() if large(boxes))
     rows, run = [], []
 
     def close(until=None):
@@ -57,6 +43,41 @@ def excluded_spans(clip, presence):
     return merge(rows)
 
 
-def filter_candidates(pool, excluded):
-    return [c for c in pool if not any(overlaps((c.start, c.end), span)
-                                     for span in excluded.get(c.asset_id, []))]
+def filter_candidates(pool, excluded, studies, required=()):
+    """Retain usable pieces, rebuilding transcript metadata and must-keep bits.
+
+    A trim through speech moves inward past the entire affected clause. It
+    cannot inherit the original candidate's text, count, or required coverage.
+    """
+    from .continuity import clauses
+    lookup = {s.asset_id: s for s in studies}
+    speech = {s.asset_id: clauses(s.words) for s in studies}
+    result = {}
+    for candidate in pool:
+        if not any(overlaps((candidate.start, candidate.end), span) for span in excluded.get(candidate.asset_id, [])):
+            result.setdefault((candidate.asset_id, candidate.start, candidate.end, candidate.covers), candidate)
+            continue
+        study = lookup[candidate.asset_id]
+        bits = [(1 << i, (a, b)) for i, (key, a, b) in enumerate(required) if key == candidate.asset_id]
+        for start, end in subtract([(candidate.start, candidate.end)], excluded.get(candidate.asset_id, [])):
+            for clause in speech[candidate.asset_id]:
+                if clause.start + EPS < start < clause.end - EPS:
+                    start = clause.end
+                if clause.start + EPS < end < clause.end - EPS:
+                    end = clause.start
+            if end - start < .2:
+                continue
+            if any(overlaps((start, end), span) and not (start <= span[0] + EPS and end >= span[1] - EPS)
+                   for _, span in bits):
+                continue
+            words = [w for w in study.words if w.start >= start - EPS and w.end <= end + EPS]
+            shot = next(s for s in study.shots if s.start <= start < s.end)
+            trimmed = replace(candidate, start=start, end=end, shot=shot.index,
+                word_count=len(words), first_word=words[0].start - start if words else None,
+                text=" ".join(w.text for w in words), keyframe=bool(shot.keyframe),
+                keeper=any(start >= k["start"] - .35 and end <= k["end"] + .35 for k in study.keepers),
+                covers=sum(bit for bit, (a, b) in bits if start <= a + EPS and end >= b - EPS),
+                dangling_clauses=sum(not c.complete for c in speech[candidate.asset_id]
+                                     if overlaps((start, end), (c.start, c.end))))
+            result.setdefault((trimmed.asset_id, trimmed.start, trimmed.end, trimmed.covers), trimmed)
+    return sorted(result.values(), key=lambda c: (c.asset_id, c.start, c.end))

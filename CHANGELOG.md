@@ -4,12 +4,18 @@
 
 - Match keeps source color by default. CLI `--color reference` and MCP
   `color="reference"` opt into grading; recipes and reports record the mode.
+  Recipes that omit `color_mode` also default to `source`.
 - Skin checks catch lost chroma and lightness as well as hue changes, and
   reference-grade skin misses appear as top-level match warnings.
 - Draft captions keep one font size across groups and shots. Long phrases
-  regroup; only an indivisible word can lower the whole draft's size.
-- Moments skip question openings and end at sentence boundaries. Draft selection
-  rejects candidates containing measured face-free gaps or graphic slates.
+  regroup when word timings are available; untimed clauses try shorter wraps.
+  A size reduction applies to every caption, including mixed preset drafts.
+- Moments reject filler and back-reference openings and stop before questions.
+  Ranking favors substantive opening statements; suggestions include their
+  first and last sentences.
+- Draft selection trims measured face-free gaps and text cards out of candidates
+  when the source has faces elsewhere. Faceless sources remain usable; a nearby
+  slate does not invalidate a required span that survives the trim.
 - Match recipe, director, caption-fit and skin-report checkpoints are invalidated
   for the new quality policy.
 

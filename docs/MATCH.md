@@ -270,10 +270,15 @@ then rerun the same match command with `--resume` instead of `--answers`.
 `zing moments` also accepts a study slug or `breakdown.json` from an earlier
 `zing study <clip> --raw` run. It never transcribes or calls a model.
 
-Suggestions include start/end, text, score and reasons, labeled **Estimated**.
-Windows start on complete clauses and last 65-100% of the target. Scores weight
-speech density (50%), length fit (30%), question/number/contrast cues in the first
-clause (10%), keeper coverage (5%) and shot coverage (5%). Measured dead air,
+Suggestions include start/end, text, first and last sentences, score and reasons,
+labeled **Estimated**. Windows last 65-100% of the target and stop before questions;
+an answer shorter than that minimum is dropped. Question detection uses terminal
+`?` punctuation. Filler and back-reference openings are excluded. `So`, `And`, and
+`But` may open an answer only immediately after a question. Scores weight speech
+density (30%), length fit (25%), a substantive first statement with a predicate
+(30%), number/contrast cues (5%), keeper coverage (5%) and shot coverage (5%).
+`Actually` does not count as contrast. These are English surface heuristics.
+Measured dead air,
 word gaps of at least 600 ms, incomplete clauses and repaired timings are excluded.
 Every window must be fully covered by observed shots; even sub-second shot gaps
 are excluded, while abutting shots can form one window. Clips without transcript
@@ -281,6 +286,12 @@ words, including silent title slates, have no suggestions. In a project, copied
 `must_keep` entries use the inventory ID for both relative and external media paths.
 Results do not overlap; sparse evidence may yield fewer than requested. Semantic
 quality and ASR accuracy remain unverified.
+
+When faces occur elsewhere in a source, selection trims out observed face-free
+runs of at least one second and face-free text cards detected by `text_cards()`.
+A large text box alone is insufficient. Screen recordings and other sources
+with no detected faces remain usable. Trims preserve whole clauses and recalculate
+required-span coverage; a slate beside a must-keep does not invalidate the keep.
 
 Above 2,400 candidate trims, a must-keep focuses search from its first start minus
 1.5 times the target to its last end plus 1.5 times the target, snapped outward to

@@ -145,14 +145,15 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             blocked = excluded_spans(study, presence)
             visual_exclusions[study.asset_id] = blocked
             forbidden[study.asset_id] = merge(forbidden.get(study.asset_id, []) + blocked)
-        before = len(pool)
-        pool = filter_candidates(pool, visual_exclusions)
-        initial_pool = filter_candidates(initial_pool, visual_exclusions)
-        report["visual_selection"] = {"excluded": visual_exclusions, "rejected_candidates": before - len(pool),
-            "basis": "Candidate-level rejection: >=1s observed without a face/head when faces occur elsewhere; text-heavy graphics without a face. Sparse/unavailable analysis remains unknown."}
-        if not pool or any(any(a < end and b > start for a, b in visual_exclusions.get(key, []))
+        from .selection import overlaps
+        affected = sum(any(overlaps((c.start, c.end), span) for span in visual_exclusions.get(c.asset_id, [])) for c in pool)
+        pool = filter_candidates(pool, visual_exclusions, clips, required)
+        initial_pool = filter_candidates(initial_pool, visual_exclusions, clips, initial_required)
+        report["visual_selection"] = {"excluded": visual_exclusions, "affected_candidates": affected,
+            "basis": "Candidate trims exclude >=1s observed without a face/head and measured text cards without a face, only when faces occur elsewhere. Trims retain whole clauses and required spans. Sparse/unavailable analysis remains unknown."}
+        if not pool or any(any(overlaps((start, end), span) for span in visual_exclusions.get(key, []))
                            for key, start, end in required):
-            shortage("visual_quality", "No usable candidate or a required moment overlaps a face-free gap or graphic slate.",
+            shortage("visual_quality", "No usable candidate remains, or a required span itself contains a face-free gap or graphic slate.",
                      "Choose a moment with a visible face/head or another source shot.")
         try:
             initial = choose(initial_pool, initial_required, clips, style, brief.target_length_seconds, 30, seed,
