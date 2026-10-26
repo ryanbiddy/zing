@@ -215,3 +215,50 @@ Its fixture provenance explicitly labels synthetic harmonic audio, authored ASR
 words and stubbed OCR recognition. Real decoded pixels supply caption boxes;
 the remaining pipeline runs normally. This example is a wiring/verification
 test, not evidence of human speech recognition or subjective style quality.
+
+## Long interviews
+
+For a 30-90 minute interview, let match study it once. Its
+`long_source_needs_moment` shortage preserves those checkpoints:
+
+```sh
+zing match reference.mp4 --clips ./clips --out ./project --answers '{"target_length_seconds":22}'
+zing moments ./clips/interview.mp4 --workspace ./project --target 22 --top 3 --json
+```
+
+Review the suggestions, copy one `must_keep` array into `project/brief.json`,
+then rerun the same match command with `--resume` instead of `--answers`.
+`zing moments` also accepts a study slug or `breakdown.json` from an earlier
+`zing study <clip> --raw` run. It never transcribes or calls a model.
+
+Suggestions include start/end, text, score and reasons, labeled **Estimated**.
+Windows start on complete clauses and last 65-100% of the target. Scores weight
+speech density (50%), length fit (30%), question/number/contrast cues in the first
+clause (10%), keeper coverage (5%) and shot coverage (5%). Measured dead air,
+word gaps of at least 600 ms, incomplete clauses and repaired timings are excluded.
+Every window must be fully covered by observed shots; even sub-second shot gaps
+are excluded, while abutting shots can form one window. Clips without transcript
+words, including silent title slates, have no suggestions. In a project, copied
+`must_keep` entries use the inventory ID for both relative and external media paths.
+Results do not overlap; sparse evidence may yield fewer than requested. Semantic
+quality and ASR accuracy remain unverified.
+
+Above 2,400 candidate trims, a must-keep focuses search from its first start minus
+1.5 times the target to its last end plus 1.5 times the target, snapped outward to
+clause/shot boundaries. Forbidden ranges still apply; short clips keep their
+existing search. Search uses one window spanning all must-keeps, including the
+time between them. Plans and reports label the interval **Measured** and say
+"Search focused on ... in one window around your must-keep moment; the whole
+interview was not searched." For several keeps, the wording says "all your
+must-keep moments, including the time between them." If snapping reaches both
+clip edges, it instead says "Search window spans the full clip (...) to include
+...; snapping did not narrow the search." A window that still exceeds 2,400
+candidates returns `planner_capacity`: move or drop a must-keep, or split the job
+into separate briefs. No moment is automatically selected. A planned span with
+no transcribed speech and one observed shot carries a warning to review for a
+possible static title slate.
+
+Audio/video drift up to 250 ms is accepted and disclosed. Excess audio is clipped;
+an uncovered video tail stays unmeasured. Above ten minutes, match skips its
+optional audio map and reports that limit; the raw study still supplies transcript
+and dead-air evidence.

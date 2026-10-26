@@ -63,7 +63,7 @@ uv run --frozen pytest -ra
 
 The fresh-install script creates two new venvs, installs the built wheel with
 `mcp,render,memes` and `all`, and runs outside the source checkout. It checks
-help, doctor, prompts, presets, the 36-tool MCP exchange and a generated-image
+help, doctor, prompts, presets, the 37-tool MCP exchange and a generated-image
 studio run. Product processes have networking blocked and empty model caches.
 Dependency installation still needs the package index. Use `--work-dir` with a
 new folder to retain both venvs, logs and images for review.

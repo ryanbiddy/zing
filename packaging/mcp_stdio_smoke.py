@@ -16,6 +16,7 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "zing_moments",
     "zing_studio",
     "zing_studio_run",
 

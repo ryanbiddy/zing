@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 36 tools. Inspect the connected client's tool schemas for
+The current server has 37 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -29,6 +29,7 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `brief_questions` | Interview questions/defaults/examples. |
 | `brief_save` | Save replacement answers for an existing local project and return evidence gaps. |
 | `plan_drafts` | Project, recipe and output paths plus seed; three Composition v2 plans, supported v1 derivatives and a comparison, or named shortages. No study/render/network. |
+| `zing_moments` | Rank complete transcript windows from a cached clip or study; Estimated reasons and must-keep JSON, no model calls or automatic selection. |
 | `match_start` | Background reference-plus-clips workflow; brief/answers, seed, resume, and explicit URL consent. Local models only; returns a project path for polling. |
 | `match_status` | Actual progress, ready count, comparison, failures and logs. `cancel=true` stops this server's owned match worker and descendants. |
 | `build_profile` | Aggregate studied sources with coverage and unjudged-source warnings. |

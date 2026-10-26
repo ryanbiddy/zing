@@ -5,6 +5,15 @@
 Release candidate for Zing v1. These highlights cover merged PRs #401 through
 #452 on main.
 
+### Long interviews
+
+`zing moments` and the `zing_moments` MCP tool suggest complete transcript windows
+with Estimated scores, reasons and ready-to-use `must_keep` JSON. Oversized
+sources require a chosen moment; match then records its focused search window as
+Measured in plans and reports. Audio/video duration drift up to 250 ms is accepted
+with a warning; uncovered tails remain unmeasured. Match skips optional audio maps
+beyond the analyzer's ten-minute limit. The MCP registry now has 37 tools.
+
 ### Studio
 
 `zing studio` is the guided starting point. Choose a reference match, an edit
@@ -97,7 +106,7 @@ titles, and keeps a local workflow when the peer is absent. (#408, #415,
 ### Agents and MCP
 
 The agent skill, brief interview and composition tools expose local editing
-workflows. The server uses the official MCP SDK 2.3 and offers 36 tools,
+workflows. The server uses the official MCP SDK 2.3 and offers 37 tools,
 including studio and explain. Registry metadata and a separate manual registry
 workflow prepare the listing for publication. The listing copy, registry line
 and PyPI summary match across the README, MCP instructions, bundle manifest
@@ -113,7 +122,7 @@ not automatically publish media. (#414, #430, #432)
 ### Packaging and release
 
 The release candidate includes runtime data and license notices in the wheel.
-Fresh-install checks install common extras and all extras, list all 36 MCP
+Fresh-install checks install common extras and all extras, list all 37 MCP
 tools, call `zing_status`, and render an offline studio still on Windows,
 macOS and Linux in CI. A manual release workflow builds and checks artifacts
 before an environment approval gate, then uses PyPI Trusted Publishing.

@@ -86,11 +86,13 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
     clips, inventory_notes = inventory(root, repair_asr=repair_asr)
     excluded = [f"Excluded {Path(c.path).name} ({c.asset_id}, {c.status}): {warning}"
                 for c in clips if c.status != "ready" for warning in c.warnings]
-    excluded += [w for c in clips for w in c.warnings if w.startswith(("ASR repair", "ASR quarantine"))]
+    excluded += [w for c in clips for w in c.warnings if w.startswith(("ASR repair", "ASR quarantine", "Audio/video"))]
     report = {"version": 1, "producer": PRODUCER, "seed": seed, "status": "shortage",
               "brief": brief.to_dict(), "inventory": [c.to_dict() for c in clips],
               "inventory_warnings": inventory_notes, "plans": {}, "shortages": []}
     payloads = {}
+    search_windows = {}
+    report["search_windows"] = search_windows
     try:
         if not any(c.status == "ready" for c in clips):
             shortage("study_required", "No project clip has a usable study.",
@@ -120,8 +122,10 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         # the search should repair failed alternatives without replacing a
         # passing primary edit merely because its candidate beam changed.
         preferred_a = None
+        pool, required = candidates(clips, keep, forbidden, style, brief.target_length_seconds,
+                                    search_windows=search_windows)
         initial_pool, initial_required = candidates(clips, keep, forbidden, style, brief.target_length_seconds,
-                                                    expand_timing=False)
+                                                    expand_timing=False, search_windows=search_windows)
         try:
             initial = choose(initial_pool, initial_required, clips, style, brief.target_length_seconds, 30, seed,
                              allow_reordering="[allow source reordering]" in brief.purpose.casefold(),
@@ -136,7 +140,6 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 preferred_a = initial
         except PlanningShortage:
             pass  # New timing trims may make a previously unavailable trio feasible.
-        pool, required = candidates(clips, keep, forbidden, style, brief.target_length_seconds)
         timing_evidence = {}
         selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed,
                           allow_reordering="[allow source reordering]" in brief.purpose.casefold(),
@@ -176,9 +179,17 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             # Fewer than three distinct in-band edits: timing bands were kept first.
             report["search"]["distinctness_relaxed"] = relaxed
         music_cache = {}
+        # Music snapping and tail alignment must obey the disclosed search
+        # scope too, even when they adjust an already selected trim.
+        planning_forbidden = {key: list(spans) for key, spans in forbidden.items()}
+        for clip in clips:
+            if clip.asset_id in search_windows:
+                window = search_windows[clip.asset_id]
+                planning_forbidden.setdefault(clip.asset_id, []).extend(
+                    (a, b) for a, b in ((0., window["start"]), (window["end"], clip.duration)) if b > a)
         for label, sequence in selected.items():
             plan, evidence = make_plan(label, sequence, clips, style_recipe, recipe_path.parent,
-                                       style, brief, manifest, root, seed, keep, forbidden,
+                                       style, brief, manifest, root, seed, keep, planning_forbidden,
                                        subject_evidence=subject_evidence, music_cache=music_cache, picture_evidence=picture_evidence,
                                        timing_selection=timing_evidence[label],
                                        **({"caption_mode": "none" if studio_options.get("speech_model") == "skip" else studio_options.get("captions")} if studio_options is not None else {}))
@@ -192,6 +203,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 for c in clips if c.status == "ready"
                 for moment in c.audio_tags.get("moment_candidates", [])
             ]
+            evidence["search_windows"] = dict(search_windows)
+            evidence["warnings"].extend(f"Measured: {w['asset_id']}: {w['text']}" for w in search_windows.values())
             evidence["differs_from"] = {
                 other: {"opening_changed": sequence[0].identity != alternative[0].identity,
                         "this_opening": {"asset_id": sequence[0].asset_id, "start": sequence[0].start, "end": sequence[0].end},
@@ -253,7 +266,9 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             "summary": {"drafts": len(report["plans"]), "shortages": report["shortages"],
                         **({"target_length": report["target_length"]} if "target_length" in report else {}),
                         # Low-resolution advice first: it changes what to render.
-                        "warnings": [*dict.fromkeys(p["resolution"]["summary"] for p in report["plans"].values()
+                        "search_windows": search_windows,
+                        "warnings": [*(f"Measured: {w['asset_id']}: {w['text']}" for w in search_windows.values()),
+                                     *dict.fromkeys(p["resolution"]["summary"] for p in report["plans"].values()
                                                     if p["resolution"]["limited"]),
                                      *(f"{label}: {ALTERNATIVE}: {reason}." for label, reason
                                        in report.get("alternatives", {}).items()),

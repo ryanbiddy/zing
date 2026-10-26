@@ -396,6 +396,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         notes.append("Continuity flagged: no better complete-clause trio found within the bounded search; review dangling source speech.")
     elif continuity["status"] == "not_applicable":
         notes.append("Continuity not applicable: this draft selects no transcribed speech.")
+        if len(durations) == 1:
+            notes.append("Selected span has no transcribed speech and one observed shot; it may be a static title slate. Review the picture before using this draft.")
     if numbers["median_shot_seconds"]["status"] == "deviation":
         notes.append("Pacing unmet: the selected complete-clause draft misses the reference envelope, including internal source cuts. The bounded search did not select a matching alternative.")
     relaxed = next(iter(timing_selection.values()))["search"].get("distinctness_relaxed") if timing_selection else None

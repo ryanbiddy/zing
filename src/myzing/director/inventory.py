@@ -148,8 +148,10 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                 if not audio_source.is_absolute():
                     audio_source = audio_path.parent / audio_source
                 if (str(audio_source.resolve()) not in paths | {str((path.parent / b.meta.media_path).resolve())}
-                        or abs(audio.duration_seconds - item.duration) > .05 or audio.truncated):
-                    raise ValueError("audio-map source/duration does not match this complete study")
+                        or audio.truncated):
+                    raise ValueError("audio-map source does not match this study or its analysis is truncated")
+                item.warnings.extend(audio_duration_notes(audio.duration_seconds, item.duration))
+                item.dead_air = clip_dead_air(item.dead_air, min(audio.duration_seconds, item.duration))
                 if audio.tags:
                     item.audio_tags = audio.tags.to_dict()
                 silence = []
@@ -158,7 +160,7 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                         continue
                     row = segment.to_dict()
                     if segment.end > item.duration:
-                        # AudioMap duration was checked within 50 ms above.
+                        # AudioMap duration was checked within 250 ms above.
                         # AAC's decoded tail may exceed the video clock; keep
                         # that raw evidence and clip only the derived silence.
                         row.update(end=item.duration, original={"start": segment.start, "end": segment.end},
@@ -179,3 +181,37 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
             item.words, item.shots, item.keepers, item.dead_air = [], [], [], []
             item.warnings.append(f'{asset.id}: {exc}. Review timestamps or run zing study "{source}" --raw.')
     return result, notes
+
+
+def audio_duration_notes(audio_seconds: float, video_seconds: float) -> list[str]:
+    """Allow 250 ms of codec/container padding; never extend measured silence.
+
+    A fixed bound works even when frame-rate/codec metadata is unavailable and
+    covers ordinary camera frame rounding and AAC padding without accepting
+    materially incomplete maps.
+    """
+    drift = abs(audio_seconds - video_seconds)
+    drift_text = (f"is more than 0.250s ({drift:.9f}s)" if drift > .25 + 1e-8 else f"{drift:.3f}s")
+    detail = (f"audio {audio_seconds:.3f}s, video {video_seconds:.3f}s; "
+              f"measured drift {drift_text}")
+    if drift > .25 + 1e-8:
+        raise ValueError(f"audio-map duration mismatch ({detail}) exceeds 0.250s tolerance")
+    if drift <= 1e-8:
+        return []
+    tail = ("Uncovered video tail is unmeasured, not inferred silence."
+            if audio_seconds < video_seconds else "Audio segments past the video end are clipped.")
+    return [f"Audio/video duration drift accepted ({detail}; tolerance 0.250s). {tail}"]
+
+
+def clip_dead_air(spans: list[dict], measured_end: float) -> list[dict]:
+    """Bound derived VAD silence to known audio coverage, keeping originals."""
+    result = []
+    for span in spans:
+        if span["start"] >= measured_end:
+            continue
+        if span["end"] > measured_end:
+            span = {**span, "end": measured_end,
+                    "original": {"start": span["start"], "end": span["end"]},
+                    "method": "clip_dead_air_to_measured_audio"}
+        result.append(span)
+    return result
