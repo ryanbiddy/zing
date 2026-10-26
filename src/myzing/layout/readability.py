@@ -8,6 +8,36 @@ PHONE_MIN_SECONDS = .5
 READING_CPS = 20.0  # Same guidance as render.validation.CAPTION_MAX_CPS.
 
 
+def recover_placement(plan, caption, *, minimum=None, obstacles=(), source_dimensions=None):
+    """Reserve a legible, inset text plate when subject avoidance is impossible.
+
+    Preserve collision evidence. Generated drafts may disclose subject overlap;
+    they never waive output bounds or the renderer's actual glyph-fit check.
+    """
+    from dataclasses import replace
+    from myzing.composition import CaptionStyle
+    from myzing.composition.aspects import SAFE_INSETS, aspect_for
+    from .types import Box, EventLayout, Keyframe
+    from .chooser import check_overlap
+    left, top, right, bottom = SAFE_INSETS[aspect_for(plan.width, plan.height)]
+    width = 1 - left - right - .02
+    height = min(.36, 1 - top - bottom - .02)
+    box = Box(left + .01, 1 - bottom - .01 - height, width, height)
+    if minimum is None:
+        minimum = phone_minimum(plan, caption, source_dimensions) if plan.brief and plan.brief.caption_mode == "phone" else 24.
+    style = caption.style or CaptionStyle(minimum, outline_width=2)
+    caption.style = replace(style, size=max(minimum, style.size), box_color="#111111", color="#FFFFFF")
+    overlap = check_overlap([Keyframe(caption.start, box), Keyframe(caption.end, box)], list(obstacles), [])
+    overlap = replace(overlap, scope="output safe insets; fallback text plate; subject avoidance not guaranteed")
+    warning = (f"Caption {caption.id}: subject-free placement was unavailable at the readable size; "
+               "using an inset high-contrast text plate that may cover the subject. Review this draft.")
+    caption.layout = EventLayout(caption.id, caption.start, caption.end, "readable-placement-fallback", overlap,
+                                box=box, warnings=[warning])
+    if not overlap.safe and caption.id not in plan.accepted_unsafe_layouts:
+        plan.accepted_unsafe_layouts.append(caption.id)
+    plan.warnings.append(warning)
+
+
 def phone_size(width, height, picture_width=None):
     """Minimum em size in output pixels for a 400px-wide phone presentation.
 

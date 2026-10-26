@@ -228,7 +228,7 @@ def test_ytdlp_stale_version_warns_with_fix(monkeypatch):
     check = doctor.check_ytdlp(today=date(2026, 7, 18))
     assert check.ok is True  # stale is a warning, not a failure
     assert check.data["stale"] is True
-    assert "pip install -U yt-dlp" in check.fix
+    assert 'pip install -U "yt-dlp[default]"' in check.fix
     assert "days old" in check.detail
 
 
@@ -288,7 +288,7 @@ def test_stale_and_no_js_runtime_both_reported(monkeypatch):
     check = doctor.check_ytdlp(today=date(2026, 7, 18))
     assert check.data["stale"] is True and check.data["js_runtime"] is None
     assert "days old" in check.detail and "JS runtime" in check.detail
-    assert "pip install -U yt-dlp" in check.fix and "deno" in check.fix.lower()
+    assert 'pip install -U "yt-dlp[default]"' in check.fix and "deno" in check.fix.lower()
 
 
 # -- F-05: ocr check must match what the pipeline imports ---------------------
@@ -433,14 +433,9 @@ def test_node_only_warns_about_default_runtimes(monkeypatch):
     monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
     check = doctor.check_ytdlp(today=date(2026, 7, 19))
     assert check.data["js_runtime"] == "node"
-    assert "403" in check.detail
-    assert "--js-runtimes node" in check.fix
-    # Not satisfied-by-default → degraded, and honest about scope: the
-    # STANDARD config locations were checked (D-13), custom
-    # --config-locations remain invisible.
-    assert check.ok is False and check.mark == "degraded"
-    assert "standard" in check.degraded_mode
-    assert "--config-locations" in check.degraded_mode
+    assert "enabled automatically" in check.detail
+    assert check.ok is True and check.mark == ""
+    assert not check.fix and not check.degraded_mode
 
 
 def test_js_runtime_fixes_point_at_troubleshooting_doc(monkeypatch):
@@ -459,11 +454,11 @@ def test_js_runtime_fixes_point_at_troubleshooting_doc(monkeypatch):
         lambda name: f"/bin/{name}" if name in ("yt-dlp", "node") else None,
     )
     node_case = doctor.check_ytdlp(today=date(2026, 7, 19))
-    assert "FETCH-TROUBLESHOOTING" in node_case.fix
+    assert node_case.ok and not node_case.fix
 
     doc = Path(doctor.__file__).resolve().parents[2] / "docs" / "FETCH-TROUBLESHOOTING.md"
     text = doc.read_text(encoding="utf-8")
-    for marker in ("pip install -U yt-dlp", "deno", "bgutil", "cookies", "GPL-3.0"):
+    for marker in ('pip install -U "yt-dlp[default]"', "deno", "bgutil", "cookies", "GPL-3.0"):
         assert marker in text
     # the fix ORDER the SG-4 scan established: update -> deno -> bgutil -> cookies
     assert (
@@ -528,10 +523,13 @@ def test_audit_201_solver_missing_is_never_fully_ready(full_machine, monkeypatch
 
 # -- S5 gate defects D-11 / D-13 ---------------------------------------------
 
-def test_d11_resolver_prefers_binary_then_module_then_none(monkeypatch):
+def test_d11_resolver_prefers_module_then_binary_then_none(monkeypatch):
     """One resolver for doctor's probe AND study's fetch — the gate saw
     'fully ready' from a module probe while ingest ran the binary."""
     monkeypatch.setattr(doctor, "_which", lambda name: "/bin/yt-dlp")
+    monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+    assert doctor.resolve_ytdlp_argv() == [sys.executable, "-m", "yt_dlp"]
+    monkeypatch.setattr(doctor, "_has_module", lambda name: False)
     assert doctor.resolve_ytdlp_argv() == ["/bin/yt-dlp"]
 
     monkeypatch.setattr(doctor, "_which", lambda name: None)
@@ -568,7 +566,7 @@ def test_d13_applied_node_config_is_not_represcribed(monkeypatch, tmp_path):
     check = doctor.check_ytdlp(today=date(2026, 7, 19))
     assert check.ok is True
     assert check.fix == ""
-    assert "enabled via yt-dlp config" in check.detail
+    assert "enabled automatically" in check.detail
     assert check.data["node_config"] == str(cfg)
 
 
@@ -583,8 +581,7 @@ def test_d13_commented_out_line_does_not_count(monkeypatch, tmp_path):
     monkeypatch.setattr(doctor, "_has_module", lambda name: True)
     monkeypatch.setattr(doctor, "_run_version", lambda cmd: "2026.07.01")
     check = doctor.check_ytdlp(today=date(2026, 7, 19))
-    assert check.ok is False and check.mark == "degraded"
-    assert "--js-runtimes node" in check.fix
+    assert check.ok is True and not check.fix
 
 
 def test_d13_missing_config_file_reads_as_absent(monkeypatch, tmp_path):
@@ -759,7 +756,7 @@ def test_absent_model_is_named_with_the_room_available(
         shutil.rmtree(entry)
     check = _named(doctor.run_checks(today=date(2026, 7, 20)), "faster-whisper")
     assert check.ok
-    assert "--speech-model small.en" in check.detail
+    assert "--speech-model large-v2 --yes" in check.detail
     assert check.data["cached"] is False
 
 
@@ -781,7 +778,7 @@ def test_no_room_for_the_model_is_a_fixable_failure(
     assert "1.2 GB is free" in check.detail
     assert check.fix, "a disk problem must name what to do"
     assert check.degraded_mode, "and what it costs"
-    assert "--speech-model small.en" in check.fix
+    assert "--speech-model large-v2 --yes" in check.fix
 
 
 def test_free_space_is_measured_where_zing_downloads_not_the_hub_cache(

@@ -38,22 +38,36 @@ def _source_dimensions(plan):
 
 def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None):
     """(style, None) when the wrapped caption fits its box at >= 24 px, else (None, reason)."""
+    from myzing.layout.readability import phone_minimum
+    minimum = phone_minimum(plan, caption, sizes) if plan.brief and plan.brief.caption_mode == "phone" else 24
+    style = replace(style, size=max(style.size, minimum / scale))
     for _ in range(10):
         measured = replace(style, size=style.size * scale, outline_width=style.outline_width * scale)
-        left, top, right, bottom = _measure(caption, measured, font, caption_runs(caption),
-            plan.width, plan.height, root, "ffmpeg", "ass", em)
+        from myzing.render.validation import EDLValidationError
+        try:
+            left, top, right, bottom = _measure(caption, measured, font, caption_runs(caption),
+                plan.width, plan.height, root, "ffmpeg", "ass", em)
+        except EDLValidationError as exc:
+            if "text exceeds frame bounds" not in str(exc):
+                raise
+            if style.size * scale <= minimum + .01:
+                return None, (f"Caption {caption.id} cannot fit legibly: ink exceeds the "
+                              f"{plan.width}x{plan.height}px output at the {minimum:.1f}px readability floor. "
+                              "Shorten the phrase or enlarge the output.")
+            style = replace(style, size=max(minimum / scale, style.size * .5))
+            continue
         padding = max(8 * scale if style.box_color else 0,
                       2 * style.highlight_box_padding * scale if style.highlight_box_color else 0)
         if right - left + padding <= width and bottom - top + padding <= height:
             return style, None
         size = style.size * min(width / (right - left + padding), height / (bottom - top + padding)) * .95
-        from myzing.layout.readability import phone_minimum
-        # The same picture-relative floor place_captions applies.
-        minimum = (phone_minimum(plan, caption, sizes)
-                   if plan.brief and plan.brief.caption_mode == "phone" else 24)
         if size * scale < minimum:
-            return None, (f"Caption {caption.id} cannot fit as a readable complete clause; shorten the selected "
-                          "speech or enlarge its layout.")
+            if style.size * scale > minimum + .01:
+                style = replace(style, size=minimum / scale)
+                continue  # Test the floor itself; proportional padding can overshoot it.
+            return None, (f"Caption {caption.id} cannot fit legibly: measured ink {right-left+padding:.1f}x"
+                          f"{bottom-top+padding:.1f}px exceeds its {width:.1f}x{height:.1f}px box at the "
+                          f"{minimum:.1f}px readability floor. Shorten the phrase or enlarge the output.")
         style = replace(style, size=size)
     return None, f"Caption {caption.id} exceeded the bounded ink-fit search; review its layout."
 
@@ -70,6 +84,9 @@ def fit_captions(plan, folder):
         for caption in plan.captions:
             if caption.preset:
                 continue
+            if caption.layout and not caption.layout.overlap.safe and caption.id not in plan.accepted_unsafe_layouts:
+                from myzing.layout.readability import recover_placement
+                recover_placement(plan, caption, source_dimensions=sizes)
             font, em = "Arial", 1.
             if caption.font:
                 source = Path(caption.font.path)
@@ -92,6 +109,7 @@ def fit_captions(plan, folder):
             limit = 52 if plan.width >= plan.height else 30
             from myzing.captions.grouping import display_units
             longest = max((len(part) for part in display_units(parts)), default=0)
+            recovered = False
             while True:
                 caption.text = _wrap(parts, limit)
                 fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes)
@@ -99,6 +117,13 @@ def fit_captions(plan, folder):
                     caption.style = fitted
                     break
                 if limit <= longest:
+                    if not recovered:
+                        from myzing.layout.readability import recover_placement
+                        recover_placement(plan, caption, source_dimensions=sizes)
+                        style, scale = caption.style, 1.
+                        width, height = caption.layout.box.width * plan.width, caption.layout.box.height * plan.height
+                        limit, recovered = (52 if plan.width >= plan.height else 30), True
+                        continue
                     raise ValueError(failure)
                 limit = max(longest, int(limit * .85))
     plan.warnings.append("Complete clause captions use explicit visual wraps and libass-measured sizes; caption width and typography may differ from the reference.")

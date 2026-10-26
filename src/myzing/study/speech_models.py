@@ -2,6 +2,8 @@
 
 from functools import lru_cache
 import os
+import json
+import tempfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shutil
@@ -100,8 +102,52 @@ def local_path(name):
 
 
 def configured_name():
-    from .transcribe import DEFAULT_MODEL, ENV_MODEL
-    return os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
+    return resolve_name(require_cached=False)
+
+
+def save_choice(name):
+    """Publish only a successfully prepared choice, in the active Zing workspace."""
+    root = storage.resolve_workspace()
+    root.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".speech-", suffix=".json", dir=root)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump({"version": 1, "model": name}, stream)
+        os.replace(temporary, root / "speech.json")
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def missing_message(name):
+    if name in MODELS:
+        fix = f"zing doctor --speech-model {name} --yes"
+    else:
+        fix = "zing doctor --speech-model small.en --yes (then unset ZING_WHISPER_MODEL if it overrides this choice)"
+    return f"Speech model '{name}' is not available locally. Run {fix}."
+
+
+def resolve_name(choice=None, *, require_cached=True):
+    """One offline policy for study, match, studio, MCP and doctor.
+
+    An explicit run choice replaces the saved setting; the environment wins.
+    Inventory may report the missing default without trying to load it.
+    """
+    name = os.environ.get("ZING_WHISPER_MODEL", "").strip() or choice
+    if not name:
+        try:
+            saved = json.loads((storage.resolve_workspace() / "speech.json").read_text(encoding="utf-8"))
+            name = saved["model"]
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("model must be a nonempty string")
+        except FileNotFoundError:
+            pass
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ValueError("Invalid speech.json; run zing doctor --speech-model small.en --yes to replace it.") from exc
+    if not name:
+        name = next((n for n in ("large-v2", "small.en") if local_path(n)), "large-v2")
+    if require_cached and name != "skip" and local_path(name) is None:
+        raise FileNotFoundError(missing_message(name))
+    return name
 
 
 def inventory():
@@ -133,6 +179,8 @@ def choices():
 
 def recommendation():
     configured = configured_name()
+    if configured == "skip":
+        return "skip", SKIP_NOTE
     if local_path(configured):
         return configured, "Your configured model is already cached; no download is needed. Review its transcript."
     if local_path(RECOMMENDED):
@@ -170,7 +218,7 @@ def fetch_model(name, *, consent=False, progress=None):
             "downloaded_bytes": downloaded, "license": "MIT"}
 
 
-def prepare(answers, *, progress=None):
+def _prepare(answers, *, progress=None):
     name = answers.get("speech_model")
     if name is None:
         return None
@@ -182,6 +230,13 @@ def prepare(answers, *, progress=None):
         return fetch_model(name, consent=answers.get("speech_download"), progress=progress)
     return {"version": 1, "model": name, "path": str(path), "downloaded_bytes": 0,
             "verified": bool(name in MODELS and path == cache_dir(name))}
+
+
+def prepare(answers, *, progress=None):
+    receipt = _prepare(answers, progress=progress)
+    if receipt is not None:
+        save_choice(receipt["model"])
+    return receipt
 
 
 def print_inventory():

@@ -13,7 +13,7 @@ Both readable forms lead with **What a viewer notices**: three to five lines in
 editor language ("One continuous vertical 9:16 talking-head shot, 19.0s with no
 cuts, full frame"), each built only from measured facts, with weak evidence kept
 hedged. **Get this look** follows with the real commands and this card's paths:
-`zing match` for three drafts from your clips, `zing plan drafts --recipe
+`zing match` for up to three drafts from your clips, `zing plan drafts --recipe
 <card>/style-recipe.json` for an existing project, and `zing color match` /
 `zing color apply` for a clip-specific color approximation.
 `style-recipe.json` is the reusable StyleRecipe contract. Evidence files retain

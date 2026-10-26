@@ -12,13 +12,42 @@ zing plan choose ./zing-workspace/match --draft B
 Use `--brief brief.json` for a saved versioned brief, or `--answers` for the same
 fields accepted by `zing brief new`. With neither, a terminal starts the existing
 interview; scripts must supply answers or resume a saved brief. Defaults are
-three drafts and seed 0. This director supports exactly three alternatives.
+up to three drafts and seed 0. Fewer drafts are delivered when the footage cannot
+support distinct edits, with a **VARIETY** warning naming the missing drafts.
+The `--drafts` request remains 3; Zing never duplicates an edit to fill the slots.
 
 References can be local files, `uoink:<id>`, or URLs. A URL needs the explicit
 `--allow-download` flag before study's acquisition runs. Verified Uoink kept
 media stays local; an unavailable peer or missing retained file is a named
 failure, with no URL fallback. Match never downloads models. Provision needed
-assets explicitly before running it; missing transcription can prevent planning.
+assets explicitly before running it.
+
+Match checks FFmpeg/ffprobe, readable local reference and clips, brief/target,
+explicit `framing=reframe` face weights, speech when any input has audio, and
+output space before study. It reports one PREFLIGHT shortage with every detected
+problem and its fix. Metadata probes time out after two seconds per file; large
+folders take longer. URL/Uoink references get their audio check after acquisition,
+still before study. Output space reserves at least 1 GB or 10 MB per requested
+second for three drafts and intermediate files; this is an estimate, not a quota.
+OCR, color, audio tagging, font matching and automatic face analysis are optional;
+missing measurements have disclosed fallbacks. `framing=fit` needs no face model.
+
+Choose speech once with `zing doctor --speech-model small.en --yes` (English),
+`large-v2` for multilingual speech, or `skip` to omit speech processing. Doctor,
+setup and Studio save successful choices in `$ZING_HOME/speech.json` (default
+`~/.zing/speech.json`). Study, match, Studio and MCP use `ZING_WHISPER_MODEL` first,
+then the saved choice, then cached `large-v2`, then cached `small.en`. An explicit
+Studio run choice replaces the saved choice for that run; the environment still
+wins. Missing selected weights produce a command naming that model. No inference
+path downloads weights.
+
+Caption placement first moves, rewraps and shrinks text. The floor is 24 output
+pixels for reference clauses; phone mode uses the documented picture-relative
+minimum in [Studio](STUDIO.md). If subject avoidance cannot preserve readable
+text, generated drafts use an inset high-contrast plate and disclose possible
+subject overlap. Text still has to pass the renderer's ink-fit check. A refusal
+names the caption, measured ink, available box and minimum size. Style fidelity
+remains measured and reported separately from render completion.
 
 The pipeline inventories clips, studies the reference with caption geometry,
 available font candidates and experimental transitions, and studies each clip

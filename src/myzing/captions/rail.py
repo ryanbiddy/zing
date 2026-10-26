@@ -85,7 +85,7 @@ def place_presets(plan, subjects, source_dimensions):
                 box = Box(center-w/2,y,w,h)
                 check = check_overlap([Keyframe(clip.timeline_start,box),Keyframe(clip.timeline_end,box)],obstacles,clip_masks)
                 candidate = (box,check,scale,rail)
-                if chosen is None or check.safe:
+                if chosen is None or check.safe or (not check.mask_names and chosen[1].mask_names):
                     chosen = candidate
                 if check.safe:
                     break
@@ -103,3 +103,10 @@ def place_presets(plan, subjects, source_dimensions):
                           if check.safe and previous != rails[0] else []) if check.safe else [explanation])
         if not check.safe:
             plan.warnings.append(f"{clip.id}: {explanation}")
+            if not check.mask_names:
+                # Text fits the frame/UI reserves; a detector overlap alone
+                # does not make the text illegible. Keep that evidence visible.
+                for c in captions:
+                    if c.id not in plan.accepted_unsafe_layouts:
+                        plan.accepted_unsafe_layouts.append(c.id)
+                plan.warnings.append(f"{clip.id}: caption text fits the safe area but may cover a subject; rendered with this warning.")

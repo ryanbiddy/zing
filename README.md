@@ -6,8 +6,9 @@
 
 A free, local creative studio for short videos and memes that runs in your
 terminal and that AI agents can drive. Pre-alpha: it studies a video you like,
-cuts your clips into three captioned drafts in that style, and tells you which
-style checks each one passed. Needs Python, uv and FFmpeg.
+cuts your clips into up to three captioned drafts in that style, and tells you which
+style checks each one passed. Simple footage can yield fewer distinct edits,
+with a **VARIETY** warning instead of duplicate drafts. Needs Python, uv and FFmpeg.
 
 Under the hood, Zing gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes

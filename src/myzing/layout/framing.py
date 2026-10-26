@@ -909,9 +909,9 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
         if layout.overlap.safe and layout.box is not None:
             previous_anchor = (layout.box.center[0], layout.box.y if edge == "top" else layout.box.bottom)
             previous_key = key
-        if phone and caption.style.size * layout.scale < minimum_size - .01:
-            raise ValueError(f"Phone captions need review: {caption.id} cannot fit safely at the minimum "
-                             f"{minimum_size:.1f}px ({minimum_size/plan.width:.1%} of output width). "
-                             "Shorten the phrase or choose framing with more caption space.")
+        if not layout.overlap.safe or (phone and caption.style.size * layout.scale < minimum_size - .01):
+            from .readability import recover_placement
+            recover_placement(plan, caption, minimum=minimum_size if phone else 24., obstacles=obstacles)
+            layout = caption.layout
         layouts.append(layout.to_dict())
     return layouts

@@ -100,6 +100,8 @@ def test_http_reference_is_checked_before_normalize_or_study(tmp_path, monkeypat
     monkeypatch.setattr("myzing.study.ingest._normalize", lambda *a, **k: pytest.fail("normalize before duration guard"))
     monkeypatch.setattr("myzing.project.probe.probe_file", probe)
     monkeypatch.setattr(api, "_study", study)
+    monkeypatch.setattr("myzing.match.preflight.check", lambda *a, **k: {"problems": [], "warnings": []})
+    monkeypatch.setattr("myzing.match.preflight.check_reference", lambda *a, **k: None)
     result = api.match("https://example.invalid/long.mp4", str(clips), str(tmp_path / "out"),
                        answers={}, allow_download=True, **trim)
     if trim:

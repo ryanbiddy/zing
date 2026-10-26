@@ -1,10 +1,10 @@
 """Transcription -> `Word[]` with per-word confidence.
 
 Choices are evidence-based (R1-A pick 2):
-- faster-whisper, default model **large-v2**: hallucination is the worst
+- faster-whisper, preferring cached **large-v2** absent a saved choice: hallucination is the worst
   failure mode for a measurement tool, large-v3's regression is multiply
   attested, and distil-* models never trained their word-alignment heads.
-  Override via ZING_WHISPER_MODEL for experiments; the model used is
+  Setup saves the selected model; ZING_WHISPER_MODEL overrides it. The model is
   recorded in provenance either way.
 - vad_filter=True (the single biggest hallucination mitigation) and
   condition_on_previous_text=False (stops cross-window error propagation).
@@ -28,7 +28,6 @@ absence or model-load failure is an honest skip with a warning.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -57,7 +56,8 @@ def transcribe(
     vocabulary=(),
 ) -> TranscribeResult:
     result = TranscribeResult()
-    name = model_name or os.environ.get(ENV_MODEL, "").strip() or DEFAULT_MODEL
+    from .speech_models import resolve_name, missing_message
+    name = resolve_name(model_name, require_cached=False)
     if name == "skip":
         from .speech_models import SKIP_NOTE
         result.warnings.append(SKIP_NOTE)
@@ -76,8 +76,7 @@ def transcribe(
     except Exception as e:  # model download/load failure — skip, don't guess
         result.warnings.append(
             f"transcription skipped: whisper model '{name}' could not be "
-            f"loaded: {e} - usually a download or disk-space problem; run "
-            "'zing doctor' and retry"
+            f"loaded: {e}. {missing_message(name)}"
         )
         return result
 
@@ -175,18 +174,12 @@ def _load_model(name: str, *, local_files_only: bool = True):
     # directory, or an existing hub snapshot). A bare name makes faster-whisper
     # resolve its own repo id, which misses snapshots from other publishers.
     requested = name
-    path = local_path(name) or Path(name)
+    path = local_path(name)
     version = getattr(faster_whisper, "__version__", "unknown")
     options = {"local_files_only": True}
-    if not path.is_dir():
-        from faster_whisper.utils import download_model
-        try:
-            path = Path(download_model(name, local_files_only=True))
-        except Exception as exc:  # not cached, or not a faster-whisper model name
-            raise FileNotFoundError(
-                f"speech model '{requested}' is not available locally ({type(exc).__name__}), and study never "
-                "downloads models. Run zing doctor --speech-model small.en (or large-v2) and confirm the "
-                "download, or set ZING_WHISPER_MODEL to a cached model or local model folder") from None
+    if path is None:
+        from .speech_models import missing_message
+        raise FileNotFoundError(missing_message(requested))
     # local_files_only only covers the weights: a model directory without
     # tokenizer.json makes faster-whisper fetch the tokenizer from the hub.
     if not (path / "tokenizer.json").is_file():
