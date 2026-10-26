@@ -131,7 +131,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         # framing below. A few source anchors establish faces outside a focused
         # window without analyzing a long interview in full.
         from myzing.layout.framing import analyze_subjects
-        from .visual_quality import excluded_spans, filter_candidates
+        from .visual_quality import excluded_spans, filter_candidates, mostly_excluded, protect
         from .selection import merge
         subject_evidence, visual_exclusions = {}, {}
         for study in clips:
@@ -144,16 +144,17 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 [s.start for s in study.shots], ranges=merge(ranges + anchors), presence=presence)
             blocked = excluded_spans(study, presence)
             visual_exclusions[study.asset_id] = blocked
-            forbidden[study.asset_id] = merge(forbidden.get(study.asset_id, []) + blocked)
+            keep_spans = [(a, b) for key, a, b in [*required, *initial_required] if key == study.asset_id]
+            forbidden[study.asset_id] = merge(forbidden.get(study.asset_id, []) + protect(blocked, keep_spans))
         from .selection import overlaps
         affected = sum(any(overlaps((c.start, c.end), span) for span in visual_exclusions.get(c.asset_id, [])) for c in pool)
         pool = filter_candidates(pool, visual_exclusions, clips, required)
         initial_pool = filter_candidates(initial_pool, visual_exclusions, clips, initial_required)
         report["visual_selection"] = {"excluded": visual_exclusions, "affected_candidates": affected,
-            "basis": "Candidate trims exclude >=1s observed without a face/head and measured text cards without a face, only when faces occur elsewhere. Trims retain whole clauses and required spans. Sparse/unavailable analysis remains unknown."}
-        if not pool or any(any(overlaps((start, end), span) for span in visual_exclusions.get(key, []))
+            "basis": "Candidate trims exclude >=1s observed without a face/head and measured text cards without a face, only when faces occur elsewhere. Trims retain whole clauses. A required span stays whole unless more than half of it is face-free or a slate. Sparse/unavailable analysis remains unknown."}
+        if not pool or any(visual_exclusions.get(key) and mostly_excluded((start, end), visual_exclusions[key])
                            for key, start, end in required):
-            shortage("visual_quality", "No usable candidate remains, or a required span itself contains a face-free gap or graphic slate.",
+            shortage("visual_quality", "No usable candidate remains, or a required span is mostly face-free or a graphic slate.",
                      "Choose a moment with a visible face/head or another source shot.")
         try:
             initial = choose(initial_pool, initial_required, clips, style, brief.target_length_seconds, 30, seed,

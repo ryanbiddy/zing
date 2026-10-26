@@ -43,6 +43,26 @@ def excluded_spans(clip, presence):
     return merge(rows)
 
 
+def mostly_excluded(span, spans):
+    """More than half of a required span is face-free or slate.
+
+    Must-keeps are widened to whole words, so a slate line rarely sits wholly
+    inside an exclusion; a majority is the evidence that the line itself is one.
+    """
+    left = sum(b - a for a, b in subtract([span], spans))
+    return left < .5 * (span[1] - span[0]) - EPS
+
+
+def protect(spans, required):
+    """Exclusions minus every required span that is not mostly excluded.
+
+    A must-keep that only touches a face-free gap or slate stays whole; one
+    that is mostly inside exclusions is a shortage (director/api.py).
+    """
+    kept = [span for span in required if not mostly_excluded(span, spans)]
+    return subtract(spans, kept) if kept else list(spans)
+
+
 def filter_candidates(pool, excluded, studies, required=()):
     """Retain usable pieces, rebuilding transcript metadata and must-keep bits.
 
@@ -52,6 +72,7 @@ def filter_candidates(pool, excluded, studies, required=()):
     from .continuity import clauses
     lookup = {s.asset_id: s for s in studies}
     speech = {s.asset_id: clauses(s.words) for s in studies}
+    excluded = {key: protect(spans, [(a, b) for k, a, b in required if k == key]) for key, spans in excluded.items()}
     result = {}
     for candidate in pool:
         if not any(overlaps((candidate.start, candidate.end), span) for span in excluded.get(candidate.asset_id, [])):

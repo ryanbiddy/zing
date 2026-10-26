@@ -322,22 +322,40 @@ def test_visual_trim_preserves_complete_words_and_recomputes_required_coverage()
     trim = result[0]
     assert (trim.start, trim.end, trim.covers, trim.word_count) == (2, 5, 1, 2)
     assert trim.first_word == pytest.approx(.2) and trim.text == "Practice helps."
-    assert filter_candidates([candidate], {"a": [(0, .8), (5, 6)]}, [clip], [("a", .5, 4)]) == []
+    # A required span that only touches an exclusion stays whole.
+    [kept] = filter_candidates([candidate], {"a": [(0, .8), (5, 6)]}, [clip], [("a", .5, 4)])
+    assert (kept.start, kept.end, kept.covers, kept.word_count) == (.5, 5, 1, 4)
+    # One mostly inside an exclusion cannot be rescued.
+    assert all(not c.covers for c in filter_candidates([candidate], {"a": [(0, 2.1), (5, 6)]}, [clip], [("a", .5, 2.3)]))
 
 
-@pytest.mark.parametrize("required_is_slate", [False, True])
-def test_director_filters_slates_before_choosing_and_keeps_music_exclusions(tmp_path, monkeypatch, required_is_slate):
+def test_protect_keeps_partly_excluded_required_spans_only():
+    from myzing.director.visual_quality import mostly_excluded, protect
+    spans = [(0, 1), (3, 4)]
+    assert protect(spans, [(.5, 2)]) == [(0, .5), (3, 4)]
+    assert protect(spans, [(3.2, 3.8)]) == spans and protect(spans, [(2.9, 3.8)]) == spans
+    assert mostly_excluded((2.9, 3.8), spans) and not mostly_excluded((.5, 2), spans)
+
+
+@pytest.mark.parametrize("required", ["none", "slate", "partial"])
+def test_director_filters_slates_before_choosing_and_keeps_music_exclusions(tmp_path, monkeypatch, required):
     from tools.plan_examples import example_project
     from myzing.director.api import plan_drafts
     from myzing.match.state import read, write
     root, _, _ = example_project(tmp_path / "project")
     brief = read(root / "brief.json")
     brief["picture_crop"] = "off"
+    required_is_slate = required == "slate"
     if required_is_slate:
         brief["must_keep"] = [{"clip": "take-0", "start": .25, "end": 1}]
+    if required == "partial":
+        brief["must_keep"] = [{"clip": "take-0", "start": .5, "end": 2}]
     write(root / "brief.json", brief)
     def subjects(*a, presence=None, **kw):
-        presence["samples"] = [{"time": i*.5, "present": i >= 2} for i in range(16)]
+        # The slate case widens the face-free opening past the whole-word
+        # must-keep (0.25-2.0 s), so the required line is itself face-free.
+        first_face = 5 if required_is_slate else 2
+        presence["samples"] = [{"time": i*.5, "present": i >= first_face} for i in range(16)]
         return [], []
     monkeypatch.setattr("myzing.layout.framing.analyze_subjects", subjects)
     result = plan_drafts(root, root / "recipe.json", tmp_path / "plans")
@@ -348,8 +366,41 @@ def test_director_filters_slates_before_choosing_and_keeps_music_exclusions(tmp_
     assert result["plans"], result
     report = read(result["comparison_path"])
     assert report["visual_selection"]["affected_candidates"] > 0
+    if required == "partial":
+        # The must-keep only nicks the face-free opening, so it survives whole.
+        for path in result["plans"].values():
+            assert any(c["src_in"] <= .5 + 1e-6 and c["src_out"] >= 2 - 1e-6 for c in read(path)["clips"])
+        return
     for path in result["plans"].values():
         plan = read(path)
         assert all(c["src_in"] >= 1 for c in plan["clips"])
     assert all((0, 1) in [tuple(s) for s in spans]
                for p in report["plans"].values() for spans in p["constraints"]["forbidden_word_safe"].values())
+
+
+@pytest.mark.parametrize("text,ok", [
+    ("We also give applicants an opportunity to describe hobbies.", False),
+    ("Also, training takes two years.", False),
+    ("Another thing we look for is teamwork.", False),
+    ("No, it was fine.", False), ("Well, training matters.", False),
+    ("No one expected eighteen thousand applications.", True),
+    ("Right now we have eighteen thousand applicants.", True),
+    ("incorporate that kind of training whenever we can.", False),
+])
+def test_additive_and_interjection_openings(text, ok):
+    from myzing.director.moments import usable_opening
+    assert usable_opening(text) is ok
+
+
+def test_window_never_stops_before_a_continuation_or_on_a_wh_inversion():
+    from myzing.director.moments import suggest_moments
+    from myzing.director.models import ClipStudy
+    # "Training matters." could end the window at 1.4 s, but the next sentence
+    # starts lowercase and continues it, so the window runs to 2.9 s instead.
+    words = [Word("Training", 0, .5), Word("matters.", .5, 1.4), Word("every", 1.5, 2.),
+             Word("single", 2., 2.4), Word("day.", 2.4, 2.9), Word("Where", 3., 3.3), Word("do", 3.3, 3.5),
+             Word("we", 3.5, 3.7), Word("go", 3.7, 3.9), Word("now.", 3.9, 4.2)]
+    clip = ClipStudy("a", "a.mp4", "a"*64, 5, "ready", words=words, shots=[Shot(0, 0, 5)])
+    rows = suggest_moments(clip, target=4, top=5)
+    assert rows and rows[0]["start"] == 0 and rows[0]["end"] == 2.9
+    assert rows[0]["last_sentence"] == "every single day."

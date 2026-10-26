@@ -6,7 +6,9 @@ quarantine and forbidden spans. Rank by 30% timed speech density, 25% length
 fit, 30% complete-opening cues, 5% number/contrast cues, 5% keeper coverage
 and 5% measured shot coverage.
 Opening cues are a numeric token and contrast wording; each contributes half
-of the cue score. Question openings are excluded. Ties use source time. Greedy
+of the cue score. Question, filler, back-reference and additive openings are
+excluded. A window ends only where the next sentence starts fresh, never on a
+question. Ties use source time. Greedy
 non-overlap gives distinct suggestions, so fewer than top may be returned.
 No model, decoder, network, or semantic-quality claim.
 """
@@ -56,16 +58,38 @@ def opens_question(text):
     return bool(re.search(r'\?[\"\u201d\u2019\x27)]*$', text.strip()))
 
 
+def asks(text):
+    """A window never closes on a question, punctuated or an unpunctuated WH inversion."""
+    return opens_question(text) or bool(re.match(
+        r"(?:what|where|when|why|how|who|which)\s+(?:do|does|did|is|are|was|were|can|could|would|will|have|has)\b",
+        text.lstrip(' \t\n"\u201c\u2018\'('), re.I))
+
+
+def fresh_start(text, previous=""):
+    """The next sentence does not continue this one, so stopping before it completes the thought."""
+    opening = text.lstrip(' \t\n"\u201c\u2018\'(')
+    return not (opening[:1].islower() or (re.match(r"(?:so|and|but|or|because)\b", opening, re.I)
+                                           and not opens_question(previous)))
+
+
 def usable_opening(text, previous=""):
     """Conservative opening hazards; antecedents outside the window do not count."""
+    if text.lstrip(' \t\n"\u201c\u2018\'(')[:1].islower():
+        return False  # A lowercase start is the tail of an ASR-split sentence.
     opening = text.casefold().replace("\u2019", "'").lstrip(' \t\n"\u201c\u2018\'(')
     if re.match(r"(?:so|and|but)\b", opening):
         if not opens_question(previous):
             return False
         opening = re.sub(r"^(?:so|and|but)\b[\s,]*", "", opening)
+    # Additive openings ("We also ...", "Another thing ...") continue an earlier answer.
+    if re.match(r"(?:\w+\s+)?also\b|(?:another|plus|besides|additionally|in addition|on top of that)\b", opening):
+        return False
+    # Interjections count only with their pause punctuation: "No, ..." is filler, "No one ..." a claim.
+    if re.match(r"(?:well|yes|no|okay|ok|right)\b\s*[,.!?]", opening):
+        return False
     return not dangling(opening) and not re.match(
         r"(?:you know|like i said|as\b.+?\bwas saying|that's why|it's like|"
-        r"speaking of|i mean|well|yeah|yes|no|okay|ok|right|uh|um|it|that|this|they)\b", opening)
+        r"speaking of|i mean|yeah|uh|um|it|that|this|they)\b", opening)
 
 
 def complete_opening(text):
@@ -114,7 +138,7 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         last = None
         for j in range(i, len(speech)):
             candidate = speech[j]
-            if opens_question(candidate.text):
+            if asks(candidate.text):
                 # Keep the answer if it reaches the minimum; otherwise drop
                 # this start rather than padding it with a new host exchange.
                 break
@@ -125,7 +149,9 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
                 break  # Same observed-shot coverage rule as selection.add.
             if any(overlaps(span, b) or (b[0] == b[1] and span[0] < b[0] < span[1]) for b in blocked):
                 break
-            last = candidate
+            following = speech[j + 1].text if j + 1 < len(speech) else ""
+            if not following or fresh_start(following, candidate.text):
+                last = candidate  # Never stop where the next sentence continues this thought.
         if last is None or last.end - first.start < .65 * target:
             continue
         start, end = first.start, last.end

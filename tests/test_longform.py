@@ -14,13 +14,13 @@ from myzing.director.selection import candidates, choose, constraints, Envelope,
 from myzing.schemas import Breakdown, Shot, VideoMeta, Word
 
 
-def interview(duration=2700., cameras=False):
+def interview(duration=2700., cameras=False, lead="Line"):
     rng = random.Random(451)
     words, cursor, sentence = [], .1, 0
     while cursor + 7 < duration:
         count = rng.randint(6, 16)
         for i in range(count):
-            text = f"line{sentence}" if i == 0 else "spoken"
+            text = f"{lead}{sentence}" if i == 0 else "spoken"
             if i == count - 1:
                 text = "clearly."
             words.append(Word(text, round(cursor, 4), round(cursor + .3, 4)))
@@ -39,7 +39,7 @@ def style():
 def conversational_interview(duration):
     clip = interview(duration)
     for word in clip.words:
-        if word.text.startswith("line"):
+        if word.text.startswith("Line"):
             sentence = int(word.text[4:])
             if sentence % 2:
                 word.text = ("And", "But", "So")[(sentence // 2) % 3]
@@ -104,7 +104,7 @@ def test_conversational_selection_constraints_and_captions_share_boundaries():
 def test_long_source_focus_contains_choices_and_respects_forbidden(cameras):
     from types import SimpleNamespace
     clip = interview(cameras=cameras)
-    brief = Brief(target_length_seconds=22, must_keep=[{"phrase": "line300 spoken"}],
+    brief = Brief(target_length_seconds=22, must_keep=[{"phrase": "Line300 spoken"}],
                   forbidden=[{"clip": "take-0", "start": 1280., "end": 1285.}])
     manifest = SimpleNamespace(assets=[SimpleNamespace(id="take-0", path=clip.path, original_path=clip.path, previous_paths=[])])
     keep, forbidden = constraints(brief, manifest, [clip])
@@ -140,7 +140,7 @@ def test_long_source_requires_explicit_choice_and_suggestions_roundtrip():
 
 @pytest.mark.parametrize("expand_timing", [False, True])
 def test_short_clip_pool_unchanged(expand_timing):
-    clip = interview(60)
+    clip = interview(60, lead="line")  # The golden hashes predate capitalized sentence starts.
     windows = {}
     pool, required = candidates([clip], {}, {}, style(), 22, expand_timing=expand_timing, search_windows=windows)
     assert not windows and not required
@@ -278,7 +278,7 @@ def test_focus_record_survives_plan_and_match_reports(tmp_path, zing_workspace, 
     b.meta.duration, b.words, b.shots = clip.duration, clip.words, clip.shots
     write_json(path, b.to_dict())
     write_json(root / "brief.json", Brief(target_length_seconds=22, caption_mode="none", picture_crop="off",
-                                          must_keep=[{"phrase": "line300 spoken"}]).to_dict())
+                                          must_keep=[{"phrase": "Line300 spoken"}]).to_dict())
     monkeypatch.setattr(framing, "analyze_subjects", lambda *a, **k: ([], []))
     result = plan_drafts(root, root / "recipe.json", root / "plans")
     comparison = json.loads(Path(result["comparison_path"]).read_text())
@@ -354,7 +354,7 @@ def test_focus_clamps_one_edge_and_remains_plannable(edge):
 def even_speech():
     # Binary-exact timestamps and identical clauses make equal-score ties real.
     return ClipStudy("take-0", "interview.mp4", "a" * 64, 18., "ready",
-                     words=[Word("Hello." if i % 4 == 3 else "hello", i / 2 + .125, i / 2 + .375)
+                     words=[Word("Hello." if i % 4 == 3 else "Hello" if i % 4 == 0 else "hello", i / 2 + .125, i / 2 + .375)
                             for i in range(36)], shots=[Shot(0, 0., 18.)])
 
 

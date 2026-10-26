@@ -10,12 +10,14 @@
 - Draft captions keep one font size across groups and shots. Long phrases
   regroup when word timings are available; untimed clauses try shorter wraps.
   A size reduction applies to every caption, including mixed preset drafts.
-- Moments reject filler and back-reference openings and stop before questions.
-  Ranking favors substantive opening statements; suggestions include their
-  first and last sentences.
+- Moments reject filler, back-reference, additive ("We also ...") and lowercase
+  openings, and stop before questions, including unpunctuated WH inversions.
+  A window never ends where the next sentence continues the thought. Ranking
+  favors substantive opening statements; suggestions include their first and
+  last sentences.
 - Draft selection trims measured face-free gaps and text cards out of candidates
-  when the source has faces elsewhere. Faceless sources remain usable; a nearby
-  slate does not invalidate a required span that survives the trim.
+  when the source has faces elsewhere. Faceless sources remain usable. A
+  must-keep stays whole unless more than half of it is face-free or a slate.
 - Match recipe, director, caption-fit and skin-report checkpoints are invalidated
   for the new quality policy.
 
