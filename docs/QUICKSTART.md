@@ -14,7 +14,7 @@ not exercised: this run used installed tools and a hash-verified cached YuNet.
 
 ## Install and choose a workspace
 
-Have Python 3.10+, uv, and FFmpeg/ffprobe (including libx264 and libass) on PATH.
+Have Python 3.11+, uv, and FFmpeg/ffprobe (including libx264 and libass) on PATH.
 Use the current source checkout for these features. Zing is not on PyPI; an older
 release wheel may have fewer commands. See [installation](DEVELOPER-GUIDE.md).
 The sync command can download Python packages. Agents should get consent before

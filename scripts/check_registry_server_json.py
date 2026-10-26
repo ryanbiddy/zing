@@ -1,6 +1,6 @@
 """Check future MCP registry metadata against this checkout, without network.
 
-Run with Python 3.10+: python scripts/check_registry_server_json.py [server.json]
+Run with Python 3.11+: python scripts/check_registry_server_json.py [server.json]
 This checks repository contracts, not remote schema validity or PyPI availability.
 """
 from __future__ import annotations

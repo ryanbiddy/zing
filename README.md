@@ -74,7 +74,7 @@ software and documentation; third-party terms are in [NOTICE.md](NOTICE.md).
 
 ## Five commands to a first result
 
-From this source checkout in **PowerShell**, with Python 3.10+, uv and FFmpeg on
+From this source checkout in **PowerShell**, with Python 3.11+, uv and FFmpeg on
 PATH, make a local meme without downloading media or model weights. The first
 command installs Python dependencies. Use a fresh output folder on reruns.
 

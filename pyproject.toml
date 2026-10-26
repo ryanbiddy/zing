@@ -9,11 +9,11 @@ description = "A free, local creative studio for short videos and memes that run
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE", "NOTICE.md", "docs/THIRD-PARTY-NOTICES.md"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "mcp>=2.3,<3", "myzing[render]", "tomli>=2; python_version < '3.11'"]
+dev = ["pytest>=8", "mcp>=2.3,<3", "myzing[render]"]
 study = [
     "yt-dlp[default]>=2026.10.21",
     "scenedetect-headless>=0.7",

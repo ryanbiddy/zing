@@ -5,7 +5,7 @@ step below is **Ryan only**. Once setup is complete, the release workflow
 handles building, checking and uploading; Ryan starts the run and approves its
 publish job. There is no stored PyPI token.
 
-After this version is published on PyPI, a user with Python 3.10+ can install
+After this version is published on PyPI, a user with Python 3.11+ can install
 the common features with one command:
 
 ```console

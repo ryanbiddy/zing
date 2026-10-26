@@ -25,7 +25,7 @@ Long description:
 > Zing studies a video you choose and cuts your clips into drafts in that style,
 > with captions, in 16:9, square and 9:16, on your machine. Every style check says
 > measured, estimated or unknown. It also makes memes from local photos.
-> Pre-alpha; needs Python 3.10+, uv and FFmpeg.
+> Pre-alpha; needs Python 3.11+, uv and FFmpeg.
 >
 > Works with Uoink: Zing can study a video you already saved in Uoink and save its
 > breakdown back as a note. Uoink is optional.
@@ -156,7 +156,7 @@ Long description:
 > render captioned drafts in 16:9, square and 9:16, and make memes from local
 > photos. Each draft comes with a report of which style checks it passed or
 > failed; style matches are approximations and need your review. Pre-alpha:
-> install from source with Python 3.10+, uv and FFmpeg. A local Uoink library can
+> install from source with Python 3.11+, uv and FFmpeg. A local Uoink library can
 > supply references, but Uoink is optional.
 
 Use the shared name, repository, website and tags. Link the source
