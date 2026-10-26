@@ -192,7 +192,7 @@ def test_framing_models_sample_cuts_record_all_classes_and_keep_faces(tmp_path, 
     assert all(not (t.keyframes[0].time < 1.5 <= t.keyframes[-1].time) for t in tracks)
 
 
-def test_full_person_uses_existing_padding_when_sharp_picture_has_no_caption_space():
+def test_full_person_body_does_not_push_captions_out_of_sharp_picture():
     from myzing.composition import Composition, AssetRef, CompositionClip, CompositionCaption, CaptionStyle
     from myzing.layout.framing import place_captions, centered_framing, visible_content
     plan = Composition(assets=[AssetRef("s", "source.mp4", None)],
@@ -204,9 +204,10 @@ def test_full_person_uses_existing_padding_when_sharp_picture_has_no_caption_spa
                           duration=2, max_gap=2)
     place_captions(plan, {"s": tracks}, {"s": (862, 360)})
     layout = plan.captions[0].layout
-    assert layout.overlap.safe and "padding band" in layout.overlap.scope
+    assert layout.overlap.safe and "sharp picture" in layout.overlap.scope
+    assert not layout.overlap.face_ids and not plan.accepted_unsafe_layouts
     content = visible_content(centered_framing("fit", 862, 360, 1920, 1080), 1920, 1080)
-    assert layout.box.bottom <= content.y or layout.box.y >= content.bottom
+    assert content.y <= layout.box.y < layout.box.bottom <= content.bottom
 
 
 @pytest.mark.skipif(os.environ.get("ZING_REQUIRE_VISION") != "1", reason="set ZING_REQUIRE_VISION=1 with cached models and licensed fixtures; shapes cannot test recognition")

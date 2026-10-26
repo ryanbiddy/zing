@@ -170,9 +170,9 @@ def speech_model_note():
     if not data.get("model"):
         return ("Speech transcription is not installed (myzing[study]), and needs explicit setup consent. "
                 "Clips with speech can be left out of A/B/C; run zing doctor before confirming.")
-    return (f"The speech model {data['model']!r} is not downloaded, and needs explicit setup consent. "
-            "Clips with speech can be left out of A/B/C. Choose speech setup in studio or run zing doctor --speech-model small.en, "
-            "or set ZING_WHISPER_MODEL to a local model folder.")
+    from myzing.study.speech_models import missing_message
+    return (missing_message(data["model"]) + " Downloading needs explicit setup consent. "
+            "Clips with speech can be left out of A/B/C until speech setup is complete.")
 
 
 def saved_references_available():

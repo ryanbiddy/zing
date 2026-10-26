@@ -88,6 +88,7 @@ def test_missing_speech_stops_match_before_study_in_seconds(tmp_path, monkeypatc
     assert time.monotonic() - start < 3
     assert result["status"] == "shortage"
     assert len(result["shortages"]) == 1
+    assert result["failures"] == []
     assert "--speech-model large-v2 --yes" in result["error"]
     assert not (Path(args[2]) / "project.json").exists()
 
@@ -101,7 +102,7 @@ def test_preflight_aggregates_and_names_fixes(tmp_path, monkeypatch):
     text = "\n".join(result["problems"])
     for fragment in ("ffmpeg", "speech-model", "layout fetch-model", "Free space"):
         assert fragment in text
-    assert result["warnings"] == [preflight.OPTIONAL]
+    assert any("automatic face analysis" in w for w in result["warnings"])
 
 
 @pytest.mark.parametrize("audio,choice", [(False, None), (True, "skip")])
@@ -204,7 +205,7 @@ def test_preset_subject_overlap_is_disclosed_not_a_render_veto(preset):
     place_captions(p, {"a": [subject]}, {"a": (360, 640)})
     assert all(c.id in p.accepted_unsafe_layouts for c in p.captions)
     assert all(not c.layout.overlap.mask_names for c in p.captions)
-    assert any("may cover a subject" in w for w in p.warnings)
+    assert any("overlaps face tracks" in w for w in p.warnings)
 
 
 def test_clipped_probe_shrinks_before_refusing(tmp_path, monkeypatch):

@@ -12,7 +12,18 @@ from myzing.project.probe import MEDIA_EXTENSIONS, MEDIA_DEMUXERS, parse_probe
 from myzing.study import proc, speech_models
 from myzing.urls import is_http_url
 
-OPTIONAL = "Optional: OCR, color, audio tagging, font matching and automatic face analysis; unavailable measurements use disclosed fallbacks."
+def optional_warnings():
+    from .api import capabilities
+    caps = capabilities()
+    available = {
+        "OCR": bool(caps.get("ocr_models")) and importlib.util.find_spec("rapidocr") is not None,
+        "color": caps.get("color"),
+        "audio tagging": bool(caps.get("audio_tagging", {}).get("verified_assets")) and importlib.util.find_spec("sherpa_onnx") is not None,
+        "font matching": caps.get("fonts") and any(f.get("available") for f in caps.get("font_files", [])),
+        "automatic face analysis": caps.get("layout"),
+    }
+    missing = [name for name, present in available.items() if not present]
+    return ["Optional capabilities unavailable: " + ", ".join(missing) + "; using disclosed fallbacks."] if missing else []
 
 
 def probe(path):
@@ -24,14 +35,14 @@ def probe(path):
     if result.returncode:
         raise ValueError(proc.tail(result.stderr))
     info = parse_probe(json.loads(result.stdout))
-    if not info.duration or "no_video" in info.flags:
+    if "no_video" not in info.flags and not info.duration:
         raise ValueError("no readable video with a known duration")
     return info
 
 
 def check(reference, clips, out, *, brief=None, answers=None, studio_options=None,
           ref_start=None, ref_end=None, reference_range=None, **options):
-    problems, warnings = [], [OPTIONAL]
+    problems, warnings = [], optional_warnings()
     from .api import validate
     try:
         validate(reference, clips, out, brief=brief, answers=answers, studio_options=studio_options,
@@ -66,16 +77,28 @@ def check(reference, clips, out, *, brief=None, answers=None, studio_options=Non
     if ref is not None:
         paths.insert(0, ref)
     has_audio = False
+    readable_clips = 0
+    source_bytes = 0
     if "ffprobe" not in missing:
-        for path in paths:
+        for index, path in enumerate(paths):
+            is_reference = ref is not None and index == 0
             try:
                 info = probe(path)
+                if "no_video" in getattr(info, "flags", ()):
+                    if is_reference:
+                        raise ValueError("reference has no video stream")
+                    warnings.append(f"Skipped non-video clip {path.name}: audio-only media.")
+                    continue
+                readable_clips += not is_reference
+                source_bytes += path.stat().st_size
                 has_audio |= info.has_audio
-                if path == ref:
+                if is_reference:
                     from myzing.reference_range import validate_duration
                     validate_duration(info.duration, ref_start, ref_end, reference_range, limit=60)
             except (OSError, ValueError, proc.MediaError, subprocess.SubprocessError) as exc:
                 problems.append(f"Unreadable/invalid media {path}: {exc}. Replace/remux the file or correct the reference range.")
+        if not readable_clips:
+            problems.append("No readable video clips; put supported video files in --clips.")
     model = None
     if has_audio:
         try:
@@ -86,11 +109,14 @@ def check(reference, clips, out, *, brief=None, answers=None, studio_options=Non
         where = speech_models.existing_ancestor(Path(out).expanduser())
         if not where.is_dir():
             raise ValueError("output or an output parent is a file")
-        # Three drafts plus intermediates: reserve 1 GB or 10 MB per target second.
-        needed = max(1_000_000_000, int((selected.target_length_seconds if selected else 30) * 10_000_000))
+        # Source-sized intermediates plus a small-job margin. This is an
+        # estimate, not a fixed 1 GB admission requirement.
+        needed = source_bytes * 4 + 64_000_000
         free = shutil.disk_usage(where).free
-        if free < needed:
-            problems.append(f"Output needs at least {needed / 1e9:.2f} GB free at {where}; {free / 1e9:.2f} GB available. Free space or change --out.")
+        if free < source_bytes + 16_000_000:
+            problems.append(f"Output has clearly insufficient space at {where}: {free / 1e6:.1f} MB available; estimated working space {needed / 1e6:.1f} MB. Free space or change --out.")
+        elif free < needed:
+            warnings.append(f"Output space is tight at {where}: {free / 1e6:.1f} MB available; estimated working space {needed / 1e6:.1f} MB. Free space or change --out if rendering runs out.")
     except (OSError, ValueError) as exc:
         problems.append(f"Output unavailable: {exc}; choose a writable --out folder.")
     return {"problems": list(dict.fromkeys(problems)), "warnings": warnings, "speech_model": model, "outputs": []}
@@ -98,5 +124,8 @@ def check(reference, clips, out, *, brief=None, answers=None, studio_options=Non
 
 def check_reference(path, choice=None):
     """URL/Uoink audio is known only after acquisition, still before study."""
-    if probe(Path(path)).has_audio:
+    info = probe(Path(path))
+    if "no_video" in info.flags:
+        raise ValueError("Reference has no readable video stream.")
+    if info.has_audio:
         speech_models.resolve_name(choice)

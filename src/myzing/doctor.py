@@ -871,6 +871,8 @@ def _verdict_line(checks: list[Check]) -> str:
             f"Verdict: ready for local-file study; {len(degraded)} feature(s) "
             f"degraded ({', '.join(degraded)}) - details below"
         )
+    if any(c.mark in ("warning", "degraded") for c in checks):
+        return "Verdict: ready, with warnings (details below)"
     return "Verdict: fully ready"
 
 

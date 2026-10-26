@@ -7,9 +7,10 @@ import pytest
 
 
 @pytest.mark.ffmpeg
-def test_closeup_caption_fallback_renders_at_phone_floor(tmp_path, monkeypatch, zing_workspace):
+@pytest.mark.parametrize("mode", ["phone", "reference"])
+def test_closeup_caption_fallback_renders_at_phone_floor(tmp_path, monkeypatch, zing_workspace, mode):
     from myzing.brief.models import Brief
-    from myzing.composition import AssetRef, Composition, CompositionCaption, CompositionClip
+    from myzing.composition import AssetRef, Composition, CompositionCaption, CompositionClip, CaptionStyle
     from myzing.layout import Box, FaceTrack, Keyframe
     from myzing.layout.framing import centered_framing, place_captions
     from myzing.layout.readability import phone_minimum
@@ -29,20 +30,22 @@ def test_closeup_caption_fallback_renders_at_phone_floor(tmp_path, monkeypatch, 
     result = api.match(str(source), str(tmp_path), str(tmp_path / "preflight"), answers={})
     assert time.monotonic() - started < 3
     assert result["status"] == "shortage" and "--speech-model large-v2 --yes" in result["error"]
-    plan = Composition(width=360, height=640, brief=Brief(caption_mode="phone"),
+    plan = Composition(width=360, height=640, brief=Brief(caption_mode=mode),
         assets=[AssetRef("a", str(source), None, 2)],
         clips=[CompositionClip(str(source), 0, 2, 0, id="shot", asset_id="a",
                                framing=centered_framing("fit", 360, 640, 360, 640))],
-        captions=[CompositionCaption("Here is my story", .1, 1.8, id="speech", word_timed=False)])
+        captions=[CompositionCaption("Here is my story" if mode == "phone" else "We went into space to learn more about the world and everyone who lives here", .1, 1.8, id="speech", word_timed=False, style=CaptionStyle(150) if mode == "reference" else None)])
     # Conservative close-up subject envelope: the old code could not place
     # any text without collision and the public renderer refused the draft.
     subject = FaceTrack("speaker", [Keyframe(0, Box(0, 0, 1, 1)), Keyframe(2, Box(0, 0, 1, 1))])
     place_captions(plan, {"a": [subject]}, {"a": (360, 640)})
     fit_captions(plan, tmp_path / "fit")
     caption = plan.captions[0]
-    assert caption.style.size * caption.layout.scale >= phone_minimum(plan, caption) - .01
+    assert caption.style.size * caption.layout.scale >= (phone_minimum(plan, caption) if mode == "phone" else 24) - .01
+    if mode == "reference":
+        assert caption.style.size < 150 and "\n" in caption.text
     assert not caption.layout.overlap.safe and "speech" in plan.accepted_unsafe_layouts
-    assert any("may cover the subject" in warning for warning in plan.warnings)
+    assert any("overlaps face tracks" in warning for warning in plan.warnings)
     assert caption.layout.box.x >= .06 and caption.layout.box.right <= .84
     assert caption.layout.box.y >= .08 and caption.layout.box.bottom <= .80
     output = tmp_path / "draft.mp4"

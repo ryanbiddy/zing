@@ -1,6 +1,6 @@
 """Check future MCP registry metadata against this checkout, without network.
 
-Run with Python 3.11+: python scripts/check_registry_server_json.py [server.json]
+Run with Python 3.10+: python scripts/check_registry_server_json.py [server.json]
 This checks repository contracts, not remote schema validity or PyPI availability.
 """
 from __future__ import annotations
@@ -8,7 +8,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10, which the base package supports.
+    import tomli as tomllib
 
 
 ROOT = Path(__file__).resolve().parents[1]

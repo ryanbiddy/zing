@@ -72,9 +72,15 @@ def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None)
     return None, f"Caption {caption.id} exceeded the bounded ink-fit search; review its layout."
 
 
-def fit_captions(plan, folder):
+def fit_captions(plan, folder, *, safety_context=None):
     if not plan.captions:
         return
+    if safety_context is None:
+        import json
+        from myzing.director.plans import REPORT_PREFIX
+        reports = [json.loads(w[len(REPORT_PREFIX):]) for w in plan.warnings if w.startswith(REPORT_PREFIX)]
+        safety_context = reports[-1].get("caption_safety", {}) if reports else {}
+    from myzing.layout.caption_safety import restore
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     sizes = _source_dimensions(plan) if plan.brief and plan.brief.caption_mode == "phone" else {}
@@ -86,7 +92,7 @@ def fit_captions(plan, folder):
                 continue
             if caption.layout and not caption.layout.overlap.safe and caption.id not in plan.accepted_unsafe_layouts:
                 from myzing.layout.readability import recover_placement
-                recover_placement(plan, caption, source_dimensions=sizes)
+                recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
             font, em = "Arial", 1.
             if caption.font:
                 source = Path(caption.font.path)
@@ -119,7 +125,7 @@ def fit_captions(plan, folder):
                 if limit <= longest:
                     if not recovered:
                         from myzing.layout.readability import recover_placement
-                        recover_placement(plan, caption, source_dimensions=sizes)
+                        recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
                         style, scale = caption.style, 1.
                         width, height = caption.layout.box.width * plan.width, caption.layout.box.height * plan.height
                         limit, recovered = (52 if plan.width >= plan.height else 30), True

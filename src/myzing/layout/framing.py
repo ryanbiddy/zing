@@ -596,7 +596,7 @@ def _anchor(box, region):
     return box.center[0], box.y if region == "lower blur band" else box.bottom
 
 
-def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False, _survey=False):
+def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults=False, _survey=False, safety_context=None):
     """Static caption boxes avoid swept subject envelopes on the output clock.
 
     Captions keep one alignment, and one anchor per shot and placement region:
@@ -691,6 +691,9 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
             local_start, local_end = start - actual_start, end - actual_start
             crop_times = [local_start, local_end, *[k.time for k in f.keyframes if local_start < k.time < local_end]]
             for track in subjects.get(clip.asset_id, []):
+                from .caption_safety import is_face
+                if not is_face(track):
+                    continue
                 a = max(clip.source_at(clip.timeline_start + min(clip.duration, local_start)), track.keyframes[0].time)
                 b = min(clip.source_at(clip.timeline_start + min(clip.duration, local_end)), track.keyframes[-1].time)
                 if a >= b:
@@ -704,6 +707,8 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
         content = bounds(max((b.x for b in contents), default=0), max((b.y for b in contents), default=0),
                          min((b.right for b in contents), default=1), min((b.bottom for b in contents), default=1))
         (left, top, right, bottom), masks = reserve(content)
+        from .caption_safety import remember
+        remember(safety_context, caption, obstacles, masks)
         if (keep_safe_defaults and caption.layout is None and caption.style is None and caption.font is None
                 and caption.template is None and caption.backend == "ass" and caption.alignment == "center"):
             # Decide on measured libass ink at the largest rendered size, never
@@ -868,8 +873,8 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 caption.text, caption.style = original_text, original_style
             else:
                 layout, caption.text, caption.style = best
-        # Full-body detections can leave no text-sized gap in the sharp
-        # picture. Reuse an existing padding band before declaring failure;
+        # Face avoidance can leave no text-sized gap in the sharp picture.
+        # Reuse an existing padding band on subject-analyzed footage;
         # keep the source/crop unchanged and never waive the overlap check.
         semantic = any(o.detector in ("yolox-s-int8", "mediapipe-person-head")
                        for tracks in subjects.values() for t in tracks for o in t.observations)
@@ -906,12 +911,13 @@ def place_captions(plan, subjects, source_dimensions=None, *, keep_safe_defaults
                 pass  # Unmeasurable here (custom font, no FFmpeg/libass): the renderer still measures.
         layout = replace(layout, overlap=replace(layout.overlap, scope=scope))
         caption.layout = layout
+        remember(safety_context, caption, obstacles, masks)
         if layout.overlap.safe and layout.box is not None:
             previous_anchor = (layout.box.center[0], layout.box.y if edge == "top" else layout.box.bottom)
             previous_key = key
         if not layout.overlap.safe or (phone and caption.style.size * layout.scale < minimum_size - .01):
             from .readability import recover_placement
-            recover_placement(plan, caption, minimum=minimum_size if phone else 24., obstacles=obstacles)
+            recover_placement(plan, caption, minimum=minimum_size if phone else 24., obstacles=obstacles, masks=masks)
             layout = caption.layout
         layouts.append(layout.to_dict())
     return layouts

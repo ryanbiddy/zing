@@ -246,6 +246,8 @@ def _draw_row(canvas, draw, fonts, decoder, video, row, cuts, spans, words, fram
         draw.line((cx, y + 27, cx, wave_bottom), fill=CUT, width=2)
         row["cuts"].append({**c, "x": cx})
     lanes = [-1] * 4
+    row["elided_word_labels"] = 0
+    row["truncated_word_labels"] = 0
     for word in words:
         if word.end <= start or word.start >= end:
             continue
@@ -254,11 +256,14 @@ def _draw_row(canvas, draw, fonts, decoder, video, row, cuts, spans, words, fram
         text = " ".join(word.text.split())
         text_width = round(draw.textlength(text, font=small_font))
         if text_width > x1 - x0:
-            raise InspectionError("Transcript label is wider than the image; shorten the caption or increase width.")
+            text = _fit_text(draw, text, small_font, x1 - x0)
+            text_width = round(draw.textlength(text, font=small_font))
+            row["truncated_word_labels"] += 1
         left = min(max(x0, cx - text_width // 2), x1 - text_width)
         lane = next((i for i, edge in enumerate(lanes) if edge + 6 <= left), None)
         if lane is None:
-            raise InspectionError("Transcript is too dense for four label lanes; inspect a shorter range or increase width.")
+            row["elided_word_labels"] += 1
+            continue
         lanes[lane] = left + text_width
         top = y + 311 + lane * 25
         draw.line((xa, top, xb, top), fill=WORD, width=2)
@@ -268,6 +273,8 @@ def _draw_row(canvas, draw, fonts, decoder, video, row, cuts, spans, words, fram
                              "visible_start": a, "visible_end": b, "x_start": xa, "x_end": xb,
                              "x_center": cx, "lane": lane, "bar_y": top,
                              "text_box": [left, top + 4, text_width, 18]})
+    if row["elided_word_labels"] or row["truncated_word_labels"]:
+        draw.text((x0, y + 294), f"Transcript labels: {row['elided_word_labels']} omitted, {row['truncated_word_labels']} shortened; full transcript in study", fill=DIM, font=small_font)
     if not row["words"]:
         draw.text((x0, y + 315), "No transcript words in this range", fill=DIM, font=small_font)
     draw.line((x0, y + ROW_HEIGHT - 7, x1, y + ROW_HEIGHT - 7), fill="#363e48")
@@ -357,6 +364,9 @@ def inspect_timeline(video: str | Path, out: str | Path, *, start: float | None 
     for i, row in enumerate(rows):
         _draw_row(canvas, draw, (label_font, small_font), decoder, video, row, cuts,
                   spans, words, frames, 74 + i * ROW_HEIGHT, info["has_audio"])
+        if row["elided_word_labels"] or row["truncated_word_labels"]:
+            warnings.append(f"Timeline {row['start']:g}-{row['end']:g}s: {row['elided_word_labels']} transcript labels omitted "
+                            f"and {row['truncated_word_labels']} shortened to fit; full transcript remains in the study.")
         if measurements:
             moments = [m for t in (measurements.get("music_plan") or {}).get("tracks", []) for m in t.get("moments", [])]
             row["music_moments"] = []
