@@ -255,6 +255,8 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
     protected = {recipe_path, root / "project.json", root / "brief.json"}
     protected.update(resolve_path(a.path, root).resolve() for a in manifest.assets)
     protected.update(Path(c.study_path).resolve() for c in clips if c.study_path)
+    report["warnings"] = [w for p in report["plans"].values() for w in p["warnings"]
+                          if w.startswith("Forced reframe retained")]
     _publish(output, payloads, report, protected)
     return {"status": report["status"], "comparison_path": str(output / "comparison.json"),
             "plans": {label: str(output / f"plan-{label}.json") for label in report["plans"]},
@@ -267,7 +269,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                         **({"target_length": report["target_length"]} if "target_length" in report else {}),
                         # Low-resolution advice first: it changes what to render.
                         "search_windows": search_windows,
-                        "warnings": [*(f"Measured: {w['asset_id']}: {w['text']}" for w in search_windows.values()),
+                        "warnings": [*report["warnings"], *(f"Measured: {w['asset_id']}: {w['text']}" for w in search_windows.values()),
                                      *dict.fromkeys(p["resolution"]["summary"] for p in report["plans"].values()
                                                     if p["resolution"]["limited"]),
                                      *(f"{label}: {ALTERNATIVE}: {reason}." for label, reason

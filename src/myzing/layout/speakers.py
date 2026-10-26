@@ -8,6 +8,7 @@ from statistics import median
 
 from myzing.composition.speakers import SpeakerTurn
 from .types import box_at
+from .caption_safety import is_face
 
 
 def output_time(clip, source_time):
@@ -32,7 +33,7 @@ def speaker_turns(clip, tracks, words):
     for group in groups:
         start, end = max(clip.src_in, group[0].start), min(clip.src_out, max(w.end for w in group))
         times = [max(start, min(end, (w.start + w.end) / 2)) for w in group]
-        present = [t for t in tracks if not t.id.startswith(("saliency-", "person-", "object-")) and
+        present = [t for t in tracks if is_face(t) and
                    t.keyframes[0].time < end and t.keyframes[-1].time > start]
         faces = [t for t in present if t.keyframes[0].time <= start + 1e-6 and t.keyframes[-1].time >= end - 1e-6]
         identity, confidence, method = None, 0.0, "unknown; retain two-shot"

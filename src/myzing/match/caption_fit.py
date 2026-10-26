@@ -138,9 +138,14 @@ def fit_captions(plan, folder, *, safety_context=None):
 
 
 def _fit_reference(plan, folder):
-    """One-line groups: reduce word count before reducing the font size."""
+    """Try in-band groups before shrinking more than 15% from the target."""
     from copy import deepcopy
     from myzing.captions.grouping import display_boundaries, join
+    from myzing.captions.reference import word_band
+    import json
+    prefix = "CAPREF evidence: "
+    facts = next((json.loads(w[len(prefix):]) for w in plan.warnings if w.startswith(prefix)), {})
+    band = word_band([v["words_visible"] for k, v in facts.items() if k.startswith("captions[")])
     missing = [c.id for c in plan.captions if not c.words]
     if missing:
         raise ValueError("Reference captions require ordered word timings: " + ", ".join(missing)
@@ -170,8 +175,13 @@ def _fit_reference(plan, folder):
             fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root)
             _, numeric = display_boundaries([w.text for w in caption.words])
             splits = [i for i in range(1, len(caption.words)) if i not in numeric]
-            if splits and (fitted is None or fitted.size < style.size-.01):
-                split = min(splits, key=lambda i: abs(i-len(caption.words)/2))
+            in_band = [i for i in splits if all(band["lower"] <= len(join(w.text for w in words).split()) <= band["upper"]
+                       for words in (caption.words[:i], caption.words[i:]))]
+            # An unreadable group may need a disclosed out-of-band split.
+            # Otherwise keep the measured band when no legal regroup exists.
+            choices = in_band or (splits if fitted is None or not band["measured"] else [])
+            if choices and (fitted is None or fitted.size < .85 * style.size):
+                split = min(choices, key=lambda i: abs(i-len(caption.words)/2))
                 parts = []
                 for suffix, words in zip(("a", "b"), (caption.words[:split], caption.words[split:])):
                     part = deepcopy(caption)
@@ -185,7 +195,8 @@ def _fit_reference(plan, folder):
                         part.layout = replace(part.layout, overlap=caption.layout.overlap)
                     if caption.id in plan.accepted_unsafe_layouts:
                         plan.accepted_unsafe_layouts.append(part.id)
-                    plan.warnings.append(f"Caption {part.id}: reference grouping deviation; split {caption.id} to {len(part.text.split())} words before shrinking to keep one line at readable size.")
+                    reason = "in-band regroup" if split in in_band else "reference grouping deviation"
+                    plan.warnings.append(f"Caption {part.id}: {reason}; split {caption.id} to {len(part.text.split())} words before shrinking more than 15% below its target size.")
                     parts.append(part)
                 if caption.id in plan.accepted_unsafe_layouts:
                     plan.accepted_unsafe_layouts.remove(caption.id)
@@ -195,6 +206,10 @@ def _fit_reference(plan, folder):
                 raise ValueError(failure)
             caption.style = fitted
             if fitted.size < style.size-.01:
-                plan.warnings.append(f"Caption {caption.id}: indivisible word group reduced from {style.size:g}px to {fitted.size:g}px; reference size deviation, 24px floor preserved.")
+                reason = ("within 15% size tolerance" if fitted.size >= .85 * style.size else
+                          "no split within the reference word band" if splits and band["measured"] else "indivisible word group")
+                plan.warnings.append(f"Caption {caption.id}: {reason}; reduced from {style.size:g}px to {fitted.size:g}px ({1-fitted.size/style.size:.1%} smaller); reference size deviation, 24px floor preserved.")
             fitted_captions.append(caption)
     plan.captions = fitted_captions
+    from myzing.captions.reference import shared_appearance_notes
+    shared_appearance_notes(plan, facts.get("caption_appearance", {}))

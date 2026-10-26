@@ -63,7 +63,11 @@ def check(reference, clips, out, *, brief=None, answers=None, studio_options=Non
             problems.append('Framing=reframe needs OpenCV; run python -m pip install "myzing[layout]", or choose framing=fit.')
         from myzing.layout.detector import model_path, verified_model
         if not verified_model(model_path()):
-            problems.append("Face model required for framing=reframe; run zing layout fetch-model, or choose framing=fit.")
+            warnings.append(f"Optional capability unavailable for reframe: YuNet face model missing or corrupt at {model_path()}; run zing layout fetch-model. Body/center fallback has no verified face coverage.")
+        from myzing.layout.vision_models import inventory
+        person = next(row for row in inventory() if row["name"] == "person")
+        if not person["verified"]:
+            warnings.append(f"Optional capability unavailable for reframe: MediaPipe person-head model missing or corrupt at {person['path']}; run zing layout fetch-model --vision. Available YuNet faces take priority over HOG body fallback.")
     paths = []
     directory = Path(clips).expanduser()
     try:

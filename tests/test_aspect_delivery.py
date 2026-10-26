@@ -71,9 +71,10 @@ def test_faces_and_people_are_preserved_ahead_of_saliency():
     bright = subject("saliency-fire", Box(.8,.1,.15,.7))
     base = centered_framing("reframe",640,360,180,320)
     f = track_framing(base,clip(),[bright,person,face])
-    assert f.method == "people-hog+yunet" and f.center_x == pytest.approx(.5*640)
+    assert f.method == "yunet" and f.center_x == pytest.approx(.35*640)
     f = track_framing(base,clip(),[bright,person])
     assert f.method == "people-hog" and f.center_x == pytest.approx(.6*640)
+    assert f.confidence <= .35 and any("No face/head evidence" in w for w in f.warnings)
 
 
 def test_sparse_scene_wide_highlights_are_not_an_object_box():

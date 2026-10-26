@@ -209,6 +209,7 @@ def markdown(summary):
         except ValueError:
             return Path(path).as_posix()
     lines = [f"# Match comparison", "", summary["summary"], "",
+             *[w + "\n" for w in summary.get("warnings", []) if w.startswith("Forced reframe retained")],
              "Render complete means fully decoded, inspected, and reported. Style match is separate; approximate dimensions remain unverified.", "",
              "| Draft | Render status | Failed style dimensions | Shot pace | First cut | Caption timing | Words/caption | Case | Placement | Color |",
              "|---|---|---|---|---|---|---|---|---|---|"]
@@ -271,6 +272,7 @@ def markdown(summary):
         lines += ["", f"Failed step `{failure['step']}`: {failure['error']}", f"Log: {failure['log']}"]
     if summary.get("warnings"):
         lines += ["", "Disclosures (grouped; comparison.json lists each one):", "",
-                  *[f"- {w}" for w in group_disclosures(summary["warnings"])]]
+                  *[f"- {w}" for w in group_disclosures(summary["warnings"])
+                    if not w.startswith("Forced reframe retained")]]
     lines += ["", "Choose after review: `zing plan choose <project-folder> --draft A`.", ""]
     return "\n".join(lines)

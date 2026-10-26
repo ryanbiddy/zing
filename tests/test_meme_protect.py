@@ -43,7 +43,8 @@ def ink_inside(result, box, source_size, viewport):
 
 @pytest.mark.parametrize("where", [(.35, .05, .65, .43), (.3, .6, .7, .96)])
 @pytest.mark.parametrize("aspect", ["1:1", "9:16", "16:9"])
-def test_blob_on_flat_background_never_gets_text(tmp_path, where, aspect):
+def test_blob_on_flat_background_never_gets_text(tmp_path, where, aspect, zing_workspace):
+    # Isolated workspace: this checks the no-model estimate, not whatever models ~/.zing holds.
     source = blob_photo(tmp_path / "blob.png", where)
     with Image.open(source) as image:
         estimate = estimate_subject(image)
@@ -72,7 +73,7 @@ def _bar_height(rendered):
     return row
 
 
-def test_explicit_layout_is_kept_and_the_overlap_is_stated(tmp_path):
+def test_explicit_layout_is_kept_and_the_overlap_is_stated(tmp_path, zing_workspace):
     source = blob_photo(tmp_path / "blob.png", (.35, .05, .65, .43))
     result = render_meme(["when the build passes", "first try"], image=str(source), layout="classic",
                          out=str(tmp_path / "meme.png"))

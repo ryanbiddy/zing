@@ -133,6 +133,17 @@ def appearance(geometry):
     return result
 
 
+def shared_appearance_notes(plan, measured):
+    """Aggregate shared facts using the current (possibly regrouped) cue count."""
+    # Appearance is shared reference evidence, not a new measurement per cue.
+    plan.warnings[:] = [w for w in plan.warnings if not w.startswith("CAPREF appearance:")]
+    missing = [k for k in ("color", "outline_color", "outline_fraction", "alignment") if k not in measured]
+    if plan.captions and missing:
+        plan.warnings.append(f"CAPREF appearance: {len(plan.captions)} captions use Estimated {', '.join(missing)}; defaults are white with black legibility outline and centered alignment. No unmeasured plate added.")
+    if plan.captions and measured.get("outline_rejected_samples"):
+        plan.warnings.append(f"CAPREF appearance: {measured['outline_rejected_samples']} reference stroke samples excluded by glyph-relative quality check; affects {len(plan.captions)} captions. {measured['outline_quality_rule']}")
+
+
 def place(plan, recipe, subjects, source_dimensions):
     """Keep reference anchors; disclose collisions without inventing a plate."""
     from myzing.layout.chooser import check_overlap
@@ -170,6 +181,7 @@ def place(plan, recipe, subjects, source_dimensions):
                   "Estimated shadow treatment: shadow unmeasured; use an outline at least 6% of fill-ink height for legibility instead of a shadow (black unless outline color is measured).")
     plan.warnings[:] = [w for w in plan.warnings if not w.startswith("CAPREF typography:")]
     plan.warnings.append(disclosure)
+    shared_appearance_notes(plan, measured)
     for caption in plan.captions:
         caption.font = replace(face)
         ink_fraction = measured.get("text_height") or (geometry[3]-geometry[1] if geometry else None)
@@ -234,11 +246,6 @@ def place(plan, recipe, subjects, source_dimensions):
         if not overlap.safe:
             plan.accepted_unsafe_layouts.append(caption.id)
             plan.warnings.extend(warnings)
-        missing = [k for k in ("color", "outline_color", "outline_fraction", "alignment") if k not in measured]
-        if missing:
-            plan.warnings.append(f"Caption {caption.id}: Estimated {', '.join(missing)}; defaults are white with black legibility outline and centered alignment. No unmeasured plate added.")
-        if measured.get("outline_rejected_samples"):
-            plan.warnings.append(f"Caption {caption.id}: {measured['outline_rejected_samples']} reference stroke samples excluded by glyph-relative quality check; {measured['outline_quality_rule']}")
         basis = "Measured median text_height" if measured.get("text_height") else "Measured caption box height" if geometry else "Estimated 3% frame height"
         plan.warnings.append(f"Caption {caption.id}: {basis} targets {ink_height:.2f}px fill ink; Estimated substitute em {caption.style.size:.2f}px from pinned glyph bounds (24-512px limits); original font size is unmeasured.")
         if not geometry:

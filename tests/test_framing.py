@@ -118,12 +118,14 @@ def test_display_geometry_accounts_for_sar_and_rotation():
     assert display_dimensions({"width":640,"height":360,"side_data_list":[{"rotation":90}]}) == (360,640)
 
 
-def test_unknown_speaker_centers_the_two_shot_instead_of_guessing_from_confidence():
+def test_primary_face_uses_prominence_not_detector_confidence_and_discloses():
     clip=CompositionClip("s",0,2,0,id="c",asset_id="s")
     central=FaceTrack("face-main",[Keyframe(0,Box(.4,.2,.2,.3)),Keyframe(2,Box(.4,.2,.2,.3))],.85)
     background=FaceTrack("face-other",[Keyframe(0,Box(.75,.2,.08,.12)),Keyframe(2,Box(.75,.2,.08,.12))],.99)
     f=track_framing(centered_framing("reframe",640,360,180,320),clip,[central,background])
-    assert all(k.center_x == pytest.approx((.4 + .83) / 2 * 640) for k in f.keyframes)
+    assert all(k.center_x == pytest.approx(.5 * 640) for k in f.keyframes)
+    assert f.confidence == .55
+    assert any('speaker identity unverified' in w for w in f.warnings)
 
 
 def test_swept_subject_crossing_between_offscreen_endpoints_is_protected():
