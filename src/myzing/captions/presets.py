@@ -129,15 +129,18 @@ def phone_floor(plan, start, end, name, source_dimensions=None):
     return phone_size(plan.width, plan.height, picture_width(plan, start, end, source_dimensions))
 
 
-def _piece(text, p, q, display):
-    """Display form of text[p:q]; a hyphen marks a break between letters."""
+def _piece(text, p, q, display, hyphenate=False, suffix=""):
+    """Display form of a piece; pop presets mark every non-final break."""
     value = display(text[p:q])
-    if q < len(text) and text[q-1].isalpha() and text[q].isalpha() and not nospace(text[q-1]):
+    if q < len(text) and (hyphenate or
+            (text[q-1].isalpha() and text[q].isalpha() and not nospace(text[q-1]))):
         value += "-"
+    elif q == len(text):
+        value += suffix
     return value
 
 
-def split_word(text, fits, display=str):
+def split_word(text, fits, display=str, *, hyphenate=False, suffix=""):
     """(start, end) offsets of a word too wide even alone.
 
     Greedy by measured width, preferring a break after URL/compound punctuation
@@ -149,7 +152,7 @@ def split_word(text, fits, display=str):
         offset += len(part)
         boundaries.append(offset)
     while p < len(text):
-        possible = [q for q in boundaries if q > p and fits(_piece(text, p, q, display))]
+        possible = [q for q in boundaries if q > p and fits(_piece(text, p, q, display, hyphenate, suffix))]
         if not possible:
             raise ValueError("A caption glyph cluster cannot fit at the phone floor; choose clean.")
         q = max(possible)
@@ -162,13 +165,30 @@ def split_word(text, fits, display=str):
     return spans
 
 
-def fit_long_words(words, display, measure, available):
-    """Keep every word inside the line by measured cluster splits, at the phone floor."""
+def _split_suffix(word):
+    """Recover display-only hyphens when a delivery reapplies the preset."""
+    for adjustment in reversed((word.timing or {}).get("adjustments", [])):
+        if adjustment.get("method") == "caption_long_word_split":
+            if "display_suffix" in adjustment:
+                return adjustment["display_suffix"]
+            # Plans written before display_suffix still identify each part.
+            part, _, count = adjustment.get("part", "").partition("/")
+            return "-" if part.isdigit() and count.isdigit() and int(part) < int(count) else ""
+    return ""
+
+
+def fit_long_words(words, display, measure, available, *, scales=(1.,), outline=0., keep_whole=True):
+    """Prefer whole words, then solo scaling, then splits at the readable floor.
+
+    scales are descending factors relative to the current style, including its
+    phone floor. Clean retains its existing prefix-aware splitting policy.
+    """
     kept, shown, solo, notes = [], [], {}, []
     _, numeric = display_boundaries([w.text for w in words])
     protected = set(numeric) | {i-1 for i in numeric}
     for index, word in enumerate(words):
-        value = display(word.text)
+        suffix = _split_suffix(word) if keep_whole else ""
+        value = display(word.text) + suffix
         if index in protected or numeric_token(word.text):
             if index not in numeric:
                 stop = index+1
@@ -184,19 +204,36 @@ def fit_long_words(words, display, measure, available):
             if token(prev) not in STOPWORDS:
                 break
             prefix.insert(0, display(prev.text))
-        width = measure([*prefix, value])
+        width = measure([value] if keep_whole else [*prefix, value])
         if width <= available:
             kept.append(word)
             shown.append(value)
         else:
-            spans = split_word(word.text, lambda piece: measure([*prefix, piece]) <= available, display)
+            factor = 1.
+            if keep_whole:
+                factor = next((s for s in scales if width*s <= available + 2*outline*(1-s)), None)
+                if factor is not None:
+                    solo[len(kept)] = factor
+                    kept.append(word)
+                    shown.append(value)
+                    notes.append(f"Word {value!r} is shown alone at {factor:.0%} scale to fit the caption line.")
+                    continue
+                factor = min(scales)
+                prefix = []
+            spans = split_word(word.text,
+                lambda piece: measure([*prefix, piece])*factor <= available + 2*outline*(1-factor),
+                display, hyphenate=keep_whole, suffix=suffix)
             t = word.start
             for i, (p, q) in enumerate(spans):
                 end = word.end if i+1 == len(spans) else word.start + (word.end-word.start)*q/len(word.text)
+                visible = _piece(word.text, p, q, display, keep_whole, suffix)
+                details = {"display_suffix": visible[len(display(word.text[p:q])):]} if keep_whole else {}
                 part = transform_word(word, t, end, "caption_long_word_split", corrected=True,
-                                      part=f"{i+1}/{len(spans)}")
+                                      part=f"{i+1}/{len(spans)}", **details)
+                if keep_whole:
+                    solo[len(kept)] = factor
                 kept.append(replace(part, text=word.text[p:q]))
-                shown.append(_piece(word.text, p, q, display))
+                shown.append(visible)
                 t = end
             notes.append(f"Word {value!r} or its protected prefix is wider than the caption line; "
                          f"split into {len(spans)} parts with proportional timing.")
@@ -263,14 +300,19 @@ def apply_preset(plan, name, *, vad=True, base_dir=None):
             measure = lambda texts, trial=trial: (float("inf") if cap and len(join(texts)) > cap
                                                    else words_width(texts, face, trial, name))
             try:
-                fitted, shown, solo, long_notes = fit_long_words(source_words, display, measure, available)
+                fitted, shown, solo, long_notes = fit_long_words(source_words, display, measure, available,
+                    scales=[s/scale for s in scales if s <= scale], outline=trial.outline_width,
+                    keep_whole=name != "clean")
             except ValueError:
                 continue
             alone = {shown[i]: factor for i, factor in solo.items()}
 
-            def fits(texts, measure=measure, alone=alone):
+            def fits(texts, measure=measure, alone=alone, outline=trial.outline_width):
                 width = measure(texts)
-                return width*alone[texts[0]] if len(texts) == 1 and texts[0] in alone else width
+                if len(texts) == 1 and texts[0] in alone:
+                    factor = alone[texts[0]]
+                    return width*factor - 2*outline*(1-factor)
+                return width
             shown_words = [replace(w, text=s) for w, s in zip(fitted, shown)]
             try:
                 grouped = group_words(shown_words, fits, available, preset=name, portrait=plan.height > plan.width,
@@ -281,8 +323,12 @@ def apply_preset(plan, name, *, vad=True, base_dir=None):
             short = sum(e-s < MINIMUM[name]-1e-6 and not (k+1 == len(groups) and e >= clip.timeline_end-1e-6)
                         for k, (s, e) in enumerate(zip(starts, ends)))
             orphan_count = sum(len(part) == 1 for part in groups)
-            candidates.append(((len(long_notes), short, orphan_count, -scale), trial, fitted, shown_words, solo, grouped, long_notes))
-            if short == 0 and (orphan_count == 0 or name == "clean"):
+            dangling = sum(token(part[-1]) in STOPWORDS for part in groups[:-1])
+            splits = sum("split into" in note for note in long_notes)
+            score = ((len(long_notes), short, orphan_count, -scale) if name == "clean"
+                     else (splits, dangling, short, orphan_count, -scale))
+            candidates.append((score, trial, fitted, shown_words, solo, grouped, long_notes))
+            if short == 0 and (name == "clean" or (dangling == 0 and (orphan_count == 0 or solo))):
                 break
         if not candidates:
             raise ValueError("Caption words cannot fit together at the phone size floor; choose clean or edit the transcript.")

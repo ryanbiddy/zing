@@ -245,7 +245,8 @@ def edge_bound(starts, ends, k, end, chain=0.):
     return True
 
 
-def group_words(words, measure, width, *, preset, portrait=True, start=None, end=None, fps=30, solo=()):
+def group_words(words, measure, width, *, preset, portrait=True, start=None, end=None, fps=30, solo=(),
+                _allow_stopword_breaks=False):
     """Return (word groups, explicit lines, display starts, display ends, warnings).
 
     measure takes a list of display word texts. Hard width and word limits
@@ -298,7 +299,7 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
             if not math.isfinite(best[i]) or any(i < k < j for k in hard):
                 continue
             part = words[i:j]
-            if j < n and token(words[j-1]) in STOPWORDS and j not in hard:
+            if j < n and token(words[j-1]) in STOPWORDS and j not in hard and not _allow_stopword_breaks:
                 continue
             if j < n and glued(words[j]):
                 continue
@@ -329,6 +330,11 @@ def group_words(words, measure, width, *, preset, portrait=True, start=None, end
             if cost < best[j]:
                 best[j], paths[j] = cost, (i, lines)
     if paths[-1] is None:
+        if not clean and not _allow_stopword_breaks:
+            # A protected prefix may be wider than the rail with its next word.
+            # Exhaust legal groupings before letting that prefix break away.
+            return group_words(words, measure, width, preset=preset, portrait=portrait,
+                               start=start, end=end, fps=fps, solo=solo, _allow_stopword_breaks=True)
         raise ValueError(f"Caption {preset} cannot fit a word at this width even alone; choose a larger output.")
     groups, lines = [], []
     j = n
