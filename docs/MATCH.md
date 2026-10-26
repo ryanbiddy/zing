@@ -215,3 +215,39 @@ Its fixture provenance explicitly labels synthetic harmonic audio, authored ASR
 words and stubbed OCR recognition. Real decoded pixels supply caption boxes;
 the remaining pipeline runs normally. This example is a wiring/verification
 test, not evidence of human speech recognition or subjective style quality.
+
+## Long interviews
+
+For a 30-90 minute interview, let match study it once. Its
+`long_source_needs_moment` shortage preserves those checkpoints:
+
+```sh
+zing match reference.mp4 --clips ./clips --out ./project --answers '{"target_length_seconds":22}'
+zing moments ./clips/interview.mp4 --workspace ./project --target 22 --top 3 --json
+```
+
+Review the suggestions, copy one `must_keep` array into `project/brief.json`,
+then rerun the same match command with `--resume` instead of `--answers`.
+`zing moments` also accepts a study slug or `breakdown.json` from an earlier
+`zing study <clip> --raw` run. It never transcribes or calls a model.
+
+Suggestions include start/end, text, score and reasons, labeled **Estimated**.
+Windows start on complete clauses and last 65-100% of the target. Scores weight
+speech density (50%), length fit (30%), question/number/contrast cues in the first
+clause (10%), keeper coverage (5%) and shot coverage (5%). Measured dead air,
+word gaps of at least 600 ms, incomplete clauses and repaired timings are excluded.
+Results do not overlap; sparse evidence may yield fewer than requested. Semantic
+quality and ASR accuracy remain unverified.
+
+Above 2,400 candidate trims, a must-keep focuses search from its first start minus
+1.5 times the target to its last end plus 1.5 times the target, snapped outward to
+clause/shot boundaries. Forbidden ranges still apply; short clips keep their
+existing search. Widely separated must-keeps may still exceed the cap.
+Plans and reports label the interval **Measured** and say "Search focused on ...
+around your must-keep line; the whole interview was not searched." No moment is
+automatically selected.
+
+Audio/video drift up to 250 ms is accepted and disclosed. Excess audio is clipped;
+an uncovered video tail stays unmeasured. Above ten minutes, match skips its
+optional audio map and reports that limit; the raw study still supplies transcript
+and dead-air evidence.

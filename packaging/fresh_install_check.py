@@ -148,7 +148,7 @@ def run_check(wheel: Path, root: Path, extras: str, steps: list, checkpoint) -> 
     shutil.copyfile(ROOT / "packaging/mcp_stdio_smoke.py", smoke)
     def validate_mcp(text):
         payload = json.loads(text)
-        require(payload.get("ok") and payload.get("tool_count") == 36 and payload.get("called") == "zing_status",
+        require(payload.get("ok") and payload.get("tool_count") == 37 and payload.get("called") == "zing_status",
                 f"unexpected MCP exchange: {payload!r}")
 
     call("mcp-stdio", [python, smoke], timeout=180, validate=validate_mcp)

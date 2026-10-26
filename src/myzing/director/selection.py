@@ -213,7 +213,56 @@ def usable_length(studies, keep, forbidden):
                for a,b in usable_spans(clip, keep.get(clip.asset_id, []), forbidden.get(clip.asset_id, []))[0])
 
 
-def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
+class _ClipCapacity(Exception):
+    def __init__(self, clip):
+        self.clip = clip
+
+
+def focus_window(clip, kept, target):
+    """Snap outward to nearby clause/shot edges, without splitting speech."""
+    speech = clauses(clip.words)
+    edges = sorted({0., clip.duration, *(c.start for c in speech), *(c.end for c in speech),
+                    *(s.start for s in clip.shots), *(s.end for s in clip.shots)})
+    low = max(0., min(a for a, _ in kept) - 1.5 * target)
+    high = min(clip.duration, max(b for _, b in kept) + 1.5 * target)
+    low = max(p for p in edges if p <= low)
+    high = min(p for p in edges if p >= high)
+    low, high = expand_clauses((low, high), clip.words)
+    def clock(value):
+        minutes, seconds = divmod(value, 60)
+        return f"{int(minutes)}:{seconds:06.3f}"
+    return {"asset_id": clip.asset_id, "start": low, "end": high, "label": "Measured",
+            "reason": "Candidate pool exceeded the limit; 1.5x target padding, snapped outward to clause/shot boundaries.",
+            "text": f"Search focused on {clock(low)}-{clock(high)} around your must-keep line; the whole interview was not searched."}
+
+
+def candidates(studies, keep, forbidden, style, target, *, expand_timing=True, search_windows=None):
+    windows = search_windows if search_windows is not None else {}
+    while True:
+        try:
+            return _candidates(studies, keep, forbidden, style, target,
+                               expand_timing=expand_timing, search_windows=windows)
+        except _ClipCapacity as exc:
+            clip = exc.clip
+            if clip.asset_id in windows:
+                shortage("planner_capacity", f"Focused window for {clip.asset_id} still exceeds {MAX_CANDIDATES} candidates.",
+                         "Use closer must-keep moments, shorter target, or forbidden ranges to narrow this window.", clip.asset_id)
+            if keep.get(clip.asset_id):
+                windows[clip.asset_id] = focus_window(clip, keep[clip.asset_id], target)
+                continue
+            from .moments import suggest_moments
+            from .models import PlanningShortage, Shortage
+            suggestions = suggest_moments(clip, target=target, top=3,
+                                          forbidden=forbidden.get(clip.asset_id, []))
+            raise PlanningShortage(Shortage(
+                "long_source_needs_moment",
+                f"{clip.asset_id} exceeds {MAX_CANDIDATES} candidates; choose a moment before matching.",
+                "Review these Estimated suggestions or run zing moments <clip-or-study> --json; "
+                "copy a suggestion's must_keep into your brief and rerun match. No moment was selected automatically.",
+                [clip.asset_id], suggestions=suggestions)) from None
+
+
+def _candidates(studies, keep, forbidden, style, target, *, expand_timing=True, search_windows=None):
     """Candidate trims stay within shot regions snapped out of spoken words.
 
     Must-keeps remain indivisible, even across original visual cuts. Full
@@ -233,6 +282,11 @@ def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
     for clip in studies:
         if clip.status != "ready":
             continue
+        window = (search_windows or {}).get(clip.asset_id)
+        if window:
+            clip = replace(clip, words=[w for w in clip.words
+                                       if w.start >= window["start"] and w.end <= window["end"]])
+        clip_unique = set()
         kept = keep.get(clip.asset_id, [])
         speech = clauses(clip.words)
         allowed, removed, quarantine = usable_spans(clip, kept, forbidden.get(clip.asset_id, []))
@@ -240,6 +294,8 @@ def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
         bits = [(1 << i, (a, b)) for i, (key, a, b) in enumerate(required) if key == clip.asset_id]
 
         def add(start, stop):
+            if window and (start < window["start"] - EPS or stop > window["end"] + EPS):
+                return
             if not .2 <= stop - start <= target + .1:
                 return
             if any(overlaps((start, stop), part) and not
@@ -257,6 +313,9 @@ def candidates(studies, keep, forbidden, style, target, *, expand_timing=True):
             inside = [w for w in clip.words if w.start >= start - EPS and w.end <= stop + EPS]
             shot = next((s for s in clip.shots if s.start <= start < s.end), clip.shots[-1])
             covers = sum(bit for bit, (a, b) in bits if start <= a + EPS and stop >= b - EPS)
+            clip_unique.add((start, stop, covers))
+            if len(clip_unique) > MAX_CANDIDATES:
+                raise _ClipCapacity(clip)
             pool.append(Candidate(clip.asset_id, clip.sha256, start, stop, shot.index,
                                   len(inside), inside[0].start - start if inside else None,
                                   " ".join(w.text for w in inside),

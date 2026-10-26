@@ -1220,6 +1220,16 @@ def _run_match(options, root, workspace, stop, lease):
 
 
 @_workspace_boundary
+def h_zing_moments(source: str, target: float = 22., top: int = 3) -> dict[str, Any]:
+    """Rank complete transcript windows from a cached clip or study."""
+    from myzing.director.moments import moments
+    try:
+        return _ok(**moments(source, target=target, top=top))
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return _err(str(exc))
+
+
+@_workspace_boundary
 def h_match_start(reference: str, clips: str, out: str, brief: str | None = None,
                   answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
                   resume: bool = False, allow_download: bool = False,
@@ -2177,6 +2187,10 @@ def build_server():
         ),
     )(h_plan_drafts)
 
+    mcp.tool(
+        name="zing_moments",
+        description="Suggest complete transcript windows from a cached local clip, study slug or breakdown.json. No model calls or downloads. Returns Estimated scores, reasons and exact must_keep arrays for the match brief; never selects a moment automatically. target is seconds (0 < target <= 60); top is 1..100.",
+    )(h_zing_moments)
     mcp.tool(
         name="match_start",
         description=(

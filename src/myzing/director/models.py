@@ -34,6 +34,7 @@ class Shortage(Record):
     remedy: str
     asset_ids: list[str] = field(default_factory=list)
     version: int = 1
+    suggestions: list[dict[str, Any]] = field(default_factory=list)
 
 
 class PlanningShortage(ValueError):

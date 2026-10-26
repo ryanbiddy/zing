@@ -35,6 +35,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
 | `zing brief` | New/show; save interview answers after project init, not an automatic director. |
 | `zing plan choose` | Choose A/B/C from a local artifact; durable receipt, optional reference citation with --share-choice; never publishes. |
+| `zing moments` | Rank complete transcript windows from a cached clip or study; Estimated reasons and must-keep JSON, no model calls. |
 | `zing match` | Reference + clip folder to three rendered, decoded, inspected drafts and measured reports; resumable, with named failures/shortages. |
 | `zing prompt` | Print study, compare, direct, taste or meme-writer judgment instructions. |
 | `zing profile` | Build/show measured aggregates; pack can study missing references. |
@@ -281,3 +282,5 @@ renderer composites HyperFrames captions with footage and audio; standalone
 sidecar output is silent. Cloud ElevenLabs is outside this local workflow.
 
 Screen demos: `zing record-cursor --out session.jsonl` records local cursor/click and anonymous key-press timestamps (no contents). Use `zing plan screen demo.mp4 --cursor session.jsonl --out screen.json`, then `zing render screen.json --aspect all`. Without a log, UI activity supplies lower-confidence targets. `zing match screen --clips <folder> --out <folder>` and Studio screen-footage answers use this continuous zoom/pan path.
+
+For long interviews, `zing moments <clip-or-study> --target 22 --top 3 --json` ranks cached transcript windows. Copy a chosen must-keep array into the brief before resuming match.

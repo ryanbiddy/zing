@@ -168,6 +168,7 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
                 "Isolated music stem before final peak limiting; music-led planning target -16 LUFS.")
     return {"version": 1, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
             "music": planning.get("music"), "audio_measurements": audio_measurements,
+            "search_windows": planning.get("search_windows", {}),
             "source_pacing": source_pacing, "text_roles": output_roles,
             "pacing_flag": {"miss": "unmet", "pass": "met", "not_applicable": "not_applicable"}.get(
                 dimensions["shot_pace"]["status"], "unverified"),

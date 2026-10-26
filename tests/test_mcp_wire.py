@@ -54,7 +54,7 @@ def assert_wire(actual, expected):
     actual = without_release_stamp(copy.deepcopy(actual))
     if isinstance(actual, dict) and isinstance(actual.get("result"), dict) and "tools" in actual["result"]:
         actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
-                                     if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run"}]
+                                     if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments"}]
         for tool in actual["result"]["tools"]:
             if tool["name"] in {"study_video", "study_uoink_item", "match_start"}:
                 # DOGFOOD2 adds optional reference trims. Preserve the historical
@@ -110,7 +110,7 @@ def test_sdk1_fixture_provenance():
     from test_mcp_stdio import EXPECTED_TOOLS
     tools = GOLDEN[2]["response"]["result"]["tools"]
     assert len(tools) == 32
-    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_explain", "zing_studio", "zing_studio_run"}
+    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments"}
     assert len(GOLDEN[3]["response"]["result"]["prompts"]) == 5
 
 

@@ -148,10 +148,25 @@ def _audio(studied, enabled):
     if not enabled:
         return {"outputs": [], "warnings": ['Audio map unavailable; install "myzing[audio]".']}
     from myzing.audio.api import analyze
+    from myzing.audio.media import MAX_SECONDS
     from myzing.study.ingest import probe
+    b = Breakdown.from_dict(read(studied["path"]))
+    if b.meta.duration > MAX_SECONDS:
+        # The optional analyzer cannot cover a long interview. Keep its old
+        # partial evidence under an explicit name, never as a complete map.
+        path = Path(studied["path"]).parent / "audio-map.json"
+        outputs = []
+        if path.is_file():
+            saved = read(path)
+            if saved.get("truncated") and Path(saved.get("source", "")).resolve() == Path(studied["media"]).resolve():
+                partial = path.with_name("audio-map.partial.json")
+                path.replace(partial)
+                outputs.append(str(partial))
+        return {"outputs": outputs, "warnings": [
+            f"Optional audio map unmeasured: source is {b.meta.duration:g}s, beyond the {MAX_SECONDS:g}s analyzer limit. "
+            "Planning uses the raw study's transcript and dead-air evidence; no silence is inferred from missing audio-map coverage."]}
     if not any(s["codec_type"] == "audio" for s in probe(Path(studied["media"]))["streams"]):
         return {"outputs": [], "warnings": ["No audio stream; audio map unavailable."]}
-    b = Breakdown.from_dict(read(studied["path"]))
     # The study tagged this same media file; reuse its windows instead of a second CED pass.
     mapped = analyze(studied["media"], breakdown=b, tags=b.provenance.get("audio_tags"))
     path = Path(studied["path"]).parent / "audio-map.json"
@@ -417,14 +432,15 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             # The source-map method keys the study: a changed fine pass restudies.
             clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, context["cache_key"], "source-map-" + SOURCE_MAP_METHOD],
                                                       lambda source=source: _study(str(source), root, raw=True, **({"vocabulary": terms} if terms else {}), **speech))
-            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.4"],
+            audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.5-longform"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
+            summary["warnings"].extend(audio_maps[asset.id].get("warnings", []))
             if caps["color"]:
                 colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, "sdr-matrix-v1"],
                                                     lambda source=source, a=asset.id: _color(ref_study["media"], source, root / "color" / a))
         if not caps["color"]:
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
-        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.4"],
+        ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.5-longform"],
                                      lambda: _audio(ref_study, caps["audio"]))
         recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2-color2-samples"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
@@ -438,12 +454,13 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v5-speechless-target", repair_asr, "aspect-stage-common-measurements-v15", caps["layout"],
+                                                 "continuity-v6-longform-focus", repair_asr, "aspect-stage-common-measurements-v15", caps["layout"],
                                                  "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):
             summary["target_length"] = planned["summary"]["target_length"]
         summary["warnings"].extend(planned["summary"].get("warnings", []))
+        summary["search_windows"] = planned["summary"].get("search_windows", {})
         summary["source_asr"] = planned["summary"].get("source_asr", [])
         summary["director_comparison"] = planned["comparison_path"]
         # An alternative outside the reference timing is labeled on every row
