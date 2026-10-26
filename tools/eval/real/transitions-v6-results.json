@@ -3,7 +3,7 @@
   "detector_version": 6,
   "matches_current_detector": true,
   "decision_freeze": {
-    "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+    "decision_sha256": "efdfd2916ae77394e2b854b04102315ae4b084316310ed0be9ff0e6d45f8a12a",
     "source_sha256": {
       "transitions.py": "970911e52657fa554d2ca8680cab9f6a1173b82da79dee0261b3d61345ade611",
       "transition_models.py": "be66b0b0ce200fa3b6953913271f64f780c5af3e7137183fc8862a555ee1062b"
@@ -19,7 +19,7 @@
     "frozen_utc": "2026-10-22T07:41:25.757886+00:00"
   },
   "published_detector": {
-    "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+    "decision_sha256": "efdfd2916ae77394e2b854b04102315ae4b084316310ed0be9ff0e6d45f8a12a",
     "source_sha256": {
       "transitions.py": "1560f095470bfab489b94edf86920f20f2d6a2731d9d5f5dabf1190eb7bf4d21",
       "transition_models.py": "8e324011f24883823fae63db690ade0ea88b929d58c3199447c2578ea6ae2c2b"
@@ -595,7 +595,7 @@
         "artifact_sha256": "eedeee3f3ca7c65a19e8019a2522ffed728ba4e845e72570f3db775f157ef7b1",
         "observations_sha256": "34d22428bbc4a400d9ca4d149f0609061cc42571add05e5a4a22ef49570becc9",
         "provenance": {
-          "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+          "decision_sha256": "efdfd2916ae77394e2b854b04102315ae4b084316310ed0be9ff0e6d45f8a12a",
           "source_sha256": {
             "transitions.py": "970911e52657fa554d2ca8680cab9f6a1173b82da79dee0261b3d61345ade611",
             "transition_models.py": "be66b0b0ce200fa3b6953913271f64f780c5af3e7137183fc8862a555ee1062b"
@@ -1120,7 +1120,7 @@
         "artifact_sha256": "848c977737d1997a78e14a5d37e10373be86f5e29e1e486d69db8a22a752009e",
         "observations_sha256": "202e1d2d689f8369b51ee128dd02e23c42aebdff53cb73a74ef4eb846fbaa249",
         "provenance": {
-          "decision_sha256": "d8ef351a88631ee13c3ffa68320dc4103db882511b8630af607199dca6a3554e",
+          "decision_sha256": "efdfd2916ae77394e2b854b04102315ae4b084316310ed0be9ff0e6d45f8a12a",
           "source_sha256": {
             "transitions.py": "970911e52657fa554d2ca8680cab9f6a1173b82da79dee0261b3d61345ade611",
             "transition_models.py": "be66b0b0ce200fa3b6953913271f64f780c5af3e7137183fc8862a555ee1062b"
