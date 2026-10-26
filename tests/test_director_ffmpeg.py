@@ -1,4 +1,4 @@
-"""Generated clips -> three plans -> one existing-renderer v1 output; no models."""
+"""Generated clips -> reference groups -> native v2 output; no models."""
 
 import json
 import subprocess
@@ -8,8 +8,7 @@ from pathlib import Path
 import pytest
 
 from myzing.director import plan_drafts
-from myzing.render.pipeline import render_edl
-from myzing.schemas import EDL
+from myzing.render.composition import render_composition
 from myzing.composition import Composition
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -17,18 +16,18 @@ from tools.plan_examples import example_project
 
 
 @pytest.mark.ffmpeg
-def test_lowered_plan_renders_with_real_media(tmp_path, zing_workspace):
+def test_reference_plan_renders_with_real_media(tmp_path, zing_workspace):
     project, _, _ = example_project(tmp_path / "project", media=True)
     result = plan_drafts(project, project / "recipe.json", tmp_path / "plans", seed=17)
     assert result["status"] == "ready", result
     plan = Composition.from_json(Path(result["plans"]["A"]).read_text(encoding="utf-8"))
-    # Matching-aspect square-pixel fit and captions whose preset position was
-    # checked clear stay v1-representable; the export is the existing renderer.
-    assert all(c.framing is None for c in plan.clips) and all(c.layout is None for c in plan.captions)
-    edl = EDL.from_dict(json.loads(Path(result["v1_edls"]["A"]).read_text(encoding="utf-8")))
-    # Use the exact exported dimensions, captions and source trims.
+    assert all(c.framing is None for c in plan.clips)
+    assert all(len(c.words) == 2 and c.word_timed and c.style.box_color is None for c in plan.captions)
+    from myzing.match.caption_fit import fit_captions
+    fit_captions(plan, tmp_path / "caption-fit")
+    assert all("\n" not in c.text and c.style.box_color is None for c in plan.captions)
     output = tmp_path / "plan-A.mp4"
-    render_edl(edl, output, work_dir=tmp_path / "render-work")
+    render_composition(plan, output, work_dir=tmp_path / "render-work")
     probe = subprocess.run(["ffprobe", "-v", "error", "-show_format", "-show_streams", "-of", "json", str(output)],
                            capture_output=True, text=True, check=True, timeout=30)
     data = json.loads(probe.stdout)
@@ -42,7 +41,7 @@ def test_lowered_plan_renders_with_real_media(tmp_path, zing_workspace):
     # Verify planned source choices at a caption-free upper-right pixel. Each
     # known source shot is a distinct color, so this catches mapping/order bugs.
     palette = [(255, 0, 0), (0, 0, 255), (0, 128, 0), (255, 255, 0)]
-    for clip in edl.clips:
+    for clip in plan.clips:
         relative = min(.1, (clip.src_out - clip.src_in) / 2)
         sample = subprocess.run(["ffmpeg", "-v", "error", "-ss", str(clip.timeline_start + relative),
                                  "-i", str(output), "-frames:v", "1", "-vf", "crop=2:2:1800:100,format=rgb24",

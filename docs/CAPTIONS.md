@@ -1,3 +1,28 @@
+With `caption_mode=reference`, captions use the reference's median words per
+event and its interquartile word-count band. Groups follow source word timings,
+case rate, position and measured alignment. Persistent title lines are separated
+from changing caption lines before those measurements are calculated.
+
+Measured caption ink supplies color and outline when available. Missing values
+are disclosed per caption as **Estimated**: white text, a black 2px outline,
+centered alignment, and an em size of the short side divided by 18 (at least
+24px). Reference mode adds a plate only when one was measured, or when explicitly
+requested in `caption_options`. The default active-word color matches the text.
+Exact font identity and size remain estimates.
+Stroke samples wider than 20% of measured glyph height are excluded as possible
+background contamination; the plan discloses that exclusion and any fallback.
+
+Groups stay on one line. Ink fitting splits a group into fewer words before
+shrinking it; an indivisible word may shrink to the 24px floor. A word that still
+cannot fit stops rendering with a remedy. Each grouping or size deviation is
+recorded against its caption ID. The match report compares words per caption
+and all-caps rate as well as timing and placement.
+
+For source shots with measured text-card geometry, `reframe` preserves all
+observed text. If the proposed crop cuts it, that shot uses full-source blurfill.
+The plan records the decision, sample times and text bounds; aspect conversion
+rechecks those bounds. Unsampled text remains unmeasured.
+
 To add an active-word background to timed captions:
 
 ```powershell

@@ -24,6 +24,7 @@ class ClipStudy(Record):
     warnings: list[str] = field(default_factory=list)
     asr_repair: dict[str, Any] = field(default_factory=dict)
     audio_tags: dict[str, Any] = field(default_factory=dict)
+    text_geometry: dict[str, Any] = field(default_factory=dict)
     version: int = 1
 
 

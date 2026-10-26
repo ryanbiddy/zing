@@ -452,12 +452,23 @@ def _similarity(a, b):
 
 
 def track_frames(frames: list[FrameSample], duration: float, *, counts=None) -> list[CaptionTrack]:
+    raw = [captions.Observation(f.t, f.step, [captions.Line(d.text, d.confidence or 0,
+           _center(d.box)[1], _center(d.box)[0]) for d in f.detections]) for f in frames]
+    persistent = captions.persistent_lines(raw)
     streams: list[list[dict]] = []
     for sample_index, frame in enumerate(frames):
         if frame.status == "ocr_error":
             continue
         observations = []
+        static = {i for i, d in enumerate(frame.detections) if captions.is_persistent(
+            captions.Line(d.text, d.confidence or 0, _center(d.box)[1], _center(d.box)[0]), persistent)}
+        groups = []
         for group in _groups(frame):
+            changing = [i for i in group if i not in static]
+            if changing:
+                groups.append(changing)
+            groups.extend([i] for i in group if i in static)
+        for group in groups:
             detections = [frame.detections[i] for i in group]
             boxes = [d.appearance.get("ink_box") or d.box for d in detections]
             box = [min(b[0] for b in boxes), min(b[1] for b in boxes),
@@ -497,7 +508,15 @@ def track_frames(frames: list[FrameSample], duration: float, *, counts=None) -> 
         counts.update(tracks_observed=len(streams), tracks_omitted=max(0, len(streams)-MAX_TRACKS))
     # Prioritize well-supported tracks; deterministic order for stable IDs.
     retained = sorted(sorted(range(len(streams)), key=lambda i: (-len(streams[i]), i))[:MAX_TRACKS])
-    return [_build_track(i, streams[i], frames, duration) for i in retained]
+    result = [_build_track(i, streams[i], frames, duration) for i in retained]
+    for track in result:
+        sample = track.samples[0]
+        detections = [frames[sample["sample_index"]].detections[i] for i in sample["detection_indices"]]
+        if all(captions.is_persistent(captions.Line(d.text, d.confidence or 0,
+                   _center(d.box)[1], _center(d.box)[0]), persistent) for d in detections):
+            track.kind = "overlay"
+            track.classification["reason"] = "static line persists beside changing caption lines; separated before grouping"
+    return result
 
 
 def _build_track(index, samples, frames, duration):

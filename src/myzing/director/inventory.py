@@ -131,6 +131,13 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                     raise ValueError(f"invalid shot intervals: {problem or 'overlap/order'}")
                 previous = shot.end
             item.shots = planning_shots(b)
+            geometry_path = path.parent / "caption-geometry.json"
+            if geometry_path.is_file():
+                from myzing.study.caption_geometry import CaptionGeometry
+                geometry = CaptionGeometry.from_dict(json.loads(geometry_path.read_text(encoding="utf-8-sig")))
+                if abs(geometry.duration - b.meta.duration) > .05:
+                    raise ValueError("caption geometry duration differs from study")
+                item.text_geometry = geometry.to_dict()
             raw = b.provenance.get("raw_mode", {})
             if not isinstance(raw, dict):
                 raise ValueError("raw_mode must be an object")

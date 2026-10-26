@@ -75,6 +75,8 @@ def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None)
 def fit_captions(plan, folder, *, safety_context=None):
     if not plan.captions:
         return
+    if plan.brief and plan.brief.caption_mode == "reference":
+        return _fit_reference(plan, folder)
     if safety_context is None:
         import json
         from myzing.director.plans import REPORT_PREFIX
@@ -133,3 +135,66 @@ def fit_captions(plan, folder, *, safety_context=None):
                     raise ValueError(failure)
                 limit = max(longest, int(limit * .85))
     plan.warnings.append("Complete clause captions use explicit visual wraps and libass-measured sizes; caption width and typography may differ from the reference.")
+
+
+def _fit_reference(plan, folder):
+    """One-line groups: reduce word count before reducing the font size."""
+    from copy import deepcopy
+    from myzing.captions.grouping import display_boundaries, join
+    missing = [c.id for c in plan.captions if not c.words]
+    if missing:
+        raise ValueError("Reference captions require ordered word timings: " + ", ".join(missing)
+                         + ". Supply a word-timed transcript and rebuild the reference groups.")
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    pending, fitted_captions = list(plan.captions), []
+    with tempfile.TemporaryDirectory(dir=folder) as temporary:
+        root = Path(temporary)
+        (root / "fonts").mkdir()
+        while pending:
+            caption = pending.pop(0)
+            caption.text = join(w.text for w in caption.words)
+            font, em = "Arial", 1.
+            if caption.font:
+                source = Path(caption.font.path)
+                if hash_file(source) != caption.font.sha256:
+                    raise ValueError("Caption font changed; restore the pinned font before fitting.")
+                font, payload = private_font(source.read_bytes())
+                (root / "fonts" / (font + ".ttf")).write_bytes(payload)
+                em = ass_em_scale(payload)
+            style = caption.style or CaptionStyle(max(24, min(plan.width, plan.height)/18))
+            boxes = [k.box for k in caption.layout.as_path()] if caption.layout else []
+            width = min((b.width for b in boxes), default=.84)*plan.width
+            height = min((b.height for b in boxes), default=.16)*plan.height
+            scale = caption.layout.scale if caption.layout else 1.
+            fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root)
+            _, numeric = display_boundaries([w.text for w in caption.words])
+            splits = [i for i in range(1, len(caption.words)) if i not in numeric]
+            if splits and (fitted is None or fitted.size < style.size-.01):
+                split = min(splits, key=lambda i: abs(i-len(caption.words)/2))
+                parts = []
+                for suffix, words in zip(("a", "b"), (caption.words[:split], caption.words[split:])):
+                    part = deepcopy(caption)
+                    part.id = caption.id + "-" + suffix
+                    part.words, part.start, part.end = words, words[0].start, words[-1].end
+                    part.text = join(w.text for w in words)
+                    if part.layout:
+                        from myzing.director.plans import _layout
+                        part.layout = _layout(part, part.layout, [])
+                        # Keep the prior subject-collision evidence when splitting.
+                        part.layout = replace(part.layout, overlap=caption.layout.overlap)
+                    if caption.id in plan.accepted_unsafe_layouts:
+                        plan.accepted_unsafe_layouts.append(part.id)
+                    plan.warnings.append(f"Caption {part.id}: reference grouping deviation; split {caption.id} to {len(part.text.split())} words before shrinking to keep one line at readable size.")
+                    parts.append(part)
+                if caption.id in plan.accepted_unsafe_layouts:
+                    plan.accepted_unsafe_layouts.remove(caption.id)
+                pending[:0] = parts
+                continue
+            if fitted is None:
+                raise ValueError(failure)
+            caption.style = fitted
+            if fitted.size < style.size-.01:
+                plan.warnings.append(f"Caption {caption.id}: indivisible word group reduced from {style.size:g}px to {fitted.size:g}px; reference size deviation, 24px floor preserved.")
+            fitted_captions.append(caption)
+    plan.captions = fitted_captions

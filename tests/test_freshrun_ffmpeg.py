@@ -38,16 +38,33 @@ def test_closeup_caption_fallback_renders_at_phone_floor(tmp_path, monkeypatch, 
     # Conservative close-up subject envelope: the old code could not place
     # any text without collision and the public renderer refused the draft.
     subject = FaceTrack("speaker", [Keyframe(0, Box(0, 0, 1, 1)), Keyframe(2, Box(0, 0, 1, 1))])
-    place_captions(plan, {"a": [subject]}, {"a": (360, 640)})
+    if mode == "reference":
+        from types import SimpleNamespace
+        from myzing.schemas import Breakdown, VideoMeta, Word, CaptionEvent
+        from myzing.style_recipe import build_style_recipe
+        from myzing.director.plans import captions_for
+        from myzing.director.selection import envelope
+        from myzing.captions.reference import place
+        words = [Word(text, .1+i*.1, .2+i*.1) for i,text in enumerate(plan.captions[0].text.split())]
+        recipe = build_style_recipe(Breakdown(VideoMeta("fixture", "file", duration=2), words=words,
+            captions=[CaptionEvent("We went", .1, .3, "lower", False, 2)]))
+        plan.captions = captions_for([SimpleNamespace(asset_id="a", start=0, end=2, duration=2)],
+            [SimpleNamespace(asset_id="a", words=words)], envelope(recipe), recipe, None, plan.brief)
+        place(plan, recipe, {"a": [subject]}, {"a": (360, 640)})
+    else:
+        place_captions(plan, {"a": [subject]}, {"a": (360, 640)})
     fit_captions(plan, tmp_path / "fit")
     caption = plan.captions[0]
     assert caption.style.size * caption.layout.scale >= (phone_minimum(plan, caption) if mode == "phone" else 24) - .01
     if mode == "reference":
-        assert caption.style.size < 150 and "\n" in caption.text
-    assert not caption.layout.overlap.safe and "speech" in plan.accepted_unsafe_layouts
-    assert any("overlaps face tracks" in warning for warning in plan.warnings)
-    assert caption.layout.box.x >= .06 and caption.layout.box.right <= .84
-    assert caption.layout.box.y >= .08 and caption.layout.box.bottom <= .80
+        assert all(c.word_timed and len(c.words) <= 2 and "\n" not in c.text and c.style.box_color is None for c in plan.captions)
+        assert any("overlaps supplied faces" in warning for warning in plan.warnings)
+        assert caption.layout.box.center[1] == pytest.approx(2/3)
+    else:
+        assert any("overlaps face tracks" in warning for warning in plan.warnings)
+        assert caption.layout.box.x >= .06 and caption.layout.box.right <= .84
+        assert caption.layout.box.y >= .08 and caption.layout.box.bottom <= .80
+    assert not caption.layout.overlap.safe and caption.id in plan.accepted_unsafe_layouts
     output = tmp_path / "draft.mp4"
     render_composition(plan, output, base_dir=tmp_path)
     assert output.stat().st_size > 0

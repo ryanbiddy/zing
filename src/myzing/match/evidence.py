@@ -57,7 +57,7 @@ def group_disclosures(warnings: list[str], *, examples: int = 6) -> list[str]:
 
 def user_warnings(warnings):
     """The director's serialized evidence stays in plans, not warning prose."""
-    return list(dict.fromkeys(w for w in warnings if not w.startswith(("P17 planning evidence:", "MUSIC1 evidence:"))))
+    return list(dict.fromkeys(w for w in warnings if not w.startswith(("P17 planning evidence:", "MUSIC1 evidence:", "CAPREF evidence:"))))
 
 
 def decode(path, plan):
@@ -125,6 +125,23 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
     output_roles = classify_text(rendered, geometry)
     caption_indices = {e["event_index"] for e in output_roles["events"] if e["role"] == "caption"}
     output_captions = [c for i, c in enumerate(rendered.captions) if i in caption_indices]
+    from myzing.captions.reference import word_band
+    band = word_band([c["words_visible"] for c in captions])
+    target = band["median"] if captions else None
+    dimensions["caption_words"] = _metric(target,
+        median(c.words_visible for c in output_captions) if output_captions else None,
+        0, "Median caption-only OCR words per event; compared against reference IQR.", approximate=True)
+    words_metric = dimensions["caption_words"]
+    words_metric["band"] = band
+    if target is not None and words_metric["observed"] is not None:
+        within = band["lower"] <= words_metric["observed"] <= band["upper"]
+        words_metric.update(status="approximate" if within else "miss",
+                            reason="Within measured word-count band." if within else "Outside measured word-count band.")
+    dimensions["caption_case"] = _metric(
+        sum(c["all_caps"] for c in captions)/len(captions) if captions else None,
+        sum(c.all_caps for c in output_captions)/len(output_captions) if output_captions else None,
+        .5/len(output_captions) if output_captions else 0,
+        "All-caps fraction of caption-only OCR events; half an output event rounding tolerance.", approximate=True)
     geometry = caption_geometry(geometry, output_roles)
     onset = _metric(min((c["start"] for c in captions), default=None),
                     min((c.start for c in output_captions), default=None), .1,
@@ -187,12 +204,12 @@ def markdown(summary):
             return Path(path).as_posix()
     lines = [f"# Match comparison", "", summary["summary"], "",
              "Render complete means fully decoded, inspected, and reported. Style match is separate; approximate dimensions remain unverified.", "",
-             "| Draft | Render status | Failed style dimensions | Shot pace | First cut | Caption timing | Placement | Color |",
-             "|---|---|---|---|---|---|---|---|"]
+             "| Draft | Render status | Failed style dimensions | Shot pace | First cut | Caption timing | Words/caption | Case | Placement | Color |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for label, row in summary["drafts"].items():
         grades = row.get("dimensions", {})
         cells = [status_label(grades.get(k, {}).get("status", "-")) for k in
-                 ("shot_pace", "first_cut", "caption_timing", "caption_placement", "color")]
+                 ("shot_pace", "first_cut", "caption_timing", "caption_words", "caption_case", "caption_placement", "color")]
         failed = [k for k, v in grades.items() if v["status"] == "miss"]
         state = "render complete" if row["status"] == "ready" else row["status"]
         if row.get("alternative"):

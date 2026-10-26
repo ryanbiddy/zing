@@ -88,28 +88,17 @@ def test_three_plans_are_deterministic_valid_distinct_and_word_safe(project, mon
         assert abs(evidence["match"]["median_shot_seconds"]["planned"] - 2) <= .2
         assert evidence["match"]["first_cut_seconds"]["status"] == "honored"
         assert evidence["match"]["first_caption_seconds"]["status"] == "honored"
-        assert median(len(c.words) for c in p.captions) == 4  # retain each complete clause
+        assert median(len(c.words) for c in p.captions) == 2  # reference cadence, independent of edit clauses
         assert evidence["continuity"]["score"] == 1
         assert abs(sum(c.all_caps for c in p.captions) / len(p.captions) - .5) <= .5 / len(p.captions)
         with pytest.raises(ValueError, match="brief"):
             lower_to_v1(p)  # Strict v2 lowering never silently discards evidence.
         legacy, blockers = render_projection(p)
-        # Square-pixel full-picture fit is the absent default, and captions whose
-        # preset position already clears subjects, content and output reserves
-        # keep no layout/style. Such plans stay representable as v1 EDLs.
-        assert not blockers
-        assert [(c.src, c.src_in, c.src_out) for c in legacy.clips] == [(c.src, c.src_in, c.src_out) for c in p.clips]
-        assert legacy.to_dict()["schema_version"] == 1
+        # Reference appearance and timed groups require the v2 renderer.
+        assert blockers and legacy is None
         assert all(c.framing is None for c in p.clips)
-        assert all(c.layout is None and c.style is None for c in p.captions)
-        for caption in p.captions:
-            from myzing.layout.framing import default_caption_box
-            from myzing.composition.aspects import SAFE_INSETS
-            box = default_caption_box(caption, p.width, p.height, stub_default_ink(caption, p.width, p.height))
-            left, top, right, bottom = SAFE_INSETS["16:9"]
-            assert box.x >= left and box.y >= top and box.right <= 1 - right and box.bottom <= 1 - bottom
-    assert len(result["v1_edls"]) == 3
-    assert all(Path(path).is_file() for path in result["v1_edls"].values())
+        assert all(c.layout is not None and c.style.box_color is None and c.word_timed for c in p.captions)
+    assert not result["v1_edls"]
 
 
 @pytest.mark.parametrize("kind,expected", [("length", "target_length"), ("missing", "must_keep_missing"),
@@ -218,6 +207,25 @@ def test_record_roundtrip_and_input_mutation_boundaries(project):
     before = {p: p.read_bytes() for p in project.rglob("*.json")}
     run(project)
     assert all(p.read_bytes() == content for p, content in before.items())
+
+
+def test_source_text_geometry_survives_inventory_and_protects_only_card_shot(project):
+    from myzing.study.caption_geometry import CaptionGeometry, Detection, FrameSample
+    geometry = CaptionGeometry(8, [FrameSample(4.5, 4.5, .25, 135, 320, 180,
+        [Detection("What do you have to do to stand out from all the other applicants?", .95,
+                   [[.05,.15],[.95,.15],[.95,.7],[.05,.7]], [.05,.15,.95,.7])])])
+    geometry.write(project / "breakdowns" / "take-0")
+    studies, _ = inventory(project)
+    assert next(s for s in studies if s.asset_id == "take-0").text_geometry["frames"]
+    change_brief(project, framing="reframe", aspect="9:16", must_keep=[{"clip":"take-0", "start":4, "end":6}])
+    result = run(project)
+    assert result["status"] == "ready"
+    for plan in plans(result):
+        cards = [c for c in plan.clips if c.asset_id == "take-0" and c.src_in <= 4.5 < c.src_out]
+        assert cards and all(c.framing.mode == "blurfill" and c.framing.bounds.width == 320 for c in cards)
+        assert all(c.framing.picture.get("text_safety", {}).get("sample_times") == [4.5] for c in cards)
+        assert all(not (c.framing and c.framing.picture.get("text_safety")) for c in plan.clips
+                   if not (c.asset_id == "take-0" and c.src_in <= 4.5 < c.src_out))
 
 
 def test_cli_and_mcp_paths_and_shortage_envelope(project, capsys):

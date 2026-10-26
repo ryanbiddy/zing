@@ -183,18 +183,9 @@ def read_captions(media_path: Path, duration: float, *, local_models_only: bool 
 # position; persistent static overlays are excluded from captions and
 # reported in warnings instead.
 #
-# MEASURED LIMIT (2026-07-20, P-C2 labels — do not read the line above
-# as "solved"): exclusion works on short-form but effectively cannot
-# fire on long-form. On a 430s cell whose 1,882 events are ALL
-# non-caption HUD text, ZERO overlay warnings fire and every one of
-# those events reaches the caption stream. Cause is not the threshold
-# alone: track_regions merges a static watermark with the changing
-# counter beside it, so the region's joined text differs almost every
-# frame (978 observations, 972 distinct texts) and events never age.
-# Regression fixture: tests/test_overlay_rule_against_labels.py;
-# measurements: tests/fixtures/research/ocr-calibration/.
-# Fix is queued (region-merge proposal), NOT to be tweaked quietly —
-# the current silence costs 0 captions, measured.
+# CAPREF separates persistent lines beside changing caption lines before
+# blob merging. Same-row HUD/counter contamination remains a known limit;
+# see tests/test_overlay_rule_against_labels.py and its calibration fixtures.
 
 BLOB_GAP_Y = 0.07        # y gap that separates two text regions in a frame
 TRACK_MATCH_Y = 0.08     # blob-to-track vertical matching distance
@@ -248,6 +239,35 @@ def _overlay_threshold_s(duration: float) -> float:
     return max(OVERLAY_MIN_S, OVERLAY_MIN_FRACTION * duration)
 
 
+def persistent_lines(observations):
+    """Find static lines beside changing text before vertical blob merging.
+
+    Repetition alone is insufficient: require two seconds, four samples and
+    three distinct neighbouring lines. Coordinates stop repeated speech in a
+    different part of the frame from becoming title evidence.
+    """
+    tracks, by_text = [], {}
+    for obs in observations:
+        for line in obs.lines:
+            key = _normalize(line.text)
+            track = next((t for t in by_text.get(key, []) if abs(t['y']-line.y_center) < .02
+                          and abs(t['x']-line.x_center) < .04), None)
+            if track is None:
+                track = dict(text=key, x=line.x_center, y=line.y_center, hits=[], neighbours=set())
+                tracks.append(track)
+                by_text.setdefault(key, []).append(track)
+            track['hits'].append((obs.t, obs.t+obs.step))
+            track['neighbours'].update(_normalize(other.text) for other in obs.lines
+                if other is not line and .015 < abs(other.y_center-line.y_center) < .2)
+    return [t for t in tracks if len(t['hits']) >= 4 and len(t['neighbours']) >= 3
+            and sum(b-a for a,b in t['hits']) >= 2]
+
+
+def is_persistent(line, tracks):
+    return any(t['text'] == _normalize(line.text) and abs(t['y']-line.y_center) < .02
+               and abs(t['x']-line.x_center) < .04 for t in tracks)
+
+
 def cluster_regions(
     observations: list[Observation], duration: float, *,
     corrections: list[dict[str, Any]] | None = None,
@@ -276,6 +296,10 @@ def cluster_regions(
                 })
         bounded.append(replace(obs, t=start, step=stop - start))
     threshold = _overlay_threshold_s(duration)
+    static = persistent_lines(bounded)
+    if static:
+        notes.extend(f"persistent on-screen text excluded from captions before region merging: {t['text']!r}" for t in static)
+        bounded = [replace(o, lines=[line for line in o.lines if not is_persistent(line, static)]) for o in bounded]
     for track in track_regions(bounded):
         for event in cluster(track.observations):
             # Event serialization rounds to milliseconds. A duration between
