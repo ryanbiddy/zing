@@ -54,8 +54,9 @@ def _short_side_for(sw: int, sh: int, width: int, height: int, short_side: int, 
         # wider source gets. When it is above the target (a 4:3 source in 1:1,
         # 3:4 in 9:16), only a narrower output keeps that fit within the limit.
         rows = min(rows, sw * limit * height / width)
-    best = math.floor(short_side * rows / height / 18) * 18
-    return max(18, min(short_side, best))
+    step = 72 if width * 5 == height * 4 else 18
+    best = math.floor(short_side * rows / height / step) * step
+    return max(step, min(short_side, best))
 
 
 def _assessment(framing, sw, sh, width, height):
