@@ -13,15 +13,20 @@ Stroke samples wider than 20% of measured glyph height are excluded as possible
 background contamination; one plan-level note gives the excluded sample count
 and affected caption count. Structured reference evidence retains the measurements.
 
-Groups stay on one line. Before shrinking more than 15% below the group's target
-size, ink fitting tries a split that keeps both groups inside the measured
-word-count band. A 1–3-word band can put a long word alone. Numeric tokens stay
-joined and word timings stay intact. If no in-band split fits, the group may
-shrink to the 24px floor; an unreadable group may require a disclosed out-of-band
-split. A word that still
-cannot fit stops rendering with a remedy. Each grouping or size deviation is
-recorded against its caption ID. The match report compares words per caption
-and all-caps rate as well as timing and placement.
+Every draft uses one font size. Reference captions use a fixed glyph sample to
+estimate em size, so the letters in each phrase do not change the font size.
+If a group is too wide, fitting splits it into fewer words before reducing size;
+word-count band deviations are disclosed. Numeric display units remain joined.
+Only a word that cannot fit alone lowers the size for the entire draft. The
+readability floor still applies, and a word that cannot fit at that floor stops
+reference rendering with a remedy.
+
+Punch and Box regroup onto one line; Clean can use two lines. Presets choose the
+draft size from the widest word before grouping shots, and can split an oversized
+word at the floor with timing provenance. Caption rails move to avoid faces and
+never shrink individual cues. Existing face-overlap warnings remain visible.
+The match report's caption section includes `size_spread_px` (zero for a uniform
+draft), measured from planned font sizes including layout scale.
 
 For source shots with measured text-card geometry, `reframe` preserves all
 observed text. If the proposed crop cuts it, that shot uses full-source blurfill.

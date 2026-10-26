@@ -279,6 +279,11 @@ def test_zing_match_libass_fit_keeps_the_narrow_rewrap_readable(monkeypatch, tmp
     narrow = fitted((360, 640))
     assert narrow.style.size * narrow.layout.scale >= 24 and narrow.text.split() == text.split()
     assert max(map(len, narrow.text.splitlines())) < 47  # shorter lines than the 52-character wrap
-    # A caption that already fits keeps the 52-character wrap.
+    # Prefer a shorter wrap over shrinking the draft's font size.
     wide = fitted((1920, 1080))
-    assert wide.text == fit._wrap(text.split(), 52)
+    assert wide.text.split() == text.split()
+    assert wide.style.size >= narrow.style.size
+    box = wide.layout.box
+    measured = ink(wide, wide.style, None, None, 1920, 1080, None, None, None, None)
+    assert measured[2] - measured[0] <= box.width * 1920
+    assert measured[3] - measured[1] <= box.height * 1080

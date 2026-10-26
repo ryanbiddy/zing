@@ -186,7 +186,7 @@ def place(plan, recipe, subjects, source_dimensions):
         caption.font = replace(face)
         ink_fraction = measured.get("text_height") or (geometry[3]-geometry[1] if geometry else None)
         ink_height = ink_fraction * plan.height if ink_fraction else .03 * plan.height
-        ink_em = font_metrics.ink_height(caption.text.upper() if caption.all_caps else caption.text, 1)
+        ink_em = font_metrics.ink_height("Ag", 1)
         size = min(512, max(24, ink_height / ink_em))
         outline = max(ink_height * .06, measured.get("outline_fraction", 0) * plan.height)
         style = CaptionStyle(size, color=measured.get("color", "#FFFFFF"),

@@ -121,8 +121,9 @@ def test_continuous_speech_abstains_with_reason_and_retained_measurements():
         assert "protected" in d["reason"] and d["planned"] == 3
         assert d["rendered_pixels"]["observed"] == 3
     assert result["pacing_flag"] == "not_applicable"
-    notes = dimension_notes(result["dimensions"])
+    notes = dimension_notes({k: result["dimensions"][k] for k in ("shot_pace", "first_cut")})
     assert len(notes) == 2 and all("not applicable for this footage" in n for n in notes)
+    assert result["dimensions"]["caption_size"]["status"] == "not_applicable"
     summary = {"project": ".", "summary": "1 ready", "drafts": {"A": {
         "status": "ready", "dimensions": result["dimensions"], "video": "a.mp4", "plan": "a.json",
         "timeline": "a.png", "report": "a.match.json"}}}
@@ -175,6 +176,7 @@ def test_matte_edges_are_inset_and_an_all_gap_sample_set_is_unmeasured(monkeypat
     assert len(color["picture_area"]["samples"]) == 6
     assert all(s["rect"] is None for s in color["picture_area"]["samples"])
     recipe = build_style_recipe(breakdown([.8] * 4))
+    recipe.color_mode = "reference"
     from dataclasses import replace
     recipe.measured.append(replace(recipe.measured[0], name="color.luma_percentiles", value=[.1] * 7))
     dimension = report(recipe, breakdown([.8] * 4), {}, color, {}, plan)["dimensions"]["color"]

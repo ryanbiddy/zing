@@ -91,12 +91,17 @@ def test_reports_compare_rendered_measurements_not_the_plan():
     reference = Breakdown(VideoMeta("reference", "file", duration=6, fps=30),
                           shots=[Shot(i, i * 2, i * 2 + 2) for i in range(3)])
     rendered = Breakdown(VideoMeta("output", "file", duration=6, fps=30), shots=[Shot(0, 0, 6)])
-    result = evidence.report(build_style_recipe(reference), rendered, {}, None, {"full_decode": True}, Composition())
+    recipe = build_style_recipe(reference)
+    result = evidence.report(recipe, rendered, {}, None, {"full_decode": True}, Composition())
     assert result["dimensions"]["shot_pace"]["status"] == "miss"
     assert result["dimensions"]["shot_pace"]["observed"] == 6
     assert result["dimensions"]["first_cut"]["status"] == "miss"
     assert result["dimensions"]["caption_placement"]["status"] == "approximate"
-    assert result["dimensions"]["color"]["status"] == "approximate"
+    assert result["dimensions"]["color"]["status"] == "not_applicable"
+    assert result["dimensions"]["color"]["mode"] == "source"
+    recipe.color_mode = "reference"
+    reference_result = evidence.report(recipe, rendered, {}, None, {"full_decode": True}, Composition())
+    assert reference_result["dimensions"]["color"]["status"] == "approximate"
 
 
 def test_worker_crash_cannot_reuse_previous_ready_comparison(tmp_path, monkeypatch):

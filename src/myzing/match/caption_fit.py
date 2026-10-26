@@ -36,10 +36,11 @@ def _source_dimensions(plan):
     return sizes
 
 
-def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None):
+def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None, *, draft_minimum=24.):
     """(style, None) when the wrapped caption fits its box at >= 24 px, else (None, reason)."""
     from myzing.layout.readability import phone_minimum
     minimum = phone_minimum(plan, caption, sizes) if plan.brief and plan.brief.caption_mode == "phone" else 24
+    minimum = max(minimum, draft_minimum)
     style = replace(style, size=max(style.size, minimum / scale))
     for _ in range(10):
         measured = replace(style, size=style.size * scale, outline_width=style.outline_width * scale)
@@ -75,6 +76,8 @@ def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None)
 def fit_captions(plan, folder, *, safety_context=None):
     if not plan.captions:
         return
+    if all(c.preset for c in plan.captions):
+        return  # Presets were grouped at the draft size and use unscaled rails.
     if plan.brief and plan.brief.caption_mode == "reference":
         return _fit_reference(plan, folder)
     if safety_context is None:
@@ -86,12 +89,32 @@ def fit_captions(plan, folder, *, safety_context=None):
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     sizes = _source_dimensions(plan) if plan.brief and plan.brief.caption_mode == "phone" else {}
+    if all(c.words and not c.preset for c in plan.captions):
+        for caption in plan.captions:
+            if caption.layout and not caption.layout.overlap.safe and caption.id not in plan.accepted_unsafe_layouts:
+                from myzing.layout.readability import recover_placement
+                recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
+        return _fit_reference(plan, folder)
+    from statistics import median
+    from myzing.layout.readability import phone_minimum
+    minimum = max(phone_minimum(plan, c, sizes) for c in plan.captions) if (
+        plan.brief and plan.brief.caption_mode == "phone") else 24.
+    from myzing.captions.presets import phone_floor
+    minimum = max(minimum, *(phone_floor(plan, c.start, c.end, c.preset, sizes)
+                             for c in plan.captions if c.preset), 24.)
+    target = max(minimum, median(
+        (c.style or CaptionStyle(max(24, min(plan.width, plan.height) / 20))).size
+        * (c.layout.scale if c.layout else 1.) for c in plan.captions))
+    for caption in plan.captions:
+        caption.style = replace(caption.style or CaptionStyle(target), size=target)
+        if caption.layout:
+            caption.layout = replace(caption.layout, scale=1.)
+    pending = list(plan.captions)
     with tempfile.TemporaryDirectory(dir=folder) as temporary:
         root = Path(temporary)
         (root / "fonts").mkdir()
-        for caption in plan.captions:
-            if caption.preset:
-                continue
+        while pending:
+            caption = pending.pop(0)
             if caption.layout and not caption.layout.overlap.safe and caption.id not in plan.accepted_unsafe_layouts:
                 from myzing.layout.readability import recover_placement
                 recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
@@ -106,7 +129,7 @@ def fit_captions(plan, folder, *, safety_context=None):
             # Preserve each ASR word's text atomically, including multi-token
             # words. Explicit visual wraps do not cut or reorder speech.
             parts = [w.text.strip() for w in caption.words] or caption.text.split()
-            style = caption.style or CaptionStyle(max(24, min(plan.width, plan.height) / 20), outline_width=2)
+            style = replace(caption.style, size=target)
             boxes = [k.box for k in caption.layout.as_path()] if caption.layout else []
             width = min((b.width for b in boxes), default=.8) * plan.width
             height = min((b.height for b in boxes), default=.2) * plan.height
@@ -118,27 +141,44 @@ def fit_captions(plan, folder, *, safety_context=None):
             from myzing.captions.grouping import display_units
             longest = max((len(part) for part in display_units(parts)), default=0)
             recovered = False
+            best = None
             while True:
-                caption.text = _wrap(parts, limit)
-                fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes)
-                if fitted is not None:
-                    caption.style = fitted
+                if not caption.preset:
+                    caption.text = _wrap(parts, limit)
+                fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes,
+                                       draft_minimum=minimum)
+                if fitted is not None and fitted.size >= target - .01:
                     break
-                if limit <= longest:
+                if fitted is not None and (best is None or fitted.size > best[0].size):
+                    best = (fitted, caption.text)
+                if limit <= longest or caption.preset:
+                    if best is not None:
+                        fitted, caption.text = best
+                        break
                     if not recovered:
                         from myzing.layout.readability import recover_placement
                         recover_placement(plan, caption, source_dimensions=sizes, **restore(safety_context, caption))
-                        style, scale = caption.style, 1.
+                        style, scale = replace(caption.style, size=target), 1.
                         width, height = caption.layout.box.width * plan.width, caption.layout.box.height * plan.height
                         limit, recovered = (52 if plan.width >= plan.height else 30), True
                         continue
                     raise ValueError(failure)
                 limit = max(longest, int(limit * .85))
-    plan.warnings.append("Complete clause captions use explicit visual wraps and libass-measured sizes; caption width and typography may differ from the reference.")
+            if fitted.size < target - .01:
+                target = fitted.size
+                # Include already fitted captions and mixed-in presets. No
+                # caption retains a larger size or a separate layout scale.
+                for item in plan.captions:
+                    item.style = replace(item.style, size=target)
+                    if item.layout:
+                        item.layout = replace(item.layout, scale=1.)
+                pending = list(plan.captions)
+            caption.style = replace(fitted, size=target)
+    plan.warnings.append("Complete clause captions use explicit visual wraps and one libass-measured draft size; caption width and typography may differ from the reference.")
 
 
 def _fit_reference(plan, folder):
-    """Try in-band groups before shrinking more than 15% from the target."""
+    """Regroup at one draft size; only indivisible words lower that size."""
     from copy import deepcopy
     from myzing.captions.grouping import display_boundaries, join
     from myzing.captions.reference import word_band
@@ -152,6 +192,18 @@ def _fit_reference(plan, folder):
                          + ". Supply a word-timed transcript and rebuild the reference groups.")
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
+    from statistics import median
+    target = median((c.style or CaptionStyle(max(24, min(plan.width, plan.height)/18))).size
+                    * (c.layout.scale if c.layout else 1.) for c in plan.captions)
+    from myzing.layout.readability import phone_minimum
+    sizes = _source_dimensions(plan) if plan.brief and plan.brief.caption_mode == "phone" else {}
+    minimum = max((phone_minimum(plan, c, sizes) for c in plan.captions), default=24.) if sizes or (
+        plan.brief and plan.brief.caption_mode == "phone") else 24.
+    target = max(target, minimum)
+    for caption in plan.captions:
+        caption.style = replace(caption.style or CaptionStyle(target), size=target)
+        if caption.layout:
+            caption.layout = replace(caption.layout, scale=1.)
     pending, fitted_captions = list(plan.captions), []
     with tempfile.TemporaryDirectory(dir=folder) as temporary:
         root = Path(temporary)
@@ -172,15 +224,15 @@ def _fit_reference(plan, folder):
             width = min((b.width for b in boxes), default=.84)*plan.width
             height = min((b.height for b in boxes), default=.16)*plan.height
             scale = caption.layout.scale if caption.layout else 1.
-            fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root)
+            fitted, failure = _fit(caption, style, scale, width, height, font, em, plan, root, sizes)
             _, numeric = display_boundaries([w.text for w in caption.words])
             splits = [i for i in range(1, len(caption.words)) if i not in numeric]
             in_band = [i for i in splits if all(band["lower"] <= len(join(w.text for w in words).split()) <= band["upper"]
                        for words in (caption.words[:i], caption.words[i:]))]
             # An unreadable group may need a disclosed out-of-band split.
             # Otherwise keep the measured band when no legal regroup exists.
-            choices = in_band or (splits if fitted is None or not band["measured"] else [])
-            if choices and (fitted is None or fitted.size < .85 * style.size):
+            choices = in_band or splits
+            if choices and (fitted is None or fitted.size < style.size - .01):
                 split = min(choices, key=lambda i: abs(i-len(caption.words)/2))
                 parts = []
                 for suffix, words in zip(("a", "b"), (caption.words[:split], caption.words[split:])):
@@ -196,7 +248,7 @@ def _fit_reference(plan, folder):
                     if caption.id in plan.accepted_unsafe_layouts:
                         plan.accepted_unsafe_layouts.append(part.id)
                     reason = "in-band regroup" if split in in_band else "reference grouping deviation"
-                    plan.warnings.append(f"Caption {part.id}: {reason}; split {caption.id} to {len(part.text.split())} words before shrinking more than 15% below its target size.")
+                    plan.warnings.append(f"Caption {part.id}: {reason}; split {caption.id} to {len(part.text.split())} words to keep the draft font size.")
                     parts.append(part)
                 if caption.id in plan.accepted_unsafe_layouts:
                     plan.accepted_unsafe_layouts.remove(caption.id)
@@ -204,11 +256,19 @@ def _fit_reference(plan, folder):
                 continue
             if fitted is None:
                 raise ValueError(failure)
-            caption.style = fitted
-            if fitted.size < style.size-.01:
-                reason = ("within 15% size tolerance" if fitted.size >= .85 * style.size else
-                          "no split within the reference word band" if splits and band["measured"] else "indivisible word group")
-                plan.warnings.append(f"Caption {caption.id}: {reason}; reduced from {style.size:g}px to {fitted.size:g}px ({1-fitted.size/style.size:.1%} smaller); reference size deviation, 24px floor preserved.")
+            if fitted.size < target - .01:
+                # This group is indivisible. Restart every group at the new
+                # draft size so earlier/later captions never keep a larger em.
+                if fitted.size < minimum - .01:
+                    raise ValueError("Indivisible word cannot fit at the draft phone readability floor.")
+                target = fitted.size
+                plan.warnings.append(f"Whole draft caption size reduced to {target:.2f}px for an indivisible word; {minimum:g}px floor preserved.")
+                pending = fitted_captions + [caption] + pending
+                fitted_captions = []
+                for item in pending:
+                    item.style = replace(item.style, size=target)
+                continue
+            caption.style = replace(fitted, size=target)
             fitted_captions.append(caption)
     plan.captions = fitted_captions
     from myzing.captions.reference import shared_appearance_notes

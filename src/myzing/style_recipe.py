@@ -155,6 +155,7 @@ class StyleRecipe(Record):
     unknowns: list[Unknown] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     version: int = 1
+    color_mode: Literal["source", "reference"] = "source"
 
 
 def build_style_recipe(

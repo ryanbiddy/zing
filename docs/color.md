@@ -78,7 +78,11 @@ It is not a calibrated probability or a full-duration inspection.
 
 ## COLOR2 match report bands
 
-`zing match` uses the existing CIELAB statistics on MATCH2's sharp picture
+`zing match` keeps source color by default (`--color source`): it skips color
+fitting and applies no LUT. `--color reference` opts into the reference grade.
+The standalone `zing color match` command is unchanged.
+
+In reference color mode, `zing match` uses the existing CIELAB statistics on MATCH2's sharp picture
 regions. It crops before downsampling and excludes recorded mattes and fill.
 The following limits live together in `src/myzing/match/color.py` (`BANDS`).
 They are editorial distribution limits calibrated on generated differences,
@@ -164,27 +168,29 @@ crop ([framing](FRAMING.md)) only the live picture is sampled, so faces in the
 cropped-away broadcast chrome are never measured; the color comparison likewise
 measures only the live picture's sharp box, without a matte inset.
 
-The measure is the signed CIE 1976 hue difference (dH*ab, in a*/b* units), so a
-lightness or saturation change scores zero: those are part of the look. It
-counts toward green only while a* falls, and toward magenta only while a* rises
-and b* falls. A face with chroma below 4 has no reliable hue, so for it any push
-of a* onto the green side counts. The worst face decides the dimension.
+Skin preservation checks three components on each face:
 
-| Worst shift toward green or magenta | Status |
-|---|---|
-| At or below 2.5 a*/b* units | pass |
-| Above 2.5, at or below 5 | approximate (shown on the Studio finish screen) |
-| Above 5 | miss (a failed dimension) |
+| Component | Pass | Miss |
+|---|---|---|
+| Directional hue shift | <=2.5 a*/b* units | >5 |
+| Graded/source chroma ratio | >=0.80 | <0.65 |
+| Lightness drop | <=6 L* | >12 L* |
 
-Calibration in `tools/eval/skin_fixture.py` grades generated face patches and
-compares each with itself. On six generated skin tones from very light to very
-deep under neutral light, all eight looks at full strength and the bounded
-white-balance and exposure corrections stay at or below 2.4, except teal-orange,
-whose teal shadows shift the deepest tone by 3.2 (4.5 with the tint bound):
-approximate. A +0.014 green / -0.035 red and blue code-value cast reaches 6.6 to
-7.6 on every tone and a -0.02 green / +0.05 red and blue cast 6.4 to 7.1: miss.
-A cool look on an already pink-lit face is a cooler face, not a magenta one, and
-passes. Reproduce with:
+All three must pass; any miss wins; other cases are approximate. Each face record
+includes the values, component statuses and `decided_by`. The worst status among
+faces decides the draft dimension. A miss in reference color mode also appears
+as a top-level match warning and in `comparison.md`.
+
+Hue uses signed CIE 1976 dH*ab, counted toward green while a* falls and toward
+magenta while a* rises and b* falls. For source chroma below 4, the ratio is
+not applicable because division by near-zero chroma is unreliable; the existing
+green-cast check and the lightness check still apply.
+
+The NASA demo face at 459.04s changed from Lab [70.1, 15.2, 22.2] to
+[59.4, 4.7, 6.1]. Its chroma ratio is about 0.286 (miss) and lightness drop is
+10.7 L* (approximate), so the overall result is miss even without a hue error.
+Generated fixtures in `tools/eval/skin_fixture.py` retain the hue calibration and
+also expose chroma and lightness components. Reproduce with:
 
 ```sh
 uv run --frozen python -m tools.eval.skin_fixture --out zing-workspace/skin-calibration
@@ -258,7 +264,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 453
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 454
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.

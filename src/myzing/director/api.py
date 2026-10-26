@@ -126,6 +126,36 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                                     search_windows=search_windows)
         initial_pool, initial_required = candidates(clips, keep, forbidden, style, brief.target_length_seconds,
                                                     expand_timing=False, search_windows=search_windows)
+        # Inspect the candidate union before choosing, so slate footage cannot
+        # win merely because its transcript or pace fits. Reuse the tracks for
+        # framing below. A few source anchors establish faces outside a focused
+        # window without analyzing a long interview in full.
+        from myzing.layout.framing import analyze_subjects
+        from .visual_quality import excluded_spans, filter_candidates, mostly_excluded, protect
+        from .selection import merge
+        subject_evidence, visual_exclusions = {}, {}
+        for study in clips:
+            ranges = merge([(c.start, c.end) for c in pool + initial_pool if c.asset_id == study.asset_id])
+            if not ranges:
+                continue
+            anchors = [(study.duration * i / 8, min(study.duration, study.duration * i / 8 + 1.5)) for i in range(8)]
+            presence = {}
+            subject_evidence[study.asset_id] = analyze_subjects(Path(study.path), study.duration, root / "framing-work",
+                [s.start for s in study.shots], ranges=merge(ranges + anchors), presence=presence)
+            blocked = excluded_spans(study, presence)
+            visual_exclusions[study.asset_id] = blocked
+            keep_spans = [(a, b) for key, a, b in [*required, *initial_required] if key == study.asset_id]
+            forbidden[study.asset_id] = merge(forbidden.get(study.asset_id, []) + protect(blocked, keep_spans))
+        from .selection import overlaps
+        affected = sum(any(overlaps((c.start, c.end), span) for span in visual_exclusions.get(c.asset_id, [])) for c in pool)
+        pool = filter_candidates(pool, visual_exclusions, clips, required)
+        initial_pool = filter_candidates(initial_pool, visual_exclusions, clips, initial_required)
+        report["visual_selection"] = {"excluded": visual_exclusions, "affected_candidates": affected,
+            "basis": "Candidate trims exclude >=1s observed without a face/head and measured text cards without a face, only when faces occur elsewhere. Trims retain whole clauses. A required span stays whole unless more than half of it is face-free or a slate. Sparse/unavailable analysis remains unknown."}
+        if not pool or any(visual_exclusions.get(key) and mostly_excluded((start, end), visual_exclusions[key])
+                           for key, start, end in required):
+            shortage("visual_quality", "No usable candidate remains, or a required span is mostly face-free or a graphic slate.",
+                     "Choose a moment with a visible face/head or another source shot.")
         try:
             initial = choose(initial_pool, initial_required, clips, style, brief.target_length_seconds, 30, seed,
                              allow_reordering="[allow source reordering]" in brief.purpose.casefold(),
@@ -147,7 +177,6 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         # Decode used sources for framing and caption safety. This is local layout
         # analysis, with no study/ASR, model downloads, or reference lookup.
         from myzing.layout.framing import analyze_subjects
-        subject_evidence = {}
         picture_evidence = {}
         used = {c.asset_id for sequence in selected.values() for c in sequence}
         for asset in manifest.assets:
@@ -158,8 +187,6 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             # Only the trims any draft uses (plus margins), so source length
             # never exhausts the analysis budget or decodes unused footage.
             ranges = [(c.start, c.end) for sequence in selected.values() for c in sequence if c.asset_id == asset.id]
-            subject_evidence[asset.id] = analyze_subjects(Path(study.path), study.duration, root / "framing-work",
-                                                         [s.start for s in study.shots], ranges=ranges)
             if brief.picture_crop != "off":
                 from myzing.layout.picture import analyze_picture
                 from myzing.render.framing import display_dimensions

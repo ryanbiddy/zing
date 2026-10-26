@@ -54,6 +54,7 @@ def test_preset_roundtrip_and_width_scaling(name):
 @pytest.mark.parametrize("name",["punch","box"])
 def test_no_orphans_or_stopword_ends_when_partition_is_feasible(name):
     p=plan("we go a way with big hopes and new goals")
+    p.brief = Brief(caption_options={"size": 28})  # Feasible at this fixed draft size.
     apply_preset(p,name,vad=False)
     assert [w.text.lower() for c in p.captions for w in c.words] == "we go a way with big hopes and new goals".split()
     assert all(len(c.words) > 1 for c in p.captions)

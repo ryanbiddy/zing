@@ -188,8 +188,8 @@ def test_reference_fit_splits_before_shrinking_and_discloses(monkeypatch, tmp_pa
     assert sum("in-band regroup" in w for w in plan.warnings) == 2
 
 
-@pytest.mark.parametrize('ratio,counts,expected', [(.9, [1, 1, 2, 3, 3], 1),
-                                                   (.8, [1, 1, 2, 3, 3], 2), (.8, [2, 2, 2], 1)])
+@pytest.mark.parametrize('ratio,counts,expected', [(.9, [1, 1, 2, 3, 3], 2),
+                                                   (.8, [1, 1, 2, 3, 3], 2), (.8, [2, 2, 2], 2)])
 def test_reference_regroup_threshold_and_band(monkeypatch, tmp_path, ratio, counts, expected):
     plan = caption_plan('applications, sometimes')
     original = plan.captions[0].style.size
@@ -202,7 +202,7 @@ def test_reference_regroup_threshold_and_band(monkeypatch, tmp_path, ratio, coun
     assert [w.text for c in plan.captions for w in c.words] == ['applications,', 'sometimes']
     if expected == 2:
         assert all(c.style.size == original for c in plan.captions)
-        assert sum('in-band regroup' in w for w in plan.warnings) == 2
+        assert sum(('in-band regroup' if counts != [2, 2, 2] else 'reference grouping deviation') in w for w in plan.warnings) == 2
         assert any('2 captions use Estimated' in w for w in plan.warnings)
     else:
         assert plan.captions[0].style.size == original * ratio
@@ -319,7 +319,7 @@ def test_bold_substitute_ink_size_and_shadow_fallback_are_disclosed():
     place(plan, recipe, {}, {})
     c = plan.captions[0]
     assert c.font == font_asset("clean")
-    assert metrics(c.font.path, c.font.sha256).ink_height(c.text, c.style.size) == pytest.approx(57.6)
+    assert metrics(c.font.path, c.font.sha256).ink_height("Ag", c.style.size) == pytest.approx(57.6)
     assert c.style.outline_width == pytest.approx(57.6*.06)
     note = next(w for w in plan.warnings if w.startswith("CAPREF typography:"))
     assert "Estimated weight 700" in note and "Estimated shadow" in note and "not a font match" in note

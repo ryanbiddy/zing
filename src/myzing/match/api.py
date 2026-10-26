@@ -26,7 +26,9 @@ from . import evidence
 from .state import Checkpoints, StepFailed, read, write
 
 
-def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, studio_options=None, ref_start=None, ref_end=None, reference_range=None, **_):
+def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, studio_options=None, ref_start=None, ref_end=None, reference_range=None, color="source", **_):
+    if color not in ("source", "reference"):
+        raise ValueError("color must be source or reference")
     if studio_options is not None:
         from myzing.studio.adapters import validate_options
         validate_options(studio_options)
@@ -216,7 +218,7 @@ def _color(reference, clip, directory):
             "outputs": [str(attempt / "recipe.json"), recipe.cube_path, recipe.preview_path]}
 
 
-def _recipe(studied, audio, colors, path):
+def _recipe(studied, audio, colors, path, *, color_mode="source"):
     from myzing.audio.models import AudioMap
     from myzing.color.models import Recipe as ColorRecipe
     from myzing.composition.models import FontAsset
@@ -244,6 +246,7 @@ def _recipe(studied, audio, colors, path):
     )
     # Clip-fitted corrections are not a reusable LUT for arbitrary footage.
     recipe.approximations.looks = []
+    recipe.color_mode = color_mode
     if color is not None:
         # Per-sample reference statistics let the color report tell shot-to-shot
         # scene variation from a grade difference. No faces are measured here:
@@ -367,10 +370,12 @@ def _layout(plan, folder, recipe):
 
 
 def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
-          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None, ref_start=None, ref_end=None, reference_range=None):
+          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None, ref_start=None, ref_end=None, reference_range=None, color="source"):
     """Synchronous worker API. CLI/MCP run this inside an owned process tree."""
     if type(repair_asr) is not bool:
         raise ValueError("repair_asr must be a boolean")
+    if color not in ("source", "reference"):
+        raise ValueError("color must be source or reference")
     from myzing.reference_range import parse
     parse(ref_start, ref_end, reference_range)
     trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
@@ -383,7 +388,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
     checkpoints.data["run_id"] = run_id
     write(checkpoints.path, checkpoints.data)
     summary = {"version": 1, "project": str(root), "requested": drafts, "ready": 0, "drafts": {},
-               "shortages": [], "failures": [], "warnings": [], "status": "failed", "run_id": run_id}
+               "shortages": [], "failures": [], "warnings": [], "status": "failed", "run_id": run_id, "color_mode": color}
     try:
         from .preflight import check, check_reference
         readiness = check(reference, clips, out, brief=brief, answers=answers, drafts=drafts, seed=seed,
@@ -475,15 +480,15 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.5-longform"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             summary["warnings"].extend(audio_maps[asset.id].get("warnings", []))
-            if caps["color"]:
+            if color == "reference" and caps["color"]:
                 colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, "sdr-matrix-v1"],
                                                     lambda source=source, a=asset.id: _color(ref_study["media"], source, root / "color" / a))
-        if not caps["color"]:
+        if color == "reference" and not caps["color"]:
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
         ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.5-longform"],
                                      lambda: _audio(ref_study, caps["audio"]))
-        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v4-capref-appearance"],
-                                          lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
+        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, color, "clip-quality-r1"],
+                                          lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json", color_mode=color))
         recipe = StyleRecipe.from_dict(read(recipe_result["path"]))
         summary["recipe"] = recipe_result["path"]
         summary["reference_text_roles"] = next((f.value for f in recipe.measured if f.name == "text_roles"), None)
@@ -494,7 +499,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v6-longform-focus", repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
+                                                 "clip-quality-r1", color, repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
                                                  "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", "capref-r1", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):
@@ -567,7 +572,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                       "reason": alternatives[label.split(".")[0]]}
             summary["drafts"][label] = row
             try:
-                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "capref-fit-v1", "aspect-safe-layout-v4"],
+                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "uniform-caption-fit-v3-all-paths", "aspect-safe-layout-v4"],
                     lambda p=plan_path, label=label: _prepare_plan(p, root / "drafts" / f"plan-{label}.json", colors, recipe, caps))
                 summary["warnings"].extend(prepared["warnings"])
                 row["plan"] = prepared["path"]
@@ -620,7 +625,9 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     path = video.with_suffix(".skin.json")
                     write(path, measured)
                     return {"outputs": [str(path)], "skin": measured}
-                skin = checkpoints.step("skin-report-" + label, [projects.hash_file(Path(prepared["path"])), caps, "skin-preservation-picture-v2"], measure_skin)
+                skin = checkpoints.step("skin-report-" + label, [projects.hash_file(Path(prepared["path"])), caps, "skin-preservation-v2-chroma-lightness"], measure_skin)
+                if color == "reference" and skin["skin"] and skin["skin"]["status"] == "miss":
+                    summary["warnings"].append(f"Draft {label}: skin preservation miss. {skin['skin']['reason']}")
                 report_path = video.with_suffix(".match.json")
                 def report():
                     result = evidence.report(recipe, Breakdown.from_dict(read(output_study["path"])),

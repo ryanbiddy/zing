@@ -66,6 +66,9 @@ def assert_wire(actual, expected):
                     assert {part["type"] for part in option["anyOf"]} == (
                         {"string", "null"} if name == "reference_range" else {"string", "number", "null"})
             if tool["name"] == "match_start":
+                color = tool["inputSchema"]["properties"].pop("color")
+                assert color["default"] == "source" and color["enum"] == ["source", "reference"]
+                assert "color" not in tool["inputSchema"].get("required", [])
                 # STUDIO1 adds an optional adapter argument. The historical
                 # input fields and their required/default behavior stay pinned.
                 option = tool["inputSchema"]["properties"].pop("studio_options")

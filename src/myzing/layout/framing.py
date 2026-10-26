@@ -151,7 +151,7 @@ def _sample_window(video, folder, start, end, interval, limit):
     return [(start + t, path) for t, path in zip(times, files) if -1e-6 <= t < end - start]
 
 
-def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=(), ranges=None):
+def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=(), ranges=None, *, presence=None):
     """Sample the used source ranges (or the whole source) within MAX_SAMPLES.
 
     ranges are (src_in, src_out) trims; each is widened by RANGE_MARGIN. Long
@@ -277,6 +277,9 @@ def analyze_subjects(video: Path, duration: float, directory: Path, cut_times=()
                         key = (name, label)
                         semantic.setdefault(key, []).append(FrameDetections(time, [d for d in found if d.class_name == label]))
                 faces.append(FrameDetections(time, detections))
+                if presence is not None and (detector is not None or "person" in vision):
+                    presence.setdefault("samples", []).append({"time": time, "scene": list(scene),
+                        "present": bool(detections or any(d.detector == "mediapipe-person-head" for d in recognized))})
                 people.append(FrameDetections(time, persons))
                 salient.append(FrameDetections(time, [] if detections or persons or recognized else
                                                [replace(d, class_name="saliency", detector="contrast-fallback")

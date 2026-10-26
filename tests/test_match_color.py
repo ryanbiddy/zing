@@ -106,9 +106,9 @@ def test_lut_that_greens_the_same_face_misses(tone):
     assert compare_face(face, identity)["status"] == "pass"
 
 
-def test_skin_calibration_cases_hold_on_every_generated_tone():
+def test_skin_hue_calibration_cases_hold_on_every_generated_tone():
     for name, (function, expected) in grades().items():
-        statuses = {tone: compare_face(patch(lab).reshape(-1, 3), function)["status"] for tone, lab in SKIN_TONES.items()}
+        statuses = {tone: compare_face(patch(lab).reshape(-1, 3), function)["components"]["hue_shift"]["status"] for tone, lab in SKIN_TONES.items()}
         if expected == "miss":
             assert set(statuses.values()) == {"miss"}, (name, statuses)
         else:

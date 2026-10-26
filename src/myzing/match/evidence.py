@@ -169,8 +169,19 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
         placement.update(status="approximate" if iou >= .8 else "miss", median_box_iou=iou,
                          reason="Different text and sparse samples: box IoU is a style proxy, not known-font fidelity.")
     dimensions["caption_placement"] = placement
+    sizes = [(c.style.size if c.style else max(24, min(plan.width, plan.height)/20))
+             * (c.layout.scale if c.layout else 1.) for c in plan.captions]
+    spread = max(sizes) - min(sizes) if sizes else 0.
+    dimensions["caption_size"] = {"status": "pass" if sizes and spread <= .01 else "miss" if sizes else "not_applicable",
+        "size_px": sizes[0] if sizes and spread <= .01 else None, "size_spread_px": round(spread, 6),
+        "min_px": min(sizes) if sizes else None, "max_px": max(sizes) if sizes else None,
+        "basis": "Effective planned font size, including layout scale; glyph heights vary by letter.",
+        "reason": f"Caption font size spread: {spread:.2f}px across {len(sizes)} captions."}
     from .color import from_recipe
     dimensions["color"] = from_recipe(recipe, color)
+    if recipe.color_mode == "source":
+        dimensions["color"] = {"status": "not_applicable", "mode": "source",
+                               "reason": "Source color retained; no color fit or LUT applied."}
     if skin is not None:
         # Same faces before/after each clip's own grade; not a reference comparison.
         dimensions["skin_preservation"] = skin
@@ -189,14 +200,15 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
             dimensions["music_mix"] = _metric(-16,
                 (audio_measurements or {}).get("music_integrated", {}).get("integrated_lufs"), 3,
                 "Isolated music stem before final peak limiting; music-led planning target -16 LUFS.")
-    return {"version": 1, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
+    return {"version": 1, "color_mode": recipe.color_mode, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
             "music": planning.get("music"), "audio_measurements": audio_measurements,
             "search_windows": planning.get("search_windows", {}),
             "source_pacing": source_pacing, "text_roles": output_roles,
             "pacing_flag": {"miss": "unmet", "pass": "met", "not_applicable": "not_applicable"}.get(
                 dimensions["shot_pace"]["status"], "unverified"),
             "render": verification, "dimensions": dimensions,
-            "warnings": user_warnings([*recipe.warnings, *rendered.warnings, *plan.warnings]),
+            "warnings": user_warnings([*recipe.warnings, *rendered.warnings, *plan.warnings,
+                *(["Skin preservation miss: " + skin["reason"]] if recipe.color_mode == "reference" and skin and skin["status"] == "miss" else [])]),
             "recipe_unknowns": [u.to_dict() for u in recipe.unknowns],
             "rendered_study": rendered.to_dict(), "rendered_color": color}
 
@@ -209,6 +221,7 @@ def markdown(summary):
         except ValueError:
             return Path(path).as_posix()
     lines = [f"# Match comparison", "", summary["summary"], "",
+             f"Color mode: {summary.get('color_mode', 'reference')}.", "",
              *[w + "\n" for w in summary.get("warnings", []) if w.startswith("Forced reframe retained")],
              "Render complete means fully decoded, inspected, and reported. Style match is separate; approximate dimensions remain unverified.", "",
              "| Draft | Render status | Failed style dimensions | Shot pace | First cut | Caption timing | Words/caption | Case | Placement | Color |",
@@ -230,6 +243,9 @@ def markdown(summary):
                 lines += ["", f"{label}: {row['alternative']['label']}: {row['alternative']['reason']}. "
                           "It never counts as a style match pass."]
             lines += ["", *dimension_notes(row.get("dimensions", {}))]
+            caption_size = row.get("dimensions", {}).get("caption_size", {})
+            if caption_size.get("status") == "pass":
+                lines += ["", f"Captions: {caption_size['size_px']:.2f}px; size spread {caption_size['size_spread_px']:g}px."]
             color = row.get("dimensions", {}).get("color", {})
             if color.get("status") != "miss" and color.get("reason"):
                 lines += ["", f"color: {color['status']}. {color['reason']}"]

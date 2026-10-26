@@ -12,8 +12,6 @@ from .metrics import font_asset, metrics
 
 
 BASE_SIZE = {"punch": 97, "box": 81, "clean": 59}  # Output px at a 1080 px short side.
-SHRINK = (1., .95, .90, .85, .80)
-MINIMUM = {"punch": .3, "box": .3, "clean": 5/6}
 _BREAK_AFTER = "/.-_?&=#:"
 
 
@@ -273,6 +271,24 @@ def apply_preset(plan, name, *, vad=True, base_dir=None):
     display = (lambda text: text) if name == "clean" else (lambda text: text.upper())
     original = list(plan.captions)
     result, notes = [], []
+    # Choose one size before grouping any shot. Only an indivisible display
+    # word/number can lower it; multiword groups must regroup at this size.
+    floor = max((phone_floor(plan, c.timeline_start, c.timeline_end, name) for c in plan.clips), default=0.)
+    minimum = floor or min(style.size, 24.)
+    target = max(style.size, minimum)
+    normalized = normalize_words([w for c in original for w in c.words])
+    from .grouping import display_units
+    units = display_units([display(w.text) + _split_suffix(w) for w in normalized])
+    largest = max((words_width([word], face, style, name) for word in units), default=0.)
+    rail = rail_width(plan.width, plan.height) / (1.05 if name == "punch" else 1.)
+    if largest + 2*style.outline_width > rail:
+        target = max(minimum, min(target, style.size * rail / (largest + 2*style.outline_width)))
+    factor = target / style.size
+    style = replace(style, size=target, outline_width=min(20, style.outline_width*factor),
+                    highlight_box_padding=min(64, style.highlight_box_padding*factor),
+                    highlight_box_radius=min(64, style.highlight_box_radius*factor))
+    if factor < 1:
+        notes.append(f"Whole draft caption size reduced to {target:.2f}px for its widest word; phone floor preserved.")
     for clip in plan.clips:
         # Group on shot boundaries; no caption can hold into the next shot.
         words = [w for c in original for w in c.words
@@ -296,57 +312,19 @@ def apply_preset(plan, name, *, vad=True, base_dir=None):
                     notes.extend(warnings)
         source_words = normalize_words(words)
         notes.extend(face.substitution_notes(display(w.text) for w in source_words))
-        floor = phone_floor(plan, clip.timeline_start, clip.timeline_end, name)
-        scales = [s for s in SHRINK if style.size*s >= floor-1e-6] or [min(512, floor)/style.size]
-        scales = sorted(set([*scales, min(512, floor)/style.size] if floor else scales), reverse=True)
-        candidates = []
-        for scale in scales:
-            trial = replace(style, size=min(512, style.size*scale), outline_width=min(20, style.outline_width*scale),
-                            highlight_box_padding=min(64, style.highlight_box_padding*scale),
-                            highlight_box_radius=min(64, style.highlight_box_radius*scale))
-            # Box slot widths already include both plate paddings. Only Punch
-            # overshoots during entry; reserving that overshoot for Box creates
-            # needless one-word leftovers such as "WITH CHANNEL" / "5."
-            pad = trial.outline_width
-            overshoot = 1.05 if name == "punch" else 1.
-            available = rail_width(plan.width, plan.height)/overshoot - 2*pad
-            cap = (30 if plan.height > plan.width else 42) if name == "clean" else None
-            measure = lambda texts, trial=trial: (float("inf") if cap and len(join(texts)) > cap
-                                                   else words_width(texts, face, trial, name))
-            try:
-                fitted, shown, solo, long_notes = fit_long_words(source_words, display, measure, available,
-                    scales=[s/scale for s in scales if s <= scale], outline=trial.outline_width,
-                    keep_whole=name != "clean")
-            except ValueError:
-                continue
-            alone = {shown[i]: factor for i, factor in solo.items()}
-
-            def fits(texts, measure=measure, alone=alone, outline=trial.outline_width):
-                width = measure(texts)
-                if len(texts) == 1 and texts[0] in alone:
-                    factor = alone[texts[0]]
-                    return width*factor - 2*outline*(1-factor)
-                return width
-            shown_words = [replace(w, text=s) for w, s in zip(fitted, shown)]
-            try:
-                grouped = group_words(shown_words, fits, available, preset=name, portrait=plan.height > plan.width,
-                                      start=clip.timeline_start, end=clip.timeline_end, fps=fps, solo=solo)
-            except ValueError:
-                continue
-            groups, _, starts, ends, _ = grouped
-            short = sum(e-s < MINIMUM[name]-1e-6 and not (k+1 == len(groups) and e >= clip.timeline_end-1e-6)
-                        for k, (s, e) in enumerate(zip(starts, ends)))
-            orphan_count = sum(len(part) == 1 for part in groups)
-            dangling = sum(token(part[-1]) in STOPWORDS for part in groups[:-1])
-            splits = sum("split into" in note for note in long_notes)
-            score = ((len(long_notes), short, orphan_count, -scale) if name == "clean"
-                     else (splits, dangling, short, orphan_count, -scale))
-            candidates.append((score, trial, fitted, shown_words, solo, grouped, long_notes))
-            if short == 0 and (name == "clean" or (dangling == 0 and (orphan_count == 0 or solo))):
-                break
-        if not candidates:
-            raise ValueError("Caption words cannot fit together at the phone size floor; choose clean or edit the transcript.")
-        _, shot_style, fitted, shown_words, solo, grouped, long_notes = min(candidates, key=lambda row: row[0])
+        # Group at the already chosen draft size. Clean may wrap to two
+        # lines; pop styles use smaller word groups. Floor splits retain timing.
+        overshoot = 1.05 if name == "punch" else 1.
+        available = rail_width(plan.width, plan.height)/overshoot - 2*style.outline_width
+        cap = (30 if plan.height > plan.width else 42) if name == "clean" else None
+        def measure(texts):
+            return (float("inf") if cap and len(join(texts)) > cap
+                    else words_width(texts, face, style, name))
+        fitted, shown, solo, long_notes = fit_long_words(source_words, display, measure, available,
+            scales=(1.,), outline=style.outline_width, keep_whole=name != "clean")
+        shown_words = [replace(w, text=s) for w, s in zip(fitted, shown)]
+        grouped = group_words(shown_words, measure, available, preset=name, portrait=plan.height > plan.width,
+                              start=clip.timeline_start, end=clip.timeline_end, fps=fps, solo=solo)
         groups, lines, starts, ends, warnings = grouped
         notes.extend(long_notes + warnings)
         index = {id(w): i for i, w in enumerate(shown_words)}
@@ -354,16 +332,10 @@ def apply_preset(plan, name, *, vad=True, base_dir=None):
             spoken = [fitted[index[id(w)]] for w in part]
             spoken[0] = _sync(spoken[0], max(spoken[0].start, start), spoken[0].end)
             spoken[-1] = _sync(spoken[-1], spoken[-1].start, min(spoken[-1].end, end))
-            cue_style = shot_style
-            factor = solo.get(index[id(part[0])]) if len(part) == 1 else None
-            if factor:
-                cue_style = replace(shot_style, size=shot_style.size*factor, outline_width=shot_style.outline_width*factor,
-                                    highlight_box_padding=shot_style.highlight_box_padding*factor,
-                                    highlight_box_radius=shot_style.highlight_box_radius*factor)
             result.append(CompositionCaption(id=f"{clip.id}-{name}-{len(result)+1}",
                 text="\n".join(visual), start=start, end=end, words=spoken,
                 all_caps=name != "clean", word_timed=name != "clean", position="lower",
-                font=font, style=replace(cue_style), preset=name))
+                font=font, style=replace(style), preset=name))
     if not result and original:
         raise ValueError("Caption presets need timed words; transcribe the local source first.")
     plan.captions = result

@@ -26,6 +26,8 @@ def run(argv):
     source.add_argument("--answers", help="JSON object using zing brief answer fields")
     parser.add_argument("--drafts", type=int, choices=[3], default=3)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--color", choices=("source", "reference"), default="source",
+                        help="keep source color (default), or opt into fitting the reference grade")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--no-repair-asr", dest="repair_asr", action="store_false",
                         help="disable bounded ASR repair; exclude clips with invalid word timings")
