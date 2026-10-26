@@ -10,7 +10,7 @@ These registry commands are not an available install today.
 
 ## Windows
 
-1. Install Python 3.10 or newer from [python.org](https://www.python.org/downloads/windows/).
+1. Install Python 3.11 or newer from [python.org](https://www.python.org/downloads/windows/).
    In the installer, enable the option to add Python to PATH. PATH is the list
    of folders Windows searches for commands. Close and reopen PowerShell.
    Alternatively, install [uv](https://docs.astral.sh/uv/getting-started/installation/),
@@ -45,7 +45,7 @@ These registry commands are not an available install today.
 
 ## macOS
 
-1. Install Python 3.10 or newer from [python.org](https://www.python.org/downloads/macos/),
+1. Install Python 3.11 or newer from [python.org](https://www.python.org/downloads/macos/),
    or install [uv](https://docs.astral.sh/uv/getting-started/installation/) and let
    it manage Python. Open Terminal from Applications > Utilities.
 2. Install [Homebrew](https://brew.sh/) using its instructions. Install FFmpeg:
@@ -68,7 +68,7 @@ These registry commands are not an available install today.
 
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/), which
    can supply Python. If using your distribution's Python instead, it must be
-   3.10 or newer. Open Terminal.
+   3.11 or newer. Open Terminal.
 2. On Ubuntu or Debian, refresh the package list and install FFmpeg:
 
    ```sh

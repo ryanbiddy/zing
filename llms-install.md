@@ -6,7 +6,7 @@ The repository's `server.json` describes a future PyPI release, not an install
 that is available now.
 
 Run these steps on the machine that holds the person's media. You need Git, uv
-and Python 3.10 or newer. For video work, put FFmpeg and ffprobe on PATH, using
+and Python 3.11 or newer. For video work, put FFmpeg and ffprobe on PATH, using
 an FFmpeg build with libx264 and libass. Python extras do not install those
 binaries. See [developer setup](docs/DEVELOPER-GUIDE.md).
 
