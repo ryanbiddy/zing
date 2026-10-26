@@ -100,8 +100,10 @@ def test_preflight_aggregates_and_names_fixes(tmp_path, monkeypatch):
     monkeypatch.setattr("myzing.layout.detector.verified_model", lambda p: False)
     result = preflight.check(*args, answers={"framing": "reframe"})
     text = "\n".join(result["problems"])
-    for fragment in ("ffmpeg", "speech-model", "layout fetch-model", "Free space"):
+    for fragment in ("ffmpeg", "speech-model", "Free space"):
         assert fragment in text
+    assert any("YuNet face model" in w and "zing layout fetch-model" in w for w in result["warnings"])
+    assert any("MediaPipe person-head" in w and "zing layout fetch-model --vision" in w for w in result["warnings"])
     assert any("automatic face analysis" in w for w in result["warnings"])
 
 

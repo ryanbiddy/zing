@@ -118,8 +118,9 @@ Auto evaluates display-oriented, square-pixel geometry in this order:
    Width starts at `ceil(max(output_width / max_upscale,
    output_width * source_height / (0.70 * output_height)))`. Widen the window
    until it retains the required subjects. Source height is never cropped.
-   Widths narrower than the subjects' inner 98% spans (or two thirds of the
-   source when evidence has gaps) cannot pass at any position and are skipped,
+   Widths below a lower bound from face widths and simultaneous spans, allowing
+   at most 2% lost face-track time (or two thirds of the source when all evidence
+   has gaps), cannot pass at any position and are skipped,
    so a two-shot search assesses tens of widths, not every pixel width.
 4. Use full-picture blurfill if no intermediate crop passes, or if the source
    is narrower than the output. Fit remains available as an explicit choice.
@@ -134,14 +135,40 @@ means output pixels per source pixel in the sharp foreground, not the blur.
 | Crop enlargement | At most `framing_max_upscale`, default **2.5×** linear |
 | Retained source area | At least 30% |
 | Retained source height | At least 60%, preserving vertical context |
-| Supplied face/person or object tracks | At least 98% box coverage on every output frame |
+| Face/head tracks | Complete box containment for at least 98% of sampled face/head track-time |
+| Body/object fallback, with no face/head | At least 98% box-area overlap on every output frame; does not count as face/head coverage |
 | Subject top | Keep all of the top, with headroom of 8% of box height or 2% of source height, whichever is larger; clamp headroom at the source edge |
 | Gaps in subject evidence | Full reframe permits at most 10% source loss. Zoomfill keeps all source rows and at least two thirds of source width; unknown subjects can still be missed, and this is reported |
 
 Each clip's `assessments` records the rejected crop and final choice: sharp
-height/area share, enlargement, retained source area, minimum tracked coverage,
+height/area share, enlargement, retained source area, face/head time coverage,
 headroom result, evidence gaps and rejection reasons. Warnings explain the
 decision. Missing detections are not proof that a crop contains every subject.
+
+`subject_coverage` is the number of fully contained face/head observations
+divided by the number of observed face/head samples. The planner samples at
+output fps and interpolates source-clock track boxes through the clip's trim
+and speed map. Each required face counts once per sample; a partially clipped
+box counts outside. Speaker-held turns count only the associated face, including
+silence held on that face; silent moves between different speakers are exempt.
+Without an association, all visible faces count. Missing face/head samples set
+`evidence_gaps` and are excluded from the denominator. No face/head evidence
+means 0% with a separate "No subject evidence" warning. For example, 60 contained
+samples out of 60 is 100%; 30 contained and 30 clipped is 50%. HOG bodies,
+objects and saliency never enter this metric.
+
+YuNet faces and MediaPipe person-head regions drive framing before body or
+object detections. Body/hand boxes cannot pull the crop away from an available
+face. Without face/head evidence, HOG may drive the crop at confidence at most
+0.35, with a fallback warning. Preflight names missing optional models and the
+fetch commands: `zing layout fetch-model` for YuNet and
+`zing layout fetch-model --vision` for person-head detection.
+
+Without speaker turns, a face region at least 1.5 times the area of competing
+faces becomes the primary target. Overlapping track fragments stay together;
+equally prominent faces retain the two-shot. This size heuristic is disclosed
+at confidence at most 0.55. Secondary face detections still count in coverage,
+so a low value can warrant reviewing detector evidence as well as the crop.
 
 A 640×360 NASA frame needs a 198×352 full portrait crop: **5.455×** at 1080×1920.
 Zoomfill can use 432×360 at **2.5×**, for a 1080×900 sharp picture: **46.875%**
@@ -152,12 +179,13 @@ The 2.5× ceiling is a quality heuristic:
 each source pixel already covers 6.25 output pixels in area, so further
 enlargement quickly softens archival detail. It is not a measured perceptual
 optimum. Configure it with brief `framing_max_upscale` (1–16), or render
-`--max-upscale`. Explicit fill/reframe can override quality and context checks,
-but a tracked top/headroom violation falls back to zoomfill or blurfill. Unknown
-dialogue must also retain the two-shot. Explicit reframe also rejects more than
-10% crop loss in gaps in
-subject evidence: a diagonal rocket nose can leave through a side edge, so
-headroom alone is insufficient. Explicit fill remains a manual context override.
+`--max-upscale`. Forced reframe retains the user's crop even when coverage is
+below 98% or enlargement exceeds the limit. The director summary and match
+report put one warning per draft at the top, naming every affected clip and its
+coverage, enlargement and limits. Individual assessments retain the reasons.
+Explicit fill still falls back on a tracked top/headroom violation; reframe
+attempts subject-safe motion first and discloses failures. Text-card protection
+can still preserve a whole source shot.
 Explicit crops warn above their stated `max_upscale` (default 2.5, the same as
 auto). Full-picture fit/blurfill can exceed it for very small sources;
 those enlargements warn too. Background enlargement is intentionally blurred.
@@ -183,7 +211,7 @@ velocity and peak speed 1.5 times distance divided by elapsed time.
 Validation enforces Euclidean `max_velocity`; the planner uses half the smaller
 crop dimension per second, averages neighboring targets and limits steps.
 The vertical position is one value per shot: it centers the vertical span of the
-shot's faces and people (objects when there are none), then moves up only as far
+shot's faces/heads (bodies or objects when there are none), then moves up only as far
 as the highest measured top's headroom line requires, so a low subject in a
 portrait or 4:3 source stays in a 16:9 crop. With no evidence the crop is
 top-aligned. Smoothing cannot average the headroom away. Zoomfill keeps the full source height,

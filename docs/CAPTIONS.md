@@ -4,16 +4,21 @@ case rate, position and measured alignment. Persistent title lines are separated
 from changing caption lines before those measurements are calculated.
 
 Measured caption ink supplies color and outline when available. Missing values
-are disclosed per caption as **Estimated**: white text, a black 2px outline,
+are disclosed once per plan as **Estimated**, with the affected caption count: white text, a black legibility outline,
 centered alignment, and an em size of the short side divided by 18 (at least
 24px). Reference mode adds a plate only when one was measured, or when explicitly
 requested in `caption_options`. The default active-word color matches the text.
 Exact font identity and size remain estimates.
 Stroke samples wider than 20% of measured glyph height are excluded as possible
-background contamination; the plan discloses that exclusion and any fallback.
+background contamination; one plan-level note gives the excluded sample count
+and affected caption count. Structured reference evidence retains the measurements.
 
-Groups stay on one line. Ink fitting splits a group into fewer words before
-shrinking it; an indivisible word may shrink to the 24px floor. A word that still
+Groups stay on one line. Before shrinking more than 15% below the group's target
+size, ink fitting tries a split that keeps both groups inside the measured
+word-count band. A 1–3-word band can put a long word alone. Numeric tokens stay
+joined and word timings stay intact. If no in-band split fits, the group may
+shrink to the 24px floor; an unreadable group may require a disclosed out-of-band
+split. A word that still
 cannot fit stops rendering with a remedy. Each grouping or size deviation is
 recorded against its caption ID. The match report compares words per caption
 and all-caps rate as well as timing and placement.

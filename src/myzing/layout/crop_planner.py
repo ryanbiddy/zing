@@ -6,16 +6,40 @@ from dataclasses import replace
 from myzing.composition.framing import CropAssessment, CropKeyframe
 from .speakers import output_time, speaker_turns
 from .types import box_at, union
+from .caption_safety import is_face
 
 
 def _subjects_at(tracks, time):
     active = [t for t in tracks if t.keyframes[0].time <= time <= t.keyframes[-1].time]
-    return [t for t in active if not t.id.startswith("saliency-")] or active
+    # Bodies/hands are context, never competing centers when a head is known.
+    return ([t for t in active if is_face(t)] or
+            [t for t in active if not t.id.startswith("saliency-")] or active)
 
 
 def _headroom(box, source_height):
     # Preserve 8% of box height above its top, at least 2% of source height.
     return max(0, box.y * source_height - max(.02 * source_height, .08 * box.height * source_height))
+
+
+def _primary_faces(tracks, source):
+    """Prefer a clearly larger face region; overlapping fragments stay together.
+
+    This is geometric prominence, not speaker recognition. Equal competitors
+    retain the two-shot. Secondary faces remain in the coverage denominator.
+    """
+    if len(tracks) < 2 or not all(is_face(t) for t in tracks):
+        return tracks
+    boxes = {t.id: box_at(t.keyframes, source) for t in tracks}
+    largest = max(boxes.values(), key=lambda b: b.width * b.height)
+    def same_region(b):
+        overlap = max(0, min(b.right, largest.right) - max(b.x, largest.x)) * max(
+            0, min(b.bottom, largest.bottom) - max(b.y, largest.y))
+        return overlap >= .5 * min(b.width * b.height, largest.width * largest.height)
+    cluster = [t for t in tracks if same_region(boxes[t.id])]
+    competitors = [boxes[t.id] for t in tracks if not same_region(boxes[t.id])]
+    if competitors and largest.width * largest.height >= 1.5 * max(b.width * b.height for b in competitors):
+        return cluster
+    return tracks
 
 
 class Evidence:
@@ -27,6 +51,7 @@ class Evidence:
 
     def __init__(self, clip, tracks, fps, source_width, source_height):
         self.frames = []
+        self.face_ids = {t.id for t in tracks if is_face(t)}
         for frame in range(max(1, math.ceil(clip.duration * fps))):
             local = min(clip.duration - 1e-7, frame / fps)
             source = clip.source_at(clip.timeline_start + local)
@@ -61,7 +86,7 @@ def _required(turns, local, boxes):
         return None
     if turn.face_track_id is None:
         return boxes
-    return [b for b in boxes if b[0] == turn.face_track_id] or boxes
+    return [b for b in boxes if b[0] == turn.face_track_id]
 
 
 def _centers(framing, times):
@@ -86,6 +111,7 @@ def _centers(framing, times):
 def _vertical(clip, tracks, source_height):
     """Highest headroom line of any subject and the preferred subjects' vertical span."""
     in_range = [t for t in tracks if t.keyframes[0].time <= clip.src_out and t.keyframes[-1].time >= clip.src_in]
+    in_range = [t for t in in_range if is_face(t)] or in_range
     people = any(not t.id.startswith("saliency-") for t in in_range)
     boxes, preferred = [], []
     for t in in_range:
@@ -124,7 +150,7 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
     times = [*distinct, clip.duration] if clip.duration > 0 else distinct
     if len(times) > 256:
         times = [clip.duration * i / 255 for i in range(256)]
-    confidences, methods = [], set()
+    confidences, methods, primary_choices = [], set(), []
     # One vertical position per shot: center the subjects' vertical span, but
     # never let the crop top fall below the highest subject's headroom line.
     # Smoothing must never average away the rocket nose/headroom bound.
@@ -145,15 +171,27 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
             source = min(clip.src_out - 1e-7, clip.source_at(clip.timeline_start + local))
             active = _subjects_at(tracks, source)
             selected = [t for t in active if t.id == identity] if identity else active
+            # Supplied/ambiguous dialogue retains its turn/two-shot policy.
+            # With no speaker turns, a dominant face anchors the crop instead
+            # of centering midway between it and a small edge detection.
+            if not identity and not turns:
+                selected = _primary_faces(selected, source)
+            primary = len(selected) < len(active) and not identity
             if selected:
                 box = union([box_at(t.keyframes, source) for t in selected])
-                cache[key] = (box.center[0] * framing.source_width, min(t.confidence for t in selected),
+                confidence = min(t.confidence for t in selected)
+                if not any(is_face(t) for t in selected):
+                    confidence = min(confidence, .35)
+                elif primary:
+                    confidence = min(confidence, .55)
+                cache[key] = (box.center[0] * framing.source_width, confidence,
                               {"saliency" if t.id.startswith("saliency-") else
-                               "opencv-dnn" if t.id.startswith("object-") or "-objects-" in t.id or t.id.startswith("person-person-person-") else
-                               "people-hog" if t.id.startswith("person-") else "yunet" for t in selected})
+                               "opencv-dnn" if any(o.detector == "mediapipe-person-head" for o in t.observations) or t.id.startswith("object-") or "-objects-" in t.id or t.id.startswith("person-person-person-") else
+                               "people-hog" if t.id.startswith("person-") else "yunet" for t in selected}, primary)
             else:
-                cache[key] = (framing.source_width / 2, 0, {"center/hold"})
-        x, confidence, found = cache[key]
+                cache[key] = (framing.source_width / 2, 0, {"center/hold"}, False)
+        x, confidence, found, primary = cache[key]
+        primary_choices.append(primary)
         confidences.append(confidence)
         methods.update(found)
         return min(allowed.x + allowed.width - framing.width / 2,
@@ -212,7 +250,11 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
                 x, y = nx, ny
             keys.append(CropKeyframe(time, x, y))
     warnings = ["Crop follows sampled geometric evidence; 2 fps sampling, smoothing and velocity limiting can lag fast motion."]
-    if not methods <= {"yunet", "people-hog"}:
+    if any(primary_choices):
+        warnings.append("Primary face chosen by size (at least 1.5x competing face area); speaker identity unverified, confidence at most 0.55. Secondary face detections still count in coverage.")
+    if "people-hog" in methods:
+        warnings.append("No face/head evidence for part or all of this span; HOG body fallback drives the crop at confidence at most 0.35. Review the subject position.")
+    if methods & {"saliency", "center/hold"}:
         warnings.append("Saliency/center fallback used with lower confidence; subject identity and complete visibility are unverified.")
     if turns:
         warnings.append("Speaker turns: " + "; ".join(f"{t.start:.3f}-{t.end:.3f}s {t.method} (confidence {t.confidence:g})" for t in turns))
@@ -222,6 +264,14 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
 
 
 def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
+    """Coverage = fully contained face/head track-time / observed track-time.
+
+    Sample at output fps, interpolate boxes in source time, and count each
+    required face/head once per sample. A partially clipped box counts outside.
+    Speaker moves in silence are exempt; held turns count only the held face.
+    Missing face/head samples are gaps, not outside observations. With no face
+    evidence coverage is zero. Body/object overlap is a separate fallback gate.
+    """
     from .framing import visible_content
     sw, sh = candidate.source_width, candidate.source_height
     evidence = evidence or Evidence(clip, tracks, fps, sw, sh)
@@ -233,7 +283,8 @@ def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
         scale = (min(width / sw, height / sh) if candidate.mode in ("fit", "blurfill") else
                  max(width / candidate.width, height / candidate.height))
     area = candidate.width * candidate.height / (sw * sh)
-    coverage, missing, headroom = 1.0, False, True
+    contained, observed, fallback_coverage = 0, 0, 1.0
+    missing, headroom = False, True
     full_picture = candidate.mode in ("fit", "blurfill")
     turns = candidate.speaker_turns
     identified = any(t.face_track_id for t in turns)
@@ -247,18 +298,27 @@ def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
             boxes = _required(turns, local, boxes)
             if boxes is None:
                 continue
-        if not boxes:
+        if not any(b[0] in evidence.face_ids for b in boxes):
             missing = True
         if full_picture:
+            count = sum(b[0] in evidence.face_ids for b in boxes)
+            observed += count
+            contained += count
             continue
         cx, cy = center
         left, top = math.floor(cx - candidate.width / 2), math.floor(cy - candidate.height / 2)
         right, bottom = left + candidate.width, top + candidate.height
-        for _, x0, y0, x1, y1, box_area, line in boxes:
+        for identity, x0, y0, x1, y1, box_area, line in boxes:
             iw = max(0, min(right, x1) - max(left, x0))
             ih = max(0, min(bottom, y1) - max(top, y0))
-            coverage = min(coverage, iw * ih / box_area)
+            if identity in evidence.face_ids:
+                observed += 1
+                contained += (left <= x0 + 1e-6 and top <= y0 + 1e-6 and
+                              right >= x1 - 1e-6 and bottom >= y1 - 1e-6)
+            else:
+                fallback_coverage = min(fallback_coverage, iw * ih / box_area)
             headroom &= top <= line + 1e-6
+    coverage = contained / observed if observed else 0.0
     reasons = []
     if scale > candidate.max_upscale + 1e-9:
         reasons.append(f"crop enlargement {scale:.3f}x exceeds {candidate.max_upscale:g}x")
@@ -267,12 +327,14 @@ def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
             reasons.append(f"retained area {area:.1%} is below 30%")
         if candidate.height / sh < .60:
             reasons.append(f"retained source height {candidate.height / sh:.1%} is below 60%")
-        if coverage < .98:
-            reasons.append(f"tracked-subject coverage {coverage:.1%} is below 98%")
+        if observed and coverage < .98:
+            reasons.append(f"tracked-subject coverage {coverage:.1%} is below 98% (subject outside crop)")
+        if fallback_coverage < .98:
+            reasons.append(f"fallback body/object box coverage {fallback_coverage:.1%} is below 98%")
         if not headroom:
             reasons.append("tracked subject top/headroom would be clipped")
         unknown_limit = 2 / 3 if candidate.mode == "zoomfill" and candidate.height == sh else .90
-        if missing and area < unknown_limit - 1e-9:
+        if any(not boxes for _, boxes in evidence.frames) and area < unknown_limit - 1e-9:
             reasons.append(f"subject evidence has gaps while retained area is below {unknown_limit:.1%}")
     return CropAssessment(candidate.mode, content.height, content.width * content.height,
                           scale, area, min(1.0, coverage), headroom, missing, reasons)
@@ -281,12 +343,12 @@ def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
 def _zoomfill_floor(evidence, turns, source_width):
     """Narrowest full-height window that could pass coverage/evidence checks.
 
-    Uses the least demanding subject set (speaker-held turns); the two-shot
-    fallback only adds subjects. 98% box coverage needs the window to reach
-    each box's inner 98%, whatever its position, so narrower widths fail.
+    Face coverage allows 2% of observed track-time outside. A lower bound is
+    the 98th percentile of individual face widths; positions and separation
+    can only require a wider crop. Non-face fallback keeps its area bound.
     """
     identified = any(t.face_track_id for t in turns)
-    need, missing = 0.0, False
+    need, missing, widths, spans = 0.0, False, [], []
     for local, boxes in evidence.frames:
         if identified:
             boxes = _required(turns, local, boxes)
@@ -295,8 +357,19 @@ def _zoomfill_floor(evidence, turns, source_width):
         if not boxes:
             missing = True
             continue
+        faces = [b for b in boxes if b[0] in evidence.face_ids]
+        if faces:
+            widths.extend(b[3] - b[1] for b in faces)
+            spans.append(max(b[3] for b in faces) - min(b[1] for b in faces))
+            continue
         need = max(need, max(x1 - .02 * (x1 - x0) for _, x0, _, x1, *_ in boxes)
                    - min(x0 + .02 * (x1 - x0) for _, x0, _, x1, *_ in boxes))
+    if widths:
+        need = max(need, sorted(widths)[math.ceil(.98 * len(widths)) - 1])
+        # Each frame whose union does not fit loses at least one face sample.
+        allowed_failures = math.floor(.02 * len(widths) + 1e-9)
+        if allowed_failures < len(spans):
+            need = max(need, sorted(spans)[len(spans) - allowed_failures - 1])
     floor = max(math.floor(need) - 1, math.ceil(.30 * source_width) - 1)
     if missing:
         floor = max(floor, math.ceil(source_width * 2 / 3) - 1)
@@ -349,6 +422,8 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
             notes.append(subject_note)
         if assessment.evidence_gaps:
             notes.append("Subject evidence has gaps: unknown subjects may be outside the crop; confidence is not a visibility guarantee.")
+        if not any(box[0] in evidence.face_ids for _, boxes in evidence.frames for box in boxes):
+            notes.append("No subject evidence: no face/head track-time sampled; subject coverage is 0%, not a measurement of a subject outside the crop.")
         if candidate.mode == "zoomfill" and assessment.sharp_height_share < .50:
             notes.append("The 50-70% sharp-height target is infeasible under the enlargement/subject limits; retained the largest admissible intermediate crop.")
         return replace(candidate, assessments=[*assessments, assessment], warnings=notes)
@@ -380,7 +455,7 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
             return (requested != "auto" and a.headroom_safe and dialogue_safe and evidence_safe) or not a.reasons
         try:
             f, a = plan(replace(centered_framing(mode, sw, sh, width, height), max_upscale=max_upscale), explicit_ok)
-            if explicit_ok(f, a):
+            if requested == "reframe" or explicit_ok(f, a):
                 return finish(f, a, f"Selected {mode} ({requested}).")
             assessments.append(a)
         except ValueError as exc:
@@ -418,3 +493,21 @@ def select_framing(requested, sw, sh, width, height, clip, tracks, *, max_upscal
                 method="auto-blurfill" if requested == "auto" else "subject-safe-fallback", warnings=[])
     return finish(f, _assess(f, width, height, clip, tracks, fps, evidence),
                   "Selected blurfill: " + "; ".join(r for a in assessments for r in a.reasons))
+
+
+def forced_reframe_warning(label, clips):
+    """One reviewable warning per draft, listing every failed final crop."""
+    failures = []
+    for clip in clips:
+        f = clip.framing
+        if f is None or f.mode != "reframe" or not f.assessments:
+            continue
+        a = f.assessments[-1]
+        if a.subject_coverage < .98 or a.enlargement > f.max_upscale + 1e-9:
+            absent = any(w.startswith("No subject evidence:") for w in f.warnings)
+            failures.append(f"clip {clip.id} ({clip.src_in:.3f}-{clip.src_out:.3f}s source): "
+                            f"face/head coverage {a.subject_coverage:.1%} (minimum 98%"
+                            f"{'; no subject evidence' if absent else ''}), "
+                            f"enlargement {a.enlargement:.3f}x (limit {f.max_upscale:g}x)")
+    return (f"Forced reframe retained for draft {label}; review crops outside the limits: "
+            + "; ".join(failures) + ".") if failures else None

@@ -110,14 +110,19 @@ def test_generated_rocket_top_survives_forced_crop(tmp_path):
     frames = pixels(output, 180, 320)
     red_top = frames[:, :3, 80:100, 0].mean(axis=(1,2))
     assert (red_top > 180).all()
-    # An untracked diagonal nose can exit through the right edge rather than
-    # the top. Forced reframe must not blindly crop it away when evidence fails.
+    # With no evidence, forced reframe keeps the requested crop and warns.
+    # Auto still retains the untracked diagonal nose through its wider crop.
     blind = tmp_path / 'untracked.mkv'
     ffmpeg('-f', 'lavfi', '-i', 'color=c=0x303030:s=640x360:r=30:d=1,'
            'drawbox=x=320:y=100:w=170:h=20:color=white:t=fill,drawbox=x=490:y=100:w=6:h=20:color=red:t=fill',
            '-c:v', 'ffv1', blind)
     plan = plan_for(blind, 180, 320)
     plan.clips[0].framing = select_framing('reframe', 640, 360, 180, 320, plan.clips[0], [])
+    assert plan.clips[0].framing.mode == 'reframe'
+    assert plan.clips[0].framing.assessments[-1].subject_coverage == 0
+    from myzing.layout.crop_planner import forced_reframe_warning
+    assert 'no subject evidence' in forced_reframe_warning('A', plan.clips)
+    plan.clips[0].framing = select_framing('auto', 640, 360, 180, 320, plan.clips[0], [])
     assert plan.clips[0].framing.mode == 'zoomfill'
     output = tmp_path / 'untracked-safe.mp4'
     render_composition(plan, output)

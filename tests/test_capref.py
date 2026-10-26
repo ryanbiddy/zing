@@ -53,6 +53,23 @@ def test_reference_groups_are_two_words_white_word_timed_without_plate():
     assert any("Estimated" in w for w in plan.warnings)
 
 
+def test_shared_reference_notes_appear_once_with_caption_count():
+    plan = caption_plan()
+    facts = next(json.loads(w[len('CAPREF evidence: '):]) for w in plan.warnings
+                 if w.startswith('CAPREF evidence: '))
+    facts['caption_appearance'] = {'outline_rejected_samples': 50,
+        'outline_quality_rule': 'Stroke wider than 20% of glyph ink height may be background.'}
+    plan.warnings = ['CAPREF evidence: ' + json.dumps(facts)]
+    place(plan, None, {}, {})
+    place(plan, None, {}, {})  # Reapplying placement must not duplicate shared notes.
+    stroke = [w for w in plan.warnings if 'reference stroke samples excluded' in w]
+    estimates = [w for w in plan.warnings if 'defaults are white with black' in w]
+    assert len(stroke) == len(estimates) == 1
+    assert '50 reference stroke samples' in stroke[0]
+    assert f'affects {len(plan.captions)} captions' in stroke[0]
+    assert f'{len(plan.captions)} captions use Estimated' in estimates[0]
+
+
 def test_reference_spread_case_rate_and_indivisible_numbers():
     assert word_band([1, 2, 2, 2, 3])["lower"] == 2
     assert word_band([1, 2, 2, 2, 3])["upper"] == 2
@@ -158,6 +175,8 @@ def test_text_card_forces_full_source_blurfill_and_is_shot_local():
 
 def test_reference_fit_splits_before_shrinking_and_discloses(monkeypatch, tmp_path):
     plan = caption_plan("extraordinarily astronomical")
+    plan.warnings = ['CAPREF evidence: ' + json.dumps({f'captions[{i}]': {'words_visible': n}
+                                                     for i, n in enumerate([1, 1, 2, 3, 3])})]
     original = plan.captions[0].style.size
     def measure(caption, style, *args):
         return (0, 0, style.size*10*len(caption.words), style.size)
@@ -166,7 +185,28 @@ def test_reference_fit_splits_before_shrinking_and_discloses(monkeypatch, tmp_pa
     assert len(plan.captions) == 2
     assert all(c.style.size == original and "\n" not in c.text for c in plan.captions)
     assert all(c.layout.start == c.start and c.layout.end == c.end for c in plan.captions)
-    assert sum("reference grouping deviation" in w for w in plan.warnings) == 2
+    assert sum("in-band regroup" in w for w in plan.warnings) == 2
+
+
+@pytest.mark.parametrize('ratio,counts,expected', [(.9, [1, 1, 2, 3, 3], 1),
+                                                   (.8, [1, 1, 2, 3, 3], 2), (.8, [2, 2, 2], 1)])
+def test_reference_regroup_threshold_and_band(monkeypatch, tmp_path, ratio, counts, expected):
+    plan = caption_plan('applications, sometimes')
+    original = plan.captions[0].style.size
+    plan.warnings = ['CAPREF evidence: ' + json.dumps({f'captions[{i}]': {'words_visible': n}
+                                                     for i, n in enumerate(counts)})]
+    monkeypatch.setattr('myzing.match.caption_fit._fit', lambda caption, style, *a, **kw:
+                        (replace(style, size=style.size * ratio) if len(caption.words) > 1 else style, None))
+    fit_captions(plan, tmp_path)
+    assert len(plan.captions) == expected
+    assert [w.text for c in plan.captions for w in c.words] == ['applications,', 'sometimes']
+    if expected == 2:
+        assert all(c.style.size == original for c in plan.captions)
+        assert sum('in-band regroup' in w for w in plan.warnings) == 2
+        assert any('2 captions use Estimated' in w for w in plan.warnings)
+    else:
+        assert plan.captions[0].style.size == original * ratio
+        assert any(f'{1-ratio:.1%} smaller' in w for w in plan.warnings)
 
 
 def test_indivisible_word_fails_at_floor_without_multiline_fallback(monkeypatch,tmp_path):

@@ -427,6 +427,11 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
              "choices; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
              "Caption timing validation is not an ASR accuracy measurement; human-labeled 95th-percentile error is unmeasured."]
+    if brief.framing == "reframe":
+        from myzing.layout.crop_planner import forced_reframe_warning
+        warning = forced_reframe_warning(label, clips)
+        if warning:
+            notes.insert(0, warning)
     if caption_mode == "phone":
         notes.append("Studio phone captions use up to four timed words and the renderer's default font. Portrait em size is at least 8% of visible picture width and 7% of output width; square/wide use 6.5% of min(picture width, output height). Infeasible phone layouts require shorter phrases or different framing. This is a readability preference, not recovered typography.")
     if music_tracks:

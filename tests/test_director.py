@@ -55,6 +55,18 @@ def stub_default_ink(caption, width, height, ffmpeg="ffmpeg"):
     return (-len(text) * size * .3, -size * .45, len(text) * size * .3, size * .45)
 
 
+def test_forced_reframe_warnings_reach_director_summary(project):
+    change_brief(project, framing='reframe', aspect='9:16', short_side=1080)
+    result = run(project)
+    assert result['status'] == 'ready'
+    top = [w for w in result['summary']['warnings'] if w.startswith('Forced reframe retained')]
+    assert len(top) == len(result['plans'])
+    assert report(result)['warnings'] == top
+    for label, warning in zip(result['plans'], top):
+        assert f'draft {label}' in warning and 'clip ' in warning
+        assert 'minimum 98%' in warning and 'limit 2.5x' in warning
+
+
 def test_three_plans_are_deterministic_valid_distinct_and_word_safe(project, monkeypatch):
     from myzing.layout import framing as layout_framing
     monkeypatch.setattr(layout_framing, "measure_default_ink", stub_default_ink)
