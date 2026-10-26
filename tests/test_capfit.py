@@ -50,14 +50,15 @@ def test_prefix_break_is_only_a_grouping_fallback():
     ("punch", "corresponding", 97),
     ("box", "WWWWWWWWW", 100),
 ])
-def test_oversize_word_uses_readable_solo_scale(preset, text, size):
+def test_oversize_word_lowers_whole_draft_size(preset, text, size):
     p = plan(f"look here {text} then go", 1080, 1920)
     p.brief = Brief(caption_options={"size": size})
     apply_preset(p, preset, vad=False)
     c = next(c for c in p.captions if any(w.text == text for w in c.words))
     assert [w.text for w in c.words] == [text]
     assert phone_floor(p, c.start, c.end, preset) <= c.style.size < size
-    assert any("shown alone at" in note for note in p.warnings)
+    assert len({c.style.size for c in p.captions}) == 1
+    assert any("Whole draft caption size" in note for note in p.warnings)
     place_captions(p, {}, {})
     assert c.style.size*c.layout.scale >= phone_floor(p, c.start, c.end, preset)-1e-6
 

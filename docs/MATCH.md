@@ -42,7 +42,7 @@ Studio run choice replaces the saved choice for that run; the environment still
 wins. Missing selected weights produce a command naming that model. No inference
 path downloads weights.
 
-Caption placement first moves, rewraps and shrinks text. The floor is 24 output
+Caption placement moves text and regroups words at one draft font size. Only an indivisible word can lower the size for the whole draft. The floor is 24 output
 pixels for reference clauses; phone mode uses the documented picture-relative
 minimum in [Studio](STUDIO.md). If subject avoidance cannot preserve readable
 text, generated drafts use an inset high-contrast plate and disclose possible
@@ -52,7 +52,7 @@ remains measured and reported separately from render completion.
 
 The pipeline inventories clips, studies the reference with caption geometry,
 available font candidates and experimental transitions, and studies each clip
-in raw mode. It builds a reusable StyleRecipe, fits per-clip SDR color recipes,
+in raw mode. It builds a reusable StyleRecipe, keeps each clip's source color by default,
 measures audio, saves the brief, and asks the existing director for A/B/C.
 It renders with the public v2 API, fully decodes each output, studies the rendered
 file again, and writes a timeline PNG and match report.
@@ -64,7 +64,7 @@ Outputs in the project folder:
   `drafts/draft-A.match.json`, likewise B/C; decode receipts include SHA-256.
 - `comparison.md` and `comparison.json`, with the actual ready count and failures.
 - `director/comparison.json`, retaining planned values and shortages separately.
-- `logs/`, reference/clip/output studies, color recipes/LUTs and audio maps.
+- `logs/`, reference/clip/output studies and audio maps; color recipes/LUTs only in reference color mode.
 
 Only a rendered, fully decoded, inspected draft with a report is ready. A failed
 B render reports **2 of 3 ready**, names `render-B`, and links its log. Director
@@ -189,7 +189,13 @@ failed and nothing passes.
 Reports record each region and sample rectangle. Unrecorded baked-in bars cannot
 be inferred from a plan that declares the whole source as picture.
 
-Sparse OCR cannot certify one-frame switches or ASR accuracy. Color compares
+`--color source` is the default: each clip keeps its own color, no color fit runs,
+and no LUT is applied. Use `--color reference` to fit each source to the reference
+grade. The recipe, match result and comparison report record `color_mode`;
+source mode marks color matching not applicable. Changing modes with `--resume`
+invalidates the recipe and downstream plans and reports.
+
+Sparse OCR cannot certify one-frame switches or ASR accuracy. In reference color mode, color compares
 CIELAB lightness, mean a*/b* cast, chroma, contrast and tonal cast on the sharp
 picture. Each component has an inner pass band and an outer miss band; values
 between them stay approximate. A miss in any component makes color miss. A pass
@@ -213,9 +219,12 @@ draft's people are different people under different light, so their skin says
 who is on screen, not how the draft was graded, and judging one person's skin
 tone against another's is wrong. Instead, `skin_preservation` is a separate
 dimension: for each graded clip, faces found in the ungraded source frames are
-measured on the same pixels before and after that clip's own LUT, and a hue shift
-toward green or magenta above 5 a*/b* units misses (2.5 to 5 is approximate). It
-does not affect the color dimension. No detector, no faces, or no grade leaves it
+measured on the same pixels before and after that clip's own LUT. Pass requires
+hue shift <=2.5, retained chroma >=0.80 and lightness drop <=6 L*. Hue shift >5,
+chroma ratio <0.65 or lightness drop >12 makes a miss; other cases are approximate.
+The report lists all three components and which decided. A skin miss is also a
+top-level match warning and appears in the comparison report. It does not change
+the separate reference-color dimension. No detector, no faces, or no grade leaves it
 unmeasured or absent, never passed. See [skin preservation](color.md#skin-preservation).
 “Ready” means playable and reported; it does not mean every style dimension passed.
 
@@ -230,7 +239,7 @@ recommended draft has any, the "Start with draft X because ..." line lists them
 as not passes. A studio run without a reference uses its pace choice as a search
 preference, never as a reference band.
 
-Over MCP, call `match_start(reference, clips, out, answers=..., resume=...)` and
+Over MCP, call `match_start(reference, clips, out, answers=..., resume=..., color="source")` and
 poll `match_status(project)`. URL consent is `allow_download=true`. Results contain
 paths and metadata, never media bytes. `match_status(project, cancel=true)` cancels
 that server's owned job. Dead/stale workers are reported as failed.
@@ -292,3 +301,17 @@ Audio/video drift up to 250 ms is accepted and disclosed. Excess audio is clippe
 an uncovered video tail stays unmeasured. Above ten minutes, match skips its
 optional audio map and reports that limit; the raw study still supplies transcript
 and dead-air evidence.
+
+Draft selection checks candidate spans for visible faces/heads before choosing
+an edit. When faces occur elsewhere in the analyzed source, a measured absence
+lasting at least one second excludes overlapping candidates. Text-heavy graphics
+or large scene text without a face also exclude candidates. The director records
+`visual_selection` with rejected spans and candidate count. The same spans
+constrain later music adjustments. Analysis covers the candidate union and eight
+short source anchors; sparse samples and missing detectors remain unmeasured.
+
+`zing moments` starts at an answer sentence after a question, or drops the question
+candidate. It also drops obvious question openings when ASR omitted the question
+mark. Suggestions end at sentence punctuation, keep the existing timing and
+exclusion checks, and include `first_sentence` in JSON. A punctuation-based
+boundary is an editing aid, not a semantic-quality guarantee.

@@ -1,5 +1,18 @@
 # Changelog
 
+## Clip quality
+
+- Match keeps source color by default. CLI `--color reference` and MCP
+  `color="reference"` opt into grading; recipes and reports record the mode.
+- Skin checks catch lost chroma and lightness as well as hue changes, and
+  reference-grade skin misses appear as top-level match warnings.
+- Draft captions keep one font size across groups and shots. Long phrases
+  regroup; only an indivisible word can lower the whole draft's size.
+- Moments skip question openings and end at sentence boundaries. Draft selection
+  rejects candidates containing measured face-free gaps or graphic slates.
+- Match recipe, director, caption-fit and skin-report checkpoints are invalidated
+  for the new quality policy.
+
 ## 1.0.0rc1
 
 Release candidate for Zing v1. These highlights cover merged PRs #401 through

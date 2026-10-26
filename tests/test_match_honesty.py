@@ -121,8 +121,9 @@ def test_continuous_speech_abstains_with_reason_and_retained_measurements():
         assert "protected" in d["reason"] and d["planned"] == 3
         assert d["rendered_pixels"]["observed"] == 3
     assert result["pacing_flag"] == "not_applicable"
-    notes = dimension_notes(result["dimensions"])
+    notes = dimension_notes({k: result["dimensions"][k] for k in ("shot_pace", "first_cut")})
     assert len(notes) == 2 and all("not applicable for this footage" in n for n in notes)
+    assert result["dimensions"]["caption_size"]["status"] == "not_applicable"
     summary = {"project": ".", "summary": "1 ready", "drafts": {"A": {
         "status": "ready", "dimensions": result["dimensions"], "video": "a.mp4", "plan": "a.json",
         "timeline": "a.png", "report": "a.match.json"}}}

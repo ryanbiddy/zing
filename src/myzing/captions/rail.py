@@ -77,7 +77,7 @@ def _place_caption(plan, clip, caption, subjects, source_dimensions, masks, inse
     # Shrinking to clear a face never goes below DOGFOOD1's phone floor.
     floor = phone_floor(plan, clip.timeline_start, clip.timeline_end, captions[0].preset, source_dimensions)
     size = min(c.style.size for c in shot_captions)
-    scales = [s for s in (1.,.95,.90,.85,.80) if size*s >= min(floor, size)-1e-6]
+    scales = [1.]  # Move the rail or disclose overlap; never resize one cue.
     for scale in scales:
         w,h = max(w for w,h in dimensions)*scale/plan.width, max(h for w,h in dimensions)*scale/plan.height
         # Try the preferred bands first, then the exact free boundaries

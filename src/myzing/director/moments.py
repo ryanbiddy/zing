@@ -1,11 +1,11 @@
 """Deterministic transcript suggestions. Scores are editorial estimates, not facts.
 
-For each complete clause start, keep the closest complete-clause ending in
+For each answer sentence start, keep the closest complete-sentence ending in
 0.65..1.0 times target. Require full observed-shot coverage. Reject measured dead air, >=600 ms word gaps,
 quarantine and forbidden spans. Rank by 50% timed speech density, 30% length
 fit, 10% opening cues, 5% keeper coverage and 5% measured shot coverage.
-Opening cues are question punctuation, a numeric token and contrast wording;
-each contributes one third of the cue score. Ties use source time. Greedy
+Opening cues are a numeric token and contrast wording; each contributes half
+of the cue score. Question openings are excluded. Ties use source time. Greedy
 non-overlap gives distinct suggestions, so fewer than top may be returned.
 No model, decoder, network, or semantic-quality claim.
 """
@@ -21,8 +21,44 @@ import re
 from myzing import storage
 from myzing.schemas import Breakdown
 from myzing.timing import finite, interval_problem
-from .continuity import clauses, PAUSE_SECONDS
+from .continuity import Clause, dangling, PAUSE_SECONDS
 from .models import ClipStudy
+
+
+def sentences(words):
+    """Keep sentence edges, including the answer immediately after a question.
+
+    The edit-clause parser joins dependent openings and accepts pause/comma
+    endings. Neither is appropriate for an answer's opening or final sentence.
+    """
+    result, group = [], []
+    continuation = False
+    for word in words:
+        group.append(word)
+        if re.search(r'[.!?][\"\u201d\u2019\x27)]*$', word.text.strip()) and not word.text.endswith('...'):
+            text = " ".join(w.text.strip() for w in group)
+            clean_end = not dangling(text, check_opening=False)
+            modal_continuation = (result and text[:1].islower() and re.search(
+                r"\b(?:can|could|would|should|must|will|may|might)[.!][\"\u201d\u2019\x27)]*$",
+                result[-1].text, re.I))
+            result.append(Clause(group[0].start, word.end, text, "sentence",
+                                 bool(clean_end and not continuation and not modal_continuation)))
+            # Misplaced ASR punctuation after "to." or "the." does not make
+            # the following fragment a standalone answer. A question is a
+            # deliberate boundary even when it ends in a preposition.
+            continuation = not clean_end and not re.search(r'\?[\"\u201d\u2019\x27)]*$', text)
+            group = []
+    return result
+
+
+def opens_question(text):
+    # ASR sometimes loses the question mark and merges a host question with
+    # its answer. Do not promote that merged sentence as an answer hook.
+    return bool(re.search(r'\?[\"\u201d\u2019\x27)]*$', text) or re.match(
+        r"(?i)^[\s\"\u201c\u2018\x27]*(?:(?:what|where|when|why|how|who|which)\s+"
+        r"(?:(?:many|much|long|often|far)\s+)?"
+        r"(?:do|does|did|is|are|was|were|can|could|would|will|have|has)\b|"
+        r"(?:do|does|did|can|could|would|will|are|is|have|has)\b)", text))
 
 
 def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
@@ -33,7 +69,7 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         raise ValueError("top must be an integer from 1 to 100")
     if clip.status != "ready":
         raise ValueError("A complete usable study is required; run zing study <clip> --raw first")
-    speech = clauses(clip.words)
+    speech = sentences(clip.words)
     starts = [w.start for w in clip.words]
     ends = [w.end for w in clip.words]
     cumulative = [0.]
@@ -48,7 +84,7 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
     shots = merge([(s.start, s.end) for s in clip.shots])
     ranked = []
     for i, first in enumerate(speech):
-        if not first.complete:
+        if not first.complete or opens_question(first.text):
             continue
         last = None
         for j in range(i, len(speech)):
@@ -67,11 +103,9 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         duration = end - start
         left, right = bisect_left(starts, start), bisect_right(ends, end)
         density = min(1., (cumulative[right] - cumulative[left]) / duration)
-        reasons = [f"Complete clauses; {duration:.3f}s window for {target:g}s target",
+        reasons = [f"Complete sentences; {duration:.3f}s window for {target:g}s target",
                    f"Timed speech density {density:.1%}; no measured dead air or word gap >=0.6s inside"]
         cues = []
-        if "?" in first.text:
-            cues.append("question in first clause")
         if re.search(r"\b\d+(?:[.,]\d+)?\b", first.text):
             cues.append("number in first clause")
         if re.search(r"\b(?:but|actually|however|the truth)\b", first.text, re.I):
@@ -82,9 +116,9 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         keeper, shot = coverage(keepers), coverage(shots)
         reasons += [f"Measured keeper coverage {keeper:.1%}" if clip.keepers else "Keeper evidence unavailable",
                     f"Measured shot coverage {shot:.1%}" if clip.shots else "Shot evidence unavailable"]
-        score = .5 * density + .3 * duration / target + .1 * len(cues) / 3 + .05 * keeper + .05 * shot
+        score = .5 * density + .3 * duration / target + .1 * len(cues) / 2 + .05 * keeper + .05 * shot
         ranked.append({"start": start, "end": end, "text": " ".join(w.text for w in clip.words[left:right]),
-                       "score": round(score, 6), "label": "Estimated", "reasons": reasons,
+                       "first_sentence": first.text, "score": round(score, 6), "label": "Estimated", "reasons": reasons,
                        "must_keep": [{"clip": clip.asset_id, "start": start, "end": end}]})
     chosen = []
     for row in sorted(ranked, key=lambda r: (-r["score"], r["start"], r["end"])):

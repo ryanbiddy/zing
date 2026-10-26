@@ -38,7 +38,7 @@ import threading
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from myzing import doctor, storage
 from myzing.prompt_pack import (
@@ -1234,12 +1234,13 @@ def h_match_start(reference: str, clips: str, out: str, brief: str | None = None
                   answers: dict[str, Any] | None = None, drafts: int = 3, seed: int = 0,
                   resume: bool = False, allow_download: bool = False,
                   studio_options: dict[str, Any] | None = None, ref_start: str | float | None = None,
-                  ref_end: str | float | None = None, reference_range: str | None = None) -> dict[str, Any]:
+                  ref_end: str | float | None = None, reference_range: str | None = None,
+                  color: Literal["source", "reference"] = "source") -> dict[str, Any]:
     """Start the same supervised pipeline as the CLI; no media bytes returned."""
     from myzing.match.api import validate
     from myzing.match.process import run_lock
     options = dict(reference=reference, clips=clips, out=out, brief=brief, answers=answers,
-                   drafts=drafts, seed=seed, resume=resume, allow_download=allow_download)
+                   drafts=drafts, seed=seed, resume=resume, allow_download=allow_download, color=color)
     options.update({k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None})
     if studio_options is not None:
         options["studio_options"] = studio_options

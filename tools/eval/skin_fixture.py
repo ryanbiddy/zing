@@ -78,9 +78,9 @@ def calibrate():
     rows = {}
     for name, (function, allowed) in grades().items():
         faces = {tone: compare_face(patch(lab).reshape(-1, 3), function) for tone, lab in {**SKIN_TONES, **LIT_VARIANTS}.items()}
-        rows[name] = {"allowed_on_skin_tones": allowed,
+        rows[name] = {"allowed_hue_on_skin_tones": allowed,
                       "faces": {tone: {k: face[k] for k in ("shift", "toward_green", "toward_magenta", "status",
-                                                             "a_delta", "b_delta", "hue_delta")}
+                                                             "a_delta", "b_delta", "hue_delta", "chroma_ratio", "lightness_drop", "components", "decided_by")}
                                 for tone, face in faces.items()}}
     return rows
 

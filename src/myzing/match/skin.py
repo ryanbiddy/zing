@@ -1,11 +1,9 @@
 """Skin preservation: every face against the SAME clip's ungraded source.
 
-A grade may legitimately warm, cool, brighten, darken or desaturate a picture.
-What it should not do is rotate skin hue toward green (or toward magenta). So
-each face is measured twice on the same pixels of the same ungraded source
-frame: as decoded, and after that clip's own LUT. Skin is never compared with
-another person's skin, the reference's faces, or a population "skin tone".
-This check feeds no draft-vs-reference verdict.
+Each face is measured on the same source pixels before and after its own LUT.
+Hue casts, lost chroma and lost lightness are independent checks; a severe
+failure in any one is a miss. Faces are never compared with other people.
+This check feeds no draft-vs-reference color verdict.
 
 Hue shift is the signed CIE 1976 hue difference dH*ab in a*/b* units, so a
 pure chroma change (desaturation) or lightness change scores zero. It counts
@@ -18,7 +16,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-POLICY = "skin-preservation-v1"
+POLICY = "skin-preservation-v2"
 # Pass at or below / miss above, in CIELAB a*b* units. Calibrated with
 # tools/eval/skin_fixture.py: Zing's eight looks at full strength and its
 # bounded white-balance/exposure corrections, on six generated skin tones under
@@ -62,6 +60,27 @@ def _status(shift):
     return "pass" if shift <= inner else "miss" if shift > outer else "approximate"
 
 
+def compare_lab(before, after):
+    """Judge hue, retained chroma and lightness on the same face."""
+    row = {"source_lab": list(before), "graded_lab": list(after),
+           "lightness_delta": float(after[0] - before[0]),
+           **hue_shift(before[1:], after[1:])}
+    ratio = None if row["gray_source"] else math.hypot(*after[1:]) / row["source_chroma"]
+    drop = max(0., float(before[0] - after[0]))
+    components = {
+        "hue_shift": {"value": row["shift"], "status": _status(row["shift"]), "pass_max": 2.5, "miss_above": 5.0},
+        "chroma_ratio": {"value": ratio, "status": "not_applicable" if ratio is None else
+                         "pass" if ratio >= .80 else "miss" if ratio < .65 else "approximate",
+                         "pass_min": .80, "miss_below": .65},
+        "lightness_drop": {"value": drop, "status": "pass" if drop <= 6 else "miss" if drop > 12 else "approximate",
+                           "pass_max": 6., "miss_above": 12.},
+    }
+    rank = {"not_applicable": -1, "pass": 0, "approximate": 1, "miss": 2}
+    status = max((c["status"] for c in components.values()), key=rank.get)
+    return {**row, "chroma_ratio": ratio, "lightness_drop": drop, "components": components,
+            "status": status, "decided_by": [k for k, c in components.items() if c["status"] == status]}
+
+
 def face_pixels(rgb, box):
     """Central 60% of a normalized (left, top, right, bottom) box, or None."""
     try:
@@ -86,10 +105,7 @@ def compare_face(source_pixels, grade):
     from myzing.color.science import rgb_to_lab
     before = rgb_to_lab(source_pixels).mean(axis=0)
     after = rgb_to_lab(grade(source_pixels)).mean(axis=0)
-    row = {"source_lab": before.tolist(), "graded_lab": after.tolist(), "lightness_delta": float(after[0] - before[0]),
-           **hue_shift(before[1:].tolist(), after[1:].tolist())}
-    row["status"] = _status(row["shift"])
-    return row
+    return compare_lab(before.tolist(), after.tolist())
 
 
 def _detector():
@@ -135,26 +151,27 @@ def summarize(faces, sources, *, unmeasured_reason=None):
               "basis": "Each detected face is compared only with itself: the same ungraded source pixels before and "
                        "after that clip's LUT. Never compared with another person, the reference, or a skin-tone norm. "
                        "Signed CIE hue difference in a*/b* units, counted toward green while a* falls and toward "
-                       "magenta while a* rises and b* falls; lightness and saturation changes are part of the look."}
+                       "magenta while a* rises and b* falls, plus retained chroma and lightness drop. "
+                       "Near-gray sources omit the unreliable chroma ratio, but still check green casts and lightness."}
     if not faces:
         decoded = sum(len(s.get("samples", [])) for s in sources)
         result["reason"] = unmeasured_reason or (
             f"No faces were found in {decoded} sampled source frames; skin preservation unmeasured." if decoded else
             "No source frame could be decoded for face sampling; skin preservation unmeasured.")
         return result
-    worst = max(faces, key=lambda f: f["shift"])
+    worst = max(faces, key=lambda f: ({"pass": 0, "approximate": 1, "miss": 2}[f["status"]], f["shift"]))
     statuses = {f["status"] for f in faces}
     result.update(measurement_status="measured", worst=worst,
                   status="miss" if "miss" in statuses else "approximate" if "approximate" in statuses else "pass")
     direction = "green" if worst["toward_green"] >= worst["toward_magenta"] else "magenta"
     where = f"{Path(worst['source']).name} at {worst['timestamp']:.2f}s"
-    if result["status"] == "pass":
-        result["reason"] = (f"All {len(faces)} sampled faces keep their own hue through the grade: worst shift "
-                            f"{worst['shift']:.1f} a*/b* units toward {direction} ({where}); pass at or below {BANDS[0]:g}.")
-    else:
-        result["reason"] = (f"The grade shifts skin toward {direction} by {worst['shift']:.1f} a*/b* units on {where} "
-                            f"({result['status']}; pass at or below {BANDS[0]:g}, miss above {BANDS[1]:g}). "
-                            "Compared with the same face in the ungraded source. Lower the look's strength or protect skin, then review.")
+    result["decided_by"] = worst["decided_by"]
+    ratio = "unmeasured (gray source)" if worst["chroma_ratio"] is None else f"{worst['chroma_ratio']:.3f}"
+    result["reason"] = (f"{result['status']}: {', '.join(worst['decided_by'])} decided the worst face ({where}). "
+                        f"Hue shift {worst['shift']:.1f} toward {direction}; chroma ratio {ratio}; "
+                        f"lightness drop {worst['lightness_drop']:.1f} L*. Compared with the same ungraded source face. "
+                        "Pass requires hue <=2.5, chroma >=0.80 and lightness drop <=6; "
+                        "miss if hue >5, chroma <0.65 or lightness drop >12.")
     unsampled = [Path(s["source"]).name for s in sources if not s["faces"]]
     if unsampled:
         result["reason"] += " No faces were found in sampled frames of " + ", ".join(unsampled) + "."

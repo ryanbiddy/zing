@@ -9,7 +9,7 @@ import pytest
 from myzing.brief.models import Brief
 from myzing.director.continuity import clauses
 from myzing.director.models import ClipStudy, PlanningShortage
-from myzing.director.moments import moments, suggest_moments
+from myzing.director.moments import moments, suggest_moments, sentences
 from myzing.director.selection import candidates, choose, constraints, Envelope, MAX_CANDIDATES
 from myzing.schemas import Breakdown, Shot, VideoMeta, Word
 
@@ -49,12 +49,13 @@ def conversational_interview(duration):
 def test_conversational_interview_produces_eight_bounded_moments():
     clip = conversational_interview(600)
     speech = clauses(clip.words)
-    sentences = sum(w.text.endswith(".") for w in clip.words)
-    assert len(speech) == (sentences + 1) // 2
+    sentence_count = sum(w.text.endswith(".") for w in clip.words)
+    assert len(speech) == (sentence_count + 1) // 2
     assert all(c.complete and c.end - c.start <= 20 for c in speech)
     rows = suggest_moments(clip, target=30, top=8)
     assert len(rows) == 8
     assert all(19.5 <= r["end"] - r["start"] <= 30 for r in rows)
+    speech = sentences(clip.words)
     assert all(r["start"] in {c.start for c in speech} and r["end"] in {c.end for c in speech} for r in rows)
     assert all(a["end"] <= b["start"] or b["end"] <= a["start"]
                for i, a in enumerate(rows) for b in rows[i+1:])
@@ -304,8 +305,8 @@ def test_first_line_heuristics_and_repaired_evidence_are_disclosed():
     first = clauses(clip.words)[0]
     next(w for w in clip.words if w.end == first.end).text = "questions?"
     rows = suggest_moments(clip)
-    opening = next(r for r in rows if r["start"] == .1)
-    assert sum("Opening heuristic:" in reason for reason in opening["reasons"]) == 3
+    assert rows and all(r["start"] >= first.end for r in rows)
+    assert not any("question in first clause" in reason for r in rows for reason in r["reasons"])
     clip.asr_repair = {"repairs": [{"start": .1, "end": 1.2}]}
     assert all(r["start"] >= 1.2 for r in suggest_moments(clip))
 
