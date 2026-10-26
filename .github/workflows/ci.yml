@@ -9,8 +9,12 @@ jobs:
   # Fast mocked-unit matrix. The ffmpeg-marked subset is excluded here
   # explicitly and enforced (skips impossible) in the dedicated jobs below.
   test:
+    # 3.11 rows keep the plain "test (<os>)" names that branch protection requires;
+    # the other versions report as "test (<os>, <python>)".
+    name: ${{ matrix.python == '3.11' && format('test ({0})', matrix.os) || format('test ({0}, {1})', matrix.os, matrix.python) }}
     timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.10", "3.11", "3.12", "3.13"]
