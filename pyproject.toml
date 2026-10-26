@@ -13,9 +13,9 @@ requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "mcp>=2.3,<3", "myzing[render]"]
+dev = ["pytest>=8", "mcp>=2.3,<3", "myzing[render]", "tomli>=2; python_version < '3.11'"]
 study = [
-    "yt-dlp[default]>=2026.6",
+    "yt-dlp[default]>=2026.10.21",
     "scenedetect-headless>=0.7",
     "faster-whisper>=1.1",
     "onnxruntime>=1.16",

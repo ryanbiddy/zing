@@ -209,7 +209,7 @@ def test_d11_module_only_env_fetches_via_interpreter(zing_workspace, monkeypatch
     fake = FakeTools()
 
     def module_aware(cmd, timeout=None):
-        if "yt_dlp" in cmd:
+        if "myzing.study.downloader" in cmd:
             return fake([("yt-dlp"), *cmd[3:]], timeout)  # reuse media writer
         return fake(cmd, timeout)
 

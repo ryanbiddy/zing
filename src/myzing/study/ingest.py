@@ -370,6 +370,14 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
             "yt-dlp is not installed (no binary on PATH, module not "
             'importable) - python -m pip install "myzing[study]"'
         )
+    if len(ytdlp) >= 3 and ytdlp[-2:] == ["-m", "yt_dlp"]:
+        ytdlp = [*ytdlp[:-1], "myzing.study.downloader"]
+    else:
+        # Standalone yt-dlp executables use the equivalent CLI option.
+        from .downloader import runtime_options
+        runtime = next(iter(runtime_options().get("js_runtimes", {})), None)
+        if runtime:
+            ytdlp = [*ytdlp, "--js-runtimes", runtime]
     cmd = [
         *ytdlp,
         "--no-playlist",

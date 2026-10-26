@@ -99,6 +99,9 @@ def fixture_worker(trace, fail_render=False):
         attempts.append("network")
         raise AssertionError("Fixture worker attempted network access")
     with fixture_measurements() as calls, ExitStack() as stack:
+        # This driver supplies authored fixture transcripts above. Inventory
+        # that fixture provider without requiring real Whisper weights.
+        stack.enter_context(patch("myzing.study.speech_models.resolve_name", return_value="fixture-authored-words"))
         for target in ("socket.socket.connect", "socket.create_connection", "socket.getaddrinfo"):
             stack.enter_context(patch(target, offline))
         if fail_render:

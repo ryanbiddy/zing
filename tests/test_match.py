@@ -16,6 +16,14 @@ from myzing.match.process import Cancelled, run_owned
 from myzing.match.state import Checkpoints, StepFailed, read, write
 
 
+@pytest.fixture(autouse=True)
+def preflight_at_orchestration_seam(monkeypatch):
+    # This module uses byte-string media and empty clip folders to test jobs.
+    # Real preflight and media coverage live in test_freshrun*.py.
+    monkeypatch.setattr("myzing.match.preflight.check", lambda *a, **k: {"problems": [], "warnings": []})
+    monkeypatch.setattr("myzing.match.preflight.check_reference", lambda *a, **k: None)
+
+
 def test_checkpoints_hash_outputs_and_name_failure_logs(tmp_path):
     calls = []
     output = tmp_path / "measurement.json"
@@ -222,6 +230,7 @@ def _fake_whisper(monkeypatch, snapshot, calls):
         lambda name, local_files_only=False: str(snapshot))})
     monkeypatch.setitem(sys.modules, "faster_whisper", type("FakeWhisper", (), {"WhisperModel": staticmethod(model)}))
     monkeypatch.setitem(sys.modules, "faster_whisper.utils", utils)
+    monkeypatch.setattr("myzing.study.speech_models.local_path", lambda name: snapshot)
 
 
 def test_local_only_model_load_reaches_both_whisper_attempts(monkeypatch, tmp_path):

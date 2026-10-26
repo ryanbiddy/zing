@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib.util
-import os
 import tempfile
 import time
 from copy import deepcopy
@@ -87,10 +86,10 @@ def capabilities():
         ocr = None
     from myzing.fonts.library import inventory
     font_files = [{k: row[k] for k in ("id", "sha256", "available")} for row in inventory()]
-    model = os.environ.get("ZING_WHISPER_MODEL", "large-v2")
-    cache = Path(os.environ.get("HF_HUB_CACHE", os.environ.get("HUGGINGFACE_HUB_CACHE",
-                 str(Path(os.environ.get("HF_HOME", str(Path.home() / ".cache/huggingface"))) / "hub"))))
-    cached = [Path(model) / "model.bin"] if Path(model).is_dir() else list(cache.glob(f"models--*faster-whisper-{model}/snapshots/*/model.bin"))
+    from myzing.study.speech_models import configured_name, local_path
+    model = configured_name()
+    location = local_path(model) if model != "skip" else None
+    cached = [location / "model.bin"] if location else []
     whisper = [(str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in cached if p.is_file()]
     from myzing.audio.tag_models import model_paths, REVISION
     from myzing.audio.tagging import ALGORITHM as TAG_ALGORITHM
@@ -175,6 +174,16 @@ def _audio(studied, enabled):
 
 
 def _inspect(video, timeline, studied, workspace, duration):
+    # Inspection is optional review evidence after render/decode have succeeded.
+    # Even an unexpected inspector failure must not quarantine a rendered draft.
+    try:
+        return _inspect_impl(video, timeline, studied, workspace, duration)
+    except Exception as exc:
+        return {"outputs": [], "inspection": None,
+                "warnings": [f"Timeline inspection unavailable: {type(exc).__name__}: {exc}. Rendered video retained; review it directly."]}
+
+
+def _inspect_impl(video, timeline, studied, workspace, duration):
     from myzing.inspect import InspectionError
     from myzing.inspect.timeline import inspect_timeline
     from myzing.inspect.timing import validate_words
@@ -192,8 +201,8 @@ def _inspect(video, timeline, studied, workspace, duration):
     with storage.use_workspace(workspace):
         result = inspect_timeline(video, timeline, breakdown=slug, start=0,
                                   end=duration, overwrite=True)
-    result.warnings.extend(warnings)
-    return {"outputs": [str(timeline)], "inspection": result.to_dict(), "warnings": warnings}
+    result.warnings[:] = [*warnings, *result.warnings]
+    return {"outputs": [str(timeline)], "inspection": result.to_dict(), "warnings": result.warnings}
 
 
 def _color(reference, clip, directory):
@@ -272,6 +281,7 @@ def _prepare_plan(source, destination, colors, recipe, caps):
         raise ValueError("Renderer cannot represent planned transition overlaps: " + "; ".join(transitions))
     if any(f.name.startswith(("transitions[", "legacy_transitions[")) for f in recipe.measured) and not plan.transitions:
         plan.warnings.append("Reference transition observations are experimental. Director/renderer use cuts; effects were not reconstructed.")
+    safety_context = None
     if any(c.framing is not None for c in plan.clips) or any(c.layout is not None for c in plan.captions):
         # Director has already measured source subjects and placed captions in
         # the cropped output (captions it left at their default position were
@@ -282,7 +292,7 @@ def _prepare_plan(source, destination, colors, recipe, caps):
     elif not plan.captions:
         pass  # Nothing to place; no face-layout warning applies.
     elif caps["layout"]:
-        _layout(plan, destination.parent / destination.stem, recipe)
+        safety_context = _layout(plan, destination.parent / destination.stem, recipe)
     else:
         plan.warnings.append("Face layout unavailable: using disclosed caption-position defaults; face avoidance is unmeasured. "
                              'Install "myzing[layout]" and explicitly run zing layout fetch-model to enable it.')
@@ -290,7 +300,13 @@ def _prepare_plan(source, destination, colors, recipe, caps):
     if unsupported:
         raise ValueError("Renderer does not support these planned features: " + "; ".join(unsupported))
     from .caption_fit import fit_captions
-    fit_captions(plan, destination.parent / destination.stem)
+    fit_captions(plan, destination.parent / destination.stem, safety_context=safety_context)
+    layout_path = destination.parent / destination.stem / "layout.json"
+    if layout_path.exists():
+        layout_record = read(layout_path)
+        layout_record.update(events=[c.layout.to_dict() for c in plan.captions if c.layout],
+                             accepted_unsafe_layouts=plan.accepted_unsafe_layouts)
+        write(layout_path, layout_record)
     write(destination, plan.to_dict())
     sidecar = destination.parent / destination.stem / "layout.json"
     return {"path": str(destination), "outputs": [str(destination), *([str(sidecar)] if sidecar.is_file() else [])],
@@ -331,17 +347,22 @@ def _layout(plan, folder, recipe):
                            "Conservative caption envelopes reserve at least 80% width and 20% height around the reference/default anchor; "
                            "the renderer validates ink fit. Box size and typography are approximations.")
     write(folder / "layout.json", layout.to_dict())
+    from myzing.layout.caption_safety import remember
+    safety_context = {}
     for caption, event in zip(plan.captions, layout.events):
+        remember(safety_context, caption, tracks, layout.masks)
         caption.layout = event
+        if not event.overlap.safe:
+            from myzing.layout.readability import recover_placement
+            recover_placement(plan, caption, obstacles=tracks, masks=layout.masks)
     plan.warnings.extend(layout.warnings)
-    # Unsafe events are left unsafe. The public renderer requires explicit review.
+    # Generated fallbacks disclose overlap; glyph fit is still required below.
+    return safety_context
 
 
 def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
           resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None, ref_start=None, ref_end=None, reference_range=None):
     """Synchronous worker API. CLI/MCP run this inside an owned process tree."""
-    validate(reference, clips, out, brief=brief, answers=answers, drafts=drafts, seed=seed, resume=resume, allow_download=allow_download,
-             **({"studio_options": studio_options} if studio_options is not None else {}))
     if type(repair_asr) is not bool:
         raise ValueError("repair_asr must be a boolean")
     from myzing.reference_range import parse
@@ -358,6 +379,13 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
     summary = {"version": 1, "project": str(root), "requested": drafts, "ready": 0, "drafts": {},
                "shortages": [], "failures": [], "warnings": [], "status": "failed", "run_id": run_id}
     try:
+        from .preflight import check, check_reference
+        readiness = check(reference, clips, out, brief=brief, answers=answers, drafts=drafts, seed=seed,
+                          resume=resume, allow_download=allow_download, studio_options=studio_options, **trim)
+        summary["warnings"].extend(readiness["warnings"])
+        if readiness["problems"]:
+            summary["shortages"].append({"code": "PREFLIGHT", "problems": readiness["problems"]})
+            raise ValueError("Match preflight shortage:\n- " + "\n- ".join(readiness["problems"]))
         # The scan already reuses unchanged probes. Always check the live folder
         # before accepting downstream hashes, including additions/removals.
         def scan():
@@ -408,6 +436,12 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             local = local_path(name) if name != "skip" else None
             caps["studio_speech"] = {"model": name, "path": str(local) if local else None}
         resolved = checkpoints.step("reference-resolve", [ref_key, trim, "acquire-before-study-v2"], resolve)
+        if is_http_url(reference) or reference.startswith("uoink:"):
+            try:
+                check_reference(resolved["path"], speech.get("speech_model"))
+            except (OSError, ValueError, RuntimeError) as exc:
+                summary["shortages"].append({"code": "PREFLIGHT", "problems": [str(exc)]})
+                raise ValueError("Match preflight shortage: " + str(exc)) from exc
         reference_terms = vocabulary_context(terms, metadata={"title": resolved.get("title") or ""})["terms"]
         ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps, reference_terms, trim],
                                      lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60, **trim,
@@ -454,7 +488,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "continuity-v6-longform-focus", repair_asr, "aspect-stage-common-measurements-v15", caps["layout"],
+                                                 "continuity-v6-longform-focus", repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
                                                  "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):
@@ -527,7 +561,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                       "reason": alternatives[label.split(".")[0]]}
             summary["drafts"][label] = row
             try:
-                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "clause-fit-v1", "aspect-safe-layout-v3"],
+                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "clause-fit-v3-measured-fallback", "aspect-safe-layout-v4"],
                     lambda p=plan_path, label=label: _prepare_plan(p, root / "drafts" / f"plan-{label}.json", colors, recipe, caps))
                 summary["warnings"].extend(prepared["warnings"])
                 row["plan"] = prepared["path"]
@@ -556,7 +590,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                                                     "confirmed-cut-verification-" + SOURCE_MAP_METHOD],
                                                 lambda: _study(str(video), root / "verification", verification=True, **speech))
                 timeline = video.with_suffix(".png")
-                inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v1"],
+                inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v2-elide"],
                     lambda: _inspect(video, timeline, output_study, root / "verification", verified["verification"]["duration"]))
                 summary["warnings"].extend(inspected["warnings"])
                 def measure_color():
@@ -596,7 +630,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"],
                             "music": result["music"], "audio_measurements": result["audio_measurements"]}
                 matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, skin, verified, prepared, rendered_result, inspected, "honest-ranges-color2-v3"], report)
-                row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline),
+                row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline) if inspected["outputs"] else None,
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"],
                            music=matched.get("music"), audio_measurements=matched.get("audio_measurements"))
                 if rendered_result.get("delivery_measurements") is not None:
@@ -607,8 +641,9 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 quarantine_failed_delivery(row)
     except (StepFailed, ValueError, OSError) as exc:
         summary["error"] = str(exc)
-        if not checkpoints.failures():
+        if not checkpoints.failures() and not any(s.get("code") == "PREFLIGHT" for s in summary["shortages"]):
             log = root / "logs" / "match.log"
+            log.parent.mkdir(parents=True, exist_ok=True)
             log.write_text(str(exc) + "\n", encoding="utf-8")
             summary["failures"].append({"step": "match", "error": str(exc), "log": str(log)})
     summary["failures"].extend(checkpoints.failures())

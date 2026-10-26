@@ -255,6 +255,8 @@ def test_match_restudies_the_reference_only_when_spellings_change(tmp_path, monk
     monkeypatch.setattr(api, "_study", study)
     monkeypatch.setattr(api, "_audio", audio)
     out = tmp_path / "out"
+    monkeypatch.setattr("myzing.match.preflight.check", lambda *a, **k: {"problems": [], "warnings": []})
+    monkeypatch.setattr("myzing.match.preflight.check_reference", lambda *a, **k: None)
     run = lambda answers, resume: match(str(reference), str(clips), str(out), answers=answers, resume=resume,
                                         studio_options={"speech_model": "skip"})
     assert run({"exact_spellings": ["Korky Paul"]}, False)["failures"][0]["step"] == "reference-audio"

@@ -192,7 +192,7 @@ def test_framing_models_sample_cuts_record_all_classes_and_keep_faces(tmp_path, 
     assert all(not (t.keyframes[0].time < 1.5 <= t.keyframes[-1].time) for t in tracks)
 
 
-def test_full_person_uses_existing_padding_when_sharp_picture_has_no_caption_space():
+def test_full_person_body_does_not_push_captions_out_of_sharp_picture():
     from myzing.composition import Composition, AssetRef, CompositionClip, CompositionCaption, CaptionStyle
     from myzing.layout.framing import place_captions, centered_framing, visible_content
     plan = Composition(assets=[AssetRef("s", "source.mp4", None)],
@@ -204,9 +204,10 @@ def test_full_person_uses_existing_padding_when_sharp_picture_has_no_caption_spa
                           duration=2, max_gap=2)
     place_captions(plan, {"s": tracks}, {"s": (862, 360)})
     layout = plan.captions[0].layout
-    assert layout.overlap.safe and "padding band" in layout.overlap.scope
+    assert layout.overlap.safe and "sharp picture" in layout.overlap.scope
+    assert not layout.overlap.face_ids and not plan.accepted_unsafe_layouts
     content = visible_content(centered_framing("fit", 862, 360, 1920, 1080), 1920, 1080)
-    assert layout.box.bottom <= content.y or layout.box.y >= content.bottom
+    assert content.y <= layout.box.y < layout.box.bottom <= content.bottom
 
 
 @pytest.mark.skipif(os.environ.get("ZING_REQUIRE_VISION") != "1", reason="set ZING_REQUIRE_VISION=1 with cached models and licensed fixtures; shapes cannot test recognition")
@@ -226,3 +227,28 @@ def test_real_models_on_licensed_images_and_blank():
             assert any(d.class_name == label for d in models[model].detect(image)), row["file"]
     for detector in models.values():
         assert detector.detect(np.zeros((360, 640, 3), np.uint8)) == []
+
+
+def test_person_head_region_blocks_captions_but_body_does_not():
+    # Grok R2: mediapipe-person-head tracks carry person ids/class names but are heads.
+    from myzing.composition import Composition, AssetRef, CompositionClip, CompositionCaption, CaptionStyle
+    from myzing.layout.caption_safety import is_face
+    from myzing.layout.framing import place_captions
+    head = build_tracks([FrameDetections(0, [Detection(Box(0, 0, 1, 1), .9, class_name="person", detector="mediapipe-person-head")])],
+                        duration=2, max_gap=2)
+    body = build_tracks([FrameDetections(0, [Detection(Box(0, 0, 1, 1), .9, class_name="person", detector="yolox-s-int8")])],
+                        duration=2, max_gap=2)
+    assert all(is_face(t) for t in head) and not any(is_face(t) for t in body)
+    plan = Composition(assets=[AssetRef("s", "source.mp4", None)],
+                       clips=[CompositionClip("source.mp4", 0, 2, 0, id="c", asset_id="s")],
+                       captions=[CompositionCaption(id="cap", text="We already", start=.2, end=1,
+                                                     word_timed=False, style=CaptionStyle(50))],
+                       width=1920, height=1080)
+    try:
+        place_captions(plan, {"s": head}, {"s": (1920, 1080)})
+    except Exception as exc:  # A refusal must name the head track.
+        assert head[0].id in str(exc)
+        return
+    layout = plan.captions[0].layout
+    assert not layout.overlap.safe and any(f.endswith(head[0].id) for f in layout.overlap.face_ids)
+    assert any("overlaps face tracks" in w and "measured" in w for w in layout.warnings)

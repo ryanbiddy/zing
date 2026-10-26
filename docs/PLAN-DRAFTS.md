@@ -1,5 +1,9 @@
 # Three draft plans
 
+The director delivers **up to three drafts**. Simple footage may support fewer
+distinct edits; a **VARIETY** warning names that limit and the missing drafts.
+Zing retains the usable edits and never duplicates one to fill three slots.
+
 `zing plan drafts` writes three Composition v2 documents from a saved project,
 brief and StyleRecipe. It reads existing studies and runs offline. It does not
 study footage or render videos.

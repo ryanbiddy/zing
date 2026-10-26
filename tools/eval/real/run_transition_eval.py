@@ -33,6 +33,17 @@ CLASSES = (
 )
 
 
+def _stable_dump(node):
+    """ast.dump() differs across Pythons (3.12 adds empty type_params, 3.13 hides
+    empty fields), so a frozen hash only matched on 3.11. Omit None/empty fields."""
+    if isinstance(node, ast.AST):
+        fields = [(k, _stable_dump(v)) for k, v in ast.iter_fields(node) if v is not None and v != []]
+        return type(node).__name__ + "(" + ", ".join(f"{k}={v}" for k, v in fields) + ")"
+    if isinstance(node, list):
+        return "[" + ", ".join(_stable_dump(x) for x in node) + "]"
+    return repr(node)
+
+
 def fingerprint():
     """Freeze decisions independently of the subsequently published validation numbers."""
     files = [Path(transitions.__file__), Path(transitions.models.__file__)]
@@ -51,7 +62,7 @@ def fingerprint():
                 )
             )
         ]
-        trees.append(ast.dump(tree))
+        trees.append(_stable_dump(tree))
     return {
         "decision_sha256": hashlib.sha256("\n".join(trees).encode()).hexdigest(),
         "source_sha256": {p.name: sha256(p) for p in files},

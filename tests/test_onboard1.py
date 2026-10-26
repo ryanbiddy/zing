@@ -435,8 +435,8 @@ def test_plain_study_never_downloads_an_uncached_model(zing_workspace, monkeypat
                         SimpleNamespace(WhisperModel=lambda *a, **k: pytest.fail("constructed without weights")))
     monkeypatch.setitem(sys.modules, "faster_whisper.utils", SimpleNamespace(download_model=download_model))
     result = transcribe.transcribe(Path("clip.mp4"))  # ordinary zing study: no local_files_only flag
-    assert resolved == [True] and result.words == []
-    assert any("never downloads" in w and "--speech-model" in w for w in result.warnings)
+    assert resolved == [] and result.words == []
+    assert any("not available locally" in w and "--speech-model large-v2 --yes" in w for w in result.warnings)
 
 
 def test_supplied_model_for_silent_clips_needs_consent_before_the_plan(inputs, monkeypatch):

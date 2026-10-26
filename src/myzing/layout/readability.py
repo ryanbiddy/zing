@@ -8,6 +8,59 @@ PHONE_MIN_SECONDS = .5
 READING_CPS = 20.0  # Same guidance as render.validation.CAPTION_MAX_CPS.
 
 
+def recover_placement(plan, caption, *, minimum=None, obstacles=None, masks=(), source_dimensions=None):
+    """Reserve a legible, inset text plate when subject avoidance is impossible.
+
+    Preserve collision evidence. Generated drafts may disclose subject overlap;
+    they never waive output bounds or the renderer's actual glyph-fit check.
+    """
+    from dataclasses import replace
+    from myzing.composition import CaptionStyle
+    from myzing.composition.aspects import SAFE_INSETS, aspect_for
+    from .types import Box, EventLayout, Keyframe
+    from .chooser import check_overlap
+    left, top, right, bottom = SAFE_INSETS[aspect_for(plan.width, plan.height)]
+    width = 1 - left - right - .02
+    height = min(.36, 1 - top - bottom - .02)
+    box = Box(left + .01, 1 - bottom - .01 - height, width, height)
+    if minimum is None:
+        minimum = phone_minimum(plan, caption, source_dimensions) if plan.brief and plan.brief.caption_mode == "phone" else 24.
+    style = caption.style or CaptionStyle(minimum, outline_width=2)
+    caption.style = replace(style, size=max(minimum, style.size), box_color="#111111", color="#FFFFFF")
+    from .types import OverlapCheck
+    if obstacles is None:
+        # A serialized old plan may lack the tracks used to place it. Retain
+        # its unsafe evidence; never certify new geometry from an empty probe.
+        prior = caption.layout.overlap if caption.layout else None
+        overlap = prior if prior and not prior.safe else OverlapCheck(
+            False, mask_names=["unmeasured-subject-avoidance"])
+        overlap = replace(overlap, method="prior-placement-only",
+                          scope="fallback plate unchecked; original face tracks/masks unavailable")
+        reason = "previous unsafe evidence retained" if prior and not prior.safe else "subject avoidance remains unverified"
+        warnings = [f"Caption {caption.id}: fallback plate face overlap is unmeasured because original "
+                    f"tracks/masks are unavailable; {reason}. Review this draft."]
+    else:
+        overlap = check_overlap([Keyframe(caption.start, box), Keyframe(caption.end, box)], list(obstacles), list(masks))
+        overlap = replace(overlap, scope="output fallback plate; supplied face tracks and original masks over caption interval")
+        warnings = []
+        if overlap.face_ids:
+            warnings.append(f"Caption {caption.id}: fallback plate overlaps face tracks "
+                            f"{', '.join(overlap.face_ids)} during {caption.start:g}-{caption.end:g}s (measured).")
+        if overlap.mask_names:
+            warnings.append(f"Caption {caption.id}: fallback plate overlaps reserved masks "
+                            f"{', '.join(overlap.mask_names)} (measured). Review this draft.")
+    caption.layout = EventLayout(caption.id, caption.start, caption.end, "readable-placement-fallback", overlap,
+                                box=box, warnings=warnings)
+    if caption.id in plan.accepted_unsafe_layouts:
+        plan.accepted_unsafe_layouts.remove(caption.id)
+    if not overlap.safe:
+        plan.accepted_unsafe_layouts.append(caption.id)
+    prefix = f"Caption {caption.id}: fallback plate "
+    plan.warnings[:] = [w for w in plan.warnings if not w.startswith(prefix)]
+    plan.warnings.extend(warnings)
+
+
+
 def phone_size(width, height, picture_width=None):
     """Minimum em size in output pixels for a 400px-wide phone presentation.
 

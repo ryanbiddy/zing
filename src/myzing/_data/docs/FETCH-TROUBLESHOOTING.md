@@ -10,7 +10,7 @@ Work top to bottom; each step is cheaper and safer than the next.
 ## 1. Update yt-dlp (fixes the most, costs nothing)
 
 ```
-python -m pip install -U yt-dlp
+python -m pip install -U "yt-dlp[default]"
 ```
 
 Platform extractors rot in weeks, not months. Doctor warns when your
@@ -27,10 +27,11 @@ winget install DenoLand.Deno        # Windows
 brew install deno                   # macOS
 ```
 
-Have node but not deno? yt-dlp won't use it unless you opt in — add
-`--js-runtimes node` to your yt-dlp config, or just install deno.
-(Symptom of this exact state: SOME YouTube videos 403 while others
-work, looking like an intermittent network problem.)
+Have Node but not Deno? Zing enables Node automatically for its own fetches,
+using yt-dlp's `js_runtimes` option. No user config edit is needed. Standalone
+`yt-dlp` commands still need `--js-runtimes node`. Keep the `[default]` extra:
+it includes the EJS solver scripts. A stale version is a warning with the upgrade
+command, not a degraded installation; missing runtime/solver support still is.
 
 ## 3. PO tokens via the bgutil provider plugin (flagged-IP relief)
 

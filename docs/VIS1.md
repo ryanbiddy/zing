@@ -22,9 +22,10 @@ source time, raw box, class, confidence and detector. These observations
 travel in director plan evidence and delivery `zing.subject_analysis` records.
 Different classes and detectors use separate tracks. YuNet and DOGFOOD1's
 face-fragment stitching remain in place; object tracks cannot become speakers.
-If a full-body region leaves no safe caption position inside a wide picture,
-the planner can use its existing upper or lower padding band. It still checks
-the caption's overlap before accepting that placement.
+Captions avoid faces and person-head regions during each caption's own
+interval. Full-body, object, pet and saliency regions do not block caption
+placement; a caption may sit over a body (as podcast clips usually do), and
+any overlap with a face or head is measured and disclosed in the plan.
 
 Photo memes and `zing still` use YOLOX detections as protected regions, with
 class names and model confidence in the render report and still index.

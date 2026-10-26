@@ -330,6 +330,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             mark_auto_declined(resolution, lowered[2])
     plan = Composition(assets=assets, clips=clips, captions=captions, audio=audio,
                        width=width, height=height, fps=Rational(30, 1), brief=deepcopy(brief))
+    caption_safety = {}
     if caption_mode in ("punch", "box", "clean"):
         from myzing.captions.presets import apply_preset
         # Clip paths are project-relative: resolve them so the VAD clamp runs.
@@ -341,7 +342,8 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
             place_captions(plan, {}, {})
     if source_dimensions:
         place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions,
-                       keep_safe_defaults=True)
+                       keep_safe_defaults=True, safety_context=caption_safety)
+    caption_warnings = list(plan.warnings)
     if music_tracks:
         from myzing.music.models import attach
         attach(plan, music_evidence)
@@ -382,7 +384,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     resolution_note = []
     if resolution["limited"] or resolution.get("auto_selected"):
         resolution_note = [resolution["summary"]]
-    notes = [*resolution_note, *recipe.warnings, *audio_notes, *framing_notes, *tail_notes,
+    notes = [*caption_warnings, *resolution_note, *recipe.warnings, *audio_notes, *framing_notes, *tail_notes,
              f"30 fps CFR and {width}x{height} ({brief.aspect}, short side {min(width, height)}) are delivery "
              "choices; framing needs review.",
              "Opening ranks use measured proxies, not semantic hook/visual-salience judgments.",
@@ -455,6 +457,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                     "src_out": c.src_out, "output_start": c.timeline_start,
                                     "output_end": c.timeline_end} for c in clips],
         "framing": [{"clip_id": c.id, "framing": c.framing.to_dict()} for c in clips if c.framing is not None],
+        "caption_safety": caption_safety,
         "subject_analysis": {key: {"tracks": [t.to_dict() for t in tracks], "warnings": warnings}
                              for key, (tracks, warnings) in subject_evidence.items()},
         "resolution": resolution,

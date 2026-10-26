@@ -176,14 +176,12 @@ def resolve_ytdlp_argv() -> list[str] | None:
     doctor's probe and study's fetch (S5 gate defect D-11: doctor
     accepted binary-OR-module while ingest ran the literal binary, so a
     module-only env got "fully ready" and then every study failed).
-    Binary on PATH wins; else the importable module runs through this
-    interpreter; None means yt-dlp is absent entirely."""
-    path = _which("yt-dlp")
-    if path:
-        return [path]
+    Prefer the interpreter's module, so fetch can supply Python options;
+    fall back to a standalone binary when no module is installed."""
     if _has_module("yt_dlp"):
         return [sys.executable, "-m", "yt_dlp"]
-    return None
+    path = _which("yt-dlp")
+    return [path] if path else None
 
 
 def _ytdlp_config_paths() -> list[Path]:
@@ -266,32 +264,8 @@ def _youtube_js_advice(
             "TikTok/Instagram URLs and local files still work"
         )
     elif js_runtime == "node":
-        # SW-3 (Lane A sweep): node on PATH is NOT enough — yt-dlp only
-        # enables deno by default; node needs explicit opt-in, and without
-        # it signature-challenge videos 403 while others pass, looking
-        # like an intermittent wall.
         node_config = _ytdlp_config_node_enabled()
-        if node_config is not None:
-            # D-13: the opt-in is already applied — say so, prescribe
-            # nothing.
-            note = f"; node JS runtime enabled via yt-dlp config ({node_config})"
-        else:
-            note = (
-                "; node found but yt-dlp only uses deno by default - "
-                "signature-challenge YouTube videos will 403 until configured"
-            )
-            fix = (
-                "add '--js-runtimes node' to your yt-dlp config, or install "
-                "deno (guide: " + _troubleshooting_ref() + ")"
-            )
-            degraded = (
-                "signature-challenge YouTube videos 403 until node is "
-                "enabled: no '--js-runtimes node' line in the standard "
-                "yt-dlp config locations doctor checks (a custom "
-                "--config-locations file is invisible to doctor - ignore "
-                "this if yours has the line); other platforms and local "
-                "files unaffected"
-            )
+        note = "; node JS runtime enabled automatically by Zing"
     # Audit #201 P1: runtime-without-solver reproduces as "n challenge
     # solving failed" on every YouTube fetch.
     has_solver = _has_module("yt_dlp_ejs")
@@ -339,7 +313,7 @@ def check_ytdlp(today: date | None = None) -> Check:
             f"version {version} is ~{age} days old - platform extractors "
             f"rot fast; TikTok/Instagram fetches may fail until updated"
         )
-        fix = "python -m pip install -U yt-dlp" + (
+        fix = 'python -m pip install -U "yt-dlp[default]"' + (
             f"   then: {js_fix}" if js_fix else ""
         )
     else:
@@ -355,7 +329,7 @@ def check_ytdlp(today: date | None = None) -> Check:
         detail=detail + js_note,
         fix=fix,
         degraded_mode=js_degraded,
-        mark="degraded" if js_degraded else "",
+        mark="degraded" if js_degraded else "warning" if stale else "",
         data={
             "version": version,
             "age_days": age,
@@ -370,12 +344,8 @@ def check_ytdlp(today: date | None = None) -> Check:
 
 def _whisper_model_name() -> str:
     """The model transcribe.py will actually load (same env override)."""
-    from .study import transcribe
-
-    return (
-        os.environ.get(transcribe.ENV_MODEL, "").strip()
-        or transcribe.DEFAULT_MODEL
-    )
+    from .study.speech_models import configured_name
+    return configured_name()
 
 
 def _whisper_cache() -> tuple[Path | None, bool]:
@@ -387,6 +357,9 @@ def _whisper_cache() -> tuple[Path | None, bool]:
 def check_whisper() -> Check:
     from .study import speech_models
     model = _whisper_model_name()
+    if model == "skip":
+        return Check(name="faster-whisper", tier=RECOMMENDED, ok=True,
+                     detail=speech_models.SKIP_NOTE, data={"model": "skip", "network_used": False})
     rows = speech_models.inventory()
     row = next(r for r in rows if r["model"] == model)
     installed = _has_module("faster_whisper")
@@ -412,8 +385,8 @@ def check_whisper() -> Check:
         # not the Hugging Face cache (often another volume, or absent).
         cache = speech_models.speech_root()
         data["cache"] = str(cache)
-        detail += f"; configured model '{model}' is not cached. Choose speech setup in zing studio or zing doctor --speech-model small.en"
-        fix = fix or "Run zing doctor --speech-model small.en (English, ~486 MB), or --speech-model large-v2 (multilingual, ~3.09 GB); confirm the download."
+        detail += "; " + speech_models.missing_message(model)
+        fix = fix or speech_models.missing_message(model)
         where = speech_models.existing_ancestor(cache)
         try:
             free = shutil.disk_usage(where).free / 1e9
@@ -898,6 +871,8 @@ def _verdict_line(checks: list[Check]) -> str:
             f"Verdict: ready for local-file study; {len(degraded)} feature(s) "
             f"degraded ({', '.join(degraded)}) - details below"
         )
+    if any(c.mark in ("warning", "degraded") for c in checks):
+        return "Verdict: ready, with warnings (details below)"
     return "Verdict: fully ready"
 
 
