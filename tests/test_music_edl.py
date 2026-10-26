@@ -17,7 +17,6 @@ from myzing.music import planning  # noqa: E402
 from myzing.music.ducking import duck_passages  # noqa: E402
 from myzing.music.models import MusicPlan  # noqa: E402
 from myzing.schemas import EDL  # noqa: E402
-from test_director import stub_default_ink  # noqa: E402
 
 REAL_PLAN_MUSIC = planning.plan_music
 
@@ -28,14 +27,12 @@ def music_project(tmp_path, zing_workspace, monkeypatch, request):
     analysis are stubbed (MUSIC1's own tests cover them); planning, lowering
     and publishing are real."""
     media = getattr(request, "param", False)
-    if not media:
-        # Caption placement measures default caption ink with FFmpeg/libass
-        # and, without them, places every caption (a layout v1 cannot carry).
-        # Use test_director's deterministic stand-in so these tests check the
-        # music split, not the host's FFmpeg; the media variant measures for real.
-        from myzing.layout import framing as layout_framing
-        monkeypatch.setattr(layout_framing, "measure_default_ink", stub_default_ink)
     root, _, _ = example_project(tmp_path / "project", media=media)
+    # This fixture tests v1 music export. Reference captions now need v2
+    # appearance/layout; request no captions for the legacy picture export.
+    brief_path = root / "brief.json"
+    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    brief_path.write_text(json.dumps({**brief, "caption_mode": "none"}), encoding="utf-8")
     bed = root / "clips" / "bed.wav"
     bed.write_bytes(b"RIFF stub")
 
@@ -66,7 +63,7 @@ def test_music_plans_export_v1_picture_and_dialogue_and_a_sidecar(music_project)
         assert v1["scope"].startswith("picture and dialogue")
         assert "audio[0].source_trim" in v1["blockers"]  # what a full v1 lowering could not keep
         edl = EDL.from_dict(json.loads(Path(result["v1_edls"][label]).read_text(encoding="utf-8")))
-        assert edl.audio == [] and edl.clips and edl.captions
+        assert edl.audio == [] and edl.clips and not edl.captions
         sidecar = json.loads(Path(result["music_sidecars"][label]).read_text(encoding="utf-8"))
         assert sidecar["kind"] == "zing.music_sidecar" and sidecar["version"] == 1
         assert sidecar["edl"] == f"plan-{label}.edl.json" and sidecar["plan"] == f"plan-{label}.json"
@@ -143,16 +140,11 @@ def test_other_blockers_still_block_the_derivative(music_project, monkeypatch):
     assert not any(path.name.endswith(".edl.music.json") for path in (music_project / "plans").iterdir())
 
 
-def test_unmeasurable_captions_still_block_the_music_derivative(music_project, monkeypatch):
-    """Without FFmpeg/libass (a lean install) captions are placed explicitly,
-    a layout EDL v1 cannot carry: no derivative and no sidecar, and the
-    comparison names those caption blockers next to the music ones."""
-    from myzing.layout import framing as layout_framing
-
-    def unmeasurable(*args, **kwargs):
-        raise OSError("FFmpeg is not on PATH")
-
-    monkeypatch.setattr(layout_framing, "measure_default_ink", unmeasurable)
+def test_reference_captions_block_the_music_derivative(music_project):
+    """A v1 export cannot silently discard reference appearance or layout."""
+    brief_path = music_project / "brief.json"
+    brief = json.loads(brief_path.read_text(encoding="utf-8"))
+    brief_path.write_text(json.dumps({**brief, "caption_mode": "reference"}), encoding="utf-8")
     result = plan_drafts(music_project, music_project / "recipe.json", music_project / "plans", seed=17)
     assert result["status"] == "ready" and result["v1_edls"] == {} and result["music_sidecars"] == {}
     comparison = json.loads(Path(result["comparison_path"]).read_text(encoding="utf-8"))

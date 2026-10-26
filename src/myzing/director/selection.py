@@ -64,7 +64,8 @@ def envelope(recipe: StyleRecipe) -> Envelope:
         min(set(positions), key=lambda p: (-positions.count(p), p)) if positions else "lower",
         {"pacing": "shot_durations" if durations else "unmeasured; 2s search default",
          "captions": "captions[]" if captions else "unmeasured; one word, original case, lower anchor",
-         "caption_events": len(captions), "shot_durations": durations},
+         "caption_events": len(captions), "shot_durations": durations,
+         "caption_word_counts": widths},
     )
 
 

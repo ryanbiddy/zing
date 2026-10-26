@@ -39,6 +39,20 @@ def normalize_words(words):
     out = []
     for index, word in enumerate(words):
         text = unicodedata.normalize("NFC", word.text.strip())
+        previous_text = out[-1].text if out else ""
+        # Glue detached clitics ("I" "'m") and compound hyphens ("well" "-" "known",
+        # "well" "-known"); never a finished possessive ("students'" "work"), a
+        # quote token ("'n'"), a dash after punctuation ("end." "-next") or "-5".
+        compound = (text == "-" and previous_text[-1:].isalnum()
+                    or (previous_text.endswith("-") and previous_text[-2:-1].isalnum() and text[:1].isalnum())
+                    or (len(text) > 1 and text[0] == "-" and text[1].isalpha() and previous_text[-1:].isalnum()))
+        if out and (text in ("'s", "’s", "'re", "’re", "'ve", "’ve", "'ll", "’ll", "'d", "’d", "'m", "’m", "n't", "n’t")
+                    or compound):
+            previous = out.pop()
+            merged = transform_word(previous, previous.start, max(previous.end, word.end),
+                                    "caption_attach_punctuation", attached=word.text)
+            out.append(replace(merged, text=previous.text + text))
+            continue
         if (out and text and not any(ch.isalnum() for ch in text)
                 and text not in "$£€¥₹" and index not in numeric
                 and not (text in (",", ".") and out[-1].text[-1:].isdigit())

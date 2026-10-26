@@ -145,6 +145,7 @@ def segment(frame, polygon: list[list[float]], text: str = ""):
         "edge_density": round(float(edges[inside].mean()), 6),
         "ink_density": round(float(fill.sum() / inside.sum()), 6),
         "stroke_fraction": round(float(np.quantile(distance, .75) * 2 / max(1, y1 - y0)), 6),
+        "stroke_to_ink_height": round(float(np.quantile(distance, .75) * 2 / (ys.max() - ys.min() + 1)), 6),
     }
     # Only homogeneous case runs support an observed cap/x-height estimate.
     # Mixed-case lines and joined/occluded glyphs keep these fields unknown.

@@ -88,28 +88,17 @@ def test_three_plans_are_deterministic_valid_distinct_and_word_safe(project, mon
         assert abs(evidence["match"]["median_shot_seconds"]["planned"] - 2) <= .2
         assert evidence["match"]["first_cut_seconds"]["status"] == "honored"
         assert evidence["match"]["first_caption_seconds"]["status"] == "honored"
-        assert median(len(c.words) for c in p.captions) == 4  # retain each complete clause
+        assert median(len(c.words) for c in p.captions) == 2  # reference cadence, independent of edit clauses
         assert evidence["continuity"]["score"] == 1
         assert abs(sum(c.all_caps for c in p.captions) / len(p.captions) - .5) <= .5 / len(p.captions)
         with pytest.raises(ValueError, match="brief"):
             lower_to_v1(p)  # Strict v2 lowering never silently discards evidence.
         legacy, blockers = render_projection(p)
-        # Square-pixel full-picture fit is the absent default, and captions whose
-        # preset position already clears subjects, content and output reserves
-        # keep no layout/style. Such plans stay representable as v1 EDLs.
-        assert not blockers
-        assert [(c.src, c.src_in, c.src_out) for c in legacy.clips] == [(c.src, c.src_in, c.src_out) for c in p.clips]
-        assert legacy.to_dict()["schema_version"] == 1
+        # Reference appearance and timed groups require the v2 renderer.
+        assert blockers and legacy is None
         assert all(c.framing is None for c in p.clips)
-        assert all(c.layout is None and c.style is None for c in p.captions)
-        for caption in p.captions:
-            from myzing.layout.framing import default_caption_box
-            from myzing.composition.aspects import SAFE_INSETS
-            box = default_caption_box(caption, p.width, p.height, stub_default_ink(caption, p.width, p.height))
-            left, top, right, bottom = SAFE_INSETS["16:9"]
-            assert box.x >= left and box.y >= top and box.right <= 1 - right and box.bottom <= 1 - bottom
-    assert len(result["v1_edls"]) == 3
-    assert all(Path(path).is_file() for path in result["v1_edls"].values())
+        assert all(c.layout is not None and c.style.box_color is None and c.word_timed for c in p.captions)
+    assert not result["v1_edls"]
 
 
 @pytest.mark.parametrize("kind,expected", [("length", "target_length"), ("missing", "must_keep_missing"),
@@ -220,6 +209,42 @@ def test_record_roundtrip_and_input_mutation_boundaries(project):
     assert all(p.read_bytes() == content for p, content in before.items())
 
 
+def test_source_text_geometry_survives_inventory_and_protects_only_card_shot(project):
+    from myzing.study.caption_geometry import CaptionGeometry, Detection, FrameSample
+    geometry = CaptionGeometry(8, [FrameSample(4.5, 4.5, .25, 135, 320, 180,
+        [Detection("What do you have to do to stand out from all the other applicants?", .95,
+                   [[.05,.15],[.95,.15],[.95,.7],[.05,.7]], [.05,.15,.95,.7])])])
+    geometry.write(project / "breakdowns" / "take-0")
+    studies, _ = inventory(project)
+    assert next(s for s in studies if s.asset_id == "take-0").text_geometry["frames"]
+    change_brief(project, framing="reframe", aspect="9:16", must_keep=[{"clip":"take-0", "start":4, "end":6}])
+    result = run(project)
+    assert result["status"] == "ready"
+    for plan in plans(result):
+        cards = [c for c in plan.clips if c.asset_id == "take-0" and c.src_in <= 4.5 < c.src_out]
+        assert cards and all(c.framing.mode == "blurfill" and c.framing.bounds.width == 320 for c in cards)
+        assert all(c.framing.picture.get("text_safety", {}).get("sample_times") == [4.5] for c in cards)
+        assert all(not (c.framing and c.framing.picture.get("text_safety")) for c in plan.clips
+                   if not (c.asset_id == "take-0" and c.src_in <= 4.5 < c.src_out))
+
+
+@pytest.mark.parametrize("requested", ["auto", "fit"])
+def test_small_lower_third_does_not_split_talking_head_fit_plan(project, requested):
+    from myzing.study.caption_geometry import CaptionGeometry, Detection, FrameSample
+    change_brief(project, framing=requested, aspect="16:9", caption_mode="none",
+                 must_keep=[{"clip":"take-0", "start":0, "end":6}])
+    before = plans(run(project, "before-lower-third"))
+    geometry = CaptionGeometry(8, [FrameSample(4.5,4.5,.25,135,320,180,
+        [Detection("Dr Jane Smith",.95,[[.1,.85],[.4,.85],[.4,.89],[.1,.89]],[.1,.85,.4,.89])])])
+    geometry.write(project / "breakdowns" / "take-0")
+    after = plans(run(project, "after-lower-third"))
+    def spans(plans):
+        return [[(c.asset_id,c.src_in,c.src_out,c.timeline_start) for c in p.clips] for p in plans]
+    assert spans(before) == spans(after)
+    assert any(c.src_out-c.src_in > 2 for p in after for c in p.clips if c.asset_id == "take-0")
+    assert all(c.framing is None or c.framing.mode == "fit" for p in after for c in p.clips)
+
+
 def test_cli_and_mcp_paths_and_shortage_envelope(project, capsys):
     from myzing.cli import main
     from myzing.mcp_server import h_plan_drafts
@@ -294,7 +319,7 @@ def test_recipe_timing_deviations_are_measured_and_named(project):
         assert any(d["metric"] == "first_caption_seconds" and d["reason"] for d in draft["deviations"])
 
 
-def test_pinned_font_substitution_survives_and_blocks_legacy(project):
+def test_unmeasured_regular_candidate_uses_disclosed_bold_and_blocks_legacy(project):
     from myzing.project.api import hash_file
     path = project / "recipe.json"
     recipe = json.loads(path.read_text(encoding="utf-8"))
@@ -305,8 +330,10 @@ def test_pinned_font_substitution_survives_and_blocks_legacy(project):
     write_json(path, recipe)
     result = run(project)
     assert result["status"] == "ready" and not result["v1_edls"]
+    from myzing.captions.metrics import font_asset
     for plan in plans(result):
-        assert all(c.font and c.font.sha256 == hash_file(font) for c in plan.captions)
+        assert all(c.font and c.font.sha256 == font_asset("clean").sha256 for c in plan.captions)
+        assert any("Estimated weight 700" in w and "not a font match" in w for w in plan.warnings)
     recipe["approximations"]["font_candidates"][0]["asset"] = None
     write_json(path, recipe)
     result = run(project)

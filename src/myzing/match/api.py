@@ -254,6 +254,12 @@ def _recipe(studied, audio, colors, path):
         recipe.measured.append(replace(main, name="color.sample_stats", value=sample_stats(color.reference),
                                        unit="per-sample CIELAB L* percentiles, a*/b* mean, chroma, contrast, tone_ab"))
     stats = evidence.geometry_stats(geometry)
+    from myzing.captions.reference import appearance
+    measured_appearance = appearance(geometry)
+    if measured_appearance:
+        recipe.measured.append(MeasuredFact("caption_appearance", measured_appearance, "sRGB; normalized stroke; alignment",
+                                           Coverage(len(geometry.get("frames", [])), None, "sampled caption-only OCR detections"),
+                                           None, recipe.reference))
     if stats:
         recipe.measured.append(MeasuredFact("caption_geometry.summary", stats, "normalized frame edges",
                                            Coverage(stats["samples"], None, "sampled caption tracks; temporal gaps unobserved"),
@@ -261,7 +267,7 @@ def _recipe(studied, audio, colors, path):
         recipe.unknowns = [u for u in recipe.unknowns if u.subject != "caption_geometry"]
     recipe.warnings += audio.get("warnings", [])
     if not candidates:
-        recipe.warnings.append("No pinned font candidate available; using the director's disclosed system font default.")
+        recipe.warnings.append("No pinned font candidate available; reference captions use a disclosed bundled substitute.")
     write(path, recipe.to_dict())
     return {"path": str(path), "outputs": [str(path)], "warnings": recipe.warnings}
 
@@ -443,7 +449,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 summary["shortages"].append({"code": "PREFLIGHT", "problems": [str(exc)]})
                 raise ValueError("Match preflight shortage: " + str(exc)) from exc
         reference_terms = vocabulary_context(terms, metadata={"title": resolved.get("title") or ""})["terms"]
-        ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps, reference_terms, trim],
+        ref_study = checkpoints.step("reference-study", [resolved["sha256"], caps, reference_terms, trim, "capref-lines-r1"],
                                      lambda: _study(resolved["path"], root / "reference", fonts=caps["fonts"], max_seconds=60, **trim,
                                                     **({"vocabulary": reference_terms} if reference_terms else {}), **speech))
         # Keep the existing brief recommendation and reference contracts useful.
@@ -464,7 +470,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             source = resolve_path(asset.path, root)
             sha = projects.hash_file(source)
             # The source-map method keys the study: a changed fine pass restudies.
-            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, context["cache_key"], "source-map-" + SOURCE_MAP_METHOD],
+            clips_studied[asset.id] = checkpoints.step("study-" + asset.id, [sha, caps, context["cache_key"], "source-map-" + SOURCE_MAP_METHOD, "capref-lines-r1"],
                                                       lambda source=source: _study(str(source), root, raw=True, **({"vocabulary": terms} if terms else {}), **speech))
             audio_maps[asset.id] = checkpoints.step("audio-" + asset.id, [sha, projects.hash_file(Path(clips_studied[asset.id]["path"])), caps, "audio-2.5-longform"],
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
@@ -476,7 +482,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
         ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.5-longform"],
                                      lambda: _audio(ref_study, caps["audio"]))
-        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v2-color2-samples"],
+        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, "text-roles-v4-capref-appearance"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json"))
         recipe = StyleRecipe.from_dict(read(recipe_result["path"]))
         summary["recipe"] = recipe_result["path"]
@@ -489,7 +495,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
                                                  "continuity-v6-longform-focus", repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
-                                                 "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
+                                                 "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", "capref-r1", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):
             summary["target_length"] = planned["summary"]["target_length"]
@@ -561,7 +567,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                       "reason": alternatives[label.split(".")[0]]}
             summary["drafts"][label] = row
             try:
-                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "clause-fit-v3-measured-fallback", "aspect-safe-layout-v4"],
+                prepared = checkpoints.step("plan-" + label, [projects.hash_file(Path(plan_path)), colors, caps, "capref-fit-v1", "aspect-safe-layout-v4"],
                     lambda p=plan_path, label=label: _prepare_plan(p, root / "drafts" / f"plan-{label}.json", colors, recipe, caps))
                 summary["warnings"].extend(prepared["warnings"])
                 row["plan"] = prepared["path"]
@@ -587,7 +593,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     return {"path": str(path), "outputs": [str(path)], "verification": result}
                 verified = checkpoints.step("decode-" + label, projects.hash_file(video), verify)
                 output_study = checkpoints.step("restudy-" + label, [projects.hash_file(video), caps,
-                                                                    "confirmed-cut-verification-" + SOURCE_MAP_METHOD],
+                                                                    "confirmed-cut-verification-" + SOURCE_MAP_METHOD, "capref-lines-r1"],
                                                 lambda: _study(str(video), root / "verification", verification=True, **speech))
                 timeline = video.with_suffix(".png")
                 inspected = checkpoints.step("inspect-" + label, [projects.hash_file(video), output_study, "transcript-review-v2-elide"],
@@ -629,7 +635,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     write(report_path, result)
                     return {"outputs": [str(report_path)], "dimensions": result["dimensions"],
                             "music": result["music"], "audio_measurements": result["audio_measurements"]}
-                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, skin, verified, prepared, rendered_result, inspected, "honest-ranges-color2-v3"], report)
+                matched = checkpoints.step("report-" + label, [recipe.to_dict(), output_study, output_color, skin, verified, prepared, rendered_result, inspected, "honest-ranges-capref-v4"], report)
                 row.update(status="ready", video=str(video), plan=prepared["path"], timeline=str(timeline) if inspected["outputs"] else None,
                            report=str(report_path), sha256=projects.hash_file(video), dimensions=matched["dimensions"],
                            music=matched.get("music"), audio_measurements=matched.get("audio_measurements"))

@@ -84,7 +84,19 @@ def test_conversational_selection_constraints_and_captions_share_boundaries():
         assert any(c.start <= selected_clause.start and c.end >= selected_clause.end for c in sequence)
         captions = captions_for(sequence, [clip], style(), recipe, None, brief)
         assert captions
-        assert all(c.text in {s.text for s in speech} and c.end - c.start <= 20 for c in captions)
+        # Reference captions group words to the reference band (one word when
+        # unmeasured, per the envelope default); each stays inside one source clause.
+        spans, offset = [], 0.
+        for trim in sequence:
+            spans.append((offset, offset + trim.end - trim.start, trim.start))
+            offset += trim.end - trim.start
+        def source(t, end=False):
+            # A start belongs to the trim it opens; an end to the trim it closes.
+            for a, b, s0 in spans:
+                if (a + 1e-6 < t <= b + 1e-6) if end else (a - 1e-6 <= t < b - 1e-6):
+                    return s0 + t - a
+        assert all(any(s.start - 1e-6 <= source(c.start) and source(c.end, True) <= s.end + 1e-6 for s in speech)
+                   and c.end - c.start <= 20 for c in captions)
 
 
 @pytest.mark.parametrize("cameras", [False, True])

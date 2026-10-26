@@ -46,13 +46,23 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
                                           part, subjects.get(clip.asset_id, []), max_upscale=max_upscale, fps=rate,
                                           speech_words=plan.speech_words, picture=(pictures or {}).get(clip.asset_id),
                                           policy=plan.brief.picture_crop if plan.brief else "auto")
+            safety = (clip.framing.picture if clip.framing else {}).get("text_safety", {})
+            if safety.get("samples"):
+                from .text_safety import protect_text
+                geometry = {"protected_samples": safety["samples"]}
+                part.framing = protect_text(part.framing, part, geometry, requested, width, height)
             clips.append(part)
     plan.clips = clips
     preset = next((c.preset for c in plan.captions if c.preset), None)
     if preset:
         from myzing.captions.presets import apply_preset
         apply_preset(plan, preset, vad=False)
-    place_captions(plan, subjects, source_dimensions)
+    if (plan.brief and plan.brief.caption_mode == "reference"
+            and any(w.startswith("CAPREF evidence: ") for w in plan.warnings)):
+        from myzing.captions.reference import place
+        place(plan, None, subjects, source_dimensions)
+    else:
+        place_captions(plan, subjects, source_dimensions)
     plan.warnings.append(f"Delivery {aspect_for(width, height)}: source framing and caption layout replanned; "
                          "generic UI reserves are conservative defaults, not a platform guarantee.")
     plan.__post_init__()

@@ -28,7 +28,8 @@ def test_repaired_clauses_render_and_raw_study_is_immutable(tmp_path, zing_works
     plan = Composition.from_json(Path(result["plans"]["A"]).read_text())
     plan.width, plan.height = 640, 360
     fit_captions(plan, tmp_path / "fit")
-    assert all(c.text.endswith(".") for c in plan.captions)
+    assert all(len(c.words) <= 2 and c.word_timed for c in plan.captions)
+    assert plan.captions[-1].text.endswith(".")  # the edit retains clauses; display groups follow the reference
     video = tmp_path / "draft.mp4"
     render_composition(plan, video)
     assert decode(video, plan)["full_decode"]
