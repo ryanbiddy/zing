@@ -36,6 +36,57 @@ def style():
                     {"shot_durations": [2., 3.4, 2.9, 3.1, 4.2, 2.6, 3.8]})
 
 
+def conversational_interview(duration):
+    clip = interview(duration)
+    for word in clip.words:
+        if word.text.startswith("line"):
+            sentence = int(word.text[4:])
+            if sentence % 2:
+                word.text = ("And", "But", "So")[(sentence // 2) % 3]
+    return clip
+
+
+def test_conversational_interview_produces_eight_bounded_moments():
+    clip = conversational_interview(600)
+    speech = clauses(clip.words)
+    sentences = sum(w.text.endswith(".") for w in clip.words)
+    assert len(speech) == (sentences + 1) // 2
+    assert all(c.complete and c.end - c.start <= 20 for c in speech)
+    rows = suggest_moments(clip, target=30, top=8)
+    assert len(rows) == 8
+    assert all(19.5 <= r["end"] - r["start"] <= 30 for r in rows)
+    assert all(r["start"] in {c.start for c in speech} and r["end"] in {c.end for c in speech} for r in rows)
+    assert all(a["end"] <= b["start"] or b["end"] <= a["start"]
+               for i, a in enumerate(rows) for b in rows[i+1:])
+
+
+def test_conversational_selection_constraints_and_captions_share_boundaries():
+    from types import SimpleNamespace
+    from myzing.director.plans import captions_for
+    from myzing.style_recipe import build_style_recipe
+
+    clip = conversational_interview(60)
+    speech = clauses(clip.words)
+    selected_clause = speech[len(speech) // 2]
+    brief = Brief(target_length_seconds=22, must_keep=[{
+        "clip": clip.asset_id, "start": selected_clause.start + .2, "end": selected_clause.end - .2}])
+    manifest = SimpleNamespace(assets=[SimpleNamespace(id=clip.asset_id, path=clip.path,
+                                                       original_path=clip.path, previous_paths=[])])
+    keep, forbidden = constraints(brief, manifest, [clip])
+    assert keep[clip.asset_id] == [(selected_clause.start, selected_clause.end)]
+    pool, required = candidates([clip], keep, forbidden, style(), 22)
+    assert pool and all(c.dangling_clauses == 0 for c in pool if c.word_count)
+    selected = choose(pool, required, [clip], style(), 22, 30, 0)
+    assert selected
+    recipe = build_style_recipe(Breakdown(VideoMeta("fixture", "file", duration=clip.duration),
+                                         words=clip.words, shots=clip.shots))
+    for sequence in selected.values():
+        assert any(c.start <= selected_clause.start and c.end >= selected_clause.end for c in sequence)
+        captions = captions_for(sequence, [clip], style(), recipe, None, brief)
+        assert captions
+        assert all(c.text in {s.text for s in speech} and c.end - c.start <= 20 for c in captions)
+
+
 @pytest.mark.parametrize("cameras", [False, True])
 def test_long_source_focus_contains_choices_and_respects_forbidden(cameras):
     from types import SimpleNamespace
