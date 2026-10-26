@@ -227,3 +227,28 @@ def test_real_models_on_licensed_images_and_blank():
             assert any(d.class_name == label for d in models[model].detect(image)), row["file"]
     for detector in models.values():
         assert detector.detect(np.zeros((360, 640, 3), np.uint8)) == []
+
+
+def test_person_head_region_blocks_captions_but_body_does_not():
+    # Grok R2: mediapipe-person-head tracks carry person ids/class names but are heads.
+    from myzing.composition import Composition, AssetRef, CompositionClip, CompositionCaption, CaptionStyle
+    from myzing.layout.caption_safety import is_face
+    from myzing.layout.framing import place_captions
+    head = build_tracks([FrameDetections(0, [Detection(Box(0, 0, 1, 1), .9, class_name="person", detector="mediapipe-person-head")])],
+                        duration=2, max_gap=2)
+    body = build_tracks([FrameDetections(0, [Detection(Box(0, 0, 1, 1), .9, class_name="person", detector="yolox-s-int8")])],
+                        duration=2, max_gap=2)
+    assert all(is_face(t) for t in head) and not any(is_face(t) for t in body)
+    plan = Composition(assets=[AssetRef("s", "source.mp4", None)],
+                       clips=[CompositionClip("source.mp4", 0, 2, 0, id="c", asset_id="s")],
+                       captions=[CompositionCaption(id="cap", text="We already", start=.2, end=1,
+                                                     word_timed=False, style=CaptionStyle(50))],
+                       width=1920, height=1080)
+    try:
+        place_captions(plan, {"s": head}, {"s": (1920, 1080)})
+    except Exception as exc:  # A refusal must name the head track.
+        assert head[0].id in str(exc)
+        return
+    layout = plan.captions[0].layout
+    assert not layout.overlap.safe and any(f.endswith(head[0].id) for f in layout.overlap.face_ids)
+    assert any("overlaps face tracks" in w and "measured" in w for w in layout.warnings)

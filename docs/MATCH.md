@@ -27,8 +27,9 @@ explicit `framing=reframe` face weights, speech when any input has audio, and
 output space before study. It reports one PREFLIGHT shortage with every detected
 problem and its fix. Metadata probes time out after two seconds per file; large
 folders take longer. URL/Uoink references get their audio check after acquisition,
-still before study. Output space reserves at least 1 GB or 10 MB per requested
-second for three drafts and intermediate files; this is an estimate, not a quota.
+still before study. Output space is estimated from the inputs (about four times
+the source sizes plus 64 MB): less than the sources plus 16 MB is refused, and
+less than the estimate is a warning. This is an estimate, not a quota.
 OCR, color, audio tagging, font matching and automatic face analysis are optional;
 missing measurements have disclosed fallbacks. `framing=fit` needs no face model.
 

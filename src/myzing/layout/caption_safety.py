@@ -1,7 +1,14 @@
 """Retain the exact output-coordinate obstacles used for each caption."""
 
 
+# Head regions from the person-head detector are faces even though their ids and
+# class names say "person"; bodies (yolox, HOG), objects and saliency do not block.
+HEAD_DETECTORS = ("mediapipe-person-head",)
+
+
 def is_face(track):
+    if any(o.detector in HEAD_DETECTORS for o in track.observations):
+        return True
     return not track.id.startswith(("person-", "object-", "saliency-")) and not any(
         o.class_name == "person" for o in track.observations)
 
