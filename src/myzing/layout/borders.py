@@ -25,12 +25,15 @@ def thin_border_bounds(frames):
             if not 1 <= count <= extent*.02 or profile[count:count+3].mean() < 40:
                 count = 0
             counts.append(count)
-        edges.append(min(counts) if min(counts) > 0 and max(counts)-min(counts) <= 1 else 0)
+        edge = min(counts) if min(counts) > 0 and max(counts)-min(counts) <= 1 else 0
+        # Crop whole even pixels without removing picture: an odd run rounds
+        # down unless the next pixel is a dark antialiased edge in every sample.
+        if edge % 2:
+            edge += 1 if all(p[edge] < 40 for p in profiles) else -1
+        edges.append(int(edge))
     top,bottom,left,right = edges
     if not any(edges):
         return None
-    # Step inward to whole even pixels, including a dark antialiased border row.
-    left,top,right,bottom = (int((n+1)//2*2) for n in (left,top,right,bottom))
     return left,top,w-left-right,h-top-bottom
 
 

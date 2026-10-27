@@ -182,7 +182,11 @@ def test_thin_source_border_requires_persistent_bright_interior():
     from myzing.layout.borders import thin_border_bounds
     frames = np.full((3,720,1280),100,dtype=np.uint8)
     frames[:,:5] = 0
+    # Five black rows round down to four; the luma-100 picture row stays.
+    assert thin_border_bounds(frames) == (0,4,1280,716)
+    frames[:,5] = 30  # a dark antialiased sixth row may go with the border
     assert thin_border_bounds(frames) == (0,6,1280,714)
+    frames[:,5] = 100
     frames[1,:5] = 100
     assert thin_border_bounds(frames) is None
     assert thin_border_bounds(np.zeros_like(frames)) is None
@@ -329,3 +333,20 @@ def test_delivery_rebuild_rechecks_band_and_vertical_geometry(monkeypatch):
     assert evidence['vertical_quality']['first_two_seconds_close']
     with pytest.raises(ValueError,match='Vertical quality'):
         adapt_plan(plan,1080,1920,{'a':(1280,720)},{'a':[face(0,1,.05)]},requested='reframe')
+
+
+def test_smooth_foreground_interior_loses_to_band_matching_clothing_under_chin():
+    np = pytest.importorskip('numpy')
+    from myzing.captions.bands import measure_band
+    # Dark clothing with a smooth bright object (a mic body) from 60% to 85%:
+    # taller than the dilation radius, so its 72% interior has no strong edges.
+    frame = np.full((480, 270, 3), 60, dtype=np.uint8)
+    frame[int(.60*480):int(.85*480)] = 200
+    strip = Box(.1, .40, .8, .02)
+    interior = measure_band([frame], Box(.1, .70, .8, .04), '#FFFFFF', strip)
+    clothing = measure_band([frame], Box(.1, .48, .8, .04), '#FFFFFF', strip)
+    assert interior['strong_edge_coverage'] == 0 and interior['edge_density'] == 0
+    assert interior['surface_mismatch'] == 1 and interior['clutter_score'] == 1
+    assert clothing['surface_mismatch'] == 0 and clothing['clutter_score'] < interior['clutter_score']
+    # Without a known chin there is no surface reference.
+    assert measure_band([frame], Box(.1, .70, .8, .04), '#FFFFFF')['surface_mismatch'] == 0

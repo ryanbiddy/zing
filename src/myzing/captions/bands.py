@@ -1,6 +1,7 @@
 """Draft-wide caption bands measured on sparse, cropped source frames.
 
-Clutter includes the area around strong edges, so smooth foreground objects
+Clutter includes the area around strong edges and, for vertical talking heads,
+how far a band's luma departs from the clothing under the chin, so smooth foreground objects
 with strong silhouettes cannot disappear into a low mean edge density.
 A band is clean at <=0.18. Readability uses the tenth percentile of linear
 sRGB luma contrast ratios; below 4.5:1 strengthen the permitted outline.
@@ -39,9 +40,15 @@ def sample_frame(source, time, framing_json, width, height):
     return np.frombuffer(result.stdout, dtype=np.uint8).reshape(sh, sw, 3)
 
 
-def measure_band(frames, box, fill):
+def measure_band(frames, box, fill, strip=None):
+    """Score one band; ``strip`` is the clothing just under the chin, when known.
+
+    A band whose median linear luma departs from that strip sits on a different
+    surface (a mic, desk or mug) even when its interior is smooth; a 0.2 luma
+    difference counts as fully cluttered.
+    """
     import numpy as np
-    clutter, contrasts, edges, textures, coverage = [], [], [], [], []
+    clutter, contrasts, edges, textures, coverage, mismatches = [], [], [], [], [], []
     rgb = np.array([int(fill[i:i+2], 16) for i in (1,3,5)]) / 255.
     def linear(x):
         return np.where(x <= .04045, x/12.92, ((x+.055)/1.055)**2.4)
@@ -71,14 +78,21 @@ def measure_band(frames, box, fill):
         texture = min(1., float(np.abs(luma-smooth).mean())/.10)
         background = linear(patch) @ np.array([.2126,.7152,.0722])
         ratio = (np.maximum(fill_luma, background)+.05)/(np.minimum(fill_luma, background)+.05)
-        clutter.append(max(.6*edge+.4*texture, covered))
+        mismatch = 0.
+        if strip is not None:
+            under_chin = frame[int(strip.y*h):max(int(strip.y*h)+1, int(strip.bottom*h)),
+                               int(strip.x*w):max(int(strip.x*w)+1, int(strip.right*w))].astype(float)/255.
+            delta = float(np.median(background)) - float(np.median(linear(under_chin) @ np.array([.2126,.7152,.0722])))
+            mismatch = min(1., abs(delta)/.2)
+        clutter.append(max(.6*edge+.4*texture, covered, mismatch))
         contrasts.append(float(np.percentile(ratio, 10)))
         edges.append(edge)
         textures.append(texture)
         coverage.append(covered)
+        mismatches.append(mismatch)
     # Worst sampled shot, rather than a median that hides one foreground mic.
     return {"clutter_score": max(clutter), "edge_density": max(edges), "texture": max(textures),
-            "strong_edge_coverage": max(coverage),
+            "strong_edge_coverage": max(coverage), "surface_mismatch": max(mismatches),
             "contrast_ratio": min(contrasts), "samples": len(frames)}
 
 
@@ -215,8 +229,10 @@ def place(plan, subjects, sizes, *, safety_context=None, frames=None):
     # Try a whole box below the lowest observed chin, with 0.5% frame clearance
     # in addition to the mapper's existing face padding.
     # Every candidate still passes the full face/mask collision check below.
-    below_face = (max(k.box.bottom for t in obstacles for k in t.keyframes) + .005 + height/2
-                  if obstacles and plan.width < plan.height else None)
+    chin = max((k.box.bottom for t in obstacles for k in t.keyframes), default=None)
+    below_face = chin + .005 + height/2 if chin is not None and plan.width < plan.height else None
+    # The clothing just under the chin is the surface captions should sit on.
+    strip = Box(x, min(chin + .005, .98), width, .02) if below_face is not None else None
     if below_face is not None:
         centers = sorted({*centers, below_face})
     masks = [Mask('top',Box(0,0,1,top)), Mask('bottom',Box(0,1-bottom,1,bottom))]
@@ -229,7 +245,7 @@ def place(plan, subjects, sizes, *, safety_context=None, frames=None):
             continue
         box = Box(x, center-height/2, width, height)
         check = check_overlap([Keyframe(0,box),Keyframe(max(c.timeline_end for c in plan.clips),box)], obstacles, masks)
-        values = [measure_band(frames, box, fill) for fill in {c.style.color for c in plan.captions}]
+        values = [measure_band(frames, box, fill, strip) for fill in {c.style.color for c in plan.captions}]
         scores = dict(values[0], contrast_ratio=min(v['contrast_ratio'] for v in values))
         candidates.append(dict(scores, center=center, box=box.to_dict(), safe=check.safe))
     safe = [c for c in candidates if c['safe']]
@@ -246,9 +262,11 @@ def place(plan, subjects, sizes, *, safety_context=None, frames=None):
         chosen = below_clean
     elif reference and clean:
         chosen = min(clean, key=lambda c:(abs(c['center']-preferred), c['clutter_score']))
-    elif below_candidate and below_candidate['clutter_score'] <= min(c['clutter_score'] for c in safe) + .15:
+    elif (below_candidate and below_candidate['clutter_score'] <= min(c['clutter_score'] for c in safe) + .15
+          and below_candidate['surface_mismatch'] <= min(c['surface_mismatch'] for c in safe) + 1e-9):
         # When every band is busy, keep text near the speaker if its measured
-        # edge coverage is within 15 percentage points of the best alternative.
+        # clutter is within 0.15 of the best alternative and no band matches
+        # the clothing under the chin more closely.
         chosen = below_candidate
     else:
         chosen = min(safe, key=lambda c:(c['clutter_score'], abs(c['center']-preferred)))
