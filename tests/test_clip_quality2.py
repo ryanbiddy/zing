@@ -227,6 +227,19 @@ def test_reference_clean_band_is_retained_and_white_shirt_gets_outline():
     assert len({c.layout.box.center[1] for c in plan.captions}) == 1
 
 
+def test_band_never_reserves_less_than_the_readability_floor():
+    np = pytest.importorskip('numpy')
+    from myzing.captions.bands import place
+    plan = caption_plan()
+    plan.width, plan.height = 640, 360
+    for c in plan.captions:
+        c.style = replace(c.style, size=11.5)  # a 1080p style scaled to a 360p short side
+    report = place(plan,{}, {},frames=[np.full((180,320,3),255,dtype=np.uint8)])
+    # Two wide lines at the 24 px floor exceed the 12% reserve, so the reserve binds.
+    assert report['status'] == 'Estimated'
+    assert plan.captions[0].layout.box.height == pytest.approx(.12)
+
+
 def test_clutter_moves_to_nearest_clean_face_safe_band():
     np = pytest.importorskip('numpy')
     from myzing.captions.bands import place

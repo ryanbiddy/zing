@@ -216,9 +216,10 @@ def place(plan, subjects, sizes, *, safety_context=None, frames=None):
     # The old 16%-high envelope was a search reserve, not visible caption ink.
     # Reserve actual line counts at the existing size plus strokes; do not make a face
     # collision inevitable by treating that oversized reserve as printed text.
+    # Never reserve less than the 24 px readability floor that fitting enforces.
     height = min(max(c.layout.as_path()[0].box.height for c in plan.captions),
-                 max((1.2*max(c.text.count('\n')+1, 1 if plan.width < plan.height else 2)*c.style.size + 2*max(c.style.outline_width,
-                      min(20.,c.style.size*(.14 if reference else .07 if c.preset == 'punch' else .05))) +
+                 max((1.2*max(c.text.count('\n')+1, 1 if plan.width < plan.height else 2)*max(c.style.size, 24.) + 2*max(c.style.outline_width,
+                      min(20.,max(c.style.size, 24.)*(.14 if reference else .07 if c.preset == 'punch' else .05))) +
                       (2*c.style.highlight_box_padding if c.style.highlight_box_color else 0))/plan.height
                      for c in plan.captions))
     width = min(max(c.layout.as_path()[0].box.width for c in plan.captions), 1-left-right)
