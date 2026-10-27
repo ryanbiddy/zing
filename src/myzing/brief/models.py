@@ -114,18 +114,20 @@ class Brief:
             raise BriefError("Unsupported Brief version; expected version 1. Upgrade Zing if needed.")
         for name in ("purpose", "audience", "platform", "caption_language"):
             setattr(self, name, text(getattr(self, name), name))
-        if self.aspect not in ("9:16", "1:1", "16:9"):
-            raise BriefError("aspect: choose 9:16, 1:1, or 16:9.")
+        if self.aspect not in ("9:16", "1:1", "16:9", "4:5"):
+            raise BriefError("aspect: choose 9:16, 4:5, 1:1, or 16:9.")
         if self.framing not in ("auto", "fit", "fill", "reframe", "zoomfill", "blurfill"):
             raise BriefError("framing: choose auto, fit, fill, reframe, zoomfill, or blurfill.")
-        if (not isinstance(self.aspects, list) or any(a not in ("16:9", "1:1", "9:16") for a in self.aspects)
+        if (not isinstance(self.aspects, list) or any(a not in ("16:9", "1:1", "9:16", "4:5") for a in self.aspects)
                 or len(set(self.aspects)) != len(self.aspects)):
-            raise BriefError("aspects: use a unique list of 16:9, 1:1, and/or 9:16.")
+            raise BriefError("aspects: use a unique list of 16:9, 1:1, 9:16, and/or 4:5.")
         if self.short_side != "auto" and (type(self.short_side) is not int or not 18 <= self.short_side <= 4320
                                           or self.short_side % 18):
             raise BriefError('short_side: use "auto" or a multiple of 18 from 18 to 4320 (1080 = full HD; '
                              '720 = 720x1280 at 9:16).')
         self.framing_max_upscale = number(self.framing_max_upscale, "framing_max_upscale")
+        if self.short_side != "auto" and "4:5" in [self.aspect,*self.aspects] and self.short_side % 8:
+            raise BriefError("4:5 short_side must be a multiple of 72 for exact even dimensions.")
         if not 1 <= self.framing_max_upscale <= 16:
             raise BriefError("framing_max_upscale: choose a linear enlargement limit from 1 to 16.")
         self.target_length_seconds = number(self.target_length_seconds, "target_length_seconds")

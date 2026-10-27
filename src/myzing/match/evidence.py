@@ -203,6 +203,8 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
     return {"version": 1, "color_mode": recipe.color_mode, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
             "music": planning.get("music"), "audio_measurements": audio_measurements,
             "search_windows": planning.get("search_windows", {}),
+            "vertical_quality": planning.get("vertical_quality", {}),
+            "caption_band": planning.get("caption_band", {}),
             "source_pacing": source_pacing, "text_roles": output_roles,
             "pacing_flag": {"miss": "unmet", "pass": "met", "not_applicable": "not_applicable"}.get(
                 dimensions["shot_pace"]["status"], "unverified"),

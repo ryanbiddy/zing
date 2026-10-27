@@ -136,7 +136,7 @@ def test_invalid_interactive_answer_reasked_in_place(project, monkeypatch, capsy
     monkeypatch.setattr(sys, "stdin", io.StringIO("\n".join(lines) + "\n"))
     assert cli.main(["brief", "new", str(project)]) == 0
     output = capsys.readouterr().out
-    assert "aspect: choose 9:16, 1:1, or 16:9" in output
+    assert "aspect: choose 9:16, 4:5, 1:1, or 16:9" in output
     assert "ends at 8 s" in output
     assert output.count("Please try that answer again") == 2
     assert brief_api.load_brief(project / "brief.json").exact_spellings == answers()["exact_spellings"]

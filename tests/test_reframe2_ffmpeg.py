@@ -131,6 +131,26 @@ def test_generated_rocket_top_survives_forced_crop(tmp_path):
     assert (red.sum(axis=(1, 2)) > 10).all()
 
 
+def test_thin_source_border_removed_with_face_near_top(tmp_path):
+    from myzing.layout.picture import select_picture_framing
+    source = tmp_path / 'border.mkv'
+    ffmpeg('-f','lavfi','-i','color=c=0x999999:s=640x360:r=30:d=1,'
+           'drawbox=x=0:y=0:w=640:h=4:color=black:t=fill,'
+           'drawbox=x=300:y=4:w=40:h=70:color=red:t=fill','-c:v','ffv1',source)
+    plan = plan_for(source,180,320)
+    face = FaceTrack('face',[Keyframe(0,Box(300/640,4/360,40/640,70/360)),
+                            Keyframe(1,Box(300/640,4/360,40/640,70/360))])
+    f = select_picture_framing('reframe',640,360,180,320,plan.clips[0],[face])
+    assert f.bounds.y == 4 and f.center_y-f.height/2 == 4
+    assert f.picture['kind'] == 'thin-source-border'
+    plan.clips[0].framing = f
+    output = tmp_path/'border-free.mp4'
+    render_composition(plan,output)
+    frames = pixels(output,180,320)
+    assert (frames[:,:3].mean(axis=(1,2,3)) > 70).all()
+    assert (frames[:,:3,80:100,0].mean(axis=(1,2)) > 180).all()
+
+
 @pytest.mark.parametrize('aspect', ['16:9', '1:1', '9:16'])
 def test_caption_contrast_and_ui_clearance_on_busy_generated_background(tmp_path, aspect):
     source = tmp_path / 'busy.mkv'

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from statistics import median
 
 from myzing.brief.models import Brief
@@ -182,6 +182,7 @@ class Candidate(Record):
     covers: int = 0
     version: int = 1
     dangling_clauses: int = 0
+    close_share: float = field(default=0.0, metadata={"omit_default": True})
 
     @property
     def duration(self):
@@ -517,7 +518,7 @@ def band_distance(value, band):
 
 
 def choose(pool, required, studies, style, target, fps, seed, *, allow_reordering=False,
-           timing_evidence=None, prefer_bands=True, preferred_a=None):
+           timing_evidence=None, prefer_bands=True, preferred_a=None, quality=None):
     """Beam search, with no repeats/overlapping source use and stable tie breaks.
 
     Failure is explicitly bounded-search failure, not a proof that no possible
@@ -544,10 +545,10 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
 
     def editorial(c, mode):
         if mode == "A":
-            return (-c.keeper, -c.word_count / c.duration, tie(c))
+            return (-c.close_share, -c.keeper, -c.word_count / c.duration, tie(c))
         if mode == "B":
-            return (-c.keyframe, c.word_count / c.duration, -c.keeper, tie(c))
-        return (-bool(c.covers), c.word_count, c.duration, tie(c))
+            return (-c.close_share, -c.keyframe, c.word_count / c.duration, -c.keeper, tie(c))
+        return (-c.close_share, -bool(c.covers), c.word_count, c.duration, tie(c))
 
     def metrics(seq):
         durations = shot_lengths(seq, studies)
@@ -562,7 +563,7 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
         return errors
 
     complete, speechless_complete = {}, {}
-    if preferred_a is not None:
+    if preferred_a is not None and (quality is None or quality(preferred_a)):
         indices = tuple(pool.index(c) for c in preferred_a)
         complete[(indices[0], tuple(sorted(indices)))] = preferred_a
     # Preserve a feasible whole-footage edit before pace ranking prunes the
@@ -578,14 +579,15 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
         whole.append(i)
         ends[c.content] = c.end
         covered |= c.covers
-    if whole and covered == needed and abs(sum(pool[i].duration for i in whole) - target) <= tolerance + EPS:
+    if whole and covered == needed and abs(sum(pool[i].duration for i in whole) - target) <= tolerance + EPS and (quality is None or quality([pool[i] for i in whole])):
         complete[(whole[0], tuple(sorted(whole)))] = [pool[i] for i in whole]
     bucket_count = len({(c.content, c.shot) for c in pool})
     # All openings compete; distinct opening buckets stop one appealing line
     # consuming the entire beam before B or C has an alternative.
     for mode in "ABC":
         ordered = sorted(range(len(pool)), key=lambda i: editorial(pool[i], mode))
-        frontier = [((i,), pool[i].covers, pool[i].duration) for i in ordered]
+        frontier = [((i,), pool[i].covers, pool[i].duration) for i in ordered
+                    if quality is None or quality([pool[i]])]
         for step in range(min(MAX_STEPS, len(pool))):
             live = []
             for indices, mask, duration in frontier:
@@ -608,7 +610,8 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                 band_rank = (opening_distance > EPS, opening_distance, pace_distance > EPS, pace_distance)
                 return (max(0, duration + remaining_keep - target - tolerance),
                         (needed ^ (mask & needed)).bit_count(),
-                        sum(c.dangling_clauses for c in seq), *(band_rank if prefer_bands else ()),
+                        sum(c.dangling_clauses for c in seq),
+                        -sum(c.close_share*c.duration for c in seq)/duration, *(band_rank if prefer_bands else ()),
                         sum(error), abs(target - duration), editorial(seq[0], mode), indices)
 
             live.sort(key=rank)
@@ -652,7 +655,8 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                                     and not any(abs(s.start - finish.start) < EPS for s in by_id[c.asset_id].shots[1:]))
                         if not (overlap or reversed_source or adjacent):
                             completed = [*seq, finish]
-                            speechless_complete[edit_key(completed, fps)] = completed
+                            if quality is None or quality(completed):
+                                speechless_complete[edit_key(completed, fps)] = completed
                     if duration + c.duration > target + tolerance + EPS:
                         continue
                     if any(c.content == pool[j].content and overlaps((c.start, c.end), (pool[j].start, pool[j].end))
@@ -667,6 +671,8 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
                             and not any(abs(s.start - c.start) < EPS for s in by_id[c.asset_id].shots[1:])):
                         continue
                     new = (*indices, i)
+                    if quality is not None and not quality([pool[j] for j in new]):
+                        continue
                     key = (indices[0], tuple(sorted(new)))
                     next_states.setdefault(key, (new, mask | c.covers, duration + c.duration))
             frontier = list(next_states.values())
@@ -693,7 +699,8 @@ def choose(pool, required, studies, style, target, fps, seed, *, allow_reorderin
             prefix = (*timing_rank(seq), errors[2] > 1 / fps + EPS)
         # Timing feasibility precedes caption onset and opening variety. When
         # no in-band choice survives, minimize distance from the bands first.
-        return (sum(c.dangling_clauses for c in seq), *prefix, sum(errors),
+        return (sum(c.dangling_clauses for c in seq),
+                -sum(c.close_share*c.duration for c in seq)/duration, *prefix, sum(errors),
                 duration if mode == "C" else abs(target - duration),
                 editorial(seq[0], mode), sum(c.word_count for c in seq) if mode == "C" else 0,
                 tuple(c.identity for c in seq))

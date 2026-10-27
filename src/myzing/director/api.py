@@ -156,10 +156,29 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                            for key, start, end in required):
             shortage("visual_quality", "No usable candidate remains, or a required span is mostly face-free or a graphic slate.",
                      "Choose a moment with a visible face/head or another source shot.")
+        from .vertical_quality import VerticalQuality
+        from myzing.render.framing import display_dimensions
+        sizes = {}
+        for asset in manifest.assets:
+            probe = asset.probe
+            if probe and probe.width and probe.height:
+                stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
+                sizes[asset.id] = display_dimensions({"width": probe.width, "height": probe.height,
+                                                     "tags": {"rotate": probe.rotation}, **stream})
+        vertical = VerticalQuality(clips, subject_evidence, sizes, brief,
+                                   pool + initial_pool, required)
+        pool, wide_exclusions = vertical.filter(pool, clips, required)
+        initial_pool, _ = vertical.filter(initial_pool, clips, initial_required)
+        for key, spans in wide_exclusions.items():
+            forbidden[key] = merge(forbidden.get(key, []) + spans)
+        report["vertical_selection"] = {"changes": vertical.actions, "warnings": vertical.warnings}
+        if vertical.enabled and not pool:
+            shortage("edit_constraints", "The vertical face-size gate removed every candidate: faced wide runs exceed 1s.",
+                     "Choose a closer source shot or a nonvertical plan aspect.")
         try:
             initial = choose(initial_pool, initial_required, clips, style, brief.target_length_seconds, 30, seed,
                              allow_reordering="[allow source reordering]" in brief.purpose.casefold(),
-                             prefer_bands=False)["A"]
+                             prefer_bands=False, quality=vertical.valid)["A"]
             lengths = shot_lengths(initial, clips)
             values = ((style.first_cut, lengths[0] if len(lengths) > 1 else None),
                       (style.median_shot, median(lengths)))
@@ -173,7 +192,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
         timing_evidence = {}
         selected = choose(pool, required, clips, style, brief.target_length_seconds, 30, seed,
                           allow_reordering="[allow source reordering]" in brief.purpose.casefold(),
-                          timing_evidence=timing_evidence, preferred_a=preferred_a)
+                          timing_evidence=timing_evidence, preferred_a=preferred_a, quality=vertical.valid)
         # Decode used sources for framing and caption safety. This is local layout
         # analysis, with no study/ASR, model downloads, or reference lookup.
         from myzing.layout.framing import analyze_subjects
@@ -225,6 +244,11 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 evidence["continuity"] = {"version": 1, "status": "unavailable", "score": None, "basis": SKIP_NOTE}
                 evidence["captions"] = {"status": "unavailable", "basis": SKIP_NOTE}
                 plan.warnings.append(SKIP_NOTE)
+            evidence["vertical_quality"] = vertical.report(plan, subject_evidence, sizes)
+            if evidence["vertical_quality"]["violations"]:
+                shortage("vertical_quality", "Final framing changed the selected edit beyond the vertical face-size limits.",
+                         "Choose another close-shot moment or framing policy; required wide spans remain exempt.")
+            evidence["warnings"].extend(vertical.warnings)
             evidence["audio_moment_candidates"] = [
                 {"asset_id": c.asset_id, **moment}
                 for c in clips if c.status == "ready"
@@ -283,7 +307,7 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
     protected.update(resolve_path(a.path, root).resolve() for a in manifest.assets)
     protected.update(Path(c.study_path).resolve() for c in clips if c.study_path)
     report["warnings"] = [w for p in report["plans"].values() for w in p["warnings"]
-                          if w.startswith("Forced reframe retained")]
+                          if w.startswith(("Forced reframe retained", "Vertical must_keep retained"))]
     _publish(output, payloads, report, protected)
     return {"status": report["status"], "comparison_path": str(output / "comparison.json"),
             "plans": {label: str(output / f"plan-{label}.json") for label in report["plans"]},

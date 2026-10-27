@@ -150,6 +150,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Render positioned word captions | [V2 rendering](docs/RENDER-V2.md): verified assets and fonts, ASS positions/paths, word highlights and layout safety acceptance; unsupported v2 effects fail before rendering. V1 rendering stays compatible. |
 | Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans (similar ones or a labeled out-of-timing alternative, never a duplicate, when few fit the reference timing) or a named shortage, with v1 EDL derivatives where supported. |
 | Keep speech complete | [Continuity and ASR repair](docs/CONTINUITY.md): clause boundaries, source order, bounded timing estimates, text roles and separate render/style status. |
+| Improve vertical drafts | [CLIPQ2](docs/CLIPQ2.md): close-shot gates, sampled caption bands, display-only stutter cleanup, and NASA re-plan instructions. |
 | Choose and place music | [Music advice and editing](docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
 | Connect an AI or Uoink | [Connect](docs/CONNECT.md): 37 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |

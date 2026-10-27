@@ -216,6 +216,16 @@ def select_picture_framing(requested, sw, sh, width, height, clip, tracks, *, pi
         reason = (picture or {}).get("reason", "picture evidence unavailable")
         raise ValueError("Crop to live picture requested, but no confident static frame was detected: " +
                          reason + "; inspect source or use --picture-crop off")
+    if policy != "off" and requested in ("reframe", "fill") and not (picture and picture.get("confident")):
+        try:
+            from .borders import sample_border_bounds
+            border = sample_border_bounds(clip.src, clip.src_in, clip.src_out, sw, sh)
+        except ImportError:
+            border = None
+        if border:
+            picture = {"confident": True, "confidence": 1., "bounds_pixels": list(border),
+                       "kind": "thin-source-border", "sample_count": 3,
+                       "reason": "Thin black source border measured in three frames; crop shifted inside the live pixels."}
     if policy == "off" or not picture or not picture.get("confident"):
         return select_framing(requested, sw, sh, width, height, clip, tracks, **kwargs)
     tracks = [_used_track(t, clip) for t in tracks

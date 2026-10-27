@@ -26,7 +26,8 @@ def test_repaired_clauses_render_and_raw_study_is_immutable(tmp_path, zing_works
     comparison = json.loads(Path(result["comparison_path"]).read_text())
     assert all(p["continuity"]["score"] == 1 for p in comparison["plans"].values())
     plan = Composition.from_json(Path(result["plans"]["A"]).read_text())
-    plan.width, plan.height = 640, 360
+    # Render at the planned size: caption bands are measured for it, and a
+    # raw resize skips the delivery rebuild that re-places them.
     fit_captions(plan, tmp_path / "fit")
     assert all(len(c.words) <= 2 and c.word_timed for c in plan.captions)
     assert plan.captions[-1].text.endswith(".")  # the edit retains clauses; display groups follow the reference

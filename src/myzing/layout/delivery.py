@@ -63,6 +63,39 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
         place(plan, None, subjects, source_dimensions)
     else:
         place_captions(plan, subjects, source_dimensions)
+    # Delivery rebuilds reference geometry and can change the crop even when
+    # the requested aspect matches the director. Recheck CLIPQ2 evidence here.
+    import json
+    from myzing.director.plans import REPORT_PREFIX
+    evidence = next((json.loads(w[len(REPORT_PREFIX):]) for w in plan.warnings
+                     if w.startswith(REPORT_PREFIX)), {})
+    if "vertical_quality" in evidence or "caption_band" in evidence:
+        from myzing.captions.bands import place as place_bands
+        from myzing.director.vertical_quality import VerticalQuality
+        from myzing.layout.caption_safety import is_face
+        from myzing.brief.models import Brief
+        required = [(key,a,b) for key,spans in evidence.get('constraints',{}).get('must_keep_word_safe',{}).items()
+                    for a,b in spans]
+        gate = VerticalQuality([],{}, {},plan.brief or Brief(aspect=aspect_for(width,height)),[],required)
+        gate.protected_required = evidence.get('vertical_quality',{}).get('protected_required', required)
+        gate.rows = {key:[] for key,tracks in subjects.items() if any(is_face(t) for t in tracks)}
+        gate.actions = evidence.get('vertical_quality',{}).get('candidate_changes',[])
+        evidence['vertical_quality'] = gate.report(plan,{k:(v,[]) for k,v in subjects.items()},source_dimensions)
+        if evidence['vertical_quality']['violations']:
+            raise ValueError('Vertical quality: delivery crop fails face-height/opening limits; choose a different close-shot edit.')
+        plan.warnings[:] = [w for w in plan.warnings if not w.startswith('Estimated caption band:')]
+        safety = {}
+        evidence['caption_band'] = place_bands(plan,subjects,source_dimensions,safety_context=safety)
+        if evidence['caption_band']['status'] == 'no safe band':
+            raise ValueError('Caption band: no face-safe fixed band in this delivery; choose another shot or caption style.')
+        evidence['caption_safety'] = safety
+        evidence['source_output_mappings'] = [
+            {'clip_id':c.id,'asset_id':c.asset_id,'src_in':c.src_in,'src_out':c.src_out,
+             'output_start':c.timeline_start,'output_end':c.timeline_end} for c in plan.clips]
+        evidence['framing'] = [{'clip_id':c.id,'framing':c.framing.to_dict()} for c in plan.clips if c.framing]
+        plan.warnings.extend(gate.warnings)
+        evidence['warnings'] = [w for w in plan.warnings if not w.startswith(REPORT_PREFIX)]
+        plan.warnings = [*evidence['warnings'],REPORT_PREFIX+json.dumps(evidence,sort_keys=True)]
     plan.warnings.append(f"Delivery {aspect_for(width, height)}: source framing and caption layout replanned; "
                          "generic UI reserves are conservative defaults, not a platform guarantee.")
     plan.__post_init__()

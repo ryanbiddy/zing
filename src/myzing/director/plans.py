@@ -87,7 +87,9 @@ def captions_for(sequence, studies, style, recipe, font, brief, *, phone=False):
     lookup = {s.asset_id: s for s in studies}
     groups, cursor = [], 0.0
     for c in sequence:
-        source_words = lookup[c.asset_id].words
+        from myzing.captions.stutters import collapse
+        source_words = collapse([w for w in lookup[c.asset_id].words
+                                 if w.start >= c.start - EPS and w.end <= c.end + EPS])
         if not phone and getattr(brief, "caption_mode", "reference") == "reference":
             from myzing.captions.presets import normalize_words
             source_words = normalize_words(source_words)
@@ -373,6 +375,12 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     elif source_dimensions:
         place_captions(plan, {key: value[0] for key, value in subject_evidence.items()}, source_dimensions,
                        keep_safe_defaults=True, safety_context=caption_safety)
+    from myzing.captions.bands import place as place_bands
+    caption_band = place_bands(plan, {key: value[0] for key, value in subject_evidence.items()},
+                               source_dimensions, safety_context=caption_safety)
+    if caption_band["status"] == "no safe band":
+        shortage("caption_band", "No fixed caption band clears the measured faces within the style's allowed region.",
+                 "Choose another shot, a moving caption style, or disable captions.")
     caption_warnings = [w for w in plan.warnings if not w.startswith("CAPREF evidence: ")]
     if music_tracks:
         from myzing.music.models import attach
@@ -501,6 +509,7 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                     "output_end": c.timeline_end} for c in clips],
         "framing": [{"clip_id": c.id, "framing": c.framing.to_dict()} for c in clips if c.framing is not None],
         "caption_safety": caption_safety,
+        "caption_band": caption_band,
         "subject_analysis": {key: {"tracks": [t.to_dict() for t in tracks], "warnings": warnings}
                              for key, (tracks, warnings) in subject_evidence.items()},
         "resolution": resolution,
