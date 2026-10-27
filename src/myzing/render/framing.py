@@ -74,6 +74,14 @@ def _expression(framing, axis, rate):
     return select(0, len(pieces) - 1)
 
 
+def _bounded_expression(framing, axis, rate):
+    """Clamp after interpolation as well as in the planner, on both axes."""
+    b = framing.bounds
+    low, extent, size = ((b.x,b.width,framing.width) if axis == 'center_x'
+                         else (b.y,b.height,framing.height))
+    return f"clip({_expression(framing,axis,rate)},{_number(low)},{_number(low+extent-size)})"
+
+
 def framing_filter(framing, width, height, rate, label="framing"):
     normal = "" if framing is None else f"scale={framing.source_width}:{framing.source_height},setsar=1,"
     if framing is not None and framing.mode in ("fit", "blurfill") and framing.picture:
@@ -91,7 +99,7 @@ def framing_filter(framing, width, height, rate, label="framing"):
         bw, bh = max(2, width // 4), max(2, height // 4)
         foreground_crop = ""
         if framing.mode == "zoomfill":
-            x, y = (_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
+            x, y = (_bounded_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
             foreground_crop = f"crop=w={framing.width}:h={framing.height}:x='{x}':y='{y}':exact=1,"
         background_crop = ""
         if framing.mode == "zoomfill" and framing.picture:
@@ -118,7 +126,7 @@ def framing_filter(framing, width, height, rate, label="framing"):
                 # concat/fps drops the last frame despite overlay emitting it.
                 f"[{label}_back][{label}_front]overlay=x={ox}:y={oy}:eof_action=repeat:shortest=0:repeatlast=1:format=yuv420,"
                 f"setsar=1,format=yuv420p,settb=expr=1/({rate}),setpts=N")
-    x, y = (_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
+    x, y = (_bounded_expression(framing, axis, rate) for axis in ("center_x", "center_y"))
     # exact=1 avoids chroma-subsampling rounding of crop size/origin. The final
     # output is even yuv420p. Explicit display dimensions handle SAR/autorotate.
     return (f"scale={framing.source_width}:{framing.source_height},setsar=1,"

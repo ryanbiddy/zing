@@ -499,7 +499,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
-                                                 "clip-quality-r2", color, repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
+                                                 "clip-quality-r3", color, repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
                                                  "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", "capref-r1", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):

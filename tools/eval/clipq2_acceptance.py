@@ -58,11 +58,21 @@ def main():
         'drafts':{label:{'source_spans':row['source_output_mappings'],
                          'vertical_quality':row['vertical_quality'],'caption_band':row['caption_band']}
                   for label,row in report['plans'].items()}}
+    for row in acceptance['drafts'].values():
+        band = row['caption_band']
+        box = band.get('box', {})
+        row['caption_box_outside_60_to_82_percent'] = bool(box) and (
+            box['y']+box['height'] <= .60 or box['y'] >= .82)
+        row['runner_up_bands_by_clutter'] = sorted(
+            [c for c in band.get('candidates', []) if c['safe'] and c['center'] != band.get('center')],
+            key=lambda c:(c['clutter_score'],abs(c['center']-band['preferred_center'])))[:3]
     (args.out/'acceptance.json').write_text(json.dumps(acceptance,indent=2),encoding='utf-8')
     print(json.dumps({k:v for k,v in acceptance.items() if k!='drafts'},indent=2))
     for label,row in acceptance['drafts'].items():
         print(label,json.dumps({'shots':row['vertical_quality']['shots'],
                                'opening':row['vertical_quality']['first_two_seconds_close'],
+                               'caption_box_outside_60_to_82_percent':row['caption_box_outside_60_to_82_percent'],
+                               'runner_up_bands_by_clutter':row['runner_up_bands_by_clutter'],
                                'band':{k:v for k,v in row['caption_band'].items() if k!='candidates'}}))
 
 

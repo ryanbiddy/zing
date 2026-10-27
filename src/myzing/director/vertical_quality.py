@@ -68,6 +68,7 @@ class VerticalQuality:
     def __init__(self, studies, subjects, sizes, brief, pool, required):
         self.rows, self.actions, self.warnings = {}, [], []
         self.required = required
+        self.protected_required = list(required)
         self.enabled = brief.aspect in ("9:16", "4:5")
         if not self.enabled:
             return
@@ -91,7 +92,8 @@ class VerticalQuality:
             self.rows[study.asset_id] = rows
 
     def required_at(self, key, start, end):
-        return any(k == key and overlaps((start, end), (a, b)) for k, a, b in self.required)
+        return any(k == key and overlaps((start, end), (a, b))
+                   for k, a, b in [*self.required, *self.protected_required])
 
     @lru_cache(maxsize=10000)
     def parts(self, candidate):
@@ -100,17 +102,33 @@ class VerticalQuality:
                 if overlaps((r['start'], r['end']), (candidate.start, candidate.end))]
 
     def filter(self, pool, studies, required):
+        from .continuity import clauses
+        # The exclusion and the gate must protect the same whole speech unit.
+        # Protecting only the raw interval lets inward clause snapping erase it.
+        for study in studies:
+            for clause in clauses(study.words):
+                if any(k == study.asset_id and overlaps((a, b), (clause.start, clause.end))
+                       for k, a, b in required):
+                    span = (study.asset_id, clause.start, clause.end)
+                    if span not in self.protected_required:
+                        self.protected_required.append(span)
+        self.gates.cache_clear()
         excluded = {}
         for key, rows in self.rows.items():
             bad = merge([(r['start'], r['end']) for r in rows if r['bad']])
-            required_spans = [(a, b) for k, a, b in required if k == key]
+            required_spans = [(a, b) for k, a, b in self.protected_required if k == key]
             excluded[key] = subtract([(a, b) for a, b in bad if b-a > 1 + EPS], required_spans)
+        result = filter_candidates(pool, excluded, studies, required)
+        for key, rows in self.rows.items():
+            bad = merge([(r['start'], r['end']) for r in rows if r['bad']])
             for a, b in bad:
-                if b-a > 1 + EPS and self.required_at(key, a, b):
+                retained = any(c.asset_id == key and c.start <= x + EPS and c.end >= y - EPS
+                               and overlaps((a, b), (x, y))
+                               for k, x, y in required if k == key for c in result)
+                if b-a > 1 + EPS and retained:
                     warning = f"Vertical must_keep retained: {key} {a:.3f}-{b:.3f}s has a face below 10% or needs excessive enlargement."
                     if warning not in self.warnings:
                         self.warnings.append(warning)
-        result = filter_candidates(pool, excluded, studies, required)
         identities = {c.identity for c in result}
         for c in pool:
             if c.identity not in identities:
@@ -167,7 +185,8 @@ class VerticalQuality:
                     self.warnings.append(warning)
             bad = merge([(r['start'], r['end']) for r in rows if r['bad']])
             for a,b in bad:
-                unrequired = subtract([(a,b)],[(x,y) for k,x,y in self.required if k == clip.asset_id])
+                unrequired = subtract([(a,b)],[(x,y) for k,x,y in [*self.required, *self.protected_required]
+                                              if k == clip.asset_id])
                 if any(y-x > 1+EPS for x,y in unrequired):
                     violations.append({"source_span":[a,b],"reason":"Final crop has a wide run over 1s."})
             if any(not r['close'] and not self.required_at(clip.asset_id,r['start'],r['end']) for r in first):
@@ -179,6 +198,7 @@ class VerticalQuality:
                           "longest_wide_run": max((b-a for a,b in bad), default=0.),
                           "first_two_seconds_close": all(r['close'] for r in first) if first else None})
         return {"enabled": enabled, "shots": shots, "first_two_seconds_close": opening if shots else None,
+                "protected_required": self.protected_required,
                 "violations":violations,
                 "candidate_changes": list({(a['asset_id'],a['start'],a['end'],a['action']):a for a in self.actions}.values()), "warnings": self.warnings,
                 "basis": "Existing face/head geometry at 30 Hz; speaker-held identity or dominant-face heuristic (identity unverified). 10% face minimum, <=1s wide runs, 15% for first 2s; required enlargement uses source face pixels. Missing geometry is unmeasured."}

@@ -77,6 +77,7 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
         required = [(key,a,b) for key,spans in evidence.get('constraints',{}).get('must_keep_word_safe',{}).items()
                     for a,b in spans]
         gate = VerticalQuality([],{}, {},plan.brief or Brief(aspect=aspect_for(width,height)),[],required)
+        gate.protected_required = evidence.get('vertical_quality',{}).get('protected_required', required)
         gate.rows = {key:[] for key,tracks in subjects.items() if any(is_face(t) for t in tracks)}
         gate.actions = evidence.get('vertical_quality',{}).get('candidate_changes',[])
         evidence['vertical_quality'] = gate.report(plan,{k:(v,[]) for k,v in subjects.items()},source_dimensions)

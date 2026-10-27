@@ -165,15 +165,16 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
                 sizes[asset.id] = display_dimensions({"width": probe.width, "height": probe.height,
                                                      "tags": {"rotate": probe.rotation}, **stream})
-        from dataclasses import replace
-        vertical_aspect = next((a for a in ("9:16", "4:5") if a in [brief.aspect,*brief.aspects]), brief.aspect)
-        vertical = VerticalQuality(clips, subject_evidence, sizes, replace(brief,aspect=vertical_aspect),
+        vertical = VerticalQuality(clips, subject_evidence, sizes, brief,
                                    pool + initial_pool, required)
         pool, wide_exclusions = vertical.filter(pool, clips, required)
         initial_pool, _ = vertical.filter(initial_pool, clips, initial_required)
         for key, spans in wide_exclusions.items():
             forbidden[key] = merge(forbidden.get(key, []) + spans)
         report["vertical_selection"] = {"changes": vertical.actions, "warnings": vertical.warnings}
+        if vertical.enabled and not pool:
+            shortage("edit_constraints", "The vertical face-size gate removed every candidate: faced wide runs exceed 1s.",
+                     "Choose a closer source shot or a nonvertical plan aspect.")
         try:
             initial = choose(initial_pool, initial_required, clips, style, brief.target_length_seconds, 30, seed,
                              allow_reordering="[allow source reordering]" in brief.purpose.casefold(),

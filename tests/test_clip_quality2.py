@@ -104,6 +104,105 @@ def test_wide_trims_are_clause_safe_and_must_keep_survives():
     assert q.warnings[0].startswith('Vertical must_keep retained')
 
 
+def test_required_interval_inside_wide_clause_protects_whole_clause():
+    words = [Word('A',0,1),Word('required',1,2),Word('wide',2,3),Word('clause.',3,4)]
+    study = ClipStudy('a','x','hash',4,'ready',words=words,shots=[Shot(0,0,4)])
+    required = [('a',1,2)]
+    q = quality([row(0,4,.05,True,False)],required)
+    pool,excluded = q.filter([replace(candidate(0,4),covers=1)],[study],required)
+    assert [(c.start,c.end,c.covers) for c in pool] == [(0,4,1)]
+    assert excluded['a'] == [] and q.valid(pool)
+    assert q.warnings and ('a',0,4) in q.protected_required
+    plan = caption_plan()
+    plan.clips[0].src_out = 4
+    plan.clips[0].framing = centered_framing('fill',1280,720,1080,1920)
+    assert not q.report(plan,{'a':([face(0,4,.05)],[])},{'a':(1280,720)})['violations']
+    empty = quality([row(0,4,.05,True,False)],required)
+    assert empty.filter([], [study], required)[0] == []
+    assert not empty.warnings
+
+
+def test_smooth_foreground_bar_loses_to_empty_band():
+    np = pytest.importorskip('numpy')
+    from myzing.captions.bands import place,measure_band
+    frame = np.zeros((480,270,3),dtype=np.uint8)
+    frame[286:329,30:235] = 240
+    bar = measure_band([frame],Box(.1,.59,.8,.1),'#FFFFFF')
+    empty = measure_band([frame],Box(.1,.3,.8,.1),'#FFFFFF')
+    assert bar['strong_edge_coverage'] > .18 and empty['clutter_score'] == 0
+    plan = caption_plan()
+    result = place(plan,{}, {},frames=[frame])
+    assert result['moved'] and result['clutter_score'] == 0
+
+
+def test_precise_faces_replace_only_matching_coarse_head_intervals():
+    from myzing.layout.types import TrackObservation
+    from myzing.captions.bands import caption_faces
+    head = FaceTrack('person-head',[Keyframe(0,Box(.3,.1,.4,.55)),Keyframe(3,Box(.3,.1,.4,.55))],
+        observations=[TrackObservation(0,Box(.3,.1,.4,.55),confidence=.9,detector='mediapipe-person-head')])
+    precise = face(0,2,.25)
+    clip = CompositionClip('x',0,3,0,id='c',asset_id='a')
+    kept = caption_faces([head,precise],clip)
+    assert precise in kept
+    fallback = [t for t in kept if t.id != precise.id]
+    assert fallback and all(t.keyframes[0].time >= 2 for t in fallback)
+    unmatched = replace(head,keyframes=[Keyframe(0,Box(.02,.1,.1,.4)),Keyframe(3,Box(.02,.1,.1,.4))])
+    assert any(t.id.startswith('person-head') and t.keyframes[0].time == 0
+               for t in caption_faces([unmatched,precise],clip))
+
+
+@pytest.mark.parametrize('aspect',['16:9','1:1','9:16'])
+def test_plan_aspect_controls_selection_gate(tmp_path,zing_workspace,monkeypatch,aspect):
+    from test_director import change_brief,run,report,plans
+    from tools.plan_examples import example_project
+    from myzing.layout.delivery import adapt_plan
+    project,_,_ = example_project(tmp_path/'project')
+    change_brief(project,aspect=aspect,aspects=[aspect,'9:16'] if aspect != '9:16' else ['9:16'],
+                 must_keep=[],caption_mode='none',framing='reframe')
+    tracks = [face(0,8,.05)]
+    monkeypatch.setattr('myzing.layout.framing.analyze_subjects',lambda *a,**kw:(tracks,[]))
+    result = run(project)
+    if aspect == '9:16':
+        assert result['status'] == 'shortage' and result['plans'] == {}
+        failure = report(result)['shortages'][0]
+        assert failure['code'] == 'edit_constraints' and 'face-size gate' in failure['missing']
+    else:
+        assert result['status'] == 'ready', report(result)
+        assert all(not p['vertical_quality']['enabled'] for p in report(result)['plans'].values())
+        plan = plans(result)[0]
+        sizes = {a.id:(320,180) for a in plan.assets}
+        subjects = {a.id:tracks for a in plan.assets}
+        with pytest.raises(ValueError,match='Vertical quality'):
+            adapt_plan(plan,1080,1920,sizes,subjects,requested='reframe')
+        assert (plan.width,plan.height) != (1080,1920)
+
+
+def test_thin_source_border_requires_persistent_bright_interior():
+    np = pytest.importorskip('numpy')
+    from myzing.layout.borders import thin_border_bounds
+    frames = np.full((3,720,1280),100,dtype=np.uint8)
+    frames[:,:5] = 0
+    assert thin_border_bounds(frames) == (0,6,1280,714)
+    frames[1,:5] = 100
+    assert thin_border_bounds(frames) is None
+    assert thin_border_bounds(np.zeros_like(frames)) is None
+
+
+def test_near_top_face_crop_stays_in_source_on_every_axis():
+    from myzing.layout.crop_planner import select_framing
+    from myzing.render.framing import framing_filter
+    clip = CompositionClip('x',0,2,0,id='c',asset_id='a')
+    track = FaceTrack('face',[Keyframe(0,Box(.01,0,.12,.2)),Keyframe(2,Box(.85,.01,.12,.2))])
+    framing = select_framing('reframe',1280,720,1080,1920,clip,[track])
+    for i in range(61):
+        x,y = framing.center_at(i/30)
+        assert 0 <= x-framing.width/2 <= 1280-framing.width
+        assert 0 <= y-framing.height/2 <= 720-framing.height
+    assert framing.center_y-framing.height/2 == 0
+    graph = framing_filter(framing,1080,1920,30)
+    assert "x='clip(" in graph and "y='clip(" in graph and 'pad=' not in graph
+
+
 def caption_plan(mode='reference'):
     box = Box(.1,.58,.7,.12)
     captions = [CompositionCaption('Hello',i,i+1,id=f'c{i}',word_timed=False,style=CaptionStyle(60,outline_width=1),
