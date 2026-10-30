@@ -26,6 +26,10 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
             factor = min(width, height) / old_short
             caption.style = replace(caption.style, size=min(512, max(1, caption.style.size * factor)),
                                     outline_width=min(20, max(0, caption.style.outline_width * factor)))
+    for graphic in plan.graphics:
+        if graphic.style.size is not None:
+            # Same short-side scaling as captions; the normalized box is kept.
+            graphic.style = replace(graphic.style, size=min(512, max(1, graphic.style.size * min(width, height) / old_short)))
     clips = []
     rate = plan.fps.numerator / plan.fps.denominator
     for clip in plan.clips:

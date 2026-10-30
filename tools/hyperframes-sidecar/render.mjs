@@ -53,12 +53,14 @@ function renderJob(planFile, output, job) {
   const pkg = join(here, 'node_modules/hyperframes/package.json');
   if (!existsSync(pkg) || JSON.parse(readFileSync(pkg)).version !== VERSION) throw Error('Missing pinned sidecar install; run npm ci --ignore-scripts in tools/hyperframes-sidecar.');
   const fontkit = createRequire(pkg)('fontkit');
-  for (const event of p.captions) {
+  const texts = [...p.captions.map(e => [e.style.font, e.words.map(w => w.text).join(' ')]),
+    ...(p.graphics ?? []).filter(g => g.text.length).map(g => [g.style.font, g.text.join(' ')])];
+  for (const [path, text] of texts) {
     let font;
-    try { font = fontkit.openSync(event.style.font); }
-    catch { throw Error(`Cannot decode font ${event.style.font}; pass a valid TTF/OTF/WOFF font or run npm run fetch-font.`); }
-    for (const c of event.words.map(w => w.text).join(' ')) {
-      if (!font.hasGlyphForCodePoint(c.codePointAt(0))) throw Error(`Font ${event.style.font} lacks U+${c.codePointAt(0).toString(16)}; pass a font covering every caption character.`);
+    try { font = fontkit.openSync(path); }
+    catch { throw Error(`Cannot decode font ${path}; pass a valid TTF/OTF/WOFF font or run npm run fetch-font.`); }
+    for (const c of text) {
+      if (!font.hasGlyphForCodePoint(c.codePointAt(0))) throw Error(`Font ${path} lacks U+${c.codePointAt(0).toString(16)}; pass a font covering every caption and graphic character.`);
     }
   }
   const browser = process.env.HYPERFRAMES_BROWSER_PATH;

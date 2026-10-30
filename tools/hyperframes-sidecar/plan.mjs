@@ -33,6 +33,45 @@ function box(value, label) {
   if (!value.width || !value.height || value.x + value.width > 1 + 1e-9 || value.y + value.height > 1 + 1e-9) throw Error(`${label}: box must fit within the frame`);
 }
 
+// Motion-graphics templates and their [min, max] text line counts.
+export const GRAPHIC_LINES = { 'title-card': [1, 2], 'lower-third': [1, 2], 'callout': [1, 1], 'progress-bar': [0, 0] };
+function font(style, base, label, checkFiles) {
+  style.font = asset(style.font, base, `${label}.font`, checkFiles);
+  if ('font_sha256' in style) {
+    if (typeof style.font_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(style.font_sha256)) throw Error(`${label}: invalid font SHA-256`);
+    if (checkFiles && createHash('sha256').update(readFileSync(style.font)).digest('hex') !== style.font_sha256) throw Error(`${label}: font SHA-256 mismatch; restore the declared font file`);
+  }
+}
+function graphics(p, base, checkFiles) {
+  if (!('graphics' in p)) return;
+  if (!Array.isArray(p.graphics)) throw Error('graphics: expected array');
+  for (const [i, g] of p.graphics.entries()) {
+    const label = `graphics[${i}]`;
+    object(g, ['start', 'end', 'template', 'box', 'text', 'style'], label);
+    number(g.start, 0, p.duration, `${label}.start`);
+    number(g.end, 0, p.duration, `${label}.end`);
+    if (g.end <= g.start) throw Error(`${label}: end must follow start`);
+    if (!Object.hasOwn(GRAPHIC_LINES, g.template)) throw Error(`${label}: unknown template`);
+    box(g.box, `${label}.box`);
+    const [fewest, most] = GRAPHIC_LINES[g.template];
+    if (!Array.isArray(g.text) || g.text.length < fewest || g.text.length > most) throw Error(`${label}.text: ${g.template} needs ${fewest === most ? fewest : `${fewest}-${most}`} line(s)`);
+    for (const line of g.text) {
+      if (typeof line !== 'string' || !line.trim() || line.length > 120 || /[\x00-\x1f]/.test(line)) throw Error(`${label}.text: lines must be 1-120 characters without control characters`);
+    }
+    const s = g.style;
+    object(s, ['font', 'font_sha256', 'size', 'color', 'accent'], `${label}.style`);
+    color(s.color, `${label}.style.color`);
+    color(s.accent, `${label}.style.accent`);
+    if (g.text.length) {
+      font(s, base, `${label}.style`, checkFiles);
+      if (!/\.(ttf|otf)$/i.test(s.font)) throw Error(`${label}.style.font: use TTF or OTF`);
+      number(s.size, 1, 512, `${label}.style.size`);
+    } else if (['font', 'font_sha256', 'size'].some(k => k in s)) {
+      throw Error(`${label}.style: ${g.template} has no text; remove font, font_sha256 and size`);
+    }
+  }
+}
+
 export function planRate(value) {
   const parts = typeof value === 'string' && /^[1-9][0-9]*\/[1-9][0-9]*$/.test(value)
     ? value.split('/').map(Number) : [value, 1];
@@ -46,7 +85,7 @@ export function planRate(value) {
 
 export function validatePlan(input, base = process.cwd(), checkFiles = true) {
   const p = structuredClone(input);
-  object(p, ['version', 'width', 'height', 'fps', 'duration', 'background', 'captions'], 'plan');
+  object(p, ['version', 'width', 'height', 'fps', 'duration', 'background', 'captions', 'graphics'], 'plan');
   if (p.version !== 1) throw Error('plan.version: only PH version 1 is supported');
   for (const k of ['width', 'height']) {
     number(p[k], 2, 4096, k);
@@ -105,5 +144,6 @@ export function validatePlan(input, base = process.cwd(), checkFiles = true) {
       previous = w.end;
     }
   }
+  graphics(p, base, checkFiles);
   return p;
 }

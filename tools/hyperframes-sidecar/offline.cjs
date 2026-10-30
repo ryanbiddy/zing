@@ -109,6 +109,10 @@ function childArgs(command, args, options) {
   if (command === 'pgrep' && /^-P \d+$/.test(args.join(' '))) return args;
   if (command === 'tasklist' && /^\/FO CSV \/NH \/FI PID eq \d+$/.test(args.join(' '))) return args;
   if (command === 'ps' && /^-o pid=,rss= -p \d+(,\d+)*$/.test(args.join(' '))) return args;
+  // POSIX orphan cleanup reads the local process table; it never signals by name.
+  if (command === 'ps' && /^(?:-U \d+|-A) -ww -o pid=,ppid=,args=$/.test(args.join(' '))) return args;
+  // Linux shared-library preflight, only for the configured browser binary.
+  if (process.platform === 'linux' && command === 'ldd' && args.length === 1 && browser && real(args[0]) === browser) return args;
   denied(path.basename(String(command)));
 }
 for (const key of ['spawn', 'spawnSync', 'execFile', 'execFileSync']) {

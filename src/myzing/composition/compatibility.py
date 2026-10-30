@@ -105,6 +105,8 @@ def lowering_blockers(composition: Composition) -> list[str]:
             problems.append(f"clips[{index}].framing")
     if composition.transitions:
         problems.append("transitions")
+    if composition.graphics:
+        problems.append("graphics")
     for index, caption in enumerate(composition.captions):
         if caption.alignment != "center":
             problems.append(f"captions[{index}].alignment={caption.alignment}")

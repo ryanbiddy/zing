@@ -55,6 +55,60 @@ test('templates escape authored text and embed font bytes', () => {
     assert.ok(!/Date\.now|Math\.random|requestAnimationFrame|https?:\/\//.test(html));
   } finally { rmSync(root, { recursive: true }); }
 });
+const font = '../../zing-workspace/hyperframes/fonts/Anton-Regular.ttf';
+const style = { font, size: 64, color: '#ffffff', accent: '#ff3d00' };
+const withGraphics = () => ({ ...structuredClone(example), graphics: [
+  { start: 0, end: 1.5, template: 'title-card', box: { x: 0.1, y: 0.1, width: 0.8, height: 0.4 }, text: ['BIG IDEA', 'small print'], style: { ...style } },
+  { start: 0.5, end: 2.5, template: 'lower-third', box: { x: 0.05, y: 0.7, width: 0.6, height: 0.2 }, text: ['Ada Lovelace'], style: { ...style, size: 32 } },
+  { start: 1, end: 2, template: 'callout', box: { x: 0.6, y: 0.1, width: 0.35, height: 0.2 }, text: ['WAIT'], style: { ...style, size: 28 } },
+  { start: 0, end: 3, template: 'progress-bar', box: { x: 0, y: 0.98, width: 1, height: 0.02 }, text: [], style: { color: '#ffffff', accent: '#ff3d00' } },
+] });
+test('graphics plan validates every template without input mutation', () => {
+  const p = withGraphics(), before = structuredClone(p);
+  assert.deepEqual(validatePlan(p, process.cwd(), false).graphics.map(g => g.template), ['title-card', 'lower-third', 'callout', 'progress-bar']);
+  assert.deepEqual(p, before);
+  assert.equal('graphics' in validatePlan(example, process.cwd(), false), false);
+});
+for (const [name, change] of [
+  ['unknown graphic template', p => { p.graphics[0].template = 'starburst'; }],
+  ['unknown graphic field', p => { p.graphics[0].easing = 'bounce'; }],
+  ['too many lines', p => { p.graphics[2].text.push('MORE'); }],
+  ['missing line', p => { p.graphics[1].text = []; }],
+  ['blank line', p => { p.graphics[1].text = ['  ']; }],
+  ['control character', p => { p.graphics[1].text = ['a\nb']; }],
+  ['font on a textless bar', p => { p.graphics[3].style.font = font; }],
+  ['size on a textless bar', p => { p.graphics[3].style.size = 10; }],
+  ['text without a font', p => { delete p.graphics[0].style.font; }],
+  ['WOFF graphic font', p => { p.graphics[0].style.font = 'a.woff2'; }],
+  ['accent injection', p => { p.graphics[0].style.accent = 'red;background:url(https://example.com)'; }],
+  ['graphic outside frame', p => { p.graphics[0].box.x = 0.5; }],
+  ['graphic interval', p => { p.graphics[0].end = 0; }],
+  ['graphic past duration', p => { p.graphics[0].end = 4; }],
+  ['graphics not an array', p => { p.graphics = {}; }],
+]) test(`refuses ${name}`, () => {
+  const p = withGraphics(); change(p);
+  assert.throws(() => validatePlan(p, process.cwd(), false));
+});
+test('graphics render beneath captions with escaped text, shared fonts and seekable CSS', () => {
+  const root = mkdtempSync(join(tmpdir(), 'hf-graphics-'));
+  try {
+    const fontFile = join(root, 'font.ttf'); writeFileSync(fontFile, 'fake font');
+    const p = withGraphics();
+    p.captions.forEach(e => { e.style.font = fontFile; });
+    p.graphics.filter(g => g.text.length).forEach(g => { g.style.font = fontFile; });
+    p.graphics[0].text[0] = '</div><script>alert("x")</script>';
+    const html = composition(validatePlan(p));
+    assert.ok(!html.includes('<script>alert'));
+    assert.ok(html.includes('&lt;/div&gt;&lt;script&gt;'));
+    assert.equal(html.match(/font-family:ZingGraphicFont\d+;src/g).length, 1);
+    assert.ok(html.indexOf('id="graphic-3"') < html.indexOf('id="caption-0"'));
+    for (const name of ['g0in', 'g0bar', 'g1plate', 'g1text', 'g2pop', 'g3fill']) assert.ok(html.includes(`@keyframes ${name}{`), name);
+    assert.ok(html.includes('id="graphic-0" class="graphic title-card" data-start="0" data-duration="1.5"'));
+    assert.ok(html.includes('animation:g3fill 3s linear 0s 1 both;'));
+    assert.ok(html.includes('background:#ffffff4d;border-radius:3.6px;'));
+    assert.ok(!/Date\.now|Math\.random|requestAnimationFrame|https?:\/\//.test(html));
+  } finally { rmSync(root, { recursive: true }); }
+});
 test('offline preload blocks fetch, sockets, and TLS before external access', () => {
   const script = `
     const assert = require('node:assert/strict');

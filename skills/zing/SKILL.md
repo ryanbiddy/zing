@@ -121,7 +121,10 @@ The individual operations below remain useful for directed work and diagnosis.
    unresolved word timing requires review, not fabricated precision. `zing render`
    consumes v1 EDLs or supported v2 compositions. Keep relative assets together
    when moving a project. The v2 renderer consumes pinned LUTs before captions
-   and positioned-caption plans; unsupported features fail explicitly.
+   and positioned-caption plans; unsupported features fail explicitly. V2 plans
+   can add `graphics`: `title-card`, `lower-third`, `callout` and `progress-bar`
+   with a box, text lines, a pinned TTF/OTF font and colors. Overflowing text
+   fails with a size that fits. See `docs/MOTION-GRAPHICS.md`.
 7. **Inspect, revise, repeat.** Run `zing inspect timeline` on the rendered output
    with its EDL. Review the opening, each internal cut and any suspicious interval.
    Change the direction/plan, render to a new file, and inspect again. `zing thumbs`

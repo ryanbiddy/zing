@@ -161,14 +161,27 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
             if local:
                 caption.font.path = str(local)
                 warnings.append(f"caption {caption.id}: missing font path resolved to the identical bundled face.")
+    for graphic in composition.graphics:
+        if graphic.font and not (base_dir / graphic.font.path).is_file():
+            local = bundled_path(graphic.font.sha256)
+            if local:
+                graphic.font.path = str(local)
+                warnings.append(f"graphic {graphic.id}: missing font path resolved to the identical bundled face.")
     font_paths = {
         caption.id: _path(caption.font.path, base_dir, f"caption {caption.id} font")
         for caption in composition.captions if caption.font is not None
+    }
+    graphic_fonts = {
+        graphic.id: _path(graphic.font.path, base_dir, f"graphic {graphic.id} font")
+        for graphic in composition.graphics if graphic.font is not None
     }
     for asset in composition.assets:
         _verify(paths[asset.id], asset.sha256, f"asset {asset.id}")
         if asset.sha256 is None:
             warnings.append(f"asset {asset.id}: no SHA-256 supplied; file identity is unverified")
+    for graphic in composition.graphics:
+        if graphic.font is not None:
+            _verify(graphic_fonts[graphic.id], graphic.font.sha256, f"graphic {graphic.id} font")
     fonts = {}
     for caption in composition.captions:
         if caption.font is not None:
@@ -197,7 +210,8 @@ def prepare_composition(composition: Composition, base_dir: Path) -> PreparedCom
         width=composition.width, height=composition.height, fps=float(rate_fraction(composition.fps)),
     )
     return PreparedComposition(composition, edl, paths, fonts,
-                               frozenset([*paths.values(), *font_paths.values(), *lut_paths.values()]),
+                               frozenset([*paths.values(), *font_paths.values(), *graphic_fonts.values(),
+                                          *lut_paths.values()]),
                                tuple(warnings), luts, lut_paths)
 
 
@@ -268,7 +282,7 @@ def render_composition(
     if c.audio and (output.with_suffix(".music.json") in prepared.input_paths or output.with_suffix(".music.json").is_symlink()):
         raise pipeline.RenderError("music measurement output must not overwrite an input or symlink")
     hf_plan = None
-    if any(event.backend == "hyperframes" for event in c.captions):
+    if c.graphics or any(event.backend == "hyperframes" for event in c.captions):
         from . import hyperframes_adapter as hf
         from .hyperframes_v2 import captions_to_plan
         try:
@@ -277,7 +291,7 @@ def render_composition(
             hf.check_install(ffmpeg=ffmpeg, ffprobe=ffprobe)
             hf_plan = captions_to_plan(c.captions, width=c.width, height=c.height,
                                       fps=c.fps, duration=max(clip.timeline_end for clip in c.clips),
-                                      base_dir=base_dir)
+                                      base_dir=base_dir, graphics=c.graphics)
         except hf.HyperframesError as exc:
             raise pipeline.RenderError(str(exc)) from exc
     if prepared.luts:
