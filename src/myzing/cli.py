@@ -12,6 +12,7 @@ import sys
 # the remaining drift class — a command added here appears in help by
 # construction, ordered as listed).
 _COMMANDS: dict[str, tuple[str, str]] = {
+    "playbook": ("myzing.playbook.command", "compare worked and under-performing Shorts; local measurements and blind notes"),
     "moments": ("myzing.director.moments", "suggest interview moments from a cached study; no model calls"),
     "record-cursor": ("myzing.screen.recorder", "record local cursor/click and anonymous key-press times for a screen demo"),
     "studio": ("myzing.studio.command", "start here: guided questions, recommendations and creative outputs"),
