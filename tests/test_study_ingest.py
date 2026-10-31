@@ -763,6 +763,15 @@ def test_corrupt_info_json_is_ignored(zing_workspace, monkeypatch):
     assert result.meta.author == ""      # info honestly empty, not a crash
 
 
+def test_ffprobe_timeout_is_bounded_and_clear(tmp_path, monkeypatch):
+    def wedged(cmd, timeout=None):
+        assert timeout == 60
+        raise subprocess.TimeoutExpired(cmd, timeout)
+    monkeypatch.setattr(ingest.proc, "run", wedged)
+    with pytest.raises(MediaError, match="ffprobe timed out after 60 seconds.*TimeoutExpired"):
+        ingest.probe(tmp_path / "private-name.mp4")
+
+
 def test_unparseable_ffprobe_output_is_an_error(zing_workspace, tmp_path, monkeypatch):
     def garbage(cmd, timeout=None):
         return ok(cmd, "this is not json")

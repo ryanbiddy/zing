@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import math
 import shutil
 import statistics
@@ -446,10 +447,13 @@ def _read_info_json(dest: Path) -> dict:
 # -- probe / normalize ------------------------------------------------------
 
 def probe(path: Path) -> dict:
-    res = proc.run(
-        ["ffprobe", "-v", "error", "-print_format", "json",
-         "-show_format", "-show_streams", str(path)]
-    )
+    try:
+        res = proc.run(
+            ["ffprobe", "-v", "error", "-print_format", "json",
+             "-show_format", "-show_streams", str(path)], timeout=60,
+        )
+    except subprocess.TimeoutExpired:
+        raise MediaError("ffprobe timed out after 60 seconds (TimeoutExpired)") from None
     if res.returncode != 0:
         raise MediaError(f"ffprobe failed on {path.name}:\n{proc.tail(res.stderr)}")
     try:

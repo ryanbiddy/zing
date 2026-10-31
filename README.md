@@ -130,6 +130,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Match a reference with your clips | [Match](docs/MATCH.md): `zing match reference.mp4 --clips ./clips --out ./project --brief brief.json`; resumable A/B/C rendering, full decode, PNGs and measured reports. |
 | Find short cuts inside source clips | [Source map](docs/SOURCE-MAP.md): confirmed extra boundaries for planning, with frame evidence and unchanged public study shots. |
 | Study and direct footage | [Direct flow](docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v6. |
+| Compare worked and under-performing Shorts | [Playbook](docs/PLAYBOOK.md): channel-relative cohorts, local measurements, blind Gemini notes and versioned contrast statistics. |
 | Inventory a project | [Project inventory](docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
 | Reuse saved references and remember a choice | [Uoink memory](docs/UOINK-MEMORY.md): verified local media, optional peer search, and durable draft-choice receipts. |
 | Save creative intent | [Briefs](docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
@@ -200,7 +201,7 @@ feature-specific gaps. The HyperFrames page documents its own pinned setup.
 
 ## Local work and network boundaries
 
-Zing itself needs no API key and opens no listening network service. It fetches
+Zing's local study and editing commands need no API key and open no listening network service. Zing fetches
 a video URL only when you supply one. Speech models come from Hugging Face
 only through the consented, SHA-256-pinned setup: choose one in `zing studio`,
 or run `zing doctor --speech-model small.en` (or `large-v2`) and confirm. Even
@@ -212,6 +213,10 @@ input alone does not guarantee an offline run.
 
 `zing match` uses local models only and requires `--allow-download` before
 acquiring a reference URL. Missing models remain warnings or planning shortages.
+
+`zing playbook notes` sends public YouTube URLs and a blind rubric to Gemini using
+`GEMINI_API_KEY`. Playbook measurement uses local models and requires `--download`
+to fetch missing video; only aggregate patterns and original links are publication candidates.
 
 Layout model downloads are explicit and hash-verified. Meme catalog searches and
 local-photo renders stay offline; requesting a template may fetch its blank on
