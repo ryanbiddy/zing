@@ -5,6 +5,9 @@ together into one transparent ProRes 4444 MOV, then FFmpeg composites it after
 footage LUTs and transitions and before ASS captions. ASS stays on top to keep
 conventional subtitles readable. The sidecar performs no footage grading.
 
+[Motion graphics](MOTION-GRAPHICS.md) share this overlay and render beneath
+its captions; pass `graphics=composition.graphics` to `captions_to_plan`.
+
 ```text
 zing render composition.json -o draft.mp4 --keep-work render-work
 ```

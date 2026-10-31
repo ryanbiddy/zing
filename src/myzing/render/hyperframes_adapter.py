@@ -17,11 +17,12 @@ import signal
 import subprocess
 import tempfile
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
+from myzing.composition.models import GRAPHIC_LINES
 from myzing.storage import resolve_workspace
 from .hyperframes_publish import reserve_output, publish_pair
 
@@ -105,7 +106,7 @@ def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
     This validation is stdlib-only and runs even without Node installed.
     """
     p = copy.deepcopy(data)
-    _object(p, {"version", "width", "height", "fps", "duration", "background", "captions"}, "plan")
+    _object(p, {"version", "width", "height", "fps", "duration", "background", "captions", "graphics"}, "plan")
     if type(p.get("version")) is not int or p["version"] != 1:
         raise HyperframesError("plan.version: only PH version 1 is supported")
     for key in ("width", "height"):
@@ -160,13 +161,7 @@ def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
                 raise HyperframesError(f"{label}.path: first/last times must match event start/end")
         style = event.get("style")
         _object(style, {"font", "font_sha256", "size", "color", "highlight", "outline_color", "outline_width", "box_color"}, f"{label}.style")
-        style["font"] = _asset(style.get("font"), f"{label}.style.font", base_dir)
-        if "font_sha256" in style:
-            digest = style["font_sha256"]
-            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-                raise HyperframesError(f"{label}.style.font_sha256: expected lowercase SHA-256")
-            if base_dir is not None and hashlib.sha256(Path(style["font"]).read_bytes()).hexdigest() != digest:
-                raise HyperframesError(f"{label}: font SHA-256 mismatch; restore the declared font file")
+        _font(style, f"{label}.style", base_dir)
         if Path(style["font"]).suffix.lower() not in (".ttf", ".otf", ".woff", ".woff2"):
             raise HyperframesError(f"{label}.style.font: use TTF, OTF, WOFF or WOFF2")
         _number(style.get("size"), 1, 512, f"{label}.style.size")
@@ -188,7 +183,54 @@ def validate_plan(data: dict, *, base_dir: Path | None = None) -> dict:
             if word["end"] <= word["start"] or word["start"] < previous:
                 raise HyperframesError(f"{label}.words: intervals must be positive, ordered and nonoverlapping")
             previous = word["end"]
+    _graphics(p, base_dir)
     return p
+
+
+def _font(style: dict, label: str, base_dir: Path | None) -> None:
+    style["font"] = _asset(style.get("font"), f"{label}.font", base_dir)
+    if "font_sha256" in style:
+        digest = style["font_sha256"]
+        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            raise HyperframesError(f"{label}.font_sha256: expected lowercase SHA-256")
+        if base_dir is not None and hashlib.sha256(Path(style["font"]).read_bytes()).hexdigest() != digest:
+            raise HyperframesError(f"{label.removesuffix('.style')}: font SHA-256 mismatch; restore the declared font file")
+
+
+def _graphics(p: dict, base_dir: Path | None) -> None:
+    if "graphics" not in p:
+        return
+    if not isinstance(p["graphics"], list):
+        raise HyperframesError("graphics: expected array")
+    for i, graphic in enumerate(p["graphics"]):
+        label = f"graphics[{i}]"
+        _object(graphic, {"start", "end", "template", "box", "text", "style"}, label)
+        for key in ("start", "end"):
+            _number(graphic.get(key), 0, p["duration"], f"{label}.{key}")
+        if graphic["end"] <= graphic["start"]:
+            raise HyperframesError(f"{label}: end must follow start")
+        if graphic.get("template") not in GRAPHIC_LINES:
+            raise HyperframesError(f"{label}: unknown template")
+        _box(graphic.get("box"), f"{label}.box")
+        fewest, most = GRAPHIC_LINES[graphic["template"]]
+        text = graphic.get("text")
+        if not isinstance(text, list) or not fewest <= len(text) <= most:
+            count = fewest if fewest == most else f"{fewest}-{most}"
+            raise HyperframesError(f"{label}.text: {graphic['template']} needs {count} line(s)")
+        for line in text:
+            if not isinstance(line, str) or not line.strip() or len(line) > 120 or re.search(r"[\x00-\x1f]", line):
+                raise HyperframesError(f"{label}.text: lines must be 1-120 characters without control characters")
+        style = graphic.get("style")
+        _object(style, {"font", "font_sha256", "size", "color", "accent"}, f"{label}.style")
+        for key in ("color", "accent"):
+            _color(style.get(key), f"{label}.style.{key}")
+        if text:
+            _font(style, f"{label}.style", base_dir)
+            if Path(style["font"]).suffix.lower() not in (".ttf", ".otf"):
+                raise HyperframesError(f"{label}.style.font: use TTF or OTF")
+            _number(style.get("size"), 1, 512, f"{label}.style.size")
+        elif style.keys() & {"font", "font_sha256", "size"}:
+            raise HyperframesError(f"{label}.style: {graphic['template']} has no text; remove font, font_sha256 and size")
 
 
 @dataclass(frozen=True)
@@ -200,9 +242,13 @@ class HyperframesPlan:
     background: dict
     captions: list[dict]
     version: int = 1
+    graphics: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return validate_plan(asdict(self))
+        data = asdict(self)
+        if not data["graphics"]:
+            del data["graphics"]  # Caption-only plans keep their original spelling.
+        return validate_plan(data)
 
     @classmethod
     def from_dict(cls, data: dict) -> HyperframesPlan:

@@ -996,6 +996,71 @@
       ],
       "type": "object"
     },
+    "myzing_composition_models_CompositionGraphic": {
+      "additionalProperties": false,
+      "properties": {
+        "box": {
+          "$ref": "#/$defs/myzing_layout_types_Box"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        "font": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_models_FontAsset"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "start": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "style": {
+          "$ref": "#/$defs/myzing_composition_models_GraphicStyle"
+        },
+        "template": {
+          "enum": [
+            "title-card",
+            "lower-third",
+            "callout",
+            "progress-bar"
+          ]
+        },
+        "text": {
+          "items": {
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "^[^\\u0000-\\u001f]*$",
+            "type": "string"
+          },
+          "maxItems": 2,
+          "type": "array"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "template",
+        "start",
+        "end",
+        "box",
+        "style",
+        "version"
+      ],
+      "type": "object"
+    },
     "myzing_composition_models_FontAsset": {
       "additionalProperties": false,
       "properties": {
@@ -1020,6 +1085,39 @@
         "path",
         "sha256",
         "license",
+        "version"
+      ],
+      "type": "object"
+    },
+    "myzing_composition_models_GraphicStyle": {
+      "additionalProperties": false,
+      "properties": {
+        "accent": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        "color": {
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "type": "string"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "maximum": 512,
+              "minimum": 1,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
         "version"
       ],
       "type": "object"
@@ -1733,6 +1831,12 @@
     },
     "fps": {
       "$ref": "#/$defs/myzing_project_models_Rational"
+    },
+    "graphics": {
+      "items": {
+        "$ref": "#/$defs/myzing_composition_models_CompositionGraphic"
+      },
+      "type": "array"
     },
     "height": {
       "minimum": 1,

@@ -16,7 +16,7 @@ from myzing.audio.models import Segment
 from myzing.brief.models import Brief
 from myzing.color.models import Recipe as ColorRecipe, Transform
 from myzing.contracts import Record, bounded, digest, interval, nonempty, typed
-from myzing.layout.types import EventLayout
+from myzing.layout.types import Box, EventLayout
 from myzing.project.models import Rational
 from myzing.schemas import AudioTrack, CaptionSpec, Clip
 from myzing.study.transitions import TransitionEvidence
@@ -29,6 +29,9 @@ from .encoding import DeliveryEncoding
 EPSILON = 1e-6  # Same seconds tolerance as the legacy renderer.
 TransitionKind = Literal["hard_cut", "dissolve", "wipe", "zoom_punch", "dip_to_black", "dip_to_white"]
 AudioRole = Literal["speech", "music", "silence", "uncertain", "voiceover", "sfx", "ambience"]
+GraphicTemplate = Literal["title-card", "lower-third", "callout", "progress-bar"]
+# [min, max] text lines per template; the sidecar's GRAPHIC_LINES must agree.
+GRAPHIC_LINES = {"title-card": (1, 2), "lower-third": (1, 2), "callout": (1, 1), "progress-bar": (0, 0)}
 
 
 @dataclass
@@ -313,6 +316,58 @@ class CompositionCaption(Record, CaptionSpec):
             raise ValueError("caption template belongs to the hyperframes backend")
 
 
+@dataclass
+class GraphicStyle(Record):
+    size: float | None = None  # Output pixels for the first text line; later lines are half size.
+    color: str = "#FFFFFF"  # Text, or a progress bar's track.
+    accent: str = "#FF3D00"  # Bars, plates and fills.
+    version: int = 1
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.size is not None:
+            bounded(self.size, 1, 512, "graphic size")
+        for name in ("color", "accent"):
+            if not re.fullmatch(r"#[0-9a-fA-F]{6}", getattr(self, name)):
+                raise ValueError(f"graphic {name} must use #RRGGBB")
+
+
+@dataclass(kw_only=True)
+class CompositionGraphic(Record):
+    """A templated motion graphic over the cut, rendered by HyperFrames.
+
+    Times are output seconds [start, end). The template fills the normalized
+    top-left box; one text entry is one unwrapped line.
+    """
+    id: str
+    template: GraphicTemplate
+    start: float
+    end: float
+    box: Box
+    style: GraphicStyle
+    text: list[str] = field(default_factory=list)
+    font: FontAsset | None = None
+    version: int = 1
+
+    def __post_init__(self):
+        super().__post_init__()
+        nonempty(self.id, "graphic id")
+        interval(self.start, self.end, f"graphic {self.id} interval")
+        fewest, most = GRAPHIC_LINES[self.template]
+        if not fewest <= len(self.text) <= most:
+            count = fewest if fewest == most else f"{fewest}-{most}"
+            raise ValueError(f"graphic {self.id}: {self.template} needs {count} text line(s)")
+        for line in self.text:
+            if not line.strip() or len(line) > 120 or re.search(r"[\x00-\x1f]", line):
+                raise ValueError(f"graphic {self.id}: text lines must be 1-120 characters without control characters")
+        if self.text and (self.font is None or self.style.size is None):
+            raise ValueError(f"graphic {self.id}: text needs a pinned font and style.size")
+        if not self.text and (self.font is not None or self.style.size is not None):
+            raise ValueError(f"graphic {self.id}: {self.template} has no text; remove font and style.size")
+        if self.font is not None and not self.font.path.lower().endswith((".ttf", ".otf")):
+            raise ValueError(f"graphic {self.id}: font must be TTF or OTF so its line widths can be measured")
+
+
 @dataclass(kw_only=True)
 class CompositionAudio(Record, AudioTrack):
     id: str
@@ -360,6 +415,7 @@ class Composition(Record):
     audio: list[CompositionAudio] = field(default_factory=list)
     transitions: list[Transition] = field(default_factory=list)
     speech_words: list[SpeechWord] = field(default_factory=list, metadata={"omit_default": True})
+    graphics: list[CompositionGraphic] = field(default_factory=list, metadata={"omit_default": True})
     width: int = 1080
     height: int = 1920
     fps: Rational = field(default_factory=lambda: Rational(30, 1))
@@ -382,7 +438,7 @@ class Composition(Record):
             raise ValueError("composition width and height must be positive integers")
         if self.legacy_fps is not None and self.legacy_fps <= 0:
             raise ValueError("legacy_fps must be positive")
-        for name in ("assets", "clips", "captions", "audio", "transitions"):
+        for name in ("assets", "clips", "captions", "audio", "transitions", "graphics"):
             items = getattr(self, name)
             if len({item.id for item in items}) != len(items):
                 raise ValueError(f"duplicate {name} ids")
@@ -457,3 +513,7 @@ class Composition(Record):
             caption.__post_init__()
             if caption.end > duration + EPSILON:
                 raise ValueError("caption interval exceeds composition duration")
+        for graphic in self.graphics:
+            graphic.__post_init__()
+            if graphic.end > duration + EPSILON:
+                raise ValueError(f"graphic {graphic.id} interval exceeds composition duration")

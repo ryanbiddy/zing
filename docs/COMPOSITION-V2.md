@@ -15,6 +15,7 @@ cuts, source audio, placed voiceover/music, v1 voiceover ducking, and positioned
 ASS captions. R13 adds per-clip SDR LUT rendering before scaling, concat and
 caption compositing. R15 adds dissolve, wipe, dip and zoom-punch overlaps.
 P10b adds HyperFrames caption overlays before ASS captions.
+Motion graphics render in the same overlay, beneath its captions.
 See [V2 rendering](RENDER-V2.md) for bounds, fonts, timing
 and color-space requirements.
 
@@ -43,6 +44,7 @@ contract does not round timestamps to frames.
 | `audio` | Array of `CompositionAudio`, extending `AudioTrack`. IDs are unique. |
 | `transitions` | Array of explicit `Transition` records between adjacent clips. Every positive clip overlap needs one. |
 | `speech_words` | Optional array of versioned source-clock `SpeechWord` records for speaker-aware framing. Empty is omitted. Contains asset, word timing, speaker/face association and confidence; see [framing](FRAMING.md). |
+| `graphics` | Optional array of `CompositionGraphic` motion-graphics records: template, output interval, normalized box, text, pinned font and colors. IDs are unique. Empty is omitted. See [motion graphics](MOTION-GRAPHICS.md). |
 | `width`, `height` | Positive integer output dimensions in pixels; defaults 1080 × 1920. Encoder-specific constraints still belong to rendering. |
 | `fps` | Existing inventory `Rational`: positive integer `numerator`, `denominator`, and `version: 1`. Default 30/1. |
 | `loudness_target` | `LoudnessTarget` or null. Null requests no new loudness policy. |

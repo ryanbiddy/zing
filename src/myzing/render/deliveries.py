@@ -28,11 +28,12 @@ def _key(path):
 
 
 def input_paths(composition, base_dir=None):
-    """Every local file a delivery reads: assets, LUTs and caption fonts."""
+    """Every local file a delivery reads: assets, LUTs, caption and graphic fonts."""
     base_dir = Path(base_dir or Path.cwd()).resolve()
     paths = [_path(a.path, base_dir, f"asset {a.id}") for a in composition.assets]
     paths += [_path(c.color.lut_path, base_dir, f"clip {c.id} LUT") for c in composition.clips if c.color]
     paths += [_path(c.font.path, base_dir, f"caption {c.id} font") for c in composition.captions if c.font]
+    paths += [_path(g.font.path, base_dir, f"graphic {g.id} font") for g in composition.graphics if g.font]
     return paths
 
 
@@ -118,6 +119,11 @@ def delivery_plans(composition, aspects, directory, *, base_dir=None, framing=No
             path = _path(caption.font.path, base_dir, f"caption {caption.id} font")
             _verify(path, caption.font.sha256, f"caption {caption.id} font")
             caption.font.path = str(path)
+    for graphic in plan.graphics:
+        if graphic.font:
+            path = _path(graphic.font.path, base_dir, f"graphic {graphic.id} font")
+            _verify(path, graphic.font.sha256, f"graphic {graphic.id} font")
+            graphic.font.path = str(path)
     measured = dict(measured or {})
     missing = {path: ranges for path, ranges in used_ranges(plan).items() if _key(path) not in measured}
     if missing:

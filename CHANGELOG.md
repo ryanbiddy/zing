@@ -1,5 +1,19 @@
 # Changelog
 
+## Motion graphics
+
+- Composition v2 plans accept `graphics`: `title-card`, `lower-third`,
+  `callout` and `progress-bar` templates with a normalized box, one or two
+  text lines, a pinned TTF/OTF font and text/accent colors. `zing render` draws
+  them in the HyperFrames overlay beneath its captions. See
+  [Motion graphics](docs/MOTION-GRAPHICS.md).
+- Text is measured in its pinned face before rendering. A line that would
+  overflow its box, or a missing glyph, fails with the largest size that fits.
+- `--aspect` deliveries scale graphic text with the short side, as captions do.
+- The HyperFrames offline guard allows the renderer's local `ps` process-table
+  read and its Linux `ldd` check of the configured browser, so renders complete
+  on Linux and macOS. Other commands and arguments stay blocked.
+
 ## Clip quality
 
 - Match keeps source color by default. CLI `--color reference` and MCP

@@ -144,6 +144,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
 | Make memes | [Memes](docs/MEMES.md): photo folder + topic to concepts, a contact sheet, and selected stills (`zing still`); template metadata, text checks, and animated memes (`zing meme render-video`). |
+| Add motion graphics | [Motion graphics](docs/MOTION-GRAPHICS.md): title cards, lower thirds, callouts and progress bars in a v2 plan, rendered locally by HyperFrames with a pre-render fit check. |
 | Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; standalone output is silent, and v2 rendering composites its captions with footage and audio. |
 | Render v2 caption overlays | [HyperFrames v2 adapter](docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions, an FFmpeg composite helper and integration with `zing render`. |
 | Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe. |

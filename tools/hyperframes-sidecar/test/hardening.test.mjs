@@ -43,6 +43,9 @@ for (const expression of [
   "require('child_process').spawnSync(process.execPath,['-e',\"fetch('https://example.invalid')\"])",
   "require('child_process').fork('remote.js')",
   "require('child_process').spawn('powershell.exe',['-Command','Invoke-WebRequest https://example.invalid'])",
+  "require('child_process').execFileSync('ldd',['/bin/sh'])",
+  "require('child_process').execFileSync('ps',['-A','-ww','-o','pid=,ppid=,args=,env'])",
+  "require('child_process').execFileSync('ps',['-U','0;id','-ww','-o','pid=,ppid=,args='])",
 ]) test(`guard denies ${expression}`, () => {
   const result = spawnSync(process.execPath, ['--require', guard, '-e', `require('assert').throws(()=>{${expression}}, /Offline render blocked/);`], { encoding: 'utf8', timeout: 10000 });
   assert.equal(result.status, 0, result.stderr);

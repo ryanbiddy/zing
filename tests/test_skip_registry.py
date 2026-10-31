@@ -95,6 +95,11 @@ REGISTERED_SKIPS = {
         "PRODUCT SURFACE: v2 render preflight, the standalone adapter and doctor report missing render "
         "tools; docs/HYPERFRAMES-V2.md records setup and the separate opt-in gate."
     ),
+    "set ZING_REQUIRE_HYPERFRAMES=1 for a real graphics render": (
+        "the motion-graphics frame check needs the pinned local sidecar, browser, FFmpeg "
+        "and NumPy; it uses the bundled OFL font. PRODUCT SURFACE: v2 render preflight "
+        "and doctor report missing render tools; docs/MOTION-GRAPHICS.md links the setup."
+    ),
     "optional real Kokoro check": (
         "the real synthesis check needs the optional kokoro-onnx runtime and "
         "model assets. PRODUCT SURFACE: tts_status() checks runtime and asset "

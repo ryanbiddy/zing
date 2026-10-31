@@ -86,7 +86,17 @@ def _constraints(cls: type, properties: dict) -> None:
         for key in ("highlight_box_padding", "highlight_box_radius"):
             properties[key].update(minimum=0, maximum=64)
         properties["highlight_box_opacity"].update(minimum=0, maximum=1)
-    if name in {"Word", "MeasuredFact", "TransitionEvidence", "Coverage", "Segment", "Tempo"}:
+    if name == "GraphicStyle":
+        size = next(s for s in properties["size"]["anyOf"] if s.get("type") == "number")
+        size.update(minimum=1, maximum=512)
+        for key in ("color", "accent"):
+            properties[key]["pattern"] = "^#[0-9a-fA-F]{6}$"
+    if name == "CompositionGraphic":
+        properties["start"]["minimum"] = 0
+        properties["end"]["exclusiveMinimum"] = 0
+        properties["text"].update(maxItems=2)
+        properties["text"]["items"].update(minLength=1, maxLength=120, pattern="^[^\\u0000-\\u001f]*$")
+    if name in {"Word","MeasuredFact", "TransitionEvidence", "Coverage", "Segment", "Tempo"}:
         for key in ("confidence", "fraction"):
             if key in properties:
                 properties[key].update(minimum=0, maximum=1)

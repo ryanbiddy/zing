@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 from typing import Iterable
 
-from myzing.composition import CompositionCaption
+from myzing.composition import CompositionCaption, CompositionGraphic
 from myzing.composition.timebase import rate_fraction
 from myzing.project.models import Rational
 from myzing.storage import resolve_workspace
@@ -18,15 +18,22 @@ from .hyperframes_adapter import (
 from .hyperframes_publish import reserve_output, publish_pair
 
 
+# Em sizes of each template's padding, bars and gaps around its text lines,
+# as (width, height). templates.mjs draws these; keep both in step.
+GRAPHIC_CHROME = {"title-card": (0.0, 0.33), "lower-third": (1.37, 0.6), "callout": (1.4, 0.5)}
+
+
 def captions_to_plan(
     captions: Iterable[CompositionCaption], *, width: int, height: int,
     fps: Rational, duration: float, base_dir: Path | None = None,
+    graphics: Iterable[CompositionGraphic] = (),
 ) -> HyperframesPlan:
     """Select HyperFrames events, preserve output times, and verify exact fonts.
 
     ASS events are left to the caller's other backend. Input records are copied
     and validated; confidence, timing provenance and layout safety stay in v2.
-    Untimed words and layout shrink requests are unsupported.
+    Untimed words and layout shrink requests are unsupported. Motion graphics
+    render beneath the captions; text that would overflow its box fails.
     """
     try:
         rate = rate_fraction(fps)
@@ -70,10 +77,58 @@ def captions_to_plan(
         else:
             converted["path"] = [{"time": k.time, "box": box(k.box)} for k in layout.path]
         events.append(converted)
+    selected = []
+    for original in graphics:
+        try:
+            selected.append(CompositionGraphic.from_dict(original.to_dict()))
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise HyperframesError(f"Invalid CompositionGraphic: {exc}") from exc
+    if len({g.id for g in selected}) != len(selected):
+        raise HyperframesError("Duplicate graphic ids")
     data = {"version": 1, "width": width, "height": height,
             "fps": int(rate) if rate.denominator == 1 else str(rate),
             "duration": duration, "background": {"transparent": True}, "captions": events}
-    return HyperframesPlan.from_dict(validate_plan(data, base_dir=(base_dir or Path.cwd()).resolve()))
+    if selected:
+        data["graphics"] = [_graphic(g) for g in selected]
+    plan = validate_plan(data, base_dir=(base_dir or Path.cwd()).resolve())
+    for graphic, converted in zip(selected, plan.get("graphics", [])):
+        _check_fit(graphic, converted, width, height)
+    return HyperframesPlan.from_dict(plan)
+
+
+def _graphic(graphic: CompositionGraphic) -> dict:
+    style = {"color": graphic.style.color, "accent": graphic.style.accent}
+    if graphic.text:
+        style.update(font=graphic.font.path, font_sha256=graphic.font.sha256, size=graphic.style.size)
+    return {"start": graphic.start, "end": graphic.end, "template": graphic.template,
+            "box": {k: getattr(graphic.box, k) for k in ("x", "y", "width", "height")},
+            "text": list(graphic.text), "style": style}
+
+
+def _check_fit(graphic: CompositionGraphic, converted: dict, width: int, height: int) -> None:
+    """Measure unwrapped lines in the pinned face; never clip or shrink silently."""
+    if not graphic.text:
+        return
+    from myzing.captions.metrics import metrics
+    style = converted["style"]
+    face = metrics(style["font"], style["font_sha256"])
+    for line in graphic.text:
+        missing = "".join(dict.fromkeys(face.missing(line)))
+        if missing:
+            raise HyperframesError(f"Graphic {graphic.id}: font has no glyph for {missing!r}; choose a font covering every character")
+    size = style["size"]
+    chrome_width, chrome_height = GRAPHIC_CHROME[graphic.template]
+    # Per pixel of size: widest line plus chrome, and stacked line heights plus chrome.
+    per_width = max(face.width(line, 1 if i == 0 else 0.5) for i, line in enumerate(graphic.text)) + chrome_width
+    per_height = 1.1 + 0.6 * (len(graphic.text) - 1) + chrome_height
+    box_width, box_height = graphic.box.width * width, graphic.box.height * height
+    if size * per_width > box_width + 1 or size * per_height > box_height + 1:
+        largest = int(min(box_width / per_width, box_height / per_height))
+        remedy = (f"set style.size to {largest} or less, or enlarge the box" if largest >= 1
+                  else "enlarge the box; no text size fits it")
+        raise HyperframesError(
+            f"Graphic {graphic.id}: {graphic.template} needs {size * per_width:.0f}x{size * per_height:.0f}px at "
+            f"size {size:g}, but its box is {box_width:.0f}x{box_height:.0f}px; {remedy}")
 
 
 def composite_overlay(

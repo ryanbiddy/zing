@@ -20,9 +20,11 @@ def _sha256(path: Path) -> str:
 
 def overlay_key(plan: hf.HyperframesPlan) -> str:
     data = plan.to_dict()
-    for event in data["captions"]:
+    for event in [*data["captions"], *data.get("graphics", [])]:
         # Identity is font bytes, not the machine's asset directory spelling.
         style = event["style"]
+        if "font" not in style:
+            continue  # A textless graphic embeds no font.
         digest = _sha256(Path(style.pop("font")))
         if digest != style.get("font_sha256"):
             raise hf.HyperframesError("HyperFrames font SHA-256 mismatch; restore the declared font file")
