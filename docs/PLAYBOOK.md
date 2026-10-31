@@ -7,8 +7,8 @@ Playbook compares Shorts that beat their own channel's median with Shorts that f
 Use the existing pilot listing first. This command reads a local JSON file and makes no network requests:
 
 ```powershell
-zing playbook list --from-candidates E:\AI\projects\zing\handoff\orch-2026-10\playbook\pilot-candidates.json --out zing-workspace\playbook
-zing playbook measure zing-workspace\playbook --media-dir E:\path\to\local-shorts
+zing playbook list --from-candidates pilot-candidates.json --out zing-workspace\playbook
+zing playbook measure zing-workspace\playbook --media-dir path\to\local-shorts
 zing playbook notes zing-workspace\playbook --dry-run
 zing playbook notes zing-workspace\playbook --limit 10 --budget-hours 7.5
 zing playbook distill zing-workspace\playbook --version v0

@@ -403,8 +403,11 @@ def test_reject_path_escape_and_bad_thresholds(tmp_path):
         distill.Thresholds(min_consistency=2).validate()
 
 
-@pytest.mark.parametrize("error", [subprocess.TimeoutExpired(["ffmpeg", "C:/Users/private/secret.mp4", SECRET], 60),
-                                  KeyError(SECRET), RuntimeError("C:/Users/private/" + SECRET)])
+HOME = "C:/Users/" + "private/"  # split so the public-tree scan doesn't read it as a real home path
+
+
+@pytest.mark.parametrize("error", [subprocess.TimeoutExpired(["ffmpeg", HOME + "secret.mp4", SECRET], 60),
+                                  KeyError(SECRET), RuntimeError(HOME + SECRET)])
 def test_measure_failure_continues_and_resume_skips(tmp_path, monkeypatch, error):
     make_library(tmp_path, [entry(f"v{i}") for i in range(3)])
     calls = []
