@@ -56,6 +56,13 @@ one judgment and what was built from it.
 - Speaker framing uses the pinned YuNet face model (`zing layout fetch-model`).
   Close-ups teach the frame what the main speaker wears; in wide shots it follows them.
   Captions already burned into the source are cropped out.
+- Photos move through their own depth: near things slide and grow against the
+  background, as if a camera drifted past (Depth Anything V2 Small on the CPU, about
+  0.5 s per photo plus a few seconds to encode the move). The move only shifts and
+  scales what is in the photo; nothing is generated. Logos, page captures and flat
+  pictures such as charts stay still. It needs `zing factory fetch-depth --yes` once
+  (Apache-2.0 weights, about 99 MB); without them photos keep the flat zoom. Turn it off
+  per project with `new --no-parallax` or per render with `render --no-parallax`.
 - `--mode fun` asks for playful, literal visuals that still match what is said.
   Clips on sensitive subjects (slavery, violence, death, war and similar) are planned
   and picked in context mode with restrained visuals, and flagged on the review page.
@@ -120,6 +127,7 @@ unknown, and the closest bundled font is reported with its similarity.
 ```bash
 python -m pip install "myzing[factory]"
 zing layout fetch-model
+zing factory fetch-depth --yes          # optional: photos move through their depth
 cd tools/factory-sidecar && npm ci     # pinned playwright-core; uses your Chrome or Edge
 ```
 

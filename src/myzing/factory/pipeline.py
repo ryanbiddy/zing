@@ -15,7 +15,7 @@ from . import cut, pick, plan, postcopy, render, review, scout, source, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
-SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False}
+SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True}
 
 
 def _read(path: Path, default=None):

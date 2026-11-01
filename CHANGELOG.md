@@ -18,6 +18,10 @@
 - 4:5 renders for LinkedIn and Instagram feeds, and a `headline` pack: the clip above a
   solid panel with your source credit and the hook as a standing headline. learn-style
   detects the frame shape and a headline panel, including accent words inside a line.
+- Photos move through their own depth (Depth Anything V2 Small, CPU, after
+  `zing factory fetch-depth --yes`): a slow camera drift where near things slide
+  against the background. Logos, page captures and flat pictures stay still; nothing
+  is generated. `--no-parallax` turns it off per project or per render.
 
 ## Motion graphics
 

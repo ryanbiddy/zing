@@ -245,12 +245,17 @@ window.seek = async function(t) {
   if (G.top) {
     const v = D.visuals[shot.visual], BW = G.top.w, BH = G.top.h;
     let vsrc = v.src, vw = v.w, vh = v.h;
-    if (v.frames) { const k = (Math.floor(tin*FPS) % v.frames) + 1; vsrc = `${v.dir}/${String(k).padStart(5,'0')}.jpg`; }
+    const d = shot.to-shot.from;
+    // a depth move plays once across the shot; stock video loops
+    if (v.frames) { const k = (v.move ? Math.min(v.frames-1, Math.floor(lin(tin, 0, Math.min(d, D.duration-shot.from))*(v.frames-1)))
+                                      : Math.floor(tin*FPS) % v.frames) + 1;
+                    vsrc = `${v.dir}/${String(k).padStart(5,'0')}.jpg`; }
     await Promise.all([setImg($('topImg'), vsrc), setImg($('topBlur'), vsrc)]);
     cover($('topBlur'), vw, vh, BW, BH, 1.1);
     const pop = mix(1.06, 1, easeOut(lin(tin, 0, .25)));
     if (v.fit === 'contain') contain($('topImg'), vw, vh, BW, BH);
-    else { const dir = (shot.idx % 2) ? 1 : -1, d = shot.to-shot.from;
+    else if (v.move) cover($('topImg'), vw, vh, BW, BH, pop, .5, .45);   // the camera already moves through the photo
+    else { const dir = (shot.idx % 2) ? 1 : -1;
       cover($('topImg'), vw, vh, BW, BH, pop*(1.02 + (v.frames ? .02 : .07)*lin(tin, 0, d)), .5 + dir*.06*lin(tin,0,d), .45); }
     $('credit').textContent = v.credit || '';
     $('credit').style.top = (G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';
