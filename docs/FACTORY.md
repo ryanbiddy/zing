@@ -78,6 +78,39 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 `--pack zing | newsdesk | swiss` sets colors, caption treatment and source tag
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
 
+## Review dashboard
+
+`zing factory serve <project>` opens a local page (http://127.0.0.1:8765) for the part
+that is yours: watch each clip in every shape, rate it Post / Post with edits / No,
+swap a visual for another candidate, fix a hook or the copy, and re-render in another
+style pack. Swaps and hook edits re-run the fact check and re-render in the background.
+Ratings save to `ratings.json`. `--judge claude` lets the page's Run button answer
+judgments with Claude Code; otherwise they wait for your agent.
+
+The server listens on 127.0.0.1 only, answers only to localhost Host headers, refuses
+writes from other sites and non-JSON posts, and serves files only from the project's
+clip folders. Nothing on the page posts or publishes.
+
+## Learn a style from a clip you like
+
+```bash
+zing factory learn-style liked.mp4 --name bold-white --sample talk/clip01
+zing factory new talk2 --media ep2.mp4 --pack bold-white
+```
+
+`learn-style` measures the reference's captions: position, size, words per caption,
+case, text color, background box, outline, word color (the active word, or emphasized
+words such as numbers and the hook's keywords), how captions pop in, the closest bundled
+font, plus where the speaker sits and how often it cuts. It writes those into a pack,
+renders the sample clip in it, measures that render the same way and corrects size,
+position, grouping, pop timing and outline, for up to `--rounds` (3). The pack is saved
+to the workspace (`factory/packs/<name>.json`) beside a report: `report.md` lists each
+trait as matched, not matched or not measured, and `compare.jpg` puts reference
+frames above ours.
+
+Everything is measured from pixels. The original font, project and settings stay
+unknown, and the closest bundled font is reported with its similarity.
+
 ## Setup
 
 ```bash

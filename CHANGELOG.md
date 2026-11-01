@@ -12,6 +12,9 @@
   `factory_answer`, or to Claude Code's CLI with `--judge claude`, which runs lean
   calls and logs each call's cost.
 - Style packs: `zing`, `newsdesk`, `swiss`.
+- `zing factory learn-style` learns a pack from a clip you like and checks a sample render
+  against it, trait by trait. `zing factory serve` opens a local review dashboard
+  (watch, rate, swap visuals, edit hook and copy, re-render).
 
 ## Motion graphics
 
