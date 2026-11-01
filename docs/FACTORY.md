@@ -47,7 +47,8 @@ one judgment and what was built from it.
 ## What the screen shows
 
 - **9:16** keeps the speaker in the bottom half under a visual or graphic, with the
-  caption box on the seam. **1:1** and **16:9** cut to full-screen visuals.
+  caption box on the seam. **4:5** (the LinkedIn and Instagram feed shape), **1:1** and
+  **16:9** cut to full-screen visuals.
 - Graphics (counter, list, funnel, quote) are built only from the clip's words. Every
   drawn number must be spoken (spelled-out numbers count), a quote must be word for
   word, and a hook with an unspoken number is flagged. A graphic that fails becomes a
@@ -75,8 +76,10 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 
 ## Style packs
 
-`--pack zing | newsdesk | swiss` sets colors, caption treatment and source tag
+`--pack zing | newsdesk | swiss | headline` sets colors, caption treatment and source tag
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
+`headline` plays the clip above a solid panel that holds your source credit and the hook
+as a standing headline in condensed capitals, key words in the accent color.
 
 ## Review dashboard
 
@@ -101,7 +104,8 @@ zing factory new talk2 --media ep2.mp4 --pack bold-white
 `learn-style` measures the reference's captions: position, size, words per caption,
 case, text color, background box, outline, word color (the active word, or emphasized
 words such as numbers and the hook's keywords), how captions pop in, the closest bundled
-font, plus where the speaker sits and how often it cuts. It writes those into a pack,
+font, plus the frame shape, a headline panel under the video (its size, color and
+headline colors), where the speaker sits and how often it cuts. It writes those into a pack,
 renders the sample clip in it, measures that render the same way and corrects size,
 position, grouping, pop timing and outline, for up to `--rounds` (3). The pack is saved
 to the workspace (`factory/packs/<name>.json`) beside a report: `report.md` lists each

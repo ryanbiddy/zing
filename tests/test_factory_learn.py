@@ -63,6 +63,24 @@ def test_layout_is_learned():
     assert rows["speaker position"]["match"] is False and rows["title header"]["match"] is False
 
 
+def test_headline_panel_and_shape_are_learned():
+    m = {**REF, "shape": "4x5", "panel": {"present": True, "side": "bottom", "size": 0.31, "bg": [11, 11, 11], "brand": True,
+                                          "upper": True, "ink": [255, 255, 255], "on": [254, 209, 61]}}
+    pack = learn.to_pack(m, "panel", render.theme("zing"))
+    assert pack["shape"] == "4x5" and pack["panel"] == {"side": "bottom", "size": 0.31, "bg": "#0B0B0B", "brand": True,
+                                                        "upper": True, "font": "Anton", "ink": "#FFFFFF", "on": "#FED13D"}
+    ours = {**m, "shape": "9x16", "panel": {**m["panel"], "size": 0.25}}
+    rows = {r["name"]: r for r in learn.compare(m, ours)}
+    assert rows["frame shape"]["match"] is False and rows["headline panel"]["match"] is False
+    assert learn.correct(pack, m, ours)["panel"]["size"] == 0.37
+    assert "panel" not in learn.to_pack({**REF, "panel": {"present": False}}, "plain", render.theme("zing"))
+
+
+def test_nearest_shape():
+    assert learn.nearest_shape(640, 800) == "4x5" and learn.nearest_shape(360, 640) == "9x16"
+    assert learn.nearest_shape(1080, 1080) == "1x1" and learn.nearest_shape(1280, 720) == "16x9"
+
+
 def test_compare_and_correct_converge():
     ours = {**REF, "cap_y": 0.75, "text_height": 0.036, "words": 3.0, "highlight": {"present": False},
             "pop": {"measured": True, "ms": 160, "from": 0.9, "overshoot": True}}
@@ -184,4 +202,4 @@ def test_dashboard_actions(studio_server):
     assert ("final", ["v1"]) in rendered and "clip01" in rendered
     picks = json.loads((project / "clip01" / "visuals" / "picks.json").read_text(encoding="utf-8"))
     assert picks["picks"]["v1"]["pick"] == 0
-    assert call(port, "POST", "/api/render", {"clip": "clip01", "shape": "4x5"}, origin)[0] == 400
+    assert call(port, "POST", "/api/render", {"clip": "clip01", "shape": "2x3"}, origin)[0] == 400

@@ -45,6 +45,11 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 .bar{position:absolute;top:0;height:80px;border-radius:18px;left:50%}
 .num{position:absolute;top:0;height:80px;left:0;right:0;text-align:center;font:900 56px/80px Inter;font-variant-numeric:tabular-nums}
 .lab{position:absolute;top:86px;left:0;right:0;text-align:center;font:800 27px/30px Inter;letter-spacing:.14em;color:var(--muted)}
+#panel{position:absolute;left:0;right:0;bottom:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:0 54px;background:var(--panel-bg,#000)}
+#panel .brand{display:flex;align-items:center;gap:22px;width:100%;color:var(--panel-ink,#fff);font:800 28px Inter;white-space:nowrap}
+#panel .brand:before,#panel .brand:after{content:"";flex:1;height:2px;background:currentColor;opacity:.7}
+#panel .head{width:100%;text-align:center;color:var(--panel-ink,#fff);font-family:var(--panel-font,Anton),Inter,sans-serif;font-weight:var(--panel-weight,400);line-height:1.04;text-transform:var(--panel-case,uppercase)}
+#panel .head b{font-weight:inherit;color:var(--panel-on,var(--yel))}
 </style></head>
 <body>
 <div class="layer" id="top"><img id="topBlur"><img id="topImg"></div>
@@ -52,6 +57,7 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <div class="layer" id="spk"><img id="spkBlur"><img id="spkImg"></div>
 <div id="hook"></div>
 <div id="pill"><span></span></div>
+<div id="panel"><div class="brand"></div><div class="head"></div></div>
 <div id="cap"><span class="box"></span></div>
 <div id="credit"></div>
 <div id="prog"></div>
@@ -171,7 +177,28 @@ function drawGraphic(g, t, el) {
 const SW = D.W || 1080, SH9 = D.H || 1920, ASPECT = D.aspect || '9x16';
 document.documentElement.style.width = document.body.style.width = SW + 'px';
 document.documentElement.style.height = document.body.style.height = SH9 + 'px';
+// headline panel: a solid strip (bottom) holding a brand row and the hook as a standing headline; the clip plays above
+const PANEL = D.theme && D.theme.panel, STAGE_H = PANEL ? Math.round(SH9 * (1 - PANEL.size)) : SH9;
+if (PANEL) { const st = document.documentElement.style, set = (k, v) => v != null && st.setProperty(k, v);
+  set('--panel-bg', PANEL.bg); set('--panel-ink', PANEL.ink); set('--panel-on', PANEL.on);
+  if (PANEL.font) set('--panel-font', `'${PANEL.font}'`); if (PANEL.weight) set('--panel-weight', PANEL.weight);
+  if (PANEL.upper === false) set('--panel-case', 'none');
+  const el = $('panel'); el.style.display = 'flex'; el.style.top = STAGE_H + 'px';
+  const brand = PANEL.brand === false ? '' : (PANEL.brand_text || D.sourceTag || '');
+  el.querySelector('.brand').textContent = brand; el.querySelector('.brand').style.display = brand ? '' : 'none';
+  el.querySelector('.head').innerHTML = D.hookHtml; }
+let panelFit = false;
+function fitPanel() {            // after fonts load: the largest headline that fits the strip
+  const head = $('panel').querySelector('.head'), room = (SH9 - STAGE_H) * (PANEL.brand === false ? .82 : .64);
+  let size = Math.round((SH9 - STAGE_H) * .3);
+  do { head.style.fontSize = size + 'px'; size -= 2; } while ((head.scrollHeight > room || head.scrollWidth > head.clientWidth + 1) && size > 22);
+  panelFit = true;
+}
 function geometry(layout) {
+  if (PANEL) {                 // the clip plays above the panel, cutting to full-width visuals and graphics
+    const stage = {x:0, y:0, w:SW, h:STAGE_H}, cap = CAP.y ? Math.round(CAP.y*SH9) : STAGE_H - 150;
+    return layout === 'solo' ? {spk: stage, cap, hook:'panel', pill:56} : {[layout==='split'?'top':'gfx']: stage, cap, hook:'panel', pill:56};
+  }
   const full = {x:0, y:0, w:SW, h:SH9};
   if (ASPECT === '9x16') {
     // pack layout: which half the speaker takes in a split, where the seam sits, a full-bleed solo speaker,
@@ -239,7 +266,9 @@ window.seek = async function(t) {
   const hookOn = t < D.hookUntil;
   const hp = easeOut(lin(t, 0, .35)) * (1 - lin(t, D.hookUntil-.25, D.hookUntil));
   const hook = $('hook'), pill = $('pill');
-  if (G.hook === 'header') { hook.style.top = '130px'; hook.innerHTML = `<div>${D.hookHtml}</div>`; hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
+  if (PANEL && !panelFit) fitPanel();
+  if (G.hook === 'panel') { hook.style.opacity = 0; pill.style.opacity = 0; }
+  else if (G.hook === 'header') { hook.style.top = '130px'; hook.innerHTML = `<div>${D.hookHtml}</div>`; hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
   else { hook.style.opacity = 0; pill.style.top = G.pill+'px'; pill.firstChild.innerHTML = D.hookHtml; pill.style.opacity = hookOn ? hp : 0;
          pill.style.transform = `scale(${mix(.85,1,back(lin(t,0,.35)))})`; }
 
@@ -252,13 +281,14 @@ window.seek = async function(t) {
       const em = !on && EMPH && (EMPH.has(norm(w.w)) || /\d/.test(w.w));
       return `<span class="${on?'on':em?'em':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
     cap.style.top = G.cap + 'px';
-    cap.style.opacity = hookOn && ASPECT === '9x16' && layout !== 'solo' ? 0 : 1;
+    cap.style.opacity = hookOn && G.hook === 'pill' && ASPECT === '9x16' && layout !== 'solo' ? 0 : 1;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);
-    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16');
+    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16' || PANEL);
     cap.style.transform = `${centered ? 'translateY(-50%) ' : ''}scale(${mix(CAP.pop_from,1,CAP.overshoot ? back(pop) : easeOut(pop))})`;
   } else cap.style.opacity = 0;
   $('prog').style.width = (100*clamp(t/D.duration))+'%';
-  $('srctag').textContent = D.sourceTag || '';
+  $('srctag').textContent = PANEL && PANEL.brand !== false ? '' : D.sourceTag || '';
+  $('srctag').style.display = $('srctag').textContent ? '' : 'none';
   $('srctag').style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';
   return true;
 };

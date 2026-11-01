@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .tools import FactoryError, data_path, ffmpeg, node_sidecar, run, sidecar_env
 
-SHAPES = {"9x16": (1080, 1920), "1x1": (1080, 1080), "16x9": (1920, 1080)}
+SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
 VIDEO = (".mp4", ".mov", ".webm", ".gif")
 
 
