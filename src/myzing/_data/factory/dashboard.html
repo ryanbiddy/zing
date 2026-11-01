@@ -1,0 +1,986 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zing factory</title>
+<style>
+  /* Tokens and button system copied from Uoink (extension/brand/tokens.css and
+     the dashboard's button block, UI review 2026-10-31). Light by default,
+     dark under prefers-color-scheme or data-theme="dark". */
+  :root {
+    color-scheme: light dark;
+    --bg: #FFF4EC;
+    --surface: #FFFFFF;
+    --surface-sel: #FBE6D6;
+    --text: #0A0A0A;
+    --text-2: #5C4A40;
+    --line: #EBD5C5;
+    --line-strong: #D9BBA6;
+    --action: #C2410C;
+    --on-action: #FFFFFF;
+    --ok: #15803D;
+    --ok-bg: #E9F6EE;
+    --ok-line: #A7D9B8;
+    --fail: #C2410C;
+    --focus-ring: #C2410C;
+    --info: #0369A1;
+    --btn-border: #94745F;
+    --btn-hover: #FBE6D6;
+    --btn-press: #F3D7C2;
+    --btn-primary-hover: #B23C0B;
+    --btn-primary-press: #A3370A;
+    --btn-danger: #B42318;
+    --on-danger: #FFFFFF;
+    --btn-disabled: #EEE4DD;
+    --on-btn-disabled: #89786D;
+    --warn: #854D0E;
+    --warn-bg: #FDF3DC;
+    --warn-line: #E8CF94;
+    --danger-bg: #FDEEE7;
+    --danger-border: #E7B29C;
+    --rust-bright: #9A3412;
+    --shadow-soft: 0 22px 70px rgba(92, 74, 64, 0.16);
+    --player-bg: #1A1512;
+    --on-player: #F5EDE6;
+    --radius-input: 10px;
+    --radius-thumb: 6px;
+    --radius-pill: 999px;
+    --card-radius: 12px;
+    --target-primary: 44px;
+    --target-chip: 32px;
+    --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+    --ease-exit: cubic-bezier(0.6, 0, 0.9, 0.35);
+    --dur-enter: 200ms;
+    --dur-exit: 100ms;
+    --font-ui: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", Consolas, "SFMono-Regular", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0A0A0A;
+      --surface: #141110;
+      --surface-sel: #1E1815;
+      --text: #F5EDE6;
+      --text-2: #A8968A;
+      --line: #2A211C;
+      --line-strong: #3A2E27;
+      --action: #FF3D00;
+      --on-action: #0A0A0A;
+      --ok: #22C55E;
+      --ok-bg: #0F2417;
+      --ok-line: #1E4A2E;
+      --fail: #FF8A5C;
+      --focus-ring: #FF8A5C;
+      --info: #38BDF8;
+      --btn-border: #806957;
+      --btn-hover: #241C18;
+      --btn-press: #332720;
+      --btn-primary-hover: #FF4D14;
+      --btn-primary-press: #FF5C29;
+      --btn-danger: #FFB4AB;
+      --on-danger: #0A0A0A;
+      --btn-disabled: #211C18;
+      --on-btn-disabled: #76675E;
+      --warn: #FFE3A3;
+      --warn-bg: #2A2110;
+      --warn-line: #4D3D1A;
+      --danger-bg: #3A1F1F;
+      --danger-border: #6A3A3A;
+      --rust-bright: #FF8A5C;
+      --shadow-soft: 0 22px 70px rgba(0, 0, 0, 0.38);
+      --player-bg: #000000;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0A0A0A;
+    --surface: #141110;
+    --surface-sel: #1E1815;
+    --text: #F5EDE6;
+    --text-2: #A8968A;
+    --line: #2A211C;
+    --line-strong: #3A2E27;
+    --action: #FF3D00;
+    --on-action: #0A0A0A;
+    --ok: #22C55E;
+    --ok-bg: #0F2417;
+    --ok-line: #1E4A2E;
+    --fail: #FF8A5C;
+    --focus-ring: #FF8A5C;
+    --info: #38BDF8;
+    --btn-border: #806957;
+    --btn-hover: #241C18;
+    --btn-press: #332720;
+    --btn-primary-hover: #FF4D14;
+    --btn-primary-press: #FF5C29;
+    --btn-danger: #FFB4AB;
+    --on-danger: #0A0A0A;
+    --btn-disabled: #211C18;
+    --on-btn-disabled: #76675E;
+    --warn: #FFE3A3;
+    --warn-bg: #2A2110;
+    --warn-line: #4D3D1A;
+    --danger-bg: #3A1F1F;
+    --danger-border: #6A3A3A;
+    --rust-bright: #FF8A5C;
+    --shadow-soft: 0 22px 70px rgba(0, 0, 0, 0.38);
+    --player-bg: #000000;
+  }
+  :root[data-theme="light"] { color-scheme: light; }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring) !important;
+    outline-offset: 2px !important;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  h1, h2, h3 { margin: 0; color: var(--text); line-height: 1.2; }
+  p { margin: 0; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  /* Buttons: primary, secondary (plain .button), ghost, danger, link. */
+  .button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: var(--target-primary);
+    border: 1px solid var(--btn-border);
+    border-radius: var(--radius-pill);
+    padding: 0 14px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px; font-weight: 600; line-height: 1.2;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .button:hover { background: var(--btn-hover); }
+  .button:active { background: var(--btn-press); }
+  .button.primary { border-color: var(--action); background: var(--action); color: var(--on-action); }
+  .button.primary:hover { border-color: var(--btn-primary-hover); background: var(--btn-primary-hover); }
+  .button.primary:active { border-color: var(--btn-primary-press); background: var(--btn-primary-press); }
+  .button.ghost { border-color: transparent; background: transparent; }
+  .button.ghost:hover { background: var(--btn-hover); }
+  .button.ghost:active { background: var(--btn-press); }
+  .button.small { min-height: var(--target-chip); padding: 0 10px; font-size: 13px; }
+  @media (pointer: coarse) { .button.small { min-height: var(--target-primary); } }
+  .button[aria-pressed="true"],
+  .button.ghost[aria-pressed="true"] {
+    border-color: var(--btn-border); background: var(--surface-sel); color: var(--text);
+  }
+  .button[aria-pressed="true"]::before,
+  .button.ghost[aria-pressed="true"]::before { content: "\2713"; font-size: 0.9em; }
+  .button:disabled, .button:disabled:hover, .button:disabled:active {
+    border-color: transparent; background: var(--btn-disabled); color: var(--on-btn-disabled);
+    cursor: not-allowed;
+  }
+  .button.ghost:disabled { background: transparent; }
+  .button[aria-busy="true"] { cursor: progress; pointer-events: none; }
+  .button.primary[aria-busy="true"]:disabled { border-color: var(--action); background: var(--action); color: var(--on-action); }
+  .button:not(.primary)[aria-busy="true"]:disabled { border-color: var(--btn-border); background: var(--surface); color: var(--text); }
+  .button[aria-busy="true"]::before {
+    content: ""; width: 14px; height: 14px; flex: 0 0 auto;
+    border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Fields */
+  label.field-label { display: block; margin-bottom: 6px; color: var(--text); font-size: 13px; font-weight: 600; }
+  .field {
+    width: 100%; min-height: 42px;
+    border: 1px solid var(--line-strong); border-radius: var(--radius-input);
+    padding: 9px 12px;
+    background: var(--surface); color: var(--text);
+    outline: none;
+  }
+  .field:focus { border-color: var(--action); }
+  textarea.field { resize: vertical; line-height: 1.45; overflow: hidden; }
+  select.field {
+    appearance: none; padding: 0 38px 0 12px;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-2) 50%), linear-gradient(135deg, var(--text-2) 50%, transparent 50%);
+    background-position: calc(100% - 18px) 18px, calc(100% - 12px) 18px;
+    background-size: 6px 6px, 6px 6px; background-repeat: no-repeat;
+  }
+
+  /* Pills and notes */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    min-height: 26px; padding: 0 10px;
+    border: 1px solid var(--line-strong); border-radius: var(--radius-pill);
+    background: var(--surface); color: var(--text-2);
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--ok); border-color: var(--ok-line); background: var(--ok-bg); }
+  .pill.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+  .pill.info { color: var(--info); }
+  .pill.fail { color: var(--fail); border-color: var(--danger-border); background: var(--danger-bg); }
+  .note {
+    display: flex; gap: 8px; align-items: flex-start;
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; font-size: 13px; line-height: 1.4; color: var(--text-2);
+  }
+  .note b { color: inherit; font-weight: 700; }
+  .note.ok { color: var(--ok); border-color: var(--ok-line); background: var(--ok-bg); }
+  .note.warn { color: var(--warn); border-color: var(--warn-line); background: var(--warn-bg); }
+  .note.fail { color: var(--text); border-color: var(--danger-border); background: var(--danger-bg); }
+  .note .icon { flex: 0 0 auto; font-weight: 800; }
+
+  /* Page */
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px 64px; }
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .top-inner {
+    max-width: 1240px; margin: 0 auto; padding: 14px 20px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: center;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .mark {
+    flex: 0 0 auto; display: grid; place-items: center;
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--text); color: var(--bg);
+    font-weight: 900; font-size: 16px; letter-spacing: -0.02em;
+  }
+  .brand h1 { font-size: 20px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 10px; font-size: 13px; color: var(--text-2); }
+  .meta strong { color: var(--text); font-weight: 700; }
+  .progress-wrap { display: flex; align-items: center; gap: 10px; }
+  .progress { width: 120px; height: 8px; border-radius: 999px; background: var(--surface-sel); overflow: hidden; }
+  .progress span { display: block; height: 100%; background: var(--action); }
+  .top-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
+  .waiting { font-size: 13px; color: var(--text-2); text-align: right; }
+  .waiting strong { color: var(--text); }
+  .waiting.has strong { color: var(--rust-bright); }
+
+  .sample-note {
+    margin: 16px 0 0; display: inline-flex; gap: 8px; align-items: center;
+    padding: 6px 12px; border: 1px dashed var(--line-strong); border-radius: var(--radius-pill);
+    font-size: 13px; color: var(--text-2);
+  }
+  .pending-list { margin: 16px 0 0; }
+  .pending-list ul { margin: 6px 0 0; padding-left: 18px; }
+
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 28px 0 12px; }
+  .section-head h2 { font-size: 17px; font-weight: 800; }
+  .section-head p { font-size: 13px; color: var(--text-2); }
+
+  /* Clip grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px; align-items: start; }
+  .card {
+    display: grid; gap: 12px;
+    border: 1px solid var(--line); border-radius: var(--card-radius);
+    background: var(--surface); padding: 12px;
+  }
+  .card.selected { border-color: var(--btn-border); box-shadow: 0 0 0 1px var(--btn-border); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-2); }
+  .card-top .id { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); }
+  .card h3 { font-size: 16px; font-weight: 700; }
+  .card .time { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+
+  .stage { display: grid; place-items: center; background: var(--surface-sel); border-radius: 8px; padding: 8px; }
+  .player {
+    position: relative; width: 100%; max-width: 100%;
+    aspect-ratio: var(--ar, 9 / 16);
+    border-radius: 6px; overflow: hidden;
+    background: var(--player-bg);
+  }
+  .player[data-shape="9x16"] { --ar: 9 / 16; width: min(100%, 300px); }
+  .player[data-shape="1x1"] { --ar: 1 / 1; }
+  .player[data-shape="16x9"] { --ar: 16 / 9; }
+  .player video { display: block; width: 100%; height: 100%; object-fit: contain; background: var(--player-bg); }
+  .player .offline {
+    position: absolute; inset: 0; display: none; place-content: center; gap: 6px;
+    padding: 16px; text-align: center; color: var(--on-player); font-size: 13px; line-height: 1.4;
+    background: radial-gradient(circle at 50% 35%, #3a2a20 0, var(--player-bg) 70%);
+  }
+  .player .offline .play {
+    margin: 0 auto 6px; width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid rgba(245, 237, 230, 0.5); display: grid; place-items: center; font-size: 16px;
+  }
+  .player .offline small { color: rgba(245, 237, 230, 0.7); }
+  .player.is-offline video { visibility: hidden; }
+  .player.is-offline .offline { display: grid; }
+
+  .player.pending { background: repeating-linear-gradient(135deg, var(--surface) 0 14px, var(--surface-sel) 14px 28px); border: 1px dashed var(--line-strong); }
+  .player.pending .pending-label {
+    position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center;
+    color: var(--text-2); font-size: 13px; padding: 16px;
+  }
+  .spinner {
+    margin: 0 auto; width: 22px; height: 22px; border-radius: 50%;
+    border: 2px solid var(--line-strong); border-top-color: var(--action);
+    animation: spin 1.2s linear infinite;
+  }
+
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .notes { display: grid; gap: 6px; }
+  .rate { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+  .rate-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rate .why { display: grid; gap: 4px; }
+  .rate .why label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .rate .why .field { min-height: 36px; padding: 6px 10px; font-size: 13px; }
+  .card-foot { display: flex; justify-content: flex-end; }
+
+  /* Detail */
+  .detail {
+    margin-top: 16px; border: 1px solid var(--line); border-radius: var(--card-radius);
+    background: var(--surface);
+  }
+  .detail-head {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px; border-bottom: 1px solid var(--line);
+  }
+  .detail-head h2 { font-size: 17px; font-weight: 800; }
+  .detail-head p { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+  .render-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+  .render-row .field { width: 160px; }
+  .detail-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+  .detail-col { padding: 16px; display: grid; gap: 20px; align-content: start; }
+  .detail-col + .detail-col { border-left: 1px solid var(--line); }
+  .detail-col h3 { font-size: 14px; font-weight: 800; text-transform: none; }
+  .request { display: grid; gap: 10px; }
+  .request-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .request-head .q { font-weight: 700; }
+  .request-head .rid { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); }
+  .request .ctx { font-size: 13px; color: var(--text-2); }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+  .thumb {
+    position: relative; display: grid; gap: 4px; align-content: start;
+    padding: 4px; border: 1px solid var(--line); border-radius: 8px;
+    background: var(--surface); cursor: pointer; text-align: left;
+    font-size: 11px; line-height: 1.3; color: var(--text-2);
+  }
+  .thumb:hover { background: var(--btn-hover); }
+  .thumb[aria-pressed="true"] { border-color: var(--action); box-shadow: 0 0 0 2px var(--action); }
+  .thumb .img {
+    position: relative; aspect-ratio: 4 / 3; border-radius: var(--radius-thumb); overflow: hidden;
+    background: var(--surface-sel); display: grid; place-items: center;
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .img .ph { padding: 6px; text-align: center; font-size: 11px; color: var(--text-2); display: none; }
+  .thumb .img.broken img { display: none; }
+  .thumb .img.broken .ph { display: block; }
+  .thumb .chosen {
+    position: absolute; top: 8px; left: 8px; z-index: 1;
+    padding: 2px 8px; border-radius: var(--radius-pill);
+    background: var(--action); color: var(--on-action); font-size: 11px; font-weight: 700;
+  }
+  .thumb .t { color: var(--text); font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .thumb .r { display: flex; justify-content: space-between; gap: 4px; }
+  .thumb .r .bad { color: var(--warn); font-weight: 700; }
+  .thumb:disabled { cursor: progress; opacity: 0.6; }
+  .agent-why { font-size: 13px; color: var(--text-2); }
+  .agent-why b { color: var(--text); }
+
+  .text-field { display: grid; gap: 6px; }
+  .text-field .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .text-field .row label { margin: 0; }
+  .text-field .count { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .text-field .count.over { color: var(--fail); font-weight: 700; }
+  .text-field .actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .hint { font-size: 12px; color: var(--text-2); }
+
+  .approve {
+    margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    border: 1px dashed var(--line-strong); border-radius: var(--card-radius); padding: 16px;
+  }
+  .approve h2 { font-size: 15px; font-weight: 800; }
+  .approve p { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+
+  .empty-state {
+    display: grid; place-items: center; gap: 8px; min-height: 220px; padding: 24px;
+    border: 1px dashed var(--line); border-radius: 16px;
+    background: color-mix(in srgb, var(--surface) 58%, transparent);
+    text-align: center; color: var(--text-2);
+  }
+  .empty-state h2 { font-size: 20px; }
+
+  .toast {
+    position: fixed; right: 22px; bottom: 22px; z-index: 30;
+    max-width: min(360px, calc(100vw - 44px));
+    border: 1px solid var(--line); border-radius: var(--card-radius);
+    padding: 13px 15px; background: var(--surface); color: var(--text);
+    box-shadow: var(--shadow-soft); font-size: 14px;
+    opacity: 0; transform: translateY(10px); pointer-events: none;
+    transition: opacity var(--dur-exit) var(--ease-exit), transform var(--dur-exit) var(--ease-exit);
+  }
+  .toast.show { opacity: 1; transform: translateY(0); transition-duration: var(--dur-enter); transition-timing-function: var(--ease-enter); }
+  .toast.error { border-color: var(--danger-border); background: var(--danger-bg); }
+
+  @media (max-width: 860px) {
+    .detail-body { grid-template-columns: minmax(0, 1fr); }
+    .detail-col + .detail-col { border-left: 0; border-top: 1px solid var(--line); }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px 48px; }
+    .top-inner { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+    .top-actions { justify-self: stretch; justify-content: space-between; }
+    .waiting { text-align: left; }
+    .progress { width: 80px; }
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    .player[data-shape="9x16"] { width: min(100%, 260px); }
+    .player.pending[data-shape="9x16"] { --ar: 16 / 9; width: 100%; }
+    .sample-note { border-radius: 10px; }
+    .render-row { width: 100%; }
+    .render-row > div { flex: 1 1 120px; }
+    .render-row .field { width: 100%; }
+    .approve .button { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div>
+      <div class="brand">
+        <span class="mark" aria-hidden="true">Z</span>
+        <h1 id="project-name">Loading project</h1>
+        <span id="state-pill" class="pill"></span>
+      </div>
+      <div class="meta" id="meta"></div>
+    </div>
+    <div class="top-actions">
+      <div class="waiting" id="waiting" aria-live="polite"></div>
+      <button class="button primary" id="run-btn" type="button">Run</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="sample-note" class="sample-note" hidden>
+    Showing sample data. Open this page from <code>zing factory serve</code> to see the live project.
+  </div>
+  <div id="pending" class="pending-list note warn" hidden></div>
+
+  <div class="section-head">
+    <h2>Clips</h2>
+    <p id="clips-sub"></p>
+  </div>
+  <div id="grid" class="grid" aria-live="polite"></div>
+
+  <section id="detail" class="detail" aria-labelledby="detail-title" hidden></section>
+
+  <section class="approve" aria-labelledby="approve-title">
+    <div>
+      <h2 id="approve-title">Approve pack</h2>
+      <p>Sends every clip marked Post to your publishing tool as drafts. Nothing goes live from here.</p>
+    </div>
+    <button class="button" type="button" disabled>Drafts only, coming next</button>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script type="application/json" id="mock">{"project": "sample", "state": "new", "pending": [], "usage": {"calls": 0, "cost_usd": 0}, "settings": {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing"}, "packs": {"zing": "Zing", "newsdesk": "News Desk", "swiss": "Swiss"}, "clips": []}</script>
+<script>
+"use strict";
+
+/* All network calls live here. Wiring a button to Zing is one line. */
+const api = {
+  async get(path) {
+    const res = await fetch(path, { headers: { Accept: "application/json" } });
+    if (!res.ok) throw new Error(res.status + " " + res.statusText);
+    return res.json();
+  },
+  async post(path, body) {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body || {})
+    });
+    if (!res.ok) throw new Error(res.status + " " + res.statusText);
+    const type = res.headers.get("content-type") || "";
+    return type.includes("json") ? res.json() : null;
+  },
+  project: () => api.get("/api/project"),
+  run: () => api.post("/api/run", {}),
+  rate: (clip, v, why) => api.post("/api/rate", { clip, v, why }),
+  visual: (clip, request, index) => api.post("/api/visual", { clip, request, index }),
+  text: (clip, field, text) => api.post("/api/text", { clip, field, text }),
+  render: (clip, shape, pack) => api.post("/api/render", { clip, shape, pack }),
+  media: (clip, file) => "/media/" + encodeURIComponent(clip) + "/" +
+    String(file).split(/[\\/]+/).map(encodeURIComponent).join("/")
+};
+
+const SHAPES = [
+  { id: "9x16", label: "9:16" },
+  { id: "1x1", label: "1:1" },
+  { id: "16x9", label: "16:9" }
+];
+const FIELDS = [
+  { id: "x", label: "X", limit: 280, rows: 4 },
+  { id: "instagram", label: "Instagram", limit: 2200, rows: 6 },
+  { id: "tiktok", label: "TikTok", limit: 2200, rows: 5 },
+  { id: "youtube_title", label: "YouTube title", limit: 100, rows: 2 },
+  { id: "first_comment", label: "First comment", limit: 2200, rows: 3 }
+];
+const STATE_LABEL = {
+  new: ["New", ""], running: ["Running", "info"], waiting: ["Waiting on agent", "warn"],
+  done: ["Done", "ok"], failed: ["Failed", "fail"], interrupted: ["Stopped", "warn"]
+};
+
+const ui = {
+  project: null,
+  sample: false,
+  selected: null,       // clip id shown in detail
+  shape: {},            // clip id -> shape id
+  pack: {},             // clip id -> pack id for re-render
+  drafts: {},           // "clip:field" -> unsaved text
+  rated: {},            // clip id -> last rating sent
+  why: {}               // clip id -> why text
+};
+
+const $ = (sel, root = document) => root.querySelector(sel);
+function el(tag, attrs, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v === true ? "" : v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    node.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return node;
+}
+
+/* ---------- helpers ---------- */
+function baseName(p) { return String(p || "").split(/[\\/]+/).filter(Boolean).pop() || "Project"; }
+function clock(sec) {
+  const s = Math.max(0, Math.round(sec || 0));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
+  const mm = h ? String(m).padStart(2, "0") : String(m);
+  return (h ? h + ":" : "") + mm + ":" + String(r).padStart(2, "0");
+}
+function plural(n, one, many) { return n + " " + (n === 1 ? one : many); }
+function stripStars(s) { return String(s || "").replace(/\*/g, ""); }
+function videoNames(c) { return Object.keys(c.videos || {}); }
+function isRendered(c) { return videoNames(c).length > 0; }
+function defaultPack() { return (ui.project.settings && ui.project.settings.pack) || "zing"; }
+
+/* Which file plays for a clip, shape and pack. Only names that Zing listed in
+   videos are used; the local paths in the JSON are never touched. */
+function fileFor(c, shape, pack) {
+  const names = videoNames(c);
+  const base = shape === "9x16" ? "clip" : "clip-" + shape;
+  const want = pack && pack !== defaultPack()
+    ? [base + "-" + pack + ".mp4"]
+    : [base + ".mp4"];
+  return want.find(n => names.includes(n)) || null;
+}
+function shapesFor(c) { return SHAPES.filter(s => fileFor(c, s.id, defaultPack())); }
+
+function chosenIndex(c, reqId) {
+  const list = (c.candidates && c.candidates[reqId]) || [];
+  const vis = c.plan && c.plan.visuals && c.plan.visuals[reqId];
+  if (vis && vis.path) {
+    const name = baseName(vis.path);
+    const i = list.findIndex(x => baseName(x.path) === name);
+    if (i >= 0) return i;
+  }
+  const pick = c.picks && c.picks.picks && c.picks.picks[reqId];
+  return pick && Number.isInteger(pick.pick) ? pick.pick : null;
+}
+
+function rightsIssues(c) {
+  const out = [];
+  const visuals = (c.plan && c.plan.visuals) || {};
+  for (const [id, v] of Object.entries(visuals)) {
+    if (v.rights === "cleared") continue;
+    if (v.rights === "attribution") out.push(id + " needs a credit line: " + (v.credit || "credit missing"));
+    else out.push(id + " rights are " + (v.rights || "unknown") + ". Check before posting.");
+  }
+  return out;
+}
+
+/* ---------- toast ---------- */
+let toastTimer = 0;
+function toast(msg, isError) {
+  const t = $("#toast");
+  t.textContent = msg;
+  t.classList.toggle("error", !!isError);
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 3600);
+}
+
+/* Every POST goes through here: busy button, toast, then re-fetch. */
+async function act(button, call, okMsg) {
+  const label = button ? button.textContent : "";
+  if (button) { button.disabled = true; button.setAttribute("aria-busy", "true"); }
+  try {
+    await call();
+    toast(okMsg);
+  } catch (err) {
+    toast(ui.sample
+      ? "Not connected to Zing, so nothing was sent. This is sample data."
+      : "That did not go through: " + err.message, true);
+  } finally {
+    if (button) { button.disabled = false; button.removeAttribute("aria-busy"); button.textContent = label; }
+    await load();
+  }
+}
+
+/* ---------- load ---------- */
+async function load() {
+  try {
+    ui.project = await api.project();
+    ui.sample = false;
+  } catch (err) {
+    if (!ui.project || ui.sample) {
+      ui.project = JSON.parse($("#mock").textContent);
+      ui.sample = true;
+    }
+  }
+  render();
+}
+
+/* ---------- render ---------- */
+function render() {
+  const p = ui.project;
+  const clips = p.clips || [];
+  const done = clips.filter(isRendered).length;
+  if (!ui.selected || !clips.some(c => c.clip === ui.selected && isRendered(c))) {
+    const first = clips.find(isRendered);
+    ui.selected = first ? first.clip : null;
+  }
+
+  document.title = baseName(p.project) + " - Zing factory";
+  $("#project-name").textContent = baseName(p.project);
+  const [stateText, stateTone] = STATE_LABEL[p.state] || [p.state || "Unknown", ""];
+  const pill = $("#state-pill");
+  pill.className = "pill " + stateTone;
+  pill.replaceChildren(el("span", { class: "dot", "aria-hidden": "true" }), stateText);
+
+  const pct = clips.length ? Math.round((done / clips.length) * 100) : 0;
+  const cost = p.usage ? "$" + Number(p.usage.cost_usd || 0).toFixed(2) : "$0.00";
+  const s = p.settings || {};
+  const packName = (p.packs && p.packs[s.pack]) || s.pack || "";
+  $("#meta").replaceChildren(
+    el("span", { class: "progress-wrap" },
+      el("span", { class: "progress", role: "progressbar", "aria-label": "Clips rendered",
+        "aria-valuemin": "0", "aria-valuemax": String(clips.length), "aria-valuenow": String(done) },
+        el("span", { style: "width:" + pct + "%" })),
+      el("span", {}, el("strong", { text: done + " of " + clips.length }), " clips rendered")),
+    el("span", {}, el("strong", { text: cost }), " model cost" +
+      (p.usage ? ", " + plural(p.usage.calls || 0, "call", "calls") : "")),
+    packName ? el("span", {}, "Pack ", el("strong", { text: packName })) : null,
+    s.shapes ? el("span", {}, "Shapes ", el("strong", { text: s.shapes.map(x => x.replace("x", ":")).join(", ") })) : null
+  );
+
+  const pending = p.pending || [];
+  const w = $("#waiting");
+  w.className = "waiting" + (pending.length ? " has" : "");
+  w.replaceChildren(pending.length
+    ? el("span", {}, el("strong", { text: plural(pending.length, "decision", "decisions") }), " waiting on your agent")
+    : el("span", {}, el("strong", { text: "0 decisions" }), " waiting on your agent"));
+
+  const pend = $("#pending");
+  pend.hidden = !pending.length;
+  if (pending.length) {
+    pend.replaceChildren(el("div", {},
+      el("b", { text: "Your agent needs to decide:" }),
+      el("ul", {}, pending.map(t => el("li", { text: describeTask(t) })))));
+  }
+
+  const run = $("#run-btn");
+  const running = p.state === "running";
+  run.disabled = running;
+  run.toggleAttribute("aria-busy", running);
+  run.textContent = running ? "Running" : "Run";
+
+  $("#sample-note").hidden = !ui.sample;
+  $("#clips-sub").textContent = done < clips.length
+    ? plural(clips.length - done, "clip", "clips") + " still in progress"
+    : "All clips rendered";
+
+  $("#grid").replaceChildren(...(clips.length
+    ? clips.map(c => isRendered(c) ? clipCard(c) : pendingCard(c))
+    : [el("div", { class: "empty-state" },
+        el("h2", { text: "No clips yet" }),
+        el("p", { text: "Press Run and your agent will scout the episode for moments." }))]));
+
+  renderDetail();
+}
+
+function describeTask(t) {
+  if (typeof t === "string") return t;
+  const bits = [t.kind || t.type || t.task, t.clip, t.request || t.id].filter(Boolean);
+  return bits.length ? bits.join(", ") : JSON.stringify(t);
+}
+
+function timeLine(c) {
+  return "Episode " + clock(c.start) + " to " + clock(c.end) + ", " + Math.round(c.end - c.start) + "s";
+}
+
+function pendingCard(c) {
+  return el("article", { class: "card", "aria-label": "Clip " + c.clip + ", in progress" },
+    el("div", { class: "card-top" },
+      el("span", { class: "id", text: c.clip }),
+      el("span", { class: "pill info" }, el("span", { class: "dot", "aria-hidden": "true" }), "In progress")),
+    el("div", { class: "stage" },
+      el("div", { class: "player pending", "data-shape": "9x16" },
+        el("div", { class: "pending-label" },
+          el("div", { class: "spinner", "aria-hidden": "true" }),
+          el("span", { text: c.plan ? "Rendering" : "Waiting for its turn" }),
+          el("small", { text: "The video shows up here when it is ready." })))),
+    el("div", {},
+      el("h3", { text: stripStars(c.hook) }),
+      el("div", { class: "time", text: timeLine(c) })));
+}
+
+function clipCard(c) {
+  const shapes = shapesFor(c);
+  let shape = ui.shape[c.clip];
+  if (!shape || !shapes.some(s => s.id === shape)) shape = (shapes[0] || SHAPES[0]).id;
+  ui.shape[c.clip] = shape;
+  const file = fileFor(c, shape, defaultPack()) || videoNames(c)[0];
+
+  const player = el("div", { class: "player", "data-shape": shape });
+  const video = el("video", { controls: true, preload: "metadata", playsinline: true,
+    src: api.media(c.clip, file), "aria-label": "Clip " + c.clip + ", " + shape.replace("x", ":") });
+  video.addEventListener("error", () => player.classList.add("is-offline"));
+  player.append(video, el("div", { class: "offline" },
+    el("div", { class: "play", "aria-hidden": "true" }, "▶"),
+    el("span", { text: file }),
+    el("small", { text: "Plays when served by Zing." })));
+
+  const tabs = el("div", { class: "tabs", role: "group", "aria-label": "Shape" },
+    SHAPES.map(s => {
+      const has = shapes.some(x => x.id === s.id);
+      return el("button", {
+        class: "button ghost small", type: "button",
+        "aria-pressed": String(s.id === shape),
+        disabled: !has,
+        title: has ? null : "Not rendered in this shape",
+        "aria-label": s.label + (has ? "" : ", not rendered"),
+        onclick: () => { ui.shape[c.clip] = s.id; render(); focusLater("[data-tab='" + c.clip + s.id + "']"); },
+        "data-tab": c.clip + s.id
+      }, s.label);
+    }));
+
+  const notes = el("div", { class: "notes" });
+  const fc = (c.plan && c.plan.fact_check) || [];
+  if (!fc.length) notes.append(el("div", { class: "note ok" }, el("span", { class: "icon", "aria-hidden": "true" }, "✓"), "Fact check clean"));
+  else fc.forEach(line => notes.append(el("div", { class: "note warn" },
+    el("span", { class: "icon", "aria-hidden": "true" }, "!"),
+    el("span", {}, el("b", { text: "Fact check: " }), String(line).replace(/\s*\[[^\]]*\]\s*$/, "")))));
+  if (c.plan && c.plan.sensitive) notes.append(el("div", { class: "note fail" },
+    el("span", { class: "icon", "aria-hidden": "true" }, "!"),
+    el("span", {}, el("b", { text: "Sensitive. " }), c.plan.sensitive_reason || "Review before posting.")));
+  rightsIssues(c).forEach(r => notes.append(el("div", { class: "note warn" },
+    el("span", { class: "icon", "aria-hidden": "true" }, "!"), el("span", {}, el("b", { text: "Rights: " }), r))));
+
+  const whyId = "why-" + c.clip;
+  const whyInput = el("input", { class: "field", id: whyId, type: "text", value: ui.why[c.clip] || "",
+    placeholder: "Optional, helps your agent learn",
+    oninput: e => { ui.why[c.clip] = e.target.value; } });
+  const rateBtn = (v, label) => el("button", {
+    class: "button small", type: "button", "aria-pressed": String(ui.rated[c.clip] === v),
+    onclick: e => {
+      ui.rated[c.clip] = v;
+      act(e.currentTarget, () => api.rate(c.clip, v, ui.why[c.clip] || ""),
+        v === "post" ? "Marked to post." : v === "fix" ? "Marked to post with edits." : "Marked as no.");
+    }
+  }, label);
+
+  const selected = ui.selected === c.clip;
+  return el("article", { class: "card" + (selected ? " selected" : ""), "aria-label": "Clip " + c.clip },
+    el("div", { class: "card-top" },
+      el("span", { class: "id", text: c.clip }),
+      el("span", { class: "pill ok" }, el("span", { class: "dot", "aria-hidden": "true" }), "Rendered")),
+    el("div", { class: "stage" }, player),
+    tabs,
+    el("div", {},
+      el("h3", { text: stripStars((c.plan && c.plan.hook) || c.hook) }),
+      el("div", { class: "time", text: timeLine(c) })),
+    notes,
+    el("div", { class: "rate" },
+      el("div", { class: "rate-buttons", role: "group", "aria-label": "Rate this clip" },
+        rateBtn("post", "Post"), rateBtn("fix", "Post with edits"), rateBtn("no", "No")),
+      el("div", { class: "why" }, el("label", { for: whyId, text: "Why" }), whyInput)),
+    el("div", { class: "card-foot" },
+      el("button", { class: "button small", type: "button", "aria-expanded": String(selected),
+        "aria-controls": "detail",
+        onclick: () => { ui.selected = c.clip; render(); $("#detail").scrollIntoView({ behavior: "smooth", block: "start" }); focusLater("#detail-title"); }
+      }, selected ? "Showing details" : "Edit details")));
+}
+
+function focusLater(sel) { requestAnimationFrame(() => { const n = $(sel); if (n) n.focus({ preventScroll: true }); }); }
+
+/* ---------- detail ---------- */
+function renderDetail() {
+  const box = $("#detail");
+  const c = (ui.project.clips || []).find(x => x.clip === ui.selected);
+  if (!c) { box.hidden = true; box.replaceChildren(); return; }
+  box.hidden = false;
+
+  const packs = ui.project.packs || {};
+  const pack = ui.pack[c.clip] || defaultPack();
+  const shape = ui.shape[c.clip] || "9x16";
+  const packSel = el("select", { class: "field", id: "pack-" + c.clip,
+    onchange: e => { ui.pack[c.clip] = e.target.value; } },
+    Object.entries(packs).map(([id, name]) => el("option", { value: id, selected: id === pack }, name)));
+  const shapeSel = el("select", { class: "field", id: "shape-" + c.clip,
+    onchange: e => { ui.shape[c.clip] = e.target.value; } },
+    SHAPES.map(s => el("option", { value: s.id, selected: s.id === shape }, s.label)));
+
+  const head = el("div", { class: "detail-head" },
+    el("div", {},
+      el("h2", { id: "detail-title", tabindex: "-1", text: c.clip + " details" }),
+      el("p", { text: "Swap a visual, fix the words, or render in another style." })),
+    el("div", { class: "render-row" },
+      el("div", {}, el("label", { class: "field-label", for: "pack-" + c.clip, text: "Style pack" }), packSel),
+      el("div", {}, el("label", { class: "field-label", for: "shape-" + c.clip, text: "Shape" }), shapeSel),
+      el("button", { class: "button", type: "button",
+        onclick: e => act(e.currentTarget, () => api.render(c.clip, shapeSel.value, packSel.value),
+          "Re-render started for " + c.clip + ".") }, "Re-render")));
+
+  const visCol = el("div", { class: "detail-col" }, el("h3", { text: "Visuals" }));
+  const reqs = c.visual_requests || [];
+  if (!reqs.length) visCol.append(el("p", { class: "hint", text: "This clip asked for no visuals." }));
+  reqs.forEach(r => visCol.append(requestBlock(c, r)));
+
+  const wordsCol = el("div", { class: "detail-col" }, el("h3", { text: "Words" }));
+  wordsCol.append(textField(c, { id: "hook", label: "Hook", limit: 80, rows: 2 },
+    (c.plan && c.plan.hook) || c.hook || "", "Wrap a word in *stars* to highlight it.", false));
+  const post = c.post || {};
+  FIELDS.forEach(f => wordsCol.append(textField(c, f, post[f.id] || "", null, true)));
+
+  box.replaceChildren(head, el("div", { class: "detail-body" }, visCol, wordsCol));
+}
+
+function requestBlock(c, r) {
+  const list = (c.candidates && c.candidates[r.id]) || [];
+  const chosen = chosenIndex(c, r.id);
+  const pick = c.picks && c.picks.picks && c.picks.picks[r.id];
+  const block = el("div", { class: "request" },
+    el("div", { class: "request-head" },
+      el("span", { class: "q", text: r.query }),
+      el("span", { class: "rid", text: r.id + ", " + (r.kind || "visual") })),
+    r.context ? el("p", { class: "ctx", text: "“" + r.context + "”" }) : null);
+
+  if (pick && pick.why) block.append(el("p", { class: "agent-why" },
+    el("b", { text: chosen == null ? "No visual used. " : "Agent pick: " }), pick.why));
+
+  if (!list.length) { block.append(el("p", { class: "hint", text: "No candidates found." })); return block; }
+
+  const grid = el("div", { class: "thumbs", role: "group", "aria-label": "Candidates for " + r.query });
+  list.forEach((cand, i) => {
+    const isChosen = i === chosen;
+    const imgBox = el("div", { class: "img" });
+    const img = el("img", { alt: "", loading: "lazy", src: api.media(c.clip, "visuals/" + cand.path) });
+    img.addEventListener("error", () => imgBox.classList.add("broken"));
+    imgBox.append(img, el("span", { class: "ph", text: cand.source ? "Preview from " + cand.source : "No preview" }));
+    const rightsBad = cand.rights && cand.rights !== "cleared";
+    grid.append(el("button", {
+      class: "thumb", type: "button", "aria-pressed": String(isChosen),
+      "aria-label": (cand.title || "Candidate " + (i + 1)) + ", " + (cand.rights || "rights unknown") + (isChosen ? ", chosen" : ", use this one"),
+      title: (cand.credit_text || "") ,
+      onclick: e => {
+        if (isChosen) { toast("That one is already in the clip."); return; }
+        act(e.currentTarget, () => api.visual(c.clip, r.id, i), "Visual swapped. Re-rendering " + c.clip + ".");
+      }
+    },
+      isChosen ? el("span", { class: "chosen", "aria-hidden": "true" }, "In clip") : null,
+      imgBox,
+      el("span", { class: "t", text: cand.title || "Untitled" }),
+      el("span", { class: "r" },
+        el("span", { text: "#" + (cand.rank || i + 1) + " " + (cand.source || "") }),
+        el("span", { class: rightsBad ? "bad" : "", text: cand.rights === "cleared" ? "Cleared" : cand.rights === "attribution" ? "Credit" : "Unknown" }))));
+  });
+  block.append(grid);
+  return block;
+}
+
+function textField(c, f, saved, hint, copyable) {
+  const key = c.clip + ":" + f.id;
+  const id = "f-" + c.clip + "-" + f.id;
+  const value = key in ui.drafts ? ui.drafts[key] : saved;
+  const area = el("textarea", { class: "field", id, rows: String(f.rows || 3), spellcheck: "true" });
+  area.value = value;
+  const count = el("span", { class: "count", "aria-live": "off" });
+  const save = el("button", { class: "button small", type: "button" }, "Save");
+  const sync = () => {
+    const n = [...area.value].length;
+    count.textContent = n + " / " + f.limit;
+    count.classList.toggle("over", n > f.limit);
+    save.disabled = area.value === saved;
+  };
+  const grow = () => { area.style.height = "auto"; area.style.height = (area.scrollHeight + 2) + "px"; };
+  requestAnimationFrame(grow);
+  area.addEventListener("input", () => {
+    grow();
+    if (area.value === saved) delete ui.drafts[key]; else ui.drafts[key] = area.value;
+    sync();
+  });
+  save.addEventListener("click", e => {
+    const text = area.value;
+    act(e.currentTarget, async () => { await api.text(c.clip, f.id, text); delete ui.drafts[key]; },
+      f.label + " saved.");
+  });
+  sync();
+
+  const actions = el("div", { class: "actions" });
+  if (copyable) actions.append(el("button", { class: "button ghost small", type: "button",
+    "aria-label": "Copy " + f.label + " text",
+    onclick: () => copyText(area.value, f.label) }, "Copy"));
+  actions.append(save);
+
+  return el("div", { class: "text-field" },
+    el("div", { class: "row" }, el("label", { class: "field-label", for: id, text: f.label }), count),
+    area,
+    hint ? el("p", { class: "hint", text: hint }) : null,
+    actions);
+}
+
+async function copyText(text, label) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (err) {
+    const ta = el("textarea", { style: "position:fixed;opacity:0" });
+    ta.value = text; document.body.append(ta); ta.select();
+    const ok = document.execCommand("copy"); ta.remove();
+    if (!ok) { toast("Could not copy. Select the text and copy it yourself.", true); return; }
+  }
+  toast(label + " copied.");
+}
+
+$("#run-btn").addEventListener("click", e => act(e.currentTarget, api.run, "Run started. Your agent is on it."));
+
+const theme = new URLSearchParams(location.search).get("theme");
+if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
+
+load();
+</script>
+</body>
+</html>

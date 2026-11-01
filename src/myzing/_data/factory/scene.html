@@ -5,6 +5,8 @@
 @font-face{font-family:Inter;font-weight:700;src:url(../fonts/ZingCaption-700.ttf)}
 @font-face{font-family:Inter;font-weight:800;src:url(../fonts/ZingCaption-800.ttf)}
 @font-face{font-family:Inter;font-weight:900;src:url(../fonts/ZingCaption-800.ttf)}
+@font-face{font-family:Anton;src:url(../fonts/Anton-Regular.ttf)}
+@font-face{font-family:'IBM Plex Sans';font-weight:100 900;src:url(../fonts/IBMPlexSans.ttf)}
 :root{--ink:#F4F6FB;--yel:#FFD23F;--navy:#050C24;--accent-ink:#081233;--muted:rgba(244,246,251,.72);--glow:#13296E;--cap-bg:#07070B;--cap-ink:#F4F6FB;--cap-on:#FFD23F;--cap-radius:12px;--tag-bg:rgba(5,12,36,.55);--tag-ink:rgba(255,255,255,.88);--edge:transparent}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{overflow:hidden;background:var(--navy)}
@@ -24,8 +26,9 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #pill{position:absolute;left:0;right:0;text-align:center}
 #pill span{display:inline-block;background:var(--yel);color:var(--accent-ink);font:900 44px/1.15 Inter;padding:14px 26px;border-radius:14px;max-width:960px;letter-spacing:-.01em}
 #cap{position:absolute;left:0;right:0;text-align:center;white-space:nowrap}
-#cap .box{display:inline-block;background:var(--cap-bg);color:var(--cap-ink);padding:10px 22px 12px;border-radius:var(--cap-radius);font:900 54px/1.15 Inter;letter-spacing:.01em;text-transform:var(--cap-case,uppercase)}
+#cap .box{display:inline-block;background:var(--cap-bg);color:var(--cap-ink);padding:var(--cap-pad,10px 22px 12px);border-radius:var(--cap-radius);font-family:var(--cap-font,Inter);font-weight:var(--cap-weight,900);font-size:var(--cap-size,54px);line-height:1.15;letter-spacing:.01em;text-transform:var(--cap-case,uppercase);-webkit-text-stroke:var(--cap-stroke,0 transparent);paint-order:stroke fill;text-shadow:var(--cap-shadow,none)}
 #cap .on{color:var(--cap-on)}
+#cap .em{color:var(--cap-em,var(--cap-on))}
 #credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000}
 #prog{position:absolute;left:0;top:0;height:6px;background:var(--yel)}
 #srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
@@ -61,7 +64,20 @@ if (D.theme) { const T = D.theme, st = document.documentElement.style;
   set('--accent-ink', T.accent_ink); set('--cap-bg', T.cap_bg); set('--cap-ink', T.cap_ink); set('--cap-on', T.cap_on);
   set('--cap-radius', (T.cap_radius ?? 12) + 'px'); set('--tag-bg', T.tag_bg); set('--tag-ink', T.tag_ink);
   set('--edge', T.panel_edge && T.panel_edge !== 'none' ? T.panel_edge : 'transparent');
-  if (T.cap_upper === false) st.setProperty('--cap-case', 'none'); }
+  if (T.cap_upper === false) st.setProperty('--cap-case', 'none');
+  // learned or hand-made caption styles; every field is optional and the defaults are the Zing look
+  if (T.cap_font) set('--cap-font', `'${T.cap_font}', Inter, sans-serif`);
+  if (T.cap_weight) set('--cap-weight', T.cap_weight);
+  if (T.cap_size) set('--cap-size', Math.round(T.cap_size * (D.W || 1080) / 1080) + 'px');
+  if (T.cap_bg === 'none') { set('--cap-bg', 'transparent'); set('--cap-pad', '0 8px'); }
+  if (T.cap_stroke) set('--cap-stroke', `${T.cap_stroke_w || 6}px ${T.cap_stroke}`);
+  if (T.cap_shadow) set('--cap-shadow', T.cap_shadow);
+  if (T.cap_emphasis) set('--cap-em', T.cap_emphasis); }
+// caption timing and position; y (center as a fraction of the height) applies where the speaker fills the frame
+const CAP = {words: 3, chars: 16, pop_ms: 120, pop_from: .88, overshoot: true, y: null};
+for (const [k, f] of Object.entries({words: 'cap_words', chars: 'cap_chars', pop_ms: 'cap_pop_ms', pop_from: 'cap_pop_from',
+                                     overshoot: 'cap_pop_overshoot', y: 'cap_y'}))
+  if (D.theme && D.theme[f] != null) CAP[k] = D.theme[f];
 const $ = id => document.getElementById(id);
 const clamp = (x,a=0,b=1) => Math.max(a,Math.min(b,x));
 const lin = (t,a,b) => clamp((t-a)/(b-a));
@@ -72,10 +88,14 @@ const mix = (a,b,x) => a+(b-a)*x;
 const fmt = n => Math.round(n).toLocaleString('en-US');
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-// caption groups: <=3 words, break after punctuation or 16 chars
+// emphasis packs color numbers and the hook's starred words; everything else stays the caption ink
+const norm = w => w.toLowerCase().replace(/[^a-z0-9']/g, '');
+const EMPH = D.theme && D.theme.cap_emphasis ? new Set([...(D.hookHtml || '').matchAll(/<b>([^<]+)<\/b>/g)]
+  .flatMap(m => m[1].split(/\s+/).map(norm)).filter(Boolean)) : null;
+// caption groups: <=CAP.words words, break after punctuation or CAP.chars characters
 const groups = []; { let g = [];
   W.forEach((w,i) => { g.push(i); const len = g.map(j=>W[j].w).join(' ').length;
-    if (g.length===3 || /[.,?!;:]$/.test(w.w) || len>16) { groups.push(g); g=[]; } });
+    if (g.length>=CAP.words || /[.,?!;:]$/.test(w.w) || len>CAP.chars) { groups.push(g); g=[]; } });
   if (g.length) groups.push(g); }
 
 const shotAt = t => D.shots.find(s => t >= s.from && t < s.to) || D.shots[D.shots.length-1];
@@ -154,11 +174,16 @@ document.documentElement.style.height = document.body.style.height = SH9 + 'px';
 function geometry(layout) {
   const full = {x:0, y:0, w:SW, h:SH9};
   if (ASPECT === '9x16') {
-    if (layout === 'solo') return {spk:{x:0,y:400,w:1080,h:1180}, cap:1610, hook:'header', pill:790};
-    const top = {x:0,y:0,w:1080,h:960};
-    return {spk:{x:0,y:960,w:1080,h:960}, [layout==='split'?'top':'gfx']:top, cap:924, hook:'pill', pill:790};
+    // pack layout: which half the speaker takes in a split, where the seam sits, a full-bleed solo speaker,
+    // and whether the hook stays up as a header (defaults are the Zing look)
+    const L = D.theme || {}, seam = Math.round((L.seam || .5) * SH9), hook = L.hook_header === false || L.solo_fill ? 'pill' : 'header';  // a full-bleed speaker leaves no room for a header
+    if (layout === 'solo') return {spk: L.solo_fill ? full : {x:0,y:400,w:1080,h:1180},
+                                   cap: CAP.y ? Math.round(CAP.y*SH9) : 1610, hook, pill:790};
+    const upper = {x:0,y:0,w:1080,h:seam}, lower = {x:0,y:seam,w:1080,h:SH9-seam}, vis = layout==='split'?'top':'gfx';
+    return L.split === 'speaker-top' ? {spk:upper, [vis]:lower, cap:seam-36, hook:'pill', pill:790}
+                                     : {spk:lower, [vis]:upper, cap:seam-36, hook:'pill', pill:790};
   }
-  const cap = SH9 - 180, pill = 56;
+  const cap = CAP.y ? Math.round(CAP.y*SH9) : SH9 - 180, pill = 56;
   if (layout === 'solo') return {spk:full, cap, hook:'pill', pill};
   return {[layout==='split'?'top':'gfx']:full, cap, hook:'pill', pill};
 }
@@ -224,10 +249,13 @@ window.seek = async function(t) {
   if (gi >= 0 && t < W[W.length-1].oe + .3) {
     const grp = groups[gi];
     box.innerHTML = grp.map(j => { const w = W[j], on = w.os <= t+.02 && t < (W[j+1]?.os ?? w.oe+.3);
-      return `<span class="${on?'on':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
+      const em = !on && EMPH && (EMPH.has(norm(w.w)) || /\d/.test(w.w));
+      return `<span class="${on?'on':em?'em':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
     cap.style.top = G.cap + 'px';
     cap.style.opacity = hookOn && ASPECT === '9x16' && layout !== 'solo' ? 0 : 1;
-    cap.style.transform = `scale(${mix(.88,1,back(lin(t, W[grp[0]].os, W[grp[0]].os+.12)))})`;
+    const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);
+    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16');
+    cap.style.transform = `${centered ? 'translateY(-50%) ' : ''}scale(${mix(CAP.pop_from,1,CAP.overshoot ? back(pop) : easeOut(pop))})`;
   } else cap.style.opacity = 0;
   $('prog').style.width = (100*clamp(t/D.duration))+'%';
   $('srctag').textContent = D.sourceTag || '';

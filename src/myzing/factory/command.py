@@ -51,6 +51,16 @@ def run(argv: list[str]) -> int:
     ren.add_argument("--shape", default="9x16")
     ren.add_argument("--pack", default="zing")
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
+    learn = commands.add_parser("learn-style", help="learn a style pack from a clip you like, then check the copy against it")
+    learn.add_argument("reference", type=Path, help="a local clip whose captions and pacing you want")
+    learn.add_argument("--name", required=True, help="the new pack's name, e.g. bold-yellow")
+    learn.add_argument("--sample", type=Path, required=True, help="a factory clip folder to render the trial with")
+    learn.add_argument("--rounds", type=int, default=3)
+    learn.add_argument("--base", default="zing", help="pack to start from for anything not learned")
+    serve = commands.add_parser("serve", help="open the local review dashboard for a project (127.0.0.1 only)")
+    serve.add_argument("project", type=Path)
+    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--judge", choices=("host", "claude"), default="host", help="who answers when Run needs judgments")
     commands.add_parser("packs", help="list style packs")
     commands.add_parser("doctor", help="check FFmpeg, Node, the sidecar, a browser and the face model")
     args = parser.parse_args(argv)
@@ -78,6 +88,14 @@ def run(argv: list[str]) -> int:
         elif args.command == "review":
             from .review import build
             result = {"review": str(build(args.project))}
+        elif args.command == "learn-style":
+            from .learn import learn
+            result = learn(args.reference, args.name, args.sample, rounds=args.rounds, base=args.base,
+                           say=lambda m: print(m, file=sys.stderr, flush=True))
+        elif args.command == "serve":
+            from .serve import serve
+            serve(args.project, args.port, args.judge, say=lambda m: print(m, file=sys.stderr, flush=True))
+            return 0
         elif args.command == "packs":
             from .render import theme, themes
             result = {name: theme(name)["name"] for name in themes()}

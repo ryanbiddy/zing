@@ -13,24 +13,34 @@ SHAPES = {"9x16": (1080, 1920), "1x1": (1080, 1080), "16x9": (1920, 1080)}
 VIDEO = (".mp4", ".mov", ".webm", ".gif")
 
 
+def user_packs() -> Path:
+    """Learned and hand-made packs live in the workspace, beside the built-in ones."""
+    from myzing.storage import workspace_root
+    return workspace_root() / "factory" / "packs"
+
+
 def themes() -> list[str]:
-    return sorted(p.stem for p in data_path("themes").glob("*.json"))
+    return sorted({p.stem for p in data_path("themes").glob("*.json")} | {p.stem for p in user_packs().glob("*.json")})
 
 
 def theme(name: str) -> dict:
-    path = data_path("themes", f"{name}.json")
-    if not re.fullmatch(r"[a-z0-9-]+", name) or not path.is_file():
-        raise FactoryError(f"unknown style pack {name!r}; choose from {', '.join(themes())}")
-    return json.loads(path.read_text(encoding="utf-8"))
+    if not re.fullmatch(r"[a-z0-9-]+", name):
+        raise FactoryError(f"bad style pack name {name!r}: use lowercase letters, digits and dashes")
+    for path in (user_packs() / f"{name}.json", data_path("themes", f"{name}.json")):
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+    raise FactoryError(f"unknown style pack {name!r}; choose from {', '.join(themes())}")
 
 
 def suffix(shape: str, pack: str) -> str:
     return ("" if shape == "9x16" else f"-{shape}") + ("" if pack == "zing" else f"-{pack}")
 
 
-def scene_data(d: Path, shape: str, pack: str) -> dict:
+def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False) -> dict:
     from PIL import Image
     plan = json.loads((d / "plan.json").read_text(encoding="utf-8"))
+    if speaker_only:                                   # style checks compare captions over the speaker only
+        plan = {**plan, "shots": [{"from": 0, "layout": "solo"}], "visuals": {}, "hook_until": 0}
     words = json.loads((d / "words.json").read_text(encoding="utf-8"))
     cam = json.loads((d / "cams.json").read_text(encoding="utf-8"))
     visuals = {}
@@ -62,24 +72,29 @@ def scene_data(d: Path, shape: str, pack: str) -> dict:
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,
             "sourceTag": json.loads(source.read_text(encoding="utf-8")).get("tag", "") if source.is_file() else "",
-            "W": W, "H": H, "aspect": shape, "theme": theme(pack)}
+            "W": W, "H": H, "aspect": shape, "theme": pack if isinstance(pack, dict) else theme(pack)}
 
 
-def render(clipdir: Path, shape: str = "9x16", pack: str = "zing") -> Path:
+def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out: Path | None = None,
+           speaker_only: bool = False) -> Path:
+    """Render a clip in a shape and pack (a name, or a pack dict being tried out) to clip[-shape][-pack].mp4."""
     if shape not in SHAPES:
         raise FactoryError(f"unknown shape {shape!r}; choose from {', '.join(SHAPES)}")
     d = Path(clipdir).resolve()
     node, sidecar = node_sidecar()
-    tag = suffix(shape, pack)
-    data = scene_data(d, shape, pack)
-    (d / f"data{tag}.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    frames = d / f"out{tag}"
+    tag = suffix(shape, pack if isinstance(pack, str) else "trial")
+    data = scene_data(d, shape, pack, speaker_only)
+    out = Path(out).resolve() if out else d / f"clip{tag}.mp4"
+    # a trial render (out given) keeps its scratch files beside the trial, not in the clip folder
+    scratch = (out.with_suffix(".data.json"), out.with_suffix(".frames"), out.with_suffix(".sheet.jpg")) \
+        if out.parent != d else (d / f"data{tag}.json", d / f"out{tag}", d / f"sheet{tag}.jpg")
+    data_file, frames, sheet = scratch
+    data_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     frames.mkdir(exist_ok=True)
     for f in frames.glob("*.jpg"):
         f.unlink()
-    run(node, sidecar / "render.cjs", data_path("scene.html"), d / f"data{tag}.json", frames,
+    run(node, sidecar / "render.cjs", data_path("scene.html"), data_file, frames,
         env=sidecar_env(d / "_tmp"), cwd=sidecar, capture_output=True)
-    out = d / f"clip{tag}.mp4"
     duration = data["duration"]
     run(ffmpeg(), "-v", "error", "-y", "-framerate", 30, "-i", frames / "%05d.jpg", "-i", d / "cut.mp4",
         "-map", "0:v", "-map", "1:a", "-af", f"apad,afade=t=out:st={duration - 0.3:.2f}:d=0.3", "-t", duration,
@@ -88,7 +103,7 @@ def render(clipdir: Path, shape: str = "9x16", pack: str = "zing") -> Path:
     tall = shape == "9x16"
     subprocess.run([ffmpeg(), "-v", "error", "-y", "-i", str(out), "-vf",
                     f"fps=1/2.5,scale={180 if tall else 240}:-1,tile={10 if tall else 6}x{2 if tall else 4}",
-                    "-frames:v", "1", str(d / f"sheet{tag}.jpg")], check=False)
+                    "-frames:v", "1", str(sheet)], check=False)
     for f in frames.glob("*.jpg"):                     # the mp4 is the product; 2k JPEGs per clip are not
         f.unlink()
     frames.rmdir()
