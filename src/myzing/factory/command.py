@@ -29,7 +29,7 @@ def run(argv: list[str]) -> int:
     new.add_argument("--tag", default="", help="short on-screen source tag")
     new.add_argument("--moments", type=int, default=8)
     new.add_argument("--mode", choices=("context", "fun"), default="context")
-    new.add_argument("--shapes", type=_shapes, default=["9x16", "1x1"], help="any of 9x16,1x1,16x9")
+    new.add_argument("--shapes", type=_shapes, default=["9x16", "1x1"], help="any of 9x16,4x5,1x1,16x9")
     new.add_argument("--pack", default="zing", help="style pack (see 'zing factory packs')")
     new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
     go = commands.add_parser("run", help="advance the project; stops when it needs answers (host judge)")

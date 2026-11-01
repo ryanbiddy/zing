@@ -236,7 +236,7 @@ def project(tmp_path, **settings):
 
 def test_init_validates_settings(tmp_path):
     with pytest.raises(FactoryError):
-        project(tmp_path, shapes=["4x5"])
+        project(tmp_path, shapes=["2x3"])
     with pytest.raises(FactoryError):
         project(tmp_path, pack="nope")
     with pytest.raises(FactoryError):

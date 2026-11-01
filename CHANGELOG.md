@@ -15,6 +15,9 @@
 - `zing factory learn-style` learns a pack from a clip you like and checks a sample render
   against it, trait by trait. `zing factory serve` opens a local review dashboard
   (watch, rate, swap visuals, edit hook and copy, re-render).
+- 4:5 renders for LinkedIn and Instagram feeds, and a `headline` pack: the clip above a
+  solid panel with your source credit and the hook as a standing headline. learn-style
+  detects the frame shape and a headline panel, including accent words inside a line.
 
 ## Motion graphics
 

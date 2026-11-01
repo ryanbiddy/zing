@@ -105,12 +105,13 @@ def _lab_array(bgr):
     return np.stack([lab[:, 0] * 100 / 255, lab[:, 1] - 128, lab[:, 2] - 128], -1)
 
 
-def highlight(video: Path, dets: list[tuple[float, dict]], fill, plate) -> dict:
+def highlight(video: Path, dets: list[tuple[float, dict]], fill, plate, surroundings: bool = True) -> dict:
     """A second, colored ink inside caption boxes, if it shows up often enough and is not the video behind the text.
 
     Pixels count as colored ink only when they are far from the caption's fill, saturated, and unlike the video just
     above and below the caption (b-roll behind unboxed captions is not a word color), and the colors agree across
-    samples. Most captions carrying it = the active word lights up; some = chosen words are emphasized.
+    samples. Most captions carrying it = the active word lights up; some = chosen words are emphasized. Text on a
+    known solid plate (surroundings=False) is compared with the plate alone, so stacked lines don't hide each other's color.
     """
     import cv2
     import numpy as np
@@ -123,7 +124,7 @@ def highlight(video: Path, dets: list[tuple[float, dict]], fill, plate) -> dict:
         if img is None:
             continue
         H, W = img.shape[:2]
-        x0, y0, x1, y1 = (det.get("appearance") or {}).get("ink_box") or det["box"]
+        x0, y0, x1, y1 = det["box"]          # the whole line: the fill-only ink box stops at a differently colored word
         top, bottom, left, right = max(0, int(y0 * H) - 2), int(y1 * H) + 2, max(0, int(x0 * W) - 2), int(x1 * W) + 2
         crop = img[top:bottom, left:right]
         if crop.size < 60:
@@ -131,7 +132,7 @@ def highlight(video: Path, dets: list[tuple[float, dict]], fill, plate) -> dict:
         seen += 1
         h = bottom - top
         around = np.concatenate([img[max(0, top - h):top, left:right].reshape(-1, 3),
-                                 img[bottom:bottom + h, left:right].reshape(-1, 3)])
+                                 img[bottom:bottom + h, left:right].reshape(-1, 3)]) if surroundings else np.zeros((0, 3))
         if plate:
             around = np.concatenate([around, np.array([plate[::-1]] * 50)])
         bg = _lab_array(around[:: max(1, len(around) // 400)]) if len(around) else _lab_array(np.array([[0, 0, 0]]))
@@ -204,6 +205,53 @@ def pop(video: Path, tracks: list[dict], fill) -> dict:
         min(1.0, max(.5, r["from"])) for r in results), 2), "overshoot": sum(r["overshoot"] for r in results) > len(results) / 2}
 
 
+def frame_size(video: Path) -> tuple[int, int]:
+    out = subprocess.run([ffprobe(), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                          "-of", "json", str(video)], capture_output=True, text=True, timeout=60).stdout
+    st = (json.loads(out or "{}").get("streams") or [{}])[0]
+    return int(st.get("width") or 0), int(st.get("height") or 0)
+
+
+def nearest_shape(width: int, height: int) -> str:
+    from .render import SHAPES
+    ratio = width / height if height else 9 / 16
+    return min(SHAPES, key=lambda k: abs(math.log(SHAPES[k][0] / SHAPES[k][1]) - math.log(ratio)))
+
+
+def panel(video: Path) -> dict:
+    """A solid strip at the bottom that never changes while the video above it moves (a headline panel)."""
+    import cv2
+    import numpy as np
+    cap = cv2.VideoCapture(str(video))
+    duration = _duration(video)
+    frames = []
+    for k in range(16):
+        img = _frame_at(cap, duration * (k + .5) / 16)
+        if img is not None:
+            frames.append(cv2.resize(img, (90, int(90 * img.shape[0] / img.shape[1]))))
+    cap.release()
+    if len(frames) < 8:
+        return {"present": False}
+    stack = np.stack(frames).astype(float)
+    row_motion = stack.std(axis=0).mean(axis=(1, 2))           # per row, over time
+    H = stack.shape[1]
+    run = 0
+    while run < H and row_motion[H - 1 - run] < 3:
+        run += 1
+    size = run / H
+    if not .12 <= size <= .5 or row_motion[: H - run].mean() < 6:     # the video above must actually move
+        return {"present": False}
+    region = stack[0, H - run:].reshape(-1, 3)
+    quant = (region // 16).astype(int)
+    keys, counts = np.unique(quant, axis=0, return_counts=True)
+    mode = keys[counts.argmax()]
+    solid = (np.abs(quant - mode).max(axis=1) <= 1).mean()
+    if solid < .55:
+        return {"present": False}
+    bg = np.median(region[np.abs(quant - mode).max(axis=1) <= 1], axis=0)[::-1]
+    return {"present": True, "side": "bottom", "size": round(size, 3), "bg": [round(float(c)) for c in bg]}
+
+
 def cuts_per_minute(video: Path) -> float:
     log = subprocess.run([ffmpeg(), "-hide_banner", "-i", str(video), "-vf", "select='gt(scene,0.3)',showinfo", "-f", "null", "-"],
                          capture_output=True, text=True).stderr
@@ -217,6 +265,8 @@ def measure(video: Path, say=print) -> dict:
     geo = geometry(video)
     band = caption_band(geo.get("tracks", []))
     m: dict = {"video": video.name, "captions": len(band), "warnings": list(geo.get("warnings", []))[:5]}
+    m["shape"] = nearest_shape(*frame_size(video))
+    m["panel"] = panel(video)
     if band:
         samples = [s for t in band for s in t["samples"]]
         m["cap_y"] = round(statistics.median((s["box"][1] + s["box"][3]) / 2 for s in samples), 3)
@@ -257,6 +307,34 @@ def measure(video: Path, say=print) -> dict:
         steady = [t for t in geo.get("tracks", []) if t["id"] not in ids and t.get("samples") and span(t) > .4
                   and statistics.median((x["box"][1] + x["box"][3]) / 2 for x in t["samples"]) < .35]
         # a headline is caption-sized and says something; a short or small mark is the show's name or logo
+        pn = m["panel"]
+        if pn.get("present"):
+            # the standing headline: caption-sized lines that stay up inside the panel
+            top = 1 - pn["size"]
+            lines = [t for t in geo.get("tracks", []) if t["id"] not in ids and t.get("samples") and span(t) > .4
+                     and statistics.median((x["box"][1] + x["box"][3]) / 2 for x in t["samples"]) > top
+                     and (t.get("median_text_height") or 0) >= .9 * m["text_height"]]
+            lines.sort(key=lambda t: t["samples"][0]["box"][1])
+            pn["brand"] = any(t["id"] not in ids and t not in lines and t.get("samples") and span(t) > .4
+                              and statistics.median((x["box"][1] + x["box"][3]) / 2 for x in t["samples"]) > top
+                              for t in geo.get("tracks", []))
+            colors = []
+            for t in lines:
+                fills = [(d.get("appearance") or {}).get("fill", {}).get("rgb") for _, d in _detections(geo, [t])]
+                fills = [f for f in fills if f]
+                if fills:
+                    colors.append(_median_rgb(fills))
+            if lines:
+                text = " ".join(t["text"] for t in lines)
+                pn["headline_lines"], pn["upper"] = len(lines), text.upper() == text
+                if colors:
+                    ink = max(colors, key=lambda c: sum(delta_e(c, o) < 20 for o in colors))
+                    other = [c for c in colors if delta_e(c, ink) >= 25]          # a whole line in the accent
+                    inside = highlight(video, _detections(geo, lines), ink, pn["bg"], surroundings=False)  # or accent words in a line
+                    pn["ink"] = ink
+                    pn["on"] = other[0] if other else inside["rgb"] if inside.get("present") else None
+                ids = ids | {t["id"] for t in lines}
+            steady = [t for t in steady if statistics.median((x["box"][1] + x["box"][3]) / 2 for x in t["samples"]) <= top]
         m["header"] = any(len(t["text"].split()) >= 3 and (t.get("median_text_height") or 0) >= .9 * m["text_height"]
                           for t in steady)
         steady.sort(key=lambda t: (round(t["samples"][0]["box"][1], 2), t["samples"][0]["box"][0]))
@@ -311,6 +389,14 @@ def to_pack(m: dict, name: str, base: dict, height: int = 1920) -> dict:
         pack["cap_pop_overshoot"] = bool(p["overshoot"])
     if hl.get("rgb"):                                                  # graphics share the caption's signal color
         pack["accent"], pack["accent_ink"] = hex_of(hl["rgb"]), _ink_on(hl["rgb"])
+    pn = m.get("panel") or {}
+    if pn.get("present"):
+        # the hook becomes the standing headline; our own source credit takes the brand row (theirs is never copied)
+        pack["panel"] = {"side": "bottom", "size": pn["size"], "bg": hex_of(pn["bg"]), "brand": bool(pn.get("brand")),
+                         "upper": pn.get("upper", True), "font": "Anton" if pn.get("upper", True) else pack.get("cap_font", "Inter"),
+                         **({"ink": hex_of(pn["ink"])} if pn.get("ink") else {}), **({"on": hex_of(pn["on"])} if pn.get("on") else {})}
+    if m.get("shape"):
+        pack["shape"] = m["shape"]
     layout = m.get("layout")
     pack["hook_header"] = bool(m.get("header"))
     pack["solo_fill"] = layout in ("speaker-top", "speaker-full")
@@ -330,6 +416,14 @@ def compare(ref: dict, ours: dict) -> list[dict]:
     if not ours.get("captions"):
         return [{"name": "captions", "reference": ref.get("captions"), "ours": 0, "match": False,
                  "note": "no captions measured in our render"}]
+    if ref.get("shape"):
+        row("frame shape", ref["shape"], ours.get("shape"), ref["shape"] == ours.get("shape"))
+    rp_, op_ = ref.get("panel") or {}, ours.get("panel") or {}
+    if rp_.get("present") or op_.get("present"):
+        same = bool(rp_.get("present")) == bool(op_.get("present"))
+        close = same and (not rp_.get("present") or abs(rp_["size"] - op_["size"]) <= .04)
+        row("headline panel", f"{rp_.get('size', 0):.0%} of height" if rp_.get("present") else "none",
+            f"{op_.get('size', 0):.0%} of height" if op_.get("present") else "none", close)
     row("caption position", ref["cap_y"], ours["cap_y"], abs(ref["cap_y"] - ours["cap_y"]) <= TOLERANCE["cap_y"], "center, fraction of height")
     ratio = ours["text_height"] / ref["text_height"]
     row("caption size", ref["text_height"], ours["text_height"], abs(ratio - 1) <= TOLERANCE["text_height"], f"ours is {ratio:.0%} of the reference")
@@ -373,6 +467,9 @@ def correct(pack: dict, ref: dict, ours: dict) -> dict:
     if ours.get("words") and abs(ref["words"] - ours["words"]) > TOLERANCE["words"]:
         pack["cap_words"] = max(1, min(5, pack["cap_words"] + (1 if ref["words"] > ours["words"] else -1)))
         pack["cap_chars"] = pack["cap_chars"] + (4 if ref["words"] > ours["words"] else -4)
+    rp_, op_ = ref.get("panel") or {}, ours.get("panel") or {}
+    if pack.get("panel") and rp_.get("present") and op_.get("present"):
+        pack["panel"] = {**pack["panel"], "size": round(min(.5, max(.1, pack["panel"]["size"] + rp_["size"] - op_["size"])), 3)}
     a, b = ref.get("pop") or {}, ours.get("pop") or {}
     if a.get("measured") and b.get("measured"):
         pack["cap_pop_ms"] = max(0, pack.get("cap_pop_ms", 120) + a["ms"] - b["ms"])
@@ -407,7 +504,8 @@ def learn(reference: Path, name: str, sample: Path, *, rounds: int = 3, base: st
         trial = work / f"trial-{k}.mp4"
         say(f"round {k}: rendering a sample in the learned style")
         # a reference whose speaker fills the frame is checked over the speaker; a split one with its visuals
-        render(sample, "9x16", pack, out=trial, speaker_only=ref.get("layout") != "speaker-top")
+        render(sample, ref.get("shape") or "9x16", pack, out=trial,
+               speaker_only=ref.get("layout") != "speaker-top" and not (ref.get("panel") or {}).get("present"))
         ours = measure(trial, say)
         rows = compare(ref, ours)
         history.append({"round": k, "pack": pack, "measured": ours, "comparison": rows})

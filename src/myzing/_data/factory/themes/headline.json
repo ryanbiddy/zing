@@ -1,0 +1,6 @@
+{"name": "Headline", "bg": "#0B0B0C", "glow": "#1A1A1D", "ink": "#FFFFFF", "muted": "rgba(255,255,255,.7)", "accent": "#FFD23F", "accent_ink": "#0B0B0C",
+ "cap_bg": "none", "cap_ink": "#FFE9A8", "cap_on": "#FFE9A8", "cap_upper": false, "cap_radius": 0, "cap_weight": 800, "cap_size": 58, "cap_words": 3,
+ "cap_shadow": "0 3px 12px rgba(0,0,0,.7)", "cap_y": 0.5, "cap_pop_ms": 0, "cap_pop_from": 1.0,
+ "panel": {"side": "bottom", "size": 0.31, "bg": "#0B0B0C", "ink": "#FFFFFF", "on": "#FFD23F", "font": "Anton", "upper": true},
+ "panel_edge": "none", "tag_bg": "rgba(0,0,0,.55)", "tag_ink": "rgba(255,255,255,.88)",
+ "funnel": ["#2A2A2E", "#34343A", "#3E3E46", "#484852"], "funnel_ink": "#FFFFFF"}

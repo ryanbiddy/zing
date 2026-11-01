@@ -61,7 +61,7 @@ main{{max-width:1180px;margin:0 auto;padding:28px 16px 80px}}
 h1{{font-size:28px;margin:0 0 4px}} .sub{{color:var(--muted);margin:0 0 24px}}
 article{{display:grid;grid-template-columns:auto 1fr;gap:24px;padding:22px 0;border-top:1px solid var(--line)}}
 .vids{{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}}
-video{{background:#000;border-radius:14px}} .s9x16{{width:240px;aspect-ratio:9/16}} .s1x1{{width:300px;aspect-ratio:1}} .s16x9{{width:420px;aspect-ratio:16/9}}
+video{{background:#000;border-radius:14px}} .s9x16{{width:240px;aspect-ratio:9/16}} .s4x5{{width:280px;aspect-ratio:4/5}} .s1x1{{width:300px;aspect-ratio:1}} .s16x9{{width:420px;aspect-ratio:16/9}}
 h2{{font-size:22px;margin:2px 0 6px}} .n{{color:var(--muted);margin:0;font-size:13px}}
 .why{{margin:0 0 10px}} .tag{{color:var(--muted);font-size:13px;margin:2px 0}} .ok{{color:var(--ok)}} .warn{{color:var(--warn);font-weight:600}}
 .rate{{display:flex;gap:8px;margin:12px 0 0;flex-wrap:wrap}} .rate button{{font:600 14px system-ui;padding:8px 14px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}} .rate button.on{{background:var(--yel);color:#081233;border-color:var(--yel)}} .rate input{{flex:1;min-width:160px;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--fg)}}
