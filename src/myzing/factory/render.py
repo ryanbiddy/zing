@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from . import depth
 from .tools import FactoryError, data_path, ffmpeg, node_sidecar, run, sidecar_env
 
 SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
@@ -36,34 +37,43 @@ def suffix(shape: str, pack: str) -> str:
     return ("" if shape == "9x16" else f"-{shape}") + ("" if pack == "zing" else f"-{pack}")
 
 
-def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False) -> dict:
+def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False, parallax: bool | None = None) -> dict:
+    """Everything the scene needs. parallax: move photos through their depth (None: when the depth model is installed)."""
     from PIL import Image
     plan = json.loads((d / "plan.json").read_text(encoding="utf-8"))
     if speaker_only:                                   # style checks compare captions over the speaker only
         plan = {**plan, "shots": [{"from": 0, "layout": "solo"}], "visuals": {}, "hook_until": 0}
     words = json.loads((d / "words.json").read_text(encoding="utf-8"))
     cam = json.loads((d / "cams.json").read_text(encoding="utf-8"))
-    visuals = {}
-    for vid, v in plan.get("visuals", {}).items():
-        p = Path(v["path"])
-        if p.suffix.lower() in VIDEO:
-            fd = d / "vis" / vid
-            fd.mkdir(parents=True, exist_ok=True)
-            for f in fd.glob("*.jpg"):
-                f.unlink()
-            run(ffmpeg(), "-v", "error", "-y", "-i", p, "-t", "20", "-vf", "fps=30,scale=1280:-2", "-q:v", "3", fd / "%05d.jpg")
-            w, h = Image.open(fd / "00001.jpg").size
-            visuals[vid] = {"dir": fd.resolve().as_uri(), "frames": len(list(fd.glob("*.jpg"))), "w": w, "h": h,
-                            "credit": v.get("credit", ""), "fit": v.get("fit")}
-        else:
-            w, h = Image.open(p).size
-            visuals[vid] = {"src": p.resolve().as_uri(), "w": w, "h": h, "credit": v.get("credit", ""), "fit": v.get("fit")}
     duration = round(words["words"][-1]["oe"] + 0.45, 3)
     shots = sorted(plan["shots"], key=lambda s: s["from"])
     for i, s in enumerate(shots):
         s["idx"] = i
         s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1
     shots[0]["from"] = 0
+    if parallax is None:                       # the project's setting, then whether the weights are installed
+        cfg = d.parent / "factory.json"
+        parallax = (json.loads(cfg.read_text(encoding="utf-8")).get("parallax", True) if cfg.is_file() else True)             and depth.ready()
+    visuals = {}
+    for vid, v in plan.get("visuals", {}).items():
+        p, moved = Path(v["path"]), None
+        if parallax and p.suffix.lower() not in VIDEO and v.get("fit") != "contain":
+            longest = max((min(s["to"], duration) - s["from"] for s in shots if s.get("visual") == vid), default=0)
+            if longest > 0:                    # the move plays across each shot, so the longest one sets its length
+                moved = depth.parallax(p, d / "vis" / f"{vid}-parallax.mp4", min(max(longest, 2), 20), key=vid)
+        if moved or p.suffix.lower() in VIDEO:
+            fd = d / "vis" / vid
+            fd.mkdir(parents=True, exist_ok=True)
+            for f in fd.glob("*.jpg"):
+                f.unlink()
+            run(ffmpeg(), "-v", "error", "-y", "-i", moved or p, "-t", "20", "-vf", "fps=30" if moved else "fps=30,scale=1280:-2",
+                "-q:v", "3", fd / "%05d.jpg")
+            w, h = Image.open(fd / "00001.jpg").size
+            visuals[vid] = {"dir": fd.resolve().as_uri(), "frames": len(list(fd.glob("*.jpg"))), "w": w, "h": h,
+                            "credit": v.get("credit", ""), "fit": v.get("fit"), **({"move": True} if moved else {})}
+        else:
+            w, h = Image.open(p).size
+            visuals[vid] = {"src": p.resolve().as_uri(), "w": w, "h": h, "credit": v.get("credit", ""), "fit": v.get("fit")}
     hook = plan["hook"].replace("&", "&amp;").replace("<", "&lt;")
     source = d.parent / "source.json"
     W, H = SHAPES[shape]
@@ -76,14 +86,14 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
 
 
 def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out: Path | None = None,
-           speaker_only: bool = False) -> Path:
+           speaker_only: bool = False, parallax: bool | None = None) -> Path:
     """Render a clip in a shape and pack (a name, or a pack dict being tried out) to clip[-shape][-pack].mp4."""
     if shape not in SHAPES:
         raise FactoryError(f"unknown shape {shape!r}; choose from {', '.join(SHAPES)}")
     d = Path(clipdir).resolve()
     node, sidecar = node_sidecar()
     tag = suffix(shape, pack if isinstance(pack, str) else "trial")
-    data = scene_data(d, shape, pack, speaker_only)
+    data = scene_data(d, shape, pack, speaker_only, parallax)
     out = Path(out).resolve() if out else d / f"clip{tag}.mp4"
     # a trial render (out given) keeps its scratch files beside the trial, not in the clip folder
     scratch = (out.with_suffix(".data.json"), out.with_suffix(".frames"), out.with_suffix(".sheet.jpg")) \
@@ -108,4 +118,7 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
         f.unlink()
     frames.rmdir()
     shutil.rmtree(d / "_tmp", ignore_errors=True)      # the browser's throwaway profile
+    for fd in (d / "vis").glob("*"):                   # visual frames are extracted again on every render
+        if fd.is_dir():
+            shutil.rmtree(fd, ignore_errors=True)
     return out

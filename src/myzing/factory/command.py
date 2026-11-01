@@ -32,6 +32,8 @@ def run(argv: list[str]) -> int:
     new.add_argument("--shapes", type=_shapes, default=["9x16", "1x1"], help="any of 9x16,4x5,1x1,16x9")
     new.add_argument("--pack", default="zing", help="style pack (see 'zing factory packs')")
     new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
+    new.add_argument("--no-parallax", dest="parallax", action="store_false",
+                     help="keep photos flat instead of moving through their depth")
     go = commands.add_parser("run", help="advance the project; stops when it needs answers (host judge)")
     go.add_argument("project", type=Path)
     go.add_argument("--judge", choices=("host", "claude"), default="host",
@@ -50,6 +52,8 @@ def run(argv: list[str]) -> int:
     ren.add_argument("clip", type=Path)
     ren.add_argument("--shape", default="9x16")
     ren.add_argument("--pack", default="zing")
+    ren.add_argument("--no-parallax", dest="parallax", action="store_const", const=False, default=None,
+                     help="keep photos flat for this render")
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
     learn = commands.add_parser("learn-style", help="learn a style pack from a clip you like, then check the copy against it")
     learn.add_argument("reference", type=Path, help="a local clip whose captions and pacing you want")
@@ -62,7 +66,9 @@ def run(argv: list[str]) -> int:
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--judge", choices=("host", "claude"), default="host", help="who answers when Run needs judgments")
     commands.add_parser("packs", help="list style packs")
-    commands.add_parser("doctor", help="check FFmpeg, Node, the sidecar, a browser and the face model")
+    depth = commands.add_parser("fetch-depth", help="download the depth model that moves photos (Apache-2.0, about 99 MB)")
+    depth.add_argument("--yes", action="store_true", help="agree to the download")
+    commands.add_parser("doctor", help="check FFmpeg, Node, the sidecar, a browser and the models")
     args = parser.parse_args(argv)
     try:
         from . import pipeline
@@ -70,7 +76,8 @@ def run(argv: list[str]) -> int:
         if args.command == "new":
             result = pipeline.init(args.project, args.media, transcript=args.transcript, offset=args.offset,
                                    name=args.name, url=args.url, date=args.date, tag=args.tag, moments=args.moments,
-                                   mode=args.mode, shapes=args.shapes, pack=args.pack, public=args.public)
+                                   mode=args.mode, shapes=args.shapes, pack=args.pack, public=args.public,
+                                   parallax=args.parallax)
         elif args.command == "run":
             judge = Judge(args.project, args.judge, **({"model": args.model} if args.model else {}))
             result = pipeline.run(args.project, judge, only=args.clips, say=lambda m: print(m, file=sys.stderr, flush=True))
@@ -84,7 +91,7 @@ def run(argv: list[str]) -> int:
             result = {"task": args.task, "forgotten": True}
         elif args.command == "render":
             from .render import render
-            result = {"rendered": str(render(args.clip, args.shape, args.pack))}
+            result = {"rendered": str(render(args.clip, args.shape, args.pack, parallax=args.parallax))}
         elif args.command == "review":
             from .review import build
             result = {"review": str(build(args.project))}
@@ -96,6 +103,10 @@ def run(argv: list[str]) -> int:
             from .serve import serve
             serve(args.project, args.port, args.judge, say=lambda m: print(m, file=sys.stderr, flush=True))
             return 0
+        elif args.command == "fetch-depth":
+            from . import depth
+            path = depth.fetch(consent=args.yes, progress=lambda m: print(m, file=sys.stderr, flush=True))
+            result = {"model": str(path), "verified": True, "license": "Apache-2.0", "revision": depth.REVISION}
         elif args.command == "packs":
             from .render import theme, themes
             result = {name: theme(name)["name"] for name in themes()}

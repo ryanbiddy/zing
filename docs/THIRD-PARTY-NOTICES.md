@@ -1,5 +1,25 @@
 # Third-party dependencies and assets
 
+## Factory depth parallax (November 2026)
+
+`zing factory fetch-depth --yes` downloads Depth Anything V2 Small through Zing's
+shared verified downloader. The weights are Apache-2.0 according to the
+[original model card](https://huggingface.co/depth-anything/Depth-Anything-V2-Small/blob/03876f8651c73a60fe4c2c48294e09fcb6838fcf/README.md),
+pinned at `03876f8651c73a60fe4c2c48294e09fcb6838fcf`; card SHA-256:
+`d96b19c959007126110b199a7c2e9c24530b61796a26f1af035420625a10f916`.
+The ONNX conversion is [onnx-community/depth-anything-v2-small](https://huggingface.co/onnx-community/depth-anything-v2-small/blob/4472b7362082ad9968fee890ca0f1e5aca36b93d/README.md)
+at `4472b7362082ad9968fee890ca0f1e5aca36b93d` (card tagged apache-2.0; card SHA-256
+`2fdd0db4eb5d7725fe0f1522e03a63f0b3c7dc93c805669f3322f665fb3b4c86`). The Base
+and Large variants (CC-BY-NC-4.0) are not used. No training or inference code is
+vendored; ONNX Runtime (MIT) comes from the `study` extra.
+
+| Explicitly fetched asset | Bytes | SHA-256 |
+|---|---:|---|
+| `onnx/model.onnx` | 99,060,839 | `afb6a5c28f3b6bf1618c6e43f02073ef9dfdc70e937502d51603e57b0a1df10c` |
+
+The file lives in `models/depth-anything-v2-small` under `ZING_HOME`. Rendering
+never downloads it.
+
 ## AUD1 audio tagging and ASR hygiene
 
 The optional `audio-ml` extra adds `sherpa-onnx>=2.0,<3`; the lock resolves
