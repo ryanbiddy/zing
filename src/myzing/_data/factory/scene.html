@@ -1,0 +1,238 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Inter;font-weight:600;src:url(../fonts/ZingCaption-700.ttf)}
+@font-face{font-family:Inter;font-weight:700;src:url(../fonts/ZingCaption-700.ttf)}
+@font-face{font-family:Inter;font-weight:800;src:url(../fonts/ZingCaption-800.ttf)}
+@font-face{font-family:Inter;font-weight:900;src:url(../fonts/ZingCaption-800.ttf)}
+:root{--ink:#F4F6FB;--yel:#FFD23F;--navy:#050C24;--accent-ink:#081233;--muted:rgba(244,246,251,.72);--glow:#13296E;--cap-bg:#07070B;--cap-ink:#F4F6FB;--cap-on:#FFD23F;--cap-radius:12px;--tag-bg:rgba(5,12,36,.55);--tag-ink:rgba(255,255,255,.88);--edge:transparent}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow:hidden;background:var(--navy)}
+body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
+#hook,.g-lab,.g-item,.g-quote{color:var(--ink)}
+.layer{position:absolute;overflow:hidden}
+#top{background:#0A1430}
+#top img{position:absolute;left:0;top:0;transform-origin:0 0}
+#topBlur{filter:blur(36px) brightness(.55);}
+#spk{background:#000}
+#spk img{position:absolute;left:0;top:0;transform-origin:0 0}
+#spkBlur{filter:blur(30px) brightness(.5)}
+#gfx{display:none;
+  background:radial-gradient(800px 600px at 50% 45%,var(--glow) 0%,transparent 70%),var(--navy);border-top:12px solid var(--edge)}
+#hook{position:absolute;left:60px;right:60px;height:240px;display:flex;align-items:center;justify-content:center;text-align:center;font:900 74px/1.04 Inter;letter-spacing:-.02em}
+#hook b{color:var(--yel)}
+#pill{position:absolute;left:0;right:0;text-align:center}
+#pill span{display:inline-block;background:var(--yel);color:var(--accent-ink);font:900 44px/1.15 Inter;padding:14px 26px;border-radius:14px;max-width:960px;letter-spacing:-.01em}
+#cap{position:absolute;left:0;right:0;text-align:center;white-space:nowrap}
+#cap .box{display:inline-block;background:var(--cap-bg);color:var(--cap-ink);padding:10px 22px 12px;border-radius:var(--cap-radius);font:900 54px/1.15 Inter;letter-spacing:.01em;text-transform:var(--cap-case,uppercase)}
+#cap .on{color:var(--cap-on)}
+#credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000}
+#prog{position:absolute;left:0;top:0;height:6px;background:var(--yel)}
+#srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
+/* graphics */
+.g-num{position:absolute;left:0;right:0;text-align:center;font:900 230px/1 Inter;letter-spacing:-.04em;color:var(--yel);font-variant-numeric:tabular-nums}
+.g-lab{position:absolute;left:60px;right:60px;text-align:center;font:800 46px/1.15 Inter;color:var(--ink)}
+.g-title{position:absolute;left:60px;right:60px;top:120px;text-align:center;font:800 40px Inter;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.g-item{position:absolute;left:100px;right:70px;font:800 66px/1.12 Inter;display:flex;align-items:center}
+.g-item i{font-style:normal;display:inline-flex;width:88px;height:88px;border-radius:22px;background:var(--yel);color:var(--accent-ink);align-items:center;justify-content:center;font:900 40px Inter;margin-right:30px;flex:none}
+.g-quote{position:absolute;left:80px;right:80px;top:0;bottom:0;display:flex;align-items:center;font:900 76px/1.12 Inter;letter-spacing:-.02em}
+.g-quote em{font-style:normal;color:var(--yel)}
+.g-mark{position:absolute;left:66px;top:96px;font:900 220px/1 Inter;color:var(--yel);opacity:.9}
+.row{position:absolute;left:0;right:0;height:120px}
+.bar{position:absolute;top:0;height:80px;border-radius:18px;left:50%}
+.num{position:absolute;top:0;height:80px;left:0;right:0;text-align:center;font:900 56px/80px Inter;font-variant-numeric:tabular-nums}
+.lab{position:absolute;top:86px;left:0;right:0;text-align:center;font:800 27px/30px Inter;letter-spacing:.14em;color:var(--muted)}
+</style></head>
+<body>
+<div class="layer" id="top"><img id="topBlur"><img id="topImg"></div>
+<div class="layer" id="gfx"><div id="gfxIn" style="position:absolute;left:0;top:0;width:1080px;height:960px;transform-origin:0 0"></div></div>
+<div class="layer" id="spk"><img id="spkBlur"><img id="spkImg"></div>
+<div id="hook"></div>
+<div id="pill"><span></span></div>
+<div id="cap"><span class="box"></span></div>
+<div id="credit"></div>
+<div id="prog"></div>
+<div id="srctag"></div>
+<script>
+const D = window.DATA, FPS = D.fps, W = D.words;
+if (D.theme) { const T = D.theme, st = document.documentElement.style;
+  const set = (k, v) => v != null && st.setProperty(k, v);
+  set('--navy', T.bg); set('--glow', T.glow); set('--ink', T.ink); set('--muted', T.muted); set('--yel', T.accent);
+  set('--accent-ink', T.accent_ink); set('--cap-bg', T.cap_bg); set('--cap-ink', T.cap_ink); set('--cap-on', T.cap_on);
+  set('--cap-radius', (T.cap_radius ?? 12) + 'px'); set('--tag-bg', T.tag_bg); set('--tag-ink', T.tag_ink);
+  set('--edge', T.panel_edge && T.panel_edge !== 'none' ? T.panel_edge : 'transparent');
+  if (T.cap_upper === false) st.setProperty('--cap-case', 'none'); }
+const $ = id => document.getElementById(id);
+const clamp = (x,a=0,b=1) => Math.max(a,Math.min(b,x));
+const lin = (t,a,b) => clamp((t-a)/(b-a));
+const easeOut = x => 1-Math.pow(1-x,3);
+const easeInOut = x => x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
+const back = x => {const c=1.70158,c3=c+1;return 1+c3*Math.pow(x-1,3)+c*Math.pow(x-1,2)};
+const mix = (a,b,x) => a+(b-a)*x;
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+// caption groups: <=3 words, break after punctuation or 16 chars
+const groups = []; { let g = [];
+  W.forEach((w,i) => { g.push(i); const len = g.map(j=>W[j].w).join(' ').length;
+    if (g.length===3 || /[.,?!;:]$/.test(w.w) || len>16) { groups.push(g); g=[]; } });
+  if (g.length) groups.push(g); }
+
+const shotAt = t => D.shots.find(s => t >= s.from && t < s.to) || D.shots[D.shots.length-1];
+const camAt = t => D.cams.find(c => t >= c.from && t < c.to) || D.cams[D.cams.length-1];
+
+async function setImg(img, src) { if (img.dataset.src !== src) { img.src = src; img.dataset.src = src; await img.decode().catch(()=>{}); } }
+
+// cover-fit an image of (iw,ih) into box (bw,bh) around focus (fx,fy) at zoom z
+function cover(img, iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
+  // maxFrac: keep everything below this fraction of the source height out of frame (burned-in captions)
+  if (maxFrac) z = Math.max(z, bh / (maxFrac*ih*Math.max(bw/iw, bh/ih)));
+  const s = Math.max(bw/iw, bh/ih) * z, vw = iw*s, vh = ih*s;
+  const tx = clamp(-(fx*vw - bw/2), bw-vw, 0);
+  let ty = clamp(-(fy*vh - bh/2), bh-vh, 0);
+  if (maxFrac) ty = Math.max(ty, bh - maxFrac*ih*s);
+  img.style.width = iw+'px'; img.style.height = ih+'px';
+  img.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+}
+function contain(img, iw, ih, bw, bh) {
+  const s = Math.min(bw/iw, bh/ih), vw = iw*s, vh = ih*s;
+  img.style.width = iw+'px'; img.style.height = ih+'px';
+  img.style.transform = `translate(${(bw-vw)/2}px,${(bh-vh)/2}px) scale(${s})`;
+}
+
+// ---- graphics ----
+function drawGraphic(g, t, el) {
+  const k = g.kind;
+  if (el.dataset.id !== g.id) {
+    el.dataset.id = g.id;
+    if (k === 'counter') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div><div class="g-num" style="top:300px"></div><div class="g-lab" style="top:560px">${esc(g.label||'')}</div>`;
+    if (k === 'list') { const n = g.items.length, longest = Math.max(...g.items.map(it => it.text.length));
+      const fs = Math.min(66, n >= 4 ? 56 : 66, Math.floor(1500 / Math.max(14, longest)));
+      el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${230+i*(600/Math.max(3,n))}px;font-size:${fs}px;white-space:nowrap"><i>${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
+    if (k === 'quote') el.innerHTML = `<div class="g-mark">“</div><div class="g-quote"><div>${g.text.split(/(\*[^*]+\*)/).map(p=>p.startsWith('*')?`<em>${esc(p.slice(1,-1))}</em>`:esc(p)).join('')}</div></div>`;
+    if (k === 'funnel') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.rows.map((r,i)=>`<div class="row" style="top:${200+i*(640/g.rows.length)}px"><div class="bar"></div><div class="num"></div><div class="lab">${esc(r.label)}</div></div>`).join('');
+  }
+  const t0 = g.from;
+  if (k === 'counter') {
+    const c = lin(t, g.at ?? t0, (g.at ?? t0)+.9);
+    // a year pops in whole: counting up to 1886 reads as a quantity, and "1,886" is wrong
+    const year = g.format === 'year' || (Number.isInteger(g.value) && g.value >= 1000 && g.value <= 2100 && !g.prefix && !g.suffix
+      && /\b(year|years|until|since|in|by|ended|began|founded|century|back)\b/i.test(`${g.title||''} ${g.label||''}`));
+    const v = g.value >= 20 && !year ? g.value * easeOut(c) : g.value;
+    el.querySelector('.g-num').textContent = (g.prefix||'') + (year ? String(g.value) : g.decimals ? v.toFixed(g.decimals) : fmt(v)) + (g.suffix||'');
+    el.querySelector('.g-num').style.transform = `scale(${mix(.7,1,back(lin(t,g.at??t0,(g.at??t0)+.4)))})`;
+    el.querySelector('.g-lab').style.opacity = easeOut(lin(t,(g.at??t0)+.3,(g.at??t0)+.7));
+  }
+  if (k === 'list') el.querySelectorAll('.g-item').forEach((it,i) => {
+    const p = easeOut(lin(t, g.items[i].at ?? (t0+i*.6), (g.items[i].at ?? (t0+i*.6))+.4));
+    it.style.opacity = p; it.style.transform = `translateX(${(1-p)*60}px)`;
+  });
+  if (k === 'quote') { const p = easeOut(lin(t, t0, t0+.5));
+    el.querySelector('.g-quote').style.opacity = p; el.querySelector('.g-quote').style.transform = `translateY(${(1-p)*30}px)`; }
+  if (k === 'funnel') {
+    const nums = g.rows.map(r => r.value), lo = Math.log(Math.min(...nums)), hi = Math.log(Math.max(...nums));
+    el.querySelectorAll('.row').forEach((row,i) => {
+      const r = g.rows[i], at = r.at ?? (t0+i*.5), p = easeOut(lin(t, at, at+.45));
+      const w = 220 + 740*(hi===lo?1:(Math.log(r.value)-lo)/(hi-lo));
+      row.style.opacity = p; row.style.transform = `translateY(${(1-p)*24}px)`;
+      const bar = row.children[0], bw = w*mix(.9,1,back(lin(t,at,at+.5)));
+      bar.style.width = bw+'px'; bar.style.marginLeft = -bw/2+'px';
+      const last = i === g.rows.length-1;
+      const TH = D.theme || {};
+      bar.style.background = last ? 'var(--yel)' : (TH.funnel || ['#3D6BFF','#2D50C8','#22399A','#1B2F80'])[i%4];
+      row.children[1].style.color = last ? 'var(--accent-ink)' : (TH.funnel_ink || '#fff');
+      row.children[1].textContent = r.text ?? fmt(r.value*easeOut(lin(t,at,at+.7)));
+    });
+  }
+}
+
+// Geometry per delivery shape. 9x16 keeps the split (visual or graphic on top, speaker below);
+// 1x1 and 16x9 cut away: the visual or graphic takes the whole frame while the speaker keeps talking.
+const SW = D.W || 1080, SH9 = D.H || 1920, ASPECT = D.aspect || '9x16';
+document.documentElement.style.width = document.body.style.width = SW + 'px';
+document.documentElement.style.height = document.body.style.height = SH9 + 'px';
+function geometry(layout) {
+  const full = {x:0, y:0, w:SW, h:SH9};
+  if (ASPECT === '9x16') {
+    if (layout === 'solo') return {spk:{x:0,y:400,w:1080,h:1180}, cap:1610, hook:'header', pill:790};
+    const top = {x:0,y:0,w:1080,h:960};
+    return {spk:{x:0,y:960,w:1080,h:960}, [layout==='split'?'top':'gfx']:top, cap:924, hook:'pill', pill:790};
+  }
+  const cap = SH9 - 180, pill = 56;
+  if (layout === 'solo') return {spk:full, cap, hook:'pill', pill};
+  return {[layout==='split'?'top':'gfx']:full, cap, hook:'pill', pill};
+}
+function place(el, b) { if (!b) { el.style.display='none'; return; }
+  el.style.display='block'; el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; }
+
+window.seek = async function(t) {
+  const shot = shotAt(t), cam = camAt(t);
+  const layout = shot.layout;               // solo | split | graphic
+  const G = geometry(layout);
+  const top = $('top'), gfx = $('gfx'), spk = $('spk');
+  const tin = t - shot.from;
+  place(top, G.top); place(gfx, G.gfx); place(spk, G.spk);
+
+  // speaker
+  if (G.spk) {
+    const f = Math.min(D.frames, Math.max(1, Math.floor(t*FPS)+1));
+    const src = `${D.framesDir}/${String(f).padStart(5,'0')}.jpg`;
+    await Promise.all([setImg($('spkImg'), src), setImg($('spkBlur'), src)]);
+    const BW = G.spk.w, BH = G.spk.h, [iw, ih] = D.srcSize;
+    cover($('spkBlur'), iw, ih, BW, BH, 1.1);
+    if (cam.mode === 'face') {
+      const want = BH / (cam.fh*ih*3.2), base = Math.max(BW/iw, BH/ih);
+      const z = clamp(want/base, 1, cam.wide ? 1.4 : 2.2) * (1 + .05*easeInOut(lin(t, cam.from, cam.to)));
+      cover($('spkImg'), iw, ih, BW, BH, z, cam.cx, clamp(cam.cy+.06,0,1), D.burnTop);
+    } else if (cam.mode === 'wide' && cam.faces > 1) contain($('spkImg'), iw, ih, BW, BH);   // a real group shot: show everyone
+    else cover($('spkImg'), iw, ih, BW, BH, 1, .5, .38, D.burnTop);                          // no face found: crop the middle, never letterbox
+  }
+
+  // visual (top half in 9x16, full frame otherwise)
+  $('credit').textContent = '';
+  if (G.top) {
+    const v = D.visuals[shot.visual], BW = G.top.w, BH = G.top.h;
+    let vsrc = v.src, vw = v.w, vh = v.h;
+    if (v.frames) { const k = (Math.floor(tin*FPS) % v.frames) + 1; vsrc = `${v.dir}/${String(k).padStart(5,'0')}.jpg`; }
+    await Promise.all([setImg($('topImg'), vsrc), setImg($('topBlur'), vsrc)]);
+    cover($('topBlur'), vw, vh, BW, BH, 1.1);
+    const pop = mix(1.06, 1, easeOut(lin(tin, 0, .25)));
+    if (v.fit === 'contain') contain($('topImg'), vw, vh, BW, BH);
+    else { const dir = (shot.idx % 2) ? 1 : -1, d = shot.to-shot.from;
+      cover($('topImg'), vw, vh, BW, BH, pop*(1.02 + (v.frames ? .02 : .07)*lin(tin, 0, d)), .5 + dir*.06*lin(tin,0,d), .45); }
+    $('credit').textContent = v.credit || '';
+    $('credit').style.top = (G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';
+  }
+  if (G.gfx) {
+    const s = Math.min(G.gfx.w/1080, (G.gfx.h - (ASPECT==='9x16' ? 0 : 150))/960);
+    const inner = $('gfxIn');
+    inner.style.transform = `translate(${(G.gfx.w-1080*s)/2}px,${ASPECT==='9x16' ? 0 : Math.max(0,(G.gfx.h-150-960*s)/2)}px) scale(${s})`;
+    drawGraphic({...shot.graphic, id: 'g'+shot.idx, from: shot.from}, t, inner);
+  }
+
+  // hook: a header over solo in 9x16, otherwise a pill for the first seconds
+  const hookOn = t < D.hookUntil;
+  const hp = easeOut(lin(t, 0, .35)) * (1 - lin(t, D.hookUntil-.25, D.hookUntil));
+  const hook = $('hook'), pill = $('pill');
+  if (G.hook === 'header') { hook.style.top = '130px'; hook.innerHTML = `<div>${D.hookHtml}</div>`; hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
+  else { hook.style.opacity = 0; pill.style.top = G.pill+'px'; pill.firstChild.innerHTML = D.hookHtml; pill.style.opacity = hookOn ? hp : 0;
+         pill.style.transform = `scale(${mix(.85,1,back(lin(t,0,.35)))})`; }
+
+  // captions
+  let gi = -1; for (let i=0;i<groups.length;i++) if (W[groups[i][0]].os <= t+.02) gi = i;
+  const cap = $('cap'), box = cap.firstChild;
+  if (gi >= 0 && t < W[W.length-1].oe + .3) {
+    const grp = groups[gi];
+    box.innerHTML = grp.map(j => { const w = W[j], on = w.os <= t+.02 && t < (W[j+1]?.os ?? w.oe+.3);
+      return `<span class="${on?'on':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
+    cap.style.top = G.cap + 'px';
+    cap.style.opacity = hookOn && ASPECT === '9x16' && layout !== 'solo' ? 0 : 1;
+    cap.style.transform = `scale(${mix(.88,1,back(lin(t, W[grp[0]].os, W[grp[0]].os+.12)))})`;
+  } else cap.style.opacity = 0;
+  $('prog').style.width = (100*clamp(t/D.duration))+'%';
+  $('srctag').textContent = D.sourceTag || '';
+  $('srctag').style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';
+  return true;
+};
+</script>
+</body></html>

@@ -33,6 +33,7 @@ def without_protect(tool):
 
 def assert_wire(actual, expected):
     # The SDK1 capture is immutable historical evidence. MUSIC1/CARD1 add tools;
+    # FACTORY1 adds the factory_* tools the same way (tests/test_factory.py).
     # continue comparing every original tool byte, and test the addition via
     # the current registry/stdio pins and test_music.py. POLISH1's protect
     # argument is stripped the same way and tested in test_meme_protect.py.
@@ -54,7 +55,9 @@ def assert_wire(actual, expected):
     actual = without_release_stamp(copy.deepcopy(actual))
     if isinstance(actual, dict) and isinstance(actual.get("result"), dict) and "tools" in actual["result"]:
         actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
-                                     if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments"}]
+                                     if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments",
+                                                         "factory_new", "factory_run", "factory_status", "factory_prompt",
+                                                         "factory_answer"}]
         for tool in actual["result"]["tools"]:
             if tool["name"] in {"study_video", "study_uoink_item", "match_start"}:
                 # DOGFOOD2 adds optional reference trims. Preserve the historical
@@ -113,7 +116,8 @@ def test_sdk1_fixture_provenance():
     from test_mcp_stdio import EXPECTED_TOOLS
     tools = GOLDEN[2]["response"]["result"]["tools"]
     assert len(tools) == 32
-    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments"}
+    assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments",
+                                                                 "factory_new", "factory_run", "factory_status", "factory_prompt", "factory_answer"}
     assert len(GOLDEN[3]["response"]["result"]["prompts"]) == 5
 
 

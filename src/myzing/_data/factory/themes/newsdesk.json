@@ -1,0 +1,4 @@
+{"name": "News Desk", "bg": "#121417", "glow": "#1B1E23", "ink": "#F4F1E8", "muted": "rgba(212,176,100,.95)", "accent": "#F2CF1D", "accent_ink": "#121417",
+ "cap_bg": "#F4F1E8", "cap_ink": "#121417", "cap_on": "#6E5A1E", "cap_upper": true, "cap_radius": 2,
+ "panel_edge": "#F2CF1D", "tag_bg": "#F2CF1D", "tag_ink": "#121417",
+ "funnel": ["#22262C", "#2B3037", "#343A42", "#3D444D"], "funnel_ink": "#F4F1E8"}

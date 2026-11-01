@@ -1,0 +1,91 @@
+"""`zing factory`: turn one long episode into a pack of social clips with on-screen visuals, graphics and copy."""
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+
+def _shapes(value: str) -> list[str]:
+    return [s.strip() for s in value.split(",") if s.strip()]
+
+
+def _clips(value: str) -> set[int]:
+    return {int(x) for x in value.split(",") if x.strip()}
+
+
+def run(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="zing factory", description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    new = commands.add_parser("new", help="start a project from a local episode file")
+    new.add_argument("project", type=Path)
+    new.add_argument("--media", type=Path, required=True, help="the local episode video")
+    new.add_argument("--transcript", type=Path, help="SRT, VTT or word JSON; without one the episode is transcribed")
+    new.add_argument("--offset", type=float, default=0.0, help="seconds to add to the transcript's times")
+    new.add_argument("--name", help="source credit, e.g. the show and episode")
+    new.add_argument("--url", default="", help="the source link used in first comments")
+    new.add_argument("--date", default="", help="the source's date; copy never calls older news 'new'")
+    new.add_argument("--tag", default="", help="short on-screen source tag")
+    new.add_argument("--moments", type=int, default=8)
+    new.add_argument("--mode", choices=("context", "fun"), default="context")
+    new.add_argument("--shapes", type=_shapes, default=["9x16", "1x1"], help="any of 9x16,1x1,16x9")
+    new.add_argument("--pack", default="zing", help="style pack (see 'zing factory packs')")
+    new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
+    go = commands.add_parser("run", help="advance the project; stops when it needs answers (host judge)")
+    go.add_argument("project", type=Path)
+    go.add_argument("--judge", choices=("host", "claude"), default="host",
+                    help="host: write prompts for you or your agent to answer; claude: ask Claude Code's CLI")
+    go.add_argument("--model", default=None, help="model for --judge claude")
+    go.add_argument("--clips", type=_clips, help="only these clip numbers, e.g. 1,3")
+    commands.add_parser("status", help="progress, pending prompts and model cost").add_argument("project", type=Path)
+    ans = commands.add_parser("answer", help="answer a pending prompt with JSON from a file or '-' for stdin")
+    ans.add_argument("project", type=Path)
+    ans.add_argument("task")
+    ans.add_argument("answer", help="path to the answer, or - to read stdin")
+    redo = commands.add_parser("redo", help="forget one judgment so the next run asks again")
+    redo.add_argument("project", type=Path)
+    redo.add_argument("task", help="scout, or clipNN-plan / clipNN-pick / clipNN-copy")
+    ren = commands.add_parser("render", help="re-render one clip in a shape and style pack")
+    ren.add_argument("clip", type=Path)
+    ren.add_argument("--shape", default="9x16")
+    ren.add_argument("--pack", default="zing")
+    commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
+    commands.add_parser("packs", help="list style packs")
+    commands.add_parser("doctor", help="check FFmpeg, Node, the sidecar, a browser and the face model")
+    args = parser.parse_args(argv)
+    try:
+        from . import pipeline
+        from .judge import Judge
+        if args.command == "new":
+            result = pipeline.init(args.project, args.media, transcript=args.transcript, offset=args.offset,
+                                   name=args.name, url=args.url, date=args.date, tag=args.tag, moments=args.moments,
+                                   mode=args.mode, shapes=args.shapes, pack=args.pack, public=args.public)
+        elif args.command == "run":
+            judge = Judge(args.project, args.judge, **({"model": args.model} if args.model else {}))
+            result = pipeline.run(args.project, judge, only=args.clips, say=lambda m: print(m, file=sys.stderr, flush=True))
+        elif args.command == "status":
+            result = pipeline.status(args.project)
+        elif args.command == "answer":
+            text = sys.stdin.read() if args.answer == "-" else Path(args.answer).read_text(encoding="utf-8")
+            result = pipeline.answer(args.project, args.task, text)
+        elif args.command == "redo":
+            pipeline.redo(args.project, args.task)
+            result = {"task": args.task, "forgotten": True}
+        elif args.command == "render":
+            from .render import render
+            result = {"rendered": str(render(args.clip, args.shape, args.pack))}
+        elif args.command == "review":
+            from .review import build
+            result = {"review": str(build(args.project))}
+        elif args.command == "packs":
+            from .render import theme, themes
+            result = {name: theme(name)["name"] for name in themes()}
+        else:
+            from .tools import check
+            result = check()
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0
+    except (OSError, ValueError, RuntimeError, KeyError) as exc:
+        print(f"zing factory: {exc}", file=sys.stderr)
+        return 2

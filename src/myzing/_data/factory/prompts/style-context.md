@@ -1,0 +1,1 @@
+- Visual style: CONTEXT. Every visual shows the specific thing being talked about, as concretely as possible: the named place, vehicle, product, organization, event or person's work. Prefer real footage (kind "video") when the thing moves.

@@ -1,0 +1,114 @@
+"""Vision pick: every candidate for every visual request on one labeled sheet; the judge picks the best or none."""
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+from .tools import data_path, ffmpeg
+
+TW, TH, BAND = 360, 240, 64
+VIDEO = (".mp4", ".mov", ".webm", ".gif")
+MODE_RULES = {
+    "context": "Pick what a sharp human editor would cut to: the most relevant, specific and visually striking candidate "
+               "for what the speaker is saying at that moment. Prefer modern, clear, well-lit, uncluttered images; real "
+               "footage of the exact thing named beats a loosely related or archival picture.",
+    "fun": "Pick what makes the moment more fun to watch while still clearly about what's being said: a playful, literal "
+           "or delightfully absurd visual punchline. It must never mock the speaker or a real person, and must still "
+           "make sense to a viewer.",
+}
+
+
+def _thumb(path: Path):
+    from PIL import Image
+    p = Path(path)
+    if p.suffix.lower() in VIDEO:
+        still = p.with_suffix(".pick.jpg")
+        for seek in (["-ss", "1.5"], []):
+            if not still.exists():
+                subprocess.run([ffmpeg(), "-v", "error", "-y", *seek, "-i", str(p), "-frames:v", "1", str(still)], check=False)
+        p = still
+    im = Image.open(p).convert("RGB")
+    im.thumbnail((TW, TH))
+    canvas = Image.new("RGB", (TW, TH), (20, 24, 36))
+    canvas.paste(im, ((TW - im.width) // 2, (TH - im.height) // 2))
+    return canvas
+
+
+def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
+    from PIL import Image, ImageDraw, ImageFont
+    rows = [r for r in requests if manifest.get(r["id"])]
+    if not rows:
+        return None
+    cols = max(len(manifest[r["id"]]) for r in rows)
+    img = Image.new("RGB", (220 + cols * (TW + 12), len(rows) * (TH + BAND + 16) + 10), (8, 10, 18))
+    dr = ImageDraw.Draw(img)
+    font = str(Path(str(data_path())).parent / "fonts" / "ZingCaption-800.ttf")
+    f_big, f_small = ImageFont.truetype(font, 30), ImageFont.truetype(font, 17)
+    y = 10
+    for r in rows:
+        dr.text((12, y + 6), r["id"], fill=(255, 210, 63), font=f_big)
+        dr.text((220, y + 4), (r.get("query", "") + "  |  says: " + r.get("context", ""))[:150], fill=(230, 233, 240), font=f_small)
+        for i, c in enumerate(manifest[r["id"]]):
+            x = 220 + i * (TW + 12)
+            try:
+                img.paste(_thumb(visdir / c["path"]), (x, y + BAND - 26))
+            except Exception:
+                continue
+            dr.rectangle([x, y + BAND - 26, x + 110, y + BAND + 2], fill=(255, 210, 63))
+            dr.text((x + 8, y + BAND - 25), f"{i + 1}" + ("  VIDEO" if c.get("media_type") == "video" else ""),
+                    fill=(8, 18, 51), font=f_small)
+        y += TH + BAND + 16
+    out = visdir / "pick_sheet.jpg"
+    img.save(out, quality=88)
+    return out
+
+
+def prompt(sheet_path: Path, mode: str, sensitive_reason: str | None) -> str:
+    sensitive = ("THIS CLIP IS ON A SENSITIVE SUBJECT (" + sensitive_reason + "). Choose none rather than anything that "
+                 "depicts violence, suffering or people being harmed, anything festive or upbeat, or anything only loosely "
+                 "related. Restrained, documentary, dignified images only.") if sensitive_reason is not None else ""
+    return f"""Read the image at {sheet_path.resolve().as_posix()}. It is a contact sheet for a social video clip cut from a podcast.
+Each row is one moment that needs a visual: the left label is its id, the top line is the search query and what the speaker says there,
+and the numbered tiles (1, 2, 3, ...) are the candidates found. Some tiles are stills from a video and are marked VIDEO.
+
+{MODE_RULES["context" if sensitive else mode]}
+
+Reject a candidate (and choose none for the row if nothing passes) when it:
+- doesn't show what's being talked about, or shows the wrong subject;
+- has burned-in text, titles, captions, watermarks or a logo bug that would clash with our captions;
+- is blurry, tiny, a scan of a document, a diagram, a map, or visual clutter;
+- is a dull archival picture when the moment calls for something vivid.
+Prefer VIDEO when it is as relevant as the best still.
+{sensitive}
+
+Reply with ONLY a JSON object, no prose and no code fence, mapping every row id to
+{{"pick": <tile number or null>, "why": "<max 12 words>"}}."""
+
+
+def picks_from(answer: dict) -> dict[str, dict]:
+    out = {}
+    for rid, v in answer.items():
+        n = v.get("pick") if isinstance(v, dict) else v
+        idx = int(n) - 1 if isinstance(n, (int, float)) or (isinstance(n, str) and n.isdigit()) else None
+        out[rid] = {"pick": idx, "why": v.get("why", "") if isinstance(v, dict) else ""}
+    return out
+
+
+def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, dict]) -> dict[str, dict]:
+    """The picked candidate per request (finder's top choice when the judge skipped a row), with credit and fit."""
+    found = {}
+    for rid, cands in manifest.items():
+        if rid in picks:
+            k = picks[rid]["pick"]
+            cands = [cands[k]] if k is not None and 0 <= k < len(cands) else []
+        if not cands:
+            continue
+        c = cands[0]
+        credit = c.get("attribution") or c.get("creator") or c.get("source") or ""
+        if c.get("license"):
+            credit = f"{credit} · {c['license']}" if credit else c["license"]
+        kind = next((r.get("kind") for r in requests if r.get("id") == rid), "")
+        whole = kind == "logo" or c.get("source") in ("screenshot", "scroll", "ogimage")   # never crop a logo or a page
+        found[rid] = {"path": str(visdir / c["path"]), "credit": (c.get("credit_text") or credit)[:80],
+                      "rights": c.get("rights", "unknown"), **({"fit": "contain"} if whole else {})}
+    return found
