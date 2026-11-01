@@ -1,0 +1,4 @@
+{"name": "Swiss", "bg": "#EAE9E5", "glow": "#EAE9E5", "ink": "#111111", "muted": "rgba(17,17,17,.62)", "accent": "#E30613", "accent_ink": "#FFFFFF",
+ "cap_bg": "#111111", "cap_ink": "#FFFFFF", "cap_on": "#FF4D57", "cap_upper": false, "cap_radius": 0,
+ "panel_edge": "none", "tag_bg": "#111111", "tag_ink": "#FFFFFF",
+ "funnel": ["#111111", "#3A3A3A", "#6A6A6A", "#9A9A9A"], "funnel_ink": "#FFFFFF"}

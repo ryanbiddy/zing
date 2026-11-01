@@ -1,0 +1,4 @@
+{"name": "Zing", "bg": "#050C24", "glow": "#13296E", "ink": "#F4F6FB", "muted": "rgba(244,246,251,.72)", "accent": "#FFD23F", "accent_ink": "#081233",
+ "cap_bg": "#07070B", "cap_ink": "#F4F6FB", "cap_on": "#FFD23F", "cap_upper": true, "cap_radius": 12,
+ "panel_edge": "none", "tag_bg": "rgba(5,12,36,.55)", "tag_ink": "rgba(255,255,255,.88)",
+ "funnel": ["#3D6BFF", "#2D50C8", "#22399A", "#1B2F80"], "funnel_ink": "#FFFFFF"}

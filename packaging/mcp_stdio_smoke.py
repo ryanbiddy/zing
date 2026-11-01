@@ -16,6 +16,11 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "factory_new",
+    "factory_run",
+    "factory_status",
+    "factory_prompt",
+    "factory_answer",
     "zing_moments",
     "zing_studio",
     "zing_studio_run",

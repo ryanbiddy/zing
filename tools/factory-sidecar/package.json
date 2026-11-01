@@ -1,0 +1,7 @@
+{
+  "name": "zing-factory-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "dependencies": { "playwright-core": "1.64.1" }
+}

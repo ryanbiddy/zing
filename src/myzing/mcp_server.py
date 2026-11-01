@@ -1825,6 +1825,103 @@ def h_get_prompt(name: str = "study") -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Clip factory tools: the calling agent is the judge (Zing makes no model calls)
+# ---------------------------------------------------------------------------
+
+_FACTORY_JOBS: dict[str, threading.Thread] = {}
+
+
+def h_factory_new(project: str, media: str, transcript: str | None = None, offset: float = 0.0,
+                  name: str | None = None, url: str = "", date: str = "", tag: str = "", moments: int = 8,
+                  mode: Literal["context", "fun"] = "context", shapes: list[str] | None = None,
+                  pack: str = "zing", public: bool = False) -> dict[str, Any]:
+    """Create a factory project from a local episode file and an optional caption file."""
+    from myzing.factory import pipeline
+    from myzing.factory.tools import FactoryError
+    try:
+        result = pipeline.init(Path(project).expanduser(), Path(media).expanduser(),
+                               transcript=Path(transcript).expanduser() if transcript else None, offset=offset,
+                               name=name, url=url, date=date, tag=tag, moments=moments, mode=mode,
+                               shapes=shapes or ["9x16", "1x1"], pack=pack, public=public)
+        return _ok(**result, hint="Call factory_run(project), then poll factory_status(project).")
+    except (FactoryError, ValueError, OSError) as exc:
+        return _err(str(exc))
+
+
+def _run_factory(root: Path) -> None:
+    from myzing.factory import pipeline
+    from myzing.factory.judge import Judge
+    try:
+        pipeline.run(root, Judge(root, "host"), say=lambda _m: None)
+    except Exception:
+        pass  # pipeline.run records the failure in status.json
+    finally:
+        with _JOBS_LOCK:
+            _FACTORY_JOBS.pop(str(root), None)
+
+
+def h_factory_run(project: str) -> dict[str, Any]:
+    """Advance the project in the background until it finishes or needs answers."""
+    root = Path(project).expanduser().resolve()
+    if not (root / "factory.json").is_file():
+        return _err(f"{root} is not a factory project; create one with factory_new")
+    with _JOBS_LOCK:
+        if str(root) in _FACTORY_JOBS:
+            return _ok(project=str(root), status="already_running", hint="Poll factory_status(project).")
+        thread = threading.Thread(target=_run_factory, args=(root,), name=f"zing-factory-{root.name}", daemon=True)
+        _FACTORY_JOBS[str(root)] = thread
+        thread.start()
+    return _ok(project=str(root), status="started",
+               hint="Poll factory_status(project). When it lists pending tasks, read each with factory_prompt and answer with factory_answer, then call factory_run again.")
+
+
+def h_factory_status(project: str) -> dict[str, Any]:
+    from myzing.factory import pipeline
+    root = Path(project).expanduser().resolve()
+    if not (root / "factory.json").is_file():
+        return _err(f"{root} is not a factory project")
+    result = pipeline.status(root)
+    running = str(root) in _FACTORY_JOBS
+    if result.get("state") == "running" and not running:
+        result["state"] = "interrupted"
+        result["hint"] = "The run stopped without finishing; factory_run resumes where it left off."
+    result["running"] = running
+    return _ok(**result)
+
+
+def h_factory_prompt(project: str, task: str) -> dict[str, Any]:
+    from myzing.factory.judge import Judge
+    root = Path(project).expanduser().resolve()
+    match = [p for p in Judge(root).pending() if p["task"] == task]
+    if not match:
+        return _err(f"no pending task '{task}'; factory_status lists what is pending")
+    text = Path(match[0]["prompt_path"]).read_text(encoding="utf-8")
+    text = re.sub(r"^<!-- image: .+? -->\n", "", text, flags=re.M)
+    return _ok(task=task, prompt=text, images=match[0]["images"],
+               answer_with="factory_answer(project, task, answer) where answer is the JSON object the prompt asks for")
+
+
+def mcp_factory_prompt(project: str, task: str) -> list[Any]:
+    """MCP adapter: the prompt as JSON, with the contact sheet attached for a pick."""
+    package = h_factory_prompt(project, task)
+    if not package.get("ok") or not package.get("images"):
+        return [json.dumps(package, ensure_ascii=False)]
+    from mcp.server.mcpserver import Image
+    return [json.dumps(package, ensure_ascii=False), *(Image(path=p) for p in package["images"])]
+
+
+def h_factory_answer(project: str, task: str, answer: dict[str, Any] | str) -> dict[str, Any]:
+    from myzing.factory import pipeline
+    from myzing.factory.tools import FactoryError
+    root = Path(project).expanduser().resolve()
+    try:
+        pipeline.answer(root, task, answer)
+    except (FactoryError, ValueError) as exc:
+        return _err(str(exc))
+    return _ok(task=task, saved=True, hint="Answer the other pending tasks, then call factory_run(project).")
+
+
+# ---------------------------------------------------------------------------
 # Server assembly (SDK required only from here down)
 # ---------------------------------------------------------------------------
 
@@ -2205,6 +2302,28 @@ def build_server():
         name="match_status",
         description="Read match job progress, failures/log paths, final comparison and actual ready count. cancel=true stops this server's owned worker tree and preserves checkpoints for resume.",
     )(h_match_status)
+
+    mcp.tool(
+        name="factory_new",
+        description="Start a clip-factory project from a local episode video and an optional SRT/VTT/word-JSON transcript (without one, Zing transcribes locally). Settings: moments (clips to make), mode context|fun (visual style), shapes (9x16, 1x1, 16x9), pack (style pack), public (only cleared/attribution visuals). No downloads of the episode, no uploads, nothing posted.",
+    )(h_factory_new)
+    mcp.tool(
+        name="factory_run",
+        description="Advance a factory project in the background: transcribe, cut moments, find visuals (public archives and the named company's own site; stock libraries only with the user's keys), fact-check graphics against the spoken words, render each shape and build a local review page. Zing makes no model calls: when a judgment is needed (scout, per-clip plan and copy, per-clip visual pick) the run stops and factory_status lists it. Resumable.",
+    )(h_factory_run)
+    mcp.tool(
+        name="factory_status",
+        description="Progress of a factory project: state (running, waiting, done, failed, interrupted), pending judgment tasks, per-clip renders, and the review page path. Answer every pending task, then call factory_run again.",
+    )(h_factory_status)
+    mcp.tool(
+        name="factory_prompt",
+        description="Read one pending judgment prompt. A pick task attaches its contact sheet image. Reply to the prompt exactly as it asks (one JSON object) through factory_answer. Never invent facts the transcript doesn't contain.",
+        structured_output=False,
+    )(mcp_factory_prompt)
+    mcp.tool(
+        name="factory_answer",
+        description="Save the JSON answer to a pending factory task (validated; a malformed answer is rejected with the reason). Then call factory_run to continue.",
+    )(h_factory_answer)
 
     for prompt_name in available_prompts():
         def _make(nm: str):

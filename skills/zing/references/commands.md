@@ -31,6 +31,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
+| `zing factory` | `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo`, `render`, `review`, `packs`, `doctor`. Nothing is posted. |
 | `zing playbook` | List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
@@ -264,6 +265,7 @@ itself may use the network; ask first when not already authorized.
 | color | NumPy for SDR look matching. |
 | audio-ml | Optional CED audio tags via sherpa-onnx; weights via `zing doctor --audio-model ced-mini`. |
 | audio | NumPy for audio measurements. |
+| factory | Study, Pillow, pinned OpenCV and NumPy for `zing factory`; Node, the sidecar and Chrome/Edge render. |
 | all | All feature extras above. |
 | dev | pytest, MCP and render support for development. |
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## Clip factory
+
+- `zing factory` turns one long episode into a pack of social clips: scouted moments
+  cut on sentences with pauses removed, speaker framing, visuals found in public
+  archives and on the named company's own site (stock video with your own keys),
+  graphics drawn only from spoken facts, 9:16 / 1:1 / 16:9 renders, post copy and a
+  local review page. See [Clip factory](docs/FACTORY.md).
+- Judgments (scout, plan, pick, copy) go to the calling agent through
+  `factory_new`, `factory_run`, `factory_status`, `factory_prompt` and
+  `factory_answer`, or to Claude Code's CLI with `--judge claude`, which runs lean
+  calls and logs each call's cost.
+- Style packs: `zing`, `newsdesk`, `swiss`.
+
 ## Motion graphics
 
 - Composition v2 plans accept `graphics`: `title-card`, `lower-third`,
