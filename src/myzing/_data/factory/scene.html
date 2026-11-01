@@ -11,7 +11,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{overflow:hidden;background:var(--navy)}
 body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
-#hook,.g-lab,.g-item,.g-quote{color:var(--ink)}
+#hook,.g-lab,.g-item{color:var(--ink)}
 .layer{position:absolute;overflow:hidden}
 #top{background:#0A1430}
 #top img{position:absolute;left:0;top:0;transform-origin:0 0}
@@ -38,13 +38,16 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 .g-title{position:absolute;left:60px;right:60px;top:120px;text-align:center;font:800 40px Inter;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
 .g-item{position:absolute;left:100px;right:70px;font:800 66px/1.12 Inter;display:flex;align-items:center}
 .g-item i{font-style:normal;display:inline-flex;width:88px;height:88px;border-radius:22px;background:var(--yel);color:var(--accent-ink);align-items:center;justify-content:center;font:900 40px Inter;margin-right:30px;flex:none}
-.g-quote{position:absolute;left:80px;right:80px;top:0;bottom:0;display:flex;align-items:center;font:900 76px/1.12 Inter;letter-spacing:-.02em}
-.g-quote em{font-style:normal;color:var(--yel)}
-.g-mark{position:absolute;left:66px;top:96px;font:900 220px/1 Inter;color:var(--yel);opacity:.9}
 .row{position:absolute;left:0;right:0;height:120px}
 .bar{position:absolute;top:0;height:80px;border-radius:18px;left:50%}
 .num{position:absolute;top:0;height:80px;left:0;right:0;text-align:center;font:900 56px/80px Inter;font-variant-numeric:tabular-nums}
 .lab{position:absolute;top:86px;left:0;right:0;text-align:center;font:800 27px/30px Inter;letter-spacing:.14em;color:var(--muted)}
+/* quote moment: the captions take over in the pack's quote face, over the speaker dimmed */
+#dim{position:absolute;display:none;background:linear-gradient(to bottom,rgba(0,0,0,.42),rgba(0,0,0,.76))}
+#quote{position:absolute;display:none;text-align:center;color:var(--q-ink,#fff);font-family:var(--q-font,Anton),Inter,sans-serif;font-weight:var(--q-weight,400);line-height:var(--q-lh,1.04);letter-spacing:var(--q-track,.01em);text-transform:var(--q-case,uppercase);text-shadow:0 4px 28px rgba(0,0,0,.6)}
+#quote .mark{display:block;height:.42em;font-size:2.4em;line-height:1;color:var(--q-hl,var(--yel));text-shadow:none}
+#quote .qw{display:inline-block}
+#quote .mk{padding:0 .11em;margin:0 -.11em;background:linear-gradient(var(--q-hl,var(--yel)),var(--q-hl,var(--yel))) no-repeat 0 55%/0% 86%;text-shadow:none}
 #panel{position:absolute;left:0;right:0;bottom:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:0 54px;background:var(--panel-bg,#000)}
 #panel .brand{display:flex;align-items:center;gap:22px;width:100%;color:var(--panel-ink,#fff);font:800 28px Inter;white-space:nowrap}
 #panel .brand:before,#panel .brand:after{content:"";flex:1;height:2px;background:currentColor;opacity:.7}
@@ -55,6 +58,8 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <div class="layer" id="top"><img id="topBlur"><img id="topImg"></div>
 <div class="layer" id="gfx"><div id="gfxIn" style="position:absolute;left:0;top:0;width:1080px;height:960px;transform-origin:0 0"></div></div>
 <div class="layer" id="spk"><img id="spkBlur"><img id="spkImg"></div>
+<div id="dim"></div>
+<div id="quote"></div>
 <div id="hook"></div>
 <div id="pill"><span></span></div>
 <div id="panel"><div class="brand"></div><div class="head"></div></div>
@@ -78,7 +83,13 @@ if (D.theme) { const T = D.theme, st = document.documentElement.style;
   if (T.cap_bg === 'none') { set('--cap-bg', 'transparent'); set('--cap-pad', '0 8px'); }
   if (T.cap_stroke) set('--cap-stroke', `${T.cap_stroke_w || 6}px ${T.cap_stroke}`);
   if (T.cap_shadow) set('--cap-shadow', T.cap_shadow);
-  if (T.cap_emphasis) set('--cap-em', T.cap_emphasis); }
+  if (T.cap_emphasis) set('--cap-em', T.cap_emphasis);
+  if (T.quote_font) set('--q-font', `'${T.quote_font}'`);
+  set('--q-weight', T.quote_weight); set('--q-lh', T.quote_lh); set('--q-track', T.quote_track);
+  set('--q-ink', T.quote_ink); set('--q-hl', T.quote_hl); set('--q-hl-ink', T.quote_hl_ink);
+  if (T.quote_upper === false) st.setProperty('--q-case', 'none'); }
+// the quote face is hidden until its moment, so ask for it now: the capture waits for fonts before the first frame
+if ((D.quotes || []).length) document.fonts.load(`${(D.theme || {}).quote_weight || 400} 40px "${(D.theme || {}).quote_font || 'Anton'}"`);
 // caption timing and position; y (center as a fraction of the height) applies where the speaker fills the frame
 const CAP = {words: 3, chars: 16, pop_ms: 120, pop_from: .88, overshoot: true, y: null};
 for (const [k, f] of Object.entries({words: 'cap_words', chars: 'cap_chars', pop_ms: 'cap_pop_ms', pop_from: 'cap_pop_from',
@@ -99,6 +110,7 @@ const norm = w => w.toLowerCase().replace(/[^a-z0-9']/g, '');
 const EMPH = D.theme && D.theme.cap_emphasis ? new Set([...(D.hookHtml || '').matchAll(/<b>([^<]+)<\/b>/g)]
   .flatMap(m => m[1].split(/\s+/).map(norm)).filter(Boolean)) : null;
 // caption groups: <=CAP.words words, break after punctuation or CAP.chars characters
+const inQuote = j => (D.quotes || []).some(q => j >= q.a && j <= q.b);   // the quote already showed these words
 const groups = []; { let g = [];
   W.forEach((w,i) => { g.push(i); const len = g.map(j=>W[j].w).join(' ').length;
     if (g.length>=CAP.words || /[.,?!;:]$/.test(w.w) || len>CAP.chars) { groups.push(g); g=[]; } });
@@ -135,7 +147,6 @@ function drawGraphic(g, t, el) {
     if (k === 'list') { const n = g.items.length, longest = Math.max(...g.items.map(it => it.text.length));
       const fs = Math.min(66, n >= 4 ? 56 : 66, Math.floor(1500 / Math.max(14, longest)));
       el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${230+i*(600/Math.max(3,n))}px;font-size:${fs}px;white-space:nowrap"><i>${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
-    if (k === 'quote') el.innerHTML = `<div class="g-mark">“</div><div class="g-quote"><div>${g.text.split(/(\*[^*]+\*)/).map(p=>p.startsWith('*')?`<em>${esc(p.slice(1,-1))}</em>`:esc(p)).join('')}</div></div>`;
     if (k === 'funnel') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.rows.map((r,i)=>`<div class="row" style="top:${200+i*(640/g.rows.length)}px"><div class="bar"></div><div class="num"></div><div class="lab">${esc(r.label)}</div></div>`).join('');
   }
   const t0 = g.from;
@@ -153,8 +164,6 @@ function drawGraphic(g, t, el) {
     const p = easeOut(lin(t, g.items[i].at ?? (t0+i*.6), (g.items[i].at ?? (t0+i*.6))+.4));
     it.style.opacity = p; it.style.transform = `translateX(${(1-p)*60}px)`;
   });
-  if (k === 'quote') { const p = easeOut(lin(t, t0, t0+.5));
-    el.querySelector('.g-quote').style.opacity = p; el.querySelector('.g-quote').style.transform = `translateY(${(1-p)*30}px)`; }
   if (k === 'funnel') {
     const nums = g.rows.map(r => r.value), lo = Math.log(Math.min(...nums)), hi = Math.log(Math.max(...nums));
     el.querySelectorAll('.row').forEach((row,i) => {
@@ -194,7 +203,13 @@ function fitPanel() {            // after fonts load: the largest headline that 
   do { head.style.fontSize = size + 'px'; size -= 2; } while ((head.scrollHeight > room || head.scrollWidth > head.clientWidth + 1) && size > 22);
   panelFit = true;
 }
+function fitQuote(el, w, h) {    // the largest size at which the whole quote fits, no word broken
+  let size = Math.round(Math.min(w * .13, h * .22));
+  do { el.style.fontSize = size + 'px'; size -= 3; }
+  while ((el.offsetHeight > h || [...el.querySelectorAll('.qw')].some(q => q.offsetWidth > w)) && size > 30);
+}
 function geometry(layout) {
+  if (layout === 'quote') return {spk: {x:0, y:0, w:SW, h:STAGE_H}, hook: PANEL ? 'panel' : 'none'};   // the speaker, full stage
   if (PANEL) {                 // the clip plays above the panel, cutting to full-width visuals and graphics
     const stage = {x:0, y:0, w:SW, h:STAGE_H}, cap = CAP.y ? Math.round(CAP.y*SH9) : STAGE_H - 150;
     return layout === 'solo' ? {spk: stage, cap, hook:'panel', pill:56} : {[layout==='split'?'top':'gfx']: stage, cap, hook:'panel', pill:56};
@@ -219,7 +234,8 @@ function place(el, b) { if (!b) { el.style.display='none'; return; }
 
 window.seek = async function(t) {
   const shot = shotAt(t), cam = camAt(t);
-  const layout = shot.layout;               // solo | split | graphic
+  const Q = (D.quotes || []).find(q => t >= q.from && t < q.to);
+  const layout = Q ? 'quote' : shot.layout;   // solo | split | graphic, or a quote moment over whatever shot is up
   const G = geometry(layout);
   const top = $('top'), gfx = $('gfx'), spk = $('spk');
   const tin = t - shot.from;
@@ -232,12 +248,14 @@ window.seek = async function(t) {
     await Promise.all([setImg($('spkImg'), src), setImg($('spkBlur'), src)]);
     const BW = G.spk.w, BH = G.spk.h, [iw, ih] = D.srcSize;
     cover($('spkBlur'), iw, ih, BW, BH, 1.1);
+    // a quote moment leans in on the speaker, holds, and eases back as the quote steps away
+    const lean = Q ? 1 + .06*easeOut(lin(t, Q.from, Q.from+1.2))*(1 - easeInOut(lin(t, Q.to-.35, Q.to))) : 1;
     if (cam.mode === 'face') {
       const want = BH / (cam.fh*ih*3.2), base = Math.max(BW/iw, BH/ih);
-      const z = clamp(want/base, 1, cam.wide ? 1.4 : 2.2) * (1 + .05*easeInOut(lin(t, cam.from, cam.to)));
+      const z = clamp(want/base, 1, cam.wide ? 1.4 : 2.2) * (1 + .05*easeInOut(lin(t, cam.from, cam.to))) * lean;
       cover($('spkImg'), iw, ih, BW, BH, z, cam.cx, clamp(cam.cy+.06,0,1), D.burnTop);
     } else if (cam.mode === 'wide' && cam.faces > 1) contain($('spkImg'), iw, ih, BW, BH);   // a real group shot: show everyone
-    else cover($('spkImg'), iw, ih, BW, BH, 1, .5, .38, D.burnTop);                          // no face found: crop the middle, never letterbox
+    else cover($('spkImg'), iw, ih, BW, BH, lean, .5, .38, D.burnTop);                       // no face found: crop the middle, never letterbox
   }
 
   // visual (top half in 9x16, full frame otherwise)
@@ -272,15 +290,39 @@ window.seek = async function(t) {
   const hp = easeOut(lin(t, 0, .35)) * (1 - lin(t, D.hookUntil-.25, D.hookUntil));
   const hook = $('hook'), pill = $('pill');
   if (PANEL && !panelFit) fitPanel();
-  if (G.hook === 'panel') { hook.style.opacity = 0; pill.style.opacity = 0; }
+  if (G.hook === 'panel' || G.hook === 'none') { hook.style.opacity = 0; pill.style.opacity = 0; }
   else if (G.hook === 'header') { hook.style.top = '130px'; hook.innerHTML = `<div>${D.hookHtml}</div>`; hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
   else { hook.style.opacity = 0; pill.style.top = G.pill+'px'; pill.firstChild.innerHTML = D.hookHtml; pill.style.opacity = hookOn ? hp : 0;
          pill.style.transform = `scale(${mix(.85,1,back(lin(t,0,.35)))})`; }
 
+  // quote moment: the captions take over, building the line word by word, key words swiped with the highlighter
+  const qel = $('quote'), dim = $('dim');
+  if (Q) {
+    const S = G.spk, tall = ASPECT === '9x16' && !PANEL;
+    const w = Math.min(SW*.85, S.h*1.25), h = S.h*(tall ? .4 : .58);
+    if (qel.dataset.q !== String(Q.a)) {
+      qel.dataset.q = Q.a; qel.style.display = 'block'; qel.style.width = w + 'px';
+      qel.innerHTML = '<span class="mark">“</span>' + W.slice(Q.a, Q.b+1).map((x, k) =>
+        `<span class="qw${Q.marks.includes(Q.a+k) ? ' mk' : ''}">${esc(Q.a+k === Q.b ? x.w.replace(/[,;:]$/, '') : x.w)}</span>`).join(' ');
+      fitQuote(qel, w, h);
+    }
+    const out = lin(t, Q.to-.3, Q.to);
+    place(dim, S); dim.style.opacity = easeOut(lin(t, Q.from, Q.from+.3)) * (1-out);
+    qel.style.display = 'block'; qel.style.left = (SW-w)/2 + 'px'; qel.style.top = (S.y + S.h*(tall ? .64 : .54)) + 'px';
+    qel.style.opacity = 1-out; qel.style.transform = `translateY(-50%) translateY(${-out*24}px) scale(${1-.04*out})`;
+    qel.firstChild.style.transform = `scale(${back(lin(t, Q.from, Q.from+.35))})`;
+    qel.querySelectorAll('.qw').forEach((el, k) => {
+      const x = W[Q.a+k], p = lin(t, x.os-.02, x.os+.1);
+      el.style.opacity = easeOut(p); el.style.transform = `translateY(${(1-easeOut(p))*.15}em) scale(${mix(.9, 1, back(p))})`;
+      if (el.classList.contains('mk')) { const hl = easeOut(lin(t, x.os, x.os+.28));
+        el.style.backgroundSize = `${hl*100}% 86%`; el.style.color = hl > .4 ? 'var(--q-hl-ink,var(--accent-ink))' : ''; }
+    });
+  } else { qel.style.display = 'none'; dim.style.display = 'none'; }
+
   // captions
   let gi = -1; for (let i=0;i<groups.length;i++) if (W[groups[i][0]].os <= t+.02) gi = i;
   const cap = $('cap'), box = cap.firstChild;
-  if (gi >= 0 && t < W[W.length-1].oe + .3) {
+  if (gi >= 0 && !Q && !groups[gi].every(inQuote) && t < W[W.length-1].oe + .3) {
     const grp = groups[gi];
     box.innerHTML = grp.map(j => { const w = W[j], on = w.os <= t+.02 && t < (W[j+1]?.os ?? w.oe+.3);
       const em = !on && EMPH && (EMPH.has(norm(w.w)) || /\d/.test(w.w));

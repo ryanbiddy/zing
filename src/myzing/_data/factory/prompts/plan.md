@@ -7,7 +7,7 @@ Layouts:
   - counter {"kind":"counter","title":str,"value":number,"prefix"?:str,"suffix"?:str,"format"?:"year","label":str,"at":seconds the number is said} (set "format":"year" for a year)
   - list {"kind":"list","title":str,"items":[{"text":"max 4 words","at":seconds}]}, 2–4 items
   - funnel {"kind":"funnel","title":str,"rows":[{"value":number,"text"?:"display text","label":"MAX 2 WORDS","at":seconds}]}, 3–4 rows, largest first
-  - quote {"kind":"quote","text":"exact words from the transcript, max 14 words, *mark* 1–3 key words"}
+  - quote {"kind":"quote","text":"exact words from the transcript, max 14 words, *mark* 1–3 key words"}: the captions take over. The speaker stays on screen, dimmed, while the line builds word by word in big type with the marked words highlighted, then it steps away. Use it once per clip at most, for the line a viewer would screenshot.
 
 Rules:
 - The first shot starts at 0 and carries the hook. It should be "split" with a strong visual or "solo".

@@ -37,6 +37,41 @@ def suffix(shape: str, pack: str) -> str:
     return ("" if shape == "9x16" else f"-{shape}") + ("" if pack == "zing" else f"-{pack}")
 
 
+def quotes(shots: list[dict], words: list[dict]) -> list[dict]:
+    """Quote shots become moments where the captions take over: the quoted words, the marked ones, and the window.
+
+    The shot itself turns solo, so around the quote the speaker carries on with normal captions.
+    """
+    from .plan import _norm
+    toks, owner = [], []
+    for i, w in enumerate(words):
+        for tok in _norm(w["w"]).split():
+            toks.append(tok)
+            owner.append(i)
+    out = []
+    for s in shots:
+        g = s.get("graphic") or {}
+        if s.get("layout") != "graphic" or g.get("kind") != "quote":
+            continue
+        s["layout"] = "solo"
+        want, marked = [], []
+        for part in re.split(r"(\*[^*]+\*)", str(g.get("text", ""))):
+            for tok in _norm(part.strip("*")).split():
+                want.append(tok)
+                marked.append(part.startswith("*"))
+        n = len(want)
+        starts = [k for k in range(len(toks) - n + 1) if n and toks[k:k + n] == want]
+        if not starts:
+            continue
+        k = min(starts, key=lambda k: abs(words[owner[k]]["os"] - s["from"]))   # a line said twice: the one at the shot
+        a, b = owner[k], owner[k + n - 1]
+        q = {"a": a, "b": b, "marks": sorted({owner[k + j] for j in range(n) if marked[j]}),
+             "from": round(words[a]["os"] - .12, 3), "to": round(words[b]["oe"] + .8, 3)}
+        if not out or q["from"] >= out[-1]["to"]:
+            out.append(q)
+    return out
+
+
 def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False, parallax: bool | None = None) -> dict:
     """Everything the scene needs. parallax: move photos through their depth (None: when the depth model is installed)."""
     from PIL import Image
@@ -51,6 +86,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
         s["idx"] = i
         s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1
     shots[0]["from"] = 0
+    moments = quotes(shots, words["words"])
     if parallax is None:                       # the project's setting, then whether the weights are installed
         cfg = d.parent / "factory.json"
         parallax = (json.loads(cfg.read_text(encoding="utf-8")).get("parallax", True) if cfg.is_file() else True)             and depth.ready()
@@ -78,7 +114,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     source = d.parent / "source.json"
     W, H = SHAPES[shape]
     return {"fps": 30, "words": words["words"], "frames": cam["frames"], "framesDir": (d / "frames").resolve().as_uri(),
-            "srcSize": cam["size"], "cams": cam["cams"], "burnTop": cam.get("burn_top"), "shots": shots,
+            "srcSize": cam["size"], "cams": cam["cams"], "burnTop": cam.get("burn_top"), "shots": shots, "quotes": moments,
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,
             "sourceTag": json.loads(source.read_text(encoding="utf-8")).get("tag", "") if source.is_file() else "",
