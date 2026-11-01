@@ -49,6 +49,9 @@ one judgment and what was built from it.
 - **9:16** keeps the speaker in the bottom half under a visual or graphic, with the
   caption box on the seam. **4:5** (the LinkedIn and Instagram feed shape), **1:1** and
   **16:9** cut to full-screen visuals.
+- A quote is the clip's one most quotable line, and the captions take over for it: the
+  speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
+  face with its key words highlighted, then steps away and normal captions carry on.
 - Graphics (counter, list, funnel, quote) are built only from the clip's words. Every
   drawn number must be spoken (spelled-out numbers count), a quote must be word for
   word, and a hook with an unspoken number is flagged. A graphic that fails becomes a

@@ -22,6 +22,10 @@
   `zing factory fetch-depth --yes`): a slow camera drift where near things slide
   against the background. Logos, page captures and flat pictures stay still; nothing
   is generated. `--no-parallax` turns it off per project or per render.
+- Quote moments no longer cut to a text card. The captions take over: the speaker stays
+  on screen, dimmed, while the line builds word by word in big type with its key words
+  swiped by a highlighter, then steps away. One per clip. Packs set the quote face
+  (`quote_font`, `quote_weight`, `quote_upper`, `quote_ink`, `quote_hl`).
 
 ## Motion graphics
 

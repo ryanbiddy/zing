@@ -145,6 +145,29 @@ def test_hook_numbers_must_be_spoken(tmp_path):
     assert any("hook" in line for line in final["fact_check"])
 
 
+def test_quote_moments_follow_the_spoken_words():
+    ws = clip_words("Look at slavery. Cuba has the longest history of slavery of any place. And then.")
+    shots = [{"from": 0, "layout": "solo"},
+             {"from": 1.0, "layout": "graphic", "graphic": {"kind": "quote", "text": "Cuba has the *longest history* of slavery"}},
+             {"from": 4.0, "layout": "graphic", "graphic": {"kind": "quote", "text": "never said this"}}]
+    # the captions take over for exactly the quoted words; the shots around them stay on the speaker
+    assert render.quotes(shots, ws) == [{"a": 3, "b": 9, "marks": [6, 7], "from": 1.08, "to": 4.7}]
+    assert [s["layout"] for s in shots] == ["solo", "solo", "solo"]
+    # a word said twice: the one nearest the shot; a quote overlapping another never shows
+    late = [{"from": 3.5, "layout": "graphic", "graphic": {"kind": "quote", "text": "*slavery*"}},
+            {"from": 3.6, "layout": "graphic", "graphic": {"kind": "quote", "text": "of any place"}}]
+    assert render.quotes(late, ws) == [{"a": 9, "b": 9, "marks": [9], "from": 3.48, "to": 4.7}]
+
+
+def test_one_quote_per_clip(tmp_path):
+    (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("Never quit. Keep going, always.")}), encoding="utf-8")
+    final = plan.finalize(tmp_path, {"hook": "h", "shots": [
+        {"from": 0, "layout": "graphic", "graphic": {"kind": "quote", "text": "Never *quit*"}},
+        {"from": 1, "layout": "graphic", "graphic": {"kind": "quote", "text": "Keep *going*"}}]}, {})
+    assert [s["layout"] for s in final["shots"]] == ["graphic", "solo"]
+    assert any("one quote per clip" in line for line in final["fact_check"])
+
+
 def test_plan_prompt_carries_words_and_style():
     w = {"duration": 4.0, "words": clip_words("Hello there. General Kenobi.")}
     text = plan.prompt({"hook": "h", "topic": "t"}, w, "fun")

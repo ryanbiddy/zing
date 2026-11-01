@@ -100,13 +100,18 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict]) -> dict:
     """Drop what can't be shown honestly: unspoken graphics and splits without a usable visual become solo."""
     d = Path(clipdir)
     words = json.loads((d / "words.json").read_text(encoding="utf-8"))["words"]
-    shots, log = [], []
+    shots, log, quoted = [], [], False
     for s in plan["shots"]:
         if s.get("layout") == "graphic":
             bad = fact_check(s.get("graphic", {}), words)
             if bad:
                 log.append(f"dropped {s['graphic'].get('kind')} at {s['from']}: not spoken {bad}")
                 s = {"from": s["from"], "layout": "solo"}
+            elif s["graphic"].get("kind") == "quote":
+                if quoted:                         # the takeover only lands once a clip
+                    log.append(f"dropped quote at {s['from']}: one quote per clip")
+                    s = {"from": s["from"], "layout": "solo"}
+                quoted = True
         if s.get("layout") == "split" and s.get("visual") not in found:
             s = {"from": s["from"], "layout": "solo"}
         shots.append(s)
