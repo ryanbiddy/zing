@@ -50,7 +50,7 @@ def _median_rgb(colors):
 # ---------------------------------------------------------------- measuring
 def _duration(video: Path) -> float:
     out = subprocess.run([ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "json", str(video)],
-                         capture_output=True, text=True, timeout=60).stdout
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60).stdout
     return float(json.loads(out or "{}").get("format", {}).get("duration") or 0)
 
 
@@ -207,7 +207,8 @@ def pop(video: Path, tracks: list[dict], fill) -> dict:
 
 def frame_size(video: Path) -> tuple[int, int]:
     out = subprocess.run([ffprobe(), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
-                          "-of", "json", str(video)], capture_output=True, text=True, timeout=60).stdout
+                          "-of", "json", str(video)], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                         timeout=60).stdout
     st = (json.loads(out or "{}").get("streams") or [{}])[0]
     return int(st.get("width") or 0), int(st.get("height") or 0)
 
@@ -254,7 +255,7 @@ def panel(video: Path) -> dict:
 
 def cuts_per_minute(video: Path) -> float:
     log = subprocess.run([ffmpeg(), "-hide_banner", "-i", str(video), "-vf", "select='gt(scene,0.3)',showinfo", "-f", "null", "-"],
-                         capture_output=True, text=True).stderr
+                         capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
     duration = _duration(video)
     return round(len(re.findall(r"pts_time:", log)) * 60 / duration, 1) if duration else 0.0
 

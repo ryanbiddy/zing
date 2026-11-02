@@ -168,6 +168,59 @@ def test_one_quote_per_clip(tmp_path):
     assert any("one quote per clip" in line for line in final["fact_check"])
 
 
+def test_misheard_names_and_terms_are_fixed_but_numbers_and_meaning_are_not():
+    ws = clip_words("We met Buddy Shaw, the chair. Middle least policy, open AI and Buddy Shaw. Ten people trust it.")
+    fixed, pairs, log = plan.apply_fixes(ws, [
+        {"heard": "Buddy Shaw", "meant": "Buddy Shah"}, {"heard": "Middle least", "meant": "Middle East"},
+        {"heard": "open AI", "meant": "OpenAI"}, {"heard": "Ten", "meant": "Twenty"}, {"heard": "trust", "meant": "sell"},
+        {"heard": "never said", "meant": "never sad"}])
+    text = " ".join(w["w"] for w in fixed)
+    assert text == "We met Buddy Shah, the chair. Middle East policy, OpenAI and Buddy Shah. Ten people trust it."
+    assert pairs == [("Buddy Shaw", "Buddy Shah"), ("Middle least", "Middle East"), ("open AI", "OpenAI")]
+    merged = next(w for w in fixed if w["w"] == "OpenAI")       # two heard words become one, spanning both
+    assert (merged["os"], merged["oe"]) == (ws[9]["os"], ws[10]["oe"])
+    assert any("(x2)" in line for line in log) and sum("kept caption" in line for line in log) == 2
+    assert [w["w"] for w in ws][3] == "Shaw,"                  # the input is left alone
+
+
+def test_finalize_fixes_captions_graphics_and_copy_and_can_undo(tmp_path):
+    heard = {"words": clip_words("Buddy Shaw chairs the trust."), "duration": 2.0}
+    (tmp_path / "words.json").write_text(json.dumps(heard), encoding="utf-8")
+    (tmp_path / "post.json").write_text(json.dumps({"x": {"text": "Meet buddy shaw."}}), encoding="utf-8")
+    raw = {"hook": "Who is *Buddy Shaw*?", "fixes": [{"heard": "Buddy Shaw", "meant": "Buddy Shah"}], "shots": [
+        {"from": 0, "layout": "graphic", "graphic": {"kind": "list", "title": "Buddy Shaw", "items": [{"text": "Chairs"}]}}]}
+    final = plan.finalize(tmp_path, raw, {})
+    read = lambda name: json.loads((tmp_path / name).read_text(encoding="utf-8"))
+    assert read("words.json")["words"][1]["w"] == "Shah" and read("words.json")["duration"] == 2.0
+    assert read("words-heard.json") == heard
+    assert final["hook"] == "Who is *Buddy Shah*?" and final["shots"][0]["graphic"]["title"] == "Buddy Shah"
+    assert final["fixes"] == [{"heard": "Buddy Shaw", "meant": "Buddy Shah"}] and raw["hook"] == "Who is *Buddy Shaw*?"
+    assert read("post.json") == {"x": {"text": "Meet Buddy Shah."}}
+    plan.finalize(tmp_path, {**raw, "fixes": []}, {})            # a redone plan starts again from what was heard
+    assert read("words.json") == heard
+
+
+def test_a_quick_model_finds_moments_and_the_full_model_times_them(tmp_path, monkeypatch):
+    from myzing.study import speech_models
+    cached = {"small"}
+    monkeypatch.setattr(speech_models, "resolve_name", lambda name, require_cached=False: "large-v2")
+    monkeypatch.setattr(speech_models, "local_path", lambda name: f"/models/{name}" if name in cached else None)
+    assert source.scout_model() == "small"
+    cached.clear()
+    assert source.scout_model() is None                         # nothing small on disk: never downloads one
+    monkeypatch.setattr(speech_models, "resolve_name", lambda name, require_cached=False: "base")
+    assert source.scout_model() is None                         # already quick
+    asked = []
+    monkeypatch.setattr(source, "transcribe_episode", lambda media, model=None: asked.append(model) or words("Hello there."))
+    for quick in ("small", None):
+        d = tmp_path / str(quick)
+        d.mkdir()
+        monkeypatch.setattr(source, "scout_model", lambda q=quick: q)
+        assert pipeline._transcript(d, tmp_path / "ep.mp4", say=lambda m: None)[0]["text"] == "Hello there."
+        assert (d / "words.json").is_file() == (quick is None)  # quick words never reach a clip
+    assert asked == ["small", None]
+
+
 def test_plan_prompt_carries_words_and_style():
     w = {"duration": 4.0, "words": clip_words("Hello there. General Kenobi.")}
     text = plan.prompt({"hook": "h", "topic": "t"}, w, "fun")

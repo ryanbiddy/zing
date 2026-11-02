@@ -15,7 +15,7 @@ SILENCE_DB, SILENCE_S, KEEP_S = -32, 0.3, 0.06
 def silences(wav: Path, start: float, end: float) -> list[tuple[float, float]]:
     log = subprocess.run([ffmpeg(), "-hide_banner", "-ss", str(start), "-t", str(end - start), "-i", str(wav),
                           "-af", f"silencedetect=noise={SILENCE_DB}dB:d={SILENCE_S}", "-f", "null", "-"],
-                         capture_output=True, text=True).stderr
+                         capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
     marks = [float(x) + start for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", log)]
     return [(a, b) for a, b in zip(marks[::2], marks[1::2]) if b - a > SILENCE_S]
 
@@ -97,7 +97,7 @@ def cams(d: Path) -> dict:
     import cv2
     from myzing.layout.detector import require_model
     log = subprocess.run([ffmpeg(), "-hide_banner", "-i", str(d / "cut.mp4"), "-vf", "select='gt(scene,0.3)',showinfo",
-                          "-f", "null", "-"], capture_output=True, text=True).stderr
+                          "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
     cuts = [float(x) for x in re.findall(r"pts_time:([0-9.]+)", log)]
     n = len(list((d / "frames").glob("*.jpg")))
     bounds = [0.0] + cuts + [n / FPS]

@@ -59,9 +59,11 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
 def _transcript(project: Path, media: Path, say) -> list[dict]:
     segments = _read(project / "transcript.json")
     if segments is None:
-        say("transcribing the whole episode (no caption file given; this takes a while on CPU)")
-        words = source.transcribe_episode(media)
-        _write(project / "words.json", words)
+        quick = source.scout_model()
+        say(f"transcribing the whole episode with the {quick or 'configured'} speech model (no caption file given)")
+        words = source.transcribe_episode(media, quick)
+        if not quick:                      # a quick pass only finds the moments; their words come from the full model
+            _write(project / "words.json", words)
         segments = source.segments_from_words(words)
         _write(project / "transcript.json", segments)
     return segments

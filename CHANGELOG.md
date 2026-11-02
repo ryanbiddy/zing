@@ -26,6 +26,12 @@
   on screen, dimmed, while the line builds word by word in big type with its key words
   swiped by a highlighter, then steps away. One per clip. Packs set the quote face
   (`quote_font`, `quote_weight`, `quote_upper`, `quote_ink`, `quote_hl`).
+- Episodes without captions are read with a small speech model already on disk just to
+  find the moments; the moments get the full model. On three trending hour-long X
+  episodes this cut transcription from about 50 minutes to about 6 per episode.
+- Misheard names and terms are corrected in captions, graphics and copy when the plan is
+  sure (sound-alikes only, never numbers), with a log line per fix.
+- Site captures and helper tools no longer fail on non-ASCII output on Windows.
 
 ## Motion graphics
 

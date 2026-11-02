@@ -1,6 +1,7 @@
 """On-screen plan for one clip: layouts, graphics drawn only from spoken facts, and visual requests."""
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from pathlib import Path
@@ -55,6 +56,61 @@ def _norm(x: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", x.lower().replace(",", "").replace("-", " ").replace("–", " "))
 
 
+def tokens(words: list[dict]) -> tuple[list[str], list[int]]:
+    """Normalized tokens of the words, and the word each token came from."""
+    toks, owner = [], []
+    for i, w in enumerate(words):
+        for tok in _norm(w["w"]).split():
+            toks.append(tok)
+            owner.append(i)
+    return toks, owner
+
+
+def apply_fixes(words: list[dict], fixes) -> tuple[list[dict], list[tuple[str, str]], list[str]]:
+    """Correct clear mishearings the planner names: a sound-alike name or term, never a number or a new meaning.
+
+    Returns the corrected words, the (heard, meant) pairs applied, and a log line per fix.
+    """
+    words, done, log = [dict(w) for w in words], [], []
+    for f in fixes if isinstance(fixes, list) else []:
+        heard, meant = str((f or {}).get("heard", "")).strip(), str((f or {}).get("meant", "")).strip()
+        a, b = _norm(heard).split(), _norm(meant).split()
+        if not a or not b or a == b or len(a) > 4 or len(b) > 4:
+            continue
+        if re.search(r"\d", heard + meant) or any(t in SMALL or t in TENS for t in b) \
+                or difflib.SequenceMatcher(None, " ".join(a), " ".join(b)).ratio() < .6:
+            log.append(f"kept caption {heard!r}: {meant!r} is not a clear mishearing")
+            continue
+        toks, owner = tokens(words)
+        starts = [k for k in range(len(toks) - len(a) + 1) if toks[k:k + len(a)] == a]
+        for k in reversed(starts):
+            i, j = owner[k], owner[k + len(a) - 1]
+            tail = re.search(r"[^\w']*$", words[j]["w"]).group()      # keep the sentence's punctuation
+            new = meant.split()
+            if len(new) == j - i + 1:
+                for n, w in enumerate(new):
+                    words[i + n]["w"] = w + (tail if i + n == j else re.search(r"[^\w']*$", words[i + n]["w"]).group())
+            else:
+                words[i:j + 1] = [{**words[i], "w": meant + tail, "oe": words[j]["oe"]}]
+        if starts:
+            done.append((heard, meant))
+            log.append(f"caption fix: {heard!r} -> {meant!r}" + (f" (x{len(starts)})" if len(starts) > 1 else ""))
+    return words, done, log
+
+
+def _fix_text(value, pairs: list[tuple[str, str]]):
+    """The same corrections in on-screen text and copy, case-insensitive."""
+    if isinstance(value, str):
+        for heard, meant in pairs:
+            value = re.sub(re.escape(heard), meant, value, flags=re.IGNORECASE)
+        return value
+    if isinstance(value, list):
+        return [_fix_text(v, pairs) for v in value]
+    if isinstance(value, dict):
+        return {k: _fix_text(v, pairs) for k, v in value.items()}
+    return value
+
+
 def spoken_numbers(words: list[dict]) -> tuple[str, set[str]]:
     spoken = " " + " ".join(_norm(w["w"]) for w in words) + " "
     nums = set(re.findall(r"\d+(?:\.\d+)?", spoken))
@@ -99,8 +155,19 @@ def fact_check(graphic: dict, words: list[dict]) -> list:
 def finalize(clipdir: Path, plan: dict, found: dict[str, dict]) -> dict:
     """Drop what can't be shown honestly: unspoken graphics and splits without a usable visual become solo."""
     d = Path(clipdir)
-    words = json.loads((d / "words.json").read_text(encoding="utf-8"))["words"]
-    shots, log, quoted = [], [], False
+    heard = d / "words-heard.json"                     # the speech model's words, kept once a fix changes them
+    data = json.loads((heard if heard.is_file() else d / "words.json").read_text(encoding="utf-8"))
+    words, pairs, log = apply_fixes(data["words"], plan.get("fixes"))
+    if pairs or heard.is_file():
+        if not heard.is_file():
+            heard.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        (d / "words.json").write_text(json.dumps({**data, "words": words}, ensure_ascii=False), encoding="utf-8")
+    plan = _fix_text({k: v for k, v in plan.items() if k != "fixes"}, pairs)
+    post = d / "post.json"
+    if pairs and post.is_file():                       # the copy was written from the same words
+        post.write_text(json.dumps(_fix_text(json.loads(post.read_text(encoding="utf-8")), pairs), indent=1,
+                                   ensure_ascii=False), encoding="utf-8")
+    shots, quoted = [], False
     for s in plan["shots"]:
         if s.get("layout") == "graphic":
             bad = fact_check(s.get("graphic", {}), words)
@@ -117,7 +184,8 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict]) -> dict:
         shots.append(s)
     final = {"hook": plan["hook"], "hook_until": plan.get("hook_until", 3.0), "shots": shots,
              "sensitive": bool(plan.get("sensitive")), "sensitive_reason": plan.get("sensitive_reason", ""),
-             "visuals": {k: v for k, v in found.items() if any(s.get("visual") == k for s in shots)}}
+             "visuals": {k: v for k, v in found.items() if any(s.get("visual") == k for s in shots)},
+             "fixes": [{"heard": h, "meant": m} for h, m in pairs]}
     hook_bad = fact_check({"kind": "list", "items": [{"text": plan["hook"].replace("*", "")}]}, words)
     if hook_bad:
         log.append(f"hook number not spoken {hook_bad}: review the hook")
