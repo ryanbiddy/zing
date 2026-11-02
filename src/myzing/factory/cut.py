@@ -1,4 +1,8 @@
-"""Cut one moment: trim pauses, remap word times, extract frames, find camera shots and the speaker's face."""
+"""Cut one moment: trim pauses, remap word times, extract frames, find camera shots and the speaker's face.
+
+A moment is one span of the episode, or several spans played in a chosen order (a launch film assembled from a
+long demo).
+"""
 from __future__ import annotations
 
 import json
@@ -6,10 +10,11 @@ import re
 import subprocess
 from pathlib import Path
 
-from .tools import FactoryError, ffmpeg, run
+from .tools import FactoryError, ffmpeg, ffprobe, run
 
 FPS = 30
 SILENCE_DB, SILENCE_S, KEEP_S = -32, 0.3, 0.06
+PAD = 0.25                      # around each span of a multi-span moment
 
 
 def silences(wav: Path, start: float, end: float) -> list[tuple[float, float]]:
@@ -54,19 +59,42 @@ def moment_words(words: list[dict], start: float, end: float, off: float) -> lis
     return out
 
 
-def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float) -> dict:
+def _duration(path: Path) -> float:
+    out = subprocess.run([ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+    return float(out.strip())
+
+
+def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float,
+        spans: list[list[float]] | None = None) -> dict:
     d = Path(clipdir)
     d.mkdir(parents=True, exist_ok=True)
     ff = ffmpeg()
     seg = d / "seg.mp4"
-    off = max(0.0, start - 1)
-    run(ff, "-v", "error", "-y", "-ss", off, "-i", source, "-t", end - off + 1, "-c:v", "libx264", "-crf", "14",
-        "-preset", "fast", "-c:a", "aac", "-b:a", "192k", seg)
+    spans = [[float(a), float(b)] for a, b in spans] if spans else [[start, end]]
+    pad = 1.0 if len(spans) == 1 else PAD
+    ws, windows, base, pieces = [], [], 0.0, []     # windows: (from, to, seg time - source time) per span
+    for k, (s, e) in enumerate(spans):
+        off = max(0.0, s - pad)
+        piece = seg if len(spans) == 1 else d / f"seg{k}.mp4"
+        run(ff, "-v", "error", "-y", "-ss", off, "-i", source, "-t", e - off + pad, "-c:v", "libx264", "-crf", "14",
+            "-preset", "fast", "-r", FPS, "-c:a", "aac", "-b:a", "192k", "-ar", "48000", piece)
+        shift = base - off
+        got = moment_words(words, s, e, -shift)          # seg time from here on
+        if not got:
+            raise FactoryError(f"no transcript words between {s:.1f}s and {e:.1f}s")
+        ws += got
+        windows.append((s + shift, e + shift, shift))
+        pieces.append(piece)
+        base += _duration(piece) if len(spans) > 1 else 0.0
+    if len(spans) > 1:                                   # the spans, back to back in the chosen order
+        (d / "pieces.txt").write_text("".join(f"file '{p.name}'\n" for p in pieces), encoding="utf-8")
+        run(ff, "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", d / "pieces.txt", "-c", "copy", seg)
+        for p in pieces:
+            p.unlink(missing_ok=True)
+        (d / "pieces.txt").unlink(missing_ok=True)
     run(ff, "-v", "error", "-y", "-i", seg, "-ac", "1", "-ar", "16000", d / "seg.wav")
-    ws = moment_words(words, start, end, off)          # seg time from here on
-    if not ws:
-        raise FactoryError(f"no transcript words between {start:.1f}s and {end:.1f}s")
-    ranges = keep_ranges(silences(d / "seg.wav", start - off, end - off), start - off, end - off)
+    ranges = [r for a, b, _ in windows for r in keep_ranges(silences(d / "seg.wav", a, b), a, b)]
     for w in ws:
         w["os"], w["oe"] = round(remap(w["s"], ranges), 3), round(remap(w["e"], ranges), 3)
     total = sum(e - s for s, e in ranges)
@@ -84,8 +112,12 @@ def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float
     run(ff, "-v", "error", "-y", "-i", d / "cut.mp4", "-q:v", "2", d / "frames" / "%05d.jpg")
     seg.unlink(missing_ok=True)
     (d / "seg.wav").unlink(missing_ok=True)
+    def src(r):                                          # a kept range back in episode time
+        shift = next((sh for a, b, sh in windows if a - .01 <= r[0] <= b + .01), windows[0][2])
+        return [round(r[0] - shift, 3), round(r[1] - shift, 3)]
     info = {"words": [{"w": w["w"], "os": w["os"], "oe": w["oe"]} for w in ws], "duration": round(total, 3),
-            "source": str(source), "start": start, "end": end, "ranges": [[r[0] + off, r[1] + off] for r in ranges]}
+            "source": str(source), "start": spans[0][0], "end": spans[-1][1], "ranges": [src(r) for r in ranges],
+            **({"spans": spans} if len(spans) > 1 else {})}
     (d / "words.json").write_text(json.dumps(info, indent=0), encoding="utf-8")
     cams(d)
     return info

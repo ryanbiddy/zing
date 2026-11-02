@@ -8,10 +8,15 @@ from .tools import data_path
 FILLER = {"and", "so", "yeah", "well", "um", "uh", "like", "okay", "ok"}
 
 
-def prompt(segments: list[dict], n: int) -> str:
+def prompt(segments: list[dict], n: int, mode: str = "context") -> str:
     lines = "\n".join(f"[{s['s']:.1f}-{s['e']:.1f}] {s['text']}" for s in segments)
-    return (data_path("prompts", "scout.md").read_text(encoding="utf-8")
+    return (data_path("prompts", "scout-launch.md" if mode == "launch" else "scout.md").read_text(encoding="utf-8")
             .replace("{N}", str(n)).replace("{TRANSCRIPT}", lines))
+
+
+def parts(moment: dict) -> list[list[float]]:
+    """The spans a moment plays, in order: one for a clip, several for a launch film."""
+    return [[s["start"], s["end"]] for s in moment["spans"]] if moment.get("spans") else [[moment["start"], moment["end"]]]
 
 
 def check(answer: dict, duration: float | None = None) -> list[dict]:
@@ -20,16 +25,31 @@ def check(answer: dict, duration: float | None = None) -> list[dict]:
         raise ValueError("scout answer needs a non-empty 'moments' list")
     out = []
     for m in moments:
-        start, end = float(m["start"]), float(m["end"])
-        if not 0 <= start < end or (duration and start >= duration):
-            raise ValueError(f"moment {start}-{end} is outside the episode")
-        out.append({"start": start, "end": end, "hook": str(m["hook"]), "why": str(m.get("why", "")),
-                    "topic": str(m.get("topic", "")), "score": m.get("score", "")})
+        spans = [{"start": float(s["start"]), "end": float(s["end"]), "role": str(s.get("role", ""))}
+                 for s in m.get("spans") or []]
+        for s in spans or [{"start": float(m["start"]), "end": float(m["end"])}]:
+            if not 0 <= s["start"] < s["end"] or (duration and s["start"] >= duration):
+                raise ValueError(f"moment {s['start']}-{s['end']} is outside the episode")
+        if any(a["start"] < b["end"] and b["start"] < a["end"] for i, a in enumerate(spans) for b in spans[i + 1:]):
+            raise ValueError("a film uses the same part of the recording twice")
+        rec = {"hook": str(m["hook"]), "why": str(m.get("why", "")), "topic": str(m.get("topic", "")), "score": m.get("score", "")}
+        if spans:
+            rec.update(start=spans[0]["start"], end=spans[-1]["end"], spans=spans)
+        else:
+            rec.update(start=float(m["start"]), end=float(m["end"]))
+        out.append(rec)
     return out
 
 
 def snap(moment: dict, words: list[dict]) -> dict:
-    """End on a sentence end and start after a leading filler word (And/So/Yeah/Well/Um)."""
+    """End on a sentence end and start after a leading filler word (And/So/Yeah/Well/Um); each span of a film alike."""
+    if moment.get("spans"):
+        spans = [{**s, **{k: v for k, v in _snap(s, words).items() if k in ("start", "end")}} for s in moment["spans"]]
+        return {**moment, "spans": spans, "start": spans[0]["start"], "end": spans[-1]["end"]}
+    return _snap(moment, words)
+
+
+def _snap(moment: dict, words: list[dict]) -> dict:
     ws = [w for w in words if moment["start"] - 0.05 <= w["s"] <= moment["end"] + 6.5]
     if not ws:
         return moment

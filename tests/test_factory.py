@@ -397,3 +397,91 @@ def test_mcp_handlers_drive_the_host_judge(tmp_path):
 def test_cli_lists_factory():
     from myzing import cli
     assert "factory" in cli._COMMANDS
+
+
+# ---------------------------------------------------------------- documentary and launch
+def test_documentary_mode_keeps_its_archives_and_its_rules(tmp_path):
+    text = pick.prompt(tmp_path / "s.jpg", "documentary", "slavery")
+    assert "documentary editor" in text and "SENSITIVE SUBJECT (slavery)" in text
+    assert "is evidence" in text and "a map, or visual clutter" not in text
+    assert "a map, or visual clutter" in pick.prompt(tmp_path / "s.jpg", "context", None)
+    ctx = visuals.Ctx(tmp_path, "documentary", False, False, 0, 5)
+    route = visuals.route_for(ctx, visuals.Query({"query": "Havana harbor 1890 photograph"}, "photo", "documentary"))
+    assert "commons" in route and "loc" in route and not {"pexels", "pixabay", "exa"} & set(route)
+    assert "DOCUMENTARY" in plan.prompt({"hook": "h"}, {"duration": 1.0, "words": clip_words("Hi.")}, "documentary")
+    doc = render.theme("documentary")
+    assert doc["cap_style"] == "kinetic" and doc["cutaway"] == "full" and doc["quote_mark"] == "circle"
+
+
+def test_launch_films_are_spans_in_a_chosen_order():
+    text = scout.prompt([{"s": 0, "e": 2.5, "text": "Watch this."}], 2, "launch")
+    assert "launch film" in text and "Build the 2 strongest" in text
+    film = scout.check({"moments": [{"hook": "h", "spans": [{"start": 40, "end": 50, "role": "open"},
+                                                            {"start": 5, "end": 12, "role": "what"}]}]})[0]
+    assert scout.parts(film) == [[40.0, 50.0], [5.0, 12.0]] and (film["start"], film["end"]) == (40.0, 12.0)
+    assert scout.parts({"start": 1, "end": 2}) == [[1, 2]]
+    with pytest.raises(ValueError):
+        scout.check({"moments": [{"hook": "h", "spans": [{"start": 5, "end": 20}, {"start": 10, "end": 30}]}]})
+    ws = words("So the robot folds laundry. It learned in a week. We built it to help.", 0.0, 1.0)
+    snapped = scout.snap({**film, "spans": [{"start": 9.0, "end": 11.5, "role": "open"}, {"start": 0.0, "end": 4.5}]}, ws)
+    assert [round(s["start"], 2) for s in snapped["spans"]] == [8.95, 0.95]      # "We", and "the" after "So"
+    assert snapped["spans"][1]["end"] == pytest.approx(ws[4]["e"] + .05)          # "laundry."
+
+
+def test_launch_title_end_card_and_name_tags_are_grounded(tmp_path):
+    (tmp_path / "words.json").write_text(json.dumps({"words": clip_words(
+        "I'm Ana, founder of Fold. Fold folds laundry in 90 seconds.")}), encoding="utf-8")
+    brand = {"name": "Fold", "url": "fold.app", "cta": "Join the waitlist"}
+    final = plan.finalize(tmp_path, {"hook": "h", "shots": [
+        {"from": 0, "layout": "solo", "label": {"name": "Ana", "role": "founder of Fold"}},
+        {"from": 1, "layout": "solo", "label": {"name": "Ana Smith", "role": "CEO"}},
+        {"from": 2, "layout": "graphic", "graphic": {"kind": "title", "text": "Introducing *Fold*"}},
+        {"from": 3, "layout": "graphic", "graphic": {"kind": "title", "text": "Introducing *Fold Pro*"}},
+        {"from": 4, "layout": "graphic", "graphic": {"kind": "endcard", "name": "Fold", "url": "fold.app",
+                                                      "line": "Join the waitlist"}},
+        {"from": 5, "layout": "graphic", "graphic": {"kind": "endcard", "name": "Fold", "url": "fold.com",
+                                                      "line": "Laundry in 60 seconds"}}]}, {}, brand)
+    shots = final["shots"]
+    assert shots[0]["label"]["name"] == "Ana" and "label" not in shots[1]
+    assert [s["layout"] for s in shots[2:]] == ["graphic", "solo", "graphic", "solo"]
+    assert any("name tag" in line for line in final["fact_check"])
+    assert shots[4]["graphic"]["url"] == "fold.app"
+    assert plan.fact_check({"kind": "endcard", "name": "Fold", "url": "https://www.Fold.app/", "line": "Folding laundry"},
+                           clip_words("Fold folds laundry."), brand) == []          # the brand's site, and "folds"
+    assert "BRAND: name: Fold; url: fold.app" in plan.prompt({"hook": "h"}, {"duration": 1.0, "words": clip_words("Hi.")},
+                                                            "launch", brand)
+
+
+def test_launch_projects_default_to_landscape_and_check_the_brand(tmp_path):
+    media = tmp_path / "demo.mp4"
+    media.write_bytes(b"x")
+    cfg = pipeline.init(tmp_path / "p", media, mode="launch", brand={"name": "Fold"})["settings"]
+    assert cfg["shapes"][0] == "16x9" and cfg["pack"] == "launch" and cfg["moments"] == 2 and cfg["brand"]["name"] == "Fold"
+    assert pipeline.init(tmp_path / "q", media, mode="launch", shapes=["9x16"])["settings"]["shapes"] == ["9x16"]
+    with pytest.raises(FactoryError):
+        pipeline.init(tmp_path / "r", media, mode="launch", brand={"url": "x.app"})
+    assert "copy" in postcopy.prompt({"hook": "h"}, {"words": clip_words("Hi.")}, {}, "launch", {"name": "Fold"}).lower()
+
+
+def test_end_card_holds_three_seconds_past_the_last_word(tmp_path):
+    (tmp_path / "plan.json").write_text(json.dumps({"hook": "h", "shots": [
+        {"from": 0, "layout": "solo"}, {"from": 1.0, "layout": "graphic", "graphic": {"kind": "endcard", "name": "Fold"}}]}),
+        encoding="utf-8")
+    (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("Fold it.")}), encoding="utf-8")
+    (tmp_path / "cams.json").write_text(json.dumps({"frames": 30, "size": [1920, 1080], "cams": []}), encoding="utf-8")
+    data = render.scene_data(tmp_path, "16x9", "launch", parallax=False)
+    assert data["duration"] == pytest.approx(4.0)
+
+
+def test_films_that_share_spans_transcribe_each_stretch_once(tmp_path, monkeypatch):
+    (tmp_path / "transcript.json").write_text(json.dumps([{"s": 0, "e": 400, "text": "Demo."}]), encoding="utf-8")
+    films = {"moments": [{"hook": "a", "spans": [{"start": 10, "end": 20}, {"start": 30, "end": 40}, {"start": 300, "end": 310}]},
+                         {"hook": "b", "spans": [{"start": 12, "end": 18}, {"start": 300, "end": 305}]}]}
+    asked = []
+    monkeypatch.setattr(source, "transcribe_moments", lambda media, pieces: asked.extend(pieces) or [])
+
+    class Ask:
+        def ask(self, task, text):
+            return films
+    pipeline._moments(tmp_path, Ask(), tmp_path / "ep.mp4", {"moments": 2, "mode": "launch"}, say=lambda m: None)
+    assert asked == [{"start": 10, "end": 40}, {"start": 300, "end": 310}]

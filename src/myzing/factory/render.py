@@ -78,6 +78,9 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     cam = json.loads((d / "cams.json").read_text(encoding="utf-8"))
     duration = round(words["words"][-1]["oe"] + 0.45, 3)
     shots = sorted(plan["shots"], key=lambda s: s["from"])
+    card = next((s["from"] for s in shots if (s.get("graphic") or {}).get("kind") == "endcard"), None)
+    if card is not None:                               # an end card holds for three seconds, after the last word if need be
+        duration = max(duration, round(card + 3.0, 3))
     for i, s in enumerate(shots):
         s["idx"] = i
         s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1

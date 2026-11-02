@@ -1,0 +1,7 @@
+{"name": "Launch", "bg": "#0A0A10", "glow": "#2A2366", "ink": "#FFFFFF", "muted": "rgba(255,255,255,.66)", "accent": "#B8A6FF", "accent_ink": "#0A0A10",
+ "cap_bg": "none", "cap_ink": "#FFFFFF", "cap_on": "#FFFFFF", "cap_emphasis": "#B8A6FF", "cap_upper": false, "cap_weight": 700, "cap_size": 50,
+ "cap_words": 4, "cap_chars": 26, "cap_y": 0.86, "cap_shadow": "0 2px 14px rgba(0,0,0,.75)", "cap_pop_ms": 90, "cap_pop_from": 0.96, "cap_pop_overshoot": false,
+ "quote_font": "Inter", "quote_weight": 800, "quote_upper": false, "quote_lh": 1.08, "quote_track": "-.02em", "quote_hl": "#B8A6FF", "quote_hl_ink": "#0A0A10",
+ "hook_bg": "rgba(10,10,16,.72)", "hook_ink": "#FFFFFF", "hook_on": "#B8A6FF", "hook_weight": 800, "hook_size": 40,
+ "progress": false, "solo_fill": true, "panel_edge": "none", "tag_bg": "rgba(10,10,16,.55)", "tag_ink": "rgba(255,255,255,.85)",
+ "funnel": ["#2E2770", "#3A3290", "#4A40B0", "#5B50D0"], "funnel_ink": "#FFFFFF"}

@@ -9,7 +9,7 @@ from pathlib import Path
 from .tools import data_path
 
 LAYOUTS = ("solo", "split", "graphic")
-GRAPHICS = ("counter", "list", "funnel", "quote")
+GRAPHICS = ("counter", "list", "funnel", "quote", "title", "endcard")
 SMALL = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
          "seventeen eighteen nineteen").split()
 TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
@@ -27,9 +27,11 @@ def words_block(words: list[dict]) -> str:
     return "\n".join(out)
 
 
-def prompt(moment: dict, words: dict, mode: str = "context") -> str:
+def prompt(moment: dict, words: dict, mode: str = "context", brand: dict | None = None) -> str:
+    from .postcopy import brand_line
     text = data_path("prompts", "plan.md").read_text(encoding="utf-8")
     for k, v in {"{TOPIC}": moment.get("topic", ""), "{HOOK}": moment["hook"], "{DURATION}": f"{words['duration']:.1f}",
+                 "{BRAND}": brand_line(brand),
                  "{WORDS}": words_block(words["words"]),
                  "{STYLE}": data_path("prompts", f"style-{mode}.md").read_text(encoding="utf-8").strip()}.items():
         text = text.replace(k, v)
@@ -128,8 +130,27 @@ def spoken_numbers(words: list[dict]) -> tuple[str, set[str]]:
     return spoken, nums
 
 
-def fact_check(graphic: dict, words: list[dict]) -> list:
-    """What the graphic draws that the clip never says: every number must be spoken, a quote word for word."""
+FILLER = set("a an the of and or to in on for at by with from is are was it its this that our your my we i".split())
+
+
+def _stem(w: str) -> str:
+    return re.sub(r"(ing|ed|es|s|ly)$", "", w) if len(w) > 4 else w
+
+
+def site(url: str) -> str:
+    """A url as people read it: no scheme, no www, no trailing slash."""
+    return re.sub(r"^(https?://)?(www\.)?", "", str(url).strip().lower()).rstrip("/")
+
+
+def ungrounded(text: str, spoken: str, brand: dict | None = None) -> list[str]:
+    """Words of a name, role or line that neither the clip nor the brand says (small words and word endings don't count)."""
+    known = {_stem(k) for k in set(spoken.split()) | set(_norm(" ".join(str(v) for v in (brand or {}).values())).split())}
+    return [t for t in _norm(str(text)).split() if t not in FILLER and _stem(t) not in known]
+
+
+def fact_check(graphic: dict, words: list[dict], brand: dict | None = None) -> list:
+    """What the graphic draws that the clip never says: every number must be spoken, a quote word for word, a name
+    or line said in the clip or given by the brand."""
     spoken, nums = spoken_numbers(words)
 
     def said(v) -> bool:
@@ -146,13 +167,23 @@ def fact_check(graphic: dict, words: list[dict]) -> list:
     elif kind == "list":
         for item in graphic.get("items", []):
             shown += re.findall(r"\d+(?:\.\d+)?", str(item.get("text", "")).replace(",", ""))
+    elif kind == "title":
+        shown = re.findall(r"\d+(?:\.\d+)?", str(graphic.get("text", "")))
+    elif kind == "endcard":
+        shown = re.findall(r"\d+(?:\.\d+)?", f"{graphic.get('name', '')} {graphic.get('line', '')}")
     bad = [v for v in shown if not said(v)]
     if kind == "quote" and f" {_norm(str(graphic.get('text', '')).replace('*', ''))} " not in spoken:
         bad.append("quote")
+    if kind == "title":
+        bad += ungrounded(re.sub(r"(?i)^\s*introducing\s+", "", str(graphic.get("text", "")).replace("*", "")), spoken, brand)
+    if kind == "endcard":
+        bad += ungrounded(f"{graphic.get('name', '')} {graphic.get('line', '')}", spoken, brand)
+        if graphic.get("url") and site(graphic["url"]) != site((brand or {}).get("url", ""))                 and _norm(site(graphic["url"])) not in spoken:
+            bad.append(graphic["url"])
     return bad
 
 
-def finalize(clipdir: Path, plan: dict, found: dict[str, dict]) -> dict:
+def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | None = None) -> dict:
     """Drop what can't be shown honestly: unspoken graphics and splits without a usable visual become solo."""
     d = Path(clipdir)
     heard = d / "words-heard.json"                     # the speech model's words, kept once a fix changes them
@@ -168,12 +199,22 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict]) -> dict:
         post.write_text(json.dumps(_fix_text(json.loads(post.read_text(encoding="utf-8")), pairs), indent=1,
                                    ensure_ascii=False), encoding="utf-8")
     shots, quoted = [], False
+    spoken = spoken_numbers(words)[0]
     for s in plan["shots"]:
+        label = s.get("label")
+        if label is not None:
+            stray = ungrounded(f"{(label or {}).get('name', '')} {(label or {}).get('role', '')}", spoken, brand) \
+                if isinstance(label, dict) and label.get("name") else ["no name"]
+            if stray:
+                log.append(f"dropped name tag at {s['from']}: not said {stray}")
+                s = {k: v for k, v in s.items() if k != "label"}
         if s.get("layout") == "graphic":
-            bad = fact_check(s.get("graphic", {}), words)
+            bad = fact_check(s.get("graphic", {}), words, brand)
             if bad:
                 log.append(f"dropped {s['graphic'].get('kind')} at {s['from']}: not spoken {bad}")
-                s = {"from": s["from"], "layout": "solo"}
+                s = {"from": s["from"], "layout": "solo", **({"label": s["label"]} if s.get("label") else {})}
+            elif s["graphic"].get("kind") == "endcard" and s["graphic"].get("url"):
+                s = {**s, "graphic": {**s["graphic"], "url": site(s["graphic"]["url"])}}   # shown as people type it
             elif s["graphic"].get("kind") == "quote":
                 if quoted:                         # the takeover only lands once a clip
                     log.append(f"dropped quote at {s['from']}: one quote per clip")
