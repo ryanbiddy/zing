@@ -334,7 +334,9 @@ window.seek = async function(t) {
     else { const dir = (shot.idx % 2) ? 1 : -1;
       cover($('topImg'), vw, vh, BW, BH, pop*(1.02 + (v.frames ? .02 : .07)*lin(tin, 0, d)), .5 + dir*.06*lin(tin,0,d), .45); }
     $('credit').textContent = v.credit || '';
-    $('credit').style.top = (G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';
+    // a visual on the top half credits at its top edge: its bottom edge is the caption seam
+    const seamed = ASPECT === '9x16' && G.top.y === 0 && G.top.h < SH9*.75;
+    $('credit').style.top = (seamed ? G.top.y + 16 : G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';
   }
   if (G.gfx) {
     const half = ASPECT==='9x16' && G.gfx.h < SH9*.75, s = Math.min(G.gfx.w/1080, (G.gfx.h - (half ? 0 : 150))/960);
@@ -409,7 +411,8 @@ window.seek = async function(t) {
   // captions
   let gi = -1; for (let i=0;i<groups.length;i++) if (W[groups[i][0]].os <= t+.02) gi = i;
   const cap = $('cap'), box = cap.firstChild;
-  if (gi >= 0 && !Q && !groups[gi].every(inQuote) && t < W[W.length-1].oe + .3) {
+  const card = layout === 'graphic' && (shot.graphic || {}).kind === 'endcard';   // the end card is the last thing read
+  if (gi >= 0 && !Q && !card && !groups[gi].every(inQuote) && t < W[W.length-1].oe + .3) {
     const grp = groups[gi];
     if (KIN) { cap.classList.add('kin');
       box.innerHTML = grp.map(j => { const w = W[j], p = easeOut(lin(t, w.os - .04, w.os + .14)), big = j === KEYS[gi];
