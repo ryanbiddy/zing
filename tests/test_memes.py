@@ -255,3 +255,4 @@ def test_prompt_and_fonts_ship_with_provenance(monkeypatch):
         assert hashlib.sha256((data / "fonts" / record["file"]).read_bytes()).hexdigest() == record["sha256"]
     assert "SIL OPEN FONT LICENSE" in (data / "fonts/Anton-OFL.txt").read_text()
     assert "SIL OPEN FONT LICENSE" in (data / "fonts/IBMPlexSans-OFL.txt").read_text(encoding="utf-8")
+    assert "SIL OPEN FONT LICENSE" in (data / "fonts/InstrumentSerif-OFL.txt").read_text(encoding="utf-8")

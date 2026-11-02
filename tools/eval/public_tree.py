@@ -50,6 +50,9 @@ def allowed_assets(root: Path) -> set[str]:
         "tools/eval/fixtures/speech/ripe-figs-like.wav",
         "src/myzing/_data/fonts/Anton-Regular.ttf",
         "src/myzing/_data/fonts/IBMPlexSans.ttf",
+        # OFL-1.1 (google/fonts), hashes and source in _data/fonts/sources.json
+        "src/myzing/_data/fonts/InstrumentSerif-Regular.ttf",
+        "src/myzing/_data/fonts/InstrumentSerif-Italic.ttf",
         # CC0, with original/derived hashes and attribution in the manifest.
         "tests/fixtures/vision/Cat-on-couch.jpg",
         "tests/fixtures/vision/Dog_IMG_1057.jpg",
