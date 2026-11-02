@@ -32,6 +32,10 @@
 - Misheard names and terms are corrected in captions, graphics and copy when the plan is
   sure (sound-alikes only, never numbers), with a log line per fix.
 - Site captures and helper tools no longer fail on non-ASCII output on Windows.
+- The scout prefers moments that open inside a scene, a demo or a first-person claim over
+  ones that open on an abstract setup or a lead-in, and how-it-works or funny moments over
+  vision talk. Post copy leads with a first sentence of about ten words. Both come from
+  the openings of 600 product launch videos.
 
 ## Motion graphics
 
