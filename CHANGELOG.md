@@ -36,6 +36,13 @@
   ones that open on an abstract setup or a lead-in, and how-it-works or funny moments over
   vision talk. Post copy leads with a first sentence of about ten words. Both come from
   the openings of 600 product launch videos.
+- Documentary mode (`--mode documentary --pack documentary`): archival visuals only,
+  full-frame stills moving through their depth, a warm black-and-white grade with grain
+  and soft-focus cuts, serif captions that build word by word with the key word large in
+  italic, and hand-drawn rings around a quote's key words.
+- Launch mode (`--mode launch`): launch films assembled from several spans of a long
+  demo or interview, landscape first, with an "Introducing" title card, an end card from
+  `--brand-name`, `--brand-url` and `--cta`, name tags, launch post copy and a `launch` pack.
 
 ## Motion graphics
 

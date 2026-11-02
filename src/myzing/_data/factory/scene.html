@@ -7,6 +7,8 @@
 @font-face{font-family:Inter;font-weight:900;src:url(../fonts/ZingCaption-800.ttf)}
 @font-face{font-family:Anton;src:url(../fonts/Anton-Regular.ttf)}
 @font-face{font-family:'IBM Plex Sans';font-weight:100 900;src:url(../fonts/IBMPlexSans.ttf)}
+@font-face{font-family:'Instrument Serif';src:url(../fonts/InstrumentSerif-Regular.ttf)}
+@font-face{font-family:'Instrument Serif';font-style:italic;src:url(../fonts/InstrumentSerif-Italic.ttf)}
 :root{--ink:#F4F6FB;--yel:#FFD23F;--navy:#050C24;--accent-ink:#081233;--muted:rgba(244,246,251,.72);--glow:#13296E;--cap-bg:#07070B;--cap-ink:#F4F6FB;--cap-on:#FFD23F;--cap-radius:12px;--tag-bg:rgba(5,12,36,.55);--tag-ink:rgba(255,255,255,.88);--edge:transparent}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{overflow:hidden;background:var(--navy)}
@@ -24,29 +26,50 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #hook{position:absolute;left:60px;right:60px;height:240px;display:flex;align-items:center;justify-content:center;text-align:center;font:900 74px/1.04 Inter;letter-spacing:-.02em}
 #hook b{color:var(--yel)}
 #pill{position:absolute;left:0;right:0;text-align:center}
-#pill span{display:inline-block;background:var(--yel);color:var(--accent-ink);font:900 44px/1.15 Inter;padding:14px 26px;border-radius:14px;max-width:960px;letter-spacing:-.01em}
+#pill span{display:inline-block;background:var(--pill-bg,var(--yel));color:var(--pill-ink,var(--accent-ink));font:var(--pill-weight,900) var(--pill-size,44px)/1.15 var(--pill-font,Inter);padding:14px 26px;border-radius:14px;max-width:960px;letter-spacing:-.01em;text-shadow:var(--pill-shadow,none)}
+#pill b{font-weight:inherit;color:var(--pill-on,inherit);font-style:var(--pill-em,normal)}
 #cap{position:absolute;left:0;right:0;text-align:center;white-space:nowrap}
 #cap .box{display:inline-block;background:var(--cap-bg);color:var(--cap-ink);padding:var(--cap-pad,10px 22px 12px);border-radius:var(--cap-radius);font-family:var(--cap-font,Inter);font-weight:var(--cap-weight,900);font-size:var(--cap-size,54px);line-height:1.15;letter-spacing:.01em;text-transform:var(--cap-case,uppercase);-webkit-text-stroke:var(--cap-stroke,0 transparent);paint-order:stroke fill;text-shadow:var(--cap-shadow,none)}
 #cap .on{color:var(--cap-on)}
 #cap .em{color:var(--cap-em,var(--cap-on))}
+/* kinetic captions (documentary): words build in place, the key word of each line set large in italic */
+#cap.kin{left:60px;right:60px;white-space:normal}
+#cap.kin .box{background:transparent;padding:0;font-weight:400;text-transform:none;line-height:1.02;letter-spacing:0}
+#cap.kin .w{display:inline-block}
+#cap.kin .big{display:block;font-size:2.3em;font-style:italic;line-height:.98}
+.ovl{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;display:none}
+#vig{background:radial-gradient(ellipse at 50% 45%,transparent 48%,rgba(0,0,0,.62) 100%),linear-gradient(to bottom,rgba(0,0,0,.22),rgba(0,0,0,.12) 30%,rgba(0,0,0,.2) 48%,rgba(0,0,0,.55) 72%,rgba(0,0,0,.62))}   /* film edges, and a scrim the type can sit on */
+#grain{mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 #credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000}
 #prog{position:absolute;left:0;top:0;height:6px;background:var(--yel)}
 #srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
 /* graphics */
-.g-num{position:absolute;left:0;right:0;text-align:center;font:900 230px/1 Inter;letter-spacing:-.04em;color:var(--yel);font-variant-numeric:tabular-nums}
-.g-lab{position:absolute;left:60px;right:60px;text-align:center;font:800 46px/1.15 Inter;color:var(--ink)}
-.g-title{position:absolute;left:60px;right:60px;top:120px;text-align:center;font:800 40px Inter;letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
-.g-item{position:absolute;left:100px;right:70px;font:800 66px/1.12 Inter;display:flex;align-items:center}
+.g-num{position:absolute;left:0;right:0;text-align:center;font:900 230px/1 var(--gfx-font,Inter);letter-spacing:-.04em;color:var(--yel);font-variant-numeric:tabular-nums}
+.g-lab{position:absolute;left:60px;right:60px;text-align:center;font:800 46px/1.15 var(--gfx-font,Inter);color:var(--ink)}
+.g-title{position:absolute;left:60px;right:60px;top:120px;text-align:center;font:800 40px var(--gfx-font,Inter);letter-spacing:.16em;color:var(--muted);text-transform:uppercase}
+.g-item{position:absolute;left:100px;right:70px;font:800 66px/1.12 var(--gfx-font,Inter);display:flex;align-items:center}
 .g-item i{font-style:normal;display:inline-flex;width:88px;height:88px;border-radius:22px;background:var(--yel);color:var(--accent-ink);align-items:center;justify-content:center;font:900 40px Inter;margin-right:30px;flex:none}
 .row{position:absolute;left:0;right:0;height:120px}
 .bar{position:absolute;top:0;height:80px;border-radius:18px;left:50%}
-.num{position:absolute;top:0;height:80px;left:0;right:0;text-align:center;font:900 56px/80px Inter;font-variant-numeric:tabular-nums}
-.lab{position:absolute;top:86px;left:0;right:0;text-align:center;font:800 27px/30px Inter;letter-spacing:.14em;color:var(--muted)}
+.num{position:absolute;top:0;height:80px;left:0;right:0;text-align:center;font:900 56px/80px var(--gfx-font,Inter);font-variant-numeric:tabular-nums}
+.lab{position:absolute;top:86px;left:0;right:0;text-align:center;font:800 27px/30px var(--gfx-font,Inter);letter-spacing:.14em;color:var(--muted)}
+/* launch: the name card, the end card and a name tag */
+.g-intro{position:absolute;left:60px;right:60px;top:300px;text-align:center;font:600 46px var(--gfx-font,Inter);color:var(--muted);letter-spacing:.01em}
+.g-name{position:absolute;left:30px;right:30px;top:380px;text-align:center;font:900 190px/1.02 var(--gfx-font,Inter);letter-spacing:-.04em;color:var(--ink);white-space:nowrap}
+.g-name b{font-weight:inherit;color:var(--yel)}
+.g-url{position:absolute;left:60px;right:60px;top:590px;text-align:center;font:700 54px var(--gfx-font,Inter);color:var(--yel)}
+.g-line{position:absolute;left:80px;right:80px;top:680px;text-align:center;font:600 42px/1.25 var(--gfx-font,Inter);color:var(--muted)}
+#label{position:absolute;display:none;padding:14px 24px 16px 22px;border-left:6px solid var(--yel);background:var(--label-bg,rgba(8,8,12,.62));color:var(--label-ink,#fff)}
+#label .n{font:800 40px/1.1 var(--gfx-font,Inter);white-space:nowrap}
+#label .r{font:600 26px/1.3 var(--gfx-font,Inter);opacity:.78;margin-top:4px;white-space:nowrap}
 /* quote moment: the captions take over in the pack's quote face, over the speaker dimmed */
 #dim{position:absolute;display:none;background:linear-gradient(to bottom,rgba(0,0,0,.42),rgba(0,0,0,.76))}
 #quote{position:absolute;display:none;text-align:center;color:var(--q-ink,#fff);font-family:var(--q-font,Anton),Inter,sans-serif;font-weight:var(--q-weight,400);line-height:var(--q-lh,1.04);letter-spacing:var(--q-track,.01em);text-transform:var(--q-case,uppercase);text-shadow:0 4px 28px rgba(0,0,0,.6)}
 #quote .mark{display:block;height:.42em;font-size:2.4em;line-height:1;color:var(--q-hl,var(--yel));text-shadow:none}
 #quote .qw{display:inline-block}
+#quote .mkg{position:relative;display:inline-block;white-space:nowrap}
+#quote .mkg svg{position:absolute;left:-9%;top:-16%;width:118%;height:132%;overflow:visible}
+#quote .mkg path{fill:none;stroke:var(--q-hl,var(--yel));stroke-linecap:round;stroke-dasharray:1 1}
 #quote .mk{padding:0 .11em;margin:0 -.11em;background:linear-gradient(var(--q-hl,var(--yel)),var(--q-hl,var(--yel))) no-repeat 0 55%/0% 86%;text-shadow:none}
 #panel{position:absolute;left:0;right:0;bottom:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:0 54px;background:var(--panel-bg,#000)}
 #panel .brand{display:flex;align-items:center;gap:22px;width:100%;color:var(--panel-ink,#fff);font:800 28px Inter;white-space:nowrap}
@@ -58,11 +81,14 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <div class="layer" id="top"><img id="topBlur"><img id="topImg"></div>
 <div class="layer" id="gfx"><div id="gfxIn" style="position:absolute;left:0;top:0;width:1080px;height:960px;transform-origin:0 0"></div></div>
 <div class="layer" id="spk"><img id="spkBlur"><img id="spkImg"></div>
+<div class="ovl" id="vig"></div>
+<div class="ovl" id="grain"></div>
 <div id="dim"></div>
 <div id="quote"></div>
 <div id="hook"></div>
 <div id="pill"><span></span></div>
 <div id="panel"><div class="brand"></div><div class="head"></div></div>
+<div id="label"><div class="n"></div><div class="r"></div></div>
 <div id="cap"><span class="box"></span></div>
 <div id="credit"></div>
 <div id="prog"></div>
@@ -87,9 +113,20 @@ if (D.theme) { const T = D.theme, st = document.documentElement.style;
   if (T.quote_font) set('--q-font', `'${T.quote_font}'`);
   set('--q-weight', T.quote_weight); set('--q-lh', T.quote_lh); set('--q-track', T.quote_track);
   set('--q-ink', T.quote_ink); set('--q-hl', T.quote_hl); set('--q-hl-ink', T.quote_hl_ink);
-  if (T.quote_upper === false) st.setProperty('--q-case', 'none'); }
+  if (T.quote_upper === false) st.setProperty('--q-case', 'none');
+  if (T.gfx_font) set('--gfx-font', `'${T.gfx_font}', Inter, sans-serif`);
+  // the hook as a title rather than a pill: its own face, ink and background
+  set('--pill-bg', T.hook_bg); set('--pill-ink', T.hook_ink); set('--pill-on', T.hook_on); set('--pill-weight', T.hook_weight);
+  if (T.hook_font) set('--pill-font', `'${T.hook_font}', Inter, sans-serif`);
+  if (T.hook_size) set('--pill-size', T.hook_size + 'px'); if (T.hook_em) set('--pill-em', T.hook_em); set('--pill-shadow', T.hook_shadow); }
+// film look: a grade on footage and photos, grain, a vignette, soft-focus cuts; graphics stay clean
+const TH0 = D.theme || {}, LOOK = {grade: TH0.grade || '', grain: TH0.grain || 0, vignette: !!TH0.vignette, transition: TH0.transition || null};
+const KIN = TH0.cap_style === 'kinetic', CIRCLE = TH0.quote_mark === 'circle';
+const FULLCUT = TH0.cutaway === 'full';   // in 9x16 too, visuals and graphics take the whole frame
 // the quote face is hidden until its moment, so ask for it now: the capture waits for fonts before the first frame
 if ((D.quotes || []).length) document.fonts.load(`${(D.theme || {}).quote_weight || 400} 40px "${(D.theme || {}).quote_font || 'Anton'}"`);
+if (KIN) { document.fonts.load(`40px "${TH0.cap_font}"`); document.fonts.load(`italic 40px "${TH0.cap_font}"`); }
+if (TH0.hook_font) document.fonts.load(`italic ${TH0.hook_weight || 400} 40px "${TH0.hook_font}"`);
 // caption timing and position; y (center as a fraction of the height) applies where the speaker fills the frame
 const CAP = {words: 3, chars: 16, pop_ms: 120, pop_from: .88, overshoot: true, y: null};
 for (const [k, f] of Object.entries({words: 'cap_words', chars: 'cap_chars', pop_ms: 'cap_pop_ms', pop_from: 'cap_pop_from',
@@ -115,6 +152,16 @@ const groups = []; { let g = [];
   W.forEach((w,i) => { g.push(i); const len = g.map(j=>W[j].w).join(' ').length;
     if (g.length>=CAP.words || /[.,?!;:]$/.test(w.w) || len>CAP.chars) { groups.push(g); g=[]; } });
   if (g.length) groups.push(g); }
+// kinetic captions set one word of each line large: a number, or the longest word that carries weight
+const STOP = new Set('about after again against because before being between could doesn every their there these those through under until where which while would should really things thing going people'.split(' '));
+const keyOf = grp => { let best = -1, len = 4;
+  for (const j of grp) { const w = norm(W[j].w); if (/\d/.test(w)) return j; if (w.length > len && !STOP.has(w)) { best = j; len = w.length; } }
+  return best; };
+const KEYS = groups.map(keyOf);
+// a hand-drawn ring around a w x h box: a little more than one turn, slightly uneven, as a pen draws it
+function ring(w, h, seed) { const pts = []; for (let k = 0; k <= 48; k++) { const a = Math.PI*(1.1 + 2.15*k/48),
+    r = .96 + .04*Math.sin(seed + k*.7) + .05*(k/48); pts.push(`${(w/2 + w/2*r*Math.cos(a)).toFixed(1)},${(h/2 + h/2*r*Math.sin(a)).toFixed(1)}`); }
+  return `M${pts.join(' L')}`; }
 
 const shotAt = t => D.shots.find(s => t >= s.from && t < s.to) || D.shots[D.shots.length-1];
 const camAt = t => D.cams.find(c => t >= c.from && t < c.to) || D.cams[D.cams.length-1];
@@ -147,6 +194,10 @@ function drawGraphic(g, t, el) {
     if (k === 'list') { const n = g.items.length, longest = Math.max(...g.items.map(it => it.text.length));
       const fs = Math.min(66, n >= 4 ? 56 : 66, Math.floor(1500 / Math.max(14, longest)));
       el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${230+i*(600/Math.max(3,n))}px;font-size:${fs}px;white-space:nowrap"><i>${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
+    if (k === 'title') { const m = String(g.text||'').match(/^(.*?)\*([^*]+)\*(.*)$/), name = m ? m[2] : String(g.text||''), intro = m ? (m[1]+m[3]).trim() : '';
+      el.innerHTML = `<div class="g-intro">${esc(intro)}</div><div class="g-name" style="font-size:${Math.min(190, Math.floor(1900/Math.max(6, name.length)))}px">${esc(name)}</div>`; }
+    if (k === 'endcard') el.innerHTML = `<div class="g-name" style="top:300px;font-size:${Math.min(170, Math.floor(1800/Math.max(6, String(g.name||'').length)))}px">${esc(g.name||'')}</div>`
+      + `<div class="g-url">${esc(g.url||'')}</div><div class="g-line">${esc(g.line||'')}</div>`;
     if (k === 'funnel') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.rows.map((r,i)=>`<div class="row" style="top:${200+i*(640/g.rows.length)}px"><div class="bar"></div><div class="num"></div><div class="lab">${esc(r.label)}</div></div>`).join('');
   }
   const t0 = g.from;
@@ -160,6 +211,12 @@ function drawGraphic(g, t, el) {
     el.querySelector('.g-num').style.transform = `scale(${mix(.7,1,back(lin(t,g.at??t0,(g.at??t0)+.4)))})`;
     el.querySelector('.g-lab').style.opacity = easeOut(lin(t,(g.at??t0)+.3,(g.at??t0)+.7));
   }
+  if (k === 'title') { const a = easeOut(lin(t, t0, t0+.3)), b = lin(t, t0+.12, t0+.6);
+    el.querySelector('.g-intro').style.opacity = a; el.querySelector('.g-intro').style.transform = `translateY(${(1-a)*16}px)`;
+    const nm = el.querySelector('.g-name'); nm.style.opacity = easeOut(b); nm.style.transform = `scale(${mix(.9, 1, back(b))})`;
+    nm.style.letterSpacing = `${mix(.02, -.04, easeOut(b))}em`; }
+  if (k === 'endcard') [['.g-name', 0], ['.g-url', .3], ['.g-line', .55]].forEach(([sel, dl]) => { const x = easeOut(lin(t, t0+dl, t0+dl+.4)), e = el.querySelector(sel);
+    e.style.opacity = x; e.style.transform = `translateY(${(1-x)*22}px)`; });
   if (k === 'list') el.querySelectorAll('.g-item').forEach((it,i) => {
     const p = easeOut(lin(t, g.items[i].at ?? (t0+i*.6), (g.items[i].at ?? (t0+i*.6))+.4));
     it.style.opacity = p; it.style.transform = `translateX(${(1-p)*60}px)`;
@@ -206,7 +263,7 @@ function fitPanel() {            // after fonts load: the largest headline that 
 function fitQuote(el, w, h) {    // the largest size at which the whole quote fits, no word broken
   let size = Math.round(Math.min(w * .13, h * .22));
   do { el.style.fontSize = size + 'px'; size -= 3; }
-  while ((el.offsetHeight > h || [...el.querySelectorAll('.qw')].some(q => q.offsetWidth > w)) && size > 30);
+  while ((el.offsetHeight > h || [...el.querySelectorAll('.qw,.mkg')].some(q => q.offsetWidth > w)) && size > 30);
 }
 function geometry(layout) {
   if (layout === 'quote') return {spk: {x:0, y:0, w:SW, h:STAGE_H}, hook: PANEL ? 'panel' : 'none'};   // the speaker, full stage
@@ -219,6 +276,7 @@ function geometry(layout) {
     // pack layout: which half the speaker takes in a split, where the seam sits, a full-bleed solo speaker,
     // and whether the hook stays up as a header (defaults are the Zing look)
     const L = D.theme || {}, seam = Math.round((L.seam || .5) * SH9), hook = L.hook_header === false || L.solo_fill ? 'pill' : 'header';  // a full-bleed speaker leaves no room for a header
+    if (FULLCUT && layout !== 'solo') return {[layout==='split'?'top':'gfx']: full, cap: CAP.y ? Math.round(CAP.y*SH9) : 1610, hook, pill:790};
     if (layout === 'solo') return {spk: L.solo_fill ? full : {x:0,y:400,w:1080,h:1180},
                                    cap: CAP.y ? Math.round(CAP.y*SH9) : 1610, hook, pill:790};
     const upper = {x:0,y:0,w:1080,h:seam}, lower = {x:0,y:seam,w:1080,h:SH9-seam}, vis = layout==='split'?'top':'gfx';
@@ -279,11 +337,19 @@ window.seek = async function(t) {
     $('credit').style.top = (G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';
   }
   if (G.gfx) {
-    const s = Math.min(G.gfx.w/1080, (G.gfx.h - (ASPECT==='9x16' ? 0 : 150))/960);
+    const half = ASPECT==='9x16' && G.gfx.h < SH9*.75, s = Math.min(G.gfx.w/1080, (G.gfx.h - (half ? 0 : 150))/960);
     const inner = $('gfxIn');
-    inner.style.transform = `translate(${(G.gfx.w-1080*s)/2}px,${ASPECT==='9x16' ? 0 : Math.max(0,(G.gfx.h-150-960*s)/2)}px) scale(${s})`;
+    inner.style.transform = `translate(${(G.gfx.w-1080*s)/2}px,${half ? 0 : Math.max(0,(G.gfx.h-150-960*s)/2)}px) scale(${s})`;
     drawGraphic({...shot.graphic, id: 'g'+shot.idx, from: shot.from}, t, inner);
   }
+
+  // look: the grade on footage and photos; each cut comes into focus; the grain moves every frame
+  const soft = LOOK.transition === 'blur' && shot.idx > 0 ? 14*(1 - easeOut(lin(tin, 0, .5))) : 0;
+  for (const el of [top, spk]) el.style.filter = `${LOOK.grade}${soft ? ` blur(${soft.toFixed(2)}px)` : ''}` || 'none';
+  gfx.style.filter = soft ? `blur(${soft.toFixed(2)}px)` : 'none';
+  $('vig').style.display = LOOK.vignette ? 'block' : 'none';
+  const gr = $('grain'), fr = Math.floor(t*FPS); gr.style.display = LOOK.grain ? 'block' : 'none';
+  if (LOOK.grain) { gr.style.opacity = LOOK.grain; gr.style.backgroundPosition = `${(fr*37)%240}px ${(fr*91)%240}px`; }
 
   // hook: a header over solo in 9x16, otherwise a pill for the first seconds
   const hookOn = t < D.hookUntil;
@@ -302,9 +368,18 @@ window.seek = async function(t) {
     const w = Math.min(SW*.85, S.h*1.25), h = S.h*(tall ? .4 : .58);
     if (qel.dataset.q !== String(Q.a)) {
       qel.dataset.q = Q.a; qel.style.display = 'block'; qel.style.width = w + 'px';
-      qel.innerHTML = '<span class="mark">“</span>' + W.slice(Q.a, Q.b+1).map((x, k) =>
-        `<span class="qw${Q.marks.includes(Q.a+k) ? ' mk' : ''}">${esc(Q.a+k === Q.b ? x.w.replace(/[,;:]$/, '') : x.w)}</span>`).join(' ');
+      const word = (x, k, cls) => `<span class="qw${cls}">${esc(Q.a+k === Q.b ? x.w.replace(/[,;:]$/, '') : x.w)}</span>`;
+      if (CIRCLE) {                // a run of marked words shares one ring
+        let html = '', run = [];
+        const flush = () => { if (run.length) html += `<span class="mkg" data-last="${run[run.length-1]}">${run.map(k => word(W[Q.a+k], k, '')).join(' ')}`
+          + `<svg><path pathLength="1"/></svg></span> `; run = []; };
+        W.slice(Q.a, Q.b+1).forEach((x, k) => { if (Q.marks.includes(Q.a+k)) run.push(k); else { flush(); html += word(x, k, '') + ' '; } });
+        flush(); qel.innerHTML = '<span class="mark">“</span>' + html;
+      } else qel.innerHTML = '<span class="mark">“</span>' + W.slice(Q.a, Q.b+1).map((x, k) => word(x, k, Q.marks.includes(Q.a+k) ? ' mk' : '')).join(' ');
       fitQuote(qel, w, h);
+      qel.querySelectorAll('.mkg').forEach((g, i) => {   // each ring drawn to its run's laid-out size
+        const rw = g.offsetWidth * 1.18, rh = g.offsetHeight * 1.32, svg = g.querySelector('svg');
+        svg.setAttribute('viewBox', `0 0 ${rw.toFixed(1)} ${rh.toFixed(1)}`); svg.querySelector('path').setAttribute('d', ring(rw, rh, Q.a + i)); });
     }
     const out = lin(t, Q.to-.3, Q.to);
     place(dim, S); dim.style.opacity = easeOut(lin(t, Q.from, Q.from+.3)) * (1-out);
@@ -317,23 +392,40 @@ window.seek = async function(t) {
       if (el.classList.contains('mk')) { const hl = easeOut(lin(t, x.os, x.os+.28));
         el.style.backgroundSize = `${hl*100}% 86%`; el.style.color = hl > .4 ? 'var(--q-hl-ink,var(--accent-ink))' : ''; }
     });
+    qel.querySelectorAll('.mkg').forEach(g => { const x = W[Q.a + +g.dataset.last], path = g.querySelector('path');
+      path.style.strokeWidth = Math.max(3, parseFloat(qel.style.fontSize) * .045) + 'px';
+      path.style.strokeDashoffset = 1 - easeInOut(lin(t, x.oe - .05, x.oe + .55)); });
   } else { qel.style.display = 'none'; dim.style.display = 'none'; }
+
+  // name tag: who is speaking (or pictured), for the first seconds of the shot that names them
+  const lab = $('label'), LB = shot.label;
+  if (LB && LB.name && tin < 3.4 && !Q) { const x = easeOut(lin(tin, .15, .5)) * (1 - lin(tin, 3.0, 3.4));
+    lab.style.display = 'block'; lab.querySelector('.n').textContent = LB.name; lab.querySelector('.r').textContent = LB.role || '';
+    lab.querySelector('.r').style.display = LB.role ? '' : 'none';
+    lab.style.left = (ASPECT === '16x9' ? 90 : 60) + 'px'; lab.style.top = (G.cap - (ASPECT === '9x16' ? 230 : 190)) + 'px';
+    lab.style.opacity = x; lab.style.transform = `translateX(${(1-x)*-30}px)`; }
+  else lab.style.display = 'none';
 
   // captions
   let gi = -1; for (let i=0;i<groups.length;i++) if (W[groups[i][0]].os <= t+.02) gi = i;
   const cap = $('cap'), box = cap.firstChild;
   if (gi >= 0 && !Q && !groups[gi].every(inQuote) && t < W[W.length-1].oe + .3) {
     const grp = groups[gi];
+    if (KIN) { cap.classList.add('kin');
+      box.innerHTML = grp.map(j => { const w = W[j], p = easeOut(lin(t, w.os - .04, w.os + .14)), big = j === KEYS[gi];
+        return `<span class="w${big ? ' big' : ''}" style="opacity:${p.toFixed(3)};transform:translateY(${((1-p)*.18).toFixed(3)}em) scale(${mix(big ? 1.06 : 1, 1, p).toFixed(3)})">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
+    } else
     box.innerHTML = grp.map(j => { const w = W[j], on = w.os <= t+.02 && t < (W[j+1]?.os ?? w.oe+.3);
       const em = !on && EMPH && (EMPH.has(norm(w.w)) || /\d/.test(w.w));
       return `<span class="${on?'on':em?'em':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
     cap.style.top = G.cap + 'px';
     cap.style.opacity = hookOn && G.hook === 'pill' && ASPECT === '9x16' && layout !== 'solo' ? 0 : 1;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);
-    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16' || PANEL);
+    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16' || PANEL || FULLCUT);
     cap.style.transform = `${centered ? 'translateY(-50%) ' : ''}scale(${mix(CAP.pop_from,1,CAP.overshoot ? back(pop) : easeOut(pop))})`;
   } else cap.style.opacity = 0;
   $('prog').style.width = (100*clamp(t/D.duration))+'%';
+  $('prog').style.display = TH0.progress === false ? 'none' : '';
   $('srctag').textContent = PANEL && PANEL.brand !== false ? '' : D.sourceTag || '';
   $('srctag').style.display = $('srctag').textContent ? '' : 'none';
   $('srctag').style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';

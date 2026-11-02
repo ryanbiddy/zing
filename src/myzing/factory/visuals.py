@@ -6,6 +6,8 @@ Modes:
   context (default)  the specific thing named: Wikidata entity -> its Commons image/logo/video + official site
                      (screenshot, 6 s scroll recording, og:image/og:video) -> NASA (space topics) -> Commons ->
                      Library of Congress -> Internet Archive [-> Exa page finder, Pexels/Pixabay when keys exist]
+  documentary        archives only: Wikidata -> NASA (space topics) -> Commons -> Library of Congress -> Internet
+                     Archive; no stock, no site captures unless a request gives its url
   fun                stock video first (Pexels, then Pixabay, when keys exist); kind "gif" = a short stock video of
                      that action; keyless fallback = Commons / Internet Archive / NASA clips, then stills.
                      GIPHY, KLIPY and Tenor are deliberately not used: their terms forbid baking clips into video.
@@ -850,6 +852,10 @@ def route_for(ctx, q: Query) -> list[str]:
         if q.wants_video:
             return stock_v + (["nasa_video"] if q.space else []) + ["commons_video", "ia_video"] + wd
         return stock_v + stock_p + wd + (["nasa"] if q.space else []) + ["commons", "loc", "ia_image"] + ov
+    if ctx.mode == "documentary":           # archives only: no stock, no web pages
+        if q.wants_video:
+            return wd + (["nasa_video"] if q.space else []) + ["commons_video", "ia_video"]
+        return wd + (["nasa"] if q.space else []) + ["commons", "loc", "ia_image"] + ov
     if q.kind == "video":
         return wd + (["nasa_video"] if q.space else []) + has("exa") + ["commons_video", "ia_video"] + stock_v
     return wd + has("exa") + (["nasa"] if q.space else []) + ["commons", "loc", "ia_image"] + stock_p + ov
@@ -1359,8 +1365,8 @@ def contact_sheet(manifest: dict, outdir: Path, requests: list[dict], mode: str)
 def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: bool = False, openverse: bool = False,
          maxc: int = 5, min_video: int = MIN_LONG_SIDE, sheet: bool = True, say=print) -> dict:
     """Search, download and rank candidates for every request; returns the manifest written to outdir."""
-    if mode not in ("context", "fun"):
-        raise ValueError("mode must be 'context' or 'fun'")
+    if mode not in ("context", "fun", "documentary"):
+        raise ValueError("mode must be 'context', 'fun' or 'documentary'")
     outdir = Path(outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()

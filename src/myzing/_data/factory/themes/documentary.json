@@ -1,0 +1,9 @@
+{"name": "Documentary", "bg": "#14120F", "glow": "#2A251D", "ink": "#F2EBDD", "muted": "rgba(242,235,221,.7)", "accent": "#E9DCC0", "accent_ink": "#14120F",
+ "cap_style": "kinetic", "cap_font": "Instrument Serif", "cap_size": 66, "cap_words": 3, "cap_chars": 18, "cap_y": 0.7,
+ "cap_bg": "none", "cap_ink": "#F7F2E7", "cap_on": "#F7F2E7", "cap_upper": false, "cap_shadow": "0 2px 20px rgba(0,0,0,.8)", "cap_pop_ms": 0, "cap_pop_from": 1.0,
+ "quote_font": "Instrument Serif", "quote_weight": 400, "quote_upper": false, "quote_lh": 1.02, "quote_track": "0", "quote_ink": "#F7F2E7", "quote_hl": "#F7F2E7", "quote_mark": "circle",
+ "hook_bg": "transparent", "hook_ink": "#F7F2E7", "hook_font": "Instrument Serif", "hook_weight": 400, "hook_size": 92, "hook_em": "italic", "hook_shadow": "0 2px 20px rgba(0,0,0,.8)",
+ "gfx_font": "Instrument Serif", "solo_fill": true, "cutaway": "full", "transition": "blur", "progress": false,
+ "grade": "grayscale(1) sepia(.22) contrast(1.06) brightness(.94)", "grain": 0.2, "vignette": true,
+ "panel_edge": "none", "tag_bg": "rgba(0,0,0,.35)", "tag_ink": "rgba(247,242,231,.85)",
+ "funnel": ["#3A342A", "#4A4236", "#5A5142", "#6A604E"], "funnel_ink": "#F7F2E7"}

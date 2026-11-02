@@ -6,9 +6,16 @@ from .tools import data_path
 FIELDS = ("x", "instagram", "tiktok", "youtube_title", "first_comment")
 
 
-def prompt(moment: dict, words: dict, source: dict) -> str:
-    text = data_path("prompts", "copy.md").read_text(encoding="utf-8")
+def brand_line(brand: dict | None) -> str:
+    if not brand:
+        return "none given"
+    return "; ".join(f"{k}: {brand[k]}" for k in ("name", "url", "cta") if brand.get(k))
+
+
+def prompt(moment: dict, words: dict, source: dict, mode: str = "context", brand: dict | None = None) -> str:
+    text = data_path("prompts", "copy-launch.md" if mode == "launch" else "copy.md").read_text(encoding="utf-8")
     for k, v in {"{SOURCE}": source.get("name", ""), "{HOOK}": moment["hook"], "{DATE}": source.get("date") or "unknown",
+                 "{BRAND}": brand_line(brand),
                  "{TEXT}": " ".join(w["w"] for w in words["words"])}.items():
         text = text.replace(k, v)
     return text

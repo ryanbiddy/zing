@@ -75,6 +75,45 @@ one judgment and what was built from it.
 - `--mode fun` asks for playful, literal visuals that still match what is said.
   Clips on sensitive subjects (slavery, violence, death, war and similar) are planned
   and picked in context mode with restrained visuals, and flagged on the review page.
+- Any shot can carry a name tag for the person speaking or pictured, shown for its first
+  seconds. The name and role must be said in the clip (or given as the brand).
+
+## Documentary mode
+
+`--mode documentary --pack documentary` cuts the episode like a Vox or Ken Burns
+documentary, with the speaker as the narrator:
+
+- Visuals come from archives only (Wikidata, Commons, NASA, the Library of Congress,
+  the Internet Archive): period photographs, paintings, documents, letters, maps and
+  portraits. No stock, no site captures. The picker keeps a period map or register of
+  the exact subject as evidence instead of rejecting it as a scan.
+- The archival image fills the frame in every shape, moving through its depth; the
+  speaker comes back on camera for opinions and emotional beats.
+- The `documentary` pack grades footage and photos to warm black and white with grain
+  and a vignette, brings each cut into focus, and sets captions in Instrument Serif that
+  build word by word with the weightiest word of each line large in italic. A quote
+  moment draws a hand-drawn ring around its key words.
+- Sensitive subjects stay in documentary mode: it is already archival and restrained.
+
+## Launch mode
+
+`--mode launch` turns a long founder demo, interview or livestream into launch films:
+landscape first (`16x9,1x1,9x16`), the `launch` pack, two films by default (a full cut and
+a teaser).
+
+```
+zing factory new ./fold --media demo.mp4 --mode launch --brand-name Fold --brand-url fold.app --cta "Join the waitlist"
+zing factory run ./fold --judge claude
+```
+
+- The scout assembles each film from three to seven spans of the recording in the
+  order they should play: open mid-action or on a first-person claim, say what it is,
+  show how it works, proof, close. The rules come from the openings of 600 launch films.
+- The plan names the product with an "Introducing" title card after the opening beat
+  and ends on an end card (name, url, a short line) that holds for three seconds. The
+  product's own site is captured and scroll-recorded where it is named or shown.
+- Titles, end cards and name tags use only what the speaker says or the brand you give.
+  Post copy is written as a launch post, not a clip credit.
 
 ## Where visuals come from
 
@@ -92,7 +131,7 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 
 ## Style packs
 
-`--pack zing | newsdesk | swiss | headline` sets colors, caption treatment and source tag
+`--pack zing | newsdesk | swiss | headline | documentary | launch` sets colors, caption treatment and source tag
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.

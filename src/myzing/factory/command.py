@@ -27,10 +27,15 @@ def run(argv: list[str]) -> int:
     new.add_argument("--url", default="", help="the source link used in first comments")
     new.add_argument("--date", default="", help="the source's date; copy never calls older news 'new'")
     new.add_argument("--tag", default="", help="short on-screen source tag")
-    new.add_argument("--moments", type=int, default=8)
-    new.add_argument("--mode", choices=("context", "fun"), default="context")
-    new.add_argument("--shapes", type=_shapes, default=["9x16", "1x1"], help="any of 9x16,4x5,1x1,16x9")
-    new.add_argument("--pack", default="zing", help="style pack (see 'zing factory packs')")
+    new.add_argument("--moments", type=int, default=None, help="clips to scout (default 8; launch: films, default 2)")
+    new.add_argument("--mode", choices=("context", "fun", "documentary", "launch"), default="context",
+                     help="documentary: archival photos and documents, the speaker as narrator (pair with --pack documentary); "
+                          "launch: one launch film from a long demo or interview, assembled from several parts")
+    new.add_argument("--shapes", type=_shapes, default=None, help="any of 9x16,4x5,1x1,16x9 (default 9x16,1x1; launch 16x9,1x1,9x16)")
+    new.add_argument("--pack", default=None, help="style pack (see 'zing factory packs'; default zing, launch for launch films)")
+    new.add_argument("--brand-name", help="launch: the product's name for the title and end card")
+    new.add_argument("--brand-url", help="launch: the product's url for the end card")
+    new.add_argument("--cta", help="launch: a short call to action for the end card")
     new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
     new.add_argument("--no-parallax", dest="parallax", action="store_false",
                      help="keep photos flat instead of moving through their depth")
@@ -75,9 +80,12 @@ def run(argv: list[str]) -> int:
         from .judge import Judge
         if args.command == "new":
             result = pipeline.init(args.project, args.media, transcript=args.transcript, offset=args.offset,
-                                   name=args.name, url=args.url, date=args.date, tag=args.tag, moments=args.moments,
-                                   mode=args.mode, shapes=args.shapes, pack=args.pack, public=args.public,
-                                   parallax=args.parallax)
+                                   name=args.name, url=args.url, date=args.date, tag=args.tag,
+                                   mode=args.mode, public=args.public, parallax=args.parallax,
+                                   **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack,
+                                                        "moments": args.moments}.items() if v is not None},
+                                   **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
+                                                                    "cta": args.cta}.items() if v}} if args.brand_name else {}))
         elif args.command == "run":
             judge = Judge(args.project, args.judge, **({"model": args.model} if args.model else {}))
             result = pipeline.run(args.project, judge, only=args.clips, say=lambda m: print(m, file=sys.stderr, flush=True))

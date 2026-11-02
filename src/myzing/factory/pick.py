@@ -12,6 +12,9 @@ MODE_RULES = {
     "context": "Pick what a sharp human editor would cut to: the most relevant, specific and visually striking candidate "
                "for what the speaker is saying at that moment. Prefer modern, clear, well-lit, uncluttered images; real "
                "footage of the exact thing named beats a loosely related or archival picture.",
+    "documentary": "Pick what a documentary editor would cut to: an authentic period photograph, painting, document, map or "
+                   "portrait of exactly what is being said, shot or made at the time. Black and white is fine (the clip is graded). "
+                   "Reject modern stock, logos, clip art, illustrations made to look old, and anything only loosely related.",
     "fun": "Pick what makes the moment more fun to watch while still clearly about what's being said: a playful, literal "
            "or delightfully absurd visual punchline. It must never mock the speaker or a real person, and must still "
            "make sense to a viewer.",
@@ -63,6 +66,18 @@ def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
     return out
 
 
+REJECT = """- doesn't show what's being talked about, or shows the wrong subject;
+- has burned-in text, titles, captions, watermarks or a logo bug that would clash with our captions;
+- is blurry, tiny, a scan of a document, a diagram, a map, or visual clutter;
+- is a dull archival picture when the moment calls for something vivid.
+"""
+REJECT_DOC = """- doesn't show what's being talked about, or shows the wrong subject, place or period;
+- has a watermark or a logo bug;
+- is blurry, tiny or visual clutter. A period map, letter, register or newspaper of the exact subject is evidence:
+  keep it.
+"""
+
+
 def prompt(sheet_path: Path, mode: str, sensitive_reason: str | None) -> str:
     sensitive = ("THIS CLIP IS ON A SENSITIVE SUBJECT (" + sensitive_reason + "). Choose none rather than anything that "
                  "depicts violence, suffering or people being harmed, anything festive or upbeat, or anything only loosely "
@@ -71,14 +86,10 @@ def prompt(sheet_path: Path, mode: str, sensitive_reason: str | None) -> str:
 Each row is one moment that needs a visual: the left label is its id, the top line is the search query and what the speaker says there,
 and the numbered tiles (1, 2, 3, ...) are the candidates found. Some tiles are stills from a video and are marked VIDEO.
 
-{MODE_RULES["context" if sensitive else mode]}
+{MODE_RULES["context" if sensitive and mode != "documentary" else mode]}
 
 Reject a candidate (and choose none for the row if nothing passes) when it:
-- doesn't show what's being talked about, or shows the wrong subject;
-- has burned-in text, titles, captions, watermarks or a logo bug that would clash with our captions;
-- is blurry, tiny, a scan of a document, a diagram, a map, or visual clutter;
-- is a dull archival picture when the moment calls for something vivid.
-Prefer VIDEO when it is as relevant as the best still.
+{REJECT_DOC if mode == "documentary" else REJECT}Prefer VIDEO when it is as relevant as the best still.
 {sensitive}
 
 Reply with ONLY a JSON object, no prose and no code fence, mapping every row id to
