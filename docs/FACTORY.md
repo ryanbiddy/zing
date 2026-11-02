@@ -20,9 +20,15 @@ zing factory run talk --judge claude
 zing factory status talk           # review page: talk/index.html
 ```
 
-Without `--transcript`, Zing transcribes the whole episode locally with its speech
-model, which is slow on a CPU. With a caption file, only the chosen moments are
-transcribed for word timing.
+Without `--transcript`, Zing reads the whole episode with a small speech model already
+on disk (`small` or `base`; an hour in about 5 minutes on a CPU) only to find the
+moments, then transcribes the chosen moments with your configured model for word
+timing. With a caption file, or when no small model is on disk, it works as before.
+
+Speech models mishear names and terms. The plan lists clear mishearings it is sure of
+("Buddy Shaw" for "Buddy Shah", "Middle least" for "Middle East"); Zing corrects the
+captions, graphics, hook and copy, logs each fix, and keeps what was heard in
+`words-heard.json`. Numbers and meaning are never changed.
 
 ## Who makes the judgment calls
 

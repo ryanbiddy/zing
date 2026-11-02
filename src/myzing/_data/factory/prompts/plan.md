@@ -20,9 +20,11 @@ Rules:
 - SENSITIVE SUBJECTS: if the clip is about slavery, race or ethnicity, violence, death, illness, abuse, war, terrorism or religion, set "sensitive": true and "sensitive_reason". Then: the style is CONTEXT whatever was asked; visuals stay restrained (the place, a document, a map, a neutral portrait, or none — prefer "solo" and "quote"); never request depictions of violence, suffering, bodies, or people being harmed; never upbeat, festive, decorative or loosely related b-roll (no vintage cars on a slavery story).
 {STYLE}
 - The hook comes from the scout; you may tighten it (max 7 words, *asterisks* on 1–3 key words).
+- The words come from a speech model and can mishear. When you are sure a name, place, company or term was misheard (e.g. "Middle least policy" for "Middle East policy", a known person's name misspelled), list it in "fixes" and use the corrected form everywhere on screen. Only sound-alike corrections: never a number, never a change of meaning, never a guess. [] when there are none.
 
 Return ONLY a JSON object, no prose, no code fence:
 {"hook": str, "hook_until": seconds (2.5–3.5), "sensitive": bool, "sensitive_reason"?: str,
+ "fixes": [{"heard": "<exact words as in WORDS>", "meant": "<the corrected words>"}],
  "shots": [{"from": seconds, "layout": "solo"|"split"|"graphic", "visual"?: "<request id>", "graphic"?: {...}}],
  "visual_requests": [{"id": "v1", "query": str, "kind": "photo"|"video"|"logo"|"gif", "entity"?: "<canonical name of the named company, product, person, place or org>", "url"?: "<its official website or the exact page being discussed, only if you are certain it exists>", "context": "<what the speaker says there>"}]}
 

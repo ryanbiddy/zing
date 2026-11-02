@@ -887,7 +887,8 @@ def capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: bool
         node, sidecar = node_sidecar()
         env = sidecar_env(ctx.tmp)  # no stock keys; Chrome's throwaway profile stays inside the clip folder
         p = subprocess.run([node, str(sidecar / "shot.cjs"), url, str(shot)] + ([str(frames)] if scroll else []),
-                           capture_output=True, text=True, timeout=240, env=env, cwd=str(sidecar))
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240, env=env,
+                           cwd=str(sidecar))
         lines = [ln for ln in (p.stdout or "").splitlines() if ln.startswith("{")]
         res = json.loads(lines[-1]) if lines else {"ok": False, "error": (p.stderr or "no output")[-300:]}
     except Exception as e:
@@ -987,7 +988,7 @@ def probe_video(path_or_url) -> dict:
         args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp", safe_url(src)]
     p = subprocess.run([str(FFPROBE), "-v", "error", "-select_streams", "v:0", "-show_entries",
                         "stream=width,height,codec_name:format=duration", "-of", "json"] + args,
-                       capture_output=True, text=True, timeout=60)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
     d = json.loads(p.stdout or "{}")
     st = (d.get("streams") or [{}])[0]
     if not st.get("width"):

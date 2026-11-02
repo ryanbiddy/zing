@@ -42,12 +42,8 @@ def quotes(shots: list[dict], words: list[dict]) -> list[dict]:
 
     The shot itself turns solo, so around the quote the speaker carries on with normal captions.
     """
-    from .plan import _norm
-    toks, owner = [], []
-    for i, w in enumerate(words):
-        for tok in _norm(w["w"]).split():
-            toks.append(tok)
-            owner.append(i)
+    from .plan import _norm, tokens
+    toks, owner = tokens(words)
     out = []
     for s in shots:
         g = s.get("graphic") or {}

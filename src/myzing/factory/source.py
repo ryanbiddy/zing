@@ -13,6 +13,8 @@ from .tools import ffmpeg, run
 
 STAMP = re.compile(r"(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})")
 MARGIN = 6.0
+# fast enough on a CPU to read a whole episode (an hour in about 5 minutes); the picked moments get the full model
+SCOUT_MODELS = ("small", "base")
 
 
 def _seconds(match: re.Match) -> float:
@@ -73,21 +75,30 @@ def load_transcript(path: Path, offset: float = 0.0) -> tuple[list[dict], list[d
     return segments, None
 
 
-def _speech(media: Path, start: float | None = None, end: float | None = None) -> list[dict]:
+def scout_model() -> str | None:
+    """A small model already on disk for the whole-episode pass, or None when the configured one is as quick."""
+    from myzing.study import speech_models
+    configured = speech_models.resolve_name(None, require_cached=False)
+    if configured in SCOUT_MODELS:
+        return None
+    return next((name for name in SCOUT_MODELS if speech_models.local_path(name)), None)   # never downloads
+
+
+def _speech(media: Path, start: float | None = None, end: float | None = None, model: str | None = None) -> list[dict]:
     from myzing.study.transcribe import transcribe
     with tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / "speech.wav"
         window = ([] if start is None else ["-ss", f"{start:.3f}"]) + ([] if end is None else ["-t", f"{end - (start or 0):.3f}"])
         run(ffmpeg(), "-v", "error", "-y", *window, "-i", media, "-vn", "-ac", "1", "-ar", "16000", wav)
-        result = transcribe(wav, duration=(end - (start or 0)) if end else 0.0)
+        result = transcribe(wav, model_name=model, duration=(end - (start or 0)) if end else 0.0, local_files_only=bool(model))
     if not result.words:
         raise RuntimeError("speech transcription produced no words: " + "; ".join(result.warnings or ["no detail"]))
     base = start or 0.0
     return [{"w": w.text, "s": round(w.start + base, 3), "e": round(w.end + base, 3)} for w in result.words]
 
 
-def transcribe_episode(media: Path) -> list[dict]:
-    return _speech(media)
+def transcribe_episode(media: Path, model: str | None = None) -> list[dict]:
+    return _speech(media, model=model)
 
 
 def transcribe_moments(media: Path, moments: list[dict]) -> list[dict]:
