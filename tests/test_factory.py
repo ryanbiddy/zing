@@ -499,3 +499,23 @@ def test_a_stretch_in_the_wrong_language_is_redone_in_the_main_one(monkeypatch):
     assert [w["w"] for w in words] == ["en", "en"]
     assert calls[-1][1] == "en"
     assert source.main_language([(0, 10, "en", 0.9), (10, 15, "cy", 0.99)]) == "en"
+
+
+def test_a_news_peg_reaches_scout_plan_and_copy_and_grounds_the_hook(tmp_path):
+    media = tmp_path / "ep.mp4"
+    media.write_bytes(b"x")
+    news = {"peg": "Binance lost $6.3 billion in the biggest crypto hack ever", "links": ["https://example.com/hack"]}
+    cfg = pipeline.init(tmp_path / "p", media, mode="documentary", news=news)["settings"]
+    assert cfg["news"] == news
+    with pytest.raises(FactoryError):
+        pipeline.init(tmp_path / "q", media, news={"peg": "", "links": []})
+    with pytest.raises(FactoryError):
+        pipeline.init(tmp_path / "r", media, news={"peg": "x", "links": ["example.com"]})
+    assert "NEWS PEG: Binance" in scout.prompt([{"s": 0, "e": 1, "text": "Hi."}], 2, "documentary", news)
+    w = {"words": clip_words("We kept the keys offline."), "duration": 3.0}
+    assert "https://example.com/hack" in plan.prompt({"hook": "h"}, w, "documentary", None, news)
+    assert "NEWS PEG: Binance" in postcopy.prompt({"hook": "h"}, w, {}, "documentary", None, news)
+    (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("We kept the keys offline.")}), encoding="utf-8")
+    raw = {"hook": "*$6.3 billion* gone", "shots": [{"from": 0, "layout": "solo"}]}
+    assert any("hook" in line for line in plan.finalize(tmp_path, raw, {})["fact_check"])
+    assert not any("hook" in line for line in plan.finalize(tmp_path, raw, {}, news=news)["fact_check"])

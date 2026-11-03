@@ -13,7 +13,8 @@ MODE_RULES = {
                "for what the speaker is saying at that moment. Prefer modern, clear, well-lit, uncluttered images; real "
                "footage of the exact thing named beats a loosely related or archival picture.",
     "documentary": "Pick what a documentary editor would cut to: an authentic period photograph, painting, document, map or "
-                   "portrait of exactly what is being said, shot or made at the time. Black and white is fine (the clip is graded). "
+                   "portrait of exactly what is being said, shot or made at the time (for today's news, a recent photograph "
+                   "or the news article itself). Black and white is fine (the clip is graded). "
                    "Reject modern stock, logos, clip art, illustrations made to look old, and anything only loosely related.",
     "fun": "Pick what makes the moment more fun to watch while still clearly about what's being said: a playful, literal "
            "or delightfully absurd visual punchline. It must never mock the speaker or a real person, and must still "
@@ -74,7 +75,7 @@ REJECT = """- doesn't show what's being talked about, or shows the wrong subject
 REJECT_DOC = """- doesn't show what's being talked about, or shows the wrong subject, place or period;
 - has a watermark or a logo bug;
 - is blurry, tiny or visual clutter. A period map, letter, register or newspaper of the exact subject is evidence:
-  keep it.
+  keep it, and so is a screenshot of a news article about the story.
 """
 
 

@@ -17,7 +17,7 @@ from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
-            "brand": None}
+            "brand": None, "news": None}
 LAUNCH = {"moments": 2, "shapes": ["16x9", "1x1", "9x16"], "pack": "launch"}   # a launch film is landscape first
 
 
@@ -48,6 +48,13 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     brand = settings.get("brand")
     if brand is not None and (not isinstance(brand, dict) or not str(brand.get("name", "")).strip()):
         raise FactoryError("brand needs at least a name")
+    news = settings.get("news")
+    if news is not None:
+        if not isinstance(news, dict) or not str(news.get("peg", "")).strip():
+            raise FactoryError("news needs a peg: one line on what happened")
+        bad = [u for u in news.get("links", []) if not str(u).startswith(("https://", "http://"))]
+        if bad:
+            raise FactoryError(f"news links must be web addresses: {', '.join(map(str, bad))}")
     for shape in settings.get("shapes", SETTINGS["shapes"]):
         if shape not in render.SHAPES:
             raise FactoryError(f"unknown shape {shape}")
@@ -83,7 +90,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
     if data and data.get("snapped"):
         return data["moments"]
     segments = _transcript(project, media, say)
-    moments = scout.check(judge.ask("scout", scout.prompt(segments, cfg["moments"], cfg["mode"])),
+    moments = scout.check(judge.ask("scout", scout.prompt(segments, cfg["moments"], cfg["mode"], cfg.get("news"))),
                           segments[-1]["e"] if segments else None)
     words = _read(project / "words.json") or []
     pieces = []                                     # films share spans: transcribe each stretch of the episode once
@@ -116,11 +123,12 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     if not (d / "post.json").is_file():
         try:
             _write(d / "post.json", postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"],
-                                                                                                cfg.get("brand"))), w, src))
+                                                                                                cfg.get("brand"),
+                                                                                                cfg.get("news"))), w, src))
         except NeedsAnswer:
             waiting.append(f"{task}-copy")
     try:
-        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"))))
+        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"), cfg.get("news"))))
     except NeedsAnswer:
         return waiting + [f"{task}-plan"]
     _write(d / "plan-raw.json", raw)
@@ -148,7 +156,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             found = pick.chosen(visdir, reqs, manifest, picks)
     final_path = d / "plan.json"
     if not final_path.is_file() or final_path.stat().st_mtime < (judge.project / "answers" / f"{task}-plan.json").stat().st_mtime:
-        plan.finalize(d, raw, found, cfg.get("brand"))
+        plan.finalize(d, raw, found, cfg.get("brand"), cfg.get("news"))
     for shape in cfg["shapes"]:
         out = d / f"clip{render.suffix(shape, cfg['pack'])}.mp4"
         if not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime:

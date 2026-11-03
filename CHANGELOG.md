@@ -2,6 +2,10 @@
 
 ## Clip factory
 
+- Factory news peg: `--news-peg "<what happened>" --news <article url>` turns clips into
+  the backstory to today's news. The scout looks for how it came about, each clip opens on
+  a headline screenshot, and the copy leads with the news. Spoken decimals ("$6.3") now
+  count as said numbers.
 - Factory transcription keeps one language per episode: a short stretch that speech
   detection mishears as another language (an English span came back as Welsh) is redone
   in the episode's main language. `transcribe()` takes an optional `language`.

@@ -1835,21 +1835,25 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                   name: str | None = None, url: str = "", date: str = "", tag: str = "", moments: int = 8,
                   mode: Literal["context", "fun", "documentary", "launch"] = "context", shapes: list[str] | None = None,
                   pack: str | None = None, public: bool = False, brand_name: str | None = None,
-                  brand_url: str | None = None, cta: str | None = None) -> dict[str, Any]:
+                  brand_url: str | None = None, cta: str | None = None, news_peg: str | None = None,
+                  news_links: list[str] | None = None) -> dict[str, Any]:
     """Create a factory project from a local episode file and an optional caption file.
 
     mode "launch" assembles launch films from a long demo or interview (landscape first, the launch pack); brand_name,
-    brand_url and cta feed its title and end card. mode "documentary" pairs with pack "documentary".
+    brand_url and cta feed its title and end card. mode "documentary" pairs with pack "documentary". news_peg (today's
+    news, one line) and news_links (articles about it) make each clip the backstory to that news, opening on a headline.
     """
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
     brand = {k: v for k, v in {"name": brand_name, "url": brand_url, "cta": cta}.items() if v} if brand_name else None
+    news = {"peg": news_peg or "", "links": list(news_links or [])} if news_peg or news_links else None
     try:
         result = pipeline.init(Path(project).expanduser(), Path(media).expanduser(),
                                transcript=Path(transcript).expanduser() if transcript else None, offset=offset,
                                name=name, url=url, date=date, tag=tag, mode=mode, public=public,
                                **{k: v for k, v in {"moments": moments if moments != 8 or mode != "launch" else None,
-                                                    "shapes": shapes, "pack": pack, "brand": brand}.items() if v is not None})
+                                                    "shapes": shapes, "pack": pack, "brand": brand,
+                                                    "news": news}.items() if v is not None})
         return _ok(**result, hint="Call factory_run(project), then poll factory_status(project).")
     except (FactoryError, ValueError, OSError) as exc:
         return _err(str(exc))
