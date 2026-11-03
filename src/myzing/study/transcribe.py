@@ -54,6 +54,7 @@ def transcribe(
     duration: float = 0.0,
     local_files_only: bool = False,
     vocabulary=(),
+    language: str | None = None,
 ) -> TranscribeResult:
     result = TranscribeResult()
     from .speech_models import resolve_name, missing_message
@@ -84,8 +85,10 @@ def transcribe(
     context = vocabulary_context(vocabulary)
     options = {"vocabulary": context["terms"]} if context["terms"] else {}
     use_batched = duration > formats.SHORT_FORM_MAX_S
+    fixed = {"language": language} if language else {}   # skip detection when the caller knows the language
 
     def decode(options):
+        options = {**options, **fixed}
         if use_batched:
             try:
                 return _run_model_batched(model, media_path, **options), f"batched(batch_size={BATCH_SIZE})"
@@ -223,7 +226,7 @@ def _collect_words(segments) -> list[Word]:
     return words
 
 
-def _run_model(model, media_path: Path, *, vocabulary=()):
+def _run_model(model, media_path: Path, *, vocabulary=(), language=None):
     """Sequential transcription (tests mock this)."""
     from .asr_hygiene import vocabulary_context, finish_timing, fit_prompt
     prompt = fit_prompt(vocabulary_context(vocabulary)["terms"], getattr(model, "hf_tokenizer", None))
@@ -234,12 +237,13 @@ def _run_model(model, media_path: Path, *, vocabulary=()):
         hotwords=prompt["hotwords"],
         initial_prompt=prompt["initial_prompt"],
         condition_on_previous_text=False,
+        language=language,
     )
     words, timing = finish_timing(_collect_words(segments), media_path, info)
     return words, info.language, info.language_probability, timing, prompt
 
 
-def _run_model_batched(model, media_path: Path, *, vocabulary=()):
+def _run_model_batched(model, media_path: Path, *, vocabulary=(), language=None):
     """Batched long-form transcription (tests mock this): VAD-segmented
     batches through the same model — same weights, better utilization."""
     from faster_whisper import BatchedInferencePipeline
@@ -256,6 +260,7 @@ def _run_model_batched(model, media_path: Path, *, vocabulary=()):
         initial_prompt=prompt["initial_prompt"],
         batch_size=BATCH_SIZE,
         condition_on_previous_text=False,
+        language=language,
     )
     words, timing = finish_timing(_collect_words(segments), media_path, info)
     return words, info.language, info.language_probability, timing, prompt

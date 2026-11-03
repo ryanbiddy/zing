@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- Factory transcription keeps one language per episode: a short stretch that speech
+  detection mishears as another language (an English span came back as Welsh) is redone
+  in the episode's main language. `transcribe()` takes an optional `language`.
 - `zing factory` turns one long episode into a pack of social clips: scouted moments
   cut on sentences with pauses removed, speaker framing, visuals found in public
   archives and on the named company's own site (stock video with your own keys),
