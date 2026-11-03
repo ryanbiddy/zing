@@ -485,3 +485,17 @@ def test_films_that_share_spans_transcribe_each_stretch_once(tmp_path, monkeypat
             return films
     pipeline._moments(tmp_path, Ask(), tmp_path / "ep.mp4", {"moments": 2, "mode": "launch"}, say=lambda m: None)
     assert asked == [{"start": 10, "end": 40}, {"start": 300, "end": 310}]
+
+
+def test_a_stretch_in_the_wrong_language_is_redone_in_the_main_one(monkeypatch):
+    calls = []
+
+    def speech(media, start=None, end=None, model=None, language=None):
+        calls.append((start, language))
+        lang = language or ("cy" if start > 300 else "en")       # the short stretch is misheard as Welsh
+        return [{"w": lang, "s": start + 1, "e": start + 2}], lang, 0.6
+    monkeypatch.setattr(source, "_speech", speech)
+    words = source.transcribe_moments(Path("ep.mp4"), [{"start": 10, "end": 200}, {"start": 400, "end": 410}])
+    assert [w["w"] for w in words] == ["en", "en"]
+    assert calls[-1][1] == "en"
+    assert source.main_language([(0, 10, "en", 0.9), (10, 15, "cy", 0.99)]) == "en"

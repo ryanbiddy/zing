@@ -84,28 +84,46 @@ def scout_model() -> str | None:
     return next((name for name in SCOUT_MODELS if speech_models.local_path(name)), None)   # never downloads
 
 
-def _speech(media: Path, start: float | None = None, end: float | None = None, model: str | None = None) -> list[dict]:
+def _speech(media: Path, start: float | None = None, end: float | None = None, model: str | None = None,
+            language: str | None = None) -> tuple[list[dict], str | None, float]:
     from myzing.study.transcribe import transcribe
     with tempfile.TemporaryDirectory() as tmp:
         wav = Path(tmp) / "speech.wav"
         window = ([] if start is None else ["-ss", f"{start:.3f}"]) + ([] if end is None else ["-t", f"{end - (start or 0):.3f}"])
         run(ffmpeg(), "-v", "error", "-y", *window, "-i", media, "-vn", "-ac", "1", "-ar", "16000", wav)
-        result = transcribe(wav, model_name=model, duration=(end - (start or 0)) if end else 0.0, local_files_only=bool(model))
+        result = transcribe(wav, model_name=model, duration=(end - (start or 0)) if end else 0.0, local_files_only=bool(model),
+                            language=language)
     if not result.words:
         raise RuntimeError("speech transcription produced no words: " + "; ".join(result.warnings or ["no detail"]))
     base = start or 0.0
-    return [{"w": w.text, "s": round(w.start + base, 3), "e": round(w.end + base, 3)} for w in result.words]
+    words = [{"w": w.text, "s": round(w.start + base, 3), "e": round(w.end + base, 3)} for w in result.words]
+    return words, result.provenance.get("language"), float(result.provenance.get("language_probability") or 0.0)
 
 
 def transcribe_episode(media: Path, model: str | None = None) -> list[dict]:
-    return _speech(media, model=model)
+    return _speech(media, model=model)[0]
+
+
+def main_language(runs: list[tuple[float, float, str | None, float]]) -> str | None:
+    """The language most of the speech is in: (start, end, language, probability) per stretch, weighted by length."""
+    weight: dict[str, float] = {}
+    for a, b, lang, p in runs:
+        if lang:
+            weight[lang] = weight.get(lang, 0.0) + (b - a) * max(p, 0.01)
+    return max(weight, key=weight.get) if weight else None
 
 
 def transcribe_moments(media: Path, moments: list[dict]) -> list[dict]:
-    """Word times for each moment (with a margin), merged in episode time."""
-    words: list[dict] = []
+    """Word times for each moment (with a margin), merged in episode time. A short stretch can fool language detection
+    (an English span came back as Welsh), so a stretch that disagrees with the main language is redone in it."""
+    runs = []
     for m in moments:
-        a = max(0.0, m["start"] - MARGIN)
-        got = _speech(media, a, m["end"] + MARGIN)
+        a, b = max(0.0, m["start"] - MARGIN), m["end"] + MARGIN
+        runs.append((a, b, *_speech(media, a, b)))
+    main = main_language([(a, b, lang, p) for a, b, _, lang, p in runs])
+    words: list[dict] = []
+    for a, b, got, lang, _ in runs:
+        if main and lang != main:
+            got = _speech(media, a, b, language=main)[0]
         words = [w for w in words if not (got[0]["s"] <= w["s"] <= got[-1]["e"])] + got
     return sorted(words, key=lambda w: w["s"])
