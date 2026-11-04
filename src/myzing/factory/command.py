@@ -31,6 +31,8 @@ def run(argv: list[str]) -> int:
     new.add_argument("project", type=Path)
     new.add_argument("--media", type=Path, required=True, help="the local episode video")
     new.add_argument("--transcript", type=Path, help="SRT, VTT or word JSON; without one the episode is transcribed")
+    new.add_argument("--vocab", action="append", default=[], metavar="TERM,TERM",
+                     help="names and terms to spell exactly; repeat or separate with commas")
     new.add_argument("--offset", type=float, default=0.0, help="seconds to add to the transcript's times")
     new.add_argument("--name", help="source credit, e.g. the show and episode")
     new.add_argument("--url", default="", help="the source link used in first comments")
@@ -95,6 +97,9 @@ def run(argv: list[str]) -> int:
     ren.add_argument("--no-upscale", dest="sharpen", action="store_const", const=False, default=None,
                      help="render small photos at their own size for this render")
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
+    approval = commands.add_parser("approval", help="write a local guest approval page")
+    approval.add_argument("project", type=Path)
+    approval.add_argument("--out", type=Path, metavar="FILE", help="HTML file to write (default <project>/approval.html)")
     learn = commands.add_parser("learn-style", help="learn a style pack from a clip you like, then check the copy against it")
     learn.add_argument("reference", type=Path, help="a local clip whose captions and pacing you want")
     learn.add_argument("--name", required=True, help="the new pack's name, e.g. bold-yellow")
@@ -122,6 +127,7 @@ def run(argv: list[str]) -> int:
         if args.command == "new":
             result = pipeline.init(args.project, args.media, transcript=args.transcript, offset=args.offset,
                                    name=args.name, url=args.url, date=args.date, tag=args.tag,
+                                   vocab=[term for group in args.vocab for term in group.split(",")],
                                    mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
                                    upscale=args.upscale,
                                    **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack,
@@ -159,6 +165,9 @@ def run(argv: list[str]) -> int:
         elif args.command == "review":
             from .review import build
             result = {"review": str(build(args.project))}
+        elif args.command == "approval":
+            from .approval import build
+            result = {"approval": str(build(args.project, args.out))}
         elif args.command == "learn-style":
             from .learn import learn
             result = learn(args.reference, args.name, args.sample, rounds=args.rounds, base=args.base,

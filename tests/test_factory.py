@@ -513,7 +513,7 @@ def test_a_news_peg_reaches_scout_plan_and_copy_and_grounds_the_hook(tmp_path):
         pipeline.init(tmp_path / "r", media, news={"peg": "x", "links": ["example.com"]})
     assert "NEWS PEG: Binance" in scout.prompt([{"s": 0, "e": 1, "text": "Hi."}], 2, "documentary", news=news)
     w = {"words": clip_words("We kept the keys offline."), "duration": 3.0}
-    assert "https://example.com/hack" in plan.prompt({"hook": "h"}, w, "documentary", None, news)
+    assert "https://example.com/hack" in plan.prompt({"hook": "h"}, w, "documentary", None, news=news)
     assert "NEWS PEG: Binance" in postcopy.prompt({"hook": "h"}, w, {}, "documentary", None, news)
     (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("We kept the keys offline.")}), encoding="utf-8")
     raw = {"hook": "*$6.3 billion* gone", "shots": [{"from": 0, "layout": "solo"}]}

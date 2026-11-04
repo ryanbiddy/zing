@@ -30,6 +30,25 @@ Speech models mishear names and terms. The plan lists clear mishearings it is su
 captions, graphics, hook and copy, logs each fix, and keeps what was heard in
 `words-heard.json`. Numbers and meaning are never changed.
 
+## Supply names and spellings
+
+Give names and terms when creating the project.
+
+```bash
+zing factory new talk --media talk.mp4 --vocab "Pompliano, Starbase, Vermilion Parish"
+```
+
+Repeat `--vocab` or separate terms with commas. MCP accepts
+`factory_new(..., vocab=["Pompliano", "Starbase", "Vermilion Parish"])`.
+The list is saved as `vocab` in `factory.json`. It guides episode transcription,
+word timing and the planner's caption fixes. Only supplied terms are used.
+The brand name, source name, tag and people named in the show are not added.
+
+Limits match study vocabulary. Up to 64 terms, 80 characters per term and
+500 UTF-8 bytes for the list joined with a comma and space. Oversized lists are
+rejected. Spaces are normalized and duplicates are removed. Set the vocabulary
+when creating the project; there is no edit command.
+
 ## Who makes the judgment calls
 
 Four steps need taste: the **scout** (which moments), the **plan** (what appears on
@@ -199,8 +218,12 @@ as a standing headline in condensed capitals, key words in the accent color.
 
 ## Review dashboard
 
-`zing factory serve <project>` opens a local page (http://127.0.0.1:8765) for the part
-that is yours: watch each clip in every shape, rate it Post / Post with edits / No,
+Run `zing factory serve <project>` and open the printed link. It includes a token
+for this server session, such as `http://127.0.0.1:8765/?t=TOKEN`. The page saves it
+in an HttpOnly session cookie and removes it from the address bar. Open the new
+printed link after restarting the server. Requests without the cookie are refused.
+
+Watch each clip in every shape, rate it Post / Post with edits / No,
 swap a visual for another candidate, fix a hook or the copy, and re-render in another
 style pack. Swaps and hook edits re-run the fact check and re-render in the background.
 Ratings save to `ratings.json`. `--judge claude` lets the page's Run button answer
@@ -209,6 +232,28 @@ judgments with Claude Code; otherwise they wait for your agent.
 The server listens on 127.0.0.1 only, answers only to localhost Host headers, refuses
 writes from other sites and non-JSON posts, and serves files only from the project's
 clip folders. Nothing on the page posts or publishes.
+
+## Full context and guest approval
+
+First comments link YouTube watch and youtu.be sources to the clip's start time.
+An existing `t` parameter is replaced. Launch films use the first span in playback
+order. Links to other sites stay unchanged.
+
+```bash
+zing factory approval talk
+zing factory approval talk --out talk/guest.html
+```
+
+The default file is `talk/approval.html`. It lists each rendered 9x16 clip in the
+project's style pack with its hook and full transcript. If `clipNN/context.json`
+has `before` and `after` text, that appears too.
+
+Zip the project folder and send it to the guest or their PR person. They unzip it,
+open the HTML file, choose Yes or No, and add comments. **Copy my answers** builds
+plain text they can send back. If clipboard access is blocked, they can select and
+copy the text on the page. The page uses local videos and has no network requests.
+Video paths are relative to the HTML file. Keep a custom output inside the project
+folder when sharing a zip.
 
 ## Learn a style from a clip you like
 

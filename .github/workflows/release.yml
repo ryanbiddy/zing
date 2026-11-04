@@ -102,12 +102,12 @@ jobs:
           path: dist
       - name: Publish to TestPyPI using OIDC
         if: inputs.target == 'testpypi'
-        uses: pypa/gh-action-pypi-publish@v1.14.0
+        uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           repository-url: https://test.pypi.org/legacy/
       - name: Publish to PyPI using OIDC
         if: inputs.target == 'pypi'
-        uses: pypa/gh-action-pypi-publish@v1.14.0
+        uses: pypa/gh-action-pypi-publish@v1.14.3
 
   draft-release:
     if: inputs.draft_release && inputs.target == 'pypi'
