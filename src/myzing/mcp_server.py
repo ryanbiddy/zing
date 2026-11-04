@@ -1902,14 +1902,14 @@ def h_factory_status(project: str) -> dict[str, Any]:
 
 
 def h_factory_prompt(project: str, task: str) -> dict[str, Any]:
-    from myzing.factory.judge import Judge
+    from myzing.factory.judge import Judge, split_prompt
     root = Path(project).expanduser().resolve()
     match = [p for p in Judge(root).pending() if p["task"] == task]
     if not match:
         return _err(f"no pending task '{task}'; factory_status lists what is pending")
     text = Path(match[0]["prompt_path"]).read_text(encoding="utf-8")
-    text = re.sub(r"^<!-- image: .+? -->\n", "", text, flags=re.M)
-    return _ok(task=task, prompt=text, images=match[0]["images"],
+    text, images = split_prompt(text, root)
+    return _ok(task=task, prompt=text, images=images,
                answer_with="factory_answer(project, task, answer) where answer is the JSON object the prompt asks for")
 
 

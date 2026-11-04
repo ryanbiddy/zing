@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import math
 import re
 from pathlib import Path
 
@@ -39,14 +40,24 @@ def prompt(moment: dict, words: dict, mode: str = "context", brand: dict | None 
     return text
 
 
-def check(plan: dict) -> dict:
+def _in_clip(at, last_word: float | None = None) -> bool:
+    return isinstance(at, (int, float)) and 0 <= at <= (last_word + 3 if last_word is not None else float("inf")) \
+        and math.isfinite(at)
+
+
+def check(plan: dict, last_word: float | None = None) -> dict:
     if not isinstance(plan.get("hook"), str) or not isinstance(plan.get("shots"), list) or not plan["shots"]:
         raise ValueError("plan needs a hook and a non-empty shots list")
+    shots = []
     for s in plan["shots"]:
         if s.get("layout") not in LAYOUTS or not isinstance(s.get("from"), (int, float)):
             raise ValueError(f"bad shot {s}")
+        if not _in_clip(s["from"], last_word):
+            continue
         if s["layout"] == "graphic" and (s.get("graphic") or {}).get("kind") not in GRAPHICS:
             raise ValueError(f"bad graphic in shot at {s['from']}")
+        shots.append(s)
+    plan["shots"] = shots or [{"from": 0, "layout": "solo"}]
     ids = {r.get("id") for r in plan.get("visual_requests", [])}
     for s in plan["shots"]:
         if s["layout"] == "split" and s.get("visual") not in ids:
@@ -202,6 +213,9 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
     shots, quoted = [], False
     spoken = spoken_numbers(words)[0]
     for s in plan["shots"]:
+        if not _in_clip(s.get("from"), words[-1]["oe"]):
+            log.append(f"dropped shot at {s.get('from')} outside the clip")
+            continue
         label = s.get("label")
         if label is not None:
             stray = ungrounded(f"{(label or {}).get('name', '')} {(label or {}).get('role', '')}", spoken, brand) \
@@ -224,7 +238,7 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
         if s.get("layout") == "split" and s.get("visual") not in found:
             s = {"from": s["from"], "layout": "solo"}
         shots.append(s)
-    final = {"hook": plan["hook"], "hook_until": plan.get("hook_until", 3.0), "shots": shots,
+    final = {"hook": plan["hook"], "hook_until": plan.get("hook_until", 3.0), "shots": shots or [{"from": 0, "layout": "solo"}],
              "sensitive": bool(plan.get("sensitive")), "sensitive_reason": plan.get("sensitive_reason", ""),
              "visuals": {k: v for k, v in found.items() if any(s.get("visual") == k for s in shots)},
              "fixes": [{"heard": h, "meant": m} for h, m in pairs]}

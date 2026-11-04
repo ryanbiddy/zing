@@ -12,6 +12,7 @@ import json
 import os
 import urllib.error
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import urljoin, urlsplit
 
 import pytest
@@ -121,6 +122,8 @@ class FakeUoink:
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch):
+    monkeypatch.setattr(suite_peer.urllib.request, "build_opener", lambda *handlers: SimpleNamespace(
+        open=lambda *args, **kwargs: suite_peer.urllib.request.urlopen(*args, **kwargs)))
     monkeypatch.delenv(suite_peer.UOINK_URL_ENV, raising=False)
     monkeypatch.delenv(suite_peer.UOINK_TOKEN_ENV, raising=False)
     doctor._peer_cache.clear()

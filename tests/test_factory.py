@@ -125,9 +125,9 @@ def test_quotes_must_be_word_for_word():
 def test_plan_check_and_finalize_keep_only_honest_shots(tmp_path):
     raw = plan.check({"hook": "*18,000* applied", "shots": [
         {"from": 0, "layout": "split", "visual": "v1"},
-        {"from": 3, "layout": "graphic", "graphic": {"kind": "counter", "value": 99}},
-        {"from": 6, "layout": "split", "visual": "missing"},
-        {"from": 9, "layout": "graphic", "graphic": {"kind": "counter", "value": 18000}}],
+        {"from": 1, "layout": "graphic", "graphic": {"kind": "counter", "value": 99}},
+        {"from": 2, "layout": "split", "visual": "missing"},
+        {"from": 3, "layout": "graphic", "graphic": {"kind": "counter", "value": 18000}}],
         "visual_requests": [{"id": "v1", "query": "astronaut"}]})
     assert raw["shots"][2]["layout"] == "solo"                       # split without a request
     (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("Almost 18,000 people applied.")}), encoding="utf-8")
@@ -389,7 +389,7 @@ def test_mcp_handlers_drive_the_host_judge(tmp_path):
     assert not mcp_server.h_factory_answer(root, "scout", {"moments": []})["ok"]
     assert mcp_server.h_factory_answer(root, "scout", {"moments": [{"start": 1, "end": 4, "hook": "Rocket"}]})["ok"]
     with pytest.raises(judge.NeedsAnswer):
-        judge.Judge(Path(root)).ask("clip01-pick", "Pick.", images=(tmp_path / "sheet.jpg",))
+        judge.Judge(Path(root)).ask("clip01-pick", "Pick.", images=(Path(root) / "sheet.jpg",))
     pick_prompt = mcp_server.h_factory_prompt(root, "clip01-pick")
     assert pick_prompt["prompt"] == "Pick." and pick_prompt["images"][0].endswith("sheet.jpg")
 
@@ -463,14 +463,14 @@ def test_launch_projects_default_to_landscape_and_check_the_brand(tmp_path):
     assert "copy" in postcopy.prompt({"hook": "h"}, {"words": clip_words("Hi.")}, {}, "launch", {"name": "Fold"}).lower()
 
 
-def test_end_card_holds_three_seconds_past_the_last_word(tmp_path):
+def test_end_card_ends_within_three_seconds_of_the_last_word(tmp_path):
     (tmp_path / "plan.json").write_text(json.dumps({"hook": "h", "shots": [
         {"from": 0, "layout": "solo"}, {"from": 1.0, "layout": "graphic", "graphic": {"kind": "endcard", "name": "Fold"}}]}),
         encoding="utf-8")
     (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("Fold it.")}), encoding="utf-8")
     (tmp_path / "cams.json").write_text(json.dumps({"frames": 30, "size": [1920, 1080], "cams": []}), encoding="utf-8")
     data = render.scene_data(tmp_path, "16x9", "launch", parallax=False)
-    assert data["duration"] == pytest.approx(4.0)
+    assert data["duration"] == pytest.approx(3.7)
 
 
 def test_films_that_share_spans_transcribe_each_stretch_once(tmp_path, monkeypatch):

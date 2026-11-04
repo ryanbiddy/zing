@@ -142,14 +142,20 @@ def run_owned(command, payload, *, cancel=None, progress=None, on_started=None, 
         elif process and os.name != "nt":
             _stop_posix_tree(process.pid)
         if process:
-            if process.poll() is None:
-                process.kill()  # also handles a failed Windows attachment
-            process.wait(timeout=10)
-            if reader:
-                reader.join(timeout=5)
-            for stream in (process.stdin, process.stdout):
-                if stream:
-                    stream.close()
+            try:
+                if process.poll() is None:
+                    process.kill()  # also handles a failed Windows attachment
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+            finally:
+                if reader:
+                    reader.join(timeout=5)
+                for stream in (process.stdin, process.stdout):
+                    if stream:
+                        stream.close()
 
 
 @contextmanager

@@ -32,6 +32,7 @@ def run(cmd: list[str], timeout: float | None = None) -> subprocess.CompletedPro
     try:
         return subprocess.run(
             cmd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",

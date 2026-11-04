@@ -598,6 +598,11 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     return _conformance_read(base, token, capabilities, evidence)
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _conformance_read(
     base: str, token: str, capabilities: list[str], evidence: str
 ) -> tuple[dict[str, Any], str]:
@@ -611,14 +616,17 @@ def _conformance_read(
     """
     request = urllib.request.Request(
         base + "/api/corpus/v1/items/zing-doctor-probe/kept-media",
-        headers={"X-Uoink-Token": token},
         method="GET",
     )
+    request.add_unredirected_header("X-Uoink-Token", token)
     try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
+        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         seen = evidence + f"; conformance read: HTTP {e.code}"
+        if 300 <= e.code < 400:
+            e.close()
+            return _bad("contract_mismatch", "uoink redirected the conformance read", seen, retryable=False)
         if e.code in (401, 403):
             return _bad(
                 "authentication_failed",

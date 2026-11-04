@@ -581,7 +581,7 @@ def _normalize(media: Path, fps: float) -> Path:
     (local copy), so nothing irreplaceable is discarded."""
     tmp = media.with_name("media_normalizing.mp4")
     cmd = [
-        "ffmpeg", "-y", "-i", str(media),
+        "ffmpeg", "-nostdin", "-y", "-i", str(media),
         "-fps_mode", "cfr", "-r", f"{fps:.3f}",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
         "-c:a", "aac", "-b:a", "192k",

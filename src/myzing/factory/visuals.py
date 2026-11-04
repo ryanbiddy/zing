@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import html
 import io
+import ipaddress
 import json
 import os
 import re
@@ -283,9 +284,11 @@ class Http:
 
     def open(self, url, headers=None, timeout=20, method="GET", data=None):
         self._pace()
-        req = urllib.request.Request(safe_url(url), method=method, data=data,
+        url = safe_url(url)
+        _check_host(url)
+        req = urllib.request.Request(url, method=method, data=data,
                                      headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})})
-        return urllib.request.urlopen(req, timeout=timeout)
+        return urllib.request.build_opener(_PublicRedirect()).open(req, timeout=timeout)
 
     def get_json(self, url, headers=None, timeout=20):
         with self.open(url, headers, timeout) as r:
@@ -330,6 +333,24 @@ def safe_url(u: str) -> str:
     path = urllib.parse.quote(p.path, safe="/%~-._!$&'()*+,;=:@")
     query = urllib.parse.quote(p.query, safe="=&%~-._!$'()*+,;:@/?")
     return urllib.parse.urlunsplit((scheme, p.netloc, path, query, ""))
+
+
+def _check_host(url: str) -> None:
+    p = urllib.parse.urlsplit(url)
+    addresses = socket.getaddrinfo(p.hostname, p.port or (443 if p.scheme == "https" else 80), type=socket.SOCK_STREAM)
+    if not addresses or any(not ipaddress.ip_address(row[4][0]).is_global for row in addresses):
+        raise ValueError(f"refusing private address {p.hostname}")
+
+
+class _PublicRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        try:
+            newurl = safe_url(newurl)
+            _check_host(newurl)
+        except (ValueError, OSError):
+            fp.close()
+            raise
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 class TooLarge(ValueError):
@@ -879,6 +900,7 @@ def _og_from_html(http: Http, url: str) -> tuple[str | None, str | None, str | N
 
 
 def capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: bool = True) -> list[dict]:
+    _check_host(safe_url(url))
     out = []
     hid = h8(url)
     shot = folder / f"screenshot_{hid}.png"
@@ -991,7 +1013,9 @@ def probe_video(path_or_url) -> dict:
             raise ValueError("not an mp4/webm container")
         args = [src]
     else:
-        args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp", safe_url(src)]
+        src = safe_url(src)
+        _check_host(src)
+        args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp", src]
     p = subprocess.run([str(FFPROBE), "-v", "error", "-select_streams", "v:0", "-show_entries",
                         "stream=width,height,codec_name:format=duration", "-of", "json"] + args,
                        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
@@ -1055,6 +1079,8 @@ def fetch_video(ctx, c: dict, url: str, folder: Path):
             # input-side seek is fast (mp4); some hosts' webm can't seek remotely, so fall back to reading from
             # the start and seeking on the output side (bounded at 15 s so we don't stream much)
             for seek_in, s in ((True, start), (False, min(start, 15.0))):
+                url = safe_url(url)
+                _check_host(url)
                 seek = ["-ss", f"{s:.1f}"]
                 subprocess.run([str(FFMPEG), "-v", "error", "-y", "-user_agent", UA, "-protocol_whitelist",
                                 "https,http,tls,tcp"] + (seek if seek_in else []) + ["-i", safe_url(url)] +

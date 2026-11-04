@@ -39,6 +39,8 @@ def _source_dimensions(plan):
 def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None, *, draft_minimum=24.):
     """(style, None) when the wrapped caption fits its box at >= 24 px, else (None, reason)."""
     from myzing.layout.readability import phone_minimum
+    from myzing.ffmpeg_capabilities import caption_filter
+    renderer = caption_filter("ffmpeg")
     minimum = phone_minimum(plan, caption, sizes) if plan.brief and plan.brief.caption_mode == "phone" else 24
     minimum = max(minimum, draft_minimum)
     style = replace(style, size=max(style.size, minimum / scale))
@@ -47,7 +49,7 @@ def _fit(caption, style, scale, width, height, font, em, plan, root, sizes=None,
         from myzing.render.validation import EDLValidationError
         try:
             left, top, right, bottom = _measure(caption, measured, font, caption_runs(caption),
-                plan.width, plan.height, root, "ffmpeg", "ass", em)
+                plan.width, plan.height, root, "ffmpeg", renderer, em)
         except EDLValidationError as exc:
             if "text exceeds frame bounds" not in str(exc):
                 raise

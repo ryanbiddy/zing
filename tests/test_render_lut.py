@@ -40,7 +40,9 @@ def test_e2e1_v2_no_lut_commands_and_graph_are_byte_identical(monkeypatch):
     for version in (6, 9):
         monkeypatch.setattr(pipeline, "ffmpeg_major_version", lambda _, v=version: v)
         cmd = pipeline._ffmpeg_command("ffmpeg", graph, Path("graph.txt"), Path("output.mp4"), v, rate)
-        assert json.dumps(cmd).encode() == json.dumps(baseline["commands"][str(version)]).encode()
+        expected = baseline["commands"][str(version)].copy()
+        expected.insert(1, "-nostdin")
+        assert json.dumps(cmd).encode() == json.dumps(expected).encode()
 
 
 @pytest.mark.parametrize("strength", [0, .5, 1])

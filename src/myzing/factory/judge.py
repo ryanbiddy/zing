@@ -38,6 +38,19 @@ def parse(text: str) -> dict:
     return value
 
 
+def split_prompt(text: str, project: Path) -> tuple[str, list[str]]:
+    root, images = project.resolve(), []
+    while match := re.match(r"\A<!-- image: ([^\r\n]+) -->(?:\r?\n|$)", text):
+        try:
+            path = Path(match[1]).resolve()
+            if path.is_relative_to(root):
+                images.append(path.as_posix())
+        except (OSError, ValueError):
+            pass
+        text = text[match.end():]
+    return text, images
+
+
 class Judge:
     def __init__(self, project: Path, backend: str = "host", model: str = DEFAULT_MODEL, retry_wait: float = 60.0):
         if backend not in ("host", "claude"):
@@ -81,7 +94,7 @@ class Judge:
         out = []
         for path in sorted(folder.glob("*.md")) if folder.is_dir() else []:
             text = path.read_text(encoding="utf-8")
-            images = re.findall(r"^<!-- image: (.+?) -->$", text, re.M)
+            _, images = split_prompt(text, self.project)
             out.append({"task": path.stem, "prompt_path": str(path), "images": images})
         return out
 

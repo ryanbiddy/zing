@@ -67,7 +67,9 @@ def test_pre_r9_v1_commands_graph_and_ass_are_byte_identical(tmp_path, monkeypat
     for version in (6, 9):
         monkeypatch.setattr(pipeline, "ffmpeg_major_version", lambda _, v=version: v)
         cmd = pipeline._ffmpeg_command("ffmpeg", graph, Path("graph.txt"), Path("output.mp4"), v)
-        assert json.dumps(cmd).encode() == json.dumps(baseline["commands"][str(version)]).encode()
+        expected = baseline["commands"][str(version)].copy()
+        expected.insert(1, "-nostdin")
+        assert json.dumps(cmd).encode() == json.dumps(expected).encode()
     ass = generate_ass(edl.captions, edl.width, edl.height, tmp_path / "captions.ass")
     # The original pysubs2 save uses native newlines; pin both original byte
     # streams instead of changing v1 to make a cross-platform golden pass.
