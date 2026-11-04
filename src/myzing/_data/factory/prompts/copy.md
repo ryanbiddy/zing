@@ -9,12 +9,14 @@ Rules:
 - YouTube Shorts title: max 60 characters, no clickbait words the clip doesn't deliver.
 - The source is from {DATE}. Anything about rules, numbers, deadlines or "current" status must be anchored to that date ("In 2020, NASA…", "the 2017 class"). Never write "now", "this year", "just announced" or "new" about an older source.
 - First comment: the source link placeholder {SOURCE_URL} and the timestamp {TIMESTAMP}.
+- NEWS PEG (when given) is today's news and the clip is its backstory: the first sentence states the news peg, then the clip's words tell how it happened. The speaker's own claims stay anchored to the source date.
 
 Return ONLY a JSON object, no prose, no code fence:
 {"x": str, "instagram": str, "tiktok": str, "youtube_title": str, "first_comment": str}
 
 SOURCE: {SOURCE}
 SOURCE DATE: {DATE}
+NEWS PEG: {NEWS}
 HOOK: {HOOK}
 TRANSCRIPT:
 {TEXT}

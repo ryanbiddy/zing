@@ -9,8 +9,12 @@ FILLER = {"and", "so", "yeah", "well", "um", "uh", "like", "okay", "ok"}
 
 
 def prompt(segments: list[dict], n: int, mode: str = "context", *, focus: str | None = None,
-           taste: list[dict] | None = None) -> str:
+           taste: list[dict] | None = None, news: dict | None = None) -> str:
     lines = "\n".join(f"[{s['s']:.1f}-{s['e']:.1f}] {s['text']}" for s in segments)
+    if news:   # the clips are the backstory to today's news
+        lines = (f"NEWS PEG: {news['peg']}\nThese clips are posted as \"here's how it happened\" shorts about this news. "
+                 "Favor moments where the speaker explains how it came about: the origin, the turning points, the bets "
+                 "and the numbers.\n\n" + lines)
     return (data_path("prompts", "scout-launch.md" if mode == "launch" else "scout.md").read_text(encoding="utf-8")
             .replace("{N}", str(n)).replace("{STEER}", steer(focus, taste)).replace("{TRANSCRIPT}", lines))
 
