@@ -145,3 +145,16 @@ def test_mcp_factory_clip(tmp_path):
     assert not mcp_server.h_factory_clip(str(root), bench=0)["ok"]
     assert not mcp_server.h_factory_clip(str(root))["ok"]
     assert not mcp_server.h_factory_clip(str(root), start=20, end=21)["ok"]
+
+
+def test_a_clip_picked_in_an_older_project_is_still_timed(tmp_path, monkeypatch):
+    root = project(tmp_path, moments=1)
+    (root / "moments.json").write_text(json.dumps({"moments": [{"hook": "Old", "start": 10, "end": 40}], "snapped": True}),
+                                       encoding="utf-8")                     # written before hand-picked clips
+    asked = []
+    monkeypatch.setattr(source, "transcribe_moments", lambda media, pieces: asked.extend(pieces) or [])
+    assert pipeline.add_clip(root, 100, 130) == "clip02"
+    got = moments(root)
+    assert asked == [{"start": 100, "end": 130}]                            # only the new clip needs word timing
+    assert [m["snapped"] for m in got] == [True, True] and got[0]["hook"] == "Old"
+    assert json.loads((root / "moments.json").read_text(encoding="utf-8"))["scouted"] is True

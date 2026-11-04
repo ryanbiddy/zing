@@ -92,10 +92,7 @@ def _transcript(project: Path, media: Path, say) -> list[dict]:
 
 def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[dict]:
     path = project / "moments.json"
-    data = _read(path) or {}
-    if data.get("snapped") is True:                 # written before clips could be picked by hand: all scouted, all snapped
-        data = {"moments": [{**m, "snapped": True} for m in data["moments"]], "bench": data.get("bench", []),
-                "scouted": True}
+    data = load_moments(project)
     moments = data.get("moments", [])
     if not data.get("scouted"):
         segments = _transcript(project, media, say)     # also what clips are picked from by hand
@@ -129,6 +126,15 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
 
 
 # ----------------------------------------------------------------------------- steering by hand
+def load_moments(project: Path) -> dict:
+    """moments.json. A file written before clips could be picked by hand had every clip scouted and snapped."""
+    data = _read(Path(project) / "moments.json") or {}
+    if data.get("snapped") is True:
+        data = {"moments": [{**m, "snapped": True} for m in data.get("moments", [])], "bench": data.get("bench", []),
+                "scouted": True}
+    return data
+
+
 def show_slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(name).lower()).strip("-")[:60]
 
@@ -145,7 +151,7 @@ def taste(project: Path, cfg: dict) -> list[dict]:
         rows = [json.loads(line) for line in _show_file(cfg["show"]).read_text(encoding="utf-8").splitlines()
                 if line.strip()]
     else:
-        moments = (_read(project / "moments.json") or {}).get("moments", [])
+        moments = load_moments(project).get("moments", [])
         rows = [{"project": "", "clip": clip, "hook": moments[int(clip[4:]) - 1].get("hook", ""),
                  "topic": moments[int(clip[4:]) - 1].get("topic", ""), **r}
                 for clip, r in (_read(project / "ratings.json") or {}).items()
@@ -168,7 +174,7 @@ def rate(project: Path, clip: str, v: str | None, why: str = "") -> dict:
     _write(project / "ratings.json", ratings)
     cfg = _read(project / "factory.json", {})
     if cfg.get("show") and v:
-        m = _read(project / "moments.json")["moments"][i - 1]
+        m = load_moments(project)["moments"][i - 1]
         hook = ((_read(project / clip / "plan.json") or {}).get("hook") or m.get("hook", "")).replace("*", "")
         history = _show_file(cfg["show"])
         history.parent.mkdir(parents=True, exist_ok=True)
@@ -179,7 +185,7 @@ def rate(project: Path, clip: str, v: str | None, why: str = "") -> dict:
 
 
 def _clip_number(project: Path, clip: str) -> int:
-    moments = (_read(project / "moments.json") or {}).get("moments", [])
+    moments = load_moments(project).get("moments", [])
     if not isinstance(clip, str) or not re.fullmatch(r"clip\d{2}", clip) or not 1 <= int(clip[4:]) <= len(moments):
         raise FactoryError(f"unknown clip {clip!r}")
     return int(clip[4:])
@@ -204,7 +210,7 @@ def add_clip(project: Path, start, end, hook: str = "") -> str:
     """Add a clip picked by hand; the next run snaps it to sentences, cuts and plans it. Returns its clip id."""
     project = Path(project).resolve()
     a, b = check_range(project, start, end)
-    data = _read(project / "moments.json") or {"moments": [], "bench": []}
+    data = {"moments": [], "bench": [], **load_moments(project)}
     data["moments"] = data.get("moments", []) + [{"hook": str(hook or "").strip()[:120], "why": "picked by hand",
                                                   "topic": "", "score": "", "start": a, "end": b, "by": "hand"}]
     _write(project / "moments.json", data)
@@ -214,7 +220,7 @@ def add_clip(project: Path, start, end, hook: str = "") -> str:
 def make_bench(project: Path, index: int) -> str:
     """Make one of the scout's runners-up (0-based, in the order status lists them). Returns its clip id."""
     project = Path(project).resolve()
-    data = _read(project / "moments.json") or {}
+    data = load_moments(project)
     bench = data.get("bench", [])
     if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(bench):
         raise FactoryError("no such runner-up")
@@ -228,7 +234,7 @@ def trim(project: Path, clip: str, start, end) -> str:
     """Move a clip's in and out points; the next run re-cuts, re-plans and re-renders it."""
     project = Path(project).resolve()
     i = _clip_number(project, clip)
-    data = _read(project / "moments.json")
+    data = load_moments(project)
     m = data["moments"][i - 1]
     if m.get("spans"):
         raise FactoryError(f"{clip} is a film made of several parts; trim it with redo scout instead")
@@ -342,7 +348,8 @@ def status(project: Path, judge: Judge | None = None) -> dict:
     project = Path(project).resolve()
     judge = judge or Judge(project)
     cfg = _read(project / "factory.json", {})
-    moments = (_read(project / "moments.json") or {}).get("moments", [])
+    data = load_moments(project)
+    moments = data.get("moments", [])
     clips = []
     for i, m in enumerate(moments, 1):
         d = project / f"clip{i:02d}"
@@ -350,7 +357,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
                       "renders": sorted(p.name for p in d.glob("clip*.mp4")) if d.is_dir() else [],
                       "copy": (d / "post.json").is_file(), **({"by": "hand"} if m.get("by") == "hand" else {})})
     bench = [{"hook": m["hook"].replace("*", ""), "why": m.get("why", ""), "topic": m.get("topic", ""),
-              "start": m["start"], "end": m["end"]} for m in (_read(project / "moments.json") or {}).get("bench", [])]
+              "start": m["start"], "end": m["end"]} for m in data.get("bench", [])]
     return {"project": str(project), **(_read(project / "status.json") or {"state": "new"}), "settings": cfg,
             "pending": judge.pending(), "clips": clips, "bench": bench, "usage": judge.usage(),
             "review": str(project / "index.html") if (project / "index.html").is_file() else None}
