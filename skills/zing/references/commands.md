@@ -31,7 +31,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
-| `zing factory` | `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `serve` (local review dashboard with ratings, context flags, clips from the transcript and trimming), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs`, `doctor`. Nothing is posted. |
+| `zing factory` | `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs`, `doctor`. Nothing is posted. |
 | `zing playbook` | List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
@@ -53,6 +53,32 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
+
+## Factory vocabulary
+
+```sh
+zing factory new talk --media talk.mp4 --vocab "Pompliano, Starbase" --vocab "Vermilion Parish"
+```
+
+Repeat `--vocab` or separate terms with commas. The supplied spellings are saved in
+`factory.json` for transcription and caption fixes. Names from the brand, source,
+tag or show are not added. Limits match study vocabulary. Up to 64 terms,
+80 characters per term and 500 UTF-8 bytes including comma-space separators.
+Oversized lists are rejected. Set the list when creating the project.
+
+## Factory guest approval
+
+```sh
+zing factory approval talk
+zing factory approval talk --out talk/guest.html
+```
+
+Writes `talk/approval.html` by default. `--out FILE` changes the output path.
+Each rendered 9x16 clip in the project's style pack includes its hook, full
+transcript and any saved before/after context. The guest chooses Yes or No, adds
+comments, then uses **Copy my answers** to get plain text. The page stays local.
+Keep the HTML inside the project folder and share the folder as a zip so its
+relative video paths still work. No MCP tool is added.
 
 ## Match a reference
 

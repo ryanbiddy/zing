@@ -613,6 +613,7 @@ const ui = {
   shape: {},            // clip id -> shape id
   pack: {},             // clip id -> pack id for re-render
   drafts: {},           // "clip:field" -> unsaved text
+  rated: {},            // clip id -> last rating sent
   why: {},              // clip id -> why text
   receipts: {},         // clip id -> receipt open
   lines: null,          // transcript segments, loaded on demand
@@ -657,7 +658,7 @@ function fileFor(c, shape, pack) {
   const name = "clip" + (shape === "9x16" ? "" : "-" + shape) + (!pack || pack === "zing" ? "" : "-" + pack) + ".mp4";
   return names.includes(name) ? name : null;
 }
-function shapesFor(c) { return SHAPES.filter(s => fileFor(c, s.id, defaultPack())); }
+function shapesFor(c) { return SHAPES.filter(s => fileFor(c, s.id, ui.pack[c.clip] || defaultPack())); }
 
 function chosenIndex(c, reqId) {
   const list = (c.candidates && c.candidates[reqId]) || [];
@@ -758,7 +759,9 @@ async function act(button, call, okMsg) {
 }
 
 /* ---------- load ---------- */
+let pollTimer = 0;
 async function load() {
+  clearTimeout(pollTimer);
   try {
     ui.project = await api.project();
     ui.sample = false;
@@ -769,6 +772,9 @@ async function load() {
     }
   }
   render();
+  clearTimeout(pollTimer);
+  if (!ui.sample && (ui.project.state === "running" || (ui.project.jobs || []).length))
+    pollTimer = setTimeout(load, 1500);
 }
 
 /* ---------- render ---------- */
@@ -814,15 +820,17 @@ function render() {
     : el("span", {}, el("strong", { text: "0 decisions" }), " waiting on your agent"));
 
   const pend = $("#pending");
-  pend.hidden = !pending.length;
+  pend.hidden = !pending.length && !p.error;
+  pend.replaceChildren();
+  if (p.error) pend.append(el("div", { class: "note fail", role: "alert", text: p.error }));
   if (pending.length) {
-    pend.replaceChildren(el("div", {},
+    pend.append(el("div", {},
       el("b", { text: "Your agent needs to decide:" }),
       el("ul", {}, pending.map(t => el("li", { text: describeTask(t) })))));
   }
 
   const run = $("#run-btn");
-  const running = p.state === "running";
+  const running = p.state === "running" || (p.jobs || []).length > 0;
   run.disabled = running;
   run.toggleAttribute("aria-busy", running);
   run.textContent = running ? "Running" : "Run";
@@ -879,7 +887,7 @@ function clipCard(c) {
   let shape = ui.shape[c.clip];
   if (!shape || !shapes.some(s => s.id === shape)) shape = (shapes[0] || SHAPES[0]).id;
   ui.shape[c.clip] = shape;
-  const file = fileFor(c, shape, defaultPack()) || videoNames(c)[0];
+  const file = fileFor(c, shape, ui.pack[c.clip] || defaultPack()) || videoNames(c)[0];
 
   const player = el("div", { class: "player", "data-shape": shape });
   const video = el("video", { controls: true, preload: "metadata", playsinline: true,
@@ -917,16 +925,18 @@ function clipCard(c) {
     el("span", { class: "icon", "aria-hidden": "true" }, "!"), el("span", {}, el("b", { text: "Rights: " }), r))));
 
   const whyId = "why-" + c.clip;
-  const rated = c.rating && c.rating.v;
+  const why = () => ui.why[c.clip] ?? c.rating?.why ?? "";
+  const rated = ui.rated[c.clip] ?? c.rating?.v;
   const suggestNo = !rated && c.context && c.context.flags.length > 0;
-  const whyInput = el("input", { class: "field", id: whyId, type: "text", value: ui.why[c.clip] || "",
+  const whyInput = el("input", { class: "field", id: whyId, type: "text", value: why(),
     placeholder: "Optional, helps your agent learn",
     oninput: e => { ui.why[c.clip] = e.target.value; } });
   const rateBtn = (v, label) => el("button", {
     class: "button small" + (v === "no" && suggestNo ? " suggested" : ""), type: "button", "aria-pressed": String(rated === v),
     title: v === "no" && suggestNo ? "Suggested while context needs review" : null,
     onclick: e => {
-      act(e.currentTarget, () => api.rate(c.clip, v, ui.why[c.clip] || ""),
+      ui.rated[c.clip] = v;
+      act(e.currentTarget, () => api.rate(c.clip, v, why()),
         v === "post" ? "Marked to post." : v === "fix" ? "Marked to post with edits." : "Marked as no.");
     }
   }, label);
@@ -1020,7 +1030,8 @@ function requestBlock(c, r) {
   list.forEach((cand, i) => {
     const isChosen = i === chosen;
     const imgBox = el("div", { class: "img" });
-    const img = el("img", { alt: "", loading: "lazy", src: api.media(c.clip, "visuals/" + cand.path) });
+    const preview = cand.media_type === "video" ? cand.path.replace(/\.[^.]+$/, ".pick.jpg") : cand.path;
+    const img = el("img", { alt: "", loading: "lazy", src: api.media(c.clip, "visuals/" + preview) });
     img.addEventListener("error", () => imgBox.classList.add("broken"));
     imgBox.append(img, el("span", { class: "ph", text: cand.source ? "Preview from " + cand.source : "No preview" }));
     const rightsBad = cand.rights && cand.rights !== "cleared";
@@ -1140,6 +1151,7 @@ async function startTrim(c) {
   let a = 0;
   L.forEach((s, i) => { if (s.s <= c.start + 0.3) a = i; });
   let b = L.findIndex(s => s.e >= c.end - 0.3);
+  if (b < 0) b = L.length - 1;
   if (b < a) b = a;
   ui.pick = { a, b, wantEnd: false, clip: c.clip, hook: "", find: "" };
   renderPicker();

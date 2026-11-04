@@ -10,6 +10,7 @@ Layouts:
   - title {"kind":"title","text":"Introducing *<name>*"} and endcard {"kind":"endcard","name":str,"url"?:str,"line"?:str}: launch films only (see the style)
   - quote {"kind":"quote","text":"exact words from the transcript, max 14 words, *mark* 1–3 key words"}: the captions take over. The speaker stays on screen, dimmed, while the line builds word by word in big type with the marked words highlighted, then it steps away. Use it once per clip at most, for the line a viewer would screenshot.
 - Any shot may carry "label": {"name": str, "role"?: str}, a name tag shown for its first seconds, when the speaker (or the person pictured) is first named. Only a name and role the clip says, or the BRAND gives.
+- NEWS (when given) is today's news this clip is the backstory to, with article links. Open on it: the hook may state the news peg (max 7 words), and the first visual is a screenshot of one NEWS link ({"kind": "screenshot", "url": <that link exactly>}) shown "split" in the first 6 seconds. At most two news screenshots per clip, and only NEWS links as their urls. Then tell how it happened with the speaker's own words.
 
 Rules:
 - The first shot starts at 0 and carries the hook. It should be "split" with a strong visual or "solo".
@@ -28,11 +29,12 @@ Return ONLY a JSON object, no prose, no code fence:
 {"hook": str, "hook_until": seconds (2.5–3.5), "sensitive": bool, "sensitive_reason"?: str,
  "fixes": [{"heard": "<exact words as in WORDS>", "meant": "<the corrected words>"}],
  "shots": [{"from": seconds, "layout": "solo"|"split"|"graphic", "visual"?: "<request id>", "graphic"?: {...}, "label"?: {...}}],
- "visual_requests": [{"id": "v1", "query": str, "kind": "photo"|"video"|"logo"|"gif", "entity"?: "<canonical name of the named company, product, person, place or org>", "url"?: "<its official website or the exact page being discussed, only if you are certain it exists>", "context": "<what the speaker says there>"}]}
+ "visual_requests": [{"id": "v1", "query": str, "kind": "photo"|"video"|"logo"|"gif"|"screenshot", "entity"?: "<canonical name of the named company, product, person, place or org>", "url"?: "<its official website or the exact page being discussed, only if you are certain it exists>", "context": "<what the speaker says there>"}]}
 
 BRAND: {BRAND}
+NEWS: {NEWS}
 CLIP: {TOPIC}
 SCOUT HOOK: {HOOK}
 DURATION: {DURATION} s
-WORDS (output time in seconds, then the word):
+{SPELLINGS}WORDS (output time in seconds, then the word):
 {WORDS}

@@ -140,11 +140,11 @@ def studio_server(tmp_path, monkeypatch):
     studio = serve.Studio(project)
     rendered = []
     monkeypatch.setattr(studio, "_rerender", lambda d: rendered.append(d.name))
-    monkeypatch.setattr(serve.plan, "finalize", lambda d, raw, found: rendered.append(("final", sorted(found))))
+    monkeypatch.setattr(serve.plan, "finalize", lambda d, raw, found, *a, **kw: rendered.append(("final", sorted(found))))
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
-    server = ThreadingHTTPServer(("127.0.0.1", port), serve.handler(studio, port))
+    server = ThreadingHTTPServer(("127.0.0.1", port), serve.handler(studio, port, "test-session"))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     yield port, project, studio, rendered
     server.shutdown()
@@ -153,7 +153,7 @@ def studio_server(tmp_path, monkeypatch):
 def call(port, method, path, body=None, headers=None):
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     conn.request(method, path, json.dumps(body) if body is not None else None,
-                 {"Content-Type": "application/json", **(headers or {})})
+                 {"Content-Type": "application/json", "Cookie": f"zing_dash_{port}=test-session", **(headers or {})})
     res = conn.getresponse()
     data = res.read()
     return res.status, data, dict(res.getheaders())
@@ -179,7 +179,8 @@ def test_dashboard_refuses_other_sites(studio_server):
     assert call(port, "GET", "/api/project", headers={"Host": f"evil.example:{port}"})[0] == 403
     assert call(port, "POST", "/api/rate", {"clip": "clip01", "v": "post"}, {"Origin": "https://evil.example"})[0] == 403
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-    conn.request("POST", "/api/rate", "clip=clip01", {"Content-Type": "application/x-www-form-urlencoded"})
+    conn.request("POST", "/api/rate", "clip=clip01", {"Content-Type": "application/x-www-form-urlencoded",
+                                                  "Cookie": f"zing_dash_{port}=test-session"})
     assert conn.getresponse().status == 415
     assert not (project / "ratings.json").exists()
 
