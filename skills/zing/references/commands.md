@@ -54,6 +54,18 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 
+## Factory vocabulary
+
+```sh
+zing factory new talk --media talk.mp4 --vocab "Pompliano, Starbase" --vocab "Vermilion Parish"
+```
+
+Repeat `--vocab` or separate terms with commas. The supplied spellings are saved in
+`factory.json` for transcription and caption fixes. Names from the brand, source,
+tag or show are not added. Limits match study vocabulary. Up to 64 terms,
+80 characters per term and 500 UTF-8 bytes including comma-space separators.
+Oversized lists are rejected. Set the list when creating the project.
+
 ## Match a reference
 
 ```sh

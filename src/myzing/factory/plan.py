@@ -27,12 +27,15 @@ def words_block(words: list[dict]) -> str:
     return "\n".join(out)
 
 
-def prompt(moment: dict, words: dict, mode: str = "context", brand: dict | None = None) -> str:
+def prompt(moment: dict, words: dict, mode: str = "context", brand: dict | None = None,
+           vocab: list[str] | None = None) -> str:
     from .postcopy import brand_line
     text = data_path("prompts", "plan.md").read_text(encoding="utf-8")
+    spellings = ("SPELLINGS: " + ", ".join(vocab) + "\n"
+                 "Names and terms in SPELLINGS are spelled exactly so; a near-miss in WORDS is a fix.\n") if vocab else ""
     for k, v in {"{TOPIC}": moment.get("topic", ""), "{HOOK}": moment["hook"] or NO_HOOK,
                  "{DURATION}": f"{words['duration']:.1f}",
-                 "{BRAND}": brand_line(brand),
+                 "{BRAND}": brand_line(brand), "{SPELLINGS}": spellings,
                  "{WORDS}": words_block(words["words"]),
                  "{STYLE}": data_path("prompts", f"style-{mode}.md").read_text(encoding="utf-8").strip()}.items():
         text = text.replace(k, v)

@@ -2,6 +2,8 @@
 
 ## Clip factory
 
+- `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
+  and terms for episode transcription, word timing and the planner's caption fixes.
 - Each clip gets a `receipt.json` of its planned additions, with time ranges,
   sources and known licenses. Overlaps count once. The dashboard shows the receipt
   and `zing factory status` reports its share. Visual swaps and hook edits refresh
