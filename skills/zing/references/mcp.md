@@ -31,8 +31,8 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `plan_drafts` | Project, recipe and output paths plus seed; three Composition v2 plans, supported v1 derivatives and a comparison, or named shortages. No study/render/network. |
 | `zing_moments` | Rank complete transcript windows from a cached clip or study; Estimated reasons and must-keep JSON, no model calls or automatic selection. |
 | `factory_new` | Start a clip-factory project from a local episode and optional SRT/VTT/word JSON. Settings: moments (0 = only clips you pick), mode, shapes, style pack, public-only visuals, focus (what to clip), show (Post/No calls teach its next episode), cutout. |
-| `factory_run` | Background, resumable: transcribe, cut, find visuals, fact-check graphics, render, review page. Stops at judgments; Zing makes no model calls. |
-| `factory_status` | State, pending judgment tasks, renders and review page. |
+| `factory_run` | Transcribe, cut, find visuals, check graphics and context, render and build the review page. Runs in the background and resumes after judgments. Zing makes no model calls. |
+| `factory_status` | State, pending judgment tasks, renders, context flag counts and review page. |
 | `factory_prompt` | One pending prompt; a pick attaches its contact sheet. Answer exactly as it asks. |
 | `factory_answer` | Save a validated JSON answer; then call `factory_run` again. |
 | `factory_clip` | Make a clip by hand: start and end seconds, a scout runner-up (`bench`), or new in and out points for an existing clip. The next `factory_run` cuts, plans and renders it. |

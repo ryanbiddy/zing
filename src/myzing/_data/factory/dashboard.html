@@ -344,6 +344,12 @@
   .receipt summary { min-height: var(--target-primary); padding: 6px 0; color: var(--text); cursor: pointer; }
   .receipt ul { display: grid; gap: 8px; margin: 8px 0; padding-left: 18px; }
   .receipt a { color: var(--info); }
+  .context { display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+  .context ul { display: grid; gap: 8px; margin: 0; padding-left: 18px; }
+  .context blockquote { margin: 4px 0; color: var(--text); }
+  .context summary { min-height: var(--target-primary); padding: 8px 0; cursor: pointer; }
+  .context .window { display: grid; gap: 6px; margin-top: 8px; }
+  .button.suggested { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); box-shadow: 0 0 0 1px var(--warn-line); }
   .rate { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
   .rate-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
   .rate .why { display: grid; gap: 4px; }
@@ -607,7 +613,6 @@ const ui = {
   shape: {},            // clip id -> shape id
   pack: {},             // clip id -> pack id for re-render
   drafts: {},           // "clip:field" -> unsaved text
-  rated: {},            // clip id -> last rating sent
   why: {},              // clip id -> why text
   receipts: {},         // clip id -> receipt open
   lines: null,          // transcript segments, loaded on demand
@@ -699,6 +704,29 @@ function receiptBlock(c) {
     })),
     !r.items.length ? el("p", { text: "No additions in the shot plan." }) : null,
     el("p", { class: "hint", text: "Records planned additions. It does not predict platform reach." }));
+}
+
+function contextBlock(c) {
+  const check = c.context;
+  if (!check) return el("p", { class: "hint", text: "Context check pending." });
+  if (check.error) return el("p", { class: "hint", text: "Context check unavailable." });
+  if (check.skipped) return el("p", { class: "hint", text: "Context check skipped. " + check.skipped });
+  if (!check.flags.length) return el("p", { class: "hint", text: "Context checked" });
+  const kinds = { reversed: "Meaning reversed", qualified: "Qualification left out", joke: "Joke or sarcasm",
+    answer_without_question: "Question left out", dropped_condition: "Condition left out", hook_claim: "Hook claim" };
+  const places = { start: "At the start", end: "At the end", hook: "In the hook" };
+  const spans = check.spans || [check];
+  return el("section", { class: "context note warn", "aria-label": "Check the context" },
+    el("b", { text: "Check the context" }),
+    el("ul", {}, check.flags.map(f => el("li", {},
+      el("b", { text: kinds[f.kind] + " · " + places[f.where] }),
+      el("blockquote", { text: f.quote }), el("p", { text: f.why })))),
+    el("details", {}, el("summary", { text: "Words around the cut" }),
+      spans.map((s, i) => el("div", { class: "window" },
+        spans.length > 1 ? el("b", { text: "Part " + (i + 1) }) : null,
+        ["before", "after"].map(side => el("div", {},
+          el("b", { text: (side === "before" ? "Before" : "After") + " · " + clock(s.window[side][0]) + " to " + clock(s.window[side][1]) }),
+          el("p", { text: s.text[side] || "No transcript here." })))))));
 }
 
 /* ---------- toast ---------- */
@@ -841,6 +869,7 @@ function pendingCard(c) {
       el("h3", { text: stripStars(c.hook) || "Hook comes with the plan" }),
       el("div", { class: "time", text: timeLine(c) })),
     receiptBlock(c),
+    contextBlock(c),
     el("div", { class: "card-foot" },
       el("button", { class: "button small", type: "button", onclick: () => startTrim(c) }, "Trim")));
 }
@@ -888,13 +917,15 @@ function clipCard(c) {
     el("span", { class: "icon", "aria-hidden": "true" }, "!"), el("span", {}, el("b", { text: "Rights: " }), r))));
 
   const whyId = "why-" + c.clip;
+  const rated = c.rating && c.rating.v;
+  const suggestNo = !rated && c.context && c.context.flags.length > 0;
   const whyInput = el("input", { class: "field", id: whyId, type: "text", value: ui.why[c.clip] || "",
     placeholder: "Optional, helps your agent learn",
     oninput: e => { ui.why[c.clip] = e.target.value; } });
   const rateBtn = (v, label) => el("button", {
-    class: "button small", type: "button", "aria-pressed": String(ui.rated[c.clip] === v),
+    class: "button small" + (v === "no" && suggestNo ? " suggested" : ""), type: "button", "aria-pressed": String(rated === v),
+    title: v === "no" && suggestNo ? "Suggested while context needs review" : null,
     onclick: e => {
-      ui.rated[c.clip] = v;
       act(e.currentTarget, () => api.rate(c.clip, v, ui.why[c.clip] || ""),
         v === "post" ? "Marked to post." : v === "fix" ? "Marked to post with edits." : "Marked as no.");
     }
@@ -912,6 +943,7 @@ function clipCard(c) {
       el("h3", { text: stripStars((c.plan && c.plan.hook) || c.hook) }),
       el("div", { class: "time", text: timeLine(c) })),
     receiptBlock(c),
+    contextBlock(c),
     notes,
     el("div", { class: "rate" },
       el("div", { class: "rate-buttons", role: "group", "aria-label": "Rate this clip" },

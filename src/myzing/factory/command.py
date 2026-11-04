@@ -80,7 +80,7 @@ def run(argv: list[str]) -> int:
     trim.add_argument("--end", type=_time, required=True)
     redo = commands.add_parser("redo", help="forget one judgment so the next run asks again")
     redo.add_argument("project", type=Path)
-    redo.add_argument("task", help="scout, or clipNN-plan / clipNN-pick / clipNN-copy")
+    redo.add_argument("task", help="scout, or clipNN-plan / clipNN-pick / clipNN-copy / clipNN-context")
     ren = commands.add_parser("render", help="re-render one clip in a shape and style pack")
     ren.add_argument("clip", type=Path)
     ren.add_argument("--shape", default="9x16")
