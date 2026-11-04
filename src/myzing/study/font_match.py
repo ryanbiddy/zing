@@ -443,7 +443,6 @@ def match_study(slug: str, workspace: Path | None = None) -> tuple[Path, FontCan
         result = match_geometry(media, geometry)
         raw["font_candidates"] = result.to_dict()
         # Preserve unfamiliar top-level fields for forward-compatible writers.
-        import os
         import tempfile
         temporary = None
         try:
@@ -452,7 +451,7 @@ def match_study(slug: str, workspace: Path | None = None) -> tuple[Path, FontCan
                 temporary = Path(stream.name)
                 json.dump(raw, stream, indent=2, ensure_ascii=False, allow_nan=False)
                 stream.write("\n")
-            os.replace(temporary, path)
+            storage._replace(temporary, path)
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)

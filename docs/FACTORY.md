@@ -118,6 +118,16 @@ Answers are cached as `clipNN-context`. Trims, new cuts and hook edits clear the
 old check. To ask again, run `zing factory redo talk clip03-context`, then run
 the project. The existing number and quote fact checks still run.
 
+## Input limits
+
+- Prompt image directives count only in the leading block. Attached files must resolve
+  inside the project folder. Directive lines in the transcript stay as text.
+- Visual downloads and page captures refuse local and private network addresses.
+  HTTP download redirects receive the same check.
+- Plans drop shots with negative or nonfinite times, or times more than three seconds
+  after the last word. An end card starts at most three seconds after the last word
+  and holds for three seconds.
+
 ## Steer which moments become clips
 
 - `--focus "the pricing argument"` (or "funny moments", "anything about hiring") tells

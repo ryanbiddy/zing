@@ -145,7 +145,7 @@ class CaptionGeometry(JsonRecord):
     def write(self, folder: Path) -> Path:
         path = folder / FILENAME
         # A failed write must not leave half a JSON document at the public path.
-        import os
+        from myzing.storage import _replace
         import tempfile
         temporary = None
         try:
@@ -176,7 +176,7 @@ class CaptionGeometry(JsonRecord):
                         json.dump(value, stream, ensure_ascii=False, allow_nan=False, separators=(",", ":"))
                 stream.write("}")
                 stream.write("\n")
-            os.replace(temporary, path)
+            _replace(temporary, path)
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)

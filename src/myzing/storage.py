@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterator
@@ -309,6 +310,18 @@ def resolve_relpath(slug: str, rel: str) -> Path:
 # lives ON DISK so a crashed helper leaves honest state, never an
 # in-memory-only lie. States: running | done | failed.
 
+def _replace(source, target):
+    import time
+    for attempt in range(50):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:                      # Windows readers may briefly hold the old file open
+            if attempt == 49:
+                raise
+            time.sleep(0.002)
+
+
 def write_status_at(d: Path, **fields: Any) -> Path:
     """Merge fields into ``d/status.json`` (created if absent) — the
     generic on-disk job state used by study AND render jobs (S4).
@@ -332,19 +345,7 @@ def write_status_at(d: Path, **fields: Any) -> Path:
     try:
         with os.fdopen(handle, "w", encoding="utf-8") as f:
             f.write(payload)
-        # Windows: os.replace is denied while a reader momentarily holds
-        # the destination open (no FILE_SHARE_DELETE in CPython's open).
-        # Readers hold it for microseconds — retry briefly, then raise.
-        import time as _time
-
-        for attempt in range(50):
-            try:
-                os.replace(tmp_name, path)
-                break
-            except PermissionError:
-                if attempt == 49:
-                    raise
-                _time.sleep(0.002)
+        _replace(tmp_name, path)
     except OSError:
         Path(tmp_name).unlink(missing_ok=True)
         raise
@@ -424,7 +425,7 @@ def save_breakdown(
                     b.judgment = prior["judgment"]
             except (OSError, ValueError):
                 pass  # corrupt prior file: nothing to preserve
-        json_path.replace(d / "breakdown.json.bak")
+        shutil.copyfile(json_path, d / "breakdown.json.bak")
 
     _write_breakdown_json(d, b)
     if markdown is not None:
@@ -434,9 +435,16 @@ def save_breakdown(
 
 def _write_breakdown_json(d: Path, b: Breakdown) -> None:
     """The one place breakdown.json is serialized — format can't drift."""
-    (d / "breakdown.json").write_text(
-        b.to_json(indent=2) + "\n", encoding="utf-8"
-    )
+    import tempfile
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=d, suffix=".part", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(b.to_json(indent=2) + "\n")
+        _replace(temporary, d / "breakdown.json")
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def load_breakdown(slug: str) -> Breakdown:

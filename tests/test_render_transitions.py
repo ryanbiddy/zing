@@ -29,7 +29,9 @@ def test_frozen_graded_cut_graph_and_ffmpeg_6_9_commands(monkeypatch):
     for version in (6, 9):
         monkeypatch.setattr(pipeline, "ffmpeg_major_version", lambda _, v=version: v)
         command = pipeline._ffmpeg_command("ffmpeg", graph, Path("graph.txt"), Path("output.mp4"), v, "30/1")
-        assert json.dumps(command).encode() == json.dumps(baseline["commands"][str(version)]).encode()
+        expected = baseline["commands"][str(version)].copy()
+        expected.insert(1, "-nostdin")
+        assert json.dumps(command).encode() == json.dumps(expected).encode()
 
 
 @pytest.mark.parametrize("kind", ["dip_to_black", "dip_to_white"])
