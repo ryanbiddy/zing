@@ -54,6 +54,8 @@ def run(argv: list[str]) -> int:
     new.add_argument("--news", action="append", default=[], metavar="URL",
                      help="an article about the news peg (repeatable); clips open on its headline")
     new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
+    new.add_argument("--offline", action="store_true", help="fetch nothing; use the host judge and local media")
+    new.add_argument("--visuals", type=Path, metavar="DIR", help="use images and videos from this folder")
     new.add_argument("--no-parallax", dest="parallax", action="store_false",
                      help="keep photos flat instead of moving through their depth")
     new.add_argument("--cutout", action="store_true",
@@ -67,7 +69,7 @@ def run(argv: list[str]) -> int:
                     help="host: write prompts for you or your agent to answer; claude: ask Claude Code's CLI")
     go.add_argument("--model", default=None, help="model for --judge claude")
     go.add_argument("--clips", type=_clips, help="only these clip numbers, e.g. 1,3")
-    commands.add_parser("status", help="progress, pending prompts and model cost").add_argument("project", type=Path)
+    commands.add_parser("status", help="progress, pending prompts, model cost and network requests").add_argument("project", type=Path)
     ans = commands.add_parser("answer", help="answer a pending prompt with JSON from a file or '-' for stdin")
     ans.add_argument("project", type=Path)
     ans.add_argument("task")
@@ -119,6 +121,8 @@ def run(argv: list[str]) -> int:
     up = commands.add_parser("fetch-upscale", help="download Real-ESRGAN, which sharpens small photos on the GPU "
                                                    "(BSD-3-Clause, about 50 MB)")
     up.add_argument("--yes", action="store_true", help="agree to the download")
+    for fetch in (depth, cut, up):
+        fetch.add_argument("--project", type=Path, help="apply this project's network policy and ledger")
     commands.add_parser("doctor", help="check FFmpeg, Node, the sidecar, a browser and the models")
     args = parser.parse_args(argv)
     try:
@@ -129,7 +133,7 @@ def run(argv: list[str]) -> int:
                                    name=args.name, url=args.url, date=args.date, tag=args.tag,
                                    vocab=[term for group in args.vocab for term in group.split(",")],
                                    mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
-                                   upscale=args.upscale,
+                                   upscale=args.upscale, offline=args.offline, visuals=args.visuals,
                                    **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack,
                                                         "moments": args.moments, "focus": args.focus,
                                                         "show": args.show}.items() if v is not None},
@@ -178,15 +182,15 @@ def run(argv: list[str]) -> int:
             return 0
         elif args.command == "fetch-depth":
             from . import depth
-            path = depth.fetch(consent=args.yes, progress=lambda m: print(m, file=sys.stderr, flush=True))
+            path = depth.fetch(consent=args.yes, project=args.project, progress=lambda m: print(m, file=sys.stderr, flush=True))
             result = {"model": str(path), "verified": True, "license": "Apache-2.0", "revision": depth.REVISION}
         elif args.command == "fetch-cutout":
             from . import cutout
-            path = cutout.fetch(consent=args.yes, progress=lambda m: print(m, file=sys.stderr, flush=True))
+            path = cutout.fetch(consent=args.yes, project=args.project, progress=lambda m: print(m, file=sys.stderr, flush=True))
             result = {"model": str(path), "verified": True, "license": "Apache-2.0", "source": cutout.URL}
         elif args.command == "fetch-upscale":
             from . import upscale
-            path = upscale.fetch(consent=args.yes, progress=lambda m: print(m, file=sys.stderr, flush=True))
+            path = upscale.fetch(consent=args.yes, project=args.project, progress=lambda m: print(m, file=sys.stderr, flush=True))
             result = {"program": str(path), "verified": True, "license": "BSD-3-Clause",
                       "source": upscale.RELEASE.format(upscale.build())}
         elif args.command == "packs":

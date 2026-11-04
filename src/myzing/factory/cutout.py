@@ -14,6 +14,7 @@ from myzing import model_fetch
 from myzing.storage import workspace_root
 
 from .tools import FactoryError
+from .network import Network
 
 MODEL = "isnet-general-use"
 URL = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx"
@@ -43,11 +44,13 @@ def ready() -> bool:
     return True
 
 
-def fetch(*, consent: bool = False, progress=None) -> Path:
+def fetch(*, consent: bool = False, progress=None, project: Path | None = None) -> Path:
+    net = Network(project)
+    net.check("cutout model download")
     if consent is not True:
         raise FactoryError(f"the cutout model download needs explicit consent: {FETCH_HINT}")
     if not ready():
-        model_fetch.fetch_verified(URL, model_file(), SHA256, SIZE, progress=progress)
+        net.fetch(URL, model_file(), SHA256, SIZE, purpose="cutout model download", progress=progress)
         if not ready():
             raise FactoryError("cutout model size/SHA-256 verification failed; nothing installed")
     return model_file()

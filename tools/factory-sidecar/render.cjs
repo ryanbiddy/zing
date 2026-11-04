@@ -7,7 +7,9 @@ const fs = require("fs"), path = require("path"), url = require("url");
   fs.mkdirSync(outdir, { recursive: true });
   const browser = await chromium.launch({ executablePath: process.env.ZING_BROWSER_PATH,
     args: ["--allow-file-access-from-files"] });
-  const page = await browser.newPage({ viewport: { width: DATA.W || 1080, height: DATA.H || 1920 } });
+  const page = await browser.newPage({ viewport: { width: DATA.W || 1080, height: DATA.H || 1920 },
+    offline: true, serviceWorkers: "block" });
+  await page.route(/^https?:\/\//, route => route.abort());  // scene assets are local
   page.on("pageerror", e => console.log("pageerror:", e.message));
   await page.addInitScript(d => { window.DATA = d; }, DATA);
   await page.goto(url.pathToFileURL(path.resolve(scene)).href);

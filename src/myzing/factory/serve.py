@@ -23,7 +23,7 @@ from .judge import Judge
 from .tools import FactoryError, data_path
 
 CLIP = re.compile(r"^clip\d{2}$")
-MEDIA = {".mp4", ".webm", ".jpg", ".jpeg", ".png", ".webp"}
+MEDIA = {".mp4", ".mov", ".webm", ".jpg", ".jpeg", ".png", ".webp"}
 TEXT_FIELDS = {"x", "instagram", "tiktok", "youtube_title", "first_comment"}
 
 

@@ -12,14 +12,14 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import cut, pick, plan, postcopy, render, review, scout, source, visuals
+from . import cut, network, pick, plan, postcopy, render, review, scout, source, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
             "cutout": False, "upscale": True, "brand": None, "focus": None, "show": None, "vocab": [],
-            "news": None}
+            "news": None, "offline": False, "visuals": None}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -46,6 +46,13 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     unknown = set(settings) - set(SETTINGS)
     if unknown:
         raise FactoryError(f"unknown settings: {', '.join(sorted(unknown))}")
+    if not isinstance(settings.get("offline", False), bool):
+        raise FactoryError("offline must be true or false")
+    if settings.get("visuals") is not None:
+        folder = Path(settings["visuals"]).expanduser().resolve()
+        if not folder.is_dir():
+            raise FactoryError(f"visuals folder not found at {folder}")
+        settings["visuals"] = str(folder)
     if settings.get("mode", "context") not in MODES:
         raise FactoryError(f"mode must be one of {', '.join(MODES)}")
     if settings.get("mode") == "launch":
@@ -82,6 +89,7 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     src = {"media": str(media), "name": name or media.stem, "url": url, "date": date, "tag": tag}
     _write(project / "source.json", src)
     _write(project / "factory.json", {**SETTINGS, **settings, "created": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+    (project / "network.jsonl").touch(exist_ok=True)
     if transcript:
         segments, words = source.load_transcript(Path(transcript), offset)
         _write(project / "transcript.json", segments)
@@ -300,7 +308,8 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         if not (visdir / "manifest.json").is_file():
             say(f"{task}: finding visuals for {len(reqs)} requests ({mode})")
             _write(visdir / "requests.json", reqs)
-            visuals.find(reqs, visdir, "context" if mode == "launch" else mode, public=cfg.get("public", False), say=say)
+            visuals.find(reqs, visdir, "context" if mode == "launch" else mode, public=cfg.get("public", False), say=say,
+                         project=project, visuals=cfg.get("visuals"))
         manifest = _read(visdir / "manifest.json", {})
         if any(manifest.values()):
             saved = _read(visdir / "picks.json")
@@ -329,7 +338,14 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
 
 
 def run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print) -> dict:
+    with network.scope(project):
+        return _run(project, judge, only=only, say=say)
+
+
+def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print) -> dict:
     project = Path(project).resolve()
+    if getattr(judge, "backend", "host") == "claude":
+        network.Network(project).check("Claude judge")
     src, cfg = _read(project / "source.json"), _read(project / "factory.json")
     if not src or not cfg:
         raise FactoryError(f"{project} is not a factory project; start one with 'zing factory new'")
@@ -382,6 +398,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
               "start": m["start"], "end": m["end"]} for m in data.get("bench", [])]
     return {"project": str(project), **(_read(project / "status.json") or {"state": "new"}), "settings": cfg,
             "pending": judge.pending(), "clips": clips, "bench": bench, "usage": judge.usage(),
+            "network": network.summary(project),
             "review": str(project / "index.html") if (project / "index.html").is_file() else None}
 
 

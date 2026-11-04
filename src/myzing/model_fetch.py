@@ -10,6 +10,7 @@ and SHA-256, checked before anything is published.
 import hashlib
 import os
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 import tempfile
 import time
@@ -17,6 +18,16 @@ import urllib.request
 from urllib.parse import urlsplit
 
 LOCK_NAME = ".zing-download.lock"
+_transport = ContextVar("model_transport", default=None)
+
+
+@contextmanager
+def transport(open_url):
+    token = _transport.set(open_url)
+    try:
+        yield
+    finally:
+        _transport.reset(token)
 
 
 class _HTTPSOnlyRedirects(urllib.request.HTTPRedirectHandler):
@@ -164,7 +175,7 @@ def fetch_verified(url, target, digest, limit, *, progress=None):
             with tempfile.NamedTemporaryFile(dir=target.parent, prefix=f".{target.name}.", suffix=".part",
                                              delete=False) as out:
                 temporary = Path(out.name)
-                with open_url(url) as response:
+                with (_transport.get() or open_url)(url) as response:
                     while chunk := response.read(1024 * 1024):
                         count += len(chunk)
                         if count > limit:

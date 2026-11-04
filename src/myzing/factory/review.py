@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from .render import SHAPES, suffix
+from .network import summary
 
 
 def _load(path: Path) -> dict:
@@ -52,6 +53,7 @@ def build(project: Path, pack: str | None = None) -> Path:
     <dl>{copy}</dl>
   </div>
 </article>""")
+    network_text = json.dumps(summary(ep)["summary"]).replace("<", "\\u003c")
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Clip Pack</title>
 <style>
@@ -72,11 +74,13 @@ dt{{color:var(--muted);text-transform:capitalize}} dd{{margin:0;white-space:pre-
 @media (max-width:900px){{article{{grid-template-columns:1fr}} video{{width:100%!important;max-width:340px}}}}
 </style></head><body><main>
 <h1>Clip pack: {e(src.get('name', ep.name))}</h1>
+<p class="sub" id="network"></p>
 <p class="sub">Made by zing factory: scout, cut, plan, find visuals, vision pick, fact check, render, copy. Local review only; nothing is posted.</p>
 {''.join(cards)}
 <div id="bar"><span id="count"></span><button id="copy">Copy my ratings</button></div>
 </main>
 <script>
+document.getElementById('network').textContent = {network_text};
 const KEY = 'zing-ratings-' + location.pathname;
 let R = {{}}; try {{ R = JSON.parse(localStorage.getItem(KEY) || '{{}}'); }} catch (e) {{}}
 function save() {{ try {{ localStorage.setItem(KEY, JSON.stringify(R)); }} catch (e) {{}} paint(); }}

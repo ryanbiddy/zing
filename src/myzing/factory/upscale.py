@@ -21,6 +21,7 @@ from myzing import model_fetch
 from myzing.storage import workspace_root
 
 from .tools import FactoryError
+from .network import Network
 
 RELEASE = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-{}.zip"
 BUILDS = {                                      # this platform's release zip: SHA-256 and size
@@ -79,7 +80,9 @@ def ready() -> bool:
     return True
 
 
-def fetch(*, consent: bool = False, progress=None) -> Path:
+def fetch(*, consent: bool = False, progress=None, project: Path | None = None) -> Path:
+    net = Network(project)
+    net.check("upscale model download")
     if consent is not True:
         raise FactoryError(f"the upscaler download needs explicit consent: {FETCH_HINT}")
     if ready():
@@ -87,7 +90,7 @@ def fetch(*, consent: bool = False, progress=None) -> Path:
     digest, size = BUILDS[build()]
     archive = folder() / "release.zip"
     folder().mkdir(parents=True, exist_ok=True)
-    model_fetch.fetch_verified(RELEASE.format(build()), archive, digest, size, progress=progress)
+    net.fetch(RELEASE.format(build()), archive, digest, size, purpose="upscale model download", progress=progress)
     files = {}
     with zipfile.ZipFile(archive) as z:          # only the named members, so nothing lands outside the folder
         for name in members():
