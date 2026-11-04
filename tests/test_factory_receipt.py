@@ -29,6 +29,7 @@ def read(path: Path):
 def clip(tmp_path, shots, words=None, **raw) -> Path:
     d = tmp_path / "proj" / "clip01"
     write(d.parent / "factory.json", {"shapes": ["9x16"], "pack": "zing"})
+    write(d.parent / "source.json", {"name": "Ana on shipping"})          # names the speaker, so her tag stays
     write(d.parent / "moments.json", {"moments": [{"start": 10, "end": 25, "hook": "A plain hook"}]})
     write(d / "words.json", {"words": words if words is not None else [
         {"w": "Ana", "os": 0, "oe": .3}, {"w": "has", "os": .4, "oe": .7},

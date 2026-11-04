@@ -9,7 +9,7 @@ Layouts:
   - funnel {"kind":"funnel","title":str,"rows":[{"value":number,"text"?:"display text","label":"MAX 2 WORDS","at":seconds}]}, 3–4 rows, largest first
   - title {"kind":"title","text":"Introducing *<name>*"} and endcard {"kind":"endcard","name":str,"url"?:str,"line"?:str}: launch films only (see the style)
   - quote {"kind":"quote","text":"exact words from the transcript, max 14 words, *mark* 1–3 key words"}: the captions take over. The speaker stays on screen, dimmed, while the line builds word by word in big type with the marked words highlighted, then it steps away. Use it once per clip at most, for the line a viewer would screenshot.
-- Any shot may carry "label": {"name": str, "role"?: str}, a name tag shown for its first seconds, when the speaker (or the person pictured) is first named. Only a name and role the clip says, or the BRAND gives.
+- Any shot may carry "label": {"name": str, "role"?: str}, a name tag shown for its first seconds, when the speaker (or the person pictured) is first named. Only a name and role the clip says, or the BRAND gives. The tag names whoever is on screen: on a split shot the person in its picture, otherwise the speaker. Never put the name of someone the speaker only mentions on the speaker's shot.
 - NEWS (when given) is today's news this clip is the backstory to, with article links. Open on it: the hook may state the news peg (max 7 words), and the first visual is a screenshot of one NEWS link ({"kind": "screenshot", "url": <that link exactly>}) shown "split" in the first 6 seconds. At most two news screenshots per clip, and only NEWS links as their urls. Then tell how it happened with the speaker's own words.
 
 Rules:
