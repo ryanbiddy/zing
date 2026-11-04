@@ -120,7 +120,8 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
             pieces[-1]["end"] = max(pieces[-1]["end"], b)
         else:
             pieces.append({"start": a, "end": b})
-    if not all(any(p["start"] <= w["s"] <= p["end"] for w in words) for p in pieces):
+    if not all(any(p["start"] <= w["s"] <= p["start"] + 2 for w in words)
+               and any(p["end"] - 2 <= w["e"] <= p["end"] for w in words) for p in pieces):
         say(f"transcribing {len(pieces)} spans for word timing")
         fresh = source.transcribe_moments(media, pieces, **({"vocab": cfg["vocab"]} if cfg.get("vocab") else {}))
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
@@ -291,18 +292,22 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             visuals.find(reqs, visdir, "context" if mode == "launch" else mode, public=cfg.get("public", False), say=say)
         manifest = _read(visdir / "manifest.json", {})
         if any(manifest.values()):
-            sheet = pick.sheet(visdir, reqs, manifest)
-            try:
-                answer = judge.ask(f"{task}-pick", pick.prompt(sheet, "context" if mode == "launch" else mode,
-                                                           raw.get("sensitive_reason", "") if sensitive else None),
-                                   images=(sheet,))
-            except NeedsAnswer:
-                return waiting + [f"{task}-pick"]
-            picks = pick.picks_from(answer)
-            _write(visdir / "picks.json", {"mode": mode, "picks": picks})
+            saved = _read(visdir / "picks.json")
+            if saved is None:
+                sheet = pick.sheet(visdir, reqs, manifest)
+                try:
+                    answer = judge.ask(f"{task}-pick", pick.prompt(sheet, "context" if mode == "launch" else mode,
+                                                               raw.get("sensitive_reason", "") if sensitive else None),
+                                       images=(sheet,))
+                except NeedsAnswer:
+                    return waiting + [f"{task}-pick"]
+                saved = {"mode": mode, "picks": pick.picks_from(answer)}
+                _write(visdir / "picks.json", saved)
+            picks = saved["picks"]
             found = pick.chosen(visdir, reqs, manifest, picks)
     final_path = d / "plan.json"
-    if not final_path.is_file() or final_path.stat().st_mtime < (judge.project / "answers" / f"{task}-plan.json").stat().st_mtime:
+    inputs = [project / "answers" / f"{task}-{kind}.json" for kind in ("plan", "pick")] + [visdir / "picks.json"]
+    if not final_path.is_file() or any(p.is_file() and p.stat().st_mtime > final_path.stat().st_mtime for p in inputs):
         plan.finalize(d, raw, found, cfg.get("brand"))
     for shape in cfg["shapes"]:
         tag = render.suffix(shape, cfg["pack"])
@@ -400,10 +405,18 @@ def redo(project: Path, task: str) -> None:
     d = project / clip
     if task == "scout":
         (project / "moments.json").unlink(missing_ok=True)
+        for p in project.glob("clip[0-9][0-9]"):
+            shutil.rmtree(p, ignore_errors=True)
+        for folder in ("answers", "pending"):
+            for p in (project / folder).glob("clip[0-9][0-9]-*"):
+                p.unlink(missing_ok=True)
     elif kind == "plan":
+        Judge(project).forget(f"{clip}-pick")
         shutil.rmtree(d / "visuals", ignore_errors=True)
+        shutil.rmtree(d / "mattes", ignore_errors=True)
         (d / "plan.json").unlink(missing_ok=True)
     elif kind == "pick":
+        (d / "visuals" / "picks.json").unlink(missing_ok=True)
         (d / "plan.json").unlink(missing_ok=True)
     elif kind == "copy":
         (d / "post.json").unlink(missing_ok=True)

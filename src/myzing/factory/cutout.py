@@ -119,7 +119,7 @@ def mattes(clipdir: Path, spans: list[tuple[float, float]], *, width: int | None
     out, meta_path = d / "mattes", d / "mattes" / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
     same = meta.get("v") == VERSION and meta.get("w", WIDTH) == width
-    if same and (meta.get("why") or set(want) <= set(meta.get("frames", []))):
+    if same and ((meta.get("why") and meta.get("want") == want) or set(want) <= set(meta.get("frames", []))):
         return None if meta.get("why") else {"dir": out, "frames": meta["frames"]}
     out.mkdir(parents=True, exist_ok=True)
     keys = sorted(set(want[::STEP]) | {want[-1]})
@@ -148,7 +148,8 @@ def mattes(clipdir: Path, spans: list[tuple[float, float]], *, width: int | None
     why = usable(shares)
     done = sorted(set(meta.get("frames", []))) if same else []
     if why:
-        meta_path.write_text(json.dumps({"v": VERSION, "w": width, "why": why, "frames": []}), encoding="utf-8")
+        meta_path.write_text(json.dumps({"v": VERSION, "w": width, "why": why, "frames": [], "want": want}),
+                             encoding="utf-8")
         return None
     frames = sorted(set(done) | set(want))
     meta_path.write_text(json.dumps({"v": VERSION, "w": width, "frames": frames,

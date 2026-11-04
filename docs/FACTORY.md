@@ -226,8 +226,12 @@ as a standing headline in condensed capitals, key words in the accent color.
 
 ## Review dashboard
 
-`zing factory serve <project>` opens a local page (http://127.0.0.1:8765) for the part
-that is yours: watch each clip in every shape, rate it Post / Post with edits / No,
+Run `zing factory serve <project>` and open the printed link. It includes a token
+for this server session, such as `http://127.0.0.1:8765/?t=TOKEN`. The page saves it
+in an HttpOnly session cookie and removes it from the address bar. Open the new
+printed link after restarting the server. Requests without the cookie are refused.
+
+Watch each clip in every shape, rate it Post / Post with edits / No,
 swap a visual for another candidate, fix a hook or the copy, and re-render in another
 style pack. Swaps and hook edits re-run the fact check and re-render in the background.
 Ratings save to `ratings.json`. `--judge claude` lets the page's Run button answer
