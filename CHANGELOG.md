@@ -2,6 +2,8 @@
 
 ## Clip factory
 
+- `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
+  and terms for episode transcription, word timing and the planner's caption fixes.
 - Hardening: keep prompt images inside their project and preserve transcript text.
   Refuse private visual URLs and unsafe redirects. Keep peer tokens off redirects.
   Bound shot times and end cards. Save breakdowns atomically. Keep FFmpeg off stdin.

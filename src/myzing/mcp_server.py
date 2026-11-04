@@ -1836,7 +1836,7 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                   mode: Literal["context", "fun", "documentary", "launch"] = "context", shapes: list[str] | None = None,
                   pack: str | None = None, public: bool = False, brand_name: str | None = None,
                   brand_url: str | None = None, cta: str | None = None, cutout: bool = False,
-                  focus: str | None = None, show: str | None = None) -> dict[str, Any]:
+                  focus: str | None = None, show: str | None = None, vocab: list[str] | None = None) -> dict[str, Any]:
     """Create a factory project from a local episode file and an optional caption file.
 
     mode "launch" assembles launch films from a long demo or interview (landscape first, the launch pack); brand_name,
@@ -1844,6 +1844,7 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
     speaker, lifted off their background, in front of the pictures (needs `zing factory fetch-cutout --yes`).
     focus steers the scout ("the pricing argument", "funny moments"); show names the show, so Post/No calls on its
     episodes teach the scout for the next one. moments=0 scouts nothing: only clips made with factory_clip.
+    vocab supplies exact spellings for transcription and captions.
     """
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
@@ -1854,7 +1855,7 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                                name=name, url=url, date=date, tag=tag, mode=mode, public=public, cutout=cutout,
                                **{k: v for k, v in {"moments": moments if moments != 8 or mode != "launch" else None,
                                                     "shapes": shapes, "pack": pack, "brand": brand, "focus": focus,
-                                                    "show": show}.items() if v is not None})
+                                                    "show": show, "vocab": vocab}.items() if v is not None})
         return _ok(**result, hint="Call factory_run(project), then poll factory_status(project).")
     except (FactoryError, ValueError, OSError) as exc:
         return _err(str(exc))
@@ -2340,7 +2341,7 @@ def build_server():
 
     mcp.tool(
         name="factory_new",
-        description="Start a clip-factory project from a local episode video and an optional SRT/VTT/word-JSON transcript (without one, Zing transcribes locally). Settings: moments (clips to make), mode context|fun (visual style), shapes (9x16, 1x1, 16x9), pack (style pack), public (only cleared/attribution visuals). No downloads of the episode, no uploads, nothing posted.",
+        description="Start a clip-factory project from a local episode video and an optional SRT/VTT/word-JSON transcript (without one, Zing transcribes locally). Settings: moments (clips to make), mode context|fun (visual style), shapes (9x16, 1x1, 16x9), pack (style pack), public (only cleared/attribution visuals). vocab supplies exact spellings for transcription and captions. No downloads of the episode, no uploads, nothing posted.",
     )(h_factory_new)
     mcp.tool(
         name="factory_run",

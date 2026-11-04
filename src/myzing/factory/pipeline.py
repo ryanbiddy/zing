@@ -18,7 +18,7 @@ from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
-            "cutout": False, "upscale": True, "brand": None, "focus": None, "show": None}
+            "cutout": False, "upscale": True, "brand": None, "focus": None, "show": None, "vocab": []}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -58,6 +58,11 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
             raise FactoryError(f"{key} must be a short line of text (up to {most} characters)")
     if settings.get("show") and not show_slug(settings["show"]):
         raise FactoryError("show needs at least one letter or digit")
+    from myzing.study.asr_hygiene import vocabulary_context
+    context = vocabulary_context(settings.get("vocab", ()))
+    if context["omitted"]:
+        raise FactoryError(context["omitted"][0]["reason"])
+    settings["vocab"] = context["terms"]
     moments = settings.get("moments", 1)
     if not isinstance(moments, int) or isinstance(moments, bool) or moments < 0:
         raise FactoryError("moments must be 0 (only clips you pick) or more")
@@ -77,12 +82,12 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     return status(project)
 
 
-def _transcript(project: Path, media: Path, say) -> list[dict]:
+def _transcript(project: Path, media: Path, say, vocab: list[str] | None = None) -> list[dict]:
     segments = _read(project / "transcript.json")
     if segments is None:
         quick = source.scout_model()
         say(f"transcribing the whole episode with the {quick or 'configured'} speech model (no caption file given)")
-        words = source.transcribe_episode(media, quick)
+        words = source.transcribe_episode(media, quick, **({"vocab": vocab} if vocab else {}))
         if not quick:                      # a quick pass only finds the moments; their words come from the full model
             _write(project / "words.json", words)
         segments = source.segments_from_words(words)
@@ -95,7 +100,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
     data = load_moments(project)
     moments = data.get("moments", [])
     if not data.get("scouted"):
-        segments = _transcript(project, media, say)     # also what clips are picked from by hand
+        segments = _transcript(project, media, say, cfg.get("vocab"))     # also what clips are picked from by hand
     if not data.get("scouted") and cfg["moments"]:
         n = cfg["moments"]
         found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), cfg["mode"],
@@ -116,7 +121,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
             pieces.append({"start": a, "end": b})
     if not all(any(p["start"] <= w["s"] <= p["end"] for w in words) for p in pieces):
         say(f"transcribing {len(pieces)} spans for word timing")
-        fresh = source.transcribe_moments(media, pieces)
+        fresh = source.transcribe_moments(media, pieces, **({"vocab": cfg["vocab"]} if cfg.get("vocab") else {}))
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
         words = sorted(fresh + [w for w in words if not any(a <= w["s"] <= b for a, b in span)], key=lambda w: w["s"])
         _write(project / "words.json", words)
@@ -269,7 +274,8 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         except NeedsAnswer:
             waiting.append(f"{task}-copy")
     try:
-        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"))), w["words"][-1]["oe"])
+        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"), cfg.get("vocab"))),
+                         w["words"][-1]["oe"])
     except NeedsAnswer:
         return waiting + [f"{task}-plan"]
     _write(d / "plan-raw.json", raw)
