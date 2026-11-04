@@ -508,6 +508,7 @@
         <span id="state-pill" class="pill"></span>
       </div>
       <div class="meta" id="meta"></div>
+      <div class="meta" id="network"></div>
     </div>
     <div class="top-actions">
       <div class="waiting" id="waiting" aria-live="polite"></div>
@@ -789,6 +790,7 @@ function render() {
 
   document.title = baseName(p.project) + " - Zing factory";
   $("#project-name").textContent = baseName(p.project);
+  $("#network").textContent = p.network ? p.network.summary : "";
   const [stateText, stateTone] = STATE_LABEL[p.state] || [p.state || "Unknown", ""];
   const pill = $("#state-pill");
   pill.className = "pill " + stateTone;

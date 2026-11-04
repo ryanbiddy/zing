@@ -2,12 +2,17 @@
 
 ## Clip factory
 
+- Factory embargo mode adds `new --offline`, local visual candidates with
+  `--visuals DIR`, and a host-only `network.jsonl` ledger shown in status and review.
 - YouTube first comments link to the clip's start time. `zing factory approval`
   writes a local guest approval page with videos, transcripts, saved context and
   copyable Yes / No answers and comments.
 - `zing factory new --4k`, `render --4k` and `factory_new(..., uhd=True)` save 4K
   output for the project. Every shape doubles in width and height. Smaller sources
   still render with a warning.
+- `zing factory export` writes speaker and overlay layers, caption and word SRTs,
+  48 kHz audio and a timeline for Premiere Pro or DaVinci Resolve. It checks three
+  composited frames against the normal scene and reports the difference.
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
 - Factory review fixes: trims get words for the full span, redo clears old clip

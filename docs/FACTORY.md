@@ -30,6 +30,45 @@ Speech models mishear names and terms. The plan lists clear mishearings it is su
 captions, graphics, hook and copy, logs each fix, and keeps what was heard in
 `words-heard.json`. Numbers and meaning are never changed.
 
+## Cut from unreleased footage
+
+```bash
+zing factory new launch --media demo.mp4 --transcript demo.vtt \
+  --mode launch --offline --visuals ./launch-media
+zing factory run launch
+zing factory status launch
+```
+
+Your media never leaves the machine and offline mode fetches nothing. `--offline`
+saves `"offline": true` in `factory.json`. It blocks public visual searches, page
+captures, remote video reads and model downloads. Use models already on disk or
+supply a transcript. Word timing still needs a cached speech model when the
+transcript lacks word times.
+
+The host judge writes prompts and contact sheets locally for you to answer.
+Offline projects refuse `--judge claude`. In an online project, that judge sends
+prompts to Anthropic. Picks for a project with `--visuals` use the host judge so
+your pictures and video thumbnails stay local.
+
+`--visuals DIR` accepts PNG, JPG, JPEG, WebP, MP4, MOV and WebM files directly in
+the folder. Filenames help rank candidates. The pick step sees thumbnails and
+chooses a file or none. Selected files are copied into the project and credited
+as `Your file: <name>`. Online projects also search the public sources. Offline
+projects use only your files; without a usable file, the shot stays on the speaker.
+
+`network.jsonl` records factory network attempts, including failures. Each row has
+`at`, `host`, `purpose` and `bytes`. It never stores full URLs, query strings,
+headers or prompt text. Python downloads count response bytes read. Subprocess
+calls use `null` when the byte count is unavailable. Claude calls use the host
+`claude CLI (Anthropic)` and the task name. Cached work adds no requests.
+Browser resource requests and FFmpeg range requests or redirects are included.
+The ledger records factory activity; it is not a system-wide packet capture.
+
+Status and the review header show counts by host and purpose. They show
+`offline: nothing fetched` only for an offline project with an empty ledger.
+Model fetch commands accept `--project launch` to apply that project's policy
+and ledger. Without it, the download is not tied to a project and is not recorded.
+
 ## Supply names and spellings
 
 Give names and terms when creating the project.
@@ -274,6 +313,33 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.
+
+## Finish in your editor
+
+```bash
+zing factory export talk/clip01 --shape 9x16 --pack zing
+```
+
+Import `talk/clip01/export-9x16/timeline.xml` into Premiere Pro or DaVinci Resolve.
+The 30 fps timeline places `speaker.mp4` on V1, `overlay.mov` on V2 and
+`audio.wav` on A1. The overlay uses ProRes 4444 with alpha. Audio is 48 kHz.
+The speaker keeps the scene's framing and cutout. Pictures, graphics and text
+stay in the overlay. These are two video layers, not native graphics or text objects.
+
+`captions.srt` follows the scene's caption groups and display times, including
+quote takeovers. `words.srt` has one cue per word. Import either to style new
+captions. The overlay still contains the rendered captions.
+
+Use `--shape 9x16|4x5|1x1|16x9` and `--pack NAME` to choose the render.
+`--out DIR` changes the output folder. The defaults are `9x16`, `zing` and
+`<clipdir>/export-<shape>/`. Keep the media beside the XML. Relink it if you move
+the folder.
+
+Each export compares the composited layers with three normal scene frames.
+The command prints JSON with each sample's mean absolute RGB error on a 0–255
+scale and PSNR in dB, plus file sizes in bytes and elapsed seconds.
+Lower error and higher PSNR mean a closer match. An exact match has zero error
+and a null PSNR.
 
 ## Review dashboard
 

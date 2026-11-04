@@ -54,6 +54,29 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 
+## Factory offline projects
+
+```sh
+zing factory new launch --media demo.mp4 --transcript demo.vtt --mode launch --offline --visuals ./launch-media
+zing factory run launch
+zing factory status launch
+```
+
+`new --offline` saves the embargo setting. It refuses public searches, site captures,
+remote video reads, model downloads and `--judge claude`. The host judge writes
+prompts locally. Your media never leaves the machine and offline mode fetches nothing.
+Online Claude judge prompts go to Anthropic.
+
+`new --visuals DIR` supplies your PNG, JPG, JPEG, WebP, MP4, MOV and WebM files.
+The pick step chooses from their thumbnails and credits `Your file: <name>`.
+Online runs also search public sources. Picks containing your files stay with the
+host judge. `status` and the review header summarize `network.jsonl` by host and
+purpose. Only an empty offline ledger shows `offline: nothing fetched`.
+
+`fetch-depth`, `fetch-cutout` and `fetch-upscale` accept `--project DIR` to use that
+project's network policy and ledger. Without it, the download is not tied to a
+project and is not recorded. Downloads still need `--yes`.
+
 ## Factory vocabulary
 
 ```sh
@@ -91,6 +114,23 @@ Both flags save `"uhd": true` in `factory.json` for future renders. Every shape
 doubles in width and height. File names stay the same. The next factory run
 replaces any remaining 1080 renders. Sources below 2160 pixels on the short side
 still render with one warning per run.
+
+## Factory export
+
+```sh
+zing factory export talk/clip01 --shape 9x16 --pack zing --out talk/clip01/editor
+```
+
+`factory export` writes `speaker.mp4`, transparent ProRes 4444 `overlay.mov`,
+`captions.srt`, `words.srt`, 48 kHz `audio.wav`, `timeline.xml` and `README.txt`.
+Import the XML into Premiere Pro or DaVinci Resolve. It places speaker on V1,
+overlay on V2 and audio on A1 at 30 fps. Text and graphics are rendered into the
+overlay. Import an SRT to style new captions.
+
+`--shape` accepts `9x16`, `4x5`, `1x1` or `16x9` and defaults to `9x16`.
+`--pack NAME` defaults to `zing`. `--out DIR` defaults to `<clipdir>/export-<shape>/`.
+JSON includes three composite comparisons, file sizes in bytes and elapsed seconds.
+This command has no MCP tool.
 
 ## Match a reference
 
