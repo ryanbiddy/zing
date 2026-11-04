@@ -6,14 +6,17 @@ files only from the project's clip folders. Nothing here posts or publishes.
 """
 from __future__ import annotations
 
+import hmac
 import json
 import mimetypes
 import queue
 import re
+import secrets
 import threading
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from . import pick, pipeline, plan, render
 from .judge import Judge
@@ -120,9 +123,17 @@ class Studio:
 
     def bench(self, body: dict) -> dict:
         index = body.get("index")
-        if not isinstance(index, int) or not 0 <= index < len(pipeline.status(self.project)["bench"]):
+        bench = pipeline.load_moments(self.project).get("bench", [])
+        if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(bench):
             raise FactoryError("no such runner-up")
-        return self._make("runner-up", lambda: pipeline.make_bench(self.project, index))
+        moment = bench[index]
+
+        def change():
+            current = pipeline.load_moments(self.project).get("bench", [])
+            if moment not in current:
+                raise FactoryError("that runner-up is no longer on the bench")
+            return pipeline.make_bench(self.project, current.index(moment))
+        return self._make("runner-up", change)
 
     def visual(self, body: dict) -> dict:
         d = self.clipdir(body.get("clip"))
@@ -136,7 +147,8 @@ class Studio:
         _write(vis / "picks.json", picks)
 
         def job():
-            plan.finalize(d, raw, pick.chosen(vis, raw.get("visual_requests", []), manifest, picks["picks"]))
+            plan.finalize(d, raw, pick.chosen(vis, raw.get("visual_requests", []), manifest, picks["picks"]),
+                          _read(self.project / "factory.json", {}).get("brand"))
             self._rerender(d)
         return self.queue(f"{d.name}: new visual", job)
 
@@ -158,9 +170,11 @@ class Studio:
             raise FactoryError("this clip has no plan yet")
         raw["hook"] = value[:120]
         _write(d / "plan-raw.json", raw)
+        Judge(self.project).save(f"{d.name}-plan", raw)
 
         def job():
-            plan.finalize(d, raw, current.get("visuals", {}))    # re-runs the hook fact check
+            current = _read(d / "plan.json")
+            plan.finalize(d, raw, current.get("visuals", {}), _read(self.project / "factory.json", {}).get("brand"))
             self._rerender(d)
         return self.queue(f"{d.name}: new hook", job)
 
@@ -182,7 +196,7 @@ class Studio:
         return target
 
 
-def handler(studio: Studio, port: int):
+def handler(studio: Studio, port: int, token: str):
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     actions = {"/api/run": studio.run, "/api/rate": studio.rate, "/api/visual": studio.visual,
                "/api/text": studio.text, "/api/render": studio.rerender, "/api/clip": studio.clip,
@@ -211,10 +225,31 @@ def handler(studio: Studio, port: int):
         def _trusted(self) -> bool:
             return self.headers.get("Host", "") in hosts
 
+        def _authenticated(self) -> bool:
+            cookie = SimpleCookie()
+            try:
+                cookie.load(self.headers.get("Cookie", ""))
+            except CookieError:
+                return False
+            value = cookie.get(f"zing_dash_{port}")      # per port: dashboards side by side keep their own
+            return bool(value and hmac.compare_digest(value.value.encode("utf-8"), token.encode("utf-8")))
+
+        def _denied(self) -> None:
+            self._send(403, b"Open the link printed by `zing factory serve`.\n", "text/plain; charset=utf-8")
+
         def do_GET(self):
             if not self._trusted():
                 return self._json(403, {"error": "localhost only"})
-            path = urlsplit(self.path).path
+            url = urlsplit(self.path)
+            path = url.path
+            given = parse_qs(url.query, keep_blank_values=True).get("t")
+            if self.command == "GET" and given is not None:
+                if len(given) != 1 or not hmac.compare_digest(given[0].encode("utf-8"), token.encode("utf-8")):
+                    return self._denied()
+                return self._send(303, b"", "text/plain", {"Location": "/" + path.lstrip("/"),
+                                  "Set-Cookie": f"zing_dash_{port}={token}; HttpOnly; SameSite=Strict; Path=/"})
+            if not self._authenticated():
+                return self._denied()
             try:
                 if path in ("/", "/index.html"):
                     return self._send(200, page.read_bytes(), "text/html; charset=utf-8")
@@ -257,6 +292,8 @@ def handler(studio: Studio, port: int):
             origin = self.headers.get("Origin")
             if not self._trusted() or (origin and urlsplit(origin).netloc not in hosts):
                 return self._json(403, {"error": "localhost only"})
+            if not self._authenticated():
+                return self._denied()
             if not self.headers.get("Content-Type", "").startswith("application/json"):
                 return self._json(415, {"error": "send JSON"})
             action = actions.get(urlsplit(self.path).path)
@@ -276,8 +313,10 @@ def handler(studio: Studio, port: int):
 
 def serve(project: Path, port: int = 8765, judge: str = "host", say=print) -> None:
     studio = Studio(project, judge)
-    server = ThreadingHTTPServer(("127.0.0.1", port), handler(studio, port))
-    say(f"Zing factory dashboard: http://127.0.0.1:{port}/  (Ctrl+C to stop)")
+    token = secrets.token_urlsafe(24)
+    server = ThreadingHTTPServer(("127.0.0.1", port), BaseHTTPRequestHandler)
+    server.RequestHandlerClass = handler(studio, server.server_port, token)
+    say(f"Open http://127.0.0.1:{server.server_port}/?t={token}  (Ctrl+C to stop)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

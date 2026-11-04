@@ -110,7 +110,7 @@ if (D.theme) { const T = D.theme, st = document.documentElement.style;
   // learned or hand-made caption styles; every field is optional and the defaults are the Zing look
   if (T.cap_font) set('--cap-font', `'${T.cap_font}', Inter, sans-serif`);
   if (T.cap_weight) set('--cap-weight', T.cap_weight);
-  if (T.cap_size) set('--cap-size', Math.round(T.cap_size * (D.W || 1080) / 1080) + 'px');
+  if (T.cap_size) set('--cap-size', Math.round(T.cap_size * (T.learned ? (D.H || 1920) / 1920 : (D.W || 1080) / 1080)) + 'px');
   if (T.cap_bg === 'none') { set('--cap-bg', 'transparent'); set('--cap-pad', '0 8px'); }
   if (T.cap_stroke) set('--cap-stroke', `${T.cap_stroke_w || 6}px ${T.cap_stroke}`);
   if (T.cap_shadow) set('--cap-shadow', T.cap_shadow);
@@ -212,7 +212,8 @@ function drawGraphic(g, t, el) {
     const year = g.format === 'year' || (Number.isInteger(g.value) && g.value >= 1000 && g.value <= 2100 && !g.prefix && !g.suffix
       && /\b(year|years|until|since|in|by|ended|began|founded|century|back)\b/i.test(`${g.title||''} ${g.label||''}`));
     const v = g.value >= 20 && !year ? g.value * easeOut(c) : g.value;
-    el.querySelector('.g-num').textContent = (g.prefix||'') + (year ? String(g.value) : g.decimals ? v.toFixed(g.decimals) : fmt(v)) + (g.suffix||'');
+    const dec = g.decimals ?? (String(g.value).split('.')[1] || '').length;
+    el.querySelector('.g-num').textContent = (g.prefix||'') + (year ? String(g.value) : dec ? v.toFixed(dec) : fmt(v)) + (g.suffix||'');
     el.querySelector('.g-num').style.transform = `scale(${mix(.7,1,back(lin(t,g.at??t0,(g.at??t0)+.4)))})`;
     el.querySelector('.g-lab').style.opacity = easeOut(lin(t,(g.at??t0)+.3,(g.at??t0)+.7));
   }
@@ -227,10 +228,11 @@ function drawGraphic(g, t, el) {
     it.style.opacity = p; it.style.transform = `translateX(${(1-p)*60}px)`;
   });
   if (k === 'funnel') {
-    const nums = g.rows.map(r => r.value), lo = Math.log(Math.min(...nums)), hi = Math.log(Math.max(...nums));
+    const nums = g.rows.map(r => r.value), scale = Math.min(...nums) > 0 ? Math.log : v => v;
+    const lo = scale(Math.min(...nums)), hi = scale(Math.max(...nums));
     el.querySelectorAll('.row').forEach((row,i) => {
       const r = g.rows[i], at = r.at ?? (t0+i*.5), p = easeOut(lin(t, at, at+.45));
-      const w = 220 + 740*(hi===lo?1:(Math.log(r.value)-lo)/(hi-lo));
+      const w = 220 + 740*(hi===lo?1:(scale(r.value)-lo)/(hi-lo));
       row.style.opacity = p; row.style.transform = `translateY(${(1-p)*24}px)`;
       const bar = row.children[0], bw = w*mix(.9,1,back(lin(t,at,at+.5)));
       bar.style.width = bw+'px'; bar.style.marginLeft = -bw/2+'px';

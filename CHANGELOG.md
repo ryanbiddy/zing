@@ -4,6 +4,14 @@
 
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
+- Factory review fixes: trims get words for the full span, redo clears old clip
+  work, and dashboard hook edits and visual picks survive later runs. The dashboard
+  updates while jobs run, shows errors, keeps saved ratings, and plays the selected
+  style pack. Graphics keep decimals and handle zero values. Learned caption sizes,
+  review pack selection, clip boundaries, and cutout retries are corrected. The
+  quick scout pass can use batched speech decoding.
+- Factory review fixes: the dashboard now requires the session link printed by
+  `zing factory serve`. The link sets a cookie before opening the page.
 - Each clip gets a `receipt.json` of its planned additions, with time ranges,
   sources and known licenses. Overlaps count once. The dashboard shows the receipt
   and `zing factory status` reports its share. Visual swaps and hook edits refresh

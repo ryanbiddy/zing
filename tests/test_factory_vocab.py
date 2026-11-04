@@ -103,7 +103,7 @@ def test_vocab_reaches_episode_moments_and_language_retry(tmp_path, media, monke
     monkeypatch.setattr(transcribe, "transcribe", speech)
     moments = pipeline._moments(root, Scout(), media, cfg, say=lambda m: None)
     assert all(m["snapped"] for m in moments)
-    assert len(calls) == (4 if quick else 1)
+    assert len(calls) == 4                         # the episode, two moment spans, and one language redo
     assert all(c.get("vocabulary", []) == vocab for c in calls)
     assert all(("vocabulary" in c) == bool(vocab) for c in calls)
     assert calls[0]["model_name"] == quick and calls[0]["local_files_only"] == bool(quick)
