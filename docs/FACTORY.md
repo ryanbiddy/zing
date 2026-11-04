@@ -88,6 +88,31 @@ Limits match study vocabulary. Up to 64 terms, 80 characters per term and
 rejected. Spaces are normalized and duplicates are removed. Set the vocabulary
 when creating the project; there is no edit command.
 
+## Render in 4K
+
+```bash
+zing factory new talk --media talk.mp4 --4k
+zing factory render talk/clip01 --4k
+```
+
+`--4k` saves `"uhd": true` in `factory.json`. MCP accepts
+`factory_new(..., uhd=True)`. Each shape doubles in width and height.
+
+| Shape | 4K output |
+| --- | --- |
+| 9x16 | 2160x3840 |
+| 16x9 | 3840x2160 |
+| 1x1 | 2160x2160 |
+| 4x5 | 2160x2700 |
+
+The layout and file names stay the same. `render --4k` also enables 4K for future
+renders in that project. The next factory run replaces any remaining 1080 renders.
+
+Sources below 2160 pixels on the short side still render. Each run warns once,
+for example `source is 1080p; 4K output will be upscaled`. Speaker frames, cutout
+mattes and moving visuals keep their source resolution. The photo upscaler is
+unchanged. Output uses H.264 High level 5.1, CRF 20 and yuv420p.
+
 ## Who makes the judgment calls
 
 Four steps need taste: the **scout** (which moments), the **plan** (what appears on
@@ -303,6 +328,24 @@ copy the text on the page. The page uses local videos and has no network request
 Video paths are relative to the HTML file. Keep a custom output inside the project
 folder when sharing a zip.
 
+## What each clip adds
+
+Each finalized plan writes `clipNN/receipt.json`. It lists pictures, graphics, quote
+takeovers, name tags and title or end cards, with time ranges, sources and known
+licenses. It uses the clip's existing files. Ordinary hooks and captions do not count.
+An empty solo shot adds zero. Overlapping additions count once in the total.
+
+The duration follows the render, including the last word's tail and any end card
+hold. Quotes follow the spoken words. Name tags count for up to 3.4 seconds.
+`by_kind` lists seconds for each kind. `added` is the total seconds covered, and
+`share` is that total divided by the duration, rounded to two decimal places.
+
+`zing factory status` reports each clip's share as `added`. A clip without a receipt
+has `null`. Each dashboard card shows the percentage and an expandable source list.
+Visual swaps and hook edits rewrite the receipt when the plan is finalized again.
+The receipt leaves `post.json` alone. It records planned additions and makes no
+promise about platform reach, monetization or originality decisions.
+
 ## Learn a style from a clip you like
 
 ```bash
@@ -344,7 +387,7 @@ cut's audio. Set `ZING_FACTORY_SIDECAR` when the sidecar lives outside a checkou
 ```text
 <project>/source.json  factory.json  transcript.json  words.json  moments.json
 <project>/pending/<task>.md     answers/<task>.json     answers/_usage.jsonl
-<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  post.json
+<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  receipt.json  post.json
                    visuals/ (candidates, manifest.json, run_log.json, pick_sheet.jpg)
                    clip.mp4  clip-1x1.mp4  sheet.jpg
 <project>/index.html   review page with Post / Post with edits / No ratings

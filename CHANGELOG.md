@@ -7,6 +7,9 @@
 - YouTube first comments link to the clip's start time. `zing factory approval`
   writes a local guest approval page with videos, transcripts, saved context and
   copyable Yes / No answers and comments.
+- `zing factory new --4k`, `render --4k` and `factory_new(..., uhd=True)` save 4K
+  output for the project. Every shape doubles in width and height. Smaller sources
+  still render with a warning.
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
 - Factory review fixes: trims get words for the full span, redo clears old clip
@@ -22,6 +25,10 @@
   a headline screenshot, and the copy leads with the news. Spoken decimals ("$6.3") now
   count as said numbers. Page captures load no ads, trackers or private addresses and
   scroll only to the end of the article, and the hook moves above a page shown whole.
+- Each clip gets a `receipt.json` of its planned additions, with time ranges,
+  sources and known licenses. Overlaps count once. The dashboard shows the receipt
+  and `zing factory status` reports its share. Visual swaps and hook edits refresh
+  it. The receipt makes no promise about platform outcomes.
 - Hardening: keep prompt images inside their project and preserve transcript text.
   Refuse private visual URLs and unsafe redirects. Keep peer tokens off redirects.
   Bound shot times and end cards. Save breakdowns atomically. Keep FFmpeg off stdin.

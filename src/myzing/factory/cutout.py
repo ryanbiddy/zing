@@ -105,7 +105,7 @@ def frames_in(spans: list[tuple[float, float]], total: int) -> list[int]:
     return sorted(want)
 
 
-def mattes(clipdir: Path, spans: list[tuple[float, float]]) -> dict | None:
+def mattes(clipdir: Path, spans: list[tuple[float, float]], *, width: int | None = WIDTH) -> dict | None:
     """Alpha mattes for the clip's frames inside spans, as PNGs in clipdir/mattes, reused when unchanged.
 
     Returns {"dir": the folder, "frames": the frame numbers with a matte}, or None (with the reason kept in
@@ -121,38 +121,40 @@ def mattes(clipdir: Path, spans: list[tuple[float, float]]) -> dict | None:
         return None
     out, meta_path = d / "mattes", d / "mattes" / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
-    if meta.get("v") == VERSION and ((meta.get("why") and meta.get("want") == want)
-                                     or set(want) <= set(meta.get("frames", []))):
+    same = meta.get("v") == VERSION and meta.get("w", WIDTH) == width
+    if same and ((meta.get("why") and meta.get("want") == want) or set(want) <= set(meta.get("frames", []))):
         return None if meta.get("why") else {"dir": out, "frames": meta["frames"]}
     out.mkdir(parents=True, exist_ok=True)
     keys = sorted(set(want[::STEP]) | {want[-1]})
-    alphas, shares = {}, []
+
+    def save(f, a):
+        a8 = (a * 255).astype(np.uint8)
+        cv2.imwrite(str(out / f"{f:05d}.png"), np.dstack([np.zeros_like(a8)] * 3 + [a8]),
+                    [cv2.IMWRITE_PNG_COMPRESSION, 1])
+
+    prev, lo, at, shares = None, 0, 0, []            # keep only neighbouring mattes in memory at source resolution
     for f in keys:
         bgr = cv2.imread(str(src / f"{f:05d}.jpg"))
         if bgr is None:
             continue
-        if bgr.shape[1] > WIDTH:
-            bgr = cv2.resize(bgr, (WIDTH, round(bgr.shape[0] * WIDTH / bgr.shape[1])), interpolation=cv2.INTER_AREA)
-        alphas[f] = tidy(segment(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)))
-        shares.append(float((alphas[f] > .5).mean()))
+        if width and bgr.shape[1] > width:
+            bgr = cv2.resize(bgr, (width, round(bgr.shape[0] * width / bgr.shape[1])), interpolation=cv2.INTER_AREA)
+        a = tidy(segment(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)))
+        shares.append(float((a > .5).mean()))
+        while at < len(want) and want[at] <= f:
+            x = 0 if prev is None else (want[at] - lo) / (f - lo)
+            save(want[at], a if prev is None or want[at] == f else prev * (1 - x) + a * x)
+            at += 1
+        prev, lo = a, f
+    for f in want[at:] if prev is not None else ():
+        save(f, prev)
     why = usable(shares)
-    done = sorted(set(meta.get("frames", []))) if meta.get("v") == VERSION else []
+    done = sorted(set(meta.get("frames", []))) if same else []
     if why:
-        meta_path.write_text(json.dumps({"v": VERSION, "why": why, "frames": [], "want": want}), encoding="utf-8")
+        meta_path.write_text(json.dumps({"v": VERSION, "w": width, "why": why, "frames": [], "want": want}),
+                             encoding="utf-8")
         return None
-    have = sorted(alphas)
-    for f in want:                                   # in-between frames blend their two neighbours
-        if f in alphas:
-            a = alphas[f]
-        else:
-            k = int(np.searchsorted(have, f))
-            lo, hi = have[max(k - 1, 0)], have[min(k, len(have) - 1)]
-            x = 0 if hi == lo else (f - lo) / (hi - lo)
-            a = alphas[lo] * (1 - x) + alphas[hi] * x
-        a8 = (a * 255).astype(np.uint8)                # black, with the matte as its alpha: the scene keeps the
-        cv2.imwrite(str(out / f"{f:05d}.png"), np.dstack([np.zeros_like(a8)] * 3 + [a8]),   # frame where it's opaque
-                    [cv2.IMWRITE_PNG_COMPRESSION, 1])
     frames = sorted(set(done) | set(want))
-    meta_path.write_text(json.dumps({"v": VERSION, "frames": frames, "share": round(sorted(shares)[len(shares) // 2], 3)}),
-                         encoding="utf-8")
+    meta_path.write_text(json.dumps({"v": VERSION, "w": width, "frames": frames,
+                                     "share": round(sorted(shares)[len(shares) // 2], 3)}), encoding="utf-8")
     return {"dir": out, "frames": frames}

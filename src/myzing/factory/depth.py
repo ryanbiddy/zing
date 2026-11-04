@@ -123,7 +123,7 @@ def move_for(key: str) -> str:
     return names[int(hashlib.sha256(key.encode()).hexdigest(), 16) % len(names)]
 
 
-def parallax(image: Path, out: Path, seconds: float, *, key: str = "", width: int = 1600, fps: int = 30) -> Path | None:
+def parallax(image: Path, out: Path, seconds: float, *, key: str = "", width: int | None = 1600, fps: int = 30) -> Path | None:
     """Encode the move for a photo to out (an mp4), reusing it when nothing changed. None when the photo is flat."""
     import cv2
     import numpy as np
@@ -137,7 +137,7 @@ def parallax(image: Path, out: Path, seconds: float, *, key: str = "", width: in
     bgr = cv2.imdecode(np.fromfile(str(image), np.uint8), cv2.IMREAD_COLOR)
     if bgr is None or min(bgr.shape[:2]) < 360:
         return None
-    if bgr.shape[1] > width:
+    if width and bgr.shape[1] > width:
         bgr = cv2.resize(bgr, (width, round(bgr.shape[0] * width / bgr.shape[1])), interpolation=cv2.INTER_AREA)
     bgr = bgr[: bgr.shape[0] // 2 * 2, : bgr.shape[1] // 2 * 2]
     depth = estimate(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))

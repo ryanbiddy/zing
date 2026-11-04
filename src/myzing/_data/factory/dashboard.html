@@ -340,6 +340,10 @@
 
   .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
   .notes { display: grid; gap: 6px; }
+  .receipt { min-width: 0; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+  .receipt summary { min-height: var(--target-primary); padding: 6px 0; color: var(--text); cursor: pointer; }
+  .receipt ul { display: grid; gap: 8px; margin: 8px 0; padding-left: 18px; }
+  .receipt a { color: var(--info); }
   .rate { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
   .rate-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
   .rate .why { display: grid; gap: 4px; }
@@ -606,6 +610,7 @@ const ui = {
   drafts: {},           // "clip:field" -> unsaved text
   rated: {},            // clip id -> last rating sent
   why: {},              // clip id -> why text
+  receipts: {},         // clip id -> receipt open
   lines: null,          // transcript segments, loaded on demand
   pick: { a: null, b: null, wantEnd: false, clip: null, hook: "", find: "" }   // the picker's range (segment indices)
 };
@@ -671,6 +676,30 @@ function rightsIssues(c) {
     else out.push(id + " rights are " + (v.rights || "unknown") + ". Check before posting.");
   }
   return out;
+}
+
+function receiptBlock(c) {
+  const r = c.receipt;
+  if (!r) return el("p", { class: "hint", text: "Receipt appears after planning." });
+  const counts = ["picture", "graphic", "quote", "name tag", "title"].map(kind => {
+    const n = new Set(r.items.filter(i => i.kind === kind).map(i => JSON.stringify([i.what, i.source, i.license]))).size;
+    return n ? plural(n, kind, kind + "s") : null;
+  }).filter(Boolean);
+  const summary = "Adds context to " + Math.round(r.share * 100) + "% of the clip" + (counts.length ? " · " + counts.join(", ") : "");
+  return el("details", { class: "receipt", open: ui.receipts[c.clip],
+    ontoggle: e => { ui.receipts[c.clip] = e.currentTarget.open; } },
+    el("summary", { text: summary }),
+    el("ul", {}, r.items.map(i => {
+      let url;
+      try { const u = new URL(i.source); if (u.protocol === "https:" || u.protocol === "http:") url = u.href; } catch (_) {}
+      const source = url ? el("a", { href: url, target: "_blank", rel: "noopener", text: i.source })
+        : el("span", { text: i.source });
+      return el("li", {},
+        el("p", { text: i.from.toFixed(1) + "–" + i.to.toFixed(1) + " s · " + i.kind + " · " + i.what }),
+        source, i.license ? el("p", { text: i.license }) : null);
+    })),
+    !r.items.length ? el("p", { text: "No additions in the shot plan." }) : null,
+    el("p", { class: "hint", text: "Records planned additions. It does not predict platform reach." }));
 }
 
 /* ---------- toast ---------- */
@@ -820,6 +849,7 @@ function pendingCard(c) {
     el("div", {},
       el("h3", { text: stripStars(c.hook) || "Hook comes with the plan" }),
       el("div", { class: "time", text: timeLine(c) })),
+    receiptBlock(c),
     el("div", { class: "card-foot" },
       el("button", { class: "button small", type: "button", onclick: () => startTrim(c) }, "Trim")));
 }
@@ -891,6 +921,7 @@ function clipCard(c) {
     el("div", {},
       el("h3", { text: stripStars((c.plan && c.plan.hook) || c.hook) }),
       el("div", { class: "time", text: timeLine(c) })),
+    receiptBlock(c),
     notes,
     el("div", { class: "rate" },
       el("div", { class: "rate-buttons", role: "group", "aria-label": "Rate this clip" },
