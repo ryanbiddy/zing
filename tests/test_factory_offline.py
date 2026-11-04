@@ -337,6 +337,9 @@ def test_offline_pipeline_finishes_with_an_empty_ledger(tmp_path, monkeypatch):
     assert pipeline.run(root, ask, say=lambda m: None)["pending"][0]["task"] == "clip01-pick"
     pipeline.answer(root, "clip01-pick", {"v1": {"pick": 1, "why": "Your demo"}})
     result = pipeline.run(root, ask, say=lambda m: None)
+    if any(p["task"] == "clip01-context" for p in result["pending"]):    # the context check asks once the plan is final
+        pipeline.answer(root, "clip01-context", {"flags": []})
+        result = pipeline.run(root, ask, say=lambda m: None)
     assert result["state"] == "done" and result["failed"] == {} and result["clips"][0]["renders"]
     assert result["network"]["summary"] == "offline: nothing fetched" and rows(root) == []
     assert "Your file: rocket.png" in (root / "clip01" / "plan.json").read_text()

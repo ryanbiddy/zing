@@ -7,7 +7,7 @@ being said. It also gets post copy and a local review page. Nothing is posted.
 
 ```text
 episode + captions -> scout moments -> cut -> plan the screen -> find visuals -> pick
-                   -> fact-check -> render 9:16 / 1:1 / 16:9 -> copy -> review page
+                   -> fact-check + context check -> render 9:16 / 1:1 / 16:9 -> copy -> review page
 ```
 
 ## Quick start
@@ -151,23 +151,47 @@ unchanged. Output uses H.264 High level 5.1, CRF 20 and yuv420p.
 
 ## Who makes the judgment calls
 
-Four steps need taste: the **scout** (which moments), the **plan** (what appears on
-screen, second by second), the **pick** (which found visual fits best, from a contact
-sheet) and the **copy**. Everything else is measured locally.
+Five steps use a judge. The **scout** chooses moments. The **plan** sets what appears
+on screen. The **pick** chooses a visual from a contact sheet. The **copy** writes
+the post. The **context check** looks for cuts and hooks that change the meaning.
 
 - `--judge host` (default; MCP): the run writes each prompt to `pending/` and stops.
-  It asks for everything that is ready at once: the scout, then every clip's plan and
-  copy, then every clip's pick. You or your agent answer with
+  It asks for everything that is ready at once. The scout comes first, then each
+  clip's plan and copy, then its visual pick. The context check follows the final plan.
+  You or your agent answer with
   `zing factory answer <project> <task> <file>` (or the `factory_answer` MCP tool),
-  then run again. Answers are validated; a rejected answer leaves the prompt pending.
+  then run again. Answers are validated. Bad context answers are logged and skipped.
+  Other rejected answers leave the prompt pending.
 - `--judge claude`: Claude Code's CLI answers. Calls run lean: a short system prompt,
   no MCP servers, skills or project files, and only the Read tool when an image must
   be seen. Each call's cost and tokens are logged to `answers/_usage.jsonl` and shown
-  by `status`. Measured on an episode: scout about $0.18, then about $0.11 per clip
-  (plan $0.055, pick $0.03, copy $0.02), so about $1 for eight clips.
+  by `status`. Measured on an episode: scout about $0.18, then about $0.14 per clip
+  (plan $0.055, pick $0.03, copy $0.02, context check $0.03), so about $1.30 for eight clips.
 
 Every answer is cached in `answers/`. `zing factory redo <project> clip03-plan` forgets
 one judgment and what was built from it.
+
+## Check the context
+
+After the plan is final, each clip gets a context check of its words and hook
+against a 90-second window before and after it, clipped to the episode. Whole
+transcript segments at a window edge are kept. Launch films check every span's
+edges. The judge flags clear reversals, heavy qualifications, jokes,
+missing questions or conditions, and hook claims the clip does not back.
+Normal topic changes are left alone. Each flag must quote supplied words.
+
+The dashboard shows **Check the context**, the flagged quotes and reasons, and
+expandable text from both windows. An unrated clip suggests **No**. Nothing is
+saved until you click a rating. A clean check shows **Context checked**.
+
+Results go in `clipNN/context.json` with window times and text. Launch films also
+keep windows for each span in `spans`. Status reports a `context_flags` count.
+Missing nearby transcript skips the check. A bad judge answer writes an `error`
+with no flags and logs the failure. Neither case is shown as a clean check.
+
+Answers are cached as `clipNN-context`. Trims, new cuts and hook edits clear the
+old check. To ask again, run `zing factory redo talk clip03-context`, then run
+the project. The existing number and quote fact checks still run.
 
 ## Input limits
 
@@ -176,7 +200,8 @@ one judgment and what was built from it.
 - Visual downloads and page captures refuse local and private network addresses.
   HTTP download redirects receive the same check.
 - Plans drop shots with negative or nonfinite times, or times more than three seconds
-  after the last word. End cards stop within three seconds of the last word.
+  after the last word. An end card starts at most three seconds after the last word
+  and holds for three seconds.
 
 ## Steer which moments become clips
 
@@ -450,7 +475,7 @@ cut's audio. Set `ZING_FACTORY_SIDECAR` when the sidecar lives outside a checkou
 ```text
 <project>/source.json  factory.json  transcript.json  words.json  moments.json
 <project>/pending/<task>.md     answers/<task>.json     answers/_usage.jsonl
-<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  receipt.json  post.json
+<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  receipt.json  context.json  post.json
                    visuals/ (candidates, manifest.json, run_log.json, pick_sheet.jpg)
                    clip.mp4  clip-1x1.mp4  sheet.jpg
 <project>/index.html   review page with Post / Post with edits / No ratings

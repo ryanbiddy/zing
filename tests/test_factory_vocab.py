@@ -135,6 +135,8 @@ def test_planner_fixes_reach_caption_words(tmp_path, media, monkeypatch):
 
     class Planner:
         def ask(self, task, text):
+            if task == "clip01-context":
+                return {"flags": []}
             assert task == "clip01-plan" and "SPELLINGS: Pompliano, Starbase\n" in text
             return {"hook": "A visit", "shots": [{"from": 0, "layout": "solo"}],
                     "fixes": [{"heard": "Pompiano", "meant": "Pompliano"},
@@ -147,7 +149,7 @@ def test_planner_fixes_reach_caption_words(tmp_path, media, monkeypatch):
         captions.extend(data["words"])
 
     monkeypatch.setattr(render, "render", rendered)
-    assert pipeline._clip(root, 1, {"hook": "A visit"}, Planner(), media, cfg, [], say=lambda m: None) == []
+    assert pipeline._clip(root, 1, {"hook": "A visit", "start": 0, "end": 10}, Planner(), media, cfg, [], say=lambda m: None) == []
     assert [w["w"] for w in captions] == ["Pompliano", "visits", "Starbase."]
     assert [(w["os"], w["oe"]) for w in captions] == [(0, .8), (1, 1.8), (2, 3.8)]
     assert pipeline._read(d / "words-heard.json")["words"] == heard

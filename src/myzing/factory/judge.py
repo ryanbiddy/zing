@@ -1,4 +1,4 @@
-"""Judgment calls (scout, plan, pick, copy) as prompts with JSON answers.
+"""Judgment calls (scout, plan, pick, copy, context) as prompts with JSON answers.
 
 Two backends:
 - host (default): the prompt is written to <project>/pending/<task>.md and the run stops; the calling agent (or a

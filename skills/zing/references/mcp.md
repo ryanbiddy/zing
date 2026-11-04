@@ -31,8 +31,8 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `plan_drafts` | Project, recipe and output paths plus seed; three Composition v2 plans, supported v1 derivatives and a comparison, or named shortages. No study/render/network. |
 | `zing_moments` | Rank complete transcript windows from a cached clip or study; Estimated reasons and must-keep JSON, no model calls or automatic selection. |
 | `factory_new` | Start a clip-factory project from a local episode and optional SRT/VTT/word JSON. Set moments (0 = only clips you pick), mode, shapes, style pack, public-only visuals, focus (what to clip), show (Post/No calls teach its next episode), cutout and vocab. `uhd=True` saves 4K output in `factory.json` and doubles every shape's width and height. Smaller sources still render with a warning. `vocab=["Pompliano", "Starbase"]` saves exact spellings for transcription and caption fixes. Only supplied terms are used, within study's vocabulary limits. |
-| `factory_run` | Background, resumable: transcribe, cut, find visuals, fact-check graphics, render, review page. Stops at judgments; Zing makes no model calls. |
-| `factory_status` | State, pending judgment tasks, renders, review page and network counts by host and purpose. |
+| `factory_run` | Transcribe, cut, find visuals, check graphics and context, render and build the review page. Runs in the background and resumes after judgments. Zing makes no model calls. |
+| `factory_status` | State, pending judgment tasks, renders, context flag counts, review page and network counts by host and purpose. |
 | `factory_prompt` | One pending prompt; a pick attaches its contact sheet. Answer exactly as it asks. |
 | `factory_answer` | Save a validated JSON answer; then call `factory_run` again. |
 | `factory_clip` | Make a clip by hand: start and end seconds, a scout runner-up (`bench`), or new in and out points for an existing clip. The next `factory_run` cuts, plans and renders it. |

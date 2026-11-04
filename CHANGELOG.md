@@ -32,6 +32,9 @@
   a headline screenshot, and the copy leads with the news. Spoken decimals ("$6.3") now
   count as said numbers. Page captures load no ads, trackers or private addresses and
   scroll only to the end of the article, and the hook moves above a page shown whole.
+- Clips now check their cuts and hooks against up to 90 seconds of surrounding
+  transcript at each edge. The dashboard shows supported flags and suggests No
+  for unrated clips. Trims and hook edits clear the cached check.
 - Each clip gets a `receipt.json` of its planned additions, with time ranges,
   sources and known licenses. Overlaps count once. The dashboard shows the receipt
   and `zing factory status` reports its share. Visual swaps and hook edits refresh

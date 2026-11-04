@@ -1,8 +1,8 @@
 """The clip factory: long episode -> scouted moments -> cut -> on-screen plan -> visuals -> rendered clips + copy.
 
 Resumable: every stage writes its output and is skipped when that output exists. With the host judge a run stops
-when it needs answers and asks for all of them that are ready at once (scout; then every clip's plan and copy; then
-every clip's visual pick), so an agent answers three rounds per episode, not twenty-five calls.
+when it needs answers and asks for all of them that are ready at once (scout, plan and copy, visual pick,
+then context after the plan is final).
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import cut, network, pick, plan, postcopy, render, review, scout, source, visuals
+from . import context, cut, network, pick, plan, postcopy, render, review, scout, source, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
@@ -267,7 +267,7 @@ def trim(project: Path, clip: str, start, end) -> str:
                               "start": a, "end": b}
     _write(project / "moments.json", data)
     judge = Judge(project)
-    for kind in ("plan", "copy", "pick"):                    # the words changed, so every judgment on them goes
+    for kind in ("plan", "copy", "pick", "context"):         # the words changed, so every judgment on them goes
         judge.forget(f"{clip}-{kind}")
     shutil.rmtree(project / clip, ignore_errors=True)
     ratings = _read(project / "ratings.json", {})
@@ -276,11 +276,43 @@ def trim(project: Path, clip: str, start, end) -> str:
     return clip
 
 
+def _forget_context(d: Path, judge: Judge | None = None) -> None:
+    Judge(d.parent).forget(f"{d.name}-context")             # the cached answer is a file, whoever the judge is
+    (d / "context.json").unlink(missing_ok=True)
+
+
+def _context(d: Path, judge: Judge, say=print, m: dict | None = None) -> None:
+    path = d / "context.json"
+    if path.is_file() or not (d / "words.json").is_file() or not (d / "plan.json").is_file():
+        return
+    m = m or load_moments(d.parent)["moments"][int(d.name[4:]) - 1]
+    words = _read(d / "words.json")
+    spans = context.windows(_read(d.parent / "transcript.json", []), words, words.get("spans") or scout.parts(m))
+    hook = _read(d / "plan.json")["hook"].replace("*", "")
+    result = {"flags": [], "window": {"before": spans[0]["window"]["before"], "after": spans[-1]["window"]["after"]},
+              "text": {"before": spans[0]["text"]["before"], "after": spans[-1]["text"]["after"]}}
+    if len(spans) > 1:
+        result["spans"] = [{"window": s["window"], "text": s["text"]} for s in spans]
+    if not any(text.strip() for s in spans for text in s["text"].values()):
+        result["skipped"] = "No transcript around this clip."
+    else:
+        try:
+            result["flags"] = context.check(judge.ask(f"{d.name}-context", context.prompt(hook, spans)), hook, spans)
+        except (ValueError, TypeError, RuntimeError) as exc:
+            result["error"] = " ".join(str(exc).split())[:300] or type(exc).__name__
+            say(f"{d.name} context check skipped. {result['error']}")
+    _write(path, result)
+    if result["flags"]:
+        n = len(result["flags"])
+        say(f"{d.name} check the context. {n} flag{'s' if n != 1 else ''}.")
+
+
 def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, words: list[dict], say) -> list[str]:
     """Advance one clip as far as it can go; returns the tasks it is waiting on."""
     d = project / f"clip{i:02d}"
     task = f"clip{i:02d}"
     if not (d / "cams.json").is_file():
+        _forget_context(d, judge)
         say(f"{task}: cutting " + ", ".join(f"{a:.1f}-{b:.1f}s" for a, b in scout.parts(m)))
         cut.cut(d, media, words, m["start"], m["end"], **({"spans": scout.parts(m)} if m.get("spans") else {}))
     w = _read(d / "words.json")
@@ -330,6 +362,11 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     inputs = [project / "answers" / f"{task}-{kind}.json" for kind in ("plan", "pick")] + [visdir / "picks.json"]
     if not final_path.is_file() or any(p.is_file() and p.stat().st_mtime > final_path.stat().st_mtime for p in inputs):
         plan.finalize(d, raw, found, cfg.get("brand"), cfg.get("news"))
+        _forget_context(d, judge)
+    try:
+        _context(d, judge, say, m)
+    except NeedsAnswer:
+        waiting.append(f"{task}-context")
     for shape in cfg["shapes"]:
         tag = render.suffix(shape, cfg["pack"])
         out = d / f"clip{tag}.mp4"
@@ -397,6 +434,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
         d = project / f"clip{i:02d}"
         clips.append({"clip": f"clip{i:02d}", "hook": m["hook"].replace("*", ""), "start": m["start"], "end": m["end"],
                       "added": (_read(d / "receipt.json") or {}).get("share"),
+                      "context_flags": len((_read(d / "context.json") or {}).get("flags", [])),
                       "renders": sorted(p.name for p in d.glob("clip*.mp4")) if d.is_dir() else [],
                       "copy": (d / "post.json").is_file(), **({"by": "hand"} if m.get("by") == "hand" else {})})
     bench = [{"hook": m["hook"].replace("*", ""), "why": m.get("why", ""), "topic": m.get("topic", ""),
@@ -424,6 +462,8 @@ def answer(project: Path, task: str, text: str | dict) -> dict:
     except (ValueError, KeyError, TypeError) as exc:       # the prompt stays pending for another try
         raise FactoryError(f"answer for {task} rejected: {exc}") from exc
     Judge(Path(project)).save(task, value)
+    if kind == "context":
+        (Path(project) / task.rsplit("-", 1)[0] / "context.json").unlink(missing_ok=True)
     return {"task": task, "saved": True}
 
 
@@ -434,6 +474,8 @@ def redo(project: Path, task: str) -> None:
     clip, _, kind = task.partition("-")
     d = project / clip
     if task == "scout":
+        for path in project.glob("clip[0-9][0-9]"):
+            _forget_context(path, Judge(project))
         (project / "moments.json").unlink(missing_ok=True)
         for p in project.glob("clip[0-9][0-9]"):
             shutil.rmtree(p, ignore_errors=True)
@@ -446,9 +488,13 @@ def redo(project: Path, task: str) -> None:
         shutil.rmtree(d / "mattes", ignore_errors=True)
         (d / "plan.json").unlink(missing_ok=True)
         (d / "receipt.json").unlink(missing_ok=True)
+        _forget_context(d)
     elif kind == "pick":
         (d / "visuals" / "picks.json").unlink(missing_ok=True)
         (d / "plan.json").unlink(missing_ok=True)
         (d / "receipt.json").unlink(missing_ok=True)
+        _forget_context(d, Judge(project))
     elif kind == "copy":
         (d / "post.json").unlink(missing_ok=True)
+    elif kind == "context":
+        (d / "context.json").unlink(missing_ok=True)

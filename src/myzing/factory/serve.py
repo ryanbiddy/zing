@@ -19,7 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
 from . import pick, pipeline, plan, render
-from .judge import Judge
+from .judge import Judge, NeedsAnswer
 from .tools import FactoryError, data_path
 
 CLIP = re.compile(r"^clip\d{2}$")
@@ -73,6 +73,7 @@ class Studio:
             vis = d / "visuals"
             clips.append({**c, "plan": _read(d / "plan.json"), "post": _read(d / "post.json"),
                           "receipt": _read(d / "receipt.json"),
+                          "context": _read(d / "context.json"),
                           "visual_requests": _read(vis / "requests.json"), "candidates": _read(vis / "manifest.json"),
                           "picks": _read(vis / "picks.json"), "rating": ratings.get(c["clip"]),
                           "videos": {p.name: p.name for p in sorted(d.glob("clip*.mp4"))}})
@@ -95,6 +96,12 @@ class Studio:
         cfg = _read(self.project / "factory.json", {})
         for shape in cfg.get("shapes", ["9x16"]):
             render.render(d, shape, cfg.get("pack", "zing"))
+
+    def _context(self, d: Path) -> None:
+        try:
+            pipeline._context(d, Judge(self.project, self.judge))
+        except NeedsAnswer:
+            pass
 
     # ---------------------------------------------------------------- actions
     def run(self, _body: dict) -> dict:
@@ -153,6 +160,7 @@ class Studio:
         def job():
             plan.finalize(d, raw, pick.chosen(vis, raw.get("visual_requests", []), manifest, picks["picks"]),
                           *self._finalize_args())
+            self._context(d)
             self._rerender(d)
         return self.queue(f"{d.name}: new visual", job)
 
@@ -179,6 +187,8 @@ class Studio:
         def job():
             current = _read(d / "plan.json")
             plan.finalize(d, raw, current.get("visuals", {}), *self._finalize_args())    # re-runs the hook fact check
+            pipeline._forget_context(d, Judge(self.project))
+            self._context(d)
             self._rerender(d)
         return self.queue(f"{d.name}: new hook", job)
 
