@@ -519,3 +519,23 @@ def test_a_news_peg_reaches_scout_plan_and_copy_and_grounds_the_hook(tmp_path):
     raw = {"hook": "*$6.3 billion* gone", "shots": [{"from": 0, "layout": "solo"}]}
     assert any("hook" in line for line in plan.finalize(tmp_path, raw, {})["fact_check"])
     assert not any("hook" in line for line in plan.finalize(tmp_path, raw, {}, news=news)["fact_check"])
+
+
+def test_a_name_tag_names_the_person_on_screen(tmp_path):
+    d = tmp_path / "proj" / "clip01"
+    d.mkdir(parents=True)
+    (d.parent / "source.json").write_text(json.dumps({"name": "The Pomp Podcast, with Polina Pompliano"}), encoding="utf-8")
+    (d / "words.json").write_text(json.dumps({"words": clip_words(
+        "His name is Buddy Shah. I'm Ana Smith and Polina Pompliano asked.")}), encoding="utf-8")
+    raw = {"hook": "h", "shots": [
+        {"from": 0, "layout": "solo", "label": {"name": "Buddy Shah"}},                       # mentioned, not on screen
+        {"from": .5, "layout": "split", "visual": "v1", "label": {"name": "Buddy Shah"}},     # pictured
+        {"from": 1, "layout": "solo", "label": {"name": "Polina Pompliano"}},                 # the credited speaker
+        {"from": 1.5, "layout": "solo", "label": {"name": "Ana Smith"}},                      # introduces herself
+        {"from": 2, "layout": "split", "visual": "v2", "label": {"name": "Buddy Shah"}}],     # picture not found
+        "visual_requests": [{"id": "v1", "query": "Buddy Shah portrait", "entity": "Buddy Shah"},
+                            {"id": "v2", "query": "Buddy Shah", "entity": "Buddy Shah"}]}
+    final = plan.finalize(d, raw, {"v1": {"path": "x.jpg"}})
+    tags = [(s["from"], s.get("label", {}).get("name")) for s in final["shots"]]
+    assert tags == [(0, None), (.5, "Buddy Shah"), (1, "Polina Pompliano"), (1.5, "Ana Smith"), (2, None)]
+    assert any("Buddy Shah is not the person on screen" in line for line in final["fact_check"])

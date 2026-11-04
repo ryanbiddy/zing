@@ -164,6 +164,17 @@ def ungrounded(text: str, spoken: str, brand: dict | None = None) -> list[str]:
     return [t for t in _norm(str(text)).split() if t not in FILLER and _stem(t) not in known]
 
 
+def on_screen(label: dict, shot: dict, people: str, requests: dict) -> bool:
+    """A name tag names someone the viewer sees: the speaker, by a name the source credit or brand gives, or on a
+    split shot the person pictured. Never the speaker labelled with someone they only mention."""
+    name = [_stem(w) for w in _norm(label.get("name", "")).split() if w not in FILLER]
+
+    def has(text: str) -> bool:
+        return bool(name) and set(name) <= {_stem(w) for w in _norm(text).split()}
+    request = requests.get(shot.get("visual")) or {} if shot.get("layout") == "split" else {}
+    return has(people) or has(f"{request.get('entity', '')} {request.get('query', '')}")
+
+
 def fact_check(graphic: dict, words: list[dict], brand: dict | None = None) -> list:
     """What the graphic draws that the clip never says: every number must be spoken, a quote word for word, a name
     or line said in the clip or given by the brand."""
@@ -218,6 +229,11 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
                                    ensure_ascii=False), encoding="utf-8")
     shots, quoted = [], False
     spoken = spoken_numbers(words)[0]
+    src = d.parent / "source.json"
+    source = json.loads(src.read_text(encoding="utf-8")) if src.is_file() else {}
+    intro = " ".join(re.findall(r"(?:^| )(?:im|i am|my name is|my names) ((?:[a-z0-9]+ ?){1,3})", spoken))   # "I'm Ana Smith"
+    people = " ".join(str(v) for v in (source.get("name"), source.get("tag"), (brand or {}).get("name"), intro) if v)
+    requests = {r.get("id"): r for r in plan.get("visual_requests", []) if isinstance(r, dict)}
     for s in plan["shots"]:
         if not _in_clip(s.get("from"), words[-1]["oe"]):
             log.append(f"dropped shot at {s.get('from')} outside the clip")
@@ -243,6 +259,9 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
                 quoted = True
         if s.get("layout") == "split" and s.get("visual") not in found:
             s = {"from": s["from"], "layout": "solo"}
+        if s.get("label") and not on_screen(s["label"], s, people, requests):
+            log.append(f"dropped name tag at {s['from']}: {s['label'].get('name')} is not the person on screen")
+            s = {k: v for k, v in s.items() if k != "label"}
         shots.append(s)
     final = {"hook": plan["hook"], "hook_until": plan.get("hook_until", 3.0), "shots": shots or [{"from": 0, "layout": "solo"}],
              "sensitive": bool(plan.get("sensitive")), "sensitive_reason": plan.get("sensitive_reason", ""),
