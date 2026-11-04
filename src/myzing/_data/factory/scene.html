@@ -18,9 +18,13 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #top{background:#0A1430}
 #top img{position:absolute;left:0;top:0;transform-origin:0 0}
 #topBlur{filter:blur(36px) brightness(.55);}
+#topWin{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden}
+#topWin.cut{box-shadow:0 0 60px rgba(0,0,0,.55)}
 #spk{background:#000}
-#spk img{position:absolute;left:0;top:0;transform-origin:0 0}
+#spk img,#spk canvas{position:absolute;left:0;top:0;transform-origin:0 0}
 #spkBlur{filter:blur(30px) brightness(.5)}
+#spk.front{background:transparent}
+#spk.front #spkBlur,#spk.front #spkImg,#spk:not(.front) #spkCut{display:none}
 #gfx{display:none;
   background:radial-gradient(800px 600px at 50% 45%,var(--glow) 0%,transparent 70%),var(--navy);border-top:12px solid var(--edge)}
 #hook{position:absolute;left:60px;right:60px;height:240px;display:flex;align-items:center;justify-content:center;text-align:center;font:900 74px/1.04 Inter;letter-spacing:-.02em}
@@ -78,9 +82,10 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #panel .head b{font-weight:inherit;color:var(--panel-on,var(--yel))}
 </style></head>
 <body>
-<div class="layer" id="top"><img id="topBlur"><img id="topImg"></div>
+<div class="layer" id="top"><img id="topBlur"><div id="topWin"><img id="topImg"></div></div>
 <div class="layer" id="gfx"><div id="gfxIn" style="position:absolute;left:0;top:0;width:1080px;height:960px;transform-origin:0 0"></div></div>
-<div class="layer" id="spk"><img id="spkBlur"><img id="spkImg"></div>
+<div class="layer" id="spk"><img id="spkBlur"><img id="spkImg"><canvas id="spkCut"></canvas></div>
+<img id="matte" style="display:none">
 <div class="ovl" id="vig"></div>
 <div class="ovl" id="grain"></div>
 <div id="dim"></div>
@@ -267,6 +272,14 @@ function fitQuote(el, w, h) {    // the largest size at which the whole quote fi
 }
 function geometry(layout) {
   if (layout === 'quote') return {spk: {x:0, y:0, w:SW, h:STAGE_H}, hook: PANEL ? 'panel' : 'none'};   // the speaker, full stage
+  if (layout === 'front') {    // the picture fills the stage; the speaker, cut out, stands in front: rising from the
+    const S = geometry('solo'), box = {x:0, y:0, w:SW, h:STAGE_H}, r = Math.round;   // bottom when tall, at the right when wide
+    // the picture keeps its sharpness in a window (the top when tall, the left when wide) over its own blur
+    const tall = box.h > box.w*1.2, win = tall ? {w:box.w, h:r(box.h*.56)} : {w:r(box.w*.62), h:box.h};
+    const spk = tall ? {x:0, y:r(box.h*.32), w:box.w, h:box.h - r(box.h*.32)}
+                     : {x:r(box.w*.48), y:r(box.h*.06), w:box.w - r(box.w*.48), h:box.h - r(box.h*.06)};
+    return {...S, top: box, win, spk, front: true, hook: S.hook === 'panel' ? 'panel' : 'pill', pill: S.pill};
+  }
   if (PANEL) {                 // the clip plays above the panel, cutting to full-width visuals and graphics
     const stage = {x:0, y:0, w:SW, h:STAGE_H}, cap = CAP.y ? Math.round(CAP.y*SH9) : STAGE_H - 150;
     return layout === 'solo' ? {spk: stage, cap, hook:'panel', pill:56} : {[layout==='split'?'top':'gfx']: stage, cap, hook:'panel', pill:56};
@@ -300,26 +313,35 @@ window.seek = async function(t) {
   place(top, G.top); place(gfx, G.gfx); place(spk, G.spk);
 
   // speaker
+  spk.classList.toggle('front', !!G.front);
   if (G.spk) {
     const f = Math.min(D.frames, Math.max(1, Math.floor(t*FPS)+1));
     const src = `${D.framesDir}/${String(f).padStart(5,'0')}.jpg`;
-    await Promise.all([setImg($('spkImg'), src), setImg($('spkBlur'), src)]);
-    const BW = G.spk.w, BH = G.spk.h, [iw, ih] = D.srcSize;
+    await Promise.all([setImg($('spkImg'), src), setImg($('spkBlur'), src),
+                       G.front ? setImg($('matte'), `${D.mattesDir}/${String(f).padStart(5,'0')}.png`) : null]);
+    const BW = G.spk.w, BH = G.spk.h, [iw, ih] = D.srcSize, body = G.front ? $('spkCut') : $('spkImg');
     cover($('spkBlur'), iw, ih, BW, BH, 1.1);
     // a quote moment leans in on the speaker, holds, and eases back as the quote steps away
     const lean = Q ? 1 + .06*easeOut(lin(t, Q.from, Q.from+1.2))*(1 - easeInOut(lin(t, Q.to-.35, Q.to))) : 1;
     if (cam.mode === 'face') {
       const want = BH / (cam.fh*ih*3.2), base = Math.max(BW/iw, BH/ih);
       const z = clamp(want/base, 1, cam.wide ? 1.4 : 2.2) * (1 + .05*easeInOut(lin(t, cam.from, cam.to))) * lean;
-      cover($('spkImg'), iw, ih, BW, BH, z, cam.cx, clamp(cam.cy+.06,0,1), D.burnTop);
-    } else if (cam.mode === 'wide' && cam.faces > 1) contain($('spkImg'), iw, ih, BW, BH);   // a real group shot: show everyone
-    else cover($('spkImg'), iw, ih, BW, BH, lean, .5, .38, D.burnTop);                       // no face found: crop the middle, never letterbox
+      cover(body, iw, ih, BW, BH, z, cam.cx, clamp(cam.cy+.06,0,1), D.burnTop);
+    } else if (cam.mode === 'wide' && cam.faces > 1) contain(body, iw, ih, BW, BH);   // a real group shot: show everyone
+    else cover(body, iw, ih, BW, BH, lean, .5, .38, D.burnTop);                       // no face found: crop the middle, never letterbox
+    if (G.front) {             // the frame, kept only where its matte says the speaker is
+      if (body.width !== iw) { body.width = iw; body.height = ih; }
+      const c = body.getContext('2d');
+      c.globalCompositeOperation = 'copy'; c.drawImage($('spkImg'), 0, 0, iw, ih);
+      c.globalCompositeOperation = 'destination-in'; c.drawImage($('matte'), 0, 0, iw, ih);
+    }
   }
 
   // visual (top half in 9x16, full frame otherwise)
   $('credit').textContent = '';
   if (G.top) {
-    const v = D.visuals[shot.visual], BW = G.top.w, BH = G.top.h;
+    const v = D.visuals[shot.visual], W = G.win || G.top, BW = W.w, BH = W.h, tw = $('topWin');
+    tw.style.width = BW + 'px'; tw.style.height = BH + 'px'; tw.classList.toggle('cut', !!G.win);
     let vsrc = v.src, vw = v.w, vh = v.h;
     const d = shot.to-shot.from;
     // a depth move plays once across the shot; stock video loops
@@ -327,7 +349,7 @@ window.seek = async function(t) {
                                       : Math.floor(tin*FPS) % v.frames) + 1;
                     vsrc = `${v.dir}/${String(k).padStart(5,'0')}.jpg`; }
     await Promise.all([setImg($('topImg'), vsrc), setImg($('topBlur'), vsrc)]);
-    cover($('topBlur'), vw, vh, BW, BH, 1.1);
+    cover($('topBlur'), vw, vh, G.top.w, G.top.h, 1.1);
     const pop = mix(1.06, 1, easeOut(lin(tin, 0, .25)));
     if (v.fit === 'contain') contain($('topImg'), vw, vh, BW, BH);
     else if (v.move) cover($('topImg'), vw, vh, BW, BH, pop, .5, .45);   // the camera already moves through the photo
@@ -335,8 +357,8 @@ window.seek = async function(t) {
       cover($('topImg'), vw, vh, BW, BH, pop*(1.02 + (v.frames ? .02 : .07)*lin(tin, 0, d)), .5 + dir*.06*lin(tin,0,d), .45); }
     $('credit').textContent = v.credit || '';
     // a visual on the top half credits at its top edge: its bottom edge is the caption seam
-    const seamed = ASPECT === '9x16' && G.top.y === 0 && G.top.h < SH9*.75;
-    $('credit').style.top = (seamed ? G.top.y + 16 : G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';
+    const seamed = G.front || (ASPECT === '9x16' && G.top.y === 0 && G.top.h < SH9*.75);   // in front, the speaker has the foot
+    $('credit').style.top = (seamed ? G.top.y + 16 + (G.front ? 46 : 0) : G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';   // under the source tag
   }
   if (G.gfx) {
     const half = ASPECT==='9x16' && G.gfx.h < SH9*.75, s = Math.min(G.gfx.w/1080, (G.gfx.h - (half ? 0 : 150))/960);
@@ -347,7 +369,8 @@ window.seek = async function(t) {
 
   // look: the grade on footage and photos; each cut comes into focus; the grain moves every frame
   const soft = LOOK.transition === 'blur' && shot.idx > 0 ? 14*(1 - easeOut(lin(tin, 0, .5))) : 0;
-  for (const el of [top, spk]) el.style.filter = `${LOOK.grade}${soft ? ` blur(${soft.toFixed(2)}px)` : ''}` || 'none';
+  for (const el of [top, spk]) el.style.filter = `${LOOK.grade}${soft ? ` blur(${soft.toFixed(2)}px)` : ''}`
+    + (el === spk && G.front ? ' drop-shadow(0 18px 40px rgba(0,0,0,.55))' : '') || 'none';   // a cutout casts a soft shadow
   gfx.style.filter = soft ? `blur(${soft.toFixed(2)}px)` : 'none';
   $('vig').style.display = LOOK.vignette ? 'block' : 'none';
   const gr = $('grain'), fr = Math.floor(t*FPS); gr.style.display = LOOK.grain ? 'block' : 'none';

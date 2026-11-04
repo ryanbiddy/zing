@@ -17,7 +17,7 @@ from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
-            "brand": None}
+            "cutout": False, "upscale": True, "brand": None}
 LAUNCH = {"moments": 2, "shapes": ["16x9", "1x1", "9x16"], "pack": "launch"}   # a launch film is landscape first
 
 

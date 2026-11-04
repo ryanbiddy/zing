@@ -103,7 +103,7 @@ def clip(tmp_path: Path, settings: dict | None = None) -> Path:
     return d
 
 
-def test_render_moves_photos_but_never_logos_or_pages(tmp_path, monkeypatch):
+def test_render_moves_photos_but_never_logos_or_pages(tmp_path, monkeypatch, zing_workspace):
     d = clip(tmp_path)
     asked = []
 

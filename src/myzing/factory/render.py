@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import depth
+from . import cutout, depth, upscale
 from .tools import FactoryError, data_path, ffmpeg, node_sidecar, run, sidecar_env
 
 SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
@@ -68,8 +68,14 @@ def quotes(shots: list[dict], words: list[dict]) -> list[dict]:
     return out
 
 
-def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False, parallax: bool | None = None) -> dict:
-    """Everything the scene needs. parallax: move photos through their depth (None: when the depth model is installed)."""
+def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False, parallax: bool | None = None,
+               front: bool | None = None, sharpen: bool | None = None) -> dict:
+    """Everything the scene needs. parallax: move photos through their depth (None: when the depth model is installed).
+    sharpen: upscale small photos first (None: the project's upscale setting, when the upscaler is installed).
+
+    front: stand the speaker, cut out, in front of each split shot's picture (None: the project's cutout setting, when
+    the cutout model is installed). Shots stay split when the speaker can't be lifted cleanly.
+    """
     from PIL import Image
     plan = json.loads((d / "plan.json").read_text(encoding="utf-8"))
     if speaker_only:                                   # style checks compare captions over the speaker only
@@ -86,12 +92,25 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
         s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1
     shots[0]["from"] = 0
     moments = quotes(shots, words["words"])
+    cfg_file = d.parent / "factory.json"
+    cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.is_file() else {}
     if parallax is None:                       # the project's setting, then whether the weights are installed
-        cfg = d.parent / "factory.json"
-        parallax = (json.loads(cfg.read_text(encoding="utf-8")).get("parallax", True) if cfg.is_file() else True)             and depth.ready()
+        parallax = cfg.get("parallax", True) and depth.ready()
+    if front is None:
+        front = cfg.get("cutout", False) and cutout.ready()
+    if sharpen is None:
+        sharpen = cfg.get("upscale", True) and upscale.ready()
+    splits = [s for s in shots if s.get("layout") == "split"]
+    lifted = cutout.mattes(d, [(s["from"], min(s["to"], duration)) for s in splits]) if front and splits else None
+    for s in splits if lifted else ():
+        s["layout"] = "front"
     visuals = {}
     for vid, v in plan.get("visuals", {}).items():
-        p, moved = Path(v["path"]), None
+        p, moved, credit = Path(v["path"]), None, v.get("credit", "")
+        if sharpen and p.suffix.lower() not in VIDEO and v.get("fit") != "contain":   # photos only: never a logo or page
+            sharp = upscale.upscale(p, d / "vis" / f"{vid}-upscaled.jpg")
+            if sharp:
+                p, credit = sharp, f"{credit} · upscaled" if credit else "upscaled"
         if parallax and p.suffix.lower() not in VIDEO and v.get("fit") != "contain":
             longest = max((min(s["to"], duration) - s["from"] for s in shots if s.get("visual") == vid), default=0)
             if longest > 0:                    # the move plays across each shot, so the longest one sets its length
@@ -105,15 +124,16 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
                 "-q:v", "3", fd / "%05d.jpg")
             w, h = Image.open(fd / "00001.jpg").size
             visuals[vid] = {"dir": fd.resolve().as_uri(), "frames": len(list(fd.glob("*.jpg"))), "w": w, "h": h,
-                            "credit": v.get("credit", ""), "fit": v.get("fit"), **({"move": True} if moved else {})}
+                            "credit": credit, "fit": v.get("fit"), **({"move": True} if moved else {})}
         else:
             w, h = Image.open(p).size
-            visuals[vid] = {"src": p.resolve().as_uri(), "w": w, "h": h, "credit": v.get("credit", ""), "fit": v.get("fit")}
+            visuals[vid] = {"src": p.resolve().as_uri(), "w": w, "h": h, "credit": credit, "fit": v.get("fit")}
     hook = plan["hook"].replace("&", "&amp;").replace("<", "&lt;")
     source = d.parent / "source.json"
     W, H = SHAPES[shape]
     return {"fps": 30, "words": words["words"], "frames": cam["frames"], "framesDir": (d / "frames").resolve().as_uri(),
             "srcSize": cam["size"], "cams": cam["cams"], "burnTop": cam.get("burn_top"), "shots": shots, "quotes": moments,
+            **({"mattesDir": lifted["dir"].resolve().as_uri()} if lifted else {}),
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,
             "sourceTag": json.loads(source.read_text(encoding="utf-8")).get("tag", "") if source.is_file() else "",
@@ -121,14 +141,15 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
 
 
 def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out: Path | None = None,
-           speaker_only: bool = False, parallax: bool | None = None) -> Path:
+           speaker_only: bool = False, parallax: bool | None = None, front: bool | None = None,
+           sharpen: bool | None = None) -> Path:
     """Render a clip in a shape and pack (a name, or a pack dict being tried out) to clip[-shape][-pack].mp4."""
     if shape not in SHAPES:
         raise FactoryError(f"unknown shape {shape!r}; choose from {', '.join(SHAPES)}")
     d = Path(clipdir).resolve()
     node, sidecar = node_sidecar()
     tag = suffix(shape, pack if isinstance(pack, str) else "trial")
-    data = scene_data(d, shape, pack, speaker_only, parallax)
+    data = scene_data(d, shape, pack, speaker_only, parallax, front, sharpen)
     out = Path(out).resolve() if out else d / f"clip{tag}.mp4"
     # a trial render (out given) keeps its scratch files beside the trial, not in the clip folder
     scratch = (out.with_suffix(".data.json"), out.with_suffix(".frames"), out.with_suffix(".sheet.jpg")) \

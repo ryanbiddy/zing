@@ -72,6 +72,22 @@ one judgment and what was built from it.
   pictures such as charts stay still. It needs `zing factory fetch-depth --yes` once
   (Apache-2.0 weights, about 99 MB); without them photos keep the flat zoom. Turn it off
   per project with `new --no-parallax` or per render with `render --no-parallax`.
+- `new --cutout` stands the speaker in front of the pictures instead of splitting the
+  frame: the picture sits sharp in a window (the top in 9:16, the left in 16:9) over its
+  own blur, and the speaker, lifted off their background, overlaps its edge with a soft
+  shadow. The cutout uses rembg's IS-Net model on the CPU (about 0.4 s for every second
+  frame, only inside those shots; mattes are kept for re-renders). A speaker too small
+  to lift cleanly, such as a conference recording's inset camera, or one who leaves the
+  frame, keeps the split. It needs `zing factory fetch-cutout --yes` once (Apache-2.0
+  weights, about 179 MB). Try it on one render with `render --cutout`.
+- Small photos (under 1600 px on the long side) are upscaled 4x by Real-ESRGAN on the
+  GPU through Vulkan (AMD and Intel included) before they render, so a full-frame photo
+  stays sharp. On its own the model airbrushes old photos, so its result is blended half
+  and half with a plain enlargement: sharper edges, the photo's own grain. It still
+  guesses the finest texture, so an upscaled photo's credit says "upscaled". Logos and page captures are never upscaled.
+  It needs `zing factory fetch-upscale --yes` once (BSD-3-Clause, about 50 MB); without
+  it photos render at their own size. Turn it off with `new --no-upscale` or
+  `render --no-upscale`.
 - `--mode fun` asks for playful, literal visuals that still match what is said.
   Clips on sensitive subjects (slavery, violence, death, war and similar) are planned
   and picked in context mode with restrained visuals, and flagged on the review page.
@@ -176,6 +192,8 @@ unknown, and the closest bundled font is reported with its similarity.
 python -m pip install "myzing[factory]"
 zing layout fetch-model
 zing factory fetch-depth --yes          # optional: photos move through their depth
+zing factory fetch-cutout --yes         # optional: --cutout stands the speaker in front of pictures
+zing factory fetch-upscale --yes        # optional: small photos render sharp
 cd tools/factory-sidecar && npm ci     # pinned playwright-core; uses your Chrome or Edge
 ```
 
