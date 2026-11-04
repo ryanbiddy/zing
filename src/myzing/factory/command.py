@@ -98,6 +98,11 @@ def run(argv: list[str]) -> int:
                      help="stand the speaker in front of the pictures for this render (default: the project's setting)")
     ren.add_argument("--no-upscale", dest="sharpen", action="store_const", const=False, default=None,
                      help="render small photos at their own size for this render")
+    exp = commands.add_parser("export", help="export layers and a timeline for Premiere Pro or DaVinci Resolve")
+    exp.add_argument("clipdir", type=Path, help="the finished clip folder")
+    exp.add_argument("--shape", default="9x16", choices=("9x16", "4x5", "1x1", "16x9"), help="frame shape (default 9x16)")
+    exp.add_argument("--pack", default="zing", help="style pack (default zing)")
+    exp.add_argument("--out", type=Path, help="output folder (default <clipdir>/export-<shape>)")
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
     approval = commands.add_parser("approval", help="write a local guest approval page")
     approval.add_argument("project", type=Path)
@@ -177,6 +182,9 @@ def run(argv: list[str]) -> int:
         elif args.command == "approval":
             from .approval import build
             result = {"approval": str(build(args.project, args.out))}
+        elif args.command == "export":
+            from .export import export
+            result = export(args.clipdir, args.shape, args.pack, out=args.out)
         elif args.command == "learn-style":
             from .learn import learn
             result = learn(args.reference, args.name, args.sample, rounds=args.rounds, base=args.base,

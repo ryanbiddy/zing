@@ -92,6 +92,23 @@ doubles in width and height. File names stay the same. The next factory run
 replaces any remaining 1080 renders. Sources below 2160 pixels on the short side
 still render with one warning per run.
 
+## Factory export
+
+```sh
+zing factory export talk/clip01 --shape 9x16 --pack zing --out talk/clip01/editor
+```
+
+`factory export` writes `speaker.mp4`, transparent ProRes 4444 `overlay.mov`,
+`captions.srt`, `words.srt`, 48 kHz `audio.wav`, `timeline.xml` and `README.txt`.
+Import the XML into Premiere Pro or DaVinci Resolve. It places speaker on V1,
+overlay on V2 and audio on A1 at 30 fps. Text and graphics are rendered into the
+overlay. Import an SRT to style new captions.
+
+`--shape` accepts `9x16`, `4x5`, `1x1` or `16x9` and defaults to `9x16`.
+`--pack NAME` defaults to `zing`. `--out DIR` defaults to `<clipdir>/export-<shape>/`.
+JSON includes three composite comparisons, file sizes in bytes and elapsed seconds.
+This command has no MCP tool.
+
 ## Match a reference
 
 ```sh
