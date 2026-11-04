@@ -216,6 +216,28 @@ The server listens on 127.0.0.1 only, answers only to localhost Host headers, re
 writes from other sites and non-JSON posts, and serves files only from the project's
 clip folders. Nothing on the page posts or publishes.
 
+## Full context and guest approval
+
+First comments link YouTube watch and youtu.be sources to the clip's start time.
+An existing `t` parameter is replaced. Launch films use the first span in playback
+order. Links to other sites stay unchanged.
+
+```bash
+zing factory approval talk
+zing factory approval talk --out talk/guest.html
+```
+
+The default file is `talk/approval.html`. It lists each rendered 9x16 clip in the
+project's style pack with its hook and full transcript. If `clipNN/context.json`
+has `before` and `after` text, that appears too.
+
+Zip the project folder and send it to the guest or their PR person. They unzip it,
+open the HTML file, choose Yes or No, and add comments. **Copy my answers** builds
+plain text they can send back. If clipboard access is blocked, they can select and
+copy the text on the page. The page uses local videos and has no network requests.
+Video paths are relative to the HTML file. Keep a custom output inside the project
+folder when sharing a zip.
+
 ## Learn a style from a clip you like
 
 ```bash
