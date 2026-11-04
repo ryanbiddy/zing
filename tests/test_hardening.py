@@ -169,7 +169,7 @@ def test_render_bounds_end_card_duration(tmp_path, at):
     (tmp_path / "words.json").write_text(json.dumps({"words": [{"w": "Hi.", "os": 0, "oe": 2}]}), encoding="utf-8")
     (tmp_path / "cams.json").write_text(json.dumps({"frames": 60, "size": [320, 180], "cams": []}), encoding="utf-8")
     data = render.scene_data(tmp_path, "16x9", {}, parallax=False, front=False, sharpen=False)
-    assert 2.45 <= data["duration"] <= 5
+    assert 2.45 <= data["duration"] <= 8                 # a card at most 3 s past the last word, then its 3 s hold
 
 
 @pytest.mark.parametrize("judgment", [False, True])

@@ -74,7 +74,7 @@ def timeline(plan: dict, words: dict) -> tuple[float, list[dict], list[dict]]:
     card = next((s["from"] for s in shots if (s.get("graphic") or {}).get("kind") == "endcard"), None)
     if card is not None:                               # an end card holds for three seconds, bounded even for a
         last = words["words"][-1]["oe"] if words.get("words") else duration   # hand-edited plan
-        duration = max(duration, round(min(last + 3.0, card + 3.0), 3))
+        duration = max(duration, round(min(card, last + 3.0) + 3.0, 3))
     for i, s in enumerate(shots):
         s["idx"] = i
         s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1

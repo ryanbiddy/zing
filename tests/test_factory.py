@@ -463,14 +463,14 @@ def test_launch_projects_default_to_landscape_and_check_the_brand(tmp_path):
     assert "copy" in postcopy.prompt({"hook": "h"}, {"words": clip_words("Hi.")}, {}, "launch", {"name": "Fold"}).lower()
 
 
-def test_end_card_ends_within_three_seconds_of_the_last_word(tmp_path):
+def test_end_card_holds_three_seconds_past_the_last_word(tmp_path):
     (tmp_path / "plan.json").write_text(json.dumps({"hook": "h", "shots": [
         {"from": 0, "layout": "solo"}, {"from": 1.0, "layout": "graphic", "graphic": {"kind": "endcard", "name": "Fold"}}]}),
         encoding="utf-8")
     (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("Fold it.")}), encoding="utf-8")
     (tmp_path / "cams.json").write_text(json.dumps({"frames": 30, "size": [1920, 1080], "cams": []}), encoding="utf-8")
     data = render.scene_data(tmp_path, "16x9", "launch", parallax=False)
-    assert data["duration"] == pytest.approx(3.7)
+    assert data["duration"] == pytest.approx(4.0)
 
 
 def test_films_that_share_spans_transcribe_each_stretch_once(tmp_path, monkeypatch):
