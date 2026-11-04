@@ -107,9 +107,13 @@ def check() -> dict:
             {} if verified_model(model_path()) else {"fix": "Run 'zing layout fetch-model'."})
     except Exception as exc:
         out["face_model"] = {"ok": False, "fix": f"{exc}"}
-    from . import depth
+    from . import cutout, depth, upscale
     out["depth_model"] = {"ok": depth.ready()} | ({} if depth.ready() else
                                                   {"fix": f"Optional: photos move through their depth after {depth.FETCH_HINT}."})
+    out["cutout_model"] = {"ok": cutout.ready()} | ({} if cutout.ready() else
+                                                    {"fix": f"Optional: --cutout stands the speaker in front of pictures after {cutout.FETCH_HINT}."})
+    out["upscaler"] = {"ok": upscale.ready()} | ({} if upscale.ready() else
+                                                 {"fix": f"Optional: small photos render sharp after {upscale.FETCH_HINT}."})
     from .visuals import KEY_NAMES, get_key
     out["stock_keys"] = {name: ("present" if get_key(name) else "absent") for name in KEY_NAMES}
     return out

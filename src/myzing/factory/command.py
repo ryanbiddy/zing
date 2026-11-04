@@ -39,6 +39,11 @@ def run(argv: list[str]) -> int:
     new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
     new.add_argument("--no-parallax", dest="parallax", action="store_false",
                      help="keep photos flat instead of moving through their depth")
+    new.add_argument("--cutout", action="store_true",
+                     help="stand the speaker, cut out, in front of the pictures instead of splitting the frame "
+                          "(needs 'zing factory fetch-cutout --yes')")
+    new.add_argument("--no-upscale", dest="upscale", action="store_false",
+                     help="render small photos at their own size instead of upscaling them")
     go = commands.add_parser("run", help="advance the project; stops when it needs answers (host judge)")
     go.add_argument("project", type=Path)
     go.add_argument("--judge", choices=("host", "claude"), default="host",
@@ -59,6 +64,10 @@ def run(argv: list[str]) -> int:
     ren.add_argument("--pack", default="zing")
     ren.add_argument("--no-parallax", dest="parallax", action="store_const", const=False, default=None,
                      help="keep photos flat for this render")
+    ren.add_argument("--cutout", dest="front", action=argparse.BooleanOptionalAction, default=None,
+                     help="stand the speaker in front of the pictures for this render (default: the project's setting)")
+    ren.add_argument("--no-upscale", dest="sharpen", action="store_const", const=False, default=None,
+                     help="render small photos at their own size for this render")
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
     learn = commands.add_parser("learn-style", help="learn a style pack from a clip you like, then check the copy against it")
     learn.add_argument("reference", type=Path, help="a local clip whose captions and pacing you want")
@@ -73,6 +82,12 @@ def run(argv: list[str]) -> int:
     commands.add_parser("packs", help="list style packs")
     depth = commands.add_parser("fetch-depth", help="download the depth model that moves photos (Apache-2.0, about 99 MB)")
     depth.add_argument("--yes", action="store_true", help="agree to the download")
+    cut = commands.add_parser("fetch-cutout", help="download the model that lifts the speaker off their background "
+                                                   "(rembg's IS-Net, Apache-2.0, about 179 MB)")
+    cut.add_argument("--yes", action="store_true", help="agree to the download")
+    up = commands.add_parser("fetch-upscale", help="download Real-ESRGAN, which sharpens small photos on the GPU "
+                                                   "(BSD-3-Clause, about 50 MB)")
+    up.add_argument("--yes", action="store_true", help="agree to the download")
     commands.add_parser("doctor", help="check FFmpeg, Node, the sidecar, a browser and the models")
     args = parser.parse_args(argv)
     try:
@@ -81,7 +96,8 @@ def run(argv: list[str]) -> int:
         if args.command == "new":
             result = pipeline.init(args.project, args.media, transcript=args.transcript, offset=args.offset,
                                    name=args.name, url=args.url, date=args.date, tag=args.tag,
-                                   mode=args.mode, public=args.public, parallax=args.parallax,
+                                   mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
+                                   upscale=args.upscale,
                                    **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack,
                                                         "moments": args.moments}.items() if v is not None},
                                    **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
@@ -99,7 +115,8 @@ def run(argv: list[str]) -> int:
             result = {"task": args.task, "forgotten": True}
         elif args.command == "render":
             from .render import render
-            result = {"rendered": str(render(args.clip, args.shape, args.pack, parallax=args.parallax))}
+            result = {"rendered": str(render(args.clip, args.shape, args.pack, parallax=args.parallax, front=args.front,
+                                                     sharpen=args.sharpen))}
         elif args.command == "review":
             from .review import build
             result = {"review": str(build(args.project))}
@@ -115,6 +132,15 @@ def run(argv: list[str]) -> int:
             from . import depth
             path = depth.fetch(consent=args.yes, progress=lambda m: print(m, file=sys.stderr, flush=True))
             result = {"model": str(path), "verified": True, "license": "Apache-2.0", "revision": depth.REVISION}
+        elif args.command == "fetch-cutout":
+            from . import cutout
+            path = cutout.fetch(consent=args.yes, progress=lambda m: print(m, file=sys.stderr, flush=True))
+            result = {"model": str(path), "verified": True, "license": "Apache-2.0", "source": cutout.URL}
+        elif args.command == "fetch-upscale":
+            from . import upscale
+            path = upscale.fetch(consent=args.yes, progress=lambda m: print(m, file=sys.stderr, flush=True))
+            result = {"program": str(path), "verified": True, "license": "BSD-3-Clause",
+                      "source": upscale.RELEASE.format(upscale.build())}
         elif args.command == "packs":
             from .render import theme, themes
             result = {name: theme(name)["name"] for name in themes()}
