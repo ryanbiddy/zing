@@ -21,6 +21,7 @@ EXPECTED_TOOLS = {
     "factory_status",
     "factory_prompt",
     "factory_answer",
+    "factory_clip",
     "zing_moments",
     "zing_studio",
     "zing_studio_run",
