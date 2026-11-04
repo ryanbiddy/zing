@@ -266,6 +266,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         cut.cut(d, media, words, m["start"], m["end"], **({"spans": scout.parts(m)} if m.get("spans") else {}))
     w = _read(d / "words.json")
     src = _read(project / "source.json", {})
+    src["url"] = src.get("url") or cfg.get("url", "")
     waiting = []
     if not (d / "post.json").is_file():
         try:

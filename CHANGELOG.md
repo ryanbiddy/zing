@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- YouTube first comments link to the clip's start time. `zing factory approval`
+  writes a local guest approval page with videos, transcripts, saved context and
+  copyable Yes / No answers and comments.
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
 - Factory steering: `--focus` tells the scout what to clip, and `--show` keeps every
