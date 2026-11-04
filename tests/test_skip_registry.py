@@ -28,6 +28,11 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "node is needed to run the page's JavaScript": (
+        "the dashboard and scene tests run the shipped pages' JavaScript in Node; CI runners have it. "
+        "PRODUCT SURFACE: the factory cannot render without Node, so `zing factory doctor` reports the "
+        "sidecar and node_sidecar() names the install step when Node is missing."
+    ),
     "set ZING_REQUIRE_VISION=1": (
         "real recognition requires explicitly provisioned Apache-2.0 models and licensed photos; "
         "synthetic shapes cannot establish recall. PRODUCT SURFACE: doctor lists verified vision "
