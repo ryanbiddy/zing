@@ -68,6 +68,20 @@ def quotes(shots: list[dict], words: list[dict]) -> list[dict]:
     return out
 
 
+def timeline(plan: dict, words: dict) -> tuple[float, list[dict], list[dict]]:
+    duration = round(words["words"][-1]["oe"] + 0.45, 3) if words.get("words") else words.get("duration", 0)
+    shots = sorted((dict(s) for s in plan["shots"]), key=lambda s: s["from"])
+    card = next((s["from"] for s in shots if (s.get("graphic") or {}).get("kind") == "endcard"), None)
+    if card is not None:                               # an end card holds for three seconds
+        duration = max(duration, round(card + 3.0, 3))
+    for i, s in enumerate(shots):
+        s["idx"] = i
+        s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1
+    if shots:
+        shots[0]["from"] = 0
+    return duration, shots, quotes(shots, words.get("words", []))
+
+
 def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False, parallax: bool | None = None,
                front: bool | None = None, sharpen: bool | None = None) -> dict:
     """Everything the scene needs. parallax: move photos through their depth (None: when the depth model is installed).
@@ -82,16 +96,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
         plan = {**plan, "shots": [{"from": 0, "layout": "solo"}], "visuals": {}, "hook_until": 0}
     words = json.loads((d / "words.json").read_text(encoding="utf-8"))
     cam = json.loads((d / "cams.json").read_text(encoding="utf-8"))
-    duration = round(words["words"][-1]["oe"] + 0.45, 3)
-    shots = sorted(plan["shots"], key=lambda s: s["from"])
-    card = next((s["from"] for s in shots if (s.get("graphic") or {}).get("kind") == "endcard"), None)
-    if card is not None:                               # an end card holds for three seconds, after the last word if need be
-        duration = max(duration, round(card + 3.0, 3))
-    for i, s in enumerate(shots):
-        s["idx"] = i
-        s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1
-    shots[0]["from"] = 0
-    moments = quotes(shots, words["words"])
+    duration, shots, moments = timeline(plan, words)
     cfg_file = d.parent / "factory.json"
     cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.is_file() else {}
     if parallax is None:                       # the project's setting, then whether the weights are installed

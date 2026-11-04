@@ -191,6 +191,7 @@ def fact_check(graphic: dict, words: list[dict], brand: dict | None = None) -> l
 def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | None = None,
              news: dict | None = None) -> dict:
     """Drop what can't be shown honestly: unspoken graphics and splits without a usable visual become solo."""
+    from .receipt import added
     d = Path(clipdir)
     heard = d / "words-heard.json"                     # the speech model's words, kept once a fix changes them
     data = json.loads((heard if heard.is_file() else d / "words.json").read_text(encoding="utf-8"))
@@ -239,4 +240,5 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
         log.append(f"hook number not spoken {hook_bad}: review the hook")
     final["fact_check"] = log or ["every drawn number and quote is in the clip's words"]
     (d / "plan.json").write_text(json.dumps(final, indent=1, ensure_ascii=False), encoding="utf-8")
+    (d / "receipt.json").write_text(json.dumps(added(d), indent=1, ensure_ascii=False), encoding="utf-8")
     return final
