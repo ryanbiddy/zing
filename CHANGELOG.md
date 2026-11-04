@@ -2,6 +2,8 @@
 
 ## Clip factory
 
+- `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
+  and terms for episode transcription, word timing and the planner's caption fixes.
 - Factory review fixes: trims get words for the full span, redo clears old clip
   work, and dashboard hook edits and visual picks survive later runs. The dashboard
   updates while jobs run, shows errors, keeps saved ratings, and plays the selected

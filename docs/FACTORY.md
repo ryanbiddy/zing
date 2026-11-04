@@ -30,6 +30,25 @@ Speech models mishear names and terms. The plan lists clear mishearings it is su
 captions, graphics, hook and copy, logs each fix, and keeps what was heard in
 `words-heard.json`. Numbers and meaning are never changed.
 
+## Supply names and spellings
+
+Give names and terms when creating the project.
+
+```bash
+zing factory new talk --media talk.mp4 --vocab "Pompliano, Starbase, Vermilion Parish"
+```
+
+Repeat `--vocab` or separate terms with commas. MCP accepts
+`factory_new(..., vocab=["Pompliano", "Starbase", "Vermilion Parish"])`.
+The list is saved as `vocab` in `factory.json`. It guides episode transcription,
+word timing and the planner's caption fixes. Only supplied terms are used.
+The brand name, source name, tag and people named in the show are not added.
+
+Limits match study vocabulary. Up to 64 terms, 80 characters per term and
+500 UTF-8 bytes for the list joined with a comma and space. Oversized lists are
+rejected. Spaces are normalized and duplicates are removed. Set the vocabulary
+when creating the project; there is no edit command.
+
 ## Who makes the judgment calls
 
 Four steps need taste: the **scout** (which moments), the **plan** (what appears on
