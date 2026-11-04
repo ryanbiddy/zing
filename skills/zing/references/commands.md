@@ -54,6 +54,29 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 
+## Factory offline projects
+
+```sh
+zing factory new launch --media demo.mp4 --transcript demo.vtt --mode launch --offline --visuals ./launch-media
+zing factory run launch
+zing factory status launch
+```
+
+`new --offline` saves the embargo setting. It refuses public searches, site captures,
+remote video reads, model downloads and `--judge claude`. The host judge writes
+prompts locally. Your media never leaves the machine and offline mode fetches nothing.
+Online Claude judge prompts go to Anthropic.
+
+`new --visuals DIR` supplies your PNG, JPG, JPEG, WebP, MP4, MOV and WebM files.
+The pick step chooses from their thumbnails and credits `Your file: <name>`.
+Online runs also search public sources. Picks containing your files stay with the
+host judge. `status` and the review header summarize `network.jsonl` by host and
+purpose. Only an empty offline ledger shows `offline: nothing fetched`.
+
+`fetch-depth`, `fetch-cutout` and `fetch-upscale` accept `--project DIR` to use that
+project's network policy and ledger. Without it, the download is not tied to a
+project and is not recorded. Downloads still need `--yes`.
+
 ## Factory vocabulary
 
 ```sh

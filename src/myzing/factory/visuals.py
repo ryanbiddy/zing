@@ -44,6 +44,9 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from .network import Network
+from .tools import FactoryError
+
 FFPROBE = shutil.which("ffprobe") or "ffprobe"
 FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
 UA = "zing-factory/0.1 (+https://myzing.app)"  # Wikimedia robot policy wants contact info; without it upload.wikimedia.org 429s
@@ -54,8 +57,9 @@ JSON_CAP = 15 << 20
 EXCERPT_S = 20  # long videos become a 20 s excerpt from ~15% in (skips slates; the renderer uses <= 20 s)
 KINDS = ("photo", "video", "logo", "gif", "screenshot")
 KEY_NAMES = ("PEXELS_API_KEY", "PIXABAY_API_KEY", "EXA_API_KEY")
-SOURCES = "nasa|commons|wikidata|openverse|pexels|pixabay|loc|ia|exa|screenshot|scroll|ogimage|ogvideo"
-OUR_FILE = re.compile(rf"^({SOURCES})_[0-9a-f]{{8}}(\.pick)?\.(jpg|png|webp|mp4|webm)(\.part)?$")
+SOURCES = "nasa|commons|wikidata|openverse|pexels|pixabay|loc|ia|exa|screenshot|scroll|ogimage|ogvideo|local"
+OUR_FILE = re.compile(rf"^({SOURCES})_[0-9a-f]{{8}}(\.pick)?\.(jpg|jpeg|png|webp|mp4|mov|webm)(\.part)?$")
+LOCAL = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm"}
 CODE_TITLE = re.compile(r"[A-Za-z]{2,8}[-_]?\d[\w.\-]*")
 IMAGE_MIMES = ("image/jpeg", "image/png", "image/svg+xml", "image/webp", "image/tiff")
 NASA_LICENSE = "NASA (public domain)"
@@ -272,8 +276,9 @@ def score(c: dict, q: Query) -> float | None:
 
 # ----------------------------------------------------------------------------- polite HTTP
 class Http:
-    def __init__(self, min_interval: float = 0.3):
+    def __init__(self, min_interval: float = 0.3, project: Path | None = None):
         self.min_interval, self._last, self.count = min_interval, 0.0, 0
+        self.network = Network(project)
 
     def _pace(self):
         wait = self.min_interval - (time.monotonic() - self._last)
@@ -282,25 +287,24 @@ class Http:
         self._last = time.monotonic()
         self.count += 1
 
-    def open(self, url, headers=None, timeout=20, method="GET", data=None):
+    def open(self, url, headers=None, timeout=20, method="GET", data=None, *, purpose="visual request"):
+        self.network.check(purpose)
         self._pace()
         url = safe_url(url)
-        _check_host(url)
-        req = urllib.request.Request(url, method=method, data=data,
-                                     headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})})
-        return urllib.request.build_opener(_PublicRedirect()).open(req, timeout=timeout)
+        return self.network.open(url, purpose, headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})},
+                                 timeout=timeout, method=method, data=data, validate=_public_url)
 
     def get_json(self, url, headers=None, timeout=20):
-        with self.open(url, headers, timeout) as r:
+        with self.open(url, headers, timeout, purpose="visual search") as r:
             return json.loads(r.read(JSON_CAP))
 
     def post_json(self, url, body, headers=None, timeout=30):
         with self.open(url, {"Content-Type": "application/json", **(headers or {})}, timeout, "POST",
-                       json.dumps(body).encode()) as r:
+                       json.dumps(body).encode(), purpose="visual search") as r:
             return json.loads(r.read(JSON_CAP))
 
     def get_bytes(self, url, cap, headers=None, timeout=60):
-        with self.open(url, headers, timeout) as r:
+        with self.open(url, headers, timeout, purpose="visual download") as r:
             n = r.headers.get("Content-Length")
             if n and n.isdigit() and int(n) > cap:
                 raise TooLarge(f"too large ({int(n) >> 20} MB)")
@@ -312,7 +316,7 @@ class Http:
             return buf.getvalue()
 
     def download_to(self, url, path: Path, cap, timeout=60):
-        with self.open(url, None, timeout) as r, open(path, "wb") as f:
+        with self.open(url, None, timeout, purpose="visual download") as r, open(path, "wb") as f:
             n = r.headers.get("Content-Length")
             if n and n.isdigit() and int(n) > cap:
                 raise TooLarge(f"too large ({int(n) >> 20} MB)")
@@ -342,15 +346,10 @@ def _check_host(url: str) -> None:
         raise ValueError(f"refusing private address {p.hostname}")
 
 
-class _PublicRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        try:
-            newurl = safe_url(newurl)
-            _check_host(newurl)
-        except (ValueError, OSError):
-            fp.close()
-            raise
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+def _public_url(url):
+    url = safe_url(url)
+    _check_host(url)
+    return url
 
 
 class TooLarge(ValueError):
@@ -419,6 +418,8 @@ def cand(source: str, media_type: str, **kw) -> dict:
 def rights_for(c: dict) -> tuple[str, str]:
     """('cleared'|'attribution'|'editorial'|'unknown', exact credit line)."""
     src, lic = c["source"], c.get("license") or ""
+    if src == "local":
+        return "cleared", f"Your file: {c['title']}"
     low = lic.lower()
     creator = strip_html(c.get("creator") or "")[:80]
     label = SOURCE_LABEL.get(src, src)
@@ -862,6 +863,8 @@ SOURCE_KEY = {"pexels": "PEXELS_API_KEY", "pexels_video": "PEXELS_API_KEY", "pix
 
 
 def route_for(ctx, q: Query) -> list[str]:
+    if ctx.network.offline:
+        return []
     def has(*names):
         return [n for n in names if ctx.keys.get(SOURCE_KEY.get(n, ""), True)]
     stock_v, stock_p = has("pexels_video", "pixabay_video"), has("pexels", "pixabay")
@@ -900,7 +903,13 @@ def _og_from_html(http: Http, url: str) -> tuple[str | None, str | None, str | N
 
 
 def capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: bool = True) -> list[dict]:
-    _check_host(safe_url(url))
+    net = getattr(ctx, "network", None) or Network(folder)
+    with net.request(url, "site capture"):
+        _check_host(safe_url(url))
+        return _capture_site(ctx, url, folder, rel, why, scroll, net)
+
+
+def _capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: bool, net: Network) -> list[dict]:
     out = []
     hid = h8(url)
     shot = folder / f"screenshot_{hid}.png"
@@ -914,9 +923,14 @@ def capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: bool
         from .tools import node_sidecar, sidecar_env
         node, sidecar = node_sidecar()
         env = sidecar_env(ctx.tmp)  # no stock keys; Chrome's throwaway profile stays inside the clip folder
-        p = subprocess.run([node, str(sidecar / "shot.cjs"), url, str(shot)] + ([str(frames)] if scroll else []),
-                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240, env=env,
-                           cwd=str(sidecar))
+        try:
+            p = subprocess.run([node, str(sidecar / "shot.cjs"), url, str(shot)] + ([str(frames)] if scroll else []),
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240, env=env,
+                               cwd=str(sidecar))
+        except subprocess.TimeoutExpired as exc:
+            net.capture_requests(exc.stdout)
+            raise
+        net.capture_requests(p.stdout)
         lines = [ln for ln in (p.stdout or "").splitlines() if ln.startswith("{")]
         res = json.loads(lines[-1]) if lines else {"ok": False, "error": (p.stderr or "no output")[-300:]}
     except Exception as e:
@@ -1003,22 +1017,26 @@ def dhash(data: bytes) -> int:
     return bits
 
 
-def probe_video(path_or_url) -> dict:
+def probe_video(path_or_url, *, project: Path | None = None) -> dict:
     """ffprobe a local file (magic-checked) or a remote http(s) URL; returns width/height/duration/codec."""
     src = str(path_or_url)
     if isinstance(path_or_url, Path):
         with open(path_or_url, "rb") as f:
             head = f.read(16)
-        if head[4:8] != b"ftyp" and head[:4] != b"\x1a\x45\xdf\xa3":
+        mov = path_or_url.suffix.lower() == ".mov" and head[4:8] in (b"moov", b"mdat", b"wide")
+        if head[4:8] != b"ftyp" and head[:4] != b"\x1a\x45\xdf\xa3" and not mov:
             raise ValueError("not an mp4/webm container")
-        args = [src]
+        args = ["-protocol_whitelist", "file,pipe", src]
     else:
+        Network(project).check("video probe")
         src = safe_url(src)
-        _check_host(src)
         args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp", src]
-    p = subprocess.run([str(FFPROBE), "-v", "error", "-select_streams", "v:0", "-show_entries",
-                        "stream=width,height,codec_name:format=duration", "-of", "json"] + args,
-                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+    remote = not isinstance(path_or_url, Path)
+    argv = [str(FFPROBE), "-v", "debug" if remote else "error", "-select_streams", "v:0", "-show_entries",
+            "stream=width,height,codec_name:format=duration", "-of", "json"] + args
+    options = dict(capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
+    p = Network(project).run_video(src, "video probe", argv, validate=_check_host, **options) if remote else \
+        subprocess.run(argv, **options)
     d = json.loads(p.stdout or "{}")
     st = (d.get("streams") or [{}])[0]
     if not st.get("width"):
@@ -1053,6 +1071,8 @@ def resolve_urls(ctx, c: dict) -> list[str]:
             adv = item.get("rights_advisory")
             c["rights_advisory"] = strip_html(adv)
             c["license"] = c["rights_advisory"] or "see source page"
+        except FactoryError:
+            raise
         except Exception:
             c["rights_advisory"] = ""
         c["rights_pending"] = False
@@ -1060,13 +1080,14 @@ def resolve_urls(ctx, c: dict) -> list[str]:
 
 
 def fetch_video(ctx, c: dict, url: str, folder: Path):
+    ctx.network.check("video download")
     ext = "webm" if re.search(r"\.webm(\?|$)", url, re.I) or "webm" in (c.get("mime") or "") else "mp4"
     final = folder / f"{c['source']}_{h8(url)}.{ext}"
     part = final.with_name(final.name + ".part")
     if c.get("width") and c.get("height") and c.get("duration"):  # known from the API: skip a remote probe
         remote = {"width": c["width"], "height": c["height"], "duration_s": float(c["duration"])}
     else:
-        remote = probe_video(url)  # dims + duration before spending bandwidth
+        remote = probe_video(url, project=ctx.network.project)  # dims + duration before spending bandwidth
     if max(remote["width"], remote["height"]) < ctx.min_video:
         raise ValueError(f"video too small {remote['width']}x{remote['height']}")
     dur = float(c.get("duration") or remote["duration_s"] or 0)
@@ -1080,13 +1101,12 @@ def fetch_video(ctx, c: dict, url: str, folder: Path):
             # the start and seeking on the output side (bounded at 15 s so we don't stream much)
             for seek_in, s in ((True, start), (False, min(start, 15.0))):
                 url = safe_url(url)
-                _check_host(url)
                 seek = ["-ss", f"{s:.1f}"]
-                subprocess.run([str(FFMPEG), "-v", "error", "-y", "-user_agent", UA, "-protocol_whitelist",
-                                "https,http,tls,tcp"] + (seek if seek_in else []) + ["-i", safe_url(url)] +
-                               ([] if seek_in else seek) + ["-t", str(EXCERPT_S), "-map", "0:v:0", "-c", "copy",
-                                                            "-an", "-f", ext, str(part)],
-                               capture_output=True, timeout=180)
+                ctx.network.run_video(url, "video excerpt", [str(FFMPEG), "-v", "debug", "-y", "-user_agent", UA,
+                                      "-protocol_whitelist", "https,http,tls,tcp"] + (seek if seek_in else []) +
+                                      ["-i", safe_url(url)] + ([] if seek_in else seek) +
+                                      ["-t", str(EXCERPT_S), "-map", "0:v:0", "-c", "copy", "-an", "-f", ext, str(part)],
+                                      validate=_check_host, capture_output=True, timeout=180)
                 try:
                     info = probe_video(part)
                     start = s
@@ -1107,6 +1127,12 @@ def fetch_video(ctx, c: dict, url: str, folder: Path):
 
 
 def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
+    if c.get("local_path"):
+        src = c["local_path"]
+        path = folder / f"local_{h8(str(src))}{src.suffix.lower()}"
+        shutil.copyfile(src, path)
+        c["path"] = path
+        return c
     if c.get("path"):  # captured locally (site screenshot / scroll recording)
         if c["media_type"] == "image":
             dh = dhash(c["path"].read_bytes())
@@ -1114,6 +1140,7 @@ def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
                 raise ValueError("near-duplicate of a better-ranked pick")
             hashes.append(dh)
         return c
+    ctx.network.check("visual download")
     urls = resolve_urls(ctx, c)
     if not urls:
         raise ValueError("no downloadable asset")
@@ -1142,6 +1169,8 @@ def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
                 c.update(width=w, height=h, has_alpha=alpha, path=final, file_url=safe_url(url),
                          mime={"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext])
             return c
+        except FactoryError:
+            raise
         except Exception as e:  # try the next rendition, if any
             last = e
     raise last
@@ -1150,8 +1179,11 @@ def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
 # ----------------------------------------------------------------------------- per request
 class Ctx:
     def __init__(self, outdir: Path, mode: str = "context", public: bool = False, openverse: bool = False,
-                 min_video: int = MIN_LONG_SIDE, maxc: int = 5):
-        self.http, self.health = Http(), Health()
+                 min_video: int = MIN_LONG_SIDE, maxc: int = 5, *, project: Path | None = None,
+                 visuals: Path | None = None):
+        self.network = Network(project or outdir)
+        self.http, self.health = Http(project=self.network.project), Health()
+        self.visuals = Path(visuals) if visuals else None
         self.mode, self.public, self.openverse = mode, public, openverse
         self.min_video, self.maxc = min_video, max(1, min(5, maxc))
         self.tmp = outdir / "_tmp"
@@ -1160,7 +1192,33 @@ class Ctx:
         self.log: dict = {}
 
 
+def local_candidates(ctx, q: Query) -> list[dict]:
+    if ctx.visuals is None:
+        return []
+    found = []
+    for path in sorted(ctx.visuals.iterdir()):
+        if not path.is_file() or path.suffix.lower() not in LOCAL:
+            continue
+        video = path.suffix.lower() in (".mp4", ".mov", ".webm")
+        try:
+            if video:
+                info = probe_video(path)
+            else:
+                ext, w, h, alpha = validate_image(path.read_bytes())
+                info = {"width": w, "height": h, "has_alpha": alpha,
+                        "mime": {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]}
+        except (OSError, ValueError) as exc:
+            ctx.log["rejected"].append({"title": path.name, "source": "local", "why": str(exc)[:160]})
+            continue
+        hits = len(terms(path.stem) & set(q.weights)) / max(1, len(q.weights))
+        found.append(cand("local", "video" if video else "image", title=path.name, local_path=path,
+                          bytes=path.stat().st_size, base=.75 + .4 * hits, **info))
+    return found
+
+
 def gather(ctx, q: Query, route: list[str]) -> list[dict]:
+    if route:
+        ctx.network.check("visual search")
     found, seen = [], set()
     for pos, src in enumerate(route):
         ctx.log["route"].append(src)
@@ -1171,6 +1229,8 @@ def gather(ctx, q: Query, route: list[str]) -> list[dict]:
         try:
             res = SEARCHERS[src](ctx, q)
             ctx.health.ok(base, len(res))
+        except FactoryError:
+            raise
         except Exception as e:
             ctx.log["notes"].append(f"{src}: " + ctx.health.fail(base, e))
             continue
@@ -1233,6 +1293,8 @@ def download_ranked(ctx, ranked: list[dict], q: Query, folder: Path) -> list[dic
             got.append(c)
             downloads += 1
             ctx.health.e(c["source"])["downloads"] += 1
+        except FactoryError:
+            raise
         except Exception as e:
             downloads += 0 if isinstance(e, TooLarge) or "too small" in str(e) else 1
             ctx.log["rejected"].append({"title": c["title"][:80], "source": c["source"],
@@ -1253,10 +1315,12 @@ def process(ctx, req: dict, folder: Path) -> list[dict]:
     if kind == "screenshot" and not req.get("url"):
         ctx.log["notes"].append("no url given; searched for a photo instead")
         q = Query(req, "photo", ctx.mode)
-    found = gather(ctx, q, [] if kind == "screenshot" else route_for(ctx, q))
+    found = local_candidates(ctx, q) + gather(ctx, q, [] if kind == "screenshot" else route_for(ctx, q))
     # official site / given url: screenshot + scroll recording + og media (context mode, or an explicit url)
     site = None
-    if req.get("url"):
+    if ctx.network.offline:
+        ctx.log["notes"].append("offline project; only your files are used")
+    elif req.get("url"):
         site = (req["url"], 1.15, "request url")
     elif ctx.mode == "context" and kind in ("photo", "video") and ctx.sites:
         site = ctx.sites[0]
@@ -1268,7 +1332,7 @@ def process(ctx, req: dict, folder: Path) -> list[dict]:
     if not got and q.wants_video:
         ctx.log["notes"].append("no usable video; fell back to stills")
         q2 = Query(req, "photo", ctx.mode)
-        got = download_ranked(ctx, rank(gather(ctx, q2, route_for(ctx, q2)), q2, ctx.log), q2, folder)
+        got = download_ranked(ctx, rank(local_candidates(ctx, q2) + gather(ctx, q2, route_for(ctx, q2)), q2, ctx.log), q2, folder)
         for c in got:
             c["notes"] = (c.get("notes", "") + "; still fallback for a video request").strip("; ")
         q = q2
@@ -1294,7 +1358,7 @@ def finalize(got: list[dict], q: Query, folder: Path, maxc: int) -> list[dict]:
             rec.update(duration_s=c.get("duration_s"), codec=c.get("codec"), mime=c.get("mime") or "video/mp4")
         else:
             rec.update(mime=c.get("mime"), has_alpha=c.get("has_alpha", False))
-        for k in ("entity", "notes"):
+        for k in ("entity", "notes", "bytes"):
             if c.get(k):
                 rec[k] = c[k]
         out.append(rec)
@@ -1389,14 +1453,15 @@ def contact_sheet(manifest: dict, outdir: Path, requests: list[dict], mode: str)
 
 # ----------------------------------------------------------------------------- entry point
 def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: bool = False, openverse: bool = False,
-         maxc: int = 5, min_video: int = MIN_LONG_SIDE, sheet: bool = True, say=print) -> dict:
+         maxc: int = 5, min_video: int = MIN_LONG_SIDE, sheet: bool = True, say=print,
+         project: Path | None = None, visuals: Path | None = None) -> dict:
     """Search, download and rank candidates for every request; returns the manifest written to outdir."""
     if mode not in ("context", "fun", "documentary"):
         raise ValueError("mode must be 'context', 'fun' or 'documentary'")
     outdir = Path(outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
-    ctx = Ctx(outdir, mode, public, openverse, min_video, maxc)
+    ctx = Ctx(outdir, mode, public, openverse, min_video, maxc, project=project, visuals=visuals)
     keys = {n: ("present" if v else "absent") for n, v in ctx.keys.items()}
     skipped = [f"{s}: {SOURCE_KEY[s]} absent" for s in ("pexels", "pixabay", "exa") if not ctx.keys[SOURCE_KEY[s]]]
     if not openverse:
@@ -1420,6 +1485,8 @@ def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: b
         try:
             cands = process(ctx, req, folder)
             log = ctx.log
+        except FactoryError:
+            raise
         except Exception as e:
             cands, log = [], {"query": req["query"], "kind": req.get("kind"), "error": scrub(f"{type(e).__name__}: {e}")}
         log["seconds"] = round(time.monotonic() - t, 1)

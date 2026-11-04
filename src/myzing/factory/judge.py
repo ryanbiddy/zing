@@ -3,7 +3,7 @@
 Two backends:
 - host (default): the prompt is written to <project>/pending/<task>.md and the run stops; the calling agent (or a
   person) answers with `zing factory answer` or the factory_answer MCP tool, then the run resumes.
-- claude: Claude Code's headless CLI answers (`claude -p`); nothing else is sent anywhere.
+- claude: Claude Code's headless CLI answers (`claude -p`); prompts and public contact sheets go to Anthropic.
 Every answer is cached in <project>/answers/<task>.json, so a rerun never asks twice.
 """
 from __future__ import annotations
@@ -14,6 +14,9 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+
+from .network import CLAUDE, Network
+from .tools import FactoryError
 
 TASK = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -56,6 +59,8 @@ class Judge:
         if backend not in ("host", "claude"):
             raise ValueError("judge must be 'host' or 'claude'")
         self.project, self.backend, self.model, self.retry_wait = Path(project), backend, model, retry_wait
+        if backend == "claude":
+            Network(self.project).check("Claude judge")
 
     def _paths(self, task: str) -> tuple[Path, Path]:
         if not TASK.match(task):
@@ -70,7 +75,9 @@ class Judge:
         answer, pending = self._paths(task)
         if answer.is_file():
             return json.loads(answer.read_text(encoding="utf-8"))
-        if self.backend == "claude":
+        cfg = self.project / "factory.json"
+        local = images and cfg.is_file() and json.loads(cfg.read_text(encoding="utf-8")).get("visuals")
+        if self.backend == "claude" and not local:
             return self.save(task, self._claude(task, prompt, bool(images)))
         pending.parent.mkdir(parents=True, exist_ok=True)
         head = "".join(f"<!-- image: {Path(p).resolve().as_posix()} -->\n" for p in images)
@@ -99,6 +106,12 @@ class Judge:
         return out
 
     def _claude(self, task: str, prompt: str, images: bool) -> str:
+        net = Network(self.project)
+        net.check("Claude judge")
+        self._paths(task)
+        cfg = self.project / "factory.json"
+        if images and cfg.is_file() and json.loads(cfg.read_text(encoding="utf-8")).get("visuals"):
+            raise FactoryError("use the host judge to pick from your files")
         exe = shutil.which("claude")
         if not exe:
             raise RuntimeError("--judge claude needs Claude Code's 'claude' CLI on PATH")
@@ -115,8 +128,9 @@ class Judge:
             argv += ["--allowedTools", "Read"]
         last = ""
         for attempt in range(2):        # one retry: a refused or empty call usually goes through a minute later
-            r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", timeout=900,
-                               cwd=cwd)
+            with net.request(CLAUDE, task):
+                r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", timeout=900,
+                                   cwd=cwd)
             try:
                 out = json.loads(r.stdout)
             except ValueError:

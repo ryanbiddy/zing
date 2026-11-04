@@ -8,7 +8,8 @@ const fs = require("fs"), path = require("path"), url = require("url");
     args: ["--allow-file-access-from-files"] });
   try {
     const page = await browser.newPage({ viewport: { width: DATA.W || 1080, height: DATA.H || 1920 },
-      deviceScaleFactor: DATA.scale || 1 });
+      deviceScaleFactor: DATA.scale || 1, offline: true, serviceWorkers: "block" });
+    await page.route(/^https?:\/\//, route => route.abort());  // scene assets are local
     let error;
     page.on("pageerror", e => { error = e; });
     await page.addInitScript(d => { window.DATA = d; }, DATA);

@@ -34,7 +34,19 @@ async function main() {
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 zing-factory/0.1",
       acceptDownloads: false,
+      serviceWorkers: "block",
     });
+    let first = true;
+    ctx.on("request", request => {
+      const host = new URL(request.url()).hostname;
+      if (host) {
+        if (!first) console.log(JSON.stringify({network: {at: new Date().toISOString(), host}}));
+        first = false;                              // the Python caller records the first navigation
+      }
+    });
+    ctx.on("page", page => page.on("websocket", ws => console.log(JSON.stringify({network: {
+      at: new Date().toISOString(), host: new URL(ws.url()).hostname
+    }}))));
     await ctx.route("**/*", (route) => {
       let host = "";
       try { host = new URL(route.request().url()).hostname; } catch (_) {}

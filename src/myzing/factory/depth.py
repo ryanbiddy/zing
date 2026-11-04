@@ -16,6 +16,7 @@ from myzing import model_fetch
 from myzing.storage import workspace_root
 
 from .tools import FactoryError, ffmpeg
+from .network import Network
 
 MODEL = "depth-anything-v2-small"
 REPOSITORY = "onnx-community/depth-anything-v2-small"
@@ -46,11 +47,13 @@ def ready() -> bool:
     return True
 
 
-def fetch(*, consent: bool = False, progress=None) -> Path:
+def fetch(*, consent: bool = False, progress=None, project: Path | None = None) -> Path:
+    net = Network(project)
+    net.check("depth model download")
     if consent is not True:
         raise FactoryError(f"the depth model download needs explicit consent: {FETCH_HINT}")
     if not ready():
-        model_fetch.fetch_verified(URL, model_file(), SHA256, SIZE, progress=progress)
+        net.fetch(URL, model_file(), SHA256, SIZE, purpose="depth model download", progress=progress)
         if not ready():
             raise FactoryError("depth model size/SHA-256 verification failed; nothing installed")
     return model_file()
