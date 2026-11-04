@@ -2,6 +2,13 @@
 
 ## Clip factory
 
+- Factory steering: `--focus` tells the scout what to clip, and `--show` keeps every
+  Post/No call (with its reason) so the next episode's scout learns from them. The scout
+  also lists runners-up the review page can make with one click, and **Make a clip**
+  picks any stretch from the transcript (click a start line, then an end line, nudge
+  either end). **Trim** moves a clip's in and out points and re-cuts it. CLI:
+  `zing factory clip` and `zing factory trim`. MCP: `factory_clip`. `--moments 0` scouts
+  nothing. The upscaler's platform check no longer starts a process on Windows.
 - Factory speaker cutout: `new --cutout` (or `render --cutout`) stands the speaker,
   lifted off their background by rembg's IS-Net model, in front of each picture instead
   of splitting the frame. Speakers too small or too absent to lift cleanly keep the

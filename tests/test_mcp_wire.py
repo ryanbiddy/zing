@@ -57,7 +57,7 @@ def assert_wire(actual, expected):
         actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
                                      if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments",
                                                          "factory_new", "factory_run", "factory_status", "factory_prompt",
-                                                         "factory_answer"}]
+                                                         "factory_answer", "factory_clip"}]
         for tool in actual["result"]["tools"]:
             if tool["name"] in {"study_video", "study_uoink_item", "match_start"}:
                 # DOGFOOD2 adds optional reference trims. Preserve the historical
@@ -117,7 +117,8 @@ def test_sdk1_fixture_provenance():
     tools = GOLDEN[2]["response"]["result"]["tools"]
     assert len(tools) == 32
     assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments",
-                                                                 "factory_new", "factory_run", "factory_status", "factory_prompt", "factory_answer"}
+                                                                 "factory_new", "factory_run", "factory_status", "factory_prompt", "factory_answer",
+                                                                 "factory_clip"}
     assert len(GOLDEN[3]["response"]["result"]["prompts"]) == 5
 
 

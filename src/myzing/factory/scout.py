@@ -8,10 +8,29 @@ from .tools import data_path
 FILLER = {"and", "so", "yeah", "well", "um", "uh", "like", "okay", "ok"}
 
 
-def prompt(segments: list[dict], n: int, mode: str = "context") -> str:
+def prompt(segments: list[dict], n: int, mode: str = "context", *, focus: str | None = None,
+           taste: list[dict] | None = None) -> str:
     lines = "\n".join(f"[{s['s']:.1f}-{s['e']:.1f}] {s['text']}" for s in segments)
     return (data_path("prompts", "scout-launch.md" if mode == "launch" else "scout.md").read_text(encoding="utf-8")
-            .replace("{N}", str(n)).replace("{TRANSCRIPT}", lines))
+            .replace("{N}", str(n)).replace("{STEER}", steer(focus, taste)).replace("{TRANSCRIPT}", lines))
+
+
+CALLS = {"post": "POSTED", "fix": "POSTED AFTER EDITS", "no": "PASSED"}
+
+
+def steer(focus: str | None, taste: list[dict] | None) -> str:
+    """What the user asked for, and the Post/No calls they made on earlier clips of this show."""
+    out = []
+    if focus:
+        out.append(f"WHAT THE USER WANTS: {focus}\nFavor moments about this. If fewer fit than asked for, fill the rest "
+                   "with the strongest other moments, and say in each 'why' whether it is on the user's ask.")
+    calls = [r for r in taste or [] if r.get("v") in CALLS and r.get("hook")]
+    if calls:
+        out.append("THE USER'S PAST CALLS on clips from this show, newest first. Learn what they post and what they "
+                   "pass on, and don't pick moments like the passed ones:\n" + "\n".join(
+                       f"- {CALLS[r['v']]}: \"{r['hook'].replace('*', '')}\"" + (f" ({r['topic']})" if r.get("topic") else "")
+                       + (f". Their reason: {r['why']}" if r.get("why") else "") for r in calls))
+    return "\n\n".join(out) + "\n\n" if out else ""
 
 
 def parts(moment: dict) -> list[list[float]]:

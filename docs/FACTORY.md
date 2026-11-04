@@ -50,6 +50,34 @@ sheet) and the **copy**. Everything else is measured locally.
 Every answer is cached in `answers/`. `zing factory redo <project> clip03-plan` forgets
 one judgment and what was built from it.
 
+## Steer which moments become clips
+
+- `--focus "the pricing argument"` (or "funny moments", "anything about hiring") tells
+  the scout what you want. It fills any gap with the strongest other moments and says
+  in each clip's "why" whether it is on your ask.
+- `--show "The Pod"` names the show. Every Post, Post with edits and No you give on the
+  review page (with its reason) is kept for that show, and the next episode's scout
+  sees your newest calls as examples of what you post and what you pass on. Without a
+  show, a re-scouted project learns from its own calls.
+- The scout lists as many runners-up as clips (up to eight). The review page shows them
+  under the clips with the scout's reason; **Make this one** turns one into a clip.
+- **Make a clip** on the review page: read the transcript, click the line a clip starts
+  on and the line it ends on (3 s to 3 min), nudge either end a line at a time, and give
+  it a hook or let the plan write one. **Trim** on a clip loads its range to move its in
+  and out points; the clip is cut, planned and rendered again from the new words, so
+  its old plan, copy and rating go. Every clip goes through the same fact checks.
+- `--moments 0` scouts nothing: only the clips you pick.
+
+```bash
+zing factory clip talk --start 12:03 --end 12:51 --hook "The *real* price"
+zing factory clip talk --bench 2       # make runner-up 2, as status lists them
+zing factory trim talk clip03 --start 4:10 --end 5:02
+zing factory run talk --clips 9
+```
+
+MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, hook=)`,
+`factory_clip(project, bench=)` or `factory_clip(project, clip=, start=, end=)`.
+
 ## What the screen shows
 
 - **9:16** keeps the speaker in the bottom half under a visual or graphic, with the

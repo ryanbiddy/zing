@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-import platform
 import shutil
 import subprocess
+import sys
 import zipfile
 from pathlib import Path
 
@@ -37,7 +37,7 @@ _checked = None
 
 
 def build() -> str:
-    return {"Windows": "windows", "Darwin": "macos"}.get(platform.system(), "ubuntu")
+    return {"win32": "windows", "darwin": "macos"}.get(sys.platform, "ubuntu")   # platform.system() runs `ver` on Windows
 
 
 def folder() -> Path:

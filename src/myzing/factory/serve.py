@@ -1,7 +1,7 @@
 """`zing factory serve`: the local review dashboard for one project.
 
-The agent produces the pack; this page is where a person watches, rates, swaps a visual, fixes a hook or copy and
-re-renders. It binds 127.0.0.1 only, answers only to localhost Host headers, refuses cross-origin writes, and serves
+The agent produces the pack; this page is where a person watches, rates, swaps a visual, fixes a hook or copy,
+re-renders, picks a clip from the transcript, moves a clip's in and out points, or makes one of the scout's runners-up. It binds 127.0.0.1 only, answers only to localhost Host headers, refuses cross-origin writes, and serves
 files only from the project's clip folders. Nothing here posts or publishes.
 """
 from __future__ import annotations
@@ -11,7 +11,6 @@ import mimetypes
 import queue
 import re
 import threading
-from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -93,15 +92,36 @@ class Studio:
     def run(self, _body: dict) -> dict:
         return self.queue("run", lambda: pipeline.run(self.project, Judge(self.project, self.judge), say=lambda m: None))
 
+    def _make(self, label: str, change) -> dict:
+        """Change the moments, then run just that clip: queued, so it never races a run already going."""
+        def job():
+            clip = change()
+            pipeline.run(self.project, Judge(self.project, self.judge), only={int(clip[4:])}, say=lambda m: None)
+        return self.queue(label, job)
+
+    def transcript(self) -> dict:
+        segments = _read(self.project / "transcript.json") or []
+        return {"segments": [{"s": s["s"], "e": s["e"], "text": s["text"]} for s in segments]}
+
     def rate(self, body: dict) -> dict:
-        clip = self.clipdir(body.get("clip")).name
-        if body.get("v") not in ("post", "fix", "no", None):
-            raise FactoryError("rating must be post, fix or no")
-        ratings = _read(self.project / "ratings.json", {})
-        ratings[clip] = {"v": body.get("v"), "why": str(body.get("why") or "")[:500],
-                         "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
-        _write(self.project / "ratings.json", ratings)
-        return {"saved": clip}
+        return pipeline.rate(self.project, body.get("clip"), body.get("v"), body.get("why") or "")
+
+    def clip(self, body: dict) -> dict:
+        a, b = pipeline.check_range(self.project, body.get("start"), body.get("end"))   # refuse now, not in the queue
+        hook = str(body.get("hook") or "")
+        return self._make("new clip", lambda: pipeline.add_clip(self.project, a, b, hook))
+
+    def trim(self, body: dict) -> dict:
+        clip = body.get("clip")
+        pipeline._clip_number(self.project, clip)              # a clip still waiting for its cut has no folder yet
+        a, b = pipeline.check_range(self.project, body.get("start"), body.get("end"))
+        return self._make(f"{clip}: new in and out", lambda: pipeline.trim(self.project, clip, a, b))
+
+    def bench(self, body: dict) -> dict:
+        index = body.get("index")
+        if not isinstance(index, int) or not 0 <= index < len(pipeline.status(self.project)["bench"]):
+            raise FactoryError("no such runner-up")
+        return self._make("runner-up", lambda: pipeline.make_bench(self.project, index))
 
     def visual(self, body: dict) -> dict:
         d = self.clipdir(body.get("clip"))
@@ -164,7 +184,8 @@ class Studio:
 def handler(studio: Studio, port: int):
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     actions = {"/api/run": studio.run, "/api/rate": studio.rate, "/api/visual": studio.visual,
-               "/api/text": studio.text, "/api/render": studio.rerender}
+               "/api/text": studio.text, "/api/render": studio.rerender, "/api/clip": studio.clip,
+               "/api/trim": studio.trim, "/api/bench": studio.bench}
     page = data_path("dashboard.html")
 
     class Handler(BaseHTTPRequestHandler):
@@ -200,6 +221,8 @@ def handler(studio: Studio, port: int):
                     return self._send(204, b"", "image/x-icon")
                 if path == "/api/project":
                     return self._json(200, studio.state())
+                if path == "/api/transcript":
+                    return self._json(200, studio.transcript())
                 if path.startswith("/media/"):
                     return self._file(studio.media(path[len("/media/"):]))
             except FactoryError as exc:

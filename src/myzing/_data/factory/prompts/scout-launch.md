@@ -25,5 +25,5 @@ Return ONLY a JSON object, no prose, no code fence:
 
 Use the transcript's own timestamps.
 
-TRANSCRIPT:
+{STEER}TRANSCRIPT:
 {TRANSCRIPT}

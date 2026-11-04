@@ -7,6 +7,7 @@ every clip's visual pick), so an agent answers three rounds per episode, not twe
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +18,10 @@ from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
-            "cutout": False, "upscale": True, "brand": None}
+            "cutout": False, "upscale": True, "brand": None, "focus": None, "show": None}
+BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
+TASTE = 12                                          # past Post/No calls the scout learns from
+HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
 LAUNCH = {"moments": 2, "shapes": ["16x9", "1x1", "9x16"], "pack": "launch"}   # a launch film is landscape first
 
 
@@ -48,6 +52,15 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     brand = settings.get("brand")
     if brand is not None and (not isinstance(brand, dict) or not str(brand.get("name", "")).strip()):
         raise FactoryError("brand needs at least a name")
+    for key, most in (("focus", 300), ("show", 80)):
+        value = settings.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip() or len(value) > most):
+            raise FactoryError(f"{key} must be a short line of text (up to {most} characters)")
+    if settings.get("show") and not show_slug(settings["show"]):
+        raise FactoryError("show needs at least one letter or digit")
+    moments = settings.get("moments", 1)
+    if not isinstance(moments, int) or isinstance(moments, bool) or moments < 0:
+        raise FactoryError("moments must be 0 (only clips you pick) or more")
     for shape in settings.get("shapes", SETTINGS["shapes"]):
         if shape not in render.SHAPES:
             raise FactoryError(f"unknown shape {shape}")
@@ -79,15 +92,24 @@ def _transcript(project: Path, media: Path, say) -> list[dict]:
 
 def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[dict]:
     path = project / "moments.json"
-    data = _read(path)
-    if data and data.get("snapped"):
-        return data["moments"]
-    segments = _transcript(project, media, say)
-    moments = scout.check(judge.ask("scout", scout.prompt(segments, cfg["moments"], cfg["mode"])),
-                          segments[-1]["e"] if segments else None)
+    data = load_moments(project)
+    moments = data.get("moments", [])
+    if not data.get("scouted"):
+        segments = _transcript(project, media, say)     # also what clips are picked from by hand
+    if not data.get("scouted") and cfg["moments"]:
+        n = cfg["moments"]
+        found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), cfg["mode"],
+                                                            focus=cfg.get("focus"), taste=taste(project, cfg))),
+                            segments[-1]["e"] if segments else None)
+        moments = moments + found[:n]                # clips picked by hand before the scout keep their numbers
+        data = {**data, "moments": moments, "bench": found[n:], "scouted": True}
+        _write(path, data)
+    todo = [m for m in moments if not m.get("snapped")]
+    if not todo:
+        return moments
     words = _read(project / "words.json") or []
     pieces = []                                     # films share spans: transcribe each stretch of the episode once
-    for a, b in sorted(ab for m in moments for ab in scout.parts(m)):
+    for a, b in sorted(ab for m in todo for ab in scout.parts(m)):
         if pieces and a <= pieces[-1]["end"] + 2 * source.MARGIN:
             pieces[-1]["end"] = max(pieces[-1]["end"], b)
         else:
@@ -98,9 +120,136 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
         words = sorted(fresh + [w for w in words if not any(a <= w["s"] <= b for a, b in span)], key=lambda w: w["s"])
         _write(project / "words.json", words)
-    moments = [scout.snap(m, words) for m in moments]
-    _write(path, {"moments": moments, "snapped": True})
+    moments = [m if m.get("snapped") else {**scout.snap(m, words), "snapped": True} for m in moments]
+    _write(path, {**data, "moments": moments})
     return moments
+
+
+# ----------------------------------------------------------------------------- steering by hand
+def load_moments(project: Path) -> dict:
+    """moments.json. A file written before clips could be picked by hand had every clip scouted and snapped."""
+    data = _read(Path(project) / "moments.json") or {}
+    if data.get("snapped") is True:
+        data = {"moments": [{**m, "snapped": True} for m in data.get("moments", [])], "bench": data.get("bench", []),
+                "scouted": True}
+    return data
+
+
+def show_slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(name).lower()).strip("-")[:60]
+
+
+def _show_file(show: str) -> Path:
+    from myzing.storage import workspace_root
+    return workspace_root() / "factory" / "shows" / f"{show_slug(show)}.jsonl"
+
+
+def taste(project: Path, cfg: dict) -> list[dict]:
+    """The newest Post/No calls to learn from: every episode of the project's show, or this project alone."""
+    project = Path(project)
+    if cfg.get("show") and _show_file(cfg["show"]).is_file():
+        rows = [json.loads(line) for line in _show_file(cfg["show"]).read_text(encoding="utf-8").splitlines()
+                if line.strip()]
+    else:
+        moments = load_moments(project).get("moments", [])
+        rows = [{"project": "", "clip": clip, "hook": moments[int(clip[4:]) - 1].get("hook", ""),
+                 "topic": moments[int(clip[4:]) - 1].get("topic", ""), **r}
+                for clip, r in (_read(project / "ratings.json") or {}).items()
+                if r.get("v") and int(clip[4:]) <= len(moments)]
+    latest = {}
+    for r in sorted(rows, key=lambda r: r.get("at", "")):  # a clip rated twice counts once, as last rated
+        latest[(r.get("project", ""), r["clip"])] = r
+    return sorted(latest.values(), key=lambda r: r.get("at", ""), reverse=True)[:TASTE]
+
+
+def rate(project: Path, clip: str, v: str | None, why: str = "") -> dict:
+    """Save a Post / Post with edits / No call, and add it to the show's history so the next episode learns from it."""
+    project = Path(project).resolve()
+    if v not in ("post", "fix", "no", None):
+        raise FactoryError("rating must be post, fix or no")
+    i = _clip_number(project, clip)
+    row = {"v": v, "why": str(why or "")[:500], "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    ratings = _read(project / "ratings.json", {})
+    ratings[clip] = row
+    _write(project / "ratings.json", ratings)
+    cfg = _read(project / "factory.json", {})
+    if cfg.get("show") and v:
+        m = load_moments(project)["moments"][i - 1]
+        hook = ((_read(project / clip / "plan.json") or {}).get("hook") or m.get("hook", "")).replace("*", "")
+        history = _show_file(cfg["show"])
+        history.parent.mkdir(parents=True, exist_ok=True)
+        with history.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"project": project.name, "clip": clip, "hook": hook, "topic": m.get("topic", ""),
+                                **row}, ensure_ascii=False) + "\n")
+    return {"saved": clip}
+
+
+def _clip_number(project: Path, clip: str) -> int:
+    moments = load_moments(project).get("moments", [])
+    if not isinstance(clip, str) or not re.fullmatch(r"clip\d{2}", clip) or not 1 <= int(clip[4:]) <= len(moments):
+        raise FactoryError(f"unknown clip {clip!r}")
+    return int(clip[4:])
+
+
+def check_range(project: Path, start, end) -> tuple[float, float]:
+    """A hand-picked stretch of the episode: inside it, and between 3 seconds and 3 minutes long."""
+    try:
+        a, b = float(start), float(end)
+    except (TypeError, ValueError):
+        raise FactoryError("start and end must be seconds") from None
+    segments = _read(Path(project) / "transcript.json") or []
+    last = segments[-1]["e"] if segments else None
+    if a < 0 or b <= a or (last is not None and a >= last):
+        raise FactoryError(f"{a:.1f}-{b:.1f}s is not inside the episode")
+    if not HAND[0] <= b - a <= HAND[1]:
+        raise FactoryError(f"a clip runs {HAND[0]:.0f} s to {HAND[1] / 60:.0f} min; this one is {b - a:.0f} s")
+    return round(a, 2), round(min(b, last + 1) if last is not None else b, 2)
+
+
+def add_clip(project: Path, start, end, hook: str = "") -> str:
+    """Add a clip picked by hand; the next run snaps it to sentences, cuts and plans it. Returns its clip id."""
+    project = Path(project).resolve()
+    a, b = check_range(project, start, end)
+    data = {"moments": [], "bench": [], **load_moments(project)}
+    data["moments"] = data.get("moments", []) + [{"hook": str(hook or "").strip()[:120], "why": "picked by hand",
+                                                  "topic": "", "score": "", "start": a, "end": b, "by": "hand"}]
+    _write(project / "moments.json", data)
+    return f"clip{len(data['moments']):02d}"
+
+
+def make_bench(project: Path, index: int) -> str:
+    """Make one of the scout's runners-up (0-based, in the order status lists them). Returns its clip id."""
+    project = Path(project).resolve()
+    data = load_moments(project)
+    bench = data.get("bench", [])
+    if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(bench):
+        raise FactoryError("no such runner-up")
+    data["moments"] = data["moments"] + [bench[index]]
+    data["bench"] = bench[:index] + bench[index + 1:]
+    _write(project / "moments.json", data)
+    return f"clip{len(data['moments']):02d}"
+
+
+def trim(project: Path, clip: str, start, end) -> str:
+    """Move a clip's in and out points; the next run re-cuts, re-plans and re-renders it."""
+    project = Path(project).resolve()
+    i = _clip_number(project, clip)
+    data = load_moments(project)
+    m = data["moments"][i - 1]
+    if m.get("spans"):
+        raise FactoryError(f"{clip} is a film made of several parts; trim it with redo scout instead")
+    a, b = check_range(project, start, end)
+    data["moments"][i - 1] = {**{k: v for k, v in m.items() if k not in ("snapped", "scout_start", "scout_end")},
+                              "start": a, "end": b}
+    _write(project / "moments.json", data)
+    judge = Judge(project)
+    for kind in ("plan", "copy", "pick"):                    # the words changed, so every judgment on them goes
+        judge.forget(f"{clip}-{kind}")
+    shutil.rmtree(project / clip, ignore_errors=True)
+    ratings = _read(project / "ratings.json", {})
+    if ratings.pop(clip, None) is not None:
+        _write(project / "ratings.json", ratings)
+    return clip
 
 
 def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, words: list[dict], say) -> list[str]:
@@ -199,15 +348,18 @@ def status(project: Path, judge: Judge | None = None) -> dict:
     project = Path(project).resolve()
     judge = judge or Judge(project)
     cfg = _read(project / "factory.json", {})
-    moments = (_read(project / "moments.json") or {}).get("moments", [])
+    data = load_moments(project)
+    moments = data.get("moments", [])
     clips = []
     for i, m in enumerate(moments, 1):
         d = project / f"clip{i:02d}"
         clips.append({"clip": f"clip{i:02d}", "hook": m["hook"].replace("*", ""), "start": m["start"], "end": m["end"],
                       "renders": sorted(p.name for p in d.glob("clip*.mp4")) if d.is_dir() else [],
-                      "copy": (d / "post.json").is_file()})
+                      "copy": (d / "post.json").is_file(), **({"by": "hand"} if m.get("by") == "hand" else {})})
+    bench = [{"hook": m["hook"].replace("*", ""), "why": m.get("why", ""), "topic": m.get("topic", ""),
+              "start": m["start"], "end": m["end"]} for m in data.get("bench", [])]
     return {"project": str(project), **(_read(project / "status.json") or {"state": "new"}), "settings": cfg,
-            "pending": judge.pending(), "clips": clips, "usage": judge.usage(),
+            "pending": judge.pending(), "clips": clips, "bench": bench, "usage": judge.usage(),
             "review": str(project / "index.html") if (project / "index.html").is_file() else None}
 
 

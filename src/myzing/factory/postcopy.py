@@ -1,7 +1,7 @@
 """Post copy for one clip, anchored to the source's date and credited to the source."""
 from __future__ import annotations
 
-from .tools import data_path
+from .tools import NO_HOOK, data_path
 
 FIELDS = ("x", "instagram", "tiktok", "youtube_title", "first_comment")
 
@@ -14,7 +14,8 @@ def brand_line(brand: dict | None) -> str:
 
 def prompt(moment: dict, words: dict, source: dict, mode: str = "context", brand: dict | None = None) -> str:
     text = data_path("prompts", "copy-launch.md" if mode == "launch" else "copy.md").read_text(encoding="utf-8")
-    for k, v in {"{SOURCE}": source.get("name", ""), "{HOOK}": moment["hook"], "{DATE}": source.get("date") or "unknown",
+    for k, v in {"{SOURCE}": source.get("name", ""), "{HOOK}": moment["hook"] or NO_HOOK,
+                 "{DATE}": source.get("date") or "unknown",
                  "{BRAND}": brand_line(brand),
                  "{TEXT}": " ".join(w["w"] for w in words["words"])}.items():
         text = text.replace(k, v)

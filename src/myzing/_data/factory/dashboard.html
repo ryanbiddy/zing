@@ -345,7 +345,7 @@
   .rate .why { display: grid; gap: 4px; }
   .rate .why label { font-size: 12px; font-weight: 600; color: var(--text-2); }
   .rate .why .field { min-height: 36px; padding: 6px 10px; font-size: 13px; }
-  .card-foot { display: flex; justify-content: flex-end; }
+  .card-foot { display: flex; justify-content: flex-end; gap: 8px; }
 
   /* Detail */
   .detail {
@@ -433,6 +433,39 @@
   .toast.show { opacity: 1; transform: translateY(0); transition-duration: var(--dur-enter); transition-timing-function: var(--ease-enter); }
   .toast.error { border-color: var(--danger-border); background: var(--danger-bg); }
 
+  .bench { display: grid; gap: 10px; }
+  .bench-item {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+    border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--surface); padding: 12px 14px;
+  }
+  .bench-item h3 { font-size: 15px; font-weight: 700; }
+  .bench-item p { font-size: 13px; color: var(--text-2); margin-top: 2px; }
+  .picker { border: 1px solid var(--line); border-radius: var(--card-radius); background: var(--surface); }
+  .picker-head {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+  }
+  .picker-head p { font-size: 13px; color: var(--text-2); }
+  .picker-head .field { width: 240px; }
+  .lines { max-height: 420px; overflow-y: auto; padding: 6px; }
+  .line {
+    display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; width: 100%; text-align: left;
+    border: 0; border-radius: 8px; background: transparent; color: var(--text); padding: 6px 8px;
+    font: inherit; font-size: 14px; line-height: 1.45; cursor: pointer;
+  }
+  .line:hover { background: var(--btn-hover); }
+  .line:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+  .line .t { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); padding-top: 2px; }
+  .line.in { background: var(--surface-sel); }
+  .line.edge { box-shadow: inset 3px 0 0 var(--action); }
+  .picker-foot {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 12px 16px; border-top: 1px solid var(--line);
+  }
+  .picker-foot .sum { font-size: 13px; margin-right: auto; }
+  .picker-foot .sum.over { color: var(--fail); font-weight: 700; }
+  .nudge { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; color: var(--text-2); }
+  .picker-foot .field { width: 220px; }
+
   @media (max-width: 860px) {
     .detail-body { grid-template-columns: minmax(0, 1fr); }
     .detail-col + .detail-col { border-left: 0; border-top: 1px solid var(--line); }
@@ -451,6 +484,7 @@
     .render-row > div { flex: 1 1 120px; }
     .render-row .field { width: 100%; }
     .approve .button { width: 100%; }
+    .picker-head .field, .picker-foot .field { width: 100%; }
   }
 </style>
 </head>
@@ -485,6 +519,18 @@
   <div id="grid" class="grid" aria-live="polite"></div>
 
   <section id="detail" class="detail" aria-labelledby="detail-title" hidden></section>
+
+  <div class="section-head" id="bench-head" hidden>
+    <h2>Runners-up</h2>
+    <p>More moments the scout found. Make any of them into a clip.</p>
+  </div>
+  <div id="bench" class="bench"></div>
+
+  <div class="section-head">
+    <h2 id="picker-title">Make a clip</h2>
+    <p>Pick it from the transcript: click where it starts, then where it ends.</p>
+  </div>
+  <section id="picker" class="picker" aria-labelledby="picker-title"></section>
 
   <section class="approve" aria-labelledby="approve-title">
     <div>
@@ -524,6 +570,10 @@ const api = {
   visual: (clip, request, index) => api.post("/api/visual", { clip, request, index }),
   text: (clip, field, text) => api.post("/api/text", { clip, field, text }),
   render: (clip, shape, pack) => api.post("/api/render", { clip, shape, pack }),
+  transcript: () => api.get("/api/transcript"),
+  clip: (start, end, hook) => api.post("/api/clip", { start, end, hook }),
+  trim: (clip, start, end) => api.post("/api/trim", { clip, start, end }),
+  bench: index => api.post("/api/bench", { index }),
   media: (clip, file) => "/media/" + encodeURIComponent(clip) + "/" +
     String(file).split(/[\\/]+/).map(encodeURIComponent).join("/")
 };
@@ -554,7 +604,9 @@ const ui = {
   pack: {},             // clip id -> pack id for re-render
   drafts: {},           // "clip:field" -> unsaved text
   rated: {},            // clip id -> last rating sent
-  why: {}               // clip id -> why text
+  why: {},              // clip id -> why text
+  lines: null,          // transcript segments, loaded on demand
+  pick: { a: null, b: null, wantEnd: false, clip: null, hook: "", find: "" }   // the picker's range (segment indices)
 };
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -592,11 +644,8 @@ function defaultPack() { return (ui.project.settings && ui.project.settings.pack
    videos are used; the local paths in the JSON are never touched. */
 function fileFor(c, shape, pack) {
   const names = videoNames(c);
-  const base = shape === "9x16" ? "clip" : "clip-" + shape;
-  const want = pack && pack !== defaultPack()
-    ? [base + "-" + pack + ".mp4"]
-    : [base + ".mp4"];
-  return want.find(n => names.includes(n)) || null;
+  const name = "clip" + (shape === "9x16" ? "" : "-" + shape) + (!pack || pack === "zing" ? "" : "-" + pack) + ".mp4";
+  return names.includes(name) ? name : null;
 }
 function shapesFor(c) { return SHAPES.filter(s => fileFor(c, s.id, defaultPack())); }
 
@@ -686,7 +735,7 @@ function render() {
   const cost = p.usage ? "$" + Number(p.usage.cost_usd || 0).toFixed(2) : "$0.00";
   const s = p.settings || {};
   const packName = (p.packs && p.packs[s.pack]) || s.pack || "";
-  $("#meta").replaceChildren(
+  $("#meta").replaceChildren(...[                  // replaceChildren would print a null as "null"
     el("span", { class: "progress-wrap" },
       el("span", { class: "progress", role: "progressbar", "aria-label": "Clips rendered",
         "aria-valuemin": "0", "aria-valuemax": String(clips.length), "aria-valuenow": String(done) },
@@ -695,8 +744,10 @@ function render() {
     el("span", {}, el("strong", { text: cost }), " model cost" +
       (p.usage ? ", " + plural(p.usage.calls || 0, "call", "calls") : "")),
     packName ? el("span", {}, "Pack ", el("strong", { text: packName })) : null,
-    s.shapes ? el("span", {}, "Shapes ", el("strong", { text: s.shapes.map(x => x.replace("x", ":")).join(", ") })) : null
-  );
+    s.shapes ? el("span", {}, "Shapes ", el("strong", { text: s.shapes.map(x => x.replace("x", ":")).join(", ") })) : null,
+    s.focus ? el("span", {}, "Focus ", el("strong", { text: s.focus })) : null,
+    s.show ? el("span", {}, "Show ", el("strong", { text: s.show })) : null
+  ].filter(Boolean));
 
   const pending = p.pending || [];
   const w = $("#waiting");
@@ -731,6 +782,8 @@ function render() {
         el("p", { text: "Press Run and your agent will scout the episode for moments." }))]));
 
   renderDetail();
+  renderBench();
+  renderPicker();
 }
 
 function describeTask(t) {
@@ -748,6 +801,7 @@ function pendingCard(c) {
     el("div", { class: "card-top" },
       el("span", { class: "id", text: c.clip }),
       el("span", { class: "pill info" }, el("span", { class: "dot", "aria-hidden": "true" }), "In progress")),
+    c.by === "hand" ? el("span", { class: "hint", text: "Picked by hand" }) : null,
     el("div", { class: "stage" },
       el("div", { class: "player pending", "data-shape": "9x16" },
         el("div", { class: "pending-label" },
@@ -755,8 +809,10 @@ function pendingCard(c) {
           el("span", { text: c.plan ? "Rendering" : "Waiting for its turn" }),
           el("small", { text: "The video shows up here when it is ready." })))),
     el("div", {},
-      el("h3", { text: stripStars(c.hook) }),
-      el("div", { class: "time", text: timeLine(c) })));
+      el("h3", { text: stripStars(c.hook) || "Hook comes with the plan" }),
+      el("div", { class: "time", text: timeLine(c) })),
+    el("div", { class: "card-foot" },
+      el("button", { class: "button small", type: "button", onclick: () => startTrim(c) }, "Trim")));
 }
 
 function clipCard(c) {
@@ -819,6 +875,7 @@ function clipCard(c) {
     el("div", { class: "card-top" },
       el("span", { class: "id", text: c.clip }),
       el("span", { class: "pill ok" }, el("span", { class: "dot", "aria-hidden": "true" }), "Rendered")),
+    c.by === "hand" ? el("span", { class: "hint", text: "Picked by hand" }) : null,
     el("div", { class: "stage" }, player),
     tabs,
     el("div", {},
@@ -833,7 +890,8 @@ function clipCard(c) {
       el("button", { class: "button small", type: "button", "aria-expanded": String(selected),
         "aria-controls": "detail",
         onclick: () => { ui.selected = c.clip; render(); $("#detail").scrollIntoView({ behavior: "smooth", block: "start" }); focusLater("#detail-title"); }
-      }, selected ? "Showing details" : "Edit details")));
+      }, selected ? "Showing details" : "Edit details"),
+      el("button", { class: "button small", type: "button", onclick: () => startTrim(c) }, "Trim")));
 }
 
 function focusLater(sel) { requestAnimationFrame(() => { const n = $(sel); if (n) n.focus({ preventScroll: true }); }); }
@@ -962,6 +1020,129 @@ function textField(c, f, saved, hint, copyable) {
     area,
     hint ? el("p", { class: "hint", text: hint }) : null,
     actions);
+}
+
+/* ---------- runners-up ---------- */
+function renderBench() {
+  const bench = ui.project.bench || [];
+  $("#bench-head").hidden = !bench.length;
+  $("#bench").replaceChildren(...bench.map((m, i) => el("div", { class: "bench-item" },
+    el("div", {},
+      el("h3", { text: stripStars(m.hook) }),
+      el("p", { text: (m.why ? m.why + " " : "") + clock(m.start) + " to " + clock(m.end) + ", " + Math.round(m.end - m.start) + "s" })),
+    el("button", { class: "button small", type: "button",
+      onclick: e => act(e.currentTarget, () => api.bench(i), "Making it. It shows up in Clips when it is ready.") },
+      "Make this one"))));
+}
+
+/* ---------- make a clip from the transcript, or move one's in and out ---------- */
+async function loadLines(button) {
+  if (button) { button.disabled = true; button.setAttribute("aria-busy", "true"); }
+  try { ui.lines = (await api.transcript()).segments || []; }
+  catch (err) { ui.lines = null; toast("Could not load the transcript: " + err.message, true); }
+  renderPicker();
+}
+
+function selection() {
+  const P = ui.pick, L = ui.lines || [];
+  if (P.a == null || !L.length) return null;
+  const s = L[P.a].s, e = L[P.b == null ? P.a : P.b].e;
+  return { s, e, len: e - s };
+}
+
+function pickLine(i) {
+  const P = ui.pick;
+  if (P.a == null || !P.wantEnd) { P.a = i; P.b = i; P.wantEnd = true; }
+  else if (i >= P.a) { P.b = i; P.wantEnd = false; }
+  else P.a = i;
+  renderPicker();
+}
+
+function nudge(which, d) {
+  const P = ui.pick, n = (ui.lines || []).length;
+  if (P.a == null) return;
+  if (P.b == null) P.b = P.a;
+  P[which] = Math.max(0, Math.min(n - 1, P[which] + d));
+  if (P.a > P.b) { if (which === "a") P.b = P.a; else P.a = P.b; }
+  P.wantEnd = false;
+  renderPicker();
+  const row = $("#lines [data-i='" + P[which] + "']");
+  if (row) row.scrollIntoView({ block: "nearest" });
+}
+
+async function startTrim(c) {
+  if (!ui.lines) await loadLines();
+  const L = ui.lines || [];
+  if (!L.length) return;
+  let a = 0;
+  L.forEach((s, i) => { if (s.s <= c.start + 0.3) a = i; });
+  let b = L.findIndex(s => s.e >= c.end - 0.3);
+  if (b < a) b = a;
+  ui.pick = { a, b, wantEnd: false, clip: c.clip, hook: "", find: "" };
+  renderPicker();
+  $("#picker").scrollIntoView({ behavior: "smooth", block: "start" });
+  const row = $("#lines [data-i='" + a + "']");
+  if (row) row.scrollIntoView({ block: "center" });
+}
+
+function renderPicker() {
+  const box = $("#picker"), L = ui.lines, P = ui.pick;
+  if (!L) {
+    box.replaceChildren(el("div", { class: "picker-head" },
+      el("p", { text: "Read the episode and pick any stretch of it, or move a clip's start and end." }),
+      el("button", { class: "button", type: "button", onclick: e => loadLines(e.currentTarget) }, "Show transcript")));
+    return;
+  }
+  if (!L.length) {
+    box.replaceChildren(el("div", { class: "picker-head" },
+      el("p", { text: "No transcript yet. Press Run once and Zing transcribes the episode first." })));
+    return;
+  }
+  const old = $("#lines"), keep = old ? old.scrollTop : null;
+  const find = P.find.trim().toLowerCase(), last = P.b == null ? P.a : P.b;
+  const rows = el("div", { class: "lines", id: "lines", role: "group", "aria-label": "Transcript lines" });
+  L.forEach((s, i) => {
+    const inside = P.a != null && i >= P.a && i <= last;
+    if (find && !inside && !s.text.toLowerCase().includes(find)) return;
+    rows.append(el("button", { class: "line" + (inside ? " in" : "") + (i === P.a || i === last ? " edge" : ""),
+      type: "button", "data-i": String(i), "aria-pressed": String(inside), onclick: () => pickLine(i) },
+      el("span", { class: "t", text: clock(s.s) }), el("span", { text: s.text })));
+  });
+  const findInput = el("input", { class: "field", type: "search", value: P.find, placeholder: "Find words",
+    "aria-label": "Find words in the transcript",
+    oninput: e => { P.find = e.target.value; renderPicker(); focusLater("#picker input[type=search]"); } });
+  const head = el("div", { class: "picker-head" },
+    el("p", { text: (P.clip ? "Moving " + P.clip + ". " : "")
+      + (P.a == null ? "Click the line a clip starts on."
+         : P.wantEnd ? "Now click the line it ends on."
+         : "Nudge either end a line at a time, or click a line to start over.") }),
+    el("div", { class: "render-row" }, findInput,
+      P.clip ? el("button", { class: "button ghost small", type: "button",
+        onclick: () => { ui.pick = { a: null, b: null, wantEnd: false, clip: null, hook: "", find: "" }; renderPicker(); } },
+        "Cancel") : null));
+
+  const sel = selection(), ok = sel && sel.len >= 3 && sel.len <= 180;
+  const nudges = (label, which) => el("span", { class: "nudge" }, label,
+    el("button", { class: "button ghost small", type: "button", disabled: P.a == null,
+      "aria-label": label + " one line earlier", onclick: () => nudge(which, -1) }, "◀"),
+    el("button", { class: "button ghost small", type: "button", disabled: P.a == null,
+      "aria-label": label + " one line later", onclick: () => nudge(which, 1) }, "▶"));
+  const hookInput = P.clip ? null : el("input", { class: "field", type: "text", value: P.hook, maxlength: "120",
+    placeholder: "Hook (optional)", "aria-label": "Hook for the new clip", oninput: e => { P.hook = e.target.value; } });
+  const go = el("button", { class: "button primary", type: "button", disabled: !ok,
+    onclick: e => act(e.currentTarget,
+      async () => {
+        if (P.clip) await api.trim(P.clip, sel.s, sel.e); else await api.clip(sel.s, sel.e, P.hook);
+        ui.pick = { a: null, b: null, wantEnd: false, clip: null, hook: "", find: "" };
+      },
+      P.clip ? "Re-cutting " + P.clip + ". It renders again when your agent has planned it."
+             : "Making the clip. It shows up in Clips when it is ready.") },
+    P.clip ? "Re-cut " + P.clip : "Make this clip");
+  const sum = el("span", { class: "sum" + (sel && !ok ? " over" : ""), text: !sel ? "Nothing picked yet."
+    : clock(sel.s) + " to " + clock(sel.e) + ", " + Math.round(sel.len) + "s"
+      + (sel.len < 3 ? ": too short (3 s at least)" : sel.len > 180 ? ": too long (3 min at most)" : "") });
+  box.replaceChildren(head, rows, el("div", { class: "picker-foot" }, sum, nudges("Start", "a"), nudges("End", "b"), hookInput, go));
+  if (keep != null) $("#lines").scrollTop = keep;
 }
 
 async function copyText(text, label) {
