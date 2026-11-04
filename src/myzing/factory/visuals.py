@@ -17,7 +17,7 @@ with rights "cleared" | "attribution" | "editorial" | "unknown" and credit_text)
 values; per-source health; routing and rejections) and contact_sheet.jpg.
 
 Optional keys: PEXELS_API_KEY, PIXABAY_API_KEY, EXA_API_KEY, read from the environment (and on Windows from the user's
-HKCU\Environment, for variables set after this process started). Values are never printed, logged or written; a
+HKCU\\Environment, for variables set after this process started). Values are never printed, logged or written; a
 missing key switches that source off. Downloaded files are untrusted bytes: parsed for validation (Pillow / ffprobe),
 never executed. Site captures hide cookie banners with CSS only; nothing on a page is clicked or accepted.
 """
