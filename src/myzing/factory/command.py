@@ -15,6 +15,15 @@ def _clips(value: str) -> set[int]:
     return {int(x) for x in value.split(",") if x.strip()}
 
 
+def _time(value: str) -> float:
+    """Seconds, or m:ss / h:mm:ss."""
+    parts = value.strip().split(":")
+    try:
+        return float(sum(float(p) * 60 ** i for i, p in enumerate(reversed(parts))))
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a time: {value!r} (use seconds or m:ss)") from None
+
+
 def run(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="zing factory", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -27,7 +36,10 @@ def run(argv: list[str]) -> int:
     new.add_argument("--url", default="", help="the source link used in first comments")
     new.add_argument("--date", default="", help="the source's date; copy never calls older news 'new'")
     new.add_argument("--tag", default="", help="short on-screen source tag")
-    new.add_argument("--moments", type=int, default=None, help="clips to scout (default 8; launch: films, default 2)")
+    new.add_argument("--moments", type=int, default=None,
+                     help="clips to scout (default 8; launch: films, default 2; 0: only clips you pick)")
+    new.add_argument("--focus", help="what to clip, e.g. 'the pricing argument' or 'funny moments'; the scout favors it")
+    new.add_argument("--show", help="the show's name; Post/No calls on its episodes teach the scout for the next one")
     new.add_argument("--mode", choices=("context", "fun", "documentary", "launch"), default="context",
                      help="documentary: archival photos and documents, the speaker as narrator (pair with --pack documentary); "
                           "launch: one launch film from a long demo or interview, assembled from several parts")
@@ -55,6 +67,17 @@ def run(argv: list[str]) -> int:
     ans.add_argument("project", type=Path)
     ans.add_argument("task")
     ans.add_argument("answer", help="path to the answer, or - to read stdin")
+    clip = commands.add_parser("clip", help="make a clip yourself: a stretch of the episode, or one of the scout's runners-up")
+    clip.add_argument("project", type=Path)
+    clip.add_argument("--start", type=_time, help="seconds or m:ss")
+    clip.add_argument("--end", type=_time, help="seconds or m:ss")
+    clip.add_argument("--hook", default="", help="the on-screen hook (default: the plan writes one)")
+    clip.add_argument("--bench", type=int, help="make runner-up number N instead, as 'status' lists them (from 1)")
+    trim = commands.add_parser("trim", help="move a clip's in and out points; the next run re-cuts it")
+    trim.add_argument("project", type=Path)
+    trim.add_argument("clip", help="clipNN")
+    trim.add_argument("--start", type=_time, required=True)
+    trim.add_argument("--end", type=_time, required=True)
     redo = commands.add_parser("redo", help="forget one judgment so the next run asks again")
     redo.add_argument("project", type=Path)
     redo.add_argument("task", help="scout, or clipNN-plan / clipNN-pick / clipNN-copy")
@@ -99,7 +122,8 @@ def run(argv: list[str]) -> int:
                                    mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
                                    upscale=args.upscale,
                                    **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack,
-                                                        "moments": args.moments}.items() if v is not None},
+                                                        "moments": args.moments, "focus": args.focus,
+                                                        "show": args.show}.items() if v is not None},
                                    **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
                                                                     "cta": args.cta}.items() if v}} if args.brand_name else {}))
         elif args.command == "run":
@@ -110,6 +134,17 @@ def run(argv: list[str]) -> int:
         elif args.command == "answer":
             text = sys.stdin.read() if args.answer == "-" else Path(args.answer).read_text(encoding="utf-8")
             result = pipeline.answer(args.project, args.task, text)
+        elif args.command == "clip":
+            if args.bench is not None:
+                made = pipeline.make_bench(args.project, args.bench - 1)
+            elif args.start is None or args.end is None:
+                raise ValueError("give --start and --end, or --bench N")
+            else:
+                made = pipeline.add_clip(args.project, args.start, args.end, args.hook)
+            result = {"clip": made, "hint": f"zing factory run {args.project} --clips {int(made[4:])}"}
+        elif args.command == "trim":
+            result = {"clip": pipeline.trim(args.project, args.clip, args.start, args.end),
+                      "hint": f"zing factory run {args.project} --clips {int(args.clip[4:])}"}
         elif args.command == "redo":
             pipeline.redo(args.project, args.task)
             result = {"task": args.task, "forgotten": True}

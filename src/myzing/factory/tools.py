@@ -18,6 +18,9 @@ class FactoryError(RuntimeError):
     """An actionable factory failure."""
 
 
+NO_HOOK = "none yet (the clip was picked by hand): write one from what is said"
+
+
 def data_path(*parts: str) -> Path:
     return Path(str(DATA.joinpath(*parts)))
 

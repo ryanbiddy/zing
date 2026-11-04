@@ -6,7 +6,7 @@ import json
 import re
 from pathlib import Path
 
-from .tools import data_path
+from .tools import NO_HOOK, data_path
 
 LAYOUTS = ("solo", "split", "graphic")
 GRAPHICS = ("counter", "list", "funnel", "quote", "title", "endcard")
@@ -30,7 +30,8 @@ def words_block(words: list[dict]) -> str:
 def prompt(moment: dict, words: dict, mode: str = "context", brand: dict | None = None) -> str:
     from .postcopy import brand_line
     text = data_path("prompts", "plan.md").read_text(encoding="utf-8")
-    for k, v in {"{TOPIC}": moment.get("topic", ""), "{HOOK}": moment["hook"], "{DURATION}": f"{words['duration']:.1f}",
+    for k, v in {"{TOPIC}": moment.get("topic", ""), "{HOOK}": moment["hook"] or NO_HOOK,
+                 "{DURATION}": f"{words['duration']:.1f}",
                  "{BRAND}": brand_line(brand),
                  "{WORDS}": words_block(words["words"]),
                  "{STYLE}": data_path("prompts", f"style-{mode}.md").read_text(encoding="utf-8").strip()}.items():

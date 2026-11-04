@@ -1835,12 +1835,15 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                   name: str | None = None, url: str = "", date: str = "", tag: str = "", moments: int = 8,
                   mode: Literal["context", "fun", "documentary", "launch"] = "context", shapes: list[str] | None = None,
                   pack: str | None = None, public: bool = False, brand_name: str | None = None,
-                  brand_url: str | None = None, cta: str | None = None, cutout: bool = False) -> dict[str, Any]:
+                  brand_url: str | None = None, cta: str | None = None, cutout: bool = False,
+                  focus: str | None = None, show: str | None = None) -> dict[str, Any]:
     """Create a factory project from a local episode file and an optional caption file.
 
     mode "launch" assembles launch films from a long demo or interview (landscape first, the launch pack); brand_name,
     brand_url and cta feed its title and end card. mode "documentary" pairs with pack "documentary". cutout stands the
     speaker, lifted off their background, in front of the pictures (needs `zing factory fetch-cutout --yes`).
+    focus steers the scout ("the pricing argument", "funny moments"); show names the show, so Post/No calls on its
+    episodes teach the scout for the next one. moments=0 scouts nothing: only clips made with factory_clip.
     """
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
@@ -1850,7 +1853,8 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                                transcript=Path(transcript).expanduser() if transcript else None, offset=offset,
                                name=name, url=url, date=date, tag=tag, mode=mode, public=public, cutout=cutout,
                                **{k: v for k, v in {"moments": moments if moments != 8 or mode != "launch" else None,
-                                                    "shapes": shapes, "pack": pack, "brand": brand}.items() if v is not None})
+                                                    "shapes": shapes, "pack": pack, "brand": brand, "focus": focus,
+                                                    "show": show}.items() if v is not None})
         return _ok(**result, hint="Call factory_run(project), then poll factory_status(project).")
     except (FactoryError, ValueError, OSError) as exc:
         return _err(str(exc))
@@ -1916,6 +1920,29 @@ def mcp_factory_prompt(project: str, task: str) -> list[Any]:
         return [json.dumps(package, ensure_ascii=False)]
     from mcp.server.mcpserver import Image
     return [json.dumps(package, ensure_ascii=False), *(Image(path=p) for p in package["images"])]
+
+
+def h_factory_clip(project: str, start: float | None = None, end: float | None = None, hook: str | None = None,
+                   bench: int | None = None, clip: str | None = None) -> dict[str, Any]:
+    """Make a clip by hand: a stretch of the episode (start and end in seconds), one of the scout's runners-up (bench,
+    0-based as factory_status lists them), or new in and out points for an existing clip (clip plus start and end)."""
+    from myzing.factory import pipeline
+    from myzing.factory.tools import FactoryError
+    root = Path(project).expanduser()
+    try:
+        if clip:
+            if start is None or end is None:
+                return _err("moving a clip needs start and end")
+            made = pipeline.trim(root, clip, start, end)
+        elif bench is not None:
+            made = pipeline.make_bench(root, bench)
+        elif start is not None and end is not None:
+            made = pipeline.add_clip(root, start, end, hook or "")
+        else:
+            return _err("give start and end, bench, or clip with start and end")
+    except (FactoryError, ValueError, OSError, KeyError) as exc:
+        return _err(str(exc))
+    return _ok(clip=made, hint="Call factory_run(project); it cuts, plans and renders the new clip.")
 
 
 def h_factory_answer(project: str, task: str, answer: dict[str, Any] | str) -> dict[str, Any]:
@@ -2328,6 +2355,10 @@ def build_server():
         description="Read one pending judgment prompt. A pick task attaches its contact sheet image. Reply to the prompt exactly as it asks (one JSON object) through factory_answer. Never invent facts the transcript doesn't contain.",
         structured_output=False,
     )(mcp_factory_prompt)
+    mcp.tool(
+        name="factory_clip",
+        description="Make a factory clip by hand: a stretch of the episode by start and end seconds, one of the scout's runners-up (bench, as factory_status lists them), or new in and out points for an existing clip. The next factory_run snaps it to sentences, then cuts, plans and renders it.",
+    )(h_factory_clip)
     mcp.tool(
         name="factory_answer",
         description="Save the JSON answer to a pending factory task (validated; a malformed answer is rejected with the reason). Then call factory_run to continue.",

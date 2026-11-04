@@ -22,5 +22,5 @@ Return ONLY a JSON object, no prose, no code fence:
 
 Pick the {N} strongest moments, non-overlapping, ordered by score. Use the transcript's own timestamps; start and end must sit on sentence boundaries.
 
-TRANSCRIPT:
+{STEER}TRANSCRIPT:
 {TRANSCRIPT}

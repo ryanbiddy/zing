@@ -13,7 +13,7 @@ with a **VARIETY** warning instead of duplicate drafts. Needs Python, uv and FFm
 Under the hood, Zing gives your agent the tools to study a reference, choose a cut, match its
 color, plan captions, render a draft and inspect the result. It also makes memes
 from local images. Measurement and rendering run on your machine; your AI supplies
-the creative judgment through the CLI or **42 MCP tools**. No Zing API key needed.
+the creative judgment through the CLI or **43 MCP tools**. No Zing API key needed.
 
 ## Start here: zing studio
 
@@ -155,7 +155,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Keep speech complete | [Continuity and ASR repair](docs/CONTINUITY.md): clause boundaries, source order, bounded timing estimates, text roles and separate render/style status. |
 | Improve vertical drafts | [CLIPQ2](docs/CLIPQ2.md): close-shot gates, sampled caption bands, display-only stutter cleanup, and NASA re-plan instructions. |
 | Choose and place music | [Music advice and editing](docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
-| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 42 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 43 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Check installed capabilities | [Doctor](docs/DOCTOR.md): optional runtimes, verified models and remedies. |
 | Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
