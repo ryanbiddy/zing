@@ -378,6 +378,11 @@ window.seek = async function(t) {
   const gr = $('grain'), fr = Math.floor(t*FPS); gr.style.display = LOOK.grain ? 'block' : 'none';
   if (LOOK.grain) { gr.style.opacity = LOOK.grain; gr.style.backgroundPosition = `${(fr*37)%240}px ${(fr*91)%240}px`; }
 
+  // a page shown whole sits mid-frame in 9x16: the hook goes above it and the captions below it, never over it
+  const cv = G.top && D.visuals[shot.visual], cbox = cv && cv.fit === 'contain' && ASPECT === '9x16' ? (() => {
+    const W = G.win || G.top, s = Math.min(W.w/cv.w, W.h/cv.h), y0 = G.top.y + (W.h - cv.h*s)/2;
+    return {y0, y1: y0 + cv.h*s}; })() : null;
+
   // hook: a header over solo in 9x16, otherwise a pill for the first seconds
   const hookOn = t < D.hookUntil;
   const hp = easeOut(lin(t, 0, .35)) * (1 - lin(t, D.hookUntil-.25, D.hookUntil));
@@ -385,7 +390,10 @@ window.seek = async function(t) {
   if (PANEL && !panelFit) fitPanel();
   if (G.hook === 'panel' || G.hook === 'none') { hook.style.opacity = 0; pill.style.opacity = 0; }
   else if (G.hook === 'header') { hook.style.top = '130px'; hook.innerHTML = `<div>${D.hookHtml}</div>`; hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
-  else { hook.style.opacity = 0; pill.style.top = G.pill+'px'; pill.firstChild.innerHTML = D.hookHtml; pill.style.opacity = hookOn ? hp : 0;
+  else { hook.style.opacity = 0; pill.firstChild.innerHTML = D.hookHtml; pill.style.opacity = hookOn ? hp : 0;
+         let py = G.pill; const h = pill.offsetHeight;
+         if (cbox && py + h > cbox.y0 && py < cbox.y1) py = cbox.y0 - h - 32 >= 100 ? Math.round(cbox.y0 - h - 32) : Math.round(cbox.y1 + 32);
+         pill.style.top = py+'px';
          pill.style.transform = `scale(${mix(.85,1,back(lin(t,0,.35)))})`; }
 
   // quote moment: the captions take over, building the line word by word, key words swiped with the highlighter
@@ -446,10 +454,13 @@ window.seek = async function(t) {
     box.innerHTML = grp.map(j => { const w = W[j], on = w.os <= t+.02 && t < (W[j+1]?.os ?? w.oe+.3);
       const em = !on && EMPH && (EMPH.has(norm(w.w)) || /\d/.test(w.w));
       return `<span class="${on?'on':em?'em':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
-    cap.style.top = G.cap + 'px';
+    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16' || PANEL || FULLCUT);
+    let cy = G.cap;
+    if (cbox) { const h = cap.offsetHeight, top = centered ? cy - h/2 : cy;
+      if (top + h > cbox.y0 - 16 && top < cbox.y1 + 16) cy = Math.min(SH9 - 90 - (centered ? h/2 : h), Math.round(cbox.y1 + 36 + (centered ? h/2 : 0))); }
+    cap.style.top = cy + 'px';
     cap.style.opacity = hookOn && G.hook === 'pill' && ASPECT === '9x16' && layout !== 'solo' ? 0 : 1;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);
-    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16' || PANEL || FULLCUT);
     cap.style.transform = `${centered ? 'translateY(-50%) ' : ''}scale(${mix(CAP.pop_from,1,CAP.overshoot ? back(pop) : easeOut(pop))})`;
   } else cap.style.opacity = 0;
   $('prog').style.width = (100*clamp(t/D.duration))+'%';

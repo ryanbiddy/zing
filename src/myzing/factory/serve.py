@@ -87,6 +87,10 @@ class Studio:
             raise FactoryError(f"unknown clip {clip!r}")
         return self.project / clip
 
+    def _finalize_args(self) -> tuple:
+        cfg = _read(self.project / "factory.json", {})
+        return cfg.get("brand"), cfg.get("news")              # what a re-finalize checks the hook against
+
     def _rerender(self, d: Path) -> None:
         cfg = _read(self.project / "factory.json", {})
         for shape in cfg.get("shapes", ["9x16"]):
@@ -148,7 +152,7 @@ class Studio:
 
         def job():
             plan.finalize(d, raw, pick.chosen(vis, raw.get("visual_requests", []), manifest, picks["picks"]),
-                          _read(self.project / "factory.json", {}).get("brand"))
+                          *self._finalize_args())
             self._rerender(d)
         return self.queue(f"{d.name}: new visual", job)
 
@@ -174,7 +178,7 @@ class Studio:
 
         def job():
             current = _read(d / "plan.json")
-            plan.finalize(d, raw, current.get("visuals", {}), _read(self.project / "factory.json", {}).get("brand"))
+            plan.finalize(d, raw, current.get("visuals", {}), *self._finalize_args())    # re-runs the hook fact check
             self._rerender(d)
         return self.queue(f"{d.name}: new hook", job)
 

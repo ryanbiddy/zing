@@ -15,6 +15,11 @@
   quick scout pass can use batched speech decoding.
 - Factory review fixes: the dashboard now requires the session link printed by
   `zing factory serve`. The link sets a cookie before opening the page.
+- Factory news peg: `--news-peg "<what happened>" --news <article url>` turns clips into
+  the backstory to today's news. The scout looks for how it came about, each clip opens on
+  a headline screenshot, and the copy leads with the news. Spoken decimals ("$6.3") now
+  count as said numbers. Page captures load no ads, trackers or private addresses and
+  scroll only to the end of the article, and the hook moves above a page shown whole.
 - Each clip gets a `receipt.json` of its planned additions, with time ranges,
   sources and known licenses. Overlaps count once. The dashboard shows the receipt
   and `zing factory status` reports its share. Visual swaps and hook edits refresh

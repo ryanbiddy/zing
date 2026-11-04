@@ -28,14 +28,14 @@ def words_block(words: list[dict]) -> str:
 
 
 def prompt(moment: dict, words: dict, mode: str = "context", brand: dict | None = None,
-           vocab: list[str] | None = None) -> str:
-    from .postcopy import brand_line
+           vocab: list[str] | None = None, news: dict | None = None) -> str:
+    from .postcopy import brand_line, news_line
     text = data_path("prompts", "plan.md").read_text(encoding="utf-8")
     spellings = ("SPELLINGS: " + ", ".join(vocab) + "\n"
                  "Names and terms in SPELLINGS are spelled exactly so; a near-miss in WORDS is a fix.\n") if vocab else ""
     for k, v in {"{TOPIC}": moment.get("topic", ""), "{HOOK}": moment["hook"] or NO_HOOK,
                  "{DURATION}": f"{words['duration']:.1f}",
-                 "{BRAND}": brand_line(brand), "{SPELLINGS}": spellings,
+                 "{BRAND}": brand_line(brand), "{SPELLINGS}": spellings, "{NEWS}": news_line(news, links=True),
                  "{WORDS}": words_block(words["words"]),
                  "{STYLE}": data_path("prompts", f"style-{mode}.md").read_text(encoding="utf-8").strip()}.items():
         text = text.replace(k, v)
@@ -120,6 +120,7 @@ def _fix_text(value, pairs: list[tuple[str, str]]):
 def spoken_numbers(words: list[dict]) -> tuple[str, set[str]]:
     spoken = " " + " ".join(_norm(w["w"]) for w in words) + " "
     nums = set(re.findall(r"\d+(?:\.\d+)?", spoken))
+    nums |= set(re.findall(r"\d+\.\d+", " ".join(str(w["w"]).replace(",", "") for w in words)))   # "$6.3" keeps its point
     toks = spoken.split()
     for j, tok in enumerate(toks):
         nxt = toks[j + 1] if j + 1 < len(toks) else ""
@@ -187,7 +188,8 @@ def fact_check(graphic: dict, words: list[dict], brand: dict | None = None) -> l
     return bad
 
 
-def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | None = None) -> dict:
+def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | None = None,
+             news: dict | None = None) -> dict:
     """Drop what can't be shown honestly: unspoken graphics and splits without a usable visual become solo."""
     from .receipt import added
     d = Path(clipdir)
@@ -232,7 +234,8 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
              "sensitive": bool(plan.get("sensitive")), "sensitive_reason": plan.get("sensitive_reason", ""),
              "visuals": {k: v for k, v in found.items() if any(s.get("visual") == k for s in shots)},
              "fixes": [{"heard": h, "meant": m} for h, m in pairs]}
-    hook_bad = fact_check({"kind": "list", "items": [{"text": plan["hook"].replace("*", "")}]}, words)
+    peg = [{"w": t, "s": 0.0, "e": 0.0} for t in str((news or {}).get("peg", "")).split()]   # the news is given, not spoken
+    hook_bad = fact_check({"kind": "list", "items": [{"text": plan["hook"].replace("*", "")}]}, words + peg)
     if hook_bad:
         log.append(f"hook number not spoken {hook_bad}: review the hook")
     final["fact_check"] = log or ["every drawn number and quote is in the clip's words"]
