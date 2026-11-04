@@ -34,5 +34,5 @@ BRAND: {BRAND}
 CLIP: {TOPIC}
 SCOUT HOOK: {HOOK}
 DURATION: {DURATION} s
-WORDS (output time in seconds, then the word):
+{SPELLINGS}WORDS (output time in seconds, then the word):
 {WORDS}
