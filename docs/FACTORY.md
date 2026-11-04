@@ -286,6 +286,33 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.
 
+## Finish in your editor
+
+```bash
+zing factory export talk/clip01 --shape 9x16 --pack zing
+```
+
+Import `talk/clip01/export-9x16/timeline.xml` into Premiere Pro or DaVinci Resolve.
+The 30 fps timeline places `speaker.mp4` on V1, `overlay.mov` on V2 and
+`audio.wav` on A1. The overlay uses ProRes 4444 with alpha. Audio is 48 kHz.
+The speaker keeps the scene's framing and cutout. Pictures, graphics and text
+stay in the overlay. These are two video layers, not native graphics or text objects.
+
+`captions.srt` follows the scene's caption groups and display times, including
+quote takeovers. `words.srt` has one cue per word. Import either to style new
+captions. The overlay still contains the rendered captions.
+
+Use `--shape 9x16|4x5|1x1|16x9` and `--pack NAME` to choose the render.
+`--out DIR` changes the output folder. The defaults are `9x16`, `zing` and
+`<clipdir>/export-<shape>/`. Keep the media beside the XML. Relink it if you move
+the folder.
+
+Each export compares the composited layers with three normal scene frames.
+The command prints JSON with each sample's mean absolute RGB error on a 0–255
+scale and PSNR in dB, plus file sizes in bytes and elapsed seconds.
+Lower error and higher PSNR mean a closer match. An exact match has zero error
+and a null PSNR.
+
 ## Review dashboard
 
 Run `zing factory serve <project>` and open the printed link. It includes a token
