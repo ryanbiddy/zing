@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- Factory embargo mode adds `new --offline`, local visual candidates with
+  `--visuals DIR`, and a host-only `network.jsonl` ledger shown in status and review.
+
 - `zing factory batch` clips stable episodes in a folder, reads caption and
   metadata files, resumes unfinished projects and logs JSON summaries. `--watch`
   checks for more episodes. `--limit` caps new episodes per pass.

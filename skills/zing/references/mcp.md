@@ -32,7 +32,7 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `zing_moments` | Rank complete transcript windows from a cached clip or study; Estimated reasons and must-keep JSON, no model calls or automatic selection. |
 | `factory_new` | Start a clip-factory project from a local episode and optional SRT/VTT/word JSON. Set moments (0 = only clips you pick), mode, shapes, style pack, public-only visuals, focus (what to clip), show (Post/No calls teach its next episode), cutout and vocab. `uhd=True` saves 4K output in `factory.json` and doubles every shape's width and height. Smaller sources still render with a warning. `vocab=["Pompliano", "Starbase"]` saves exact spellings for transcription and caption fixes. Only supplied terms are used, within study's vocabulary limits. |
 | `factory_run` | Background, resumable: transcribe, cut, find visuals, fact-check graphics, render, review page. Stops at judgments; Zing makes no model calls. |
-| `factory_status` | State, pending judgment tasks, renders and review page. |
+| `factory_status` | State, pending judgment tasks, renders, review page and network counts by host and purpose. |
 | `factory_prompt` | One pending prompt; a pick attaches its contact sheet. Answer exactly as it asks. |
 | `factory_answer` | Save a validated JSON answer; then call `factory_run` again. |
 | `factory_clip` | Make a clip by hand: start and end seconds, a scout runner-up (`bench`), or new in and out points for an existing clip. The next `factory_run` cuts, plans and renders it. |
@@ -56,6 +56,15 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `still_render` | Indexed concept ID and output folder to a full-size PNG, optionally MP4/GIF; records alt text and selection. |
 | `push_to_uoink` | Explicit library write; not part of default local editing. |
 | `import_shot_list` | Attach a local Writer-exported Markdown shot list to a studied slug. |
+
+`factory_new(..., offline=True, visuals="./launch-media")` creates an embargo
+project with your own pictures and videos. `offline` defaults to `False` and
+`visuals` is optional. Offline mode fetches nothing and refuses the Claude judge.
+The host judge writes prompts locally. Your media never leaves the machine.
+In online CLI runs, Claude judge prompts go to Anthropic; picks containing your
+files still use the host judge. `factory_status` includes `network` with request
+counts by host and purpose and a one-line `summary`. It says
+`offline: nothing fetched` only when the offline project's ledger is empty.
 
 Tools return `{ok: true, ...}` or `{ok: false, error: ...}`. Check the envelope:
 a transport success is not a successful study, render or text check.
