@@ -18,7 +18,7 @@ from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
-            "cutout": False, "upscale": True, "brand": None, "focus": None, "show": None, "vocab": [],
+            "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
             "news": None}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
@@ -46,6 +46,7 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     unknown = set(settings) - set(SETTINGS)
     if unknown:
         raise FactoryError(f"unknown settings: {', '.join(sorted(unknown))}")
+    render.scale(settings)
     if settings.get("mode", "context") not in MODES:
         raise FactoryError(f"mode must be one of {', '.join(MODES)}")
     if settings.get("mode") == "launch":
@@ -321,8 +322,10 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     if not final_path.is_file() or any(p.is_file() and p.stat().st_mtime > final_path.stat().st_mtime for p in inputs):
         plan.finalize(d, raw, found, cfg.get("brand"), cfg.get("news"))
     for shape in cfg["shapes"]:
-        out = d / f"clip{render.suffix(shape, cfg['pack'])}.mp4"
-        if not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime:
+        tag = render.suffix(shape, cfg["pack"])
+        out = d / f"clip{tag}.mp4"
+        if (not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime
+                or _read(d / f"data{tag}.json", {}).get("scale", 1) != render.scale(cfg)):
             say(f"{task}: rendering {shape} ({cfg['pack']})")
             render.render(d, shape, cfg["pack"])
     return waiting
@@ -336,6 +339,7 @@ def run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print)
     media = Path(src["media"])
     _write(project / "status.json", {"state": "running", "at": _now()})
     try:
+        render.warn_uhd(project, say)
         try:
             moments = _moments(project, judge, media, cfg, say)
         except NeedsAnswer:

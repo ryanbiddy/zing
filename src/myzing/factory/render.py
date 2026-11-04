@@ -8,10 +8,31 @@ import subprocess
 from pathlib import Path
 
 from . import cutout, depth, upscale
-from .tools import FactoryError, data_path, ffmpeg, node_sidecar, run, sidecar_env
+from .tools import FactoryError, data_path, ffmpeg, ffprobe, node_sidecar, run, sidecar_env
 
 SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
 VIDEO = (".mp4", ".mov", ".webm", ".gif")
+
+
+def scale(cfg: dict) -> int:
+    uhd = cfg.get("uhd", False)
+    if not isinstance(uhd, bool):
+        raise FactoryError("uhd must be true or false")
+    return 2 if uhd else 1
+
+
+def warn_uhd(project: Path, say=print) -> None:
+    path = project / "factory.json"
+    cfg = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    if scale(cfg) == 1:
+        return
+    src = json.loads((project / "source.json").read_text(encoding="utf-8"))
+    got = run(ffprobe(), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+              "-of", "json", src["media"], capture_output=True, text=True, encoding="utf-8")
+    video = json.loads(got.stdout)["streams"][0]
+    short = min(video["width"], video["height"])
+    if short < 2160:
+        say(f"source is {short}p; 4K output will be upscaled")
 
 
 def user_packs() -> Path:
@@ -99,6 +120,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     duration, shots, moments = timeline(plan, words)
     cfg_file = d.parent / "factory.json"
     cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.is_file() else {}
+    uhd = scale(cfg) == 2
     if parallax is None:                       # the project's setting, then whether the weights are installed
         parallax = cfg.get("parallax", True) and depth.ready()
     if front is None:
@@ -106,7 +128,8 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     if sharpen is None:
         sharpen = cfg.get("upscale", True) and upscale.ready()
     splits = [s for s in shots if s.get("layout") == "split"]
-    lifted = cutout.mattes(d, [(s["from"], min(s["to"], duration)) for s in splits]) if front and splits else None
+    lifted = cutout.mattes(d, [(s["from"], min(s["to"], duration)) for s in splits],
+                            **({"width": None} if uhd else {})) if front and splits else None
     for s in splits if lifted else ():
         s["layout"] = "front"
     visuals = {}
@@ -119,13 +142,14 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
         if parallax and p.suffix.lower() not in VIDEO and v.get("fit") != "contain":
             longest = max((min(s["to"], duration) - s["from"] for s in shots if s.get("visual") == vid), default=0)
             if longest > 0:                    # the move plays across each shot, so the longest one sets its length
-                moved = depth.parallax(p, d / "vis" / f"{vid}-parallax.mp4", min(max(longest, 2), 20), key=vid)
+                moved = depth.parallax(p, d / "vis" / f"{vid}-parallax.mp4", min(max(longest, 2), 20), key=vid,
+                                       **({"width": None} if uhd else {}))
         if moved or p.suffix.lower() in VIDEO:
             fd = d / "vis" / vid
             fd.mkdir(parents=True, exist_ok=True)
             for f in fd.glob("*.jpg"):
                 f.unlink()
-            run(ffmpeg(), "-v", "error", "-y", "-i", moved or p, "-t", "20", "-vf", "fps=30" if moved else "fps=30,scale=1280:-2",
+            run(ffmpeg(), "-v", "error", "-y", "-i", moved or p, "-t", "20", "-vf", "fps=30" if moved or uhd else "fps=30,scale=1280:-2",
                 "-q:v", "3", fd / "%05d.jpg")
             w, h = Image.open(fd / "00001.jpg").size
             visuals[vid] = {"dir": fd.resolve().as_uri(), "frames": len(list(fd.glob("*.jpg"))), "w": w, "h": h,
@@ -136,7 +160,8 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     hook = plan["hook"].replace("&", "&amp;").replace("<", "&lt;")
     source = d.parent / "source.json"
     W, H = SHAPES[shape]
-    return {"fps": 30, "words": words["words"], "frames": cam["frames"], "framesDir": (d / "frames").resolve().as_uri(),
+    return {"fps": 30, **({"scale": 2} if uhd else {}),
+            "words": words["words"], "frames": cam["frames"], "framesDir": (d / "frames").resolve().as_uri(),
             "srcSize": cam["size"], "cams": cam["cams"], "burnTop": cam.get("burn_top"), "shots": shots, "quotes": moments,
             **({"mattesDir": lifted["dir"].resolve().as_uri()} if lifted else {}),
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
@@ -167,9 +192,13 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     run(node, sidecar / "render.cjs", data_path("scene.html"), data_file, frames,
         env=sidecar_env(d / "_tmp"), cwd=sidecar, capture_output=True)
     duration = data["duration"]
+    uhd = data.get("scale", 1) == 2
     run(ffmpeg(), "-v", "error", "-y", "-framerate", 30, "-i", frames / "%05d.jpg", "-i", d / "cut.mp4",
         "-map", "0:v", "-map", "1:a", "-af", f"apad,afade=t=out:st={duration - 0.3:.2f}:d=0.3", "-t", duration,
-        "-c:v", "libx264", "-crf", 18, "-preset", "medium", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+        "-c:v", "libx264", "-crf", 20 if uhd else 18, "-preset", "medium",
+        *(["-profile:v", "high", "-level:v", "5.1", "-maxrate", "40M", "-bufsize", "80M",
+           "-vf", "scale=in_range=pc:out_range=tv", "-color_range", "tv"] if uhd else []),
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
         "-movflags", "+faststart", out)
     tall = shape == "9x16"
     subprocess.run([ffmpeg(), "-v", "error", "-y", "-i", str(out), "-vf",
