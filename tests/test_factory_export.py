@@ -44,7 +44,7 @@ def scene(d, pack="zing", shape="9x16"):
 def cues(data):
     node = shutil.which("node")
     if not node:
-        pytest.skip("Node is needed to read the scene's caption cues")
+        pytest.skip("node is needed to run the page's JavaScript")
     js = r"""
 const fs = require('fs'), vm = require('vm');
 const data = JSON.parse(fs.readFileSync(0, 'utf8'));
