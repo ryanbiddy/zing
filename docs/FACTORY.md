@@ -49,6 +49,31 @@ Limits match study vocabulary. Up to 64 terms, 80 characters per term and
 rejected. Spaces are normalized and duplicates are removed. Set the vocabulary
 when creating the project; there is no edit command.
 
+## Render in 4K
+
+```bash
+zing factory new talk --media talk.mp4 --4k
+zing factory render talk/clip01 --4k
+```
+
+`--4k` saves `"uhd": true` in `factory.json`. MCP accepts
+`factory_new(..., uhd=True)`. Each shape doubles in width and height.
+
+| Shape | 4K output |
+| --- | --- |
+| 9x16 | 2160x3840 |
+| 16x9 | 3840x2160 |
+| 1x1 | 2160x2160 |
+| 4x5 | 2160x2700 |
+
+The layout and file names stay the same. `render --4k` also enables 4K for future
+renders in that project. The next factory run replaces any remaining 1080 renders.
+
+Sources below 2160 pixels on the short side still render. Each run warns once,
+for example `source is 1080p; 4K output will be upscaled`. Speaker frames, cutout
+mattes and moving visuals keep their source resolution. The photo upscaler is
+unchanged. Output uses H.264 High level 5.1, CRF 20 and yuv420p.
+
 ## Who makes the judgment calls
 
 Five steps use a judge. The **scout** chooses moments. The **plan** sets what appears

@@ -80,6 +80,18 @@ comments, then uses **Copy my answers** to get plain text. The page stays local.
 Keep the HTML inside the project folder and share the folder as a zip so its
 relative video paths still work. No MCP tool is added.
 
+## Factory 4K output
+
+```sh
+zing factory new talk --media talk.mp4 --4k
+zing factory render talk/clip01 --4k
+```
+
+Both flags save `"uhd": true` in `factory.json` for future renders. Every shape
+doubles in width and height. File names stay the same. The next factory run
+replaces any remaining 1080 renders. Sources below 2160 pixels on the short side
+still render with one warning per run.
+
 ## Match a reference
 
 ```sh
