@@ -3,8 +3,9 @@
 The ncnn Vulkan build of Real-ESRGAN (BSD-3-Clause) runs on any GPU with Vulkan, AMD and Intel included. It is fetched
 only on request (``zing factory fetch-upscale --yes``): this platform's release zip is size- and SHA-256-checked, then
 only the program and the realesrgan-x4plus model are unpacked from it. Rendering never downloads; without it a photo
-renders at its own size. An upscaled photo is sharper, but its finest texture is the model's guess, so its credit
-says "upscaled".
+renders at its own size. On its own the model airbrushes old photos (waxy skin, no grain), so its result is blended
+half and half with a plain enlargement: sharper edges, the photo's own grain. Its finest texture is still the model's
+guess, so an upscaled photo's credit says "upscaled".
 """
 from __future__ import annotations
 
@@ -30,6 +31,7 @@ BUILDS = {                                      # this platform's release zip: S
 MODEL = "realesrgan-x4plus"
 FETCH_HINT = "zing factory fetch-upscale --yes (Real-ESRGAN, BSD-3-Clause, about 50 MB)"
 NEED, LONG = 1600, 2400                         # photos under 1600 px on the long side are upscaled, kept at 2400
+BLEND = .5                                      # the model's share of the result; the rest is a plain enlargement
 VERSION = 1                                     # bump when the result changes so cached photos redo it
 _checked = None
 
@@ -110,7 +112,7 @@ def upscale(photo: Path, out: Path) -> Path | None:
     """
     from PIL import Image
     photo, out = Path(photo), Path(out)
-    stamp = {"v": VERSION, "src": str(photo.resolve()), "mtime": photo.stat().st_mtime}
+    stamp = {"v": VERSION, "src": str(photo.resolve()), "mtime": photo.stat().st_mtime, "blend": BLEND}
     meta = out.with_suffix(".json")
     if out.is_file() and meta.is_file() and json.loads(meta.read_text(encoding="utf-8")) == stamp:
         return out
@@ -127,12 +129,13 @@ def upscale(photo: Path, out: Path) -> Path | None:
     if done.returncode or not big.is_file():
         big.unlink(missing_ok=True)
         return None                             # no Vulkan device, or the photo won't decode: keep it as it is
-    with Image.open(big) as im:
+    with Image.open(big) as im, Image.open(photo) as src:
         im = im.convert("RGB")
         s = min(1.0, LONG / max(im.size))
         if s < 1:
             im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
-        im.save(out, "JPEG", quality=92)
+        plain = src.convert("RGB").resize(im.size, Image.LANCZOS)
+        Image.blend(plain, im, BLEND).save(out, "JPEG", quality=92)
     big.unlink()
     meta.write_text(json.dumps(stamp), encoding="utf-8")
     return out

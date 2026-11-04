@@ -82,8 +82,9 @@ one judgment and what was built from it.
   weights, about 179 MB). Try it on one render with `render --cutout`.
 - Small photos (under 1600 px on the long side) are upscaled 4x by Real-ESRGAN on the
   GPU through Vulkan (AMD and Intel included) before they render, so a full-frame photo
-  stays sharp. The model sharpens what is there and guesses the finest texture, so an
-  upscaled photo's credit says "upscaled". Logos and page captures are never upscaled.
+  stays sharp. On its own the model airbrushes old photos, so its result is blended half
+  and half with a plain enlargement: sharper edges, the photo's own grain. It still
+  guesses the finest texture, so an upscaled photo's credit says "upscaled". Logos and page captures are never upscaled.
   It needs `zing factory fetch-upscale --yes` once (BSD-3-Clause, about 50 MB); without
   it photos render at their own size. Turn it off with `new --no-upscale` or
   `render --no-upscale`.

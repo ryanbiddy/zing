@@ -6,9 +6,9 @@
   lifted off their background by rembg's IS-Net model, in front of each picture instead
   of splitting the frame. Speakers too small or too absent to lift cleanly keep the
   split. `zing factory fetch-cutout --yes` installs the weights.
-- Factory photos under 1600 px are upscaled 4x by Real-ESRGAN (Vulkan, any GPU) before
-  they render and are credited "upscaled". `zing factory fetch-upscale --yes` installs
-  it; `--no-upscale` turns it off.
+- Factory photos under 1600 px are upscaled 4x by Real-ESRGAN (Vulkan, any GPU), blended
+  half and half with a plain enlargement so old photos keep their grain, and credited
+  "upscaled". `zing factory fetch-upscale --yes` installs it; `--no-upscale` turns it off.
 - Factory transcription keeps one language per episode: a short stretch that speech
   detection mishears as another language (an English span came back as Welsh) is redone
   in the episode's main language. `transcribe()` takes an optional `language`.

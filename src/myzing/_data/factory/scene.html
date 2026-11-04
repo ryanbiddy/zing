@@ -358,7 +358,7 @@ window.seek = async function(t) {
     $('credit').textContent = v.credit || '';
     // a visual on the top half credits at its top edge: its bottom edge is the caption seam
     const seamed = G.front || (ASPECT === '9x16' && G.top.y === 0 && G.top.h < SH9*.75);   // in front, the speaker has the foot
-    $('credit').style.top = (seamed ? G.top.y + 16 : G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';
+    $('credit').style.top = (seamed ? G.top.y + 16 + (G.front ? 46 : 0) : G.top.y + G.top.h - (ASPECT==='9x16' ? 38 : 34)) + 'px';   // under the source tag
   }
   if (G.gfx) {
     const half = ASPECT==='9x16' && G.gfx.h < SH9*.75, s = Math.min(G.gfx.w/1080, (G.gfx.h - (half ? 0 : 150))/960);
