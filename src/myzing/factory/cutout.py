@@ -118,7 +118,8 @@ def mattes(clipdir: Path, spans: list[tuple[float, float]]) -> dict | None:
         return None
     out, meta_path = d / "mattes", d / "mattes" / "meta.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
-    if meta.get("v") == VERSION and (meta.get("why") or set(want) <= set(meta.get("frames", []))):
+    if meta.get("v") == VERSION and ((meta.get("why") and meta.get("want") == want)
+                                     or set(want) <= set(meta.get("frames", []))):
         return None if meta.get("why") else {"dir": out, "frames": meta["frames"]}
     out.mkdir(parents=True, exist_ok=True)
     keys = sorted(set(want[::STEP]) | {want[-1]})
@@ -134,7 +135,7 @@ def mattes(clipdir: Path, spans: list[tuple[float, float]]) -> dict | None:
     why = usable(shares)
     done = sorted(set(meta.get("frames", []))) if meta.get("v") == VERSION else []
     if why:
-        meta_path.write_text(json.dumps({"v": VERSION, "why": why, "frames": []}), encoding="utf-8")
+        meta_path.write_text(json.dumps({"v": VERSION, "why": why, "frames": [], "want": want}), encoding="utf-8")
         return None
     have = sorted(alphas)
     for f in want:                                   # in-between frames blend their two neighbours

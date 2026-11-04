@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import re
 import tempfile
+import wave
 from pathlib import Path
 
 from .tools import ffmpeg, run
@@ -91,7 +92,11 @@ def _speech(media: Path, start: float | None = None, end: float | None = None, m
         wav = Path(tmp) / "speech.wav"
         window = ([] if start is None else ["-ss", f"{start:.3f}"]) + ([] if end is None else ["-t", f"{end - (start or 0):.3f}"])
         run(ffmpeg(), "-v", "error", "-y", *window, "-i", media, "-vn", "-ac", "1", "-ar", "16000", wav)
-        result = transcribe(wav, model_name=model, duration=(end - (start or 0)) if end else 0.0, local_files_only=bool(model),
+        duration = (end - (start or 0)) if end else 0.0
+        if model and start is None and end is None:       # only the scout pass discards its word timestamps
+            with wave.open(str(wav)) as audio:
+                duration = audio.getnframes() / audio.getframerate()
+        result = transcribe(wav, model_name=model, duration=duration, local_files_only=bool(model),
                             language=language)
     if not result.words:
         raise RuntimeError("speech transcription produced no words: " + "; ".join(result.warnings or ["no detail"]))
