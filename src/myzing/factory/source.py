@@ -94,8 +94,11 @@ def _speech(media: Path, start: float | None = None, end: float | None = None, m
         run(ffmpeg(), "-v", "error", "-y", *window, "-i", media, "-vn", "-ac", "1", "-ar", "16000", wav)
         duration = (end - (start or 0)) if end else 0.0
         if model and start is None and end is None:       # only the scout pass discards its word timestamps
-            with wave.open(str(wav)) as audio:
-                duration = audio.getnframes() / audio.getframerate()
+            try:
+                with wave.open(str(wav)) as audio:
+                    duration = audio.getnframes() / audio.getframerate()
+            except (OSError, EOFError, wave.Error):
+                pass                                        # unreadable: decode sequentially, as before
         result = transcribe(wav, model_name=model, duration=duration, local_files_only=bool(model),
                             language=language, **({"vocabulary": vocab} if vocab else {}))
     if not result.words:
