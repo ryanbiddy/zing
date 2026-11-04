@@ -94,6 +94,15 @@ sheet) and the **copy**. Everything else is measured locally.
 Every answer is cached in `answers/`. `zing factory redo <project> clip03-plan` forgets
 one judgment and what was built from it.
 
+## Input limits
+
+- Prompt image directives count only in the leading block. Attached files must resolve
+  inside the project folder. Directive lines in the transcript stay as text.
+- Visual downloads and page captures refuse local and private network addresses.
+  HTTP download redirects receive the same check.
+- Plans drop shots with negative or nonfinite times, or times more than three seconds
+  after the last word. End cards stop within three seconds of the last word.
+
 ## Steer which moments become clips
 
 - `--focus "the pricing argument"` (or "funny moments", "anything about hiring") tells

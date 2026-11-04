@@ -105,7 +105,7 @@ def _trim_to_duration(curve: list[float], duration: float) -> list[float]:
 
 def _loudness_curve(media_path: Path, warnings: list[str]) -> list[float]:
     cmd = [
-        "ffmpeg", "-hide_banner", "-i", str(media_path), "-vn",
+        "ffmpeg", "-nostdin", "-hide_banner", "-i", str(media_path), "-vn",
         "-af",
         "aresample=48000,asetnsamples=48000,"
         "astats=metadata=1:reset=1,"

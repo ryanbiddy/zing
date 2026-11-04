@@ -125,9 +125,9 @@ def test_quotes_must_be_word_for_word():
 def test_plan_check_and_finalize_keep_only_honest_shots(tmp_path):
     raw = plan.check({"hook": "*18,000* applied", "shots": [
         {"from": 0, "layout": "split", "visual": "v1"},
-        {"from": 3, "layout": "graphic", "graphic": {"kind": "counter", "value": 99}},
-        {"from": 6, "layout": "split", "visual": "missing"},
-        {"from": 9, "layout": "graphic", "graphic": {"kind": "counter", "value": 18000}}],
+        {"from": 1, "layout": "graphic", "graphic": {"kind": "counter", "value": 99}},
+        {"from": 2, "layout": "split", "visual": "missing"},
+        {"from": 3, "layout": "graphic", "graphic": {"kind": "counter", "value": 18000}}],
         "visual_requests": [{"id": "v1", "query": "astronaut"}]})
     assert raw["shots"][2]["layout"] == "solo"                       # split without a request
     (tmp_path / "words.json").write_text(json.dumps({"words": clip_words("Almost 18,000 people applied.")}), encoding="utf-8")
@@ -389,7 +389,7 @@ def test_mcp_handlers_drive_the_host_judge(tmp_path):
     assert not mcp_server.h_factory_answer(root, "scout", {"moments": []})["ok"]
     assert mcp_server.h_factory_answer(root, "scout", {"moments": [{"start": 1, "end": 4, "hook": "Rocket"}]})["ok"]
     with pytest.raises(judge.NeedsAnswer):
-        judge.Judge(Path(root)).ask("clip01-pick", "Pick.", images=(tmp_path / "sheet.jpg",))
+        judge.Judge(Path(root)).ask("clip01-pick", "Pick.", images=(Path(root) / "sheet.jpg",))
     pick_prompt = mcp_server.h_factory_prompt(root, "clip01-pick")
     assert pick_prompt["prompt"] == "Pick." and pick_prompt["images"][0].endswith("sheet.jpg")
 

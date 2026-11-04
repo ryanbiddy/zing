@@ -27,6 +27,11 @@
   sources and known licenses. Overlaps count once. The dashboard shows the receipt
   and `zing factory status` reports its share. Visual swaps and hook edits refresh
   it. The receipt makes no promise about platform outcomes.
+- Hardening: keep prompt images inside their project and preserve transcript text.
+  Refuse private visual URLs and unsafe redirects. Keep peer tokens off redirects.
+  Bound shot times and end cards. Save breakdowns atomically. Keep FFmpeg off stdin.
+  Use the available caption filter. Finish worker cleanup after wait timeouts.
+  Retry JSON replacements when Windows readers hold files open.
 - Factory steering: `--focus` tells the scout what to clip, and `--show` keeps every
   Post/No call (with its reason) so the next episode's scout learns from them. The scout
   also lists runners-up the review page can make with one click, and **Make a clip**

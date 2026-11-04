@@ -186,7 +186,7 @@ def _ffmpeg_command(
     validated: ValidatedEDL,
     fps_rate: str | None = None,
 ) -> list[str]:
-    command = [ffmpeg, "-hide_banner", "-loglevel", "error", "-y"]
+    command = [ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error", "-y"]
     for path in plan.input_paths:
         command.extend(["-i", str(path)])
     command.extend(filter_script_args(ffmpeg, graph_path))

@@ -327,7 +327,8 @@ def test_real_v1_render_keeps_pre_r9_command_graph_and_ass_bytes(tmp_path, sourc
     edl.clips[0].src = str(source)
     result = pipeline.render_edl(edl, tmp_path / "legacy.mp4", work_dir=tmp_path / "legacy-work")
     major = pipeline.ffmpeg_major_version("ffmpeg")
-    expected = baseline["commands"]["6" if major is not None and major < 7 else "9"]
+    expected = baseline["commands"]["6" if major is not None and major < 7 else "9"].copy()
+    expected.insert(1, "-nostdin")
     paths = {"source.mp4": str(source), "graph.txt": str(result.work_dir / "filter graph.txt"),
              "output.mp4": str(result.work_dir / "rendered.mp4")}
     assert list(result.command) == [paths.get(arg, arg) for arg in expected]

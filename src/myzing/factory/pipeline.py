@@ -288,7 +288,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             waiting.append(f"{task}-copy")
     try:
         raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"), cfg.get("vocab"),
-                                                               news=cfg.get("news"))))
+                                                               news=cfg.get("news"))), w["words"][-1]["oe"])
     except NeedsAnswer:
         return waiting + [f"{task}-plan"]
     _write(d / "plan-raw.json", raw)
