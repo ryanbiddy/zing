@@ -12,8 +12,9 @@ def _load(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
 
-def build(project: Path, pack: str = "zing") -> Path:
+def build(project: Path, pack: str | None = None) -> Path:
     ep = Path(project)
+    pack = pack or _load(ep / "factory.json").get("pack", "zing")
     src = _load(ep / "source.json")
     moments = _load(ep / "moments.json").get("moments", [])
     e = html.escape

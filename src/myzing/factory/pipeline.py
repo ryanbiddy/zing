@@ -18,7 +18,8 @@ from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
-            "cutout": False, "upscale": True, "brand": None, "focus": None, "show": None, "vocab": []}
+            "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
+            "news": None}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -45,6 +46,7 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     unknown = set(settings) - set(SETTINGS)
     if unknown:
         raise FactoryError(f"unknown settings: {', '.join(sorted(unknown))}")
+    render.scale(settings)
     if settings.get("mode", "context") not in MODES:
         raise FactoryError(f"mode must be one of {', '.join(MODES)}")
     if settings.get("mode") == "launch":
@@ -66,6 +68,13 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     moments = settings.get("moments", 1)
     if not isinstance(moments, int) or isinstance(moments, bool) or moments < 0:
         raise FactoryError("moments must be 0 (only clips you pick) or more")
+    news = settings.get("news")
+    if news is not None:
+        if not isinstance(news, dict) or not str(news.get("peg", "")).strip():
+            raise FactoryError("news needs a peg: one line on what happened")
+        bad = [u for u in news.get("links", []) if not str(u).startswith(("https://", "http://"))]
+        if bad:
+            raise FactoryError(f"news links must be web addresses: {', '.join(map(str, bad))}")
     for shape in settings.get("shapes", SETTINGS["shapes"]):
         if shape not in render.SHAPES:
             raise FactoryError(f"unknown shape {shape}")
@@ -104,7 +113,8 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
     if not data.get("scouted") and cfg["moments"]:
         n = cfg["moments"]
         found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), cfg["mode"],
-                                                            focus=cfg.get("focus"), taste=taste(project, cfg))),
+                                                            focus=cfg.get("focus"), taste=taste(project, cfg),
+                                                            news=cfg.get("news"))),
                             segments[-1]["e"] if segments else None)
         moments = moments + found[:n]                # clips picked by hand before the scout keep their numbers
         data = {**data, "moments": moments, "bench": found[n:], "scouted": True}
@@ -119,7 +129,8 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
             pieces[-1]["end"] = max(pieces[-1]["end"], b)
         else:
             pieces.append({"start": a, "end": b})
-    if not all(any(p["start"] <= w["s"] <= p["end"] for w in words) for p in pieces):
+    if not all(any(p["start"] <= w["s"] <= p["start"] + 2 for w in words)
+               and any(p["end"] - 2 <= w["e"] <= p["end"] for w in words) for p in pieces):
         say(f"transcribing {len(pieces)} spans for word timing")
         fresh = source.transcribe_moments(media, pieces, **({"vocab": cfg["vocab"]} if cfg.get("vocab") else {}))
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
@@ -266,15 +277,18 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         cut.cut(d, media, words, m["start"], m["end"], **({"spans": scout.parts(m)} if m.get("spans") else {}))
     w = _read(d / "words.json")
     src = _read(project / "source.json", {})
+    src["url"] = src.get("url") or cfg.get("url", "")
     waiting = []
     if not (d / "post.json").is_file():
         try:
             _write(d / "post.json", postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"],
-                                                                                                cfg.get("brand"))), w, src))
+                                                                                                cfg.get("brand"),
+                                                                                                cfg.get("news"))), w, src))
         except NeedsAnswer:
             waiting.append(f"{task}-copy")
     try:
-        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"), cfg.get("vocab"))))
+        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"), cfg.get("vocab"),
+                                                               news=cfg.get("news"))))
     except NeedsAnswer:
         return waiting + [f"{task}-plan"]
     _write(d / "plan-raw.json", raw)
@@ -290,22 +304,28 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             visuals.find(reqs, visdir, "context" if mode == "launch" else mode, public=cfg.get("public", False), say=say)
         manifest = _read(visdir / "manifest.json", {})
         if any(manifest.values()):
-            sheet = pick.sheet(visdir, reqs, manifest)
-            try:
-                answer = judge.ask(f"{task}-pick", pick.prompt(sheet, "context" if mode == "launch" else mode,
-                                                           raw.get("sensitive_reason", "") if sensitive else None),
-                                   images=(sheet,))
-            except NeedsAnswer:
-                return waiting + [f"{task}-pick"]
-            picks = pick.picks_from(answer)
-            _write(visdir / "picks.json", {"mode": mode, "picks": picks})
+            saved = _read(visdir / "picks.json")
+            if saved is None:
+                sheet = pick.sheet(visdir, reqs, manifest)
+                try:
+                    answer = judge.ask(f"{task}-pick", pick.prompt(sheet, "context" if mode == "launch" else mode,
+                                                               raw.get("sensitive_reason", "") if sensitive else None),
+                                       images=(sheet,))
+                except NeedsAnswer:
+                    return waiting + [f"{task}-pick"]
+                saved = {"mode": mode, "picks": pick.picks_from(answer)}
+                _write(visdir / "picks.json", saved)
+            picks = saved["picks"]
             found = pick.chosen(visdir, reqs, manifest, picks)
     final_path = d / "plan.json"
-    if not final_path.is_file() or final_path.stat().st_mtime < (judge.project / "answers" / f"{task}-plan.json").stat().st_mtime:
-        plan.finalize(d, raw, found, cfg.get("brand"))
+    inputs = [project / "answers" / f"{task}-{kind}.json" for kind in ("plan", "pick")] + [visdir / "picks.json"]
+    if not final_path.is_file() or any(p.is_file() and p.stat().st_mtime > final_path.stat().st_mtime for p in inputs):
+        plan.finalize(d, raw, found, cfg.get("brand"), cfg.get("news"))
     for shape in cfg["shapes"]:
-        out = d / f"clip{render.suffix(shape, cfg['pack'])}.mp4"
-        if not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime:
+        tag = render.suffix(shape, cfg["pack"])
+        out = d / f"clip{tag}.mp4"
+        if (not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime
+                or _read(d / f"data{tag}.json", {}).get("scale", 1) != render.scale(cfg)):
             say(f"{task}: rendering {shape} ({cfg['pack']})")
             render.render(d, shape, cfg["pack"])
     return waiting
@@ -319,6 +339,7 @@ def run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print)
     media = Path(src["media"])
     _write(project / "status.json", {"state": "running", "at": _now()})
     try:
+        render.warn_uhd(project, say)
         try:
             moments = _moments(project, judge, media, cfg, say)
         except NeedsAnswer:
@@ -359,6 +380,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
     for i, m in enumerate(moments, 1):
         d = project / f"clip{i:02d}"
         clips.append({"clip": f"clip{i:02d}", "hook": m["hook"].replace("*", ""), "start": m["start"], "end": m["end"],
+                      "added": (_read(d / "receipt.json") or {}).get("share"),
                       "renders": sorted(p.name for p in d.glob("clip*.mp4")) if d.is_dir() else [],
                       "copy": (d / "post.json").is_file(), **({"by": "hand"} if m.get("by") == "hand" else {})})
     bench = [{"hook": m["hook"].replace("*", ""), "why": m.get("why", ""), "topic": m.get("topic", ""),
@@ -396,10 +418,20 @@ def redo(project: Path, task: str) -> None:
     d = project / clip
     if task == "scout":
         (project / "moments.json").unlink(missing_ok=True)
+        for p in project.glob("clip[0-9][0-9]"):
+            shutil.rmtree(p, ignore_errors=True)
+        for folder in ("answers", "pending"):
+            for p in (project / folder).glob("clip[0-9][0-9]-*"):
+                p.unlink(missing_ok=True)
     elif kind == "plan":
+        Judge(project).forget(f"{clip}-pick")
         shutil.rmtree(d / "visuals", ignore_errors=True)
+        shutil.rmtree(d / "mattes", ignore_errors=True)
         (d / "plan.json").unlink(missing_ok=True)
+        (d / "receipt.json").unlink(missing_ok=True)
     elif kind == "pick":
+        (d / "visuals" / "picks.json").unlink(missing_ok=True)
         (d / "plan.json").unlink(missing_ok=True)
+        (d / "receipt.json").unlink(missing_ok=True)
     elif kind == "copy":
         (d / "post.json").unlink(missing_ok=True)

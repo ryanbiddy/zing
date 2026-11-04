@@ -7,7 +7,8 @@ const fs = require("fs"), path = require("path"), url = require("url");
   const browser = await chromium.launch({ executablePath: process.env.ZING_BROWSER_PATH,
     args: ["--allow-file-access-from-files"] });
   try {
-    const page = await browser.newPage({ viewport: { width: DATA.W || 1080, height: DATA.H || 1920 } });
+    const page = await browser.newPage({ viewport: { width: DATA.W || 1080, height: DATA.H || 1920 },
+      deviceScaleFactor: DATA.scale || 1 });
     let error;
     page.on("pageerror", e => { error = e; });
     await page.addInitScript(d => { window.DATA = d; }, DATA);

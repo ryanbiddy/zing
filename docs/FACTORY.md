@@ -49,6 +49,31 @@ Limits match study vocabulary. Up to 64 terms, 80 characters per term and
 rejected. Spaces are normalized and duplicates are removed. Set the vocabulary
 when creating the project; there is no edit command.
 
+## Render in 4K
+
+```bash
+zing factory new talk --media talk.mp4 --4k
+zing factory render talk/clip01 --4k
+```
+
+`--4k` saves `"uhd": true` in `factory.json`. MCP accepts
+`factory_new(..., uhd=True)`. Each shape doubles in width and height.
+
+| Shape | 4K output |
+| --- | --- |
+| 9x16 | 2160x3840 |
+| 16x9 | 3840x2160 |
+| 1x1 | 2160x2160 |
+| 4x5 | 2160x2700 |
+
+The layout and file names stay the same. `render --4k` also enables 4K for future
+renders in that project. The next factory run replaces any remaining 1080 renders.
+
+Sources below 2160 pixels on the short side still render. Each run warns once,
+for example `source is 1080p; 4K output will be upscaled`. Speaker frames, cutout
+mattes and moving visuals keep their source resolution. The photo upscaler is
+unchanged. Output uses H.264 High level 5.1, CRF 20 and yuv420p.
+
 ## Who makes the judgment calls
 
 Four steps need taste: the **scout** (which moments), the **plan** (what appears on
@@ -158,6 +183,23 @@ documentary, with the speaker as the narrator:
   moment draws a hand-drawn ring around its key words.
 - Sensitive subjects stay in documentary mode: it is already archival and restrained.
 
+### News peg
+
+Make each clip the backstory to today's news ("Binance just lost $6.3B. Here's how it
+happened."):
+
+```
+zing factory new ./hack --media interview.mp4 --mode documentary --pack documentary \
+  --news-peg "Binance lost $6.3 billion in the biggest crypto hack ever" \
+  --news https://example.com/binance-hack --news https://example.com/fbi-statement
+```
+
+The scout favors moments that explain how it came about. Each clip opens on a
+screenshot (and short scroll recording) of one of the `--news` articles, then tells the
+story with recent photos of the people named and a photo from each backstory beat's own
+year. The hook and the copy may state the peg; everything drawn on screen still has to
+be said in the clip. MCP: `factory_new(..., news_peg=, news_links=)`.
+
 ## Launch mode
 
 `--mode launch` turns a long founder demo, interview or livestream into launch films:
@@ -228,8 +270,12 @@ and a null PSNR.
 
 ## Review dashboard
 
-`zing factory serve <project>` opens a local page (http://127.0.0.1:8765) for the part
-that is yours: watch each clip in every shape, rate it Post / Post with edits / No,
+Run `zing factory serve <project>` and open the printed link. It includes a token
+for this server session, such as `http://127.0.0.1:8765/?t=TOKEN`. The page saves it
+in an HttpOnly session cookie and removes it from the address bar. Open the new
+printed link after restarting the server. Requests without the cookie are refused.
+
+Watch each clip in every shape, rate it Post / Post with edits / No,
 swap a visual for another candidate, fix a hook or the copy, and re-render in another
 style pack. Swaps and hook edits re-run the fact check and re-render in the background.
 Ratings save to `ratings.json`. `--judge claude` lets the page's Run button answer
@@ -238,6 +284,46 @@ judgments with Claude Code; otherwise they wait for your agent.
 The server listens on 127.0.0.1 only, answers only to localhost Host headers, refuses
 writes from other sites and non-JSON posts, and serves files only from the project's
 clip folders. Nothing on the page posts or publishes.
+
+## Full context and guest approval
+
+First comments link YouTube watch and youtu.be sources to the clip's start time.
+An existing `t` parameter is replaced. Launch films use the first span in playback
+order. Links to other sites stay unchanged.
+
+```bash
+zing factory approval talk
+zing factory approval talk --out talk/guest.html
+```
+
+The default file is `talk/approval.html`. It lists each rendered 9x16 clip in the
+project's style pack with its hook and full transcript. If `clipNN/context.json`
+has `before` and `after` text, that appears too.
+
+Zip the project folder and send it to the guest or their PR person. They unzip it,
+open the HTML file, choose Yes or No, and add comments. **Copy my answers** builds
+plain text they can send back. If clipboard access is blocked, they can select and
+copy the text on the page. The page uses local videos and has no network requests.
+Video paths are relative to the HTML file. Keep a custom output inside the project
+folder when sharing a zip.
+
+## What each clip adds
+
+Each finalized plan writes `clipNN/receipt.json`. It lists pictures, graphics, quote
+takeovers, name tags and title or end cards, with time ranges, sources and known
+licenses. It uses the clip's existing files. Ordinary hooks and captions do not count.
+An empty solo shot adds zero. Overlapping additions count once in the total.
+
+The duration follows the render, including the last word's tail and any end card
+hold. Quotes follow the spoken words. Name tags count for up to 3.4 seconds.
+`by_kind` lists seconds for each kind. `added` is the total seconds covered, and
+`share` is that total divided by the duration, rounded to two decimal places.
+
+`zing factory status` reports each clip's share as `added`. A clip without a receipt
+has `null`. Each dashboard card shows the percentage and an expandable source list.
+Visual swaps and hook edits rewrite the receipt when the plan is finalized again.
+The receipt leaves `post.json` alone. It records planned additions and makes no
+promise about platform reach, monetization or originality decisions.
 
 ## Learn a style from a clip you like
 
@@ -280,7 +366,7 @@ cut's audio. Set `ZING_FACTORY_SIDECAR` when the sidecar lives outside a checkou
 ```text
 <project>/source.json  factory.json  transcript.json  words.json  moments.json
 <project>/pending/<task>.md     answers/<task>.json     answers/_usage.jsonl
-<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  post.json
+<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  receipt.json  post.json
                    visuals/ (candidates, manifest.json, run_log.json, pick_sheet.jpg)
                    clip.mp4  clip-1x1.mp4  sheet.jpg
 <project>/index.html   review page with Post / Post with edits / No ratings
