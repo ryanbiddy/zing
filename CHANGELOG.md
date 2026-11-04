@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- `zing factory new --4k`, `render --4k` and `factory_new(..., uhd=True)` save 4K
+  output for the project. Every shape doubles in width and height. Smaller sources
+  still render with a warning.
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
 - Factory steering: `--focus` tells the scout what to clip, and `--show` keeps every

@@ -66,6 +66,18 @@ tag or show are not added. Limits match study vocabulary. Up to 64 terms,
 80 characters per term and 500 UTF-8 bytes including comma-space separators.
 Oversized lists are rejected. Set the list when creating the project.
 
+## Factory 4K output
+
+```sh
+zing factory new talk --media talk.mp4 --4k
+zing factory render talk/clip01 --4k
+```
+
+Both flags save `"uhd": true` in `factory.json` for future renders. Every shape
+doubles in width and height. File names stay the same. The next factory run
+replaces any remaining 1080 renders. Sources below 2160 pixels on the short side
+still render with one warning per run.
+
 ## Match a reference
 
 ```sh
