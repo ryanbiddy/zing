@@ -140,7 +140,7 @@ def studio_server(tmp_path, monkeypatch):
     studio = serve.Studio(project)
     rendered = []
     monkeypatch.setattr(studio, "_rerender", lambda d: rendered.append(d.name))
-    monkeypatch.setattr(serve.plan, "finalize", lambda d, raw, found: rendered.append(("final", sorted(found))))
+    monkeypatch.setattr(serve.plan, "finalize", lambda d, raw, found, **kw: rendered.append(("final", sorted(found))))
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]

@@ -135,7 +135,8 @@ class Studio:
         _write(vis / "picks.json", picks)
 
         def job():
-            plan.finalize(d, raw, pick.chosen(vis, raw.get("visual_requests", []), manifest, picks["picks"]))
+            plan.finalize(d, raw, pick.chosen(vis, raw.get("visual_requests", []), manifest, picks["picks"]),
+                          news=_read(self.project / "factory.json", {}).get("news"))
             self._rerender(d)
         return self.queue(f"{d.name}: new visual", job)
 
@@ -159,7 +160,8 @@ class Studio:
         _write(d / "plan-raw.json", raw)
 
         def job():
-            plan.finalize(d, raw, current.get("visuals", {}))    # re-runs the hook fact check
+            plan.finalize(d, raw, current.get("visuals", {}),    # re-runs the hook fact check
+                          news=_read(self.project / "factory.json", {}).get("news"))
             self._rerender(d)
         return self.queue(f"{d.name}: new hook", job)
 

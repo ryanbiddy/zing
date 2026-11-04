@@ -5,7 +5,8 @@
 - Factory news peg: `--news-peg "<what happened>" --news <article url>` turns clips into
   the backstory to today's news. The scout looks for how it came about, each clip opens on
   a headline screenshot, and the copy leads with the news. Spoken decimals ("$6.3") now
-  count as said numbers.
+  count as said numbers. Page captures load no ads, trackers or private addresses and
+  scroll only to the end of the article, and the hook moves above a page shown whole.
 - Factory steering: `--focus` tells the scout what to clip, and `--show` keeps every
   Post/No call (with its reason) so the next episode's scout learns from them. The scout
   also lists runners-up the review page can make with one click, and **Make a clip**

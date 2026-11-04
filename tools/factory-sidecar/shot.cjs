@@ -12,6 +12,10 @@ const CHROME = process.env.ZING_BROWSER_PATH;
 const [, , url, outPath, framesDir] = process.argv;
 const FRAMES = 180;
 const MAX_SCROLL = 2400;
+// Ads and trackers never load: a news page's picture is its story, not someone else's ad. Nor do loopback and
+// private addresses, which a public page has no business reaching.
+const AD = /(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com|googletagservices\.com|adservice\.google\.[a-z.]+|imasdk\.googleapis\.com|amazon-adsystem\.com|adnxs\.com|taboola\.com|outbrain\.com|criteo\.(com|net)|pubmatic\.com|rubiconproject\.com|openx\.net|adsrvr\.org|moatads\.com|teads\.tv|sharethrough\.com|3lift\.com|triplelift\.com|indexww\.com|casalemedia\.com|smartadserver\.com|adform\.net|media\.net|yieldmo\.com|zemanta\.com|revcontent\.com|mgid\.com|bidswitch\.net|lijit\.com|sovrn\.com|33across\.com|gumgum\.com|connatix\.com|primis\.tech|springserve\.com|spotxchange\.com|innovid\.com|adsafeprotected\.com|doubleverify\.com|adroll\.com|nativo\.com|kargo\.com|seedtag\.com|ezoic\.net|ezojs\.com|mediavine\.com|adthrive\.com|freestar\.com|vdo\.ai|aniview\.com|minutemedia-prebid\.com|ads-twitter\.com)$/i;
+const PRIVATE = /^(localhost|.*\.localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0|\[?::1?\]?|\[?f[cd][0-9a-f]*:.*|\[?fe80:.*)$/i;
 
 async function main() {
   const res = { ok: false, title: null, og_image: null, og_video: null, final_url: null, blocked: false,
@@ -30,6 +34,11 @@ async function main() {
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36 zing-factory/0.1",
       acceptDownloads: false,
+    });
+    await ctx.route("**/*", (route) => {
+      let host = "";
+      try { host = new URL(route.request().url()).hostname; } catch (_) {}
+      return AD.test(host) || PRIVATE.test(host) ? route.abort() : route.continue();
     });
     const page = await ctx.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -56,7 +65,11 @@ async function main() {
       #usercentrics-root, #qc-cmp2-container, .osano-cm-window, #hs-eu-cookie-confirmation, .cky-consent-container,
       [id*="cookie-banner" i], [class*="cookie-banner" i], [id*="cookieconsent" i], [class*="cookieconsent" i],
       [id*="consent-banner" i], [class*="consent-banner" i], [aria-label*="cookie" i][role="dialog"],
-      [aria-label*="consent" i][role="dialog"] { display: none !important; }
+      [aria-label*="consent" i][role="dialog"],
+      [id^="div-gpt-ad"], [id^="google_ads"], ins.adsbygoogle, [data-ad-slot], [data-google-query-id], .OUTBRAIN,
+      [id*="taboola" i], [class*="taboola" i], [class*="outbrain" i], [aria-label="advertisement" i],
+      [class*="ad-slot" i], [id*="ad-slot" i], [class*="adSlot"], [class*="ad-container" i], [class*="ad-wrapper" i]
+      { display: none !important; }
       html, body { overflow: auto !important; }` }).catch(() => {});
     await page.evaluate(() => {               // generic: fixed full-width bars that talk about cookies
       for (const el of document.querySelectorAll("body *")) {
@@ -69,8 +82,12 @@ async function main() {
     await page.screenshot({ path: outPath, fullPage: false, type: "png" });
     if (framesDir && !res.blocked) {
       await page.setViewportSize({ width: 1280, height: 800 });
-      const maxScroll = await page.evaluate(() =>
-        Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0) - window.innerHeight);
+      const maxScroll = await page.evaluate(() => {   // stop where the article or main content ends, not in the footer
+        const all = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+        const main = document.querySelector("article, main, [role='main']");
+        const end = main ? main.getBoundingClientRect().bottom + window.scrollY : all;
+        return Math.min(all, end > window.innerHeight ? end : all) - window.innerHeight;
+      });
       const dist = Math.min(Math.max(maxScroll, 0), MAX_SCROLL);
       if (dist >= 300) {
         for (let y = 0; y <= dist; y += 400) {  // wake lazy-loaded images, then return to the top
