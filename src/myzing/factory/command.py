@@ -50,6 +50,9 @@ def run(argv: list[str]) -> int:
     new.add_argument("--brand-name", help="launch: the product's name for the title and end card")
     new.add_argument("--brand-url", help="launch: the product's url for the end card")
     new.add_argument("--cta", help="launch: a short call to action for the end card")
+    new.add_argument("--news-peg", help="today's news the clips are the backstory to, e.g. 'Elon Musk is a trillionaire again'")
+    new.add_argument("--news", action="append", default=[], metavar="URL",
+                     help="an article about the news peg (repeatable); clips open on its headline")
     new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
     new.add_argument("--no-parallax", dest="parallax", action="store_false",
                      help="keep photos flat instead of moving through their depth")
@@ -94,6 +97,9 @@ def run(argv: list[str]) -> int:
     ren.add_argument("--no-upscale", dest="sharpen", action="store_const", const=False, default=None,
                      help="render small photos at their own size for this render")
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
+    approval = commands.add_parser("approval", help="write a local guest approval page")
+    approval.add_argument("project", type=Path)
+    approval.add_argument("--out", type=Path, metavar="FILE", help="HTML file to write (default <project>/approval.html)")
     learn = commands.add_parser("learn-style", help="learn a style pack from a clip you like, then check the copy against it")
     learn.add_argument("reference", type=Path, help="a local clip whose captions and pacing you want")
     learn.add_argument("--name", required=True, help="the new pack's name, e.g. bold-yellow")
@@ -128,7 +134,8 @@ def run(argv: list[str]) -> int:
                                                         "moments": args.moments, "focus": args.focus,
                                                         "show": args.show}.items() if v is not None},
                                    **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
-                                                                    "cta": args.cta}.items() if v}} if args.brand_name else {}))
+                                                                    "cta": args.cta}.items() if v}} if args.brand_name else {}),
+                                   **({"news": {"peg": args.news_peg, "links": args.news}} if args.news_peg or args.news else {}))
         elif args.command == "run":
             judge = Judge(args.project, args.judge, **({"model": args.model} if args.model else {}))
             result = pipeline.run(args.project, judge, only=args.clips, say=lambda m: print(m, file=sys.stderr, flush=True))
@@ -158,6 +165,9 @@ def run(argv: list[str]) -> int:
         elif args.command == "review":
             from .review import build
             result = {"review": str(build(args.project))}
+        elif args.command == "approval":
+            from .approval import build
+            result = {"approval": str(build(args.project, args.out))}
         elif args.command == "learn-style":
             from .learn import learn
             result = learn(args.reference, args.name, args.sample, rounds=args.rounds, base=args.base,

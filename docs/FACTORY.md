@@ -167,6 +167,23 @@ documentary, with the speaker as the narrator:
   moment draws a hand-drawn ring around its key words.
 - Sensitive subjects stay in documentary mode: it is already archival and restrained.
 
+### News peg
+
+Make each clip the backstory to today's news ("Binance just lost $6.3B. Here's how it
+happened."):
+
+```
+zing factory new ./hack --media interview.mp4 --mode documentary --pack documentary \
+  --news-peg "Binance lost $6.3 billion in the biggest crypto hack ever" \
+  --news https://example.com/binance-hack --news https://example.com/fbi-statement
+```
+
+The scout favors moments that explain how it came about. Each clip opens on a
+screenshot (and short scroll recording) of one of the `--news` articles, then tells the
+story with recent photos of the people named and a photo from each backstory beat's own
+year. The hook and the copy may state the peg; everything drawn on screen still has to
+be said in the clip. MCP: `factory_new(..., news_peg=, news_links=)`.
+
 ## Launch mode
 
 `--mode launch` turns a long founder demo, interview or livestream into launch films:
@@ -224,6 +241,28 @@ judgments with Claude Code; otherwise they wait for your agent.
 The server listens on 127.0.0.1 only, answers only to localhost Host headers, refuses
 writes from other sites and non-JSON posts, and serves files only from the project's
 clip folders. Nothing on the page posts or publishes.
+
+## Full context and guest approval
+
+First comments link YouTube watch and youtu.be sources to the clip's start time.
+An existing `t` parameter is replaced. Launch films use the first span in playback
+order. Links to other sites stay unchanged.
+
+```bash
+zing factory approval talk
+zing factory approval talk --out talk/guest.html
+```
+
+The default file is `talk/approval.html`. It lists each rendered 9x16 clip in the
+project's style pack with its hook and full transcript. If `clipNN/context.json`
+has `before` and `after` text, that appears too.
+
+Zip the project folder and send it to the guest or their PR person. They unzip it,
+open the HTML file, choose Yes or No, and add comments. **Copy my answers** builds
+plain text they can send back. If clipboard access is blocked, they can select and
+copy the text on the page. The page uses local videos and has no network requests.
+Video paths are relative to the HTML file. Keep a custom output inside the project
+folder when sharing a zip.
 
 ## Learn a style from a clip you like
 

@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- YouTube first comments link to the clip's start time. `zing factory approval`
+  writes a local guest approval page with videos, transcripts, saved context and
+  copyable Yes / No answers and comments.
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
 - Factory review fixes: trims get words for the full span, redo clears old clip
@@ -12,6 +15,11 @@
   quick scout pass can use batched speech decoding.
 - Factory review fixes: the dashboard now requires the session link printed by
   `zing factory serve`. The link sets a cookie before opening the page.
+- Factory news peg: `--news-peg "<what happened>" --news <article url>` turns clips into
+  the backstory to today's news. The scout looks for how it came about, each clip opens on
+  a headline screenshot, and the copy leads with the news. Spoken decimals ("$6.3") now
+  count as said numbers. Page captures load no ads, trackers or private addresses and
+  scroll only to the end of the article, and the hook moves above a page shown whole.
 - Hardening: keep prompt images inside their project and preserve transcript text.
   Refuse private visual URLs and unsafe redirects. Keep peer tokens off redirects.
   Bound shot times and end cards. Save breakdowns atomically. Keep FFmpeg off stdin.
