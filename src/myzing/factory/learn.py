@@ -368,7 +368,7 @@ def to_pack(m: dict, name: str, base: dict, height: int = 1920) -> dict:
     pack["cap_words"] = max(1, min(5, round(m["words"])))
     pack["cap_chars"] = 12 if pack["cap_words"] <= 2 else 18
     pack["cap_upper"] = m["upper"] > .6
-    pack["cap_ink"] = hex_of(m["fill"])
+    pack["cap_ink"] = hex_of(m["fill"]) if m.get("fill") else base.get("cap_ink", "#FFFFFF")
     hl = m.get("highlight") or {}
     pack["cap_on"] = hex_of(hl["rgb"]) if hl.get("mode") == "active" else pack["cap_ink"]
     if hl.get("mode") == "emphasis":

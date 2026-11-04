@@ -4,6 +4,14 @@
 
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
+- Factory review fixes: trims get words for the full span, redo clears old clip
+  work, and dashboard hook edits and visual picks survive later runs. The dashboard
+  updates while jobs run, shows errors, keeps saved ratings, and plays the selected
+  style pack. Graphics keep decimals and handle zero values. Learned caption sizes,
+  review pack selection, clip boundaries, and cutout retries are corrected. The
+  quick scout pass can use batched speech decoding.
+- Factory review fixes: the dashboard now requires the session link printed by
+  `zing factory serve`. The link sets a cookie before opening the page.
 - Hardening: keep prompt images inside their project and preserve transcript text.
   Refuse private visual URLs and unsafe redirects. Keep peer tokens off redirects.
   Bound shot times and end cards. Save breakdowns atomically. Keep FFmpeg off stdin.

@@ -75,8 +75,8 @@ def _snap(moment: dict, words: list[dict]) -> dict:
     k = 0
     while k < len(ws) - 1 and re.sub(r"[^a-z]", "", ws[k]["w"].lower()) in FILLER:
         k += 1
-    start = ws[k]["s"] - 0.05
-    inside = [w for w in ws if w["e"] <= moment["end"] + 0.05] or ws[:1]
+    start = max(0.0, ws[k]["s"] - 0.05)
+    inside = [w for w in ws[k:] if w["e"] <= moment["end"] + 0.05] or ws[k:k + 1]
     end_word = inside[-1]
     if not re.search(r"[.?!]$", end_word["w"]):
         after = [w for w in ws if w["s"] > end_word["s"] and re.search(r"[.?!]$", w["w"])]
