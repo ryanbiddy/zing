@@ -2,6 +2,10 @@
 
 ## Clip factory
 
+- Each clip gets a `receipt.json` of its planned additions, with time ranges,
+  sources and known licenses. Overlaps count once. The dashboard shows the receipt
+  and `zing factory status` reports its share. Visual swaps and hook edits refresh
+  it. The receipt makes no promise about platform outcomes.
 - Factory steering: `--focus` tells the scout what to clip, and `--show` keeps every
   Post/No call (with its reason) so the next episode's scout learns from them. The scout
   also lists runners-up the review page can make with one click, and **Make a clip**

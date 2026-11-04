@@ -193,6 +193,24 @@ The server listens on 127.0.0.1 only, answers only to localhost Host headers, re
 writes from other sites and non-JSON posts, and serves files only from the project's
 clip folders. Nothing on the page posts or publishes.
 
+## What each clip adds
+
+Each finalized plan writes `clipNN/receipt.json`. It lists pictures, graphics, quote
+takeovers, name tags and title or end cards, with time ranges, sources and known
+licenses. It uses the clip's existing files. Ordinary hooks and captions do not count.
+An empty solo shot adds zero. Overlapping additions count once in the total.
+
+The duration follows the render, including the last word's tail and any end card
+hold. Quotes follow the spoken words. Name tags count for up to 3.4 seconds.
+`by_kind` lists seconds for each kind. `added` is the total seconds covered, and
+`share` is that total divided by the duration, rounded to two decimal places.
+
+`zing factory status` reports each clip's share as `added`. A clip without a receipt
+has `null`. Each dashboard card shows the percentage and an expandable source list.
+Visual swaps and hook edits rewrite the receipt when the plan is finalized again.
+The receipt leaves `post.json` alone. It records planned additions and makes no
+promise about platform reach, monetization or originality decisions.
+
 ## Learn a style from a clip you like
 
 ```bash
@@ -234,7 +252,7 @@ cut's audio. Set `ZING_FACTORY_SIDECAR` when the sidecar lives outside a checkou
 ```text
 <project>/source.json  factory.json  transcript.json  words.json  moments.json
 <project>/pending/<task>.md     answers/<task>.json     answers/_usage.jsonl
-<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  post.json
+<project>/clipNN/  cut.mp4  words.json  cams.json  plan.json  receipt.json  post.json
                    visuals/ (candidates, manifest.json, run_log.json, pick_sheet.jpg)
                    clip.mp4  clip-1x1.mp4  sheet.jpg
 <project>/index.html   review page with Post / Post with edits / No ratings

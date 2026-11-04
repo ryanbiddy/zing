@@ -69,6 +69,7 @@ class Studio:
             d = self.project / c["clip"]
             vis = d / "visuals"
             clips.append({**c, "plan": _read(d / "plan.json"), "post": _read(d / "post.json"),
+                          "receipt": _read(d / "receipt.json"),
                           "visual_requests": _read(vis / "requests.json"), "candidates": _read(vis / "manifest.json"),
                           "picks": _read(vis / "picks.json"), "rating": ratings.get(c["clip"]),
                           "videos": {p.name: p.name for p in sorted(d.glob("clip*.mp4"))}})
