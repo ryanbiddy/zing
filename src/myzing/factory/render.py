@@ -140,6 +140,48 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             "W": W, "H": H, "aspect": shape, "theme": pack if isinstance(pack, dict) else theme(pack)}
 
 
+def capture(data: dict, data_file: Path, frames: Path, *, layer: str | None = None,
+            samples: list[int] | None = None):
+    node, sidecar = node_sidecar()
+    data = {k: v for k, v in data.items() if k not in {"overlay", "speakerLayer", "captureFrames"}}
+    if layer:
+        data["overlay" if layer == "overlay" else "speakerLayer"] = True
+    if samples is not None:
+        data["captureFrames"] = samples
+    data_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    frames.mkdir(exist_ok=True)
+    tmp = frames.parent / "_tmp"
+    try:
+        run(node, data_path("render.cjs"), data_path("scene.html"), data_file, frames,
+            env=sidecar_env(tmp), cwd=sidecar, capture_output=True)
+        if layer == "overlay":
+            flatten_backdrop(frames)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def flatten_backdrop(frames: Path):
+    """Keep cutout edges and backdrop-dependent grain when the overlay sits above an opaque speaker track."""
+    import numpy as np
+    from PIL import Image
+    for path in (frames / "normal").glob("*.png"):
+        def pixels(file, mode):
+            with Image.open(file) as img:
+                return np.asarray(img.convert(mode), dtype=np.float32) / 255
+        normal = pixels(path, "RGB")
+        speaker = pixels(frames / "speaker" / path.name, "RGB")
+        alpha = pixels(frames / path.name, "RGBA")[:, :, 3:]
+        matte = frames / "matte" / path.name
+        if matte.is_file():
+            alpha *= 1 - pixels(matte, "RGBA")[:, :, 3:]
+        need = np.maximum((normal - speaker) / np.maximum(1 - speaker, 1 / 255),
+                          (speaker - normal) / np.maximum(speaker, 1 / 255)).max(axis=2, keepdims=True)
+        alpha = np.ceil(np.clip(np.maximum(alpha, need), 0, 1) * 255) / 255   # round up so the recovered color stays in gamut
+        rgb = (normal - speaker * (1 - alpha)) / np.maximum(alpha, 1 / 255)
+        rgba = np.concatenate([np.clip(rgb, 0, 1), alpha], axis=2)
+        Image.fromarray(np.rint(rgba * 255).astype(np.uint8)).save(frames / path.name)
+
+
 def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out: Path | None = None,
            speaker_only: bool = False, parallax: bool | None = None, front: bool | None = None,
            sharpen: bool | None = None) -> Path:
@@ -147,7 +189,6 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     if shape not in SHAPES:
         raise FactoryError(f"unknown shape {shape!r}; choose from {', '.join(SHAPES)}")
     d = Path(clipdir).resolve()
-    node, sidecar = node_sidecar()
     tag = suffix(shape, pack if isinstance(pack, str) else "trial")
     data = scene_data(d, shape, pack, speaker_only, parallax, front, sharpen)
     out = Path(out).resolve() if out else d / f"clip{tag}.mp4"
@@ -155,12 +196,10 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     scratch = (out.with_suffix(".data.json"), out.with_suffix(".frames"), out.with_suffix(".sheet.jpg")) \
         if out.parent != d else (d / f"data{tag}.json", d / f"out{tag}", d / f"sheet{tag}.jpg")
     data_file, frames, sheet = scratch
-    data_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     frames.mkdir(exist_ok=True)
     for f in frames.glob("*.jpg"):
         f.unlink()
-    run(node, sidecar / "render.cjs", data_path("scene.html"), data_file, frames,
-        env=sidecar_env(d / "_tmp"), cwd=sidecar, capture_output=True)
+    capture(data, data_file, frames)
     duration = data["duration"]
     run(ffmpeg(), "-v", "error", "-y", "-framerate", 30, "-i", frames / "%05d.jpg", "-i", d / "cut.mp4",
         "-map", "0:v", "-map", "1:a", "-af", f"apad,afade=t=out:st={duration - 0.3:.2f}:d=0.3", "-t", duration,

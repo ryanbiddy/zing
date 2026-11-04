@@ -12,6 +12,9 @@
 :root{--ink:#F4F6FB;--yel:#FFD23F;--navy:#050C24;--accent-ink:#081233;--muted:rgba(244,246,251,.72);--glow:#13296E;--cap-bg:#07070B;--cap-ink:#F4F6FB;--cap-on:#FFD23F;--cap-radius:12px;--tag-bg:rgba(5,12,36,.55);--tag-ink:rgba(255,255,255,.88);--edge:transparent}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{overflow:hidden;background:var(--navy)}
+html[data-layer=overlay],html[data-layer=overlay] body,html[data-layer=matte],html[data-layer=matte] body{background:transparent}
+html[data-layer=overlay] #spk{visibility:hidden}
+html[data-layer=speaker] body>:not(#spk),html[data-layer=matte] body>:not(#spk){visibility:hidden!important}
 body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #hook,.g-lab,.g-item{color:var(--ink)}
 .layer{position:absolute;overflow:hidden}
@@ -100,6 +103,8 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <div id="srctag"></div>
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
+window.exportLayer = layer => document.documentElement.dataset.layer = layer;
+window.exportLayer(D.overlay ? 'overlay' : D.speakerLayer ? 'speaker' : '');
 if (D.theme) { const T = D.theme, st = document.documentElement.style;
   const set = (k, v) => v != null && st.setProperty(k, v);
   set('--navy', T.bg); set('--glow', T.glow); set('--ink', T.ink); set('--muted', T.muted); set('--yel', T.accent);
@@ -303,11 +308,36 @@ function geometry(layout) {
 function place(el, b) { if (!b) { el.style.display='none'; return; }
   el.style.display='block'; el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; }
 
-window.seek = async function(t) {
-  const shot = shotAt(t), cam = camAt(t);
+function captionState(t) {
+  const shot = shotAt(t);
   const Q = (D.quotes || []).find(q => t >= q.from && t < q.to);
   const layout = Q ? 'quote' : shot.layout;   // solo | split | graphic, or a quote moment over whatever shot is up
   const G = geometry(layout);
+  let gi = -1; for (let i=0;i<groups.length;i++) if (W[groups[i][0]].os <= t+.02) gi = i;
+  const card = layout === 'graphic' && (shot.graphic || {}).kind === 'endcard';
+  const show = gi >= 0 && !Q && !card && !groups[gi].every(inQuote) && t < W[W.length-1].oe + .3;
+  const visible = show && !(t < D.hookUntil && G.hook === 'pill' && ASPECT === '9x16' && layout !== 'solo');
+  return {shot, Q, layout, G, gi, show, visible};
+}
+window.captionCues = function() {
+  const cues = [], n = Math.round(D.duration * FPS);
+  let last = null;
+  for (let f=0;f<n;f++) {
+    const t = f/FPS, {Q, gi, visible} = captionState(t);
+    const id = Q ? `q${Q.a}` : visible ? `g${gi}` : null;
+    if (id === null) { last = null; continue; }
+    if (last && last.id === id) { last.to = (f+1)/FPS; continue; }
+    const ids = Q ? Array.from({length: Q.b-Q.a+1}, (_, k) => Q.a+k) : groups[gi];
+    let text = ids.map(j => Q && j !== Q.b ? W[j].w : W[j].w.replace(/[,;:]$/, '')).join(' ');
+    if (Q ? TH0.quote_upper !== false : !KIN && TH0.cap_upper !== false) text = text.toUpperCase();
+    last = {id, from: t, to: (f+1)/FPS, text}; cues.push(last);
+  }
+  return cues.map(({id, ...cue}) => cue);
+};
+
+window.seek = async function(t) {
+  const {shot, Q, layout, G, gi, show, visible} = captionState(t), cam = camAt(t);
+  window.exportFront = !!G.front;
   const top = $('top'), gfx = $('gfx'), spk = $('spk');
   const tin = t - shot.from;
   place(top, G.top); place(gfx, G.gfx); place(spk, G.spk);
@@ -432,10 +462,8 @@ window.seek = async function(t) {
   else lab.style.display = 'none';
 
   // captions
-  let gi = -1; for (let i=0;i<groups.length;i++) if (W[groups[i][0]].os <= t+.02) gi = i;
   const cap = $('cap'), box = cap.firstChild;
-  const card = layout === 'graphic' && (shot.graphic || {}).kind === 'endcard';   // the end card is the last thing read
-  if (gi >= 0 && !Q && !card && !groups[gi].every(inQuote) && t < W[W.length-1].oe + .3) {
+  if (show) {
     const grp = groups[gi];
     if (KIN) { cap.classList.add('kin');
       box.innerHTML = grp.map(j => { const w = W[j], p = easeOut(lin(t, w.os - .04, w.os + .14)), big = j === KEYS[gi];
@@ -445,7 +473,7 @@ window.seek = async function(t) {
       const em = !on && EMPH && (EMPH.has(norm(w.w)) || /\d/.test(w.w));
       return `<span class="${on?'on':em?'em':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
     cap.style.top = G.cap + 'px';
-    cap.style.opacity = hookOn && G.hook === 'pill' && ASPECT === '9x16' && layout !== 'solo' ? 0 : 1;
+    cap.style.opacity = visible ? 1 : 0;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);
     const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16' || PANEL || FULLCUT);
     cap.style.transform = `${centered ? 'translateY(-50%) ' : ''}scale(${mix(CAP.pop_from,1,CAP.overshoot ? back(pop) : easeOut(pop))})`;

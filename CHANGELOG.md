@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- `zing factory export` writes speaker and overlay layers, caption and word SRTs,
+  48 kHz audio and a timeline for Premiere Pro or DaVinci Resolve. It checks three
+  composited frames against the normal scene and reports the difference.
 - `zing factory new --vocab` and `factory_new(..., vocab=[...])` save supplied names
   and terms for episode transcription, word timing and the planner's caption fixes.
 - Factory steering: `--focus` tells the scout what to clip, and `--show` keeps every
