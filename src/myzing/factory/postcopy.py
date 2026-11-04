@@ -1,6 +1,8 @@
 """Post copy for one clip, anchored to the source's date and credited to the source."""
 from __future__ import annotations
 
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
 from .tools import NO_HOOK, data_path
 
 FIELDS = ("x", "instagram", "tiktok", "youtube_title", "first_comment")
@@ -28,10 +30,27 @@ def stamp(seconds: float) -> str:
     return f"{hh}:{mm:02d}:{ss:02d}" if hh else f"{mm}:{ss:02d}"
 
 
+def context_url(url: str, seconds: float) -> str:
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    watch = parts.hostname in {"youtube.com", "www.youtube.com", "m.youtube.com"} and parts.path == "/watch"
+    short = parts.hostname in {"youtu.be", "www.youtu.be"} and bool(parts.path.strip("/"))
+    if parts.scheme not in {"http", "https"} or not (short or watch and any(k == "v" and v for k, v in query)):
+        return url
+    query = [(k, v) for k, v in query if k != "t"] + [("t", f"{int(seconds)}s")]
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
 def finalize(answer: dict, words: dict, source: dict) -> dict:
     missing = [k for k in FIELDS if not isinstance(answer.get(k), str)]
     if missing:
         raise ValueError(f"copy answer is missing {', '.join(missing)}")
-    post = {k: answer[k].replace("{SOURCE_URL}", source.get("url", "")) for k in FIELDS}
-    post["first_comment"] = post["first_comment"].replace("{TIMESTAMP}", stamp(words["start"]))
+    start = words["spans"][0][0] if words.get("spans") else words["start"]
+    url = source.get("url", "")
+    link = context_url(url, start)
+    post = {k: answer[k].replace("{SOURCE_URL}", link if k == "first_comment" else url) for k in FIELDS}
+    post["first_comment"] = post["first_comment"].replace("{TIMESTAMP}", stamp(start))
     return post

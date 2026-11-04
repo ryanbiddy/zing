@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- YouTube first comments link to the clip's start time. `zing factory approval`
+  writes a local guest approval page with videos, transcripts, saved context and
+  copyable Yes / No answers and comments.
 - `zing factory new --4k`, `render --4k` and `factory_new(..., uhd=True)` save 4K
   output for the project. Every shape doubles in width and height. Smaller sources
   still render with a warning.
