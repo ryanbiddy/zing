@@ -30,6 +30,42 @@ Speech models mishear names and terms. The plan lists clear mishearings it is su
 captions, graphics, hook and copy, logs each fix, and keeps what was heard in
 `words-heard.json`. Numbers and meaning are never changed.
 
+## Clip a folder of episodes
+
+```bash
+zing factory batch ./inbox --out ./projects --judge claude --moments 4
+zing factory batch ./inbox --out ./projects --watch --every 60 --limit 2
+```
+
+Batch reads `.mp4`, `.mov`, `.mkv`, `.webm` and `.m4v` files directly in the inbox,
+oldest modification time first. Size and modification time must stay unchanged
+across two checks at least three seconds apart. Growing files wait for a later pass.
+
+Each episode gets a project under `--out`, named from its file stem with unsafe
+characters replaced. Existing projects resume. Projects marked `done` are skipped.
+If two files map to the same project name, the second reports an error.
+`--limit N` caps new episode attempts per pass. Resumed projects do not use the limit.
+There is no limit by default. `--limit 0` only resumes existing projects.
+
+All settings from `factory new` also work here. A matching `.srt`, `.vtt` or word
+`.json` supplies the transcript, in that order. A matching `<stem>.info.json`
+supplies the title, `webpage_url`, `upload_date` and uploader or channel as the
+source name, link, date and tag. Dates become `YYYY-MM-DD`. Explicit flags override
+these files. Settings apply when a project is first created.
+
+The default `--judge host` stops at pending judgments with state `waiting`.
+Answer them with `factory answer`, then run batch again. `--judge claude` uses
+Claude Code's CLI. An episode error is recorded and the batch continues.
+
+A single pass prints one JSON object with an `episodes` list. Each entry has
+`file`, `project`, `state`, `clips`, `pending`, `cost_usd` and `error`.
+`clips` counts clips with at least one render. `pending` lists task names.
+`cost_usd` is the project's total judge cost from status usage. The same summary
+is appended to `projects/batch.jsonl` with a UTC `at` timestamp.
+
+`--watch` repeats until Ctrl+C. It prints and logs one JSON line per processed
+episode. `--every` sets the seconds between passes and defaults to 60.
+
 ## Supply names and spellings
 
 Give names and terms when creating the project.
