@@ -24,12 +24,7 @@ def _time(value: str) -> float:
         raise argparse.ArgumentTypeError(f"not a time: {value!r} (use seconds or m:ss)") from None
 
 
-def run(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(prog="zing factory", description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    new = commands.add_parser("new", help="start a project from a local episode file")
-    new.add_argument("project", type=Path)
-    new.add_argument("--media", type=Path, required=True, help="the local episode video")
+def _new_settings(new: argparse.ArgumentParser) -> None:
     new.add_argument("--transcript", type=Path, help="SRT, VTT or word JSON; without one the episode is transcribed")
     new.add_argument("--vocab", action="append", default=[], metavar="TERM,TERM",
                      help="names and terms to spell exactly; repeat or separate with commas")
@@ -39,18 +34,18 @@ def run(argv: list[str]) -> int:
     new.add_argument("--date", default="", help="the source's date; copy never calls older news 'new'")
     new.add_argument("--tag", default="", help="short on-screen source tag")
     new.add_argument("--moments", type=int, default=None,
-                     help="clips to scout (default 8; launch: films, default 2; 0: only clips you pick)")
+                     help="clips to scout (default 8, or 2 launch films; 0 lets you pick all clips)")
     new.add_argument("--focus", help="what to clip, e.g. 'the pricing argument' or 'funny moments'; the scout favors it")
     new.add_argument("--show", help="the show's name; Post/No calls on its episodes teach the scout for the next one")
     new.add_argument("--mode", choices=("context", "fun", "documentary", "launch"), default="context",
-                     help="documentary: archival photos and documents, the speaker as narrator (pair with --pack documentary); "
-                          "launch: one launch film from a long demo or interview, assembled from several parts")
+                     help="documentary uses archival photos and documents with the speaker as narrator. Pair with --pack documentary. "
+                          "Launch assembles films from several spans of a demo or interview")
     new.add_argument("--shapes", type=_shapes, default=None, help="any of 9x16,4x5,1x1,16x9 (default 9x16,1x1; launch 16x9,1x1,9x16)")
     new.add_argument("--pack", default=None, help="style pack (see 'zing factory packs'; default zing, launch for launch films)")
     new.add_argument("--4k", dest="uhd", action="store_true", help="render every shape at twice its usual width and height")
-    new.add_argument("--brand-name", help="launch: the product's name for the title and end card")
-    new.add_argument("--brand-url", help="launch: the product's url for the end card")
-    new.add_argument("--cta", help="launch: a short call to action for the end card")
+    new.add_argument("--brand-name", help="the product's name for the title and end card in launch mode")
+    new.add_argument("--brand-url", help="the product's url for the end card in launch mode")
+    new.add_argument("--cta", help="a short call to action for the end card in launch mode")
     new.add_argument("--news-peg", help="today's news the clips are the backstory to, e.g. 'Elon Musk is a trillionaire again'")
     new.add_argument("--news", action="append", default=[], metavar="URL",
                      help="an article about the news peg (repeatable); clips open on its headline")
@@ -64,6 +59,36 @@ def run(argv: list[str]) -> int:
                           "(needs 'zing factory fetch-cutout --yes')")
     new.add_argument("--no-upscale", dest="upscale", action="store_false",
                      help="render small photos at their own size instead of upscaling them")
+
+
+def _settings(args: argparse.Namespace) -> dict:
+    return dict(transcript=args.transcript, offset=args.offset, name=args.name, url=args.url, date=args.date, tag=args.tag,
+                vocab=[term for group in args.vocab for term in group.split(",")],
+                mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
+                upscale=args.upscale, uhd=args.uhd, offline=args.offline, visuals=args.visuals,
+                **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack, "moments": args.moments,
+                                     "focus": args.focus, "show": args.show}.items() if v is not None},
+                **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
+                                               "cta": args.cta}.items() if v}} if args.brand_name else {}),
+                **({"news": {"peg": args.news_peg, "links": args.news}} if args.news_peg or args.news else {}))
+
+
+def run(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(prog="zing factory", description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    new = commands.add_parser("new", help="start a project from a local episode file")
+    new.add_argument("project", type=Path)
+    new.add_argument("--media", type=Path, required=True, help="the local episode video")
+    _new_settings(new)
+    batch = commands.add_parser("batch", help="clip new episodes in a folder and resume unfinished projects")
+    batch.add_argument("inbox", type=Path)
+    batch.add_argument("--out", type=Path, required=True, help="folder for episode projects and batch.jsonl")
+    batch.add_argument("--judge", choices=("host", "claude"), default="host", help="who answers the judgment prompts")
+    batch.add_argument("--watch", action="store_true", help="keep checking the inbox until Ctrl+C")
+    batch.add_argument("--every", type=float, default=60, metavar="SECONDS", help="seconds between passes with --watch (default 60)")
+    batch.add_argument("--limit", type=int, metavar="N", help="start at most N new episodes per pass")
+    _new_settings(batch)
+    batch.set_defaults(url=None, date=None, tag=None)
     go = commands.add_parser("run", help="advance the project; stops when it needs answers (host judge)")
     go.add_argument("project", type=Path)
     go.add_argument("--judge", choices=("host", "claude"), default="host",
@@ -136,17 +161,13 @@ def run(argv: list[str]) -> int:
         from . import pipeline
         from .judge import Judge
         if args.command == "new":
-            result = pipeline.init(args.project, args.media, transcript=args.transcript, offset=args.offset,
-                                   name=args.name, url=args.url, date=args.date, tag=args.tag,
-                                   vocab=[term for group in args.vocab for term in group.split(",")],
-                                   mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
-                                   upscale=args.upscale, uhd=args.uhd, offline=args.offline, visuals=args.visuals,
-                                   **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack,
-                                                        "moments": args.moments, "focus": args.focus,
-                                                        "show": args.show}.items() if v is not None},
-                                   **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
-                                                                    "cta": args.cta}.items() if v}} if args.brand_name else {}),
-                                   **({"news": {"peg": args.news_peg, "links": args.news}} if args.news_peg or args.news else {}))
+            result = pipeline.init(args.project, args.media, **_settings(args))
+        elif args.command == "batch":
+            from .batch import run as run_batch
+            result = run_batch(args.inbox, args.out, judge=args.judge, watch=args.watch, every=args.every, limit=args.limit,
+                               say=lambda m: print(m, file=sys.stderr, flush=True), **_settings(args))
+            if args.watch:
+                return 0
         elif args.command == "run":
             judge = Judge(args.project, args.judge, **({"model": args.model} if args.model else {}))
             result = pipeline.run(args.project, judge, only=args.clips, say=lambda m: print(m, file=sys.stderr, flush=True))

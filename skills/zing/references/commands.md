@@ -77,6 +77,36 @@ purpose. Only an empty offline ledger shows `offline: nothing fetched`.
 project's network policy and ledger. Without it, the download is not tied to a
 project and is not recorded. Downloads still need `--yes`.
 
+## Factory batch
+
+```sh
+zing factory batch ./inbox --out ./projects --judge claude --moments 4
+zing factory batch ./inbox --out ./projects --watch --every 60 --limit 2
+```
+
+`--out DIR` holds one project per episode and `batch.jsonl`. Batch scans only
+the inbox's direct `.mp4`, `.mov`, `.mkv`, `.webm` and `.m4v` files, oldest first.
+Files must keep the same size and modification time across checks three seconds
+apart. Existing projects resume and `done` projects are skipped.
+
+`--judge host` is the default and stops at pending judgments. `--judge claude`
+uses Claude Code's CLI. `--watch` repeats until Ctrl+C. `--every SECONDS` sets
+the wait between passes, with a default of 60. `--limit N` caps new episode
+attempts per pass, with no limit by default. Resumes do not count toward it.
+Use `--limit 0` to resume only.
+
+All `factory new` settings apply to newly created projects. Matching `.srt`,
+`.vtt` or word `.json` files supply captions, in that order. `<stem>.info.json`
+supplies the title, source URL, upload date and uploader or channel tag.
+Explicit flags override these defaults. Existing project settings are kept.
+
+A single pass prints a JSON object with an `episodes` list and appends it to
+`batch.jsonl` with a UTC `at` timestamp. Entries have `file`, `project`, `state`,
+`clips`, `pending` and `error`. Clips count once if they have any render.
+`episodes[].cost_usd` is the project's total judge cost. Watch mode prints and
+logs one line per processed episode. Failed episodes do not stop the rest. See
+[Clip factory](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md).
+
 ## Factory vocabulary
 
 ```sh
