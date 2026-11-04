@@ -376,6 +376,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
     for i, m in enumerate(moments, 1):
         d = project / f"clip{i:02d}"
         clips.append({"clip": f"clip{i:02d}", "hook": m["hook"].replace("*", ""), "start": m["start"], "end": m["end"],
+                      "added": (_read(d / "receipt.json") or {}).get("share"),
                       "renders": sorted(p.name for p in d.glob("clip*.mp4")) if d.is_dir() else [],
                       "copy": (d / "post.json").is_file(), **({"by": "hand"} if m.get("by") == "hand" else {})})
     bench = [{"hook": m["hook"].replace("*", ""), "why": m.get("why", ""), "topic": m.get("topic", ""),
@@ -423,8 +424,10 @@ def redo(project: Path, task: str) -> None:
         shutil.rmtree(d / "visuals", ignore_errors=True)
         shutil.rmtree(d / "mattes", ignore_errors=True)
         (d / "plan.json").unlink(missing_ok=True)
+        (d / "receipt.json").unlink(missing_ok=True)
     elif kind == "pick":
         (d / "visuals" / "picks.json").unlink(missing_ok=True)
         (d / "plan.json").unlink(missing_ok=True)
+        (d / "receipt.json").unlink(missing_ok=True)
     elif kind == "copy":
         (d / "post.json").unlink(missing_ok=True)

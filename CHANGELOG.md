@@ -20,6 +20,10 @@
   a headline screenshot, and the copy leads with the news. Spoken decimals ("$6.3") now
   count as said numbers. Page captures load no ads, trackers or private addresses and
   scroll only to the end of the article, and the hook moves above a page shown whole.
+- Each clip gets a `receipt.json` of its planned additions, with time ranges,
+  sources and known licenses. Overlaps count once. The dashboard shows the receipt
+  and `zing factory status` reports its share. Visual swaps and hook edits refresh
+  it. The receipt makes no promise about platform outcomes.
 - Hardening: keep prompt images inside their project and preserve transcript text.
   Refuse private visual URLs and unsafe redirects. Keep peer tokens off redirects.
   Bound shot times and end cards. Save breakdowns atomically. Keep FFmpeg off stdin.
