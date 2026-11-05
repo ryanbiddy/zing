@@ -145,10 +145,6 @@ class _Redirect(urllib.request.HTTPRedirectHandler):
         if redirect is not None:
             if req.get_method() == "HEAD":
                 redirect.method = "HEAD"
-            self.network._finish(self.row)
-            self.row.update(host=urlsplit(newurl).hostname, size=0,
-                            at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
-            self.row["offset"] = self.network.record(self.row["host"], self.row["purpose"], at=self.row["at"])
             if self.validate:
                 try:
                     newurl = self.validate(newurl) or newurl
@@ -156,6 +152,10 @@ class _Redirect(urllib.request.HTTPRedirectHandler):
                     fp.close()
                     raise
                 redirect.full_url = newurl
+            self.network._finish(self.row)
+            self.row.update(host=urlsplit(newurl).hostname, size=0,
+                            at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+            self.row["offset"] = self.network.record(self.row["host"], self.row["purpose"], at=self.row["at"])
         return redirect
 
 
@@ -190,11 +190,11 @@ def summary(project: Path) -> dict:
     net = Network(project)
     path = net.project / "network.jsonl"
     rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.is_file() else []
-    hosts, purposes = Counter(r["host"] for r in rows), Counter(r["purpose"] for r in rows)
+    hosts, purposes = Counter(r.get("host") or "?" for r in rows), Counter(r["purpose"] for r in rows)
     if not rows:
         text = "offline: nothing fetched" if net.offline else "No network requests recorded"
     else:
-        counts = Counter((r["host"], r["purpose"]) for r in rows)
+        counts = Counter((r.get("host") or "?", r["purpose"]) for r in rows)
         text = f"{len(rows)} network requests · " + "; ".join(f"{h} / {p} {n}" for (h, p), n in sorted(counts.items()))
     return {"requests": len(rows), "hosts": dict(sorted(hosts.items())), "purposes": dict(sorted(purposes.items())),
             "summary": text}

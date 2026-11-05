@@ -46,6 +46,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from .network import Network
+from .plan import visual_id
 from .tools import FactoryError
 
 FFPROBE = shutil.which("ffprobe") or "ffprobe"
@@ -1511,10 +1512,7 @@ def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: b
             continue
         if (req.get("kind") or "photo") not in KINDS:
             req["kind"] = "photo"
-        safe = re.sub(r"[^A-Za-z0-9_-]+", "-", str(req["id"])).strip("-")[:60] or "item"
-        while safe in used:
-            safe += "_"
-        used.add(safe)
+        safe = visual_id(req["id"], used)
         req["_safe"] = safe
         folder = (outdir / safe).resolve()
         if not folder.is_relative_to(outdir):

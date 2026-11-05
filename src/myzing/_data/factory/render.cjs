@@ -14,7 +14,28 @@ const fs = require("fs"), path = require("path"), url = require("url");
     page.on("pageerror", e => { error = e; });
     await page.addInitScript(d => { window.DATA = d; }, DATA);
     await page.goto(url.pathToFileURL(path.resolve(scene)).href);
-    await page.evaluate(async () => { for (const w of [600, 800, 900]) await document.fonts.load(`${w} 40px Inter`); await document.fonts.ready; });
+    await page.evaluate(async () => {
+      const fonts = window.DATA.fonts || [], faces = window.packFonts || [];
+      for (let i = 0; i < fonts.length; i++) {
+        const f = fonts[i];
+        try { await faces[i].load(); }
+        catch { throw new Error(`font ${f.family} from ${f.file} did not load`); }
+      }
+      for (const w of [600, 800, 900]) await document.fonts.load(`${w} 40px Inter`);
+      await document.fonts.ready;
+      const ctx = document.createElement('canvas').getContext('2d');
+      const width = (f, family) => { ctx.font = `${f.style} ${f.weight} 40px ${family}`; return ctx.measureText('Hamburgefonstiv 0123').width; };
+      for (let i = 0; i < fonts.length; i++) {      // fonts.check() is true when no face matches, so measure instead
+        const f = fonts[i];
+        if (faces[i].status !== 'loaded' || ['monospace', 'serif'].some(b => width(f, `${JSON.stringify(f.family)}, ${b}`) === width(f, b)))
+          throw new Error(`font ${f.family} from ${f.file} did not load`);
+      }
+      if (window.DATA.logo) {
+        const logo = document.getElementById('logo');
+        try { await logo.decode(); } catch {}
+        if (!logo || !logo.naturalWidth) throw new Error(`logo ${window.DATA.logo.file} did not load`);
+      }
+    });
     if (error) throw error;
     if (DATA.captureFrames) fs.writeFileSync(path.join(outdir, "captions.json"), JSON.stringify(await page.evaluate(() => window.captionCues())));
     const n = Math.round(DATA.duration * DATA.fps), t0 = Date.now();

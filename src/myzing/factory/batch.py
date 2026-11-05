@@ -76,6 +76,12 @@ def _episodes(inbox: Path, out: Path, judge: str, limit: int | None, settings: d
                     raise FactoryError(f"{project} belongs to another episode")
                 status = pipeline.status(project)
                 if status["state"] == "done":
+                    retries = pipeline._read(project / "batch.json", {}).get("retries", 0)
+                    if not status.get("failed") or retries >= 2:
+                        continue
+                    pipeline._write(project / "batch.json", {"retries": retries + 1})
+                if status["state"] == "waiting" and status.get("pending") and not any(
+                        (project / "answers" / f"{p['task']}.json").is_file() for p in status["pending"]):
                     continue
             else:
                 if limit is not None and new >= limit:
