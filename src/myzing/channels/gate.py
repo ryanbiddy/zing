@@ -1,0 +1,90 @@
+"""Check whether a clip can enter a channel's queue."""
+from __future__ import annotations
+
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from myzing.factory.pipeline import _read, _write
+
+from . import registry
+
+
+def rating(project: Path, clip: str) -> str | None:
+    return (_read(project / "ratings.json", {}).get(clip) or {}).get("v")
+
+
+def _visuals(d: Path) -> list[dict]:
+    vis = d / "visuals"
+    manifest = _read(vis / "manifest.json", {})
+    picks = _read(vis / "picks.json", {}).get("picks", {})
+    chosen, known = [], set()
+    for ident in manifest.keys() | picks.keys():
+        candidates = manifest.get(ident, [])
+        index = picks.get(ident, {}).get("pick", 0)
+        if index is not None and (candidates or ident in picks):
+            chosen.append(candidates[index] if type(index) is int and 0 <= index < len(candidates) else {})
+            known.add(ident)
+    planned = _read(d / "plan.json", {}).get("visuals", {})
+    chosen.extend(planned.values())
+    known.update(planned)
+    chosen.extend(v for ident, v in _read(d / "data.json", {}).get("visuals", {}).items() if "rights" in v or ident not in known)
+    return chosen
+
+
+def _manual_count(channel: dict) -> int:
+    from .queue import read
+    return sum(row.get("manual", False) for row in read(channel["slug"]) if row["status"] in ("queued", "kit", "posted"))
+
+
+def check(project: Path, clip: str, channel: dict, *, now: datetime | None = None) -> dict:
+    project = Path(project).resolve()
+    d = project / clip
+    cfg = _read(project / "factory.json", {})
+    now = now or datetime.now(timezone.utc)
+    blockers = []
+    if cfg.get("rights") not in ("own", "licensed", "permission"):
+        blockers.append("Source rights are unknown.")
+    if cfg.get("source"):
+        try:
+            src = registry.source(channel, cfg["source"])
+            expires = src["rights"].get("expires")
+            if expires and date.fromisoformat(expires) < now.date():
+                blockers.append("The source grant has expired.")
+        except registry.ChannelError:
+            blockers.append("The channel source is missing.")
+    if any(v.get("rights") not in ("cleared", "attribution") for v in _visuals(d)):
+        blockers.append("Picked visuals need cleared or attribution rights.")
+    if _read(d / "context.json", {}).get("flags"):
+        blockers.append("Context flags need review.")
+    brief = _read(d / "brief_check.json", {})
+    if brief.get("errors"):
+        blockers.append("Brief errors need fixing.")
+    if brief.get("flags"):
+        blockers.append("Brief flags need review.")
+    video = d / "clip.mp4"
+    if not video.is_file():
+        blockers.append("The 9x16 render is missing.")
+    if not (d / "post.json").is_file():
+        blockers.append("Post copy is missing.")
+    vote = rating(project, clip)
+    if vote == "no":
+        blockers.append("The clip is rated No.")
+    else:
+        approval = channel["approval"]
+        policy = approval["policy"]
+        if policy == "auto" and _manual_count(channel) < approval["manual_first"]:
+            policy = "manual"
+        if policy == "manual" and vote != "post":
+            blockers.append("Manual approval needs a Post rating.")
+        elif policy == "veto" and vote != "post":
+            if vote is not None:
+                blockers.append("The clip still needs a Post rating.")
+            elif not video.is_file() or now.timestamp() - video.stat().st_mtime < approval["veto_hours"] * 3600:
+                blockers.append("The veto window is still open.")
+        elif policy == "auto" and vote not in (None, "post"):
+            blockers.append("The clip still needs a Post rating.")
+    if registry.paused(channel["slug"]):
+        blockers.append("The channel or network is paused.")
+    result = {"publishable": not blockers, "blockers": blockers}
+    _write(d / "gate.json", result)
+    return result

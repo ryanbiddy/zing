@@ -1,0 +1,168 @@
+"""Allocate local posting slots without posting anything."""
+from __future__ import annotations
+
+import json
+import re
+from collections import Counter
+from datetime import datetime, time, timedelta, timezone
+from pathlib import Path
+
+from myzing.factory.pipeline import _read
+
+from . import gate, registry
+from .registry import ChannelError
+
+STATUSES = ("queued", "kit", "posted", "skipped")
+
+
+def read(slug: str) -> list[dict]:
+    path = registry.directory(slug) / "queue.jsonl"
+    if not path.is_file():
+        return []
+    try:
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        for row in rows:
+            slot = datetime.fromisoformat(row["slot"])
+            if slot.tzinfo is None or row["status"] not in STATUSES:
+                raise ValueError("invalid slot or status")
+            if row["id"] != f"{Path(row['project']).name}/{row['clip']}" or not re.fullmatch(r"clip\d{2,}", row["clip"]):
+                raise ValueError("invalid clip id")
+        return rows
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ChannelError(f"queue.jsonl is invalid. {exc}") from exc
+
+
+def write(slug: str, rows: list[dict]) -> None:
+    path = registry.directory(slug) / "queue.jsonl"
+    tmp = path.with_suffix(".jsonl.tmp")
+    tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    tmp.replace(path)
+
+
+def _now(now: datetime | None = None) -> datetime:
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        raise ChannelError("now must include a timezone")
+    return now
+
+
+def _daily(day, channel: dict):
+    cadence = channel["cadence"]
+    zone = registry.zone(cadence["timezone"])
+    for value in sorted(cadence["times"]):
+        slot = datetime.combine(day, time.fromisoformat(value), zone)
+        if slot.astimezone(timezone.utc).astimezone(zone) == slot:  # skip local times lost when clocks move forward
+            yield slot
+
+
+def slots(channel: dict, rows: list[dict], now: datetime | None = None):
+    now = _now(now)
+    zone = registry.zone(channel["cadence"]["timezone"])
+    occupied = {datetime.fromisoformat(r["slot"]).timestamp() for r in rows}
+    counts = Counter(datetime.fromisoformat(r["slot"]).astimezone(zone).date() for r in rows)
+    day = now.astimezone(zone).date()
+    while True:
+        if counts[day] < channel["cadence"]["per_day"]:
+            for slot in _daily(day, channel):
+                if counts[day] >= channel["cadence"]["per_day"]:
+                    break
+                if slot.timestamp() >= now.timestamp() and slot.timestamp() not in occupied:
+                    yield slot
+                    counts[day] += 1
+        day += timedelta(days=1)
+
+
+def next_slot(channel: dict, rows: list[dict], now: datetime | None = None) -> str:
+    return next(slots(channel, rows, now)).isoformat(timespec="seconds")
+
+
+def _seed_ok(slot: datetime, rows: list[dict], channel: dict) -> bool:
+    every = channel["seeding"]["every"]
+    zone = slot.tzinfo
+    for row in rows:
+        if not row.get("own") or row["status"] == "skipped":
+            continue
+        a, b = sorted((slot, datetime.fromisoformat(row["slot"]).astimezone(zone)), key=lambda d: d.timestamp())
+        day, count = a.date(), 0
+        while day <= b.date() and count < every:
+            count += sum(a.timestamp() < s.timestamp() <= b.timestamp() for s in _daily(day, channel))
+            day += timedelta(days=1)
+        if count < every:
+            return False
+    return True
+
+
+def _episode_ok(project: str, slot: datetime, rows: list[dict]) -> bool:
+    active = sorted((r for r in rows if r["status"] != "skipped"), key=lambda r: datetime.fromisoformat(r["slot"]).timestamp())
+    before = [r for r in active if datetime.fromisoformat(r["slot"]).timestamp() < slot.timestamp()]
+    after = active[len(before):]
+    count = 1
+    for side in (reversed(before), iter(after)):
+        for row in side:
+            if row["project"] != project:
+                break
+            count += 1
+    return count <= 3
+
+
+def build(slug: str, now: datetime | None = None) -> dict:
+    channel = registry.load(slug)
+    registry.require_running(slug)
+    now = _now(now)
+    rows = read(slug)
+    seen = {r["id"] for r in rows}
+    pending, blocked = [], {}
+    for project in sorted((registry.directory(slug) / "projects").iterdir()):
+        if not project.is_dir():
+            continue
+        cfg = _read(project / "factory.json", {})
+        for d in sorted(project.glob("clip[0-9][0-9]*")):
+            if not d.is_dir() or not re.fullmatch(r"clip\d{2,}", d.name):
+                continue
+            ident = f"{project.name}/{d.name}"
+            if ident in seen:
+                continue
+            result = gate.check(project, d.name, channel, now=now)
+            if not result["publishable"]:
+                blocked[ident] = result["blockers"]
+                continue
+            src = registry.source(channel, cfg["source"]) if cfg.get("source") else {}
+            pending.append({"id": ident, "project": str(project.resolve()), "clip": d.name, "status": "queued",
+                            "title": _read(d / "post.json", {}).get("youtube_title", ""), "own": src.get("kind") == "own",
+                            "manual": gate.rating(project, d.name) == "post", "queued_at": now.isoformat(timespec="seconds")})
+    added = 0
+    cursor = now
+    while pending:
+        slot = next(slots(channel, rows, cursor))
+        candidates = [r for r in pending if _episode_ok(r["project"], slot, rows)]
+        if not candidates and all(datetime.fromisoformat(r["slot"]).timestamp() < slot.timestamp() for r in rows):
+            break
+        chosen = next((r for r in candidates if not r["own"] or _seed_ok(slot, rows, channel)), None)
+        if chosen is not None:
+            row = {**chosen, "slot": slot.isoformat(timespec="seconds")}
+            with (registry.directory(slug) / "queue.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            rows.append(row)
+            pending.remove(chosen)
+            added += 1
+        cursor = datetime.fromtimestamp(slot.timestamp() + 1, timezone.utc)
+    for row in pending:
+        blocked[row["id"]] = ["Waiting for another episode after three clips in a row."]
+    return {"added": added, "blocked": blocked, "next_slot": next_slot(channel, rows, now)}
+
+
+def mark(slug: str, ident: str, status: str, url: str | None = None) -> dict:
+    registry.load(slug)
+    if status not in ("posted", "skipped"):
+        raise ChannelError("status must be posted or skipped")
+    if url is not None:
+        registry.web_url(url, "url")
+    rows = read(slug)
+    row = next((r for r in rows if r["id"] == ident), None)
+    if row is None:
+        raise ChannelError(f"queue id {ident} was not found")
+    row["status"] = status
+    if url is not None:
+        row["url"] = url
+    write(slug, rows)
+    return row

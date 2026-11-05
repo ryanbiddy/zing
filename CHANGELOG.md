@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Add `zing channels` for niche settings, source grants, approval gates, local
+  queues and post kits. `factory new --channel SLUG --source ID` shares defaults
+  and review history across episodes. Nothing posts by itself.
+
 ## Clip factory
 
 - Review edits read current files in the queue. MCP refuses edits during active

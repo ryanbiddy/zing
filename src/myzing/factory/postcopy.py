@@ -23,14 +23,14 @@ def news_line(news: dict | None, links: bool = False) -> str:
 
 
 def prompt(moment: dict, words: dict, source: dict, mode: str = "context", brand: dict | None = None,
-           news: dict | None = None) -> str:
+           news: dict | None = None, voice: str | None = None) -> str:
     text = data_path("prompts", "copy-launch.md" if mode == "launch" else "copy.md").read_text(encoding="utf-8")
     for k, v in {"{SOURCE}": source.get("name", ""), "{HOOK}": moment["hook"] or NO_HOOK,
                  "{DATE}": source.get("date") or "unknown",
                  "{BRAND}": brand_line(brand), "{NEWS}": news_line(news),
                  "{TEXT}": " ".join(w["w"] for w in words["words"])}.items():
         text = text.replace(k, v)
-    return text
+    return text + ("\n\nCHANNEL VOICE\n" + voice if voice else "")
 
 
 def stamp(seconds: float) -> str:
