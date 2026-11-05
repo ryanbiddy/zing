@@ -86,13 +86,14 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
         if shape not in render.SHAPES:
             raise FactoryError(f"unknown shape {shape}")
     render.theme(settings.get("pack", SETTINGS["pack"]))
+    if transcript:
+        segments, words = source.load_transcript(Path(transcript), offset)
     project.mkdir(parents=True, exist_ok=True)
     src = {"media": str(media), "name": name or media.stem, "url": url, "date": date, "tag": tag}
     _write(project / "source.json", src)
     _write(project / "factory.json", {**SETTINGS, **settings, "created": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     (project / "network.jsonl").touch(exist_ok=True)
     if transcript:
-        segments, words = source.load_transcript(Path(transcript), offset)
         _write(project / "transcript.json", segments)
         if words:
             _write(project / "words.json", words)
@@ -326,8 +327,9 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
                                                                                                 cfg.get("news"))), w, src))
         except NeedsAnswer:
             waiting.append(f"{task}-copy")
+    heard = _read(d / "words-heard.json", w)
     try:
-        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, w, cfg["mode"], cfg.get("brand"), cfg.get("vocab"),
+        raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, heard, cfg["mode"], cfg.get("brand"), cfg.get("vocab"),
                                                                news=cfg.get("news"))), w["words"][-1]["oe"])
     except NeedsAnswer:
         return waiting + [f"{task}-plan"]
@@ -348,16 +350,19 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             saved = _read(visdir / "picks.json")
             if saved is None:
                 sheet = pick.sheet(visdir, reqs, manifest)
-                try:
-                    answer = judge.ask(f"{task}-pick", pick.prompt(sheet, "context" if mode == "launch" else mode,
-                                                               raw.get("sensitive_reason", "") if sensitive else None),
-                                       images=(sheet,))
-                except NeedsAnswer:
-                    return waiting + [f"{task}-pick"]
-                saved = {"mode": mode, "picks": pick.picks_from(answer)}
-                _write(visdir / "picks.json", saved)
-            picks = saved["picks"]
-            found = pick.chosen(visdir, reqs, manifest, picks)
+                if sheet is None:
+                    say(f"{task} has no pick sheet. Continuing without visuals.")
+                else:
+                    try:
+                        answer = judge.ask(f"{task}-pick", pick.prompt(sheet, "context" if mode == "launch" else mode,
+                                                                   raw.get("sensitive_reason", "") if sensitive else None),
+                                           images=(sheet,))
+                    except NeedsAnswer:
+                        return waiting + [f"{task}-pick"]
+                    saved = {"mode": mode, "picks": pick.picks_from(answer)}
+                    _write(visdir / "picks.json", saved)
+            if saved is not None:
+                found = pick.chosen(visdir, reqs, manifest, saved["picks"])
     final_path = d / "plan.json"
     inputs = [project / "answers" / f"{task}-{kind}.json" for kind in ("plan", "pick")] + [visdir / "picks.json"]
     if not final_path.is_file() or any(p.is_file() and p.stat().st_mtime > final_path.stat().st_mtime for p in inputs):
@@ -466,6 +471,8 @@ def answer(project: Path, task: str, text: str | dict) -> dict:
             missing = [k for k in postcopy.FIELDS if not isinstance(value.get(k), str)]
             if missing:
                 raise ValueError(f"copy answer is missing {', '.join(missing)}")
+        elif kind == "context":
+            context.check(value, "", [])
     except (ValueError, KeyError, TypeError) as exc:       # the prompt stays pending for another try
         raise FactoryError(f"answer for {task} rejected: {exc}") from exc
     Judge(Path(project)).save(task, value)

@@ -48,6 +48,14 @@ def _in_clip(at, last_word: float | None = None) -> bool:
         and math.isfinite(at)
 
 
+def visual_id(value, used: set[str]) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", str(value)).strip("-")[:60] or "item"
+    while safe in used:
+        safe += "_"
+    used.add(safe)
+    return safe
+
+
 def check(plan: dict, last_word: float | None = None) -> dict:
     if not isinstance(plan.get("hook"), str) or not isinstance(plan.get("shots"), list) or not plan["shots"]:
         raise ValueError("plan needs a hook and a non-empty shots list")
@@ -61,9 +69,15 @@ def check(plan: dict, last_word: float | None = None) -> dict:
             raise ValueError(f"bad graphic in shot at {s['from']}")
         shots.append(s)
     plan["shots"] = shots or [{"from": 0, "layout": "solo"}]
-    ids = {r.get("id") for r in plan.get("visual_requests", [])}
+    ids, used = {}, set()
+    for r in plan.get("visual_requests", []):
+        old = r.get("id", "")
+        r["id"] = visual_id(old, used)
+        ids.setdefault(old, r["id"])
     for s in plan["shots"]:
-        if s["layout"] == "split" and s.get("visual") not in ids:
+        if "visual" in s:
+            s["visual"] = ids.get(s["visual"], s["visual"])
+        if s["layout"] == "split" and s.get("visual") not in used:
             s.update(layout="solo")
             s.pop("visual", None)
     return plan
@@ -119,7 +133,8 @@ def _fix_text(value, pairs: list[tuple[str, str]]):
     """The same corrections in on-screen text and copy, case-insensitive."""
     if isinstance(value, str):
         for heard, meant in pairs:
-            value = re.sub(re.escape(heard), meant, value, flags=re.IGNORECASE)
+            pattern = f"(?:{re.escape(meant)})|(?:{re.escape(heard)})" if heard.lower() in meant.lower() else re.escape(heard)
+            value = re.sub(pattern, meant, value, flags=re.IGNORECASE)
         return value
     if isinstance(value, list):
         return [_fix_text(v, pairs) for v in value]
@@ -245,7 +260,8 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
     spoken = spoken_numbers(words)[0]
     src = d.parent / "source.json"
     source = json.loads(src.read_text(encoding="utf-8")) if src.is_file() else {}
-    intro = " ".join(re.findall(r"(?:^| )(?:im|i am|my name is|my names) ((?:[a-z0-9]+ ?){1,3})", spoken))   # "I'm Ana Smith"
+    intro = " ".join(_norm(name) for name in re.findall(
+        r"(?i:\bI['’]m|\bI am|\bmy name is|\bmy name['’]s)\s+((?:[A-Z][\w'-]*\s?){1,3})", " ".join(w["w"] for w in words)))
     people = " ".join(str(v) for v in (source.get("name"), source.get("tag"), (brand or {}).get("name"), intro) if v)
     requests = {r.get("id"): r for r in plan.get("visual_requests", []) if isinstance(r, dict)}
     for s in plan["shots"]:

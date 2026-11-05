@@ -37,20 +37,18 @@ async function main() {
       serviceWorkers: "block",
     });
     let first = true;
-    ctx.on("request", request => {
-      const host = new URL(request.url()).hostname;
-      if (host) {
-        if (!first) console.log(JSON.stringify({network: {at: new Date().toISOString(), host}}));
-        first = false;                              // the Python caller records the first navigation
-      }
-    });
     ctx.on("page", page => page.on("websocket", ws => console.log(JSON.stringify({network: {
       at: new Date().toISOString(), host: new URL(ws.url()).hostname
     }}))));
     await ctx.route("**/*", (route) => {
       let host = "";
       try { host = new URL(route.request().url()).hostname; } catch (_) {}
-      return AD.test(host) || PRIVATE.test(host) ? route.abort() : route.continue();
+      if (AD.test(host) || PRIVATE.test(host)) return route.abort();
+      if (host) {
+        if (!first) console.log(JSON.stringify({network: {at: new Date().toISOString(), host}}));
+        first = false;                              // the Python caller records the first navigation
+      }
+      return route.continue();
     });
     const page = await ctx.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
