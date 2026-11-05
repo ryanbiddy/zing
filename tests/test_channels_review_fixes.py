@@ -571,7 +571,7 @@ def test_folder_sources_never_put_local_paths_in_public_copy(channel, tmp_path, 
         assert str(incoming) not in text and incoming.as_posix() not in text
 
 
-@pytest.mark.parametrize("url", ["file:///C:/Users/owner/episode.mp4", "C:\\Users\\owner\\episode.mp4", "/home/owner/episode.mp4", "search words"])
+@pytest.mark.parametrize("url", ["file:///D:/shows/episode.mp4", "D:\\shows\\episode.mp4", "/srv/shows/episode.mp4", "search words"])
 def test_source_url_substitution_and_credits_allow_only_web_urls(channel, url):
     project = episode(channel)
     channel["sources"][0].update(kind="uoink", url="search words")
@@ -617,7 +617,7 @@ def test_channel_id_shaped_handles_resolve_the_handle_page(tmp_path):
 
 @pytest.mark.parametrize("text,blocked", [
     ("Full episode: file:///E:/shows/ep.mp4 (at 3:05)", True),
-    ("Saved at C:\\Users\\someone\\Videos\\ep.mp4", True),
+    ("Saved at D:\\shows\\ep.mp4", True),
     ("From E:/AI/inbox/ep.mp4", True),
     ("Full episode: https://example.org/episode?t=185s (at 3:05)", False),
 ])
