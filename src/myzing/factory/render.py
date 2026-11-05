@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import subprocess
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from . import cutout, depth, upscale
 from .tools import FactoryError, data_path, ffmpeg, ffprobe, node_sidecar, run, sidecar_env
@@ -45,13 +46,103 @@ def themes() -> list[str]:
     return sorted({p.stem for p in data_path("themes").glob("*.json")} | {p.stem for p in user_packs().glob("*.json")})
 
 
-def theme(name: str) -> dict:
+def theme_path(name: str) -> Path:
     if not re.fullmatch(r"[a-z0-9-]+", name):
         raise FactoryError(f"bad style pack name {name!r}: use lowercase letters, digits and dashes")
     for path in (user_packs() / f"{name}.json", data_path("themes", f"{name}.json")):
         if path.is_file():
-            return json.loads(path.read_text(encoding="utf-8"))
+            return path
     raise FactoryError(f"unknown style pack {name!r}; choose from {', '.join(themes())}")
+
+
+def theme(name: str) -> dict:
+    return json.loads(theme_path(name).read_text(encoding="utf-8"))
+
+
+def pack_data(pack: str | dict) -> tuple[dict, dict, list[str]]:
+    folder = None
+    try:
+        if isinstance(pack, str):
+            path = theme_path(pack)
+            folder, pack = path.with_suffix(""), json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, FactoryError) as exc:
+        return {}, {}, [str(exc)]
+    if not isinstance(pack, dict):
+        return {}, {}, ["a style pack must be a JSON object"]
+    errors, assets = [], {}
+
+    def asset(file, extensions, label):
+        if not isinstance(file, str) or not file or "\0" in file:
+            errors.append(f"{label} needs a file name")
+            return
+        p = Path(file.replace("\\", "/"))
+        if p.is_absolute() or PureWindowsPath(file).anchor or ".." in p.parts or ":" in file:
+            errors.append(f"{label} file {file!r} must stay inside the pack folder")
+            return
+        if p.suffix.lower() not in extensions:
+            errors.append(f"{label} file {file!r} has a bad extension; use {', '.join(extensions)}")
+            return
+        if folder is None:
+            errors.append(f"{label} file {file!r} needs a named style pack to locate its folder")
+            return
+        try:
+            root, resolved = folder.resolve(), (folder / p).resolve()
+            if not resolved.is_relative_to(root):
+                errors.append(f"{label} file {file!r} must stay inside the pack folder")
+            elif not resolved.is_file():
+                errors.append(f"{label} file {file!r} is missing")
+            else:
+                return resolved.as_uri()
+        except (OSError, ValueError, RuntimeError) as exc:
+            errors.append(f"{label} file {file!r} cannot be read; {exc}")
+
+    fonts = pack.get("fonts", [])
+    if not isinstance(fonts, list):
+        errors.append("fonts must be a list")
+        fonts = []
+    families, loaded = set(), []
+    for font in fonts:
+        if not isinstance(font, dict) or not isinstance(font.get("family"), str) or not font["family"].strip():
+            errors.append("each font needs a family name")
+            continue
+        family = font["family"]
+        families.add(family.casefold())
+        weight, style = font.get("weight", 400), font.get("style", "normal")
+        if type(weight) is not int or not 1 <= weight <= 1000:
+            errors.append(f"font {family!r} weight must be an integer from 1 to 1000")
+        if style not in ("normal", "italic", "oblique"):
+            errors.append(f"font {family!r} style must be normal, italic or oblique")
+        src = asset(font.get("file"), (".ttf", ".otf", ".woff", ".woff2"), f"font {family!r}")
+        if src:
+            loaded.append({"family": family, "file": font["file"], "weight": weight, "style": style, "src": src})
+    if loaded:
+        assets["fonts"] = loaded
+    scene = data_path("scene.html").read_text(encoding="utf-8")
+    families.update(f.strip(" '\"").casefold() for f in re.findall(r"@font-face\s*\{\s*font-family:([^;]+);", scene))
+
+    def faces(fields, prefix=""):
+        for key, value in fields.items():
+            if key.endswith("_font") or key == "font":
+                if not isinstance(value, str) or value.casefold() not in families:
+                    errors.append(f"{prefix}{key} uses unknown font family {value!r}")
+            elif isinstance(value, dict):
+                faces(value, f"{prefix}{key}.")
+
+    faces(pack)
+    pos, height = pack.get("logo_pos", "top-right"), pack.get("logo_h", 72)
+    if pos not in ("top-left", "top-right", "bottom-right"):
+        errors.append("logo_pos must be top-left, top-right or bottom-right")
+    if type(height) not in (int, float) or not math.isfinite(height) or height <= 0:
+        errors.append("logo_h must be a positive number")
+    if "logo" in pack:
+        src = asset(pack["logo"], (".svg", ".png"), "logo")
+        if src:
+            assets["logo"] = {"file": pack["logo"], "src": src, "pos": pos, "h": height}
+    return pack, assets, errors
+
+
+def check_pack(pack: str | dict) -> list[str]:
+    return pack_data(pack)[2]
 
 
 def suffix(shape: str, pack: str) -> str:
@@ -112,6 +203,10 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     front: stand the speaker, cut out, in front of each split shot's picture (None: the project's cutout setting, when
     the cutout model is installed). Shots stay split when the speaker can't be lifted cleanly.
     """
+    theme, assets, errors = pack_data(pack)
+    if errors:
+        raise FactoryError(f"style pack {pack if isinstance(pack, str) else pack.get('name', 'trial')!r} failed checks\n"
+                           + "\n".join(errors))
     from PIL import Image
     plan = json.loads((d / "plan.json").read_text(encoding="utf-8"))
     if speaker_only:                                   # style checks compare captions over the speaker only
@@ -168,7 +263,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,
             "sourceTag": json.loads(source.read_text(encoding="utf-8")).get("tag", "") if source.is_file() else "",
-            "W": W, "H": H, "aspect": shape, "theme": pack if isinstance(pack, dict) else theme(pack)}
+            "W": W, "H": H, "aspect": shape, "theme": theme, **assets}
 
 
 def capture(data: dict, data_file: Path, frames: Path, *, layer: str | None = None,
@@ -187,6 +282,9 @@ def capture(data: dict, data_file: Path, frames: Path, *, layer: str | None = No
             env=sidecar_env(tmp), cwd=sidecar, capture_output=True)
         if layer == "overlay":
             flatten_backdrop(frames)
+    except subprocess.CalledProcessError as exc:
+        message = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr
+        raise FactoryError(message or "scene capture failed") from exc
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
