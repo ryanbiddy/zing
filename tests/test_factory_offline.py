@@ -175,10 +175,13 @@ def test_remote_video_paths_and_local_probes(tmp_path, monkeypatch):
     monkeypatch.setattr(visuals.subprocess, "run", run)
     ctx = visuals.Ctx(root / "visuals")
     visuals.fetch_video(ctx, {"source": "commons"}, URL, root)
-    assert [(r["purpose"], r["bytes"]) for r in rows(root)] == [("video probe", None), ("visual download", len(VIDEO))]
+    # the redirect check before FFmpeg is a request of its own, so the ledger records it too
+    assert [(r["purpose"], r["bytes"]) for r in rows(root)] == [("video redirect", 0), ("video probe", None),
+                                                               ("visual download", len(VIDEO))]
     visuals.fetch_video(ctx, {"source": "commons", "width": 1920, "height": 1080, "duration": 100}, URL, root)
     assert rows(root)[-1]["purpose"] == "video excerpt" and rows(root)[-1]["bytes"] is None
-    assert len(rows(root)) == 3 and len(calls) == 4
+    assert [r["purpose"] for r in rows(root)[3:]] == ["video redirect", "video excerpt"]   # known size: no probe
+    assert len(calls) == 4
 
 
 def test_ffmpeg_range_requests_and_redirect_hosts_are_recorded(tmp_path, monkeypatch):

@@ -6,6 +6,9 @@
   adds campaign length checks, required tags, banned-term flags and a disclosure
   at the start of every rendered shape.
 
+- security: Limit Claude image reads to attached files. Check video redirects before
+  FFmpeg runs. Block private DNS answers and WebSockets in page captures.
+
 - Factory review fixes correct 4K export sizes, transcript setup, batch retries,
   visual IDs, caption fixes, dashboard state and sign-in, network logs, name tags,
   and context answer validation.
