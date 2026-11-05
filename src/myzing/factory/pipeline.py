@@ -390,12 +390,16 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     elif brief:
         return waiting
     render.check_brief(d)
+    theme, assets, _ = render.pack_data(cfg["pack"])
+    brand = {"theme": theme, **assets}
     for shape in cfg["shapes"]:
         tag = render.suffix(shape, cfg["pack"])
         out = d / f"clip{tag}.mp4"
+        saved = _read(d / f"data{tag}.json", {})
         if (not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime
-                or _read(d / f"data{tag}.json", {}).get("scale", 1) != render.scale(cfg)
-                or _read(d / f"data{tag}.json", {}).get("disclosure") != campaign.disclosure(brief)):
+                or saved.get("scale", 1) != render.scale(cfg)
+                or saved.get("disclosure") != campaign.disclosure(brief)
+                or any(saved.get(k) != brand.get(k) for k in ("theme", "fonts", "logo"))):
             say(f"{task}: rendering {shape} ({cfg['pack']})")
             render.render(d, shape, cfg["pack"])
     return waiting
