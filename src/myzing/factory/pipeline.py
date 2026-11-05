@@ -19,7 +19,7 @@ from .tools import FactoryError
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
             "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
-            "news": None, "offline": False, "visuals": None, "rights": "unknown"}
+            "news": None, "offline": False, "visuals": None, "rights": "unknown", "channel": None, "source": None}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -38,14 +38,16 @@ def _write(path: Path, value) -> None:
 
 
 def init(project: Path, media: Path, *, transcript: Path | None = None, offset: float = 0.0, name: str | None = None,
-         url: str = "", date: str = "", tag: str = "", rights: str = "unknown", brief: Path | None = None, **settings) -> dict:
+         url: str = "", date: str = "", tag: str = "", rights: str = "unknown", brief: Path | dict | None = None, **settings) -> dict:
     """Create a factory project. The media stays where it is; nothing is downloaded or uploaded."""
     project, media = Path(project).resolve(), Path(media).resolve()
     if not media.is_file():
         raise FactoryError(f"media not found: {media}")
     if not isinstance(rights, str) or rights not in campaign.RIGHTS:
         raise FactoryError(f"rights must be one of {', '.join(campaign.RIGHTS)}")
-    rules = campaign.load(Path(brief).expanduser()) if brief is not None else None
+    rules = None
+    if brief is not None:
+        rules = campaign.validate(dict(brief)) if isinstance(brief, dict) else campaign.load(Path(brief).expanduser())
     settings["rights"] = rights
     unknown = set(settings) - set(SETTINGS)
     if unknown:
@@ -331,10 +333,14 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     src["rights"] = cfg.get("rights", "unknown")
     waiting = []
     if not (d / "post.json").is_file():
+        voice = None
+        if cfg.get("channel"):
+            from myzing.channels.registry import voice as channel_voice
+            voice = channel_voice(cfg["channel"])
         try:
             _write(d / "post.json", postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"],
                                                                                                 cfg.get("brand"),
-                                                                                                cfg.get("news"))), w, src, brief))
+                                                                                                cfg.get("news"), voice=voice)), w, src, brief))
         except NeedsAnswer:
             waiting.append(f"{task}-copy")
     heard = _read(d / "words-heard.json", w)

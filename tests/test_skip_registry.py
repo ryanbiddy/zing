@@ -43,6 +43,11 @@ REGISTERED_SKIPS = {
         "models, layout fetch-model --vision provisions them explicitly, and docs/VIS1.md documents "
         "offline fixtures and the opt-in. Missing models retain labeled HOG/saliency fallbacks."
     ),
+    "needs an IANA time zone database (pip install tzdata)": (
+        "the daylight-saving slot test needs named zones; Windows Python ships none without tzdata. "
+        "PRODUCT SURFACE: channels default to the computer's local time, accept UTC offsets, and "
+        "registry.zone() names pip install tzdata when a named zone is missing."
+    ),
     "FFmpeg not installed": (
         "generated source-map media requires the encoder. PRODUCT SURFACE: zing doctor "
         "reports FFmpeg availability; the strict FFmpeg gate forbids this skip."

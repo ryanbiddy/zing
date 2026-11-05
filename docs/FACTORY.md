@@ -5,6 +5,13 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
+## Channels
+
+Use [`zing channels`](CHANNELS.md) to keep source grants, factory defaults,
+review history and a posting queue for one niche. `factory new --channel SLUG`
+uses those defaults; `--source ID` selects a registered source. Explicit flags
+still win. Channels check clips and make local post kits for you to upload.
+
 ```text
 episode + captions -> scout moments -> cut -> plan the screen -> find visuals -> pick
                    -> fact-check + context check -> render 9:16 / 1:1 / 16:9 -> copy -> review page

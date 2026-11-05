@@ -67,9 +67,9 @@ def _new_settings(new: argparse.ArgumentParser) -> None:
 
 def _settings(args: argparse.Namespace) -> dict:
     return dict(transcript=args.transcript, offset=args.offset, name=args.name, url=args.url, date=args.date, tag=args.tag,
-                rights=args.rights, brief=args.brief,
-                vocab=[term for group in args.vocab for term in group.split(",")],
-                mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
+                rights=args.rights or "unknown", brief=args.brief,
+                vocab=[term for group in (args.vocab or []) for term in group.split(",")],
+                mode=args.mode or "context", public=args.public, parallax=args.parallax, cutout=args.cutout,
                 upscale=args.upscale, uhd=args.uhd, offline=args.offline, visuals=args.visuals,
                 **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack, "moments": args.moments,
                                      "focus": args.focus, "show": args.show}.items() if v is not None},
@@ -78,13 +78,44 @@ def _settings(args: argparse.Namespace) -> dict:
                 **({"news": {"peg": args.news_peg, "links": args.news}} if args.news_peg or args.news else {}))
 
 
+def _channel_settings(args: argparse.Namespace) -> tuple[Path, dict]:
+    from myzing.channels import registry
+    settings = _settings(args)
+    if not args.channel:
+        if args.source:
+            raise registry.ChannelError("--source needs --channel")
+        if args.project is None:
+            raise registry.ChannelError("a project path or --channel is required")
+        return args.project, settings
+    channel = registry.load(args.channel)
+    for key, value in channel["factory"].items():
+        if getattr(args, key) is None:
+            settings[key] = value
+    network = channel["network"]
+    brand = {"name": network.get("name") or channel["name"], "url": network.get("url", ""), "cta": network.get("line", "")}
+    brand.update({key: value for key, value in (("name", args.brand_name), ("url", args.brand_url), ("cta", args.cta))
+                  if value is not None})
+    settings.update(channel=args.channel, source=args.source, show=args.channel, brand=brand)
+    if args.source:
+        src = registry.source(channel, args.source)
+        if args.rights is None:
+            settings["rights"] = registry.effective_rights(src)
+        settings["name"] = args.name if args.name is not None else src["name"]
+        settings["url"] = args.url or src.get("url", "")
+    project = args.project if args.project is not None else registry.directory(args.channel) / "projects" / args.media.stem
+    return project, settings
+
+
 def run(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="zing factory", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="start a project from a local episode file")
-    new.add_argument("project", type=Path)
+    new.add_argument("project", type=Path, nargs="?")
     new.add_argument("--media", type=Path, required=True, help="the local episode video")
     _new_settings(new)
+    new.add_argument("--channel", metavar="SLUG", help="use a channel's defaults and shared Post and No history")
+    new.add_argument("--source", metavar="ID", help="use a source registered with the channel")
+    new.set_defaults(mode=None, rights=None, vocab=None)
     batch = commands.add_parser("batch", help="clip new episodes in a folder and resume unfinished projects")
     batch.add_argument("inbox", type=Path)
     batch.add_argument("--out", type=Path, required=True, help="folder for episode projects and batch.jsonl")
@@ -179,7 +210,8 @@ def run(argv: list[str]) -> int:
         from . import pipeline
         from .judge import Judge
         if args.command == "new":
-            result = pipeline.init(args.project, args.media, **_settings(args))
+            project, settings = _channel_settings(args)
+            result = pipeline.init(project, args.media, **settings)
         elif args.command == "batch":
             from .batch import run as run_batch
             result = run_batch(args.inbox, args.out, judge=args.judge, watch=args.watch, every=args.every, limit=args.limit,
