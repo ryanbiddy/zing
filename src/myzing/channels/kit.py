@@ -104,7 +104,7 @@ document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener
     return path
 
 
-def kit(slug: str, out: Path | None = None) -> dict:
+def kit(slug: str, out: Path | None = None, *, stop=None) -> dict:
     channel = registry.load(slug)
     registry.require_running(slug)
     out = Path(out).expanduser().resolve() if out is not None else registry.directory(slug) / "kits"
@@ -112,6 +112,8 @@ def kit(slug: str, out: Path | None = None) -> dict:
     rows = queue.read(slug)
     made, blocked, warnings = [], {}, []
     for row in rows:
+        if stop and stop():
+            break
         if row["status"] != "queued":
             continue
         project = Path(row["project"])

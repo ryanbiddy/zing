@@ -12,6 +12,20 @@ review history and a posting queue for one niche. `factory new --channel SLUG`
 uses those defaults; `--source ID` selects a registered source. Explicit flags
 still win. Channels check clips and make local post kits for you to upload.
 
+Channel projects choose among the copy judge's alternative title patterns and
+save the choice probability and policy in `post.json`. Each clip's `arms.json`
+records its archetype, title pattern, rendered length, graphics density and pack.
+`zing channels track SLUG` measures posted results, and `learn SLUG` reports them.
+Later scouts use those results and any channel prior alongside Post and No calls.
+See [How a channel learns](CHANNELS.md#how-a-channel-learns).
+
+`zing channels watch SLUG` finds source items and starts projects when local
+video and source rights are ready. `zing channels tick --all --max-minutes 50`
+advances one episode per channel, queues clips and makes kits. The channel's
+`judge` defaults to `host`, which waits for answers at pending prompts.
+`zing channels digest --all --out digest.md` reports the last day's work and
+what needs attention. See [Channels](CHANNELS.md#run-it-every-hour) for scheduling.
+
 ```text
 episode + captions -> scout moments -> cut -> plan the screen -> find visuals -> pick
                    -> fact-check + context check -> render 9:16 / 1:1 / 16:9 -> copy -> review page
@@ -22,8 +36,9 @@ episode + captions -> scout moments -> cut -> plan the screen -> find visuals ->
 Use `zing playbook niches niches.json --out zing-workspace/scout` to compare
 channels from public metadata. `watch` saves view snapshots, `velocity` compares
 views at fixed ages, and `prior` exports title guidance without competitor titles.
-These commands fetch no video, thumbnails or audio. The factory does not consume
-the prior yet. See [Pick a niche](PLAYBOOK.md#pick-a-niche) for inputs and formulas.
+These commands fetch no video, thumbnails or audio. Set a channel's `prior` to
+the exported file to guide its titles and scout. See [Pick a niche](PLAYBOOK.md#pick-a-niche)
+for inputs and formulas.
 
 ## Quick start
 

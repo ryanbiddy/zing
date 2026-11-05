@@ -26,6 +26,15 @@ HAND = (3.0, 180.0)                                 # a clip picked by hand: sho
 LAUNCH = {"moments": 2, "shapes": ["16x9", "1x1", "9x16"], "pack": "launch"}   # a launch film is landscape first
 
 
+class _Stopped(Exception):
+    pass
+
+
+def _checkpoint(stop):
+    if stop and stop():
+        raise _Stopped
+
+
 def _read(path: Path, default=None):
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else default
 
@@ -121,7 +130,7 @@ def _transcript(project: Path, media: Path, say, vocab: list[str] | None = None)
     return segments
 
 
-def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[dict]:
+def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None) -> list[dict]:
     path = project / "moments.json"
     brief = campaign.read(project)
     mode = cfg.get("mode", "context")
@@ -130,10 +139,11 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
     if not data.get("scouted"):
         segments = _transcript(project, media, say, cfg.get("vocab"))     # also what clips are picked from by hand
     if not data.get("scouted") and cfg["moments"]:
+        _checkpoint(stop)
         n = cfg["moments"]
         found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), mode,
                                                             focus=cfg.get("focus"), taste=taste(project, cfg),
-                                                            news=cfg.get("news"), brief=brief)),
+                                                            news=cfg.get("news"), brief=brief, channel=cfg.get("channel"))),
                             segments[-1]["e"] if segments else None, brief=brief, mode=mode)
         moments = moments + found[:n]                # clips picked by hand before the scout keep their numbers
         data = {**data, "moments": moments, "bench": found[n:], "scouted": True}
@@ -141,6 +151,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
     todo = [m for m in moments if not m.get("snapped")]
     if not todo:
         return moments
+    _checkpoint(stop)
     words = _read(project / "words.json") or []
     pieces = []                                     # films share spans: transcribe each stretch of the episode once
     for a, b in sorted(ab for m in todo for ab in scout.parts(m)):
@@ -203,7 +214,7 @@ def rate(project: Path, clip: str, v: str | None, why: str = "") -> dict:
     if v not in ("post", "fix", "no", None):
         raise FactoryError("rating must be post, fix or no")
     i = _clip_number(project, clip)
-    row = {"v": v, "why": str(why or "")[:500], "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
+    row = {"v": v, "why": str(why or "")[:500], "at": datetime.now(timezone.utc).isoformat(timespec="microseconds")}
     ratings = _read(project / "ratings.json", {})
     ratings[clip] = row
     _write(project / "ratings.json", ratings)
@@ -318,7 +329,22 @@ def _context(d: Path, judge: Judge, say=print, m: dict | None = None) -> None:
         say(f"{d.name} check the context. {n} flag{'s' if n != 1 else ''}.")
 
 
-def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, words: list[dict], say) -> list[str]:
+def _arms(d: Path, moment: dict, cfg: dict, post: dict) -> dict:
+    planned, words = _read(d / "plan.json", {}), _read(d / "words.json", {})
+    duration = render.timeline(planned, words)[0]
+    graphics = sum(s.get("layout") == "graphic" for s in planned.get("shots", []))
+    arms = {"archetype": moment.get("archetype") if moment.get("archetype") in scout.ARCHETYPES else "other",
+            "title_pattern": post.get("title_pattern"), "title_propensity": post.get("title_propensity"),
+            "title_policy": post.get("title_policy"), "length": "short" if duration < 29 else "mid" if duration <= 45 else "long",
+            "density": "heavy" if duration > 0 and graphics * 60 / duration >= 6 else "light",
+            "pack": cfg["pack"], "hour": _read(d / "arms.json", {}).get("hour")}
+    if "title_candidates" in post:
+        arms["title_candidates"] = post["title_candidates"]
+    _write(d / "arms.json", arms)
+    return arms
+
+
+def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, words: list[dict], say, stop=None) -> list[str]:
     """Advance one clip as far as it can go; returns the tasks it is waiting on."""
     d = project / f"clip{i:02d}"
     task = f"clip{i:02d}"
@@ -332,18 +358,22 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     src["url"] = src.get("url") or cfg.get("url", "")
     src["rights"] = cfg.get("rights", "unknown")
     waiting = []
+    _checkpoint(stop)
     if not (d / "post.json").is_file():
         voice = None
         if cfg.get("channel"):
             from myzing.channels.registry import voice as channel_voice
             voice = channel_voice(cfg["channel"])
         try:
-            _write(d / "post.json", postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"],
-                                                                                                cfg.get("brand"),
-                                                                                                cfg.get("news"), voice=voice)), w, src, brief))
+            post = postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"], cfg.get("brand"),
+                                                                           cfg.get("news"), voice=voice)), w, src, brief)
+            if cfg.get("channel"):
+                post = postcopy.require_tags(postcopy.choose(post, cfg["channel"]), brief)
+            _write(d / "post.json", post)
         except NeedsAnswer:
             waiting.append(f"{task}-copy")
     heard = _read(d / "words-heard.json", w)
+    _checkpoint(stop)
     try:
         raw = plan.check(judge.ask(f"{task}-plan", plan.prompt(m, heard, cfg["mode"], cfg.get("brand"), cfg.get("vocab"),
                                                                news=cfg.get("news"))), w["words"][-1]["oe"])
@@ -355,6 +385,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     reqs = raw.get("visual_requests", [])
     visdir = d / "visuals"
     found: dict = {}
+    _checkpoint(stop)
     if reqs:
         if not (visdir / "manifest.json").is_file():
             say(f"{task}: finding visuals for {len(reqs)} requests ({mode})")
@@ -365,6 +396,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         if any(manifest.values()):
             saved = _read(visdir / "picks.json")
             if saved is None:
+                _checkpoint(stop)
                 sheet = pick.sheet(visdir, reqs, manifest)
                 if sheet is None:
                     say(f"{task} has no pick sheet. Continuing without visuals.")
@@ -385,6 +417,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         plan.finalize(d, raw, found, cfg.get("brand"), cfg.get("news"))
         _forget_context(d, judge)
     try:
+        _checkpoint(stop)
         _context(d, judge, say, m)
     except NeedsAnswer:
         waiting.append(f"{task}-context")
@@ -395,10 +428,12 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             _write(d / "post.json", updated)
     elif brief:
         return waiting
+    _arms(d, m, cfg, updated if post is not None else {})
     render.check_brief(d)
     theme, assets, _ = render.pack_data(cfg["pack"])
     brand = {"theme": theme, **assets}
     for shape in cfg["shapes"]:
+        _checkpoint(stop)
         tag = render.suffix(shape, cfg["pack"])
         out = d / f"clip{tag}.mp4"
         saved = _read(d / f"data{tag}.json", {})
@@ -411,12 +446,12 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     return waiting
 
 
-def run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print) -> dict:
+def run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print, stop=None) -> dict:
     with network.scope(project):
-        return _run(project, judge, only=only, say=say)
+        return _run(project, judge, only=only, say=say, **({"stop": stop} if stop else {}))
 
 
-def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print) -> dict:
+def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print, stop=None) -> dict:
     project = Path(project).resolve()
     if getattr(judge, "backend", "host") == "claude":
         network.Network(project).check("Claude judge")
@@ -425,24 +460,29 @@ def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print
         raise FactoryError(f"{project} is not a factory project; start one with 'zing factory new'")
     media = Path(src["media"])
     _write(project / "status.json", {"state": "running", "at": _now()})
+    failed = {}
     try:
+        _checkpoint(stop)
         render.warn_uhd(project, say)
         try:
-            moments = _moments(project, judge, media, cfg, say)
+            moments = _moments(project, judge, media, cfg, say, **({"stop": stop} if stop else {}))
         except NeedsAnswer:
             return _finish(project, judge, "waiting")
         words = _read(project / "words.json", [])
-        failed = {}
         for i, m in enumerate(moments, 1):
+            _checkpoint(stop)
             if only and i not in only:
                 continue
             try:
-                _clip(project, i, m, judge, media, cfg, words, say)
+                _clip(project, i, m, judge, media, cfg, words, say, **({"stop": stop} if stop else {}))
             except (FactoryError, ValueError, OSError) as exc:      # one bad clip never sinks the episode
                 failed[f"clip{i:02d}"] = str(exc)[:300]
                 say(f"clip{i:02d}: failed: {exc}")
+        _checkpoint(stop)
         review.build(project, cfg["pack"])
         return _finish(project, judge, "waiting" if judge.pending() else "done", failed)
+    except _Stopped:
+        return _finish(project, judge, "stopped", failed)
     except Exception as exc:
         _write(project / "status.json", {"state": "failed", "error": str(exc)[:500], "at": _now()})
         raise

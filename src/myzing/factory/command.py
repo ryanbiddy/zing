@@ -87,21 +87,12 @@ def _channel_settings(args: argparse.Namespace) -> tuple[Path, dict]:
         if args.project is None:
             raise registry.ChannelError("a project path or --channel is required")
         return args.project, settings
-    channel = registry.load(args.channel)
-    for key, value in channel["factory"].items():
+    for key in ("pack", "mode", "shapes", "moments", "focus", "vocab", "brief", "rights", "name"):
         if getattr(args, key) is None:
-            settings[key] = value
-    network = channel["network"]
-    brand = {"name": network.get("name") or channel["name"], "url": network.get("url", ""), "cta": network.get("line", "")}
-    brand.update({key: value for key, value in (("name", args.brand_name), ("url", args.brand_url), ("cta", args.cta))
-                  if value is not None})
-    settings.update(channel=args.channel, source=args.source, show=args.channel, brand=brand)
-    if args.source:
-        src = registry.source(channel, args.source)
-        if args.rights is None:
-            settings["rights"] = registry.effective_rights(src)
-        settings["name"] = args.name if args.name is not None else src["name"]
-        settings["url"] = args.url or src.get("url", "")
+            settings.pop(key, None)
+    settings["brand"] = {key: value for key, value in (("name", args.brand_name), ("url", args.brand_url), ("cta", args.cta))
+                         if value is not None}
+    settings = registry.project_settings(args.channel, args.source, **settings)
     project = args.project if args.project is not None else registry.directory(args.channel) / "projects" / args.media.stem
     return project, settings
 

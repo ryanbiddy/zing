@@ -19,6 +19,7 @@ from myzing.storage import workspace_root
 KINDS = ("youtube", "podcast", "uoink", "folder", "own")
 HANDLES = ("youtube", "tiktok", "instagram", "x")
 DEFAULTS = {"network": {}, "handles": {}, "factory": {}, "sources": [],
+            "judge": "host", "visuals": "cleared",
             "cadence": {"per_day": 3, "times": ["12:00", "17:00", "20:00"], "timezone": "local"},
             "approval": {"policy": "manual", "veto_hours": 6, "manual_first": 30}, "seeding": {"every": 8}}
 
@@ -121,7 +122,7 @@ def web_url(value, field):
 
 
 def validate(data: dict) -> dict:
-    _fields(data, {"schema_version", "slug", "name", "niche", "created", *DEFAULTS}, "channel")
+    _fields(data, {"schema_version", "slug", "name", "niche", "created", "prior", *DEFAULTS}, "channel")
     data = copy.deepcopy(data)
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         raise ChannelError("schema_version must be 1")
@@ -129,6 +130,8 @@ def validate(data: dict) -> dict:
     _text(data.get("niche"), "niche", required=True, most=200)
     data["slug"] = _slug(data.get("slug", pipeline.show_slug(data["name"])))
     _text(data.get("created"), "created", required=True)
+    if "prior" in data:
+        _text(data["prior"], "prior", required=True)
     try:
         datetime.fromisoformat(data["created"])
     except ValueError:
@@ -141,6 +144,10 @@ def validate(data: dict) -> dict:
             _fields(value, fields, key)
             value = {**copy.deepcopy(default), **value}
         data[key] = value
+    if data["judge"] not in ("host", "claude"):
+        raise ChannelError("judge must be host or claude")
+    if data["visuals"] not in ("cleared", "editorial"):
+        raise ChannelError("visuals must be cleared or editorial")
     for key, value in data["network"].items():
         _text(value, f"network.{key}")
     if data["network"].get("url"):
@@ -278,6 +285,20 @@ def effective_rights(src: dict, now: datetime | None = None) -> str:
     if rights.get("expires") and date.fromisoformat(rights["expires"]) < today:
         return "unknown"
     return rights.get("status", "unknown") if rights.get("grant", "").strip() else "unknown"
+
+
+def project_settings(slug: str, source_id: str | None = None, **settings) -> dict:
+    channel = load(slug)
+    network = channel["network"]
+    brand = {"name": network.get("name") or channel["name"], "url": network.get("url", ""), "cta": network.get("line", "")}
+    brand.update(settings.pop("brand", {}))
+    settings = {**channel["factory"], **settings, "channel": slug, "source": source_id, "show": slug, "brand": brand}
+    if source_id:
+        src = source(channel, source_id)
+        settings.setdefault("rights", effective_rights(src))
+        settings.setdefault("name", src["name"])
+        settings["url"] = settings.get("url") or src.get("url", "")
+    return settings
 
 
 def paused(slug: str) -> bool:

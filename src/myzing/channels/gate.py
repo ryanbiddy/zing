@@ -13,6 +13,20 @@ def rating(project: Path, clip: str) -> str | None:
     return (_read(project / "ratings.json", {}).get(clip) or {}).get("v")
 
 
+def _edited(project: Path, clip: str) -> bool:
+    row = _read(project / "ratings.json", {}).get(clip) or {}
+    if row.get("v") != "post" or "at" not in row:  # older ratings have no timestamp
+        return False
+    try:
+        approved = datetime.fromisoformat(row["at"])
+        if approved.tzinfo is None:
+            return True
+        return any(p.is_file() and p.stat().st_mtime >= approved.timestamp()
+                   for p in (project / clip / "clip.mp4", project / clip / "post.json"))
+    except (TypeError, ValueError):
+        return True
+
+
 def _visuals(d: Path) -> list[dict]:
     vis = d / "visuals"
     manifest = _read(vis / "manifest.json", {})
@@ -52,8 +66,9 @@ def check(project: Path, clip: str, channel: dict, *, now: datetime | None = Non
                 blockers.append("The source grant has expired.")
         except registry.ChannelError:
             blockers.append("The channel source is missing.")
-    if any(v.get("rights") not in ("cleared", "attribution") for v in _visuals(d)):
-        blockers.append("Picked visuals need cleared or attribution rights.")
+    rights = ("cleared", "attribution", "editorial") if channel.get("visuals") == "editorial" else ("cleared", "attribution")
+    if any(v.get("rights") not in rights for v in _visuals(d)):
+        blockers.append("Picked visuals need " + ", ".join(rights[:-1]) + " or " + rights[-1] + " rights.")
     if _read(d / "context.json", {}).get("flags"):
         blockers.append("Context flags need review.")
     brief = _read(d / "brief_check.json", {})
@@ -67,6 +82,9 @@ def check(project: Path, clip: str, channel: dict, *, now: datetime | None = Non
     if not (d / "post.json").is_file():
         blockers.append("Post copy is missing.")
     vote = rating(project, clip)
+    if _edited(project, clip):
+        blockers.append("The clip was edited after approval.")
+        vote = "fix"
     if vote == "no":
         blockers.append("The clip is rated No.")
     else:

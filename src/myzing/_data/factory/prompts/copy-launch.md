@@ -10,7 +10,9 @@ Rules:
 - First comment: the link placeholder {SOURCE_URL}.
 
 Return ONLY a JSON object, no prose, no code fence:
-{"x": str, "instagram": str, "tiktok": str, "youtube_title": str, "first_comment": str}
+{"x": str, "instagram": str, "tiktok": str, "youtube_title": str, "first_comment": str, "titles": [{"text": str, "pattern": str}]}
+
+Include three alternative YouTube titles in "titles", each at most 60 characters. Use a pattern from name_claim (a known person's name plus a specific past-tense claim), how_why, superlative, quote, question. Keep every claim grounded in the clip.
 
 BRAND: {BRAND}
 SOURCE: {SOURCE}
