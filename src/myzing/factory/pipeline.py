@@ -12,14 +12,14 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import context, cut, network, pick, plan, postcopy, render, review, scout, source, visuals
+from . import campaign, context, cut, network, pick, plan, postcopy, render, review, scout, source, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
             "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
-            "news": None, "offline": False, "visuals": None}
+            "news": None, "offline": False, "visuals": None, "rights": "unknown"}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -38,11 +38,15 @@ def _write(path: Path, value) -> None:
 
 
 def init(project: Path, media: Path, *, transcript: Path | None = None, offset: float = 0.0, name: str | None = None,
-         url: str = "", date: str = "", tag: str = "", **settings) -> dict:
+         url: str = "", date: str = "", tag: str = "", rights: str = "unknown", brief: Path | None = None, **settings) -> dict:
     """Create a factory project. The media stays where it is; nothing is downloaded or uploaded."""
     project, media = Path(project).resolve(), Path(media).resolve()
     if not media.is_file():
         raise FactoryError(f"media not found: {media}")
+    if not isinstance(rights, str) or rights not in campaign.RIGHTS:
+        raise FactoryError(f"rights must be one of {', '.join(campaign.RIGHTS)}")
+    rules = campaign.load(Path(brief).expanduser()) if brief is not None else None
+    settings["rights"] = rights
     unknown = set(settings) - set(SETTINGS)
     if unknown:
         raise FactoryError(f"unknown settings: {', '.join(sorted(unknown))}")
@@ -91,6 +95,8 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     project.mkdir(parents=True, exist_ok=True)
     src = {"media": str(media), "name": name or media.stem, "url": url, "date": date, "tag": tag}
     _write(project / "source.json", src)
+    if rules is not None:
+        _write(project / "brief.json", rules)
     _write(project / "factory.json", {**SETTINGS, **settings, "created": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     (project / "network.jsonl").touch(exist_ok=True)
     if transcript:
@@ -115,16 +121,18 @@ def _transcript(project: Path, media: Path, say, vocab: list[str] | None = None)
 
 def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[dict]:
     path = project / "moments.json"
+    brief = campaign.read(project)
+    mode = cfg.get("mode", "context")
     data = load_moments(project)
     moments = data.get("moments", [])
     if not data.get("scouted"):
         segments = _transcript(project, media, say, cfg.get("vocab"))     # also what clips are picked from by hand
     if not data.get("scouted") and cfg["moments"]:
         n = cfg["moments"]
-        found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), cfg["mode"],
+        found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), mode,
                                                             focus=cfg.get("focus"), taste=taste(project, cfg),
-                                                            news=cfg.get("news"))),
-                            segments[-1]["e"] if segments else None)
+                                                            news=cfg.get("news"), brief=brief)),
+                            segments[-1]["e"] if segments else None, brief=brief, mode=mode)
         moments = moments + found[:n]                # clips picked by hand before the scout keep their numbers
         data = {**data, "moments": moments, "bench": found[n:], "scouted": True}
         _write(path, data)
@@ -145,7 +153,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
         words = sorted(fresh + [w for w in words if not any(a <= w["s"] <= b for a, b in span)], key=lambda w: w["s"])
         _write(project / "words.json", words)
-    moments = [m if m.get("snapped") else {**scout.snap(m, words), "snapped": True} for m in moments]
+    moments = [m if m.get("snapped") else {**scout.snap(m, words, brief, mode), "snapped": True} for m in moments]
     _write(path, {**data, "moments": moments})
     return moments
 
@@ -318,13 +326,15 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         cut.cut(d, media, words, m["start"], m["end"], **({"spans": scout.parts(m)} if m.get("spans") else {}))
     w = _read(d / "words.json")
     src = _read(project / "source.json", {})
+    brief = campaign.read(project)
     src["url"] = src.get("url") or cfg.get("url", "")
+    src["rights"] = cfg.get("rights", "unknown")
     waiting = []
     if not (d / "post.json").is_file():
         try:
             _write(d / "post.json", postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"],
                                                                                                 cfg.get("brand"),
-                                                                                                cfg.get("news"))), w, src))
+                                                                                                cfg.get("news"))), w, src, brief))
         except NeedsAnswer:
             waiting.append(f"{task}-copy")
     heard = _read(d / "words-heard.json", w)
@@ -372,11 +382,24 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         _context(d, judge, say, m)
     except NeedsAnswer:
         waiting.append(f"{task}-context")
+    post = _read(d / "post.json")
+    if post is not None:
+        updated = {**postcopy.require_tags(post, brief), "rights": src.get("rights", "unknown")}
+        if updated != post:
+            _write(d / "post.json", updated)
+    elif brief:
+        return waiting
+    render.check_brief(d)
+    theme, assets, _ = render.pack_data(cfg["pack"])
+    brand = {"theme": theme, **assets}
     for shape in cfg["shapes"]:
         tag = render.suffix(shape, cfg["pack"])
         out = d / f"clip{tag}.mp4"
+        saved = _read(d / f"data{tag}.json", {})
         if (not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime
-                or _read(d / f"data{tag}.json", {}).get("scale", 1) != render.scale(cfg)):
+                or saved.get("scale", 1) != render.scale(cfg)
+                or saved.get("disclosure") != campaign.disclosure(brief)
+                or any(saved.get(k) != brand.get(k) for k in ("theme", "fonts", "logo"))):
             say(f"{task}: rendering {shape} ({cfg['pack']})")
             render.render(d, shape, cfg["pack"])
     return waiting
@@ -432,6 +455,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
     project = Path(project).resolve()
     judge = judge or Judge(project)
     cfg = _read(project / "factory.json", {})
+    src = _read(project / "source.json", {})
     data = load_moments(project)
     moments = data.get("moments", [])
     clips = []
@@ -443,6 +467,8 @@ def status(project: Path, judge: Judge | None = None) -> dict:
         clips.append({"clip": f"clip{i:02d}", "hook": m["hook"].replace("*", ""), "start": m["start"], "end": m["end"],
                       "added": (_read(d / "receipt.json") or {}).get("share"),
                       "context_flags": len((_read(d / "context.json") or {}).get("flags", [])),
+                      "brief_flags": len((_read(d / "brief_check.json") or {}).get("flags", [])),
+                      "brief_errors": (_read(d / "brief_check.json") or {}).get("errors", []),
                       "renders": sorted(p.name for p in d.glob("clip*.mp4")) if d.is_dir() else [],
                       "visual_requests": [{**r, "candidate_count": len(manifest.get(r["id"], [])),
                                            "pick": picks.get(r["id"], {}).get("pick"),
@@ -452,6 +478,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
     bench = [{"hook": m["hook"].replace("*", ""), "why": m.get("why", ""), "topic": m.get("topic", ""),
               "start": m["start"], "end": m["end"]} for m in data.get("bench", [])]
     return {"project": str(project), **(_read(project / "status.json") or {"state": "new"}), "settings": cfg,
+            "source": src, "rights": cfg.get("rights", "unknown"),
             "pending": judge.pending(), "clips": clips, "bench": bench, "usage": judge.usage(),
             "network": network.summary(project),
             "review": str(project / "index.html") if (project / "index.html").is_file() else None}
@@ -464,7 +491,8 @@ def answer(project: Path, task: str, text: str | dict) -> dict:
     try:
         value = text if isinstance(text, dict) else parse(text)
         if kind == "scout":
-            scout.check(value)
+            cfg = _read(Path(project) / "factory.json", {})
+            scout.check(value, brief=campaign.read(Path(project)), mode=cfg.get("mode", "context"))
         elif kind == "plan":
             plan.check(value)
         elif kind == "copy":
@@ -512,3 +540,5 @@ def redo(project: Path, task: str) -> None:
         (d / "post.json").unlink(missing_ok=True)
     elif kind == "context":
         (d / "context.json").unlink(missing_ok=True)
+    if kind in ("plan", "pick", "copy"):
+        (d / "brief_check.json").unlink(missing_ok=True)

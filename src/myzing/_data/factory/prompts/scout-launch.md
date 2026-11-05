@@ -10,7 +10,7 @@ What the most-watched launch films do (measured on 600 of them):
 
 Rules:
 - Each span starts and ends on sentence boundaries and is self-contained enough to cut to.
-- 3 to 7 spans per film, 40 to 120 seconds of speech in total. A second film can be a 20 to 35 second teaser.
+- 3 to 7 spans per film. {LENGTH}
 - Never splice so that a sentence changes meaning: no dropping a "but", a condition, or the answer to a question.
 - Never use the same span twice in one film.
 
@@ -25,5 +25,5 @@ Return ONLY a JSON object, no prose, no code fence:
 
 Use the transcript's own timestamps.
 
-{STEER}TRANSCRIPT:
+{STEER}{BRIEF}TRANSCRIPT:
 {TRANSCRIPT}

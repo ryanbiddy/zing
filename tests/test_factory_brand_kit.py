@@ -296,5 +296,5 @@ def test_real_render_with_custom_font_and_logo(tmp_path, browser_tools):
     render.capture(data, d / "endcard.json", d / "endcard", samples=[10])
     with Image.open(d / "endcard/00011.png") as img:
         assert img.size == (1080, 1080)
-        assert img.getpixel((1000, 50))[:3] == (250, 20, 80)
+        assert img.getpixel((1000, 50))[:3] != (250, 20, 80)    # the end card shows the logo once, centered
         assert img.getpixel((540, 215))[:3] == (250, 20, 80)

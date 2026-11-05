@@ -30,6 +30,50 @@ Speech models mishear names and terms. The plan lists clear mishearings it is su
 captions, graphics, hook and copy, logs each fix, and keeps what was heard in
 `words-heard.json`. Numbers and meaning are never changed.
 
+## Rights and campaign briefs
+
+```bash
+zing factory new talk --media talk.mp4 --rights permission --brief campaign.json
+```
+
+`--rights` accepts `own`, `licensed`, `permission` or `unknown` (the default).
+It saves the source label in `factory.json`, each clip's `post.json`, status and review.
+The label never blocks a clip. Zing labels and checks but does not grant rights
+or make a clip legal.
+
+`--brief FILE` copies a JSON campaign brief into the project as `brief.json`.
+All fields are optional. Both flags also work with `factory batch`.
+
+```json
+{
+  "name": "Campaign X",
+  "disclosure": "Paid partnership with X",
+  "disclosure_seconds": 2.0,
+  "tags": ["#ad", "@brand"],
+  "banned": ["gambling", "competitor names"],
+  "min_seconds": 15,
+  "max_seconds": 60,
+  "notes": "Keep the answer to the opening question."
+}
+```
+
+The scout uses the supplied length bounds, banned topics and notes.
+It leaves 1 second inside each length bound and another 3 seconds below the
+maximum in launch mode for the end card. A pick outside the bounds is dropped
+and the rest stand. Missing tags and mentions are
+appended in brief order to the X, Instagram and TikTok captions and to the end of
+the YouTube title. The first comment is left alone. A disclosure
+appears over the video from the first frame in every shape. It lasts
+`disclosure_seconds`, from 1 to 5 seconds, or 2 seconds when omitted.
+
+Before rendering, Zing writes `brief_check.json` in the clip folder. Length
+bounds apply to the final timeline, including an end card. A length violation
+or missing required disclosure stops that clip. Banned terms in the hook,
+copy or spoken text use case-insensitive whole-word matching and only flag
+the clip for review. Missing tags are also flagged. Status reports `brief_flags`
+and `brief_errors`; the review page shows the details. Notes guide the scout
+but are not checked automatically.
+
 ## Cut from unreleased footage
 
 ```bash
@@ -420,7 +464,7 @@ Logos can be `.svg` or `.png`. Choose `top-left`, `top-right` or `bottom-right`.
 The default is `top-right` at 72 pixels high in a 1080-wide frame. The logo scales
 with the frame and keeps one spot for the whole clip. It steps below the source tag
 and above a headline panel, and hides for a moment when the hook, a caption or a quote
-is drawn where it sits. Launch end cards also show it above the brand name.
+is drawn where it sits. Launch end cards show the logo once, centered above the brand name.
 
 Run `zing factory packs --check acme` to check files and family names. Errors
 produce exit code 1. Every render runs the same check, then verifies that the

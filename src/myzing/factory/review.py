@@ -5,6 +5,8 @@ import html
 import json
 from pathlib import Path
 
+from .campaign import RIGHTS
+from .postcopy import FIELDS
 from .render import SHAPES, suffix
 from .network import summary
 
@@ -15,7 +17,8 @@ def _load(path: Path) -> dict:
 
 def build(project: Path, pack: str | None = None) -> Path:
     ep = Path(project)
-    pack = pack or _load(ep / "factory.json").get("pack", "zing")
+    cfg = _load(ep / "factory.json")
+    pack = pack or cfg.get("pack", "zing")
     src = _load(ep / "source.json")
     moments = _load(ep / "moments.json").get("moments", [])
     e = html.escape
@@ -24,7 +27,8 @@ def build(project: Path, pack: str | None = None) -> Path:
         d = ep / f"clip{i:02d}"
         videos = [(shape, f"clip{i:02d}/clip{suffix(shape, pack)}.mp4") for shape in SHAPES
                   if (d / f"clip{suffix(shape, pack)}.mp4").is_file()]
-        if not videos:
+        checked = _load(d / "brief_check.json")
+        if not videos and not checked:
             continue
         plan, post = _load(d / "plan.json"), _load(d / "post.json")
         mix: dict[str, int] = {}
@@ -36,7 +40,9 @@ def build(project: Path, pack: str | None = None) -> Path:
         mm, ss = divmod(int(m.get("start", 0)), 60)
         players = "".join(f'<video class="s{shape}" src="{e(path)}" controls playsinline preload="metadata"></video>'
                           for shape, path in videos)
-        copy = "".join(f"<dt>{e(k.replace('_', ' '))}</dt><dd>{e(v)}</dd>" for k, v in post.items())
+        copy = "".join(f"<dt>{e(k.replace('_', ' '))}</dt><dd>{e(post[k])}</dd>" for k in FIELDS if k in post)
+        flags = "".join(f'<p class="tag warn">{e(text)}</p>' for text in checked.get("errors", [])
+                        + [f["why"] for f in checked.get("flags", [])])
         cards.append(f"""
 <article>
   <div class="vids">{players}</div>
@@ -44,6 +50,7 @@ def build(project: Path, pack: str | None = None) -> Path:
     <p class="n">Clip {i} · {mm}:{ss:02d} in the episode · score {e(str(m.get('score', '')))}/10</p>
     <h2>{e(m['hook'].replace('*', ''))}</h2>
     <p class="why">{e(m.get('why', ''))}</p>
+    {f'<p class="tag warn">Check the brief</p>{flags}' if flags else ''}
     <p class="tag">{len(plan.get('shots', []))} shots: {e(', '.join(f'{v}× {k}' for k, v in mix.items()))}</p>
     <p class="tag ok">Fact check: {e('; '.join(plan.get('fact_check', [])))}</p>
     {f'<p class="tag warn">Sensitive subject ({e(plan.get("sensitive_reason", ""))}): review before posting</p>' if plan.get("sensitive") else ''}
@@ -74,6 +81,7 @@ dt{{color:var(--muted);text-transform:capitalize}} dd{{margin:0;white-space:pre-
 @media (max-width:900px){{article{{grid-template-columns:1fr}} video{{width:100%!important;max-width:340px}}}}
 </style></head><body><main>
 <h1>Clip pack: {e(src.get('name', ep.name))}</h1>
+<p class="sub">Rights · {e(RIGHTS.get(cfg.get('rights'), RIGHTS['unknown']))}</p>
 <p class="sub" id="network"></p>
 <p class="sub">Made by zing factory: scout, cut, plan, find visuals, vision pick, fact check, render, copy. Local review only; nothing is posted.</p>
 {''.join(cards)}

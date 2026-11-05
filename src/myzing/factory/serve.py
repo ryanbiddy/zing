@@ -73,6 +73,7 @@ class Studio:
                           "receipt": _read(d / "receipt.json"),
                           "context": _read(d / "context.json"),
                           "words": _read(d / "words.json", {}).get("words", []),
+                          "brief_check": _read(d / "brief_check.json"),
                           "visual_requests": _read(vis / "requests.json"), "candidates": _read(vis / "manifest.json"),
                           "picks": _read(vis / "picks.json"), "rating": ratings.get(c["clip"]),
                           "videos": {p.name: p.name for p in sorted(d.glob("clip*.mp4"))}})

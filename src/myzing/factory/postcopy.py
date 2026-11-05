@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from . import campaign
 from .tools import NO_HOOK, data_path
 
 FIELDS = ("x", "instagram", "tiktok", "youtube_title", "first_comment")
@@ -52,7 +53,17 @@ def context_url(url: str, seconds: float) -> str:
     return urlunsplit(parts._replace(query=urlencode(query)))
 
 
-def finalize(answer: dict, words: dict, source: dict) -> dict:
+def require_tags(post: dict, brief: dict) -> dict:
+    out = dict(post)
+    for field in campaign.POSTED:
+        missing = campaign.missing_tags(out.get(field, ""), brief.get("tags", []))
+        if missing:                                 # a title stays on one line
+            out[field] = (out.get(field, "").rstrip() + (" " if field == "youtube_title" else "\n\n")
+                          + " ".join(missing)).lstrip()
+    return out
+
+
+def finalize(answer: dict, words: dict, source: dict, brief: dict | None = None) -> dict:
     missing = [k for k in FIELDS if not isinstance(answer.get(k), str)]
     if missing:
         raise ValueError(f"copy answer is missing {', '.join(missing)}")
@@ -61,4 +72,4 @@ def finalize(answer: dict, words: dict, source: dict) -> dict:
     link = context_url(url, start)
     post = {k: answer[k].replace("{SOURCE_URL}", link if k == "first_comment" else url) for k in FIELDS}
     post["first_comment"] = post["first_comment"].replace("{TIMESTAMP}", stamp(start))
-    return post
+    return {**require_tags(post, brief or {}), "rights": source.get("rights", "unknown")}

@@ -27,7 +27,7 @@ def _result(d: Path, **changed) -> dict:
     context = _read(d / "context.json")
     return {"clip": d.name, **changed, "fact_check": _read(d / "plan.json", {}).get("fact_check", []),
             "context": context, "context_flags": (context or {}).get("flags", []),
-            "receipt": _read(d / "receipt.json"),
+            "receipt": _read(d / "receipt.json"), "brief_check": _read(d / "brief_check.json"),
             "pending": [p for p in Judge(d.parent).pending() if p["task"].startswith(d.name + "-")]}
 
 
@@ -96,6 +96,8 @@ def text(project: Path, clip: str, field: str, text: str, *, context=None, reren
         post = _read(d / "post.json", {})
         post[field] = value
         _write(d / "post.json", post)
+        if (d / "plan.json").is_file() and (d / "words.json").is_file():
+            render.check_brief(d, stop=False)            # required tags and banned terms in the new copy
     else:
         raw["hook"] = value
         _write(d / "plan-raw.json", raw)

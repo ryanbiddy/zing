@@ -40,6 +40,7 @@ import urllib.parse
 import urllib.request
 import warnings
 from collections import Counter
+from functools import cache
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -1018,6 +1019,41 @@ def dhash(data: bytes) -> int:
     return bits
 
 
+def _video_url(url, network: Network):
+    final = safe_url(url)
+
+    def checked(value):
+        nonlocal final
+        final = _public_url(value)
+        return final
+
+    for method in ("HEAD", "GET"):
+        try:
+            headers = {"User-Agent": UA, **({"Range": "bytes=0-0"} if method == "GET" else {})}
+            with network.open(final, "video redirect", headers=headers, method=method, validate=checked):
+                return final
+        except urllib.error.HTTPError as exc:
+            exc.close()
+            if method != "HEAD" or exc.code not in (403, 405, 501):
+                raise
+
+
+@cache
+def _max_redirects():
+    try:
+        with subprocess.Popen([str(FFMPEG), "-hide_banner", "-h", "protocol=http"], stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as p:
+            try:
+                output, _ = p.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                p.communicate()
+                return False
+        return p.returncode == 0 and b"max_redirects" in output
+    except Exception:
+        return False
+
+
 def probe_video(path_or_url, *, project: Path | None = None) -> dict:
     """ffprobe a local file (magic-checked) or a remote http(s) URL; returns width/height/duration/codec."""
     src = str(path_or_url)
@@ -1030,8 +1066,9 @@ def probe_video(path_or_url, *, project: Path | None = None) -> dict:
         args = ["-protocol_whitelist", "file,pipe", src]
     else:
         Network(project).check("video probe")
-        src = safe_url(src)
-        args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp", src]
+        src = _video_url(src, Network(project))
+        args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp"] + \
+            (["-max_redirects", "0"] if _max_redirects() else []) + [src]
     remote = not isinstance(path_or_url, Path)
     argv = [str(FFPROBE), "-v", "debug" if remote else "error", "-select_streams", "v:0", "-show_entries",
             "stream=width,height,codec_name:format=duration", "-of", "json"] + args
@@ -1101,11 +1138,12 @@ def fetch_video(ctx, c: dict, url: str, folder: Path):
             # input-side seek is fast (mp4); some hosts' webm can't seek remotely, so fall back to reading from
             # the start and seeking on the output side (bounded at 15 s so we don't stream much)
             for seek_in, s in ((True, start), (False, min(start, 15.0))):
-                url = safe_url(url)
+                src = _video_url(url, ctx.network)
                 seek = ["-ss", f"{s:.1f}"]
-                ctx.network.run_video(url, "video excerpt", [str(FFMPEG), "-v", "debug", "-y", "-user_agent", UA,
+                ctx.network.run_video(src, "video excerpt", [str(FFMPEG), "-v", "debug", "-y", "-user_agent", UA,
                                       "-protocol_whitelist", "https,http,tls,tcp"] + (seek if seek_in else []) +
-                                      ["-i", safe_url(url)] + ([] if seek_in else seek) +
+                                      (["-max_redirects", "0"] if _max_redirects() else []) +
+                                      ["-i", src] + ([] if seek_in else seek) +
                                       ["-t", str(EXCERPT_S), "-map", "0:v:0", "-c", "copy", "-an", "-f", ext, str(part)],
                                       validate=_check_host, capture_output=True, timeout=180)
                 try:

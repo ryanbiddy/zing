@@ -143,6 +143,8 @@ class _Redirect(urllib.request.HTTPRedirectHandler):
         self.network.check(self.row["purpose"])
         redirect = super().redirect_request(req, fp, code, msg, headers, newurl)
         if redirect is not None:
+            if req.get_method() == "HEAD":
+                redirect.method = "HEAD"
             if self.validate:
                 try:
                     newurl = self.validate(newurl) or newurl

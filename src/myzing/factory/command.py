@@ -33,6 +33,9 @@ def _new_settings(new: argparse.ArgumentParser) -> None:
     new.add_argument("--name", help="source credit, e.g. the show and episode")
     new.add_argument("--url", default="", help="the source link used in first comments")
     new.add_argument("--date", default="", help="the source's date; copy never calls older news 'new'")
+    new.add_argument("--rights", choices=("own", "licensed", "permission", "unknown"), default="unknown",
+                     help="label the source rights; this never blocks a clip")
+    new.add_argument("--brief", type=Path, metavar="FILE", help="JSON campaign rules to copy into the project")
     new.add_argument("--tag", default="", help="short on-screen source tag")
     new.add_argument("--moments", type=int, default=None,
                      help="clips to scout (default 8, or 2 launch films; 0 lets you pick all clips)")
@@ -64,6 +67,7 @@ def _new_settings(new: argparse.ArgumentParser) -> None:
 
 def _settings(args: argparse.Namespace) -> dict:
     return dict(transcript=args.transcript, offset=args.offset, name=args.name, url=args.url, date=args.date, tag=args.tag,
+                rights=args.rights, brief=args.brief,
                 vocab=[term for group in args.vocab for term in group.split(",")],
                 mode=args.mode, public=args.public, parallax=args.parallax, cutout=args.cutout,
                 upscale=args.upscale, uhd=args.uhd, offline=args.offline, visuals=args.visuals,
