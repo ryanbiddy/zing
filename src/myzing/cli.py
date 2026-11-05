@@ -13,6 +13,7 @@ import sys
 # construction, ordered as listed).
 _COMMANDS: dict[str, tuple[str, str]] = {
     "factory": ("myzing.factory.command", "turn a long episode into social clips with visuals, graphics and copy"),
+    "channels": ("myzing.channels.command", "run niche channels: sources, rights, queue and post kits"),
     "playbook": ("myzing.playbook.command", "compare worked and under-performing Shorts; local measurements and blind notes"),
     "moments": ("myzing.director.moments", "suggest interview moments from a cached study; no model calls"),
     "record-cursor": ("myzing.screen.recorder", "record local cursor/click and anonymous key-press times for a screen demo"),

@@ -18,6 +18,10 @@ def load(path: Path) -> dict:
         brief = json.loads(Path(path).read_text(encoding="utf-8-sig"))
     except (OSError, ValueError) as exc:
         raise FactoryError(f"cannot read brief {path}. {exc}") from exc
+    return validate(brief)
+
+
+def validate(brief: dict) -> dict:
     if not isinstance(brief, dict):
         raise FactoryError("brief must be a JSON object")
     fields = {"name", "disclosure", "disclosure_seconds", "tags", "banned", "min_seconds", "max_seconds", "notes"}

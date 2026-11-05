@@ -5,6 +5,9 @@
 - `zing playbook niches` compares channels from public metadata. `watch` saves
   view snapshots, `velocity` compares views by age, and `prior` exports title
   guidance. Reports omit competitor titles. No video, thumbnails or audio are fetched.
+- Add `zing channels` for niche settings, source grants, approval gates, local
+  queues and post kits. `factory new --channel SLUG --source ID` shares defaults
+  and review history across episodes. Nothing posts by itself.
 
 ## Clip factory
 
