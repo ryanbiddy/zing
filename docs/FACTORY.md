@@ -122,7 +122,38 @@ The brand name, source name, tag and people named in the show are not added.
 Limits match study vocabulary. Up to 64 terms, 80 characters per term and
 500 UTF-8 bytes for the list joined with a comma and space. Oversized lists are
 rejected. Spaces are normalized and duplicates are removed. Set the vocabulary
-when creating the project; there is no edit command.
+when creating the project; there is no vocabulary edit command.
+
+## Edit from an agent
+
+Use `factory_edit(project, clip, action, ...)` or the CLI to edit a finished clip.
+
+```bash
+zing factory edit talk clip01 --rate edits --why "Fix the name"
+zing factory edit talk clip01 --hook "How we built it"
+zing factory edit talk clip01 --copy x "The build, in their words."
+zing factory edit talk clip01 --visual v1 1
+zing factory edit talk clip01 --word 12 "Starbase"
+zing factory edit talk clip01 --render 1x1 --pack swiss
+```
+
+Choose one action per call. Ratings are `post`, `edits` or `no`. Copy fields are
+`x`, `instagram`, `tiktok`, `youtube_title` and `first_comment`. Hook text is
+trimmed to 120 characters; copy to 2200. Status lists visual requests, candidate
+counts, candidate details and current picks. Candidate and word indices start
+at 0. Words are listed in the clip's `words.json`.
+
+For MCP, `word` also accepts `at`, `old` and `new`. `at` is seconds in the edited
+clip, within the word's timing; `old` must match its current text. Caption fixes
+keep every timing. The original words stay in `words-heard.json`, and manual
+fixes stay in `word-fixes.json` so later hook and visual edits preserve them.
+On the review page, open a clip's details and click a word under Captions.
+
+Edits finish synchronously. Hook, visual and word changes re-render the project's
+shapes and pack. Hook and word changes repeat the fact and context checks and
+refresh the receipt. Results include fact checks, context flags and pending
+tasks. With the host judge, a context check may need an answer. Use
+`factory_prompt`, `factory_answer`, then `factory_run` to finish it.
 
 ## Render in 4K
 

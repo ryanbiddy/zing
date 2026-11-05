@@ -2,6 +2,10 @@
 
 ## Clip factory
 
+- `factory_edit` and `zing factory edit` rate clips, change hooks and copy, swap
+  visuals, fix caption words and re-render. The review page also edits caption
+  words. Fixes keep their timing and refresh fact checks, context and receipts.
+
 - Factory embargo mode adds `new --offline`, local visual candidates with
   `--visuals DIR`, and a host-only `network.jsonl` ledger shown in status and review.
 

@@ -18,13 +18,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from . import pick, pipeline, plan, render
-from .judge import Judge, NeedsAnswer
+from . import edit, pipeline, plan, render
+from .edit import CLIP, TEXT_FIELDS
+from .judge import Judge
 from .tools import FactoryError, data_path
 
-CLIP = re.compile(r"^clip\d{2}$")
 MEDIA = {".mp4", ".mov", ".webm", ".jpg", ".jpeg", ".png", ".webp"}
-TEXT_FIELDS = {"x", "instagram", "tiktok", "youtube_title", "first_comment"}
 
 
 def _read(path: Path, default=None):
@@ -74,6 +73,7 @@ class Studio:
             clips.append({**c, "plan": _read(d / "plan.json"), "post": _read(d / "post.json"),
                           "receipt": _read(d / "receipt.json"),
                           "context": _read(d / "context.json"),
+                          "words": _read(d / "words.json", {}).get("words", []),
                           "visual_requests": _read(vis / "requests.json"), "candidates": _read(vis / "manifest.json"),
                           "picks": _read(vis / "picks.json"), "rating": ratings.get(c["clip"]),
                           "videos": {p.name: p.name for p in sorted(d.glob("clip*.mp4"))}})
@@ -84,24 +84,13 @@ class Studio:
         return st
 
     def clipdir(self, clip: str) -> Path:
-        if not isinstance(clip, str) or not CLIP.match(clip) or not (self.project / clip).is_dir():
-            raise FactoryError(f"unknown clip {clip!r}")
-        return self.project / clip
-
-    def _finalize_args(self) -> tuple:
-        cfg = _read(self.project / "factory.json", {})
-        return cfg.get("brand"), cfg.get("news")              # what a re-finalize checks the hook against
+        return edit.clipdir(self.project, clip)
 
     def _rerender(self, d: Path) -> None:
-        cfg = _read(self.project / "factory.json", {})
-        for shape in cfg.get("shapes", ["9x16"]):
-            render.render(d, shape, cfg.get("pack", "zing"))
+        edit._rerender(d)
 
     def _context(self, d: Path) -> None:
-        try:
-            pipeline._context(d, Judge(self.project, self.judge))
-        except NeedsAnswer:
-            pass
+        edit._context(d, Judge(self.project, self.judge))
 
     # ---------------------------------------------------------------- actions
     def run(self, _body: dict) -> dict:
@@ -119,7 +108,7 @@ class Studio:
         return {"segments": [{"s": s["s"], "e": s["e"], "text": s["text"]} for s in segments]}
 
     def rate(self, body: dict) -> dict:
-        return pipeline.rate(self.project, body.get("clip"), body.get("v"), body.get("why") or "")
+        return edit.rate(self.project, body.get("clip"), body.get("v"), body.get("why") or "")
 
     def clip(self, body: dict) -> dict:
         a, b = pipeline.check_range(self.project, body.get("start"), body.get("end"))   # refuse now, not in the queue
@@ -148,57 +137,31 @@ class Studio:
 
     def visual(self, body: dict) -> dict:
         d = self.clipdir(body.get("clip"))
-        vis = d / "visuals"
-        manifest, raw = _read(vis / "manifest.json", {}), _read(d / "plan-raw.json")
         request, index = body.get("request"), body.get("index")
-        if raw is None or request not in manifest or not isinstance(index, int) or not 0 <= index < len(manifest[request]):
-            raise FactoryError("no such visual candidate")
-        picks = _read(vis / "picks.json", {"picks": {}})
-        picks["picks"][request] = {"pick": index, "why": "chosen in the dashboard"}
-        _write(vis / "picks.json", picks)
-
-        def job():
-            plan.finalize(d, raw, pick.chosen(vis, raw.get("visual_requests", []), manifest, picks["picks"]),
-                          *self._finalize_args())
-            self._context(d)
-            self._rerender(d)
-        return self.queue(f"{d.name}: new visual", job)
+        saved = edit._save_visual(self.project, d.name, request, index, "chosen in the dashboard")
+        return self.queue(f"{d.name}: new visual", lambda: edit.visual(self.project, d.name, request, index,
+                          _saved=saved, context=self._context, rerender=self._rerender))
 
     def text(self, body: dict) -> dict:
         d = self.clipdir(body.get("clip"))
-        field, value = body.get("field"), str(body.get("text") or "").strip()
-        if not value:
-            raise FactoryError("text cannot be empty")
+        field, value = body.get("field"), body.get("text")
+        saved = edit._save_text(self.project, d.name, field, value, Judge(self.project))
         if field in TEXT_FIELDS:
-            post = _read(d / "post.json", {})
-            post[field] = value[:2200]
-            _write(d / "post.json", post)
             return {"saved": field}
-        if field != "hook":
-            raise FactoryError(f"unknown field {field!r}")
-        raw = _read(d / "plan-raw.json")
-        current = _read(d / "plan.json")
-        if raw is None or current is None:
-            raise FactoryError("this clip has no plan yet")
-        raw["hook"] = value[:120]
-        _write(d / "plan-raw.json", raw)
-        Judge(self.project).save(f"{d.name}-plan", raw)
+        return self.queue(f"{d.name}: new hook", lambda: edit.text(self.project, d.name, field, value,
+                          _saved=saved, context=self._context, rerender=self._rerender))
 
-        def job():
-            current = _read(d / "plan.json")
-            plan.finalize(d, raw, current.get("visuals", {}), *self._finalize_args())    # re-runs the hook fact check
-            pipeline._forget_context(d, Judge(self.project))
-            self._context(d)
-            self._rerender(d)
-        return self.queue(f"{d.name}: new hook", job)
+    def word(self, body: dict) -> dict:
+        clip, index, new = body.get("clip"), body.get("index"), body.get("new")
+        at, old = body.get("at"), body.get("old")
+        edit._word(self.project, clip, index, at, old, new)
+        return self.queue(f"{clip}: new word", lambda: edit.word(self.project, clip, index, new, at=at, old=old,
+                          context=self._context, rerender=self._rerender))
 
     def rerender(self, body: dict) -> dict:
-        d = self.clipdir(body.get("clip"))
         shape, pack = body.get("shape", "9x16"), body.get("pack", "zing")
-        if shape not in render.SHAPES:
-            raise FactoryError(f"unknown shape {shape!r}")
-        render.theme(pack)
-        return self.queue(f"{d.name}: {shape} {pack}", lambda: render.render(d, shape, pack))
+        d = edit._check_render(self.project, body.get("clip"), shape, pack)
+        return self.queue(f"{d.name}: {shape} {pack}", lambda: edit.rerender(self.project, d.name, shape, pack))
 
     def media(self, path: str) -> Path:
         parts = [unquote(p) for p in path.split("/") if p]
@@ -214,7 +177,7 @@ def handler(studio: Studio, port: int, token: str):
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     actions = {"/api/run": studio.run, "/api/rate": studio.rate, "/api/visual": studio.visual,
                "/api/text": studio.text, "/api/render": studio.rerender, "/api/clip": studio.clip,
-               "/api/trim": studio.trim, "/api/bench": studio.bench}
+               "/api/trim": studio.trim, "/api/bench": studio.bench, "/api/word": studio.word}
     page = data_path("dashboard.html")
 
     class Handler(BaseHTTPRequestHandler):

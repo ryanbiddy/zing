@@ -1964,6 +1964,33 @@ def h_factory_answer(project: str, task: str, answer: dict[str, Any] | str) -> d
     return _ok(task=task, saved=True, hint="Answer the other pending tasks, then call factory_run(project).")
 
 
+def h_factory_edit(project: str, clip: str, action: Literal["rate", "hook", "copy", "visual", "word", "render"],
+                   verdict: Literal["post", "edits", "no"] | None = None, why: str = "",
+                   text: str | None = None, field: str | None = None, request: str | None = None,
+                   index: int | None = None, at: float | None = None, old: str | None = None, new: str | None = None,
+                   shape: str = "9x16", pack: str = "zing") -> dict[str, Any]:
+    """Edit clipNN synchronously. Choose one action.
+
+    rate needs verdict post|edits|no and optional why. hook needs text (up to 120 characters).
+    copy needs field x|instagram|tiktok|youtube_title|first_comment and text (up to 2200 characters).
+    visual needs request and a zero-based index. factory_status lists candidates, counts and picks.
+    word needs index and new, or at plus old and new. index is zero-based in clipNN/words.json;
+    at is seconds in the edited clip, matched to the current word. Timings stay unchanged.
+    render takes shape 9x16|4x5|1x1|16x9 and pack (defaults 9x16 and zing).
+    Hook, visual and word edits re-render the project's shapes. Hook and word edits refresh fact and
+    context checks. Returns changes, fact_check, context_flags, receipt and pending tasks.
+    For pending context, use factory_prompt, factory_answer, then factory_run to finish the check.
+    """
+    from myzing.factory import edit
+    from myzing.factory.tools import FactoryError
+    try:
+        result = edit.apply(Path(project).expanduser(), clip, action, verdict=verdict, why=why, text=text, field=field,
+                            request=request, index=index, at=at, old=old, new=new, shape=shape, pack=pack)
+        return _ok(action=action, **result)
+    except (FactoryError, ValueError, OSError, KeyError, TypeError) as exc:
+        return _err(str(exc))
+
+
 # ---------------------------------------------------------------------------
 # Server assembly (SDK required only from here down)
 # ---------------------------------------------------------------------------
@@ -2371,6 +2398,7 @@ def build_server():
         name="factory_answer",
         description="Save the JSON answer to a pending factory task (validated; a malformed answer is rejected with the reason). Then call factory_run to continue.",
     )(h_factory_answer)
+    mcp.tool(name="factory_edit", description=h_factory_edit.__doc__)(h_factory_edit)
 
     for prompt_name in available_prompts():
         def _make(nm: str):

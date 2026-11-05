@@ -432,10 +432,17 @@ def status(project: Path, judge: Judge | None = None) -> dict:
     clips = []
     for i, m in enumerate(moments, 1):
         d = project / f"clip{i:02d}"
+        vis = d / "visuals"
+        requests = _read(vis / "requests.json") or _read(d / "plan-raw.json", {}).get("visual_requests", [])
+        manifest, picks = _read(vis / "manifest.json", {}), _read(vis / "picks.json", {}).get("picks", {})
         clips.append({"clip": f"clip{i:02d}", "hook": m["hook"].replace("*", ""), "start": m["start"], "end": m["end"],
                       "added": (_read(d / "receipt.json") or {}).get("share"),
                       "context_flags": len((_read(d / "context.json") or {}).get("flags", [])),
                       "renders": sorted(p.name for p in d.glob("clip*.mp4")) if d.is_dir() else [],
+                      "visual_requests": [{**r, "candidate_count": len(manifest.get(r["id"], [])),
+                                           "pick": picks.get(r["id"], {}).get("pick"),
+                                           "candidates": [{**c, "index": j} for j, c in enumerate(manifest.get(r["id"], []))]}
+                                          for r in requests],
                       "copy": (d / "post.json").is_file(), **({"by": "hand"} if m.get("by") == "hand" else {})})
     bench = [{"hook": m["hook"].replace("*", ""), "why": m.get("why", ""), "topic": m.get("topic", ""),
               "start": m["start"], "end": m["end"]} for m in data.get("bench", [])]

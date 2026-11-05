@@ -218,7 +218,20 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
     heard = d / "words-heard.json"                     # the speech model's words, kept once a fix changes them
     data = json.loads((heard if heard.is_file() else d / "words.json").read_text(encoding="utf-8"))
     words, pairs, log = apply_fixes(data["words"], plan.get("fixes"))
-    if pairs or heard.is_file():
+    manual = d / "word-fixes.json"
+    fixes = json.loads(manual.read_text(encoding="utf-8")) if manual.is_file() else []
+    applied = []
+    for f in fixes:
+        i = f["index"]
+        matches = [words[i]] if 0 <= i < len(words) and (words[i]["os"], words[i]["oe"]) == (f["os"], f["oe"]) else [
+            w for w in words if w["os"] == f["os"] and w["oe"] == f["oe"]]
+        if len(matches) == 1:
+            matches[0]["w"] = f["meant"]
+            applied.append(f)
+            log.append(f"caption fix: {f['heard']!r} -> {f['meant']!r}")
+        else:
+            log.append(f"caption fix at {f['os']} no longer matches a word: review the captions")
+    if pairs or applied or heard.is_file():
         if not heard.is_file():
             heard.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         (d / "words.json").write_text(json.dumps({**data, "words": words}, ensure_ascii=False), encoding="utf-8")
@@ -266,7 +279,7 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
     final = {"hook": plan["hook"], "hook_until": plan.get("hook_until", 3.0), "shots": shots or [{"from": 0, "layout": "solo"}],
              "sensitive": bool(plan.get("sensitive")), "sensitive_reason": plan.get("sensitive_reason", ""),
              "visuals": {k: v for k, v in found.items() if any(s.get("visual") == k for s in shots)},
-             "fixes": [{"heard": h, "meant": m} for h, m in pairs]}
+             "fixes": [{"heard": h, "meant": m} for h, m in pairs] + applied}
     peg = [{"w": t, "s": 0.0, "e": 0.0} for t in str((news or {}).get("peg", "")).split()]   # the news is given, not spoken
     hook_bad = fact_check({"kind": "list", "items": [{"text": plan["hook"].replace("*", "")}]}, words + peg)
     if hook_bad:

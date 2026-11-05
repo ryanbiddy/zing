@@ -22,6 +22,7 @@ EXPECTED_TOOLS = {
     "factory_prompt",
     "factory_answer",
     "factory_clip",
+    "factory_edit",
     "zing_moments",
     "zing_studio",
     "zing_studio_run",

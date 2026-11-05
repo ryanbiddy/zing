@@ -111,6 +111,18 @@ def run(argv: list[str]) -> int:
     trim.add_argument("clip", help="clipNN")
     trim.add_argument("--start", type=_time, required=True)
     trim.add_argument("--end", type=_time, required=True)
+    edit = commands.add_parser("edit", help="rate a clip, change its words or visuals, or re-render it")
+    edit.add_argument("project", type=Path)
+    edit.add_argument("clip", help="clipNN")
+    action = edit.add_mutually_exclusive_group(required=True)
+    action.add_argument("--rate", choices=("post", "edits", "no"), help="save a review verdict")
+    action.add_argument("--hook", help="change the hook and recheck it")
+    action.add_argument("--copy", nargs=2, metavar=("FIELD", "TEXT"), help="change one post copy field")
+    action.add_argument("--visual", nargs=2, metavar=("REQUEST", "INDEX"), help="use a candidate from status; index starts at 0")
+    action.add_argument("--word", nargs=2, metavar=("INDEX", "NEW"), help="fix a caption word; index starts at 0")
+    action.add_argument("--render", metavar="SHAPE", help="re-render 9x16, 4x5, 1x1 or 16x9")
+    edit.add_argument("--why", help="reason for --rate")
+    edit.add_argument("--pack", help="style pack for --render (default zing)")
     redo = commands.add_parser("redo", help="forget one judgment so the next run asks again")
     redo.add_argument("project", type=Path)
     redo.add_argument("task", help="scout, or clipNN-plan / clipNN-pick / clipNN-copy / clipNN-context")
@@ -187,6 +199,24 @@ def run(argv: list[str]) -> int:
         elif args.command == "trim":
             result = {"clip": pipeline.trim(args.project, args.clip, args.start, args.end),
                       "hint": f"zing factory run {args.project} --clips {int(args.clip[4:])}"}
+        elif args.command == "edit":
+            from . import edit
+            if args.why is not None and args.rate is None:
+                raise ValueError("--why needs --rate")
+            if args.pack is not None and args.render is None:
+                raise ValueError("--pack needs --render")
+            if args.rate is not None:
+                result = edit.apply(args.project, args.clip, "rate", verdict=args.rate, why=args.why or "")
+            elif args.hook is not None:
+                result = edit.text(args.project, args.clip, "hook", args.hook)
+            elif args.copy is not None:
+                result = edit.apply(args.project, args.clip, "copy", field=args.copy[0], text=args.copy[1])
+            elif args.visual is not None:
+                result = edit.visual(args.project, args.clip, args.visual[0], int(args.visual[1]))
+            elif args.word is not None:
+                result = edit.word(args.project, args.clip, int(args.word[0]), args.word[1])
+            else:
+                result = edit.rerender(args.project, args.clip, args.render, args.pack or "zing")
         elif args.command == "redo":
             pipeline.redo(args.project, args.task)
             result = {"task": args.task, "forgotten": True}
