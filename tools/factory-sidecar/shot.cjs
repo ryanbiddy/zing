@@ -6,7 +6,8 @@
 // 3) prints one JSON line: {ok, title, og_image, og_video, final_url, blocked, frames, scroll_px, error}.
 // The page is untrusted: we only render it and read a few meta tags; nothing from it is executed here.
 "use strict";
-const { chromium } = require("playwright-core");
+const { lookup } = require("dns").promises;
+const { isIP } = require("net");
 
 const CHROME = process.env.ZING_BROWSER_PATH;
 const [, , url, outPath, framesDir] = process.argv;
@@ -16,6 +17,31 @@ const MAX_SCROLL = 2400;
 // private addresses, which a public page has no business reaching.
 const AD = /(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com|googletagservices\.com|adservice\.google\.[a-z.]+|imasdk\.googleapis\.com|amazon-adsystem\.com|adnxs\.com|taboola\.com|outbrain\.com|criteo\.(com|net)|pubmatic\.com|rubiconproject\.com|openx\.net|adsrvr\.org|moatads\.com|teads\.tv|sharethrough\.com|3lift\.com|triplelift\.com|indexww\.com|casalemedia\.com|smartadserver\.com|adform\.net|media\.net|yieldmo\.com|zemanta\.com|revcontent\.com|mgid\.com|bidswitch\.net|lijit\.com|sovrn\.com|33across\.com|gumgum\.com|connatix\.com|primis\.tech|springserve\.com|spotxchange\.com|innovid\.com|adsafeprotected\.com|doubleverify\.com|adroll\.com|nativo\.com|kargo\.com|seedtag\.com|ezoic\.net|ezojs\.com|mediavine\.com|adthrive\.com|freestar\.com|vdo\.ai|aniview\.com|minutemedia-prebid\.com|ads-twitter\.com)$/i;
 const PRIVATE = /^(localhost|.*\.localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0|\[?::1?\]?|\[?f[cd][0-9a-f]*:.*|\[?fe80:.*)$/i;
+
+function isPrivate(address) {
+  const ip = address.replace(/^\[|\]$/g, "");
+  const family = isIP(ip);
+  if (family === 4) {
+    const [a, b, c, d] = ip.split(".").map(Number);
+    return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) || (a === 169 && b === 254) || (a === 100 && b >= 64 && b <= 127) ||
+      (a === 0 && b === 0 && c === 0 && d === 0) || (a >= 224 && a <= 239);
+  }
+  if (family !== 6) return true;
+  const hex = ip.split("%")[0].replace(/\d+\.\d+\.\d+\.\d+$/, v => {
+    const [a, b, c, d] = v.split(".").map(Number);
+    return `${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  });
+  const halves = hex.split("::").map(v => v ? v.split(":") : []);
+  const words = (halves.length === 2 ?
+    [...halves[0], ...Array(8 - halves[0].length - halves[1].length).fill("0"), ...halves[1]] : halves[0])
+    .map(v => parseInt(v, 16));
+  if (words.slice(0, 7).every(v => v === 0) && words[7] <= 1) return true;
+  if (words.slice(0, 5).every(v => v === 0) && (words[5] === 0 || words[5] === 0xffff)) {
+    return isPrivate(`${words[6] >> 8}.${words[6] & 255}.${words[7] >> 8}.${words[7] & 255}`);
+  }
+  return (words[0] & 0xfe00) === 0xfc00 || (words[0] & 0xffc0) === 0xfe80 || (words[0] & 0xff00) === 0xff00;
+}
 
 async function main() {
   const res = { ok: false, title: null, og_image: null, og_video: null, final_url: null, blocked: false,
@@ -27,6 +53,7 @@ async function main() {
   }
   let browser;
   try {
+    const { chromium } = require("playwright-core");
     browser = await chromium.launch({ executablePath: CHROME, headless: true });
     const ctx = await browser.newContext({
       viewport: { width: 1280, height: 900 },
@@ -37,18 +64,26 @@ async function main() {
       serviceWorkers: "block",
     });
     let first = true;
-    ctx.on("page", page => page.on("websocket", ws => console.log(JSON.stringify({network: {
-      at: new Date().toISOString(), host: new URL(ws.url()).hostname
-    }}))));
-    await ctx.route("**/*", (route) => {
+    const hosts = new Map();
+    await ctx.routeWebSocket(/.*/, ws => ws.close());
+    await ctx.route("**/*", async (route) => {
       let host = "";
-      try { host = new URL(route.request().url()).hostname; } catch (_) {}
+      try { host = new URL(route.request().url()).hostname.replace(/^\[|\]$/g, ""); } catch (_) {}
       if (AD.test(host) || PRIVATE.test(host)) return route.abort();
+      if (host) {
+        if (isIP(host)) {
+          if (isPrivate(host)) return route.abort();
+        } else {
+          if (!hosts.has(host)) hosts.set(host, lookup(host, {all: true, verbatim: true})
+            .then(rows => rows.length > 0 && rows.every(row => !isPrivate(row.address))).catch(() => false));
+          if (!await hosts.get(host)) return route.abort();
+        }
+      }
+      await route.continue();
       if (host) {
         if (!first) console.log(JSON.stringify({network: {at: new Date().toISOString(), host}}));
         first = false;                              // the Python caller records the first navigation
       }
-      return route.continue();
     });
     const page = await ctx.newPage();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
@@ -125,4 +160,5 @@ async function main() {
   console.log(JSON.stringify(res));
 }
 
-main();
+if (require.main === module) main();
+else module.exports = {isPrivate};

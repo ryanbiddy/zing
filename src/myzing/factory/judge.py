@@ -78,7 +78,7 @@ class Judge:
         cfg = self.project / "factory.json"
         local = images and cfg.is_file() and json.loads(cfg.read_text(encoding="utf-8")).get("visuals")
         if self.backend == "claude" and not local:
-            return self.save(task, self._claude(task, prompt, bool(images)))
+            return self.save(task, self._claude(task, prompt, images))
         pending.parent.mkdir(parents=True, exist_ok=True)
         head = "".join(f"<!-- image: {Path(p).resolve().as_posix()} -->\n" for p in images)
         pending.write_text(head + prompt, encoding="utf-8")
@@ -105,7 +105,7 @@ class Judge:
             out.append({"task": path.stem, "prompt_path": str(path), "images": images})
         return out
 
-    def _claude(self, task: str, prompt: str, images: bool) -> str:
+    def _claude(self, task: str, prompt: str, images: tuple[Path, ...]) -> str:
         net = Network(self.project)
         net.check("Claude judge")
         self._paths(task)
@@ -125,7 +125,7 @@ class Judge:
                 "--setting-sources", "project", "--effort", EFFORT.get(task.split("-")[-1], "medium"),
                 "--tools", "Read" if images else ""]
         if images:
-            argv += ["--allowedTools", "Read"]
+            argv += ["--allowedTools", *(f"Read({Path(p).resolve().as_posix()})" for p in images)]
         last = ""
         for attempt in range(2):        # one retry: a refused or empty call usually goes through a minute later
             with net.request(CLAUDE, task):
