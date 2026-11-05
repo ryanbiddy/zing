@@ -79,10 +79,10 @@ def test_uhd_must_be_a_json_boolean(tmp_path, media, bad):
         render.warn_uhd(root)
 
 
-def test_mcp_uhd_is_optional_and_tool_count_stays_43():
+def test_mcp_uhd_is_optional_and_tool_count_stays_44():
     pytest.importorskip("mcp")
     tools = asyncio.run(mcp_server.build_server().list_tools())
-    assert len(tools) == 43
+    assert len(tools) == 44
     schema = next(t.model_dump(by_alias=True)["inputSchema"] for t in tools if t.name == "factory_new")
     assert schema["properties"]["uhd"]["type"] == "boolean"
     assert schema["properties"]["uhd"]["default"] is False and "uhd" not in schema["required"]

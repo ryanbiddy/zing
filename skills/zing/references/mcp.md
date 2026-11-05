@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 43 tools. Inspect the connected client's tool schemas for
+The current server has 44 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -32,10 +32,11 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `zing_moments` | Rank complete transcript windows from a cached clip or study; Estimated reasons and must-keep JSON, no model calls or automatic selection. |
 | `factory_new` | Start a clip-factory project from a local episode and optional SRT/VTT/word JSON. Set moments (0 = only clips you pick), mode, shapes, style pack, public-only visuals, focus (what to clip), show (Post/No calls teach its next episode), cutout and vocab. `uhd=True` saves 4K output in `factory.json` and doubles every shape's width and height. Smaller sources still render with a warning. `vocab=["Pompliano", "Starbase"]` saves exact spellings for transcription and caption fixes. Only supplied terms are used, within study's vocabulary limits. |
 | `factory_run` | Transcribe, cut, find visuals, check graphics and context, render and build the review page. Runs in the background and resumes after judgments. Zing makes no model calls. |
-| `factory_status` | State, pending judgment tasks, renders, context flag counts, review page and network counts by host and purpose. |
+| `factory_status` | State, pending judgment tasks, renders, context flag counts, visual requests with candidate counts, candidates and current picks, review page and network counts by host and purpose. |
 | `factory_prompt` | One pending prompt; a pick attaches its contact sheet. Answer exactly as it asks. |
 | `factory_answer` | Save a validated JSON answer; then call `factory_run` again. |
 | `factory_clip` | Make a clip by hand: start and end seconds, a scout runner-up (`bench`), or new in and out points for an existing clip. The next `factory_run` cuts, plans and renders it. |
+| `factory_edit` | Edit `project`, `clip` synchronously. `action="rate"` takes `verdict="post"`, `"edits"` or `"no"` and optional `why`. `"hook"` takes `text`. `"copy"` takes `field` and `text`. `"visual"` takes `request` and zero-based `index` from status. `"word"` takes `index` and `new`, or `at`, `old` and `new`. `"render"` takes `shape` and `pack`, defaulting to `9x16` and `zing`. Returns changes, fact checks, context flags, receipt and pending tasks. |
 | `match_start` | Background reference-plus-clips workflow; brief/answers, seed, resume, and explicit URL consent. Local models only; returns a project path for polling. |
 | `match_status` | Actual progress, ready count, comparison, failures and logs. `cancel=true` stops this server's owned match worker and descendants. |
 | `build_profile` | Aggregate studied sources with coverage and unjudged-source warnings. |
@@ -56,6 +57,14 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `still_render` | Indexed concept ID and output folder to a full-size PNG, optionally MP4/GIF; records alt text and selection. |
 | `push_to_uoink` | Explicit library write; not part of default local editing. |
 | `import_shot_list` | Attach a local Writer-exported Markdown shot list to a studied slug. |
+
+Copy fields are `"x"`, `"instagram"`, `"tiktok"`, `"youtube_title"` and `"first_comment"`.
+Hook text is trimmed to 120 characters; copy to 2200. Word indices start at 0 in
+the clip's `words.json`. `at` is seconds in the edited clip, within the current
+word's timing, and `old` must match its text. Word timing stays unchanged.
+Hook, visual and word edits re-render the project's shapes and pack. Hook and
+word edits refresh fact and context checks. If context is pending, read it with
+`factory_prompt`, answer with `factory_answer`, then call `factory_run`.
 
 `factory_new(..., rights="permission", brief="./campaign.json")` labels source
 rights and copies a JSON campaign brief into the project. `rights` accepts `own`,

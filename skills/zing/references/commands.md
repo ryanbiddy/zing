@@ -369,6 +369,30 @@ Geometry writes caption-geometry.json beside the breakdown. Font matching ranks
 library fonts per caption track; results below the calibrated threshold are
 labeled substitutes. Failures become warnings and never abort the study.
 
+## Edit factory clips
+
+```sh
+zing factory edit talk clip01 --rate edits --why "Fix the name"
+zing factory edit talk clip01 --hook "How we built it"
+zing factory edit talk clip01 --copy x "The build, in their words."
+zing factory edit talk clip01 --visual v1 1
+zing factory edit talk clip01 --word 12 "Starbase"
+zing factory edit talk clip01 --render 1x1 --pack swiss
+```
+
+Choose one of `--rate`, `--hook`, `--copy`, `--visual`, `--word` or `--render`.
+`--rate` accepts `post`, `edits` or `no`; `--why` adds a reason. `--copy` takes
+a field and text. Fields are `"x"`, `"instagram"`, `"tiktok"`, `"youtube_title"` and
+`"first_comment"`. `--visual` takes a request ID and candidate index from status.
+`--word` takes an index in the clip's `words.json` and replacement text. Both
+indices start at 0. Word timing stays unchanged. `--render` takes `9x16`, `4x5`,
+`1x1` or `16x9`; `--pack` defaults to `zing` and only applies to `--render`.
+
+Hook, visual and word edits re-render the project's shapes and pack. Hook and
+word edits refresh fact checks, context and receipts. The command waits for the
+edit and render, then prints JSON with any pending context task. Answer it with
+`zing factory answer`, then use `zing factory run` to finish the check.
+
 ## Installation and offline limits
 
 From a source checkout, `uv sync --all-extras` installs the Python extras, not

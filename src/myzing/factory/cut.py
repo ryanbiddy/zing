@@ -119,6 +119,8 @@ def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float
             "source": str(source), "start": spans[0][0], "end": spans[-1][1], "ranges": [src(r) for r in ranges],
             **({"spans": spans} if len(spans) > 1 else {})}
     (d / "words.json").write_text(json.dumps(info, indent=0), encoding="utf-8")
+    (d / "words-heard.json").unlink(missing_ok=True)
+    (d / "word-fixes.json").unlink(missing_ok=True)
     cams(d)
     return info
 

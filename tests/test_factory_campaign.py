@@ -536,10 +536,10 @@ def test_mcp_new_accepts_rights_and_a_brief_path(tmp_path):
     assert not mcp_server.h_factory_new(str(root), str(tmp_path / "episode.mp4"), brief=str(tmp_path / "absent"))["ok"]
 
 
-def test_mcp_parameters_are_optional_and_tool_count_stays_43():
+def test_mcp_parameters_are_optional_and_tool_count_stays_44():
     pytest.importorskip("mcp", reason="mcp SDK not installed")
     tools = asyncio.run(mcp_server.build_server().list_tools())
-    assert len(tools) == 43
+    assert len(tools) == 44
     schema = next(t.model_dump(by_alias=True)["inputSchema"] for t in tools if t.name == "factory_new")
     assert schema["properties"]["rights"]["default"] == "unknown"
     assert schema["properties"]["rights"]["enum"] == list(campaign.RIGHTS)

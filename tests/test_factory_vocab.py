@@ -167,7 +167,7 @@ def test_mcp_factory_new_accepts_and_validates_vocab(tmp_path, media):
 def test_mcp_vocab_is_an_optional_string_list():
     pytest.importorskip("mcp")
     tools = asyncio.run(mcp_server.build_server().list_tools())
-    assert len(tools) == 43
+    assert len(tools) == 44
     schema = next(t.model_dump(by_alias=True)["inputSchema"] for t in tools if t.name == "factory_new")
     vocab = schema["properties"]["vocab"]
     assert vocab["default"] is None and "vocab" not in schema["required"]

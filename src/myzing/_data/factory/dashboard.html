@@ -409,6 +409,7 @@
   .agent-why b { color: var(--text); }
 
   .text-field { display: grid; gap: 6px; }
+  .caption-words { max-height: 240px; overflow: auto; }
   .text-field .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .text-field .row label { margin: 0; }
   .text-field .count { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
@@ -582,6 +583,7 @@ const api = {
   rate: (clip, v, why) => api.post("/api/rate", { clip, v, why }),
   visual: (clip, request, index) => api.post("/api/visual", { clip, request, index }),
   text: (clip, field, text) => api.post("/api/text", { clip, field, text }),
+  word: (clip, index, old, text) => api.post("/api/word", { clip, index, old, new: text }),
   render: (clip, shape, pack) => api.post("/api/render", { clip, shape, pack }),
   transcript: () => api.get("/api/transcript"),
   clip: (start, end, hook) => api.post("/api/clip", { start, end, hook }),
@@ -616,6 +618,7 @@ const ui = {
   shape: {},            // clip id -> shape id
   pack: {},             // clip id -> pack id for re-render
   drafts: {},           // "clip:field" -> unsaved text
+  word: {},
   rated: {},            // clip id -> last rating sent
   why: {},              // clip id -> why text
   receipts: {},         // clip id -> receipt open
@@ -1028,10 +1031,45 @@ function renderDetail() {
   const wordsCol = el("div", { class: "detail-col" }, el("h3", { text: "Words" }));
   wordsCol.append(textField(c, { id: "hook", label: "Hook", limit: 80, rows: 2 },
     (c.plan && c.plan.hook) || c.hook || "", "Wrap a word in *stars* to highlight it.", false));
+  wordsCol.append(captionBlock(c));
   const post = c.post || {};
   FIELDS.forEach(f => wordsCol.append(textField(c, f, post[f.id] || "", null, true)));
 
   box.replaceChildren(head, el("div", { class: "detail-body" }, visCol, wordsCol));
+}
+
+function captionBlock(c) {
+  const words = c.words || [], selected = ui.word[c.clip];
+  const block = el("section", { class: "text-field", "aria-label": "Captions" }, el("h3", { text: "Captions" }));
+  if (!words.length) return el("p", { class: "hint", text: "Caption words appear after cutting." });
+  block.append(el("p", { class: "hint", text: "Click a word to fix it. Timing stays the same." }),
+    el("div", { class: "tabs caption-words", role: "group", "aria-label": "Caption words" },
+      words.map((w, i) => el("button", { class: "button ghost small", type: "button", id: "w-" + c.clip + "-" + i,
+        "aria-pressed": String(!!selected && selected.index === i),
+        "aria-label": "Fix " + w.w + " at " + w.os.toFixed(2) + " seconds",
+        onclick: () => {
+          ui.word[c.clip] = { index: i, old: w.w, text: w.w };
+          renderDetail(); focusLater("#word-" + c.clip);
+        } }, w.w))));
+  if (!selected) return block;
+  const id = "word-" + c.clip;
+  const input = el("input", { class: "field", id, type: "text", value: selected.text,
+    oninput: e => { selected.text = e.target.value; sync(); } });
+  const save = el("button", { class: "button small", type: "submit" }, "Save word");
+  const sync = () => { save.disabled = !input.value.trim() || input.value.trim() === selected.old; };
+  const close = () => { delete ui.word[c.clip]; renderDetail(); focusLater("#w-" + c.clip + "-" + selected.index); };
+  sync();
+  block.append(el("form", { class: "text-field", onsubmit: e => {
+    e.preventDefault();
+    if (save.disabled) return;
+    return act(save, async () => {
+      await api.word(c.clip, selected.index, selected.old, input.value);
+      close();
+    }, "Word saved. Re-rendering " + c.clip + ".");
+  } }, el("label", { class: "field-label", for: id, text: "Replace “" + selected.old + "”" }), input,
+    el("div", { class: "actions" },
+      el("button", { class: "button ghost small", type: "button", onclick: close }, "Cancel"), save)));
+  return block;
 }
 
 function requestBlock(c, r) {

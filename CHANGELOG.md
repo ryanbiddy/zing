@@ -2,6 +2,15 @@
 
 ## Clip factory
 
+- Review edits read current files in the queue. MCP refuses edits during active
+  factory runs. Manual word fixes update on-screen text and copy, repeated fixes
+  keep the original heard text, and new cuts clear old fixes. Render errors now
+  return brief stderr through MCP and the CLI.
+
+- `factory_edit` and `zing factory edit` rate clips, change hooks and copy, swap
+  visuals, fix caption words and re-render. The review page also edits caption
+  words. Fixes keep their timing and refresh fact checks, context and receipts.
+
 - Factory `--rights` labels source rights without blocking clips. `--brief FILE`
   adds campaign length checks, required tags, banned-term flags and a disclosure
   at the start of every rendered shape.
