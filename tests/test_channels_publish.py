@@ -102,6 +102,7 @@ def ready(channel, name="episode", *, slot=None, data=b"video", post=None, plan=
     d = project / "clip01"
     pipeline._write(d / "post.json", {"youtube_title": "A story", "youtube": "The full story.", **(post or {})})
     pipeline._write(d / "plan.json", plan or {})
+    pipeline._write(d / "context.json", {"flags": []})
     (d / "clip.mp4").write_bytes(data)
     row = {"id": f"{name}/clip01", "project": str(project), "clip": "clip01", "status": "queued",
            "slot": (slot or NOW + timedelta(hours=1)).isoformat(), "title": "A story", "manual": True}

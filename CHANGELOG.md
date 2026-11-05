@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Channels: stricter gate and safer kits after review.
 - Add opt-in YouTube connection, private or scheduled uploads and owner analytics
   for channels. Uploads resume from saved sessions, recheck approval, honor pause
   files and enforce daily channel and Cloud project caps. Publishing defaults to off.

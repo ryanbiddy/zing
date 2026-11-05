@@ -13,7 +13,7 @@ import pytest
 
 from myzing import uoink_bridge
 from myzing.channels import command, digest, gate, kit, outcomes, queue, registry, tick, watch
-from myzing.factory import judge, network, pipeline, source, visuals
+from myzing.factory import judge, network, pipeline, render, source, visuals
 
 UC = "UC" + "a" * 22
 RSS = '''<rss><channel>
@@ -82,8 +82,11 @@ def clip(project, now=None):
     now = now or datetime.now(timezone.utc)
     d = project / "clip01"
     pipeline._write(d / "post.json", {"youtube_title": "A story", "x": "Caption"})
-    (d / "clip.mp4").write_bytes(b"video")
-    for p in (d / "post.json", d / "clip.mp4"):
+    pipeline._write(d / "context.json", {"flags": []})
+    pipeline._write(d / "brief_check.json", {"errors": [], "flags": []})
+    video = d / f"clip{render.suffix('9x16', pipeline._read(project / 'factory.json')['pack'])}.mp4"
+    video.write_bytes(b"video")
+    for p in (d / "post.json", video):
         stamp = (now - timedelta(seconds=2)).timestamp()
         os.utime(p, (stamp, stamp))
     pipeline._write(project / "ratings.json", {"clip01": {"v": "post", "at": now.isoformat()}})

@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
+from myzing.factory import campaign, postcopy
 from myzing.factory.pipeline import _read, _write
 
 from . import bandit, gate, registry
@@ -86,7 +87,8 @@ def _seed_ok(slot: datetime, rows: list[dict], channel: dict) -> bool:
         a, b = sorted((slot, datetime.fromisoformat(row["slot"]).astimezone(zone)), key=lambda d: d.timestamp())
         day, count = a.date(), 0
         while day <= b.date() and count < every:
-            count += sum(a.timestamp() < s.timestamp() <= b.timestamp() for s in _daily(day, channel))
+            count += min(channel["cadence"]["per_day"],
+                         sum(a.timestamp() < s.timestamp() <= b.timestamp() for s in _daily(day, channel)))
             day += timedelta(days=1)
         if count < every:
             return False
@@ -104,6 +106,27 @@ def _episode_ok(project: str, slot: datetime, rows: list[dict]) -> bool:
                 break
             count += 1
     return count <= 3
+
+
+def _title(row: dict, history: list[dict], channel: dict, rng) -> None:
+    d = Path(row["project"]) / row["clip"]
+    post = _read(d / "post.json", {})
+    recent = sorted((r for r in history if r.get("status", "posted") in ("queued", "kit", "posted")), key=bandit.when)[-9:]
+    counts = Counter(bandit.value(r, "title_pattern") for r in recent)
+    if not post.get("title_pattern") or counts[post["title_pattern"]] < 4:
+        return
+    options = post.get("title_options", [])
+    candidates = list(dict.fromkeys(t["pattern"] for t in options if counts[t["pattern"]] < 4))
+    if not candidates:
+        return
+    value, propensity, policy = bandit.choose("title_pattern", candidates, history, rng,
+                                            baseline="name_claim", prior=bandit.prior(channel))
+    post.update(youtube_title=next(t["text"] for t in options if t["pattern"] == value), title_pattern=value,
+                title_propensity=propensity, title_policy=policy, title_candidates=candidates)
+    post = postcopy.require_tags(post, campaign.read(d.parent))
+    _write(d / "post.json", post)
+    row["title"] = post["youtube_title"]
+    row["arms"].update({k: post[k] for k in ("title_pattern", "title_propensity", "title_policy", "title_candidates")})
 
 
 def build(slug: str, now: datetime | None = None, *, rng: random.Random | None = None, stop=None) -> dict:
@@ -158,6 +181,7 @@ def build(slug: str, now: datetime | None = None, *, rng: random.Random | None =
             value, propensity, policy = bandit.choose("archetype", archetypes, history, rng)
             chosen = next(r for r in candidates if r["arms"].get("archetype", "other") == value)
         if chosen is not None:
+            _title(chosen, history, channel, rng)
             row = {**chosen, "slot": slot.isoformat(timespec="seconds"), "order_propensity": propensity,
                    "order_policy": policy, "arms": {**chosen["arms"], "hour": slot.hour}}
             _write(Path(row["project"]) / row["clip"] / "arms.json", row["arms"])

@@ -106,11 +106,14 @@ with code 1 if it finds a problem. Other command errors exit with code 2.
 Each check writes `clipNN/gate.json` with `publishable` and `blockers`.
 A clip waits if any of these apply.
 
-- Project source rights are unknown, or its registered grant has expired.
+- Project source rights or the current registered grant are unknown or expired.
 - A picked visual has rights other than `cleared` or `attribution`, unless the
   channel allows `editorial`. Unknown or missing visual rights always block.
-- `context.json` has flags, or `brief_check.json` has errors or flags.
-- The `9x16` render at `clipNN/clip.mp4` or `post.json` is missing.
+- `context.json` is missing, has an error or has flags.
+- A project has `brief.json` but the clip has no `brief_check.json`, or the
+  brief check has errors or flags.
+- The project's `9x16` render or `post.json` is missing. Non-default packs use
+  `clipNN/clip-<pack>.mp4`.
 - The clip is rated No or still needs approval.
 - The channel or the whole network is paused.
 
@@ -184,6 +187,10 @@ when a YouTube handle is set.
 Host-judge channels stop at pending prompts until an agent answers them with
 `zing factory answer` or the existing factory MCP tools. Later ticks resume them.
 Projects with unknown or expired source rights do not advance.
+Missing sources leave an error for that project while other projects can run.
+Failed projects and projects with failed clips get at most two retries.
+`tick_attempts.json` records the retries. Later ticks skip them with a note
+so newer episodes can run.
 
 `--max-minutes` defaults to 50 and limits the whole tick. Pause and time checks
 run between steps, clips and enclosure chunks. A running model call or render
@@ -256,8 +263,10 @@ FFmpeg remuxes the video with stream copy and faststart. If FFmpeg is missing,
 the original file is copied and the command reports that it was not remuxed.
 
 `kit` rechecks the gate before making files and marks each finished row `kit`.
-Repeat runs leave finished kits alone. `kit --out DIR` chooses another output
-folder. Open its `index.html` to watch videos and copy text. Its Posted checkboxes
+Repeat runs rebuild a kit when the clip's render or copy is newer. The folder
+keeps its name. Uploads refuse stale kits until you run `zing channels kit SLUG`.
+Kits with an upload in progress stay unchanged. `kit --out DIR` chooses another
+output folder. Open its `index.html` to watch videos and copy text. Its Posted checkboxes
 only change the open page. Use `posted` to save that status in the queue;
 `--url` records the platform URL without opening it.
 
@@ -350,8 +359,10 @@ zing channels pause --all
 zing channels resume --all
 ```
 
-Pause creates a `PAUSE` file. Watch, queue, kit, upload and analytics commands refuse while either
-the channel file or the root file exists. Ticks stop at their next check.
+Pause creates a `PAUSE` file. Watch, track, queue, kit, upload and analytics
+commands refuse while either the channel file or the root file exists.
+A pause takes effect between steps and requests. It does not interrupt a render.
+Ticks stop at their next check.
 Resuming one channel leaves the root
 pause in effect. Pausing does not remove existing kits or queue rows.
 

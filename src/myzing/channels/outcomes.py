@@ -94,12 +94,14 @@ def rewards(rows: list[dict]) -> list[dict]:
 
 
 def track(slug: str, *, fetch=None, now=None) -> dict:
+    registry.require_running(slug)
     channel = registry.load(slug)
     handle = channel["handles"].get("youtube", "").strip()
     if not handle or not (handle.startswith("@") or re.fullmatch(feeds.ID, handle)):
         raise registry.ChannelError("Set handles.youtube to an @handle or UC channel ID before tracking.")
     root, at = registry.directory(slug), queue._now(now).isoformat(timespec="seconds")
     ident = feeds.resolve(handle, fetch, root=root)
+    registry.require_running(slug)
     videos = feeds.feed(ident, fetch, root=root)
     append_jsonl(root / "snapshots.jsonl", [{"at": at, "channel": slug,
                  **{key: v[key] for key in ("channel_id", "id", "title", "published", "views", "short")}} for v in videos])
@@ -121,8 +123,8 @@ def track(slug: str, *, fetch=None, now=None) -> dict:
         results.append({**old, "schema_version": 1, "id": row["id"], "channel": slug, "platform": "youtube",
                         "video_id": vid, "url": row.get("url"),
                         "posted_at": measured.get("published") or row.get("posted_at") or row["slot"],
-                        "arms": arms, "propensity": arms.get("title_propensity", post.get("title_propensity")),
-                        "policy": arms.get("title_policy", post.get("title_policy")),
+                        "arms": arms, "propensity": arms.get("title_propensity") or post.get("title_propensity") or old.get("propensity"),
+                        "policy": arms.get("title_policy") or post.get("title_policy") or old.get("policy"),
                         **{f"views_{basis}": measured.get("views", {}).get(basis, old.get(f"views_{basis}"))
                            for basis in ("1h", "24h", "7d")},
                         "avg_view_pct": old.get("avg_view_pct"), "subs": old.get("subs"), "updated_at": at})

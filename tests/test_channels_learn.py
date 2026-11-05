@@ -53,6 +53,7 @@ def episode(channel, name="episode", archetypes=("confession",), title="A story"
         pipeline._write(d / "post.json", {key: title for key in postcopy.FIELDS})
         pipeline._write(d / "plan.json", {"hook": moment["hook"], "shots": [{"from": 0, "layout": "solo"}]})
         pipeline._write(d / "cams.json", {})
+        pipeline._write(d / "context.json", {"flags": []})
         pipeline._write(d / "words.json", {"start": 0, "duration": 30, "words": [{"w": "Story.", "os": 0, "oe": 29.55}]})
         pipeline._arms(d, moment, pipeline._read(project / "factory.json"), {})
         (d / "clip.mp4").write_bytes(b"placeholder")
@@ -116,7 +117,7 @@ def test_pipeline_selects_title_once_and_records_arms(channel, monkeypatch, belo
     cfg = pipeline._read(project / "factory.json")
     cfg["channel"] = channel["slug"] if belongs else None
     original = postcopy.choose
-    monkeypatch.setattr(postcopy, "choose", lambda post, slug: original(post, slug, random.Random(31)))
+    monkeypatch.setattr(postcopy, "choose", lambda post, slug, **kw: original(post, slug, random.Random(31), **kw))
     monkeypatch.setattr(render, "render", lambda *a: None)
     monkeypatch.setattr(pipeline, "_context", lambda *a: None)
 

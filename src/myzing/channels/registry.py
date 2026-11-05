@@ -313,7 +313,10 @@ def project_settings(slug: str, source_id: str | None = None, **settings) -> dic
         src = source(channel, source_id)
         settings.setdefault("rights", effective_rights(src))
         settings.setdefault("name", src["name"])
-        settings["url"] = settings.get("url") or src.get("url", "")
+        settings["url"] = next((url for url in (settings.get("url"), src.get("url"))
+                                if url and url.startswith(("http://", "https://"))), "")
+    elif settings.get("url") and not settings["url"].startswith(("http://", "https://")):
+        settings["url"] = ""
     return settings
 
 

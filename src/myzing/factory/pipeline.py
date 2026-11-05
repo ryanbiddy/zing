@@ -368,7 +368,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             post = postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"], cfg.get("brand"),
                                                                            cfg.get("news"), voice=voice)), w, src, brief)
             if cfg.get("channel"):
-                post = postcopy.require_tags(postcopy.choose(post, cfg["channel"]), brief)
+                post = postcopy.require_tags(postcopy.choose(post, cfg["channel"], clipdir=d), brief)
             _write(d / "post.json", post)
         except NeedsAnswer:
             waiting.append(f"{task}-copy")

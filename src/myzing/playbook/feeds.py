@@ -88,7 +88,7 @@ class _Page(HTMLParser):
 
 def resolve(handle_or_id: str, fetch=None, *, root: Path = Path(".")) -> str:
     handle = channel(handle_or_id)
-    if re.fullmatch(ID, handle):
+    if not handle_or_id.startswith("@") and re.fullmatch(ID, handle):
         return handle
     path = root / "feeds" / "ids.json"
     ids = read_json(path) if path.exists() else {}

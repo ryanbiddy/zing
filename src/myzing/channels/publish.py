@@ -11,7 +11,7 @@ from urllib.parse import urlencode, urlsplit
 from myzing.factory.pipeline import _read, _write
 from myzing.playbook.common import number
 
-from . import gate, outcomes, queue, registry, youtube
+from . import gate, kit, outcomes, queue, registry, youtube
 
 UPLOAD = "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status"
 REPORTS = "https://youtubeanalytics.googleapis.com/v2/reports"
@@ -216,6 +216,9 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                 result["blocked"][row["id"]] = checked["blockers"]
                 continue
             folder = Path(entry["kit"] if entry else row["kit"])
+            if kit._stale(Path(row["project"]) / row["clip"], folder):
+                result["blocked"][row["id"]] = ["The kit is older than the clip. Run zing channels kit."]
+                continue
             path = folder / "video.mp4"
             stat = path.stat()
             if stat.st_size <= 0:
@@ -258,7 +261,7 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                         video = _transfer(client, entry, resume=True)
                     result["posted"].append(_finish(slug, rows, row, entries, entry, queue._now(clock), video))
                 except youtube.Error as exc:
-                    if exc.status == 403 and exc.reason:
+                    if exc.reason:
                         _quota(channel, project, now, reason=exc.reason)
                     result["stopped"] = str(exc)
                     break
@@ -315,9 +318,10 @@ def analytics(slug, *, opener=None, now=None, sleep=None, stop=None) -> dict:
             arms = row.get("arms") or _read(d / "arms.json", old.get("arms", {}))
             old.update(schema_version=1, channel=slug, platform="youtube", video_id=ident, url=row.get("url"),
                        posted_at=row.get("posted_at") or row["slot"], arms=arms,
-                       propensity=arms.get("title_propensity", post.get("title_propensity", old.get("propensity"))),
-                       policy=arms.get("title_policy", post.get("title_policy", old.get("policy"))), updated_at=at,
-                       **{field: measured.get(ident, {}).get(field) for field in METRICS.values()})
+                       propensity=arms.get("title_propensity") or post.get("title_propensity") or old.get("propensity"),
+                       policy=arms.get("title_policy") or post.get("title_policy") or old.get("policy"), updated_at=at,
+                       **{field: measured.get(ident, {}).get(field) if measured.get(ident, {}).get(field) is not None
+                          else old.get(field) for field in METRICS.values()})
         outcomes.write(slug, outcomes.rewards(rows))
         _write(marker, {"last_run": at, "complete": True})
     return {"videos": len(ids), "matched": len(measured)}
