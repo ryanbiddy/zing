@@ -149,11 +149,20 @@ keep every timing. The original words stay in `words-heard.json`, and manual
 fixes stay in `word-fixes.json` so later hook and visual edits preserve them.
 On the review page, open a clip's details and click a word under Captions.
 
-Edits finish synchronously. Hook, visual and word changes re-render the project's
-shapes and pack. Hook and word changes repeat the fact and context checks and
+CLI and MCP edits finish synchronously. Hook, visual and word changes re-render
+the project's shapes and pack. Hook and word changes repeat the fact and context checks and
 refresh the receipt. Results include fact checks, context flags and pending
 tasks. With the host judge, a context check may need an answer. Use
 `factory_prompt`, `factory_answer`, then `factory_run` to finish it.
+
+- The review page queues hook, visual and word edits. Each job reads the latest
+  files when it starts. `factory_edit` refuses edits during a factory run for the
+  same project. Wait for `factory_status` to report `running=false`.
+- Manual word fixes also correct matching text in hooks, graphics, labels and
+  post copy. Fixing a word again replaces its saved fix and keeps the original
+  heard text. A new cut clears the old saved words and manual fixes.
+- MCP and CLI edits return a short render error with the last 500 characters of
+  stderr when available.
 
 ## Render in 4K
 

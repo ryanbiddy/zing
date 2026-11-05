@@ -136,20 +136,19 @@ class Studio:
         return self._make("runner-up", change)
 
     def visual(self, body: dict) -> dict:
-        d = self.clipdir(body.get("clip"))
         request, index = body.get("request"), body.get("index")
-        saved = edit._save_visual(self.project, d.name, request, index, "chosen in the dashboard")
+        d, _, _ = edit._check_visual(self.project, body.get("clip"), request, index)
         return self.queue(f"{d.name}: new visual", lambda: edit.visual(self.project, d.name, request, index,
-                          _saved=saved, context=self._context, rerender=self._rerender))
+                          why="chosen in the dashboard", context=self._context, rerender=self._rerender))
 
     def text(self, body: dict) -> dict:
-        d = self.clipdir(body.get("clip"))
         field, value = body.get("field"), body.get("text")
-        saved = edit._save_text(self.project, d.name, field, value, Judge(self.project))
+        d, _, _ = edit._check_text(self.project, body.get("clip"), field, value)
         if field in TEXT_FIELDS:
+            edit.text(self.project, d.name, field, value)
             return {"saved": field}
         return self.queue(f"{d.name}: new hook", lambda: edit.text(self.project, d.name, field, value,
-                          _saved=saved, context=self._context, rerender=self._rerender))
+                          context=self._context, rerender=self._rerender))
 
     def word(self, body: dict) -> dict:
         clip, index, new = body.get("clip"), body.get("index"), body.get("new")

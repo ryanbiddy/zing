@@ -33,6 +33,7 @@ import math
 import os
 import re
 import shutil
+import subprocess
 import sys
 import threading
 from datetime import datetime, timezone
@@ -1984,9 +1985,18 @@ def h_factory_edit(project: str, clip: str, action: Literal["rate", "hook", "cop
     from myzing.factory import edit
     from myzing.factory.tools import FactoryError
     try:
-        result = edit.apply(Path(project).expanduser(), clip, action, verdict=verdict, why=why, text=text, field=field,
+        root = Path(project).expanduser().resolve()
+        with _JOBS_LOCK:
+            if str(root) in _FACTORY_JOBS:
+                return _err("a factory run is in progress for this project; wait for factory_status to show it finished")
+        result = edit.apply(root, clip, action, verdict=verdict, why=why, text=text, field=field,
                             request=request, index=index, at=at, old=old, new=new, shape=shape, pack=pack)
         return _ok(action=action, **result)
+    except subprocess.SubprocessError as exc:
+        detail = getattr(exc, "stderr", None) or str(exc)
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        return _err(detail[-500:])
     except (FactoryError, ValueError, OSError, KeyError, TypeError) as exc:
         return _err(str(exc))
 

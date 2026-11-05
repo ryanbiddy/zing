@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -269,6 +270,12 @@ def run(argv: list[str]) -> int:
             result = check()
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0
+    except subprocess.SubprocessError as exc:
+        detail = getattr(exc, "stderr", None) or str(exc)
+        if isinstance(detail, bytes):
+            detail = detail.decode("utf-8", errors="replace")
+        print(f"zing factory: {detail[-500:]}", file=sys.stderr)
+        return 2
     except (OSError, ValueError, RuntimeError, KeyError) as exc:
         print(f"zing factory: {exc}", file=sys.stderr)
         return 2

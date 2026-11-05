@@ -235,10 +235,11 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
         if not heard.is_file():
             heard.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         (d / "words.json").write_text(json.dumps({**data, "words": words}, ensure_ascii=False), encoding="utf-8")
-    plan = _fix_text({k: v for k, v in plan.items() if k != "fixes"}, pairs)
+    text_pairs = pairs + [(f["heard"], f["meant"]) for f in applied]
+    plan = _fix_text({k: v for k, v in plan.items() if k != "fixes"}, text_pairs)
     post = d / "post.json"
-    if pairs and post.is_file():                       # the copy was written from the same words
-        post.write_text(json.dumps(_fix_text(json.loads(post.read_text(encoding="utf-8")), pairs), indent=1,
+    if text_pairs and post.is_file():                  # the copy was written from the same words
+        post.write_text(json.dumps(_fix_text(json.loads(post.read_text(encoding="utf-8")), text_pairs), indent=1,
                                    ensure_ascii=False), encoding="utf-8")
     shots, quoted = [], False
     spoken = spoken_numbers(words)[0]

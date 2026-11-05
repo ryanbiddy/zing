@@ -53,52 +53,53 @@ def rate(project: Path, clip: str, verdict: str | None, why: str = "") -> dict:
     return pipeline.rate(project, clip, "fix" if verdict == "edits" else verdict, why)
 
 
-def _save_visual(project: Path, clip: str, request: str, index: int, why: str = "chosen by hand") -> tuple:
+def _check_visual(project: Path, clip: str, request: str, index: int) -> tuple:
     d = clipdir(project, clip)
     vis = d / "visuals"
     manifest, raw = _read(vis / "manifest.json", {}), _read(d / "plan-raw.json")
     if raw is None or request not in manifest or type(index) is not int or not 0 <= index < len(manifest[request]):
         raise FactoryError("no such visual candidate")
+    return d, raw, manifest
+
+
+def visual(project: Path, clip: str, request: str, index: int, *, why: str = "chosen by hand",
+           context=None, rerender=None) -> dict:
+    d, raw, manifest = _check_visual(project, clip, request, index)
+    vis = d / "visuals"
     picks = _read(vis / "picks.json", {"picks": {}})
     picks["picks"][request] = {"pick": index, "why": why}
     _write(vis / "picks.json", picks)
-    return raw, manifest, picks
-
-
-def visual(project: Path, clip: str, request: str, index: int, *, _saved=None, context=None, rerender=None) -> dict:
-    d = clipdir(project, clip)
-    raw, manifest, picks = _saved if _saved is not None else _save_visual(project, clip, request, index)
     _finalize(d, raw, pick.chosen(d / "visuals", raw.get("visual_requests", []), manifest, picks["picks"]))
     (context or _context)(d)
     (rerender or _rerender)(d)
     return _result(d, request=request, index=index)
 
 
-def _save_text(project: Path, clip: str, field: str, text: str, judge: Judge | None = None) -> tuple:
+def _check_text(project: Path, clip: str, field: str, text: str) -> tuple:
     d = clipdir(project, clip)
     value = str(text or "").strip()
     if not value:
         raise FactoryError("text cannot be empty")
     if field in TEXT_FIELDS:
-        post = _read(d / "post.json", {})
-        post[field] = value[:2200]
-        _write(d / "post.json", post)
-        return post[field], None
+        return d, value[:2200], None
     if field != "hook":
         raise FactoryError(f"unknown field {field!r}")
     raw, current = _read(d / "plan-raw.json"), _read(d / "plan.json")
     if raw is None or current is None:
         raise FactoryError("this clip has no plan yet")
-    raw["hook"] = value[:120]
-    _write(d / "plan-raw.json", raw)
-    (judge or Judge(d.parent)).save(f"{d.name}-plan", raw)
-    return raw["hook"], raw
+    return d, value[:120], raw
 
 
-def text(project: Path, clip: str, field: str, text: str, *, _saved=None, context=None, rerender=None) -> dict:
-    d = clipdir(project, clip)
-    value, raw = _saved if _saved is not None else _save_text(project, clip, field, text)
-    if raw is not None:
+def text(project: Path, clip: str, field: str, text: str, *, context=None, rerender=None) -> dict:
+    d, value, raw = _check_text(project, clip, field, text)
+    if raw is None:
+        post = _read(d / "post.json", {})
+        post[field] = value
+        _write(d / "post.json", post)
+    else:
+        raw["hook"] = value
+        _write(d / "plan-raw.json", raw)
+        Judge(d.parent).save(f"{d.name}-plan", raw)
         _finalize(d, raw, _read(d / "plan.json").get("visuals", {}))
         pipeline._forget_context(d)
         (context or _context)(d)
@@ -139,7 +140,11 @@ def word(project: Path, clip: str, index: int | None = None, new: str = "", *, a
     heard = d / "words-heard.json"
     if not heard.is_file():
         _write(heard, data)
-    _write(d / "word-fixes.json", _read(d / "word-fixes.json", []) + [fix])
+    fixes = _read(d / "word-fixes.json", [])
+    same = [f for f in fixes if (f["os"], f["oe"]) == (fix["os"], fix["oe"])]
+    if same:
+        fix["heard"] = same[0]["heard"]
+    _write(d / "word-fixes.json", [f for f in fixes if f not in same] + [fix])
     _finalize(d, _read(d / "plan-raw.json"), _read(d / "plan.json").get("visuals", {}))
     pipeline._forget_context(d)
     (context or _context)(d)

@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import threading
 
 import pytest
 
 from myzing import mcp_server
-from myzing.factory import command, edit, judge, pipeline, plan, render, serve
+from myzing.factory import command, cut, edit, judge, pipeline, plan, render, serve
 from myzing.factory.tools import FactoryError
 from test_factory_context import Answer
 from test_factory_review_fixes import javascript, prepared, project
@@ -264,15 +266,18 @@ def test_studio_keeps_responses_and_queue_labels(ready):
     studio = serve.Studio(d.parent)
     assert studio.rate({"clip": d.name, "v": "fix"}) == {"saved": d.name}
     assert studio.text({"clip": d.name, "field": "x", "text": "copy"}) == {"saved": "x"}
+    before = pipeline._read(d / "visuals" / "picks.json")
     assert studio.visual({"clip": d.name, "request": "v1", "index": 1}) == {"queued": "clip01: new visual"}
-    assert pipeline._read(d / "visuals" / "picks.json")["picks"]["v1"] == {
-        "pick": 1, "why": "chosen in the dashboard"}
     assert studio.text({"clip": d.name, "field": "hook", "text": "New"}) == {"queued": "clip01: new hook"}
-    assert pipeline._read(d / "plan-raw.json")["hook"] == "New" and not calls
+    # queued edits change files when their job runs, so two edits on one clip never overwrite each other
+    assert pipeline._read(d / "visuals" / "picks.json") == before and pipeline._read(d / "plan-raw.json")["hook"] != "New"
     assert studio.rerender({"clip": d.name, "shape": "1x1"}) == {"queued": "clip01: 1x1 zing"}
     assert studio.word({"clip": d.name, "index": 3, "new": "Rocket!"}) == {"queued": "clip01: new word"}
+    assert not calls
     while not studio.jobs.empty():
         studio.jobs.get_nowait()[1]()
+    assert pipeline._read(d / "visuals" / "picks.json")["picks"]["v1"] == {"pick": 1, "why": "chosen in the dashboard"}
+    assert pipeline._read(d / "plan-raw.json")["hook"] == "New"
     assert calls == [("9x16", "zing"), ("9x16", "zing"), ("1x1", "zing"), ("9x16", "zing")]
     assert studio.state()["clips"][0]["words"][3]["w"] == "Rocket!"
 
@@ -292,3 +297,175 @@ def test_page_edits_a_word_and_keeps_the_draft():
     """)
     assert got == {"draft": "Rocket!", "sent": {"path": "/api/word", "body": {
         "clip": "clip01", "index": 0, "old": "<Rocket>", "new": "Rocket!"}}, "left": None}
+
+
+@pytest.mark.parametrize("order", [("hook", "visual", "word"), ("visual", "word", "hook"),
+                                  ("word", "hook", "visual")])
+def test_studio_edits_read_current_files_in_the_worker(ready, order):
+    d, j, calls = ready
+    studio = serve.Studio(d.parent)
+
+    def earlier_job():
+        raw = pipeline._read(d / "plan-raw.json")
+        pipeline._write(d / "plan-raw.json", {**raw, "hook_until": 4})
+    studio.queue("run", earlier_job)
+    before = {p: p.read_bytes() for p in d.parent.rglob("*.json")}
+    actions = {
+        "hook": lambda: studio.text({"clip": d.name, "field": "hook", "text": "New hook"}),
+        "visual": lambda: studio.visual({"clip": d.name, "request": "v1", "index": 1}),
+        "word": lambda: studio.word({"clip": d.name, "index": 3, "new": "ship."}),
+    }
+    for action in order:
+        assert actions[action]() == {"queued": f"{d.name}: new {action}"}
+    assert {p: p.read_bytes() for p in d.parent.rglob("*.json")} == before and not calls
+    studio.jobs.get_nowait()[1]()
+    for action in order:
+        studio.jobs.get_nowait()[1]()
+        assert pipeline._read(d / "plan.json")["hook_until"] == 4
+    final = pipeline._read(d / "plan.json")
+    assert final["hook"] == j.cached("clip01-plan")["hook"] == "New hook"
+    assert final["visuals"]["v1"]["path"].endswith("b.jpg")
+    assert pipeline._read(d / "words.json")["words"][3]["w"] == "ship."
+    assert calls == [("9x16", "zing")] * 3
+
+
+def test_studio_visual_jobs_keep_other_picks(ready):
+    d, _, _ = ready
+    raw = pipeline._read(d / "plan-raw.json")
+    raw["visual_requests"].append({"id": "v2", "query": "rocket", "kind": "photo"})
+    raw["shots"].append({"from": 2, "layout": "split", "visual": "v2"})
+    pipeline._write(d / "plan-raw.json", raw)
+    manifest = pipeline._read(d / "visuals" / "manifest.json")
+    pipeline._write(d / "visuals" / "manifest.json", {**manifest, "v2": manifest["v1"]})
+    studio = serve.Studio(d.parent)
+    studio.visual({"clip": d.name, "request": "v1", "index": 1})
+    studio.visual({"clip": d.name, "request": "v2", "index": 1})
+    studio.jobs.get_nowait()[1]()
+    assert "v2" not in pipeline._read(d / "visuals" / "picks.json")["picks"]
+    studio.jobs.get_nowait()[1]()
+    assert {k: v["pick"] for k, v in pipeline._read(d / "visuals" / "picks.json")["picks"].items()} == {
+        "v1": 1, "v2": 1}
+    assert all(v["path"].endswith("b.jpg") for v in pipeline._read(d / "plan.json")["visuals"].values())
+
+
+@pytest.mark.parametrize("action,body,want", [
+    ("visual", {"clip": "clip99", "request": "v1", "index": 0}, "unknown clip 'clip99'"),
+    ("text", {"clip": "clip99", "field": "hook", "text": "Hi"}, "unknown clip 'clip99'"),
+    ("word", {"clip": "clip99", "index": 0, "new": "Hi"}, "unknown clip 'clip99'"),
+    ("visual", {"request": "v2", "index": 0}, "no such visual candidate"),
+    ("visual", {"request": "v1", "index": 2}, "no such visual candidate"),
+    ("visual", {"request": "v1", "index": True}, "no such visual candidate"),
+    ("text", {"field": "hook", "text": " "}, "text cannot be empty"),
+    ("text", {"field": "x", "text": " "}, "text cannot be empty"),
+    ("text", {"field": "bad", "text": "Hi"}, "unknown field 'bad'"),
+    ("word", {"index": 4, "new": "Hi"}, "no such caption word; index must be from 0 to 3"),
+    ("word", {"index": 0, "new": " "}, "text cannot be empty"),
+])
+def test_studio_rejects_bad_edits_before_queueing(ready, action, body, want):
+    d, _, calls = ready
+    studio = serve.Studio(d.parent)
+    before = {p: p.read_bytes() for p in d.parent.rglob("*.json")}
+    with pytest.raises(FactoryError) as exc:
+        getattr(studio, action)({"clip": d.name, **body})
+    assert str(exc.value) == want and studio.jobs.empty()
+    assert {p: p.read_bytes() for p in d.parent.rglob("*.json")} == before and not calls
+
+
+def test_mcp_edit_waits_for_factory_run(ready, monkeypatch):
+    d, _, calls = ready
+    entered, finish = threading.Event(), threading.Event()
+
+    def running(*args, **kwargs):
+        entered.set()
+        assert finish.wait(5)
+    monkeypatch.setattr(pipeline, "run", running)
+    monkeypatch.setattr(mcp_server, "_FACTORY_JOBS", {})
+    assert mcp_server.h_factory_run(str(d.parent))["status"] == "started"
+    worker = mcp_server._FACTORY_JOBS[str(d.parent.resolve())]
+    try:
+        assert entered.wait(5)
+        before = {p: p.read_bytes() for p in d.parent.rglob("*.json")}
+        for action in ("rate", "hook", "copy", "visual", "word", "render"):
+            got = mcp_server.h_factory_edit(str(d / ".."), d.name, action, text="New hook")
+            assert got == {"ok": False, "error":
+                           "a factory run is in progress for this project; wait for factory_status to show it finished"}
+        assert {p: p.read_bytes() for p in d.parent.rglob("*.json")} == before and not calls
+    finally:
+        finish.set()
+        worker.join(5)
+    assert not worker.is_alive() and not mcp_server.h_factory_status(str(d.parent))["running"]
+    assert mcp_server.h_factory_edit(str(d.parent), d.name, "hook", text="New hook")["ok"]
+
+
+def test_mcp_edit_allows_another_project_to_run(ready, monkeypatch):
+    d, _, _ = ready
+    monkeypatch.setattr(mcp_server, "_FACTORY_JOBS", {str(d.parent / "other"): threading.current_thread()})
+    assert mcp_server.h_factory_edit(str(d.parent), d.name, "hook", text="New hook")["ok"]
+
+
+@pytest.mark.parametrize("kind", ["quote", "title"])
+@pytest.mark.parametrize("automatic", [False, True])
+def test_manual_word_fix_updates_graphics_and_copy(ready, kind, automatic):
+    d, _, _ = ready
+    data = pipeline._read(d / "words.json")
+    data["words"][1]["w"] = "bult"
+    pipeline._write(d / "words.json", data)
+    raw = {"hook": "We bult a rocket.", "shots": [{"from": 0, "layout": "graphic",
+           "graphic": {"kind": kind, "text": "We bult a rocket."}}],
+           "fixes": [{"heard": "bult", "meant": "built"}] if automatic else []}
+    pipeline._write(d / "plan-raw.json", raw)
+    pipeline._write(d / "post.json", {field: "We bult a rocket." for field in edit.TEXT_FIELDS})
+    got = edit.word(d.parent, d.name, 3, "ship.")
+    wanted = "We built a ship." if automatic else "We bult a ship."
+    final = pipeline._read(d / "plan.json")
+    assert final["hook"] == wanted
+    assert final["shots"] == [{"from": 0, "layout": "graphic", "graphic": {"kind": kind, "text": wanted}}]
+    assert pipeline._read(d / "post.json") == {field: wanted for field in edit.TEXT_FIELDS}
+    assert not any("not spoken" in f for f in got["fact_check"])
+
+
+def test_repeated_word_fix_keeps_the_original_heard_text(ready):
+    d, _, _ = ready
+    edit.word(d.parent, d.name, 3, "ship.")
+    edit.word(d.parent, d.name, 0, "They")
+    edit.word(d.parent, d.name, 3, "shuttle.")
+    fixes = pipeline._read(d / "word-fixes.json")
+    assert fixes == [{"index": 0, "os": 0, "oe": .5, "heard": "We", "meant": "They"},
+                     {"index": 3, "os": 3, "oe": 3.5, "heard": "rocket.", "meant": "shuttle."}]
+    assert pipeline._read(d / "words.json")["words"][3]["w"] == "shuttle."
+    assert pipeline._read(d / "words-heard.json")["words"][3]["w"] == "rocket."
+    assert pipeline._read(d / "plan.json")["fixes"] == fixes
+
+
+def test_recut_discards_old_words_and_manual_fixes(ready, monkeypatch):
+    d, _, _ = ready
+    edit.word(d.parent, d.name, 3, "ship.")
+    monkeypatch.setattr(cut, "ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr(cut, "run", lambda *a: None)
+    monkeypatch.setattr(cut, "silences", lambda *a: [])
+    monkeypatch.setattr(cut, "cams", lambda *a: {})
+    words = [{"w": w, "s": 100 + i, "e": 100.5 + i} for i, w in enumerate("They built a shuttle.".split())]
+    got = cut.cut(d, d.parent / "ep.mp4", words, 100, 104)
+    assert not (d / "words-heard.json").exists() and not (d / "word-fixes.json").exists()
+    plan.finalize(d, pipeline._read(d / "plan-raw.json"), {})
+    assert pipeline._read(d / "words.json") == got
+    assert [w["w"] for w in got["words"]] == [w["w"] for w in words]
+    assert pipeline._read(d / "plan.json")["fixes"] == []
+
+
+@pytest.mark.parametrize("stderr", ["x" * 600 + "render failed", ("x" * 600 + "render failed").encode(),
+                                    b"bad byte \xff", None], ids=["text", "bytes", "bad-utf8", "no-stderr"])
+@pytest.mark.parametrize("action,args", [("render", ["--render", "1x1"]), ("hook", ["--hook", "New hook"])])
+def test_render_subprocess_errors_are_clean(ready, monkeypatch, capsys, stderr, action, args):
+    d, _, _ = ready
+    error = subprocess.CalledProcessError(1, ["node", "render.cjs"], stderr=stderr)
+
+    def failed(*args, **kwargs):
+        raise error
+    monkeypatch.setattr(render, "render", failed)
+    detail = stderr.decode("utf-8", errors="replace") if isinstance(stderr, bytes) else stderr or str(error)
+    got = mcp_server.h_factory_edit(str(d.parent), d.name, action, text="New hook")
+    assert got == {"ok": False, "error": detail[-500:]}
+    assert command.run(["edit", str(d.parent), d.name, *args]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err == f"zing factory: {detail[-500:]}\n"
