@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- Factory review fixes correct 4K export sizes, transcript setup, batch retries,
+  visual IDs, caption fixes, dashboard state and sign-in, network logs, name tags,
+  and context answer validation.
 - Factory embargo mode adds `new --offline`, local visual candidates with
   `--visuals DIR`, and a host-only `network.jsonl` ledger shown in status and review.
 

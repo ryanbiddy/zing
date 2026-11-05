@@ -81,7 +81,8 @@ oldest modification time first. Size and modification time must stay unchanged
 across two checks at least three seconds apart. Growing files wait for a later pass.
 
 Each episode gets a project under `--out`, named from its file stem with unsafe
-characters replaced. Existing projects resume. Projects marked `done` are skipped.
+characters replaced. Existing projects resume. Successful projects are skipped.
+Done projects with failed clips get at most two retries on later passes.
 If two files map to the same project name, the second reports an error.
 `--limit N` caps new episode attempts per pass. Resumed projects do not use the limit.
 There is no limit by default. `--limit 0` only resumes existing projects.
