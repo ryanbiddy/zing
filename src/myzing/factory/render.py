@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import cutout, depth, upscale
+from . import campaign, cutout, depth, upscale
 from .tools import FactoryError, data_path, ffmpeg, ffprobe, node_sidecar, run, sidecar_env
 
 SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
@@ -119,6 +119,9 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     words = json.loads((d / "words.json").read_text(encoding="utf-8"))
     cam = json.loads((d / "cams.json").read_text(encoding="utf-8"))
     duration, shots, moments = timeline(plan, words)
+    brief = campaign.read(d.parent)
+    overlay = campaign.disclosure(brief)
+    check_brief(d, {"duration": duration, "disclosure": overlay})
     cfg_file = d.parent / "factory.json"
     cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.is_file() else {}
     uhd = scale(cfg) == 2
@@ -167,8 +170,23 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             **({"mattesDir": lifted["dir"].resolve().as_uri()} if lifted else {}),
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,
+            **({"disclosure": overlay} if overlay else {}),
             "sourceTag": json.loads(source.read_text(encoding="utf-8")).get("tag", "") if source.is_file() else "",
             "W": W, "H": H, "aspect": shape, "theme": pack if isinstance(pack, dict) else theme(pack)}
+
+
+def check_brief(d: Path, data: dict | None = None, *, stop: bool = True) -> dict | None:
+    if not (d.parent / "brief.json").is_file():
+        return None
+    brief = campaign.read(d.parent)
+    plan = json.loads((d / "plan.json").read_text(encoding="utf-8"))
+    words = json.loads((d / "words.json").read_text(encoding="utf-8"))
+    duration = data["duration"] if data is not None else timeline(plan, words)[0]
+    overlay = data.get("disclosure") if data is not None else campaign.disclosure(brief)
+    result = campaign.check(d, brief, duration, plan["hook"], words["words"], overlay)
+    if stop and result["errors"]:
+        raise FactoryError(f"{d.name} cannot render. " + "; ".join(result["errors"]))
+    return result
 
 
 def capture(data: dict, data_file: Path, frames: Path, *, layer: str | None = None,
@@ -222,6 +240,7 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     d = Path(clipdir).resolve()
     tag = suffix(shape, pack if isinstance(pack, str) else "trial")
     data = scene_data(d, shape, pack, speaker_only, parallax, front, sharpen)
+    check_brief(d, data)
     out = Path(out).resolve() if out else d / f"clip{tag}.mp4"
     # a trial render (out given) keeps its scratch files beside the trial, not in the clip folder
     scratch = (out.with_suffix(".data.json"), out.with_suffix(".frames"), out.with_suffix(".sheet.jpg")) \

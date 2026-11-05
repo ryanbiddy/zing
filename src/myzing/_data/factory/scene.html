@@ -50,6 +50,8 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000}
 #prog{position:absolute;left:0;top:0;height:6px;background:var(--yel)}
 #srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
+#disclosure{position:absolute;display:none;z-index:20;text-align:center;pointer-events:none}
+#disclosure span{display:inline-block;padding:16px 24px;border-radius:14px;background:#111;color:#fff;font:700 36px/1.25 Inter,sans-serif;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
 /* graphics */
 .g-num{position:absolute;left:0;right:0;text-align:center;font:900 230px/1 var(--gfx-font,Inter);letter-spacing:-.04em;color:var(--yel);font-variant-numeric:tabular-nums}
 .g-lab{position:absolute;left:60px;right:60px;text-align:center;font:800 46px/1.15 var(--gfx-font,Inter);color:var(--ink)}
@@ -101,6 +103,7 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <div id="credit"></div>
 <div id="prog"></div>
 <div id="srctag"></div>
+<div id="disclosure"><span></span></div>
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
 window.exportLayer = layer => document.documentElement.dataset.layer = layer;
@@ -496,6 +499,16 @@ window.seek = async function(t) {
   $('srctag').textContent = PANEL && PANEL.brand !== false ? '' : D.sourceTag || '';
   $('srctag').style.display = $('srctag').textContent ? '' : 'none';
   $('srctag').style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';
+  const disclosure = $('disclosure'), notice = D.disclosure;
+  disclosure.style.display = notice && t >= notice.from && t < notice.to ? 'block' : 'none';
+  if (notice) {
+    const b = G.spk || {x:0, y:0, w:SW, h:STAGE_H};
+    disclosure.firstChild.textContent = notice.text;
+    disclosure.style.left = (b.x + 32) + 'px'; disclosure.style.width = (b.w - 64) + 'px';
+    let y = b.y + 80;
+    if (G.hook === 'pill' && hookOn) y = Math.max(y, parseFloat(pill.style.top) + pill.offsetHeight + 24);
+    disclosure.style.top = y + 'px';
+  }
   return true;
 };
 </script>

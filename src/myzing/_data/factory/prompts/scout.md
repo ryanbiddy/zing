@@ -7,7 +7,7 @@ What makes a good clip (from measured data on real podcast Shorts and X clips):
 - Showing how something works, or a genuinely funny exchange, beats big-picture vision talk.
 - Self-contained: a viewer understands it without the rest of the episode.
 - Ends on a complete thought or payoff, not mid-explanation.
-- 25–70 seconds of speech.
+- {LENGTH}
 - No intros, outros, sponsor reads, housekeeping or "let's take a question from Twitter" transitions unless the question itself is the hook.
 - Do not cut so that a speaker's meaning changes (no dropping a "but", a condition or the answer to the question asked).
 
@@ -22,5 +22,5 @@ Return ONLY a JSON object, no prose, no code fence:
 
 Pick the {N} strongest moments, non-overlapping, ordered by score. Use the transcript's own timestamps; start and end must sit on sentence boundaries.
 
-{STEER}TRANSCRIPT:
+{STEER}{BRIEF}TRANSCRIPT:
 {TRANSCRIPT}

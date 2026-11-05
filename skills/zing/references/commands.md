@@ -54,6 +54,21 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 
+## Factory rights and campaign briefs
+
+```sh
+zing factory new talk --media talk.mp4 --rights permission --brief campaign.json
+```
+
+`--rights own|licensed|permission|unknown` labels source rights and defaults to
+`unknown`. It never blocks a clip or grants rights. `--brief FILE` validates and
+copies a JSON campaign brief to `brief.json`. Both flags also work with `batch`.
+The brief can set length bounds, tags, banned terms, a disclosure and scout notes.
+Length violations and missing required disclosure stop rendering that clip.
+Banned terms and missing tags are review flags. See
+[Rights and campaign briefs](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md#rights-and-campaign-briefs)
+for the JSON fields. Zing does not make a clip legal.
+
 ## Factory offline projects
 
 ```sh

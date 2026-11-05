@@ -2,6 +2,10 @@
 
 ## Clip factory
 
+- Factory `--rights` labels source rights without blocking clips. `--brief FILE`
+  adds campaign length checks, required tags, banned-term flags and a disclosure
+  at the start of every rendered shape.
+
 - Factory embargo mode adds `new --offline`, local visual candidates with
   `--visuals DIR`, and a host-only `network.jsonl` ledger shown in status and review.
 
