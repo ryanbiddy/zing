@@ -14,7 +14,7 @@ from myzing.factory.judge import Judge
 from myzing.model_fetch import _try_lock, _unlock
 from myzing.playbook.common import append_jsonl, parse_time
 
-from . import kit, queue, registry, watch
+from . import kit, publish, queue, registry, watch
 
 STALE = 3 * 3600
 
@@ -127,6 +127,14 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
                         made = kit.kit(slug, stop=stopped)
                         row["kits"] = made["made"]
                         row["blocked"].update(made["blocked"])
+                    if not stopped() and channel["publish"]["youtube"] != "off":
+                        uploaded = publish.upload(slug, stop=stopped)
+                        row["uploaded"] = uploaded["uploaded"]
+                        row["blocked"].update(uploaded["blocked"])
+                        if uploaded["stopped"]:
+                            row["errors"].append(uploaded["stopped"])
+                    if not stopped() and channel.get("youtube") and publish.analytics_due(slug, now):
+                        row["analytics"] = publish.analytics(slug, now=now, stop=stopped)["matched"]
                     if not stopped() and channel["handles"].get("youtube"):
                         from .outcomes import track
                         row["tracked"] = track(slug)["matched"]

@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def run(argv: list[str]) -> int:
-    from . import digest, kit, learn, outcomes, queue, registry, tick, watch
+    from . import digest, kit, learn, outcomes, publish, queue, registry, tick, watch, youtube
     parser = argparse.ArgumentParser(prog="zing channels")
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="create a channel")
@@ -25,6 +25,8 @@ def run(argv: list[str]) -> int:
                        ("queue", "queue clips that pass the gate"), ("kit", "make local post kits"),
                        ("track", "measure public YouTube results"), ("metrics", "merge a YouTube Studio CSV"),
                        ("learn", "report what worked on this channel"),
+                       ("connect", "connect the owner's YouTube account"), ("disconnect", "remove the local YouTube connection"),
+                       ("upload", "upload ready kits to YouTube"), ("analytics", "read YouTube owner analytics"),
                        ("watch", "check sources once and start ready episodes")):
         command = commands.add_parser(name, help=help)
         command.add_argument("slug")
@@ -32,6 +34,11 @@ def run(argv: list[str]) -> int:
             command.add_argument("--out", type=Path, help="folder for kits and their index")
         if name == "metrics":
             command.add_argument("--csv", type=Path, required=True, help="YouTube Studio table export")
+        if name == "connect":
+            command.add_argument("--client-secret", type=Path, required=True, help="OAuth client JSON for a Desktop app")
+        if name == "upload":
+            command.add_argument("--dry-run", action="store_true", help="show uploads without sending requests")
+            command.add_argument("--limit", type=int, default=3, help="maximum uploads in this run")
     step = commands.add_parser("tick", help="advance channels once")
     step.add_argument("slugs", nargs="*")
     step.add_argument("--all", action="store_true", help="run all local channels")
@@ -70,7 +77,7 @@ def run(argv: list[str]) -> int:
             upcoming = [r["slot"] for r in rows if r["status"] in ("queued", "kit") and datetime.fromisoformat(r["slot"]) >= now]
             result = {"settings": channel, "counts": dict(Counter(r["status"] for r in rows)),
                       "next_slot": min(upcoming, key=lambda s: datetime.fromisoformat(s).timestamp()) if upcoming else queue.next_slot(channel, rows),
-                      "paused": registry.paused(args.slug)}
+                      "paused": registry.paused(args.slug), "youtube_notice": youtube.AUDIT}
         elif args.command == "check":
             problems = []
             try:
@@ -110,6 +117,14 @@ def run(argv: list[str]) -> int:
             result = queue.build(args.slug)
         elif args.command == "kit":
             result = kit.kit(args.slug, args.out)
+        elif args.command == "connect":
+            result = youtube.connect(args.slug, args.client_secret, say=lambda m: print(m, flush=True))
+        elif args.command == "disconnect":
+            result = youtube.disconnect(args.slug)
+        elif args.command == "upload":
+            result = publish.upload(args.slug, dry_run=args.dry_run, limit=args.limit)
+        elif args.command == "analytics":
+            result = publish.analytics(args.slug)
         elif args.command == "track":
             result = outcomes.track(args.slug)
         elif args.command == "metrics":

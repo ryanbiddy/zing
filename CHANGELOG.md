@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add opt-in YouTube connection, private or scheduled uploads and owner analytics
+  for channels. Uploads resume from saved sessions, recheck approval, honor pause
+  files and enforce daily channel and Cloud project caps. Publishing defaults to off.
 - Channels learn from public view snapshots and Studio CSV metrics. `track`,
   `metrics --csv FILE` and `learn` record results, compare title and clip choices,
   and guide later scouts while keeping variety in titles and the queue.
@@ -10,7 +13,7 @@
   channels can choose whether to allow editorial visuals.
 - Add `zing channels` for niche settings, source grants, approval gates, local
   queues and post kits. `factory new --channel SLUG --source ID` shares defaults
-  and review history across episodes. Nothing posts by itself.
+  and review history across episodes. Publishing stays off until enabled.
 - `zing playbook niches` compares channels from public metadata. `watch` saves
   view snapshots, `velocity` compares views by age, and `prior` exports title
   guidance. Reports omit competitor titles. No video, thumbnails or audio are fetched.

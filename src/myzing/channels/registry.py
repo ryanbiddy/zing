@@ -20,6 +20,7 @@ KINDS = ("youtube", "podcast", "uoink", "folder", "own")
 HANDLES = ("youtube", "tiktok", "instagram", "x")
 DEFAULTS = {"network": {}, "handles": {}, "factory": {}, "sources": [],
             "judge": "host", "visuals": "cleared",
+            "publish": {"youtube": "off"}, "youtube_category": "22", "youtube_daily_cap": 6,
             "cadence": {"per_day": 3, "times": ["12:00", "17:00", "20:00"], "timezone": "local"},
             "approval": {"policy": "manual", "veto_hours": 6, "manual_first": 30}, "seeding": {"every": 8}}
 
@@ -122,7 +123,7 @@ def web_url(value, field):
 
 
 def validate(data: dict) -> dict:
-    _fields(data, {"schema_version", "slug", "name", "niche", "created", "prior", *DEFAULTS}, "channel")
+    _fields(data, {"schema_version", "slug", "name", "niche", "created", "prior", "youtube", *DEFAULTS}, "channel")
     data = copy.deepcopy(data)
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         raise ChannelError("schema_version must be 1")
@@ -148,6 +149,21 @@ def validate(data: dict) -> dict:
         raise ChannelError("judge must be host or claude")
     if data["visuals"] not in ("cleared", "editorial"):
         raise ChannelError("visuals must be cleared or editorial")
+    if data["publish"]["youtube"] not in ("off", "private", "scheduled"):
+        raise ChannelError("publish.youtube must be off, private or scheduled")
+    _text(data["youtube_category"], "youtube_category", required=True)
+    if not re.fullmatch(r"[1-9][0-9]*", data["youtube_category"]):
+        raise ChannelError("youtube_category must be a numeric category ID")
+    _integer(data["youtube_daily_cap"], "youtube_daily_cap", 0)
+    if "youtube" in data:
+        _fields(data["youtube"], {"channel_id", "title", "connected_at"}, "youtube")
+        for key in ("channel_id", "title", "connected_at"):
+            _text(data["youtube"].get(key), f"youtube.{key}", required=True)
+        try:
+            if datetime.fromisoformat(data["youtube"]["connected_at"]).tzinfo is None:
+                raise ValueError
+        except ValueError:
+            raise ChannelError("youtube.connected_at must be an ISO date and time with a timezone") from None
     for key, value in data["network"].items():
         _text(value, f"network.{key}")
     if data["network"].get("url"):
