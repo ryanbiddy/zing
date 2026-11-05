@@ -13,7 +13,6 @@ import queue
 import re
 import secrets
 import threading
-from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -240,13 +239,11 @@ def handler(studio: Studio, port: int, token: str):
             return self.headers.get("Host", "") in hosts
 
         def _authenticated(self) -> bool:
-            cookie = SimpleCookie()
-            try:
-                cookie.load(self.headers.get("Cookie", ""))
-            except CookieError:
-                return False
-            value = cookie.get(f"zing_dash_{port}")      # per port: dashboards side by side keep their own
-            return bool(value and hmac.compare_digest(value.value.encode("utf-8"), token.encode("utf-8")))
+            for cookie in self.headers.get("Cookie", "").split(";"):
+                name, _, value = cookie.strip().partition("=")
+                if name == f"zing_dash_{port}":          # each dashboard keeps its own cookie
+                    return hmac.compare_digest(value.encode("utf-8"), token.encode("utf-8"))
+            return False
 
         def _denied(self) -> None:
             self._send(403, b"Open the link printed by `zing factory serve`.\n", "text/plain; charset=utf-8")
