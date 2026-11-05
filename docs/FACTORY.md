@@ -10,6 +10,14 @@ episode + captions -> scout moments -> cut -> plan the screen -> find visuals ->
                    -> fact-check + context check -> render 9:16 / 1:1 / 16:9 -> copy -> review page
 ```
 
+## Pick a channel niche
+
+Use `zing playbook niches niches.json --out zing-workspace/scout` to compare
+channels from public metadata. `watch` saves view snapshots, `velocity` compares
+views at fixed ages, and `prior` exports title guidance without competitor titles.
+These commands fetch no video, thumbnails or audio. The factory does not consume
+the prior yet. See [Pick a niche](PLAYBOOK.md#pick-a-niche) for inputs and formulas.
+
 ## Quick start
 
 ```bash

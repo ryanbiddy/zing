@@ -1,4 +1,4 @@
-"""Lazy CLI surface for the four playbook stages and model discovery."""
+"""Lazy CLI surface for playbook comparisons and public metadata scouting."""
 from __future__ import annotations
 
 import argparse
@@ -28,6 +28,22 @@ def run(argv: list[str]) -> int:
     notes.add_argument("--budget-hours", type=float, default=7.5)
     notes.add_argument("--dry-run", action="store_true", help="print the first request with key redacted; send nothing")
     commands.add_parser("models", help="list model IDs available to GEMINI_API_KEY")
+    watch = commands.add_parser("watch", help="append one snapshot of public channel feeds")
+    watch.add_argument("--channels", nargs="+", required=True, help="handles, channel IDs or a UTF-8 file")
+    watch.add_argument("--out", type=Path, required=True)
+    velocity = commands.add_parser("velocity", help="compare saved views at fixed ages after publication")
+    velocity.add_argument("directory", type=Path)
+    niches = commands.add_parser("niches", help="compare niches from public Shorts metadata")
+    niches.add_argument("input", type=Path)
+    niches.add_argument("--out", type=Path, required=True)
+    niches.add_argument("--source", choices=("feeds", "ytdlp"), default="feeds")
+    niches.add_argument("--min-shorts", type=int, default=15)
+    niches.add_argument("--fresh-days", type=int, default=3, help="leave out dated Shorts younger than this")
+    niches.add_argument("--skip-newest", type=int, default=10, help="undated listings: leave out the newest few")
+    prior = commands.add_parser("prior", help="write title guidance from a saved niche scorecard")
+    prior.add_argument("directory", type=Path)
+    prior.add_argument("--niche", required=True)
+    prior.add_argument("--out", type=Path, required=True)
     distill = commands.add_parser("distill", help="compare the two sets and write publishable patterns")
     distill.add_argument("directory", type=Path)
     distill.add_argument("--version", required=True)
@@ -56,6 +72,25 @@ def run(argv: list[str]) -> int:
         elif args.command == "models":
             from .notes import models
             result = models()
+        elif args.command == "watch":
+            from .watch import watch
+            channels = args.channels
+            if len(channels) == 1 and Path(channels[0]).is_file():
+                channels = [word for line in Path(channels[0]).read_text(encoding="utf-8-sig").splitlines()
+                            for word in line.split("#", 1)[0].split()]
+            result = watch(args.out, channels)
+        elif args.command == "velocity":
+            from .watch import velocity
+            result = velocity(args.directory)
+        elif args.command == "niches":
+            from .common import read_json
+            from .niches import build
+            data = build(args.out, read_json(args.input), source=args.source, min_shorts=args.min_shorts,
+                         fresh_days=args.fresh_days, skip_newest=args.skip_newest)
+            result = {key: value for key, value in data.items() if key != "local"}
+        elif args.command == "prior":
+            from .niches import prior
+            result = prior(args.directory, args.niche, args.out)
         else:
             from .distill import Thresholds, distill
             thresholds = Thresholds(**{name: getattr(args, name) for name in Thresholds.__dataclass_fields__})

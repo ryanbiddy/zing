@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- `zing playbook niches` compares channels from public metadata. `watch` saves
+  view snapshots, `velocity` compares views by age, and `prior` exports title
+  guidance. Reports omit competitor titles. No video, thumbnails or audio are fetched.
+
 ## Clip factory
 
 - Review edits read current files in the queue. MCP refuses edits during active
