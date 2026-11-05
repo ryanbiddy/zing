@@ -500,6 +500,11 @@ def learn(reference: Path, name: str, sample: Path, *, rounds: int = 3, base: st
     ref = measure(reference, say)
     (work / "reference.json").write_text(json.dumps(ref, indent=1), encoding="utf-8")
     pack = to_pack(ref, name, theme(base))
+    assets = ("fonts", "logo", "logo_pos", "logo_h")
+    if any(k in pack for k in assets):
+        say("learned pack does not carry the base pack's fonts and logo")
+        for k in assets:
+            pack.pop(k, None)
     history = []
     for k in range(1, max(1, rounds) + 1):
         trial = work / f"trial-{k}.mp4"
