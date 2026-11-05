@@ -508,6 +508,8 @@
         <span id="state-pill" class="pill"></span>
       </div>
       <div class="meta" id="meta"></div>
+      <div class="meta" id="source"></div>
+      <div class="meta" id="rights"></div>
       <div class="meta" id="network"></div>
     </div>
     <div class="top-actions">
@@ -711,6 +713,16 @@ function receiptBlock(c) {
     el("p", { class: "hint", text: "Records planned additions. It does not predict platform reach." }));
 }
 
+function briefBlock(c) {
+  const check = c.brief_check;
+  if (!check) return null;
+  const messages = [...check.errors, ...check.flags.map(f => f.why)];
+  if (!messages.length) return el("p", { class: "hint", text: "Brief checked" });
+  return el("section", { class: "note " + (check.errors.length ? "fail" : "warn"), "aria-label": "Check the brief" },
+    el("b", { text: "Check the brief" }),
+    el("ul", {}, messages.map(text => el("li", { text }))));
+}
+
 function contextBlock(c) {
   const check = c.context;
   if (!check) return el("p", { class: "hint", text: "Context check pending." });
@@ -793,6 +805,10 @@ function render() {
 
   document.title = baseName(p.project) + " - Zing factory";
   $("#project-name").textContent = baseName(p.project);
+  $("#source").textContent = (p.source && p.source.name) || "";
+  const rights = {own: "you own this source", licensed: "licensed", permission: "you have permission",
+    unknown: "unknown. Check before posting."};
+  $("#rights").textContent = "Rights · " + (rights[p.rights] || rights.unknown);
   $("#network").textContent = p.network ? p.network.summary : "";
   const [stateText, stateTone] = STATE_LABEL[p.state] || [p.state || "Unknown", ""];
   const pill = $("#state-pill");
@@ -883,6 +899,7 @@ function pendingCard(c) {
       el("div", { class: "time", text: timeLine(c) })),
     receiptBlock(c),
     contextBlock(c),
+    briefBlock(c),
     el("div", { class: "card-foot" },
       el("button", { class: "button small", type: "button", onclick: () => startTrim(c) }, "Trim")));
 }
@@ -959,6 +976,7 @@ function clipCard(c) {
       el("div", { class: "time", text: timeLine(c) })),
     receiptBlock(c),
     contextBlock(c),
+    briefBlock(c),
     notes,
     el("div", { class: "rate" },
       el("div", { class: "rate-buttons", role: "group", "aria-label": "Rate this clip" },

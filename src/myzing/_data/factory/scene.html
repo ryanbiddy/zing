@@ -50,6 +50,9 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000}
 #prog{position:absolute;left:0;top:0;height:6px;background:var(--yel)}
 #srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
+#disclosure{position:absolute;display:none;z-index:20;text-align:center;pointer-events:none}
+#disclosure span{display:inline-block;padding:16px 24px;border-radius:14px;background:#111;color:#fff;font:700 36px/1.25 Inter,sans-serif;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
+
 #logo{position:absolute;display:none;object-fit:contain;pointer-events:none}
 /* graphics */
 .g-num{position:absolute;left:0;right:0;text-align:center;font:900 230px/1 var(--gfx-font,Inter);letter-spacing:-.04em;color:var(--yel);font-variant-numeric:tabular-nums}
@@ -103,6 +106,8 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <div id="credit"></div>
 <div id="prog"></div>
 <div id="srctag"></div>
+<div id="disclosure"><span></span></div>
+
 <img id="logo">
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
@@ -320,7 +325,7 @@ function place(el, b) { if (!b) { el.style.display='none'; return; }
   el.style.display='block'; el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; }
 
 // the logo keeps one spot for the whole clip: it steps past the fixed source tag and panel, and only hides while
-// the hook, a caption or a quote is drawn where it sits
+// the hook, a caption, a quote or the disclosure is drawn where it sits
 function inked(el, on = null) {
   if (!el || getComputedStyle(el).display === 'none' || !(on ?? +getComputedStyle(el).opacity)) return null;
   const r = document.createRange(); r.selectNodeContents(el);
@@ -339,7 +344,7 @@ function placeLogo(hookOn, hook) {
   if (panel && panel.height) y = Math.min(y, panel.top - gap - h);
   place(el, {x, y, w, h});
   const hit = [inked($('hook'), hookOn && hook === 'header'), inked($('pill'), hookOn && hook === 'pill'),
-               inked($('cap')), inked($('quote'))]
+               inked($('cap')), inked($('quote')), inked($('disclosure'))]
     .some(r => r && r.right > x - gap && r.left < x + w + gap && r.bottom > y - gap && r.top < y + h + gap);
   el.style.opacity = hit ? 0 : 1;
 }
@@ -531,6 +536,20 @@ window.seek = async function(t) {
   $('srctag').textContent = PANEL && PANEL.brand !== false ? '' : D.sourceTag || '';
   $('srctag').style.display = $('srctag').textContent ? '' : 'none';
   $('srctag').style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';
+  const disclosure = $('disclosure'), notice = D.disclosure;
+  disclosure.style.display = notice && t >= notice.from && t < notice.to ? 'block' : 'none';
+  if (notice) {
+    const b = G.spk || {x:0, y:0, w:SW, h:STAGE_H};
+    disclosure.firstChild.textContent = notice.text;
+    disclosure.style.left = (b.x + 32) + 'px'; disclosure.style.width = (b.w - 64) + 'px';
+    let y = b.y + 80;
+    if (G.hook === 'pill' && hookOn) {
+      const py = parseFloat(pill.style.top), bottom = py + pill.offsetHeight;
+      if (y + disclosure.offsetHeight > py - 16 && y < bottom + 16) y = bottom + 24;
+    }
+    disclosure.style.top = y + 'px';
+  }
+
   if (layout === 'graphic' && shot.graphic?.kind === 'endcard') $('logo').style.display = 'none';
   else placeLogo(hookOn, G.hook);
   return true;

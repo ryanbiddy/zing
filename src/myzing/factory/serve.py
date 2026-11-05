@@ -73,6 +73,7 @@ class Studio:
             clips.append({**c, "plan": _read(d / "plan.json"), "post": _read(d / "post.json"),
                           "receipt": _read(d / "receipt.json"),
                           "context": _read(d / "context.json"),
+                          "brief_check": _read(d / "brief_check.json"),
                           "visual_requests": _read(vis / "requests.json"), "candidates": _read(vis / "manifest.json"),
                           "picks": _read(vis / "picks.json"), "rating": ratings.get(c["clip"]),
                           "videos": {p.name: p.name for p in sorted(d.glob("clip*.mp4"))}})
@@ -172,6 +173,8 @@ class Studio:
             post = _read(d / "post.json", {})
             post[field] = value[:2200]
             _write(d / "post.json", post)
+            if (d / "plan.json").is_file() and (d / "words.json").is_file():
+                render.check_brief(d, stop=False)
             return {"saved": field}
         if field != "hook":
             raise FactoryError(f"unknown field {field!r}")

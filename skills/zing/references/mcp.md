@@ -57,6 +57,14 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `push_to_uoink` | Explicit library write; not part of default local editing. |
 | `import_shot_list` | Attach a local Writer-exported Markdown shot list to a studied slug. |
 
+`factory_new(..., rights="permission", brief="./campaign.json")` labels source
+rights and copies a JSON campaign brief into the project. `rights` accepts `own`,
+`licensed`, `permission` or `unknown` (the default) and never blocks a clip.
+`brief` is an optional local path. Length errors and missing required disclosure
+stop that clip before render. Banned terms and missing tags are review flags.
+The label and checks do not grant rights or make a clip legal. See
+[Rights and campaign briefs](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md#rights-and-campaign-briefs).
+
 `factory_new(..., offline=True, visuals="./launch-media")` creates an embargo
 project with your own pictures and videos. `offline` defaults to `False` and
 `visuals` is optional. Offline mode fetches nothing and refuses the Claude judge.

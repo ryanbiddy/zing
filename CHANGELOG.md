@@ -2,6 +2,10 @@
 
 ## Clip factory
 
+- Factory `--rights` labels source rights without blocking clips. `--brief FILE`
+  adds campaign length checks, required tags, banned-term flags and a disclosure
+  at the start of every rendered shape.
+
 - security: Limit Claude image reads to attached files. Check video redirects before
   FFmpeg runs. Block private DNS answers and WebSockets in page captures.
 
