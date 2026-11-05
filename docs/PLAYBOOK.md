@@ -2,6 +2,151 @@
 
 Playbook compares Shorts that beat their own channel's median with Shorts that fell below it. It saves Zing measurements and blind model judgments, then keeps patterns that separate the two groups. This is a library and a statistical comparison, not model fine-tuning. v0 covers curated YouTube podcast/interview Shorts; it does not change Study or Clip defaults.
 
+## Pick a niche
+
+Use the niche scout to compare supplied channels from public metadata. These
+commands read titles, view counts, publish times and durations. They never fetch
+or store video, thumbnails or audio. They make no model calls.
+
+Save a `niches.json` input with your channel choices and research inputs.
+
+```json
+{
+  "niches": [
+    {
+      "niche": "NFL stories",
+      "channels": ["@inmotionNFL"],
+      "rights": "unknown",
+      "fit": "high",
+      "money": "mid",
+      "notes": "Check source permissions before using clips."
+    }
+  ]
+}
+```
+
+```powershell
+zing playbook niches niches.json --out zing-workspace\scout
+zing playbook niches niches.json --out zing-workspace\scout --source ytdlp --min-shorts 15
+zing playbook prior zing-workspace\scout --niche "NFL stories" --out zing-workspace\scout\prior.json
+```
+
+The default `--source feeds` reads each channel's 15 newest uploads. A feed entry
+counts as a Short only when its link contains `/shorts/`. Watch links are excluded,
+even if the upload might be a Short. Channels with fewer than `--min-shorts 15`
+usable Shorts are skipped with a reason. Lower the threshold explicitly for a
+smaller sample. `--source ytdlp` uses the existing flat metadata listing of up to
+160 entries. It keeps Shorts links or entries with a known duration above zero
+and at most 180 seconds. Missing or invalid view counts and duplicate video IDs
+are excluded. Zero views count.
+
+Young Shorts are still collecting views, so they would pull the medians down.
+Dated Shorts younger than `--fresh-days 3` are left out. Flat listings carry no
+dates, so they drop their newest `--skip-newest 10` entries instead. Set either
+to 0 to keep everything.
+
+Handles and channel IDs are accepted. Feed handle resolutions are cached in
+`feeds/ids.json` under the output directory. The feed client uses no cookies or
+API key, has a 20-second timeout, and permits only HTTPS requests to
+`www.youtube.com`, including redirects. Requests start at least 1.5 seconds apart
+within a process. Each attempt adds its time, URL and HTTP status, or `error`, to
+`feeds/requests.jsonl`. Raw channel pages and XML are not saved.
+
+Rights, fit, money and notes remain separate human inputs. They are optional and
+are carried through as supplied. Rights accepts `campaign`, `encouraged`, `mixed`,
+`claims`, `public_domain` or `unknown`. Fit accepts `high`, `medium` or `low`.
+Money accepts `low`, `mid` or `high`. These labels do not establish permission or
+predict revenue.
+
+### Read the scorecard
+
+`NICHES.md` contains a table for each niche and its channels, the five largest
+available title-feature lift ratios, and links to the niche's three biggest
+Shorts. It never copies competitor titles from the listing. Keep quoted titles
+out of your human notes too. Nothing is published automatically.
+
+| Number | Meaning |
+| --- | --- |
+| Channel n | Unique Shorts with usable view counts in the listing |
+| Median and mean views | The middle value and arithmetic average for that channel |
+| P90 views | The 90th percentile, with linear interpolation between sorted counts |
+| Outlier | A Short's views divided by its channel median |
+| Outlier share | Share of that channel's Shorts with at least 3x its median views |
+| Shorts per day | Number of dated Shorts divided by the days between the oldest and newest known publish times |
+| Newest upload | Latest known publish time among the usable Shorts |
+| Niche median views | Median of the listed channels' median views, with each channel counted once |
+| Niche outlier share | Median of the listed channels' outlier shares |
+| Niche posting rate | Median of the available channel posting rates |
+| Active channels | Listed channels whose newest Short was published in the last 14 days |
+| Demand | `min(10, 2 * log10(max(1, niche median views)))`, rounded to two decimals |
+| Crowding | Count of active supplied channels, not an estimate of the whole market |
+
+A niche median of 100, 1,000 or 10,000 views gives demand of 4, 6 or 8. No eligible
+channels means demand is unavailable. A zero channel median leaves outlier ratios
+and shares unavailable. Fewer than two distinct publish times leaves posting
+rate unavailable. Missing values are excluded from niche medians. The outlier
+share describes how often a channel has a large spike. It is not a separate
+quality score. The human inputs never enter the demand formula.
+
+Title comparisons use hits with at least 2x their own channel median and misses
+strictly below it. Other Shorts do not enter either group. Counts are pooled
+across eligible channels in a niche. For each boolean feature, lift is its share
+among hits divided by its share among misses. A lift of 2 means the feature was
+twice as common among hits. A missing group or zero miss share leaves the ratio
+null. A comparison is marked weak when either group has fewer than 10 Shorts.
+These are associations from the supplied sample, without a significance test.
+
+Title features are deterministic heuristics. They count words, Unicode characters
+and emoji sequences, then flag lowercase openings, trailing emoji, numbers,
+questions, quote marks, names, past story verbs, phrases about current news,
+superlatives, conflict words, how/why/what/when openings and I/I'm/my wording.
+Names use adjacent capitalized words or an optional known-name list. Past story
+rules include common verbs, words ending in `ed` with a small stoplist, and cues
+such as almost, never and nearly. They do not reliably identify names, grammar
+or quoted speech. Edit the word lists in `src/myzing/playbook/titles.py`.
+
+`niches.json` saves the full scorecard, with titles only in its `local` section.
+`titles.jsonl` holds one local row per usable Short per niche, including features,
+outlier and whether the channel qualified. Skipped channels' rows stay local.
+Keep both files private. `prior.json` contains counts, lift statistics and template
+sentences only. Guidance requires a non-weak lift of at least 1.5 or at most 0.67.
+It contains no competitor titles. The factory does not consume this prior yet.
+
+### Watch views by age
+
+```powershell
+zing playbook watch --channels channels.txt --out zing-workspace\scout
+zing playbook watch --channels @inmotionNFL --out zing-workspace\scout
+zing playbook velocity zing-workspace\scout
+```
+
+`watch` fetches each feed once and appends all its entries to `snapshots.jsonl`.
+The UTF-8 channel file accepts whitespace-separated handles or IDs and `#`
+comments. Repeated handles and aliases for the same channel are fetched once per
+run. Snapshots include local titles and the Short flag. This command does not
+stay running.
+
+For an hourly Windows task, replace these absolute paths with your installed
+executable, channel file and output directory. Run the command once to create
+the task.
+
+```powershell
+schtasks /Create /TN "Zing niche watch" /SC HOURLY /MO 1 /TR "C:\zing\.venv\Scripts\zing.exe playbook watch --channels C:\zing\channels.txt --out C:\zing\scout"
+```
+
+`velocity` reads saved snapshots without fetching anything and writes
+`velocity.json`. Each video's `views` map has `1h`, `6h`, `24h`, `72h` and `7d`
+keys. Each uses the snapshot nearest that age within 25% of the target age,
+including the boundary. Ties use the earlier snapshot. Otherwise the value is
+null. Videos first seen more than two hours after publication have a null 1h
+value. Views per hour uses the first two distinct snapshot times. One snapshot
+leaves that rate null. Counts can fall when a platform revises views.
+
+Channel summaries report median available 24h views and how many videos supplied
+them. Velocity includes every feed entry, including watch links. It does not
+estimate missing ages or fill gaps. The feed drops uploads beyond the newest 15,
+so busy channels can lose coverage before the 7d target. All times use UTC.
+
 ## Run the four stages
 
 Use the existing pilot listing first. This command reads a local JSON file and makes no network requests:
@@ -121,4 +266,4 @@ The offline pilot-size fixture has 20 channels × 5 worked + 5 didnt Shorts. Und
 
 ## Weekly reuse
 
-A later refresh can create a dated library, reuse cached measurements and notes for unchanged IDs, distill a new version, then compare kept patterns and sample coverage with the previous version. Review age coverage, channel balance and model/prompt versions before interpreting a change as a trend. Scheduling, X/IG ingestion, trend downloads, Study/Clip integration and website publication are outside v0. Claude runs the real pilot after local review; this implementation has only fixture-based validation.
+A later refresh can create a dated library, reuse cached measurements and notes for unchanged IDs, distill a new version, then compare kept patterns and sample coverage with the previous version. Review age coverage, channel balance and model/prompt versions before interpreting a change as a trend. The measurement and notes stages have no built-in scheduler. The niche watch command can run on an external schedule as shown above. X/IG ingestion, trend downloads, Study/Clip integration and website publication remain outside v0. Claude runs the real pilot after local review; this implementation has only fixture-based validation.

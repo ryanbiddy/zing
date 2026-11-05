@@ -16,9 +16,11 @@ def list_channel(handle: str) -> list[dict]:
     argv = doctor.resolve_ytdlp_argv()
     if argv is None:
         raise ValueError("yt-dlp is unavailable; run zing doctor")
+    name = safe_name(handle)
+    channel = f"channel/{name}" if name.startswith("UC") and len(name) == 24 else f"@{name}"
     result = proc.run([*argv, "--ignore-config", "--no-update", "--flat-playlist",
                        "--skip-download", "--playlist-end", "160", "-j",
-                       f"https://www.youtube.com/@{safe_name(handle)}/shorts"], timeout=240)
+                       f"https://www.youtube.com/{channel}/shorts"], timeout=240)
     if result.returncode:
         raise ValueError(f"channel listing failed (exit {result.returncode})")
     return [json.loads(line) for line in result.stdout.splitlines() if line.strip()]

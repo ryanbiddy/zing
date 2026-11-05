@@ -32,7 +32,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
 | `zing factory` | `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (`--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
-| `zing playbook` | List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
+| `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing channels` | Keep niche settings, source grants, approval gates, a local queue and post kits. Nothing is posted, uploaded or fetched. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
@@ -54,6 +54,43 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
+
+## Pick a niche
+
+```sh
+zing playbook niches niches.json --out zing-workspace/scout
+zing playbook niches niches.json --out zing-workspace/scout --source ytdlp --min-shorts 15
+zing playbook watch --channels channels.txt --out zing-workspace/scout
+zing playbook velocity zing-workspace/scout
+zing playbook prior zing-workspace/scout --niche "NFL stories" --out zing-workspace/scout/prior.json
+```
+
+`niches` takes a JSON object with a niches list. Each item needs a niche name and
+a channels list. Optional rights, fit, money and notes inputs stay separate from
+the view statistics. Rights accepts campaign, encouraged, mixed, claims,
+public_domain or unknown. Fit accepts high, medium or low. Money accepts low, mid
+or high. `--out DIR` holds the reports and local metadata.
+
+`--source feeds` is the default and reads the newest 15 uploads per channel with
+no key or cookies. Only Shorts links qualify. `--source ytdlp` uses the existing
+flat metadata listing and also accepts known durations of at most 180 seconds.
+`--min-shorts N` defaults to 15. Channels below that usable sample size are skipped
+with a reason. These commands never fetch or store video, thumbnails or audio.
+
+`watch --channels FILE_OR_HANDLES --out DIR` accepts a UTF-8 file or space-separated
+handles and channel IDs. It appends one feed observation to snapshots.jsonl and
+exits. Schedule it hourly to collect views by age. `velocity DIR` writes
+velocity.json from those snapshots, using the nearest views within 25% of 1h,
+6h, 24h, 72h and 7d. Missing observations stay null.
+
+NICHES.md reports channel and niche statistics, supplied human inputs, title
+feature lifts and original links. It copies no competitor titles. Titles stay
+in the local section of niches.json, titles.jsonl and snapshots.jsonl.
+`prior DIR --niche NAME --out FILE` exports counts, lifts and guidance only.
+Guidance needs at least ten hits and ten misses and a lift of at least 1.5 or at
+most 0.67. The factory does not consume the prior yet. See
+[Pick a niche](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md#pick-a-niche)
+for the formula, title heuristics and hourly Windows task example.
 
 ## Channels
 
