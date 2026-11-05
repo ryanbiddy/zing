@@ -114,6 +114,8 @@ A clip waits if any of these apply.
   brief check has errors or flags.
 - The project's `9x16` render or `post.json` is missing. Non-default packs use
   `clipNN/clip-<pack>.mp4`.
+- The post copy contains a local file path (a `file:` link, a drive path or a
+  network share), so nothing private ends up in a public description.
 - The clip is rated No or still needs approval.
 - The channel or the whole network is paused.
 
