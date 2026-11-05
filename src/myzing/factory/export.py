@@ -111,7 +111,8 @@ def export(clipdir: Path, shape: str = "9x16", pack: str = "zing", *, out: Path 
     out = Path(out).resolve() if out else d / f"export-{shape}"
     out.mkdir(parents=True, exist_ok=True)
     data = render.scene_data(d, shape, pack)
-    fps, width, height = data["fps"], data["W"], data["H"]
+    fps, scale = data["fps"], data.get("scale", 1)
+    width, height = data["W"] * scale, data["H"] * scale
     frames = int(data["duration"] * fps + .5)
     duration = frames / fps
     samples = [min(frames - 1, int(frames * p)) for p in (.1, .5, .9)]

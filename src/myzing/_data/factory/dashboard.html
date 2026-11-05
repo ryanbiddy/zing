@@ -661,7 +661,10 @@ function fileFor(c, shape, pack) {
   const name = "clip" + (shape === "9x16" ? "" : "-" + shape) + (!pack || pack === "zing" ? "" : "-" + pack) + ".mp4";
   return names.includes(name) ? name : null;
 }
-function shapesFor(c) { return SHAPES.filter(s => fileFor(c, s.id, ui.pack[c.clip] || defaultPack())); }
+function shapesFor(c) {
+  const shapes = SHAPES.filter(s => fileFor(c, s.id, ui.pack[c.clip] || defaultPack()));
+  return shapes.length ? shapes : SHAPES.filter(s => fileFor(c, s.id, defaultPack()));
+}
 
 function chosenIndex(c, reqId) {
   const list = (c.candidates && c.candidates[reqId]) || [];
@@ -955,7 +958,7 @@ function clipCard(c) {
     title: v === "no" && suggestNo ? "Suggested while context needs review" : null,
     onclick: e => {
       ui.rated[c.clip] = v;
-      act(e.currentTarget, () => api.rate(c.clip, v, why()),
+      act(e.currentTarget, () => api.rate(c.clip, v, why()).finally(() => { delete ui.rated[c.clip]; }),
         v === "post" ? "Marked to post." : v === "fix" ? "Marked to post with edits." : "Marked as no.");
     }
   }, label);

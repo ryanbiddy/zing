@@ -6,6 +6,13 @@
   adds campaign length checks, required tags, banned-term flags and a disclosure
   at the start of every rendered shape.
 
+- Factory review fixes correct 4K export sizes, transcript setup, batch retries,
+  visual IDs, caption fixes, dashboard state and sign-in, network logs, name tags,
+  and context answer validation.
+
+- Style packs can carry local fonts and a logo. `zing factory packs --check NAME`
+  checks files and font families. Renders stop when a font or logo cannot load.
+
 - Factory embargo mode adds `new --offline`, local visual candidates with
   `--visuals DIR`, and a host-only `network.jsonl` ledger shown in status and review.
 

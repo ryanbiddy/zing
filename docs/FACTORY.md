@@ -125,7 +125,8 @@ oldest modification time first. Size and modification time must stay unchanged
 across two checks at least three seconds apart. Growing files wait for a later pass.
 
 Each episode gets a project under `--out`, named from its file stem with unsafe
-characters replaced. Existing projects resume. Projects marked `done` are skipped.
+characters replaced. Existing projects resume. Successful projects are skipped.
+Done projects with failed clips get at most two retries on later passes.
 If two files map to the same project name, the second reports an error.
 `--limit N` caps new episode attempts per pass. Resumed projects do not use the limit.
 There is no limit by default. `--limit 0` only resumes existing projects.
@@ -393,6 +394,44 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.
+
+### Brand kit
+
+Save a user pack as `factory/packs/acme.json` in your workspace. Put its font and
+logo files in `factory/packs/acme/`.
+
+```json
+{
+  "name": "Acme",
+  "accent": "#E83E55",
+  "fonts": [
+    {"family": "Brand Sans", "file": "BrandSans-Bold.woff2", "weight": 700, "style": "normal"}
+  ],
+  "cap_font": "Brand Sans",
+  "cap_weight": 700,
+  "logo": "logo.png",
+  "logo_pos": "top-right",
+  "logo_h": 72
+}
+```
+
+Font files can be `.ttf`, `.otf`, `.woff` or `.woff2`. Use the family in
+`cap_font`, `hook_font` (or `pill_font`), `gfx_font`, `quote_font` or `panel.font`.
+The bundled families are Inter, Anton, IBM Plex Sans and Instrument Serif.
+Font weight defaults to 400 and style to `normal`.
+
+Logos can be `.svg` or `.png`. Choose `top-left`, `top-right` or `bottom-right`.
+The default is `top-right` at 72 pixels high in a 1080-wide frame. The logo scales
+with the frame and keeps one spot for the whole clip. It steps below the source tag
+and above a headline panel, and hides for a moment when the hook, a caption or a quote
+is drawn where it sits. Launch end cards also show it above the brand name.
+
+Run `zing factory packs --check acme` to check files and family names. Errors
+produce exit code 1. Every render runs the same check, then verifies that the
+browser loaded each font and the logo before capturing frames. A broken font
+fails with its family and file name. Assets stay local and inside the pack's
+folder. Absolute paths, `..` and symlinks that escape that folder are rejected.
+All brand fields are optional.
 
 ## Finish in your editor
 

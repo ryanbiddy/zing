@@ -52,6 +52,8 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
 #disclosure{position:absolute;display:none;z-index:20;text-align:center;pointer-events:none}
 #disclosure span{display:inline-block;padding:16px 24px;border-radius:14px;background:#111;color:#fff;font:700 36px/1.25 Inter,sans-serif;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
+
+#logo{position:absolute;display:none;object-fit:contain;pointer-events:none}
 /* graphics */
 .g-num{position:absolute;left:0;right:0;text-align:center;font:900 230px/1 var(--gfx-font,Inter);letter-spacing:-.04em;color:var(--yel);font-variant-numeric:tabular-nums}
 .g-lab{position:absolute;left:60px;right:60px;text-align:center;font:800 46px/1.15 var(--gfx-font,Inter);color:var(--ink)}
@@ -68,6 +70,7 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 .g-name b{font-weight:inherit;color:var(--yel)}
 .g-url{position:absolute;left:60px;right:60px;top:590px;text-align:center;font:700 54px var(--gfx-font,Inter);color:var(--yel)}
 .g-line{position:absolute;left:80px;right:80px;top:680px;text-align:center;font:600 42px/1.25 var(--gfx-font,Inter);color:var(--muted)}
+.g-logo{position:absolute;left:50%;transform:translateX(-50%);max-width:900px;object-fit:contain}
 #label{position:absolute;display:none;padding:14px 24px 16px 22px;border-left:6px solid var(--yel);background:var(--label-bg,rgba(8,8,12,.62));color:var(--label-ink,#fff)}
 #label .n{font:800 40px/1.1 var(--gfx-font,Inter);white-space:nowrap}
 #label .r{font:600 26px/1.3 var(--gfx-font,Inter);opacity:.78;margin-top:4px;white-space:nowrap}
@@ -104,8 +107,14 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <div id="prog"></div>
 <div id="srctag"></div>
 <div id="disclosure"><span></span></div>
+
+<img id="logo">
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
+window.packFonts = (D.fonts || []).map(f => {
+  const face = new FontFace(f.family, `url(${JSON.stringify(f.src)})`, {weight: String(f.weight), style: f.style});
+  document.fonts.add(face); return face;
+});
 window.exportLayer = layer => document.documentElement.dataset.layer = layer;
 window.exportLayer(D.overlay ? 'overlay' : D.speakerLayer ? 'speaker' : '');
 if (D.theme) { const T = D.theme, st = document.documentElement.style;
@@ -116,36 +125,37 @@ if (D.theme) { const T = D.theme, st = document.documentElement.style;
   set('--edge', T.panel_edge && T.panel_edge !== 'none' ? T.panel_edge : 'transparent');
   if (T.cap_upper === false) st.setProperty('--cap-case', 'none');
   // learned or hand-made caption styles; every field is optional and the defaults are the Zing look
-  if (T.cap_font) set('--cap-font', `'${T.cap_font}', Inter, sans-serif`);
+  if (T.cap_font) set('--cap-font', `${JSON.stringify(T.cap_font)}, Inter, sans-serif`);
   if (T.cap_weight) set('--cap-weight', T.cap_weight);
   if (T.cap_size) set('--cap-size', Math.round(T.cap_size * (T.learned ? (D.H || 1920) / 1920 : (D.W || 1080) / 1080)) + 'px');
   if (T.cap_bg === 'none') { set('--cap-bg', 'transparent'); set('--cap-pad', '0 8px'); }
   if (T.cap_stroke) set('--cap-stroke', `${T.cap_stroke_w || 6}px ${T.cap_stroke}`);
   if (T.cap_shadow) set('--cap-shadow', T.cap_shadow);
   if (T.cap_emphasis) set('--cap-em', T.cap_emphasis);
-  if (T.quote_font) set('--q-font', `'${T.quote_font}'`);
+  if (T.quote_font) set('--q-font', JSON.stringify(T.quote_font));
   set('--q-weight', T.quote_weight); set('--q-lh', T.quote_lh); set('--q-track', T.quote_track);
   set('--q-ink', T.quote_ink); set('--q-hl', T.quote_hl); set('--q-hl-ink', T.quote_hl_ink);
   if (T.quote_upper === false) st.setProperty('--q-case', 'none');
-  if (T.gfx_font) set('--gfx-font', `'${T.gfx_font}', Inter, sans-serif`);
+  if (T.gfx_font) set('--gfx-font', `${JSON.stringify(T.gfx_font)}, Inter, sans-serif`);
   // the hook as a title rather than a pill: its own face, ink and background
   set('--pill-bg', T.hook_bg); set('--pill-ink', T.hook_ink); set('--pill-on', T.hook_on); set('--pill-weight', T.hook_weight);
-  if (T.hook_font) set('--pill-font', `'${T.hook_font}', Inter, sans-serif`);
+  if (T.pill_font || T.hook_font) set('--pill-font', `${JSON.stringify(T.pill_font || T.hook_font)}, Inter, sans-serif`);
   if (T.hook_size) set('--pill-size', T.hook_size + 'px'); if (T.hook_em) set('--pill-em', T.hook_em); set('--pill-shadow', T.hook_shadow); }
 // film look: a grade on footage and photos, grain, a vignette, soft-focus cuts; graphics stay clean
 const TH0 = D.theme || {}, LOOK = {grade: TH0.grade || '', grain: TH0.grain || 0, vignette: !!TH0.vignette, transition: TH0.transition || null};
 const KIN = TH0.cap_style === 'kinetic', CIRCLE = TH0.quote_mark === 'circle';
 const FULLCUT = TH0.cutaway === 'full';   // in 9x16 too, visuals and graphics take the whole frame
 // the quote face is hidden until its moment, so ask for it now: the capture waits for fonts before the first frame
-if ((D.quotes || []).length) document.fonts.load(`${(D.theme || {}).quote_weight || 400} 40px "${(D.theme || {}).quote_font || 'Anton'}"`);
-if (KIN) { document.fonts.load(`40px "${TH0.cap_font}"`); document.fonts.load(`italic 40px "${TH0.cap_font}"`); }
-if (TH0.hook_font) document.fonts.load(`italic ${TH0.hook_weight || 400} 40px "${TH0.hook_font}"`);
+if ((D.quotes || []).length) document.fonts.load(`${TH0.quote_weight || 400} 40px ${JSON.stringify(TH0.quote_font || 'Anton')}`);
+if (KIN) { document.fonts.load(`40px ${JSON.stringify(TH0.cap_font)}`); document.fonts.load(`italic 40px ${JSON.stringify(TH0.cap_font)}`); }
+if (TH0.pill_font || TH0.hook_font) document.fonts.load(`italic ${TH0.hook_weight || 400} 40px ${JSON.stringify(TH0.pill_font || TH0.hook_font)}`);
 // caption timing and position; y (center as a fraction of the height) applies where the speaker fills the frame
 const CAP = {words: 3, chars: 16, pop_ms: 120, pop_from: .88, overshoot: true, y: null};
 for (const [k, f] of Object.entries({words: 'cap_words', chars: 'cap_chars', pop_ms: 'cap_pop_ms', pop_from: 'cap_pop_from',
                                      overshoot: 'cap_pop_overshoot', y: 'cap_y'}))
   if (D.theme && D.theme[f] != null) CAP[k] = D.theme[f];
 const $ = id => document.getElementById(id);
+if (D.logo) $('logo').src = D.logo.src;
 const clamp = (x,a=0,b=1) => Math.max(a,Math.min(b,x));
 const lin = (t,a,b) => clamp((t-a)/(b-a));
 const easeOut = x => 1-Math.pow(1-x,3);
@@ -209,7 +219,8 @@ function drawGraphic(g, t, el) {
       el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${230+i*(600/Math.max(3,n))}px;font-size:${fs}px;white-space:nowrap"><i>${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
     if (k === 'title') { const m = String(g.text||'').match(/^(.*?)\*([^*]+)\*(.*)$/), name = m ? m[2] : String(g.text||''), intro = m ? (m[1]+m[3]).trim() : '';
       el.innerHTML = `<div class="g-intro">${esc(intro)}</div><div class="g-name" style="font-size:${Math.min(190, Math.floor(1900/Math.max(6, name.length)))}px">${esc(name)}</div>`; }
-    if (k === 'endcard') el.innerHTML = `<div class="g-name" style="top:300px;font-size:${Math.min(170, Math.floor(1800/Math.max(6, String(g.name||'').length)))}px">${esc(g.name||'')}</div>`
+    if (k === 'endcard') el.innerHTML = (D.logo ? `<img class="g-logo" src="${esc(D.logo.src)}" style="top:${260-Math.min(D.logo.h,200)}px;height:${Math.min(D.logo.h,200)}px">` : '')
+      + `<div class="g-name" style="top:300px;font-size:${Math.min(170, Math.floor(1800/Math.max(6, String(g.name||'').length)))}px">${esc(g.name||'')}</div>`
       + `<div class="g-url">${esc(g.url||'')}</div><div class="g-line">${esc(g.line||'')}</div>`;
     if (k === 'funnel') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.rows.map((r,i)=>`<div class="row" style="top:${200+i*(640/g.rows.length)}px"><div class="bar"></div><div class="num"></div><div class="lab">${esc(r.label)}</div></div>`).join('');
   }
@@ -262,7 +273,7 @@ document.documentElement.style.height = document.body.style.height = SH9 + 'px';
 const PANEL = D.theme && D.theme.panel, STAGE_H = PANEL ? Math.round(SH9 * (1 - PANEL.size)) : SH9;
 if (PANEL) { const st = document.documentElement.style, set = (k, v) => v != null && st.setProperty(k, v);
   set('--panel-bg', PANEL.bg); set('--panel-ink', PANEL.ink); set('--panel-on', PANEL.on);
-  if (PANEL.font) set('--panel-font', `'${PANEL.font}'`); if (PANEL.weight) set('--panel-weight', PANEL.weight);
+  if (PANEL.font) set('--panel-font', JSON.stringify(PANEL.font)); if (PANEL.weight) set('--panel-weight', PANEL.weight);
   if (PANEL.upper === false) set('--panel-case', 'none');
   const el = $('panel'); el.style.display = 'flex'; el.style.top = STAGE_H + 'px';
   const brand = PANEL.brand === false ? '' : (PANEL.brand_text || D.sourceTag || '');
@@ -312,6 +323,30 @@ function geometry(layout) {
 }
 function place(el, b) { if (!b) { el.style.display='none'; return; }
   el.style.display='block'; el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; }
+
+// the logo keeps one spot for the whole clip: it steps past the fixed source tag and panel, and only hides while
+// the hook, a caption or a quote is drawn where it sits
+function inked(el) {
+  if (!el || getComputedStyle(el).display === 'none' || +getComputedStyle(el).opacity === 0) return null;
+  const r = document.createRange(); r.selectNodeContents(el);
+  const b = r.getBoundingClientRect();
+  return b.width && b.height ? b : null;
+}
+function placeLogo() {
+  if (!D.logo) return;
+  const el = $('logo'), gap = 24*SW/1080, left = D.logo.pos === 'top-left', bottom = D.logo.pos === 'bottom-right';
+  let h = Math.min(D.logo.h*SW/1080, SH9/4), w = h*el.naturalWidth/el.naturalHeight;
+  const fit = Math.min(1, (SW-2*gap)/w); w *= fit; h *= fit;
+  const x = left ? gap : SW-gap-w;
+  let y = bottom ? SH9-gap-h : gap;
+  const tag = left && !bottom && inked($('srctag')), panel = bottom && PANEL && $('panel').getBoundingClientRect();
+  if (tag) y = tag.bottom + gap/2;
+  if (panel && panel.height) y = Math.min(y, panel.top - gap - h);
+  place(el, {x, y, w, h});
+  const hit = ['hook', 'pill', 'cap', 'quote'].map(id => inked($(id)))
+    .some(r => r && r.right > x - gap && r.left < x + w + gap && r.bottom > y - gap && r.top < y + h + gap);
+  el.style.opacity = hit ? 0 : 1;
+}
 
 function captionState(t) {
   const shot = shotAt(t);
@@ -400,6 +435,7 @@ window.seek = async function(t) {
     const inner = $('gfxIn');
     inner.style.transform = `translate(${(G.gfx.w-1080*s)/2}px,${half ? 0 : Math.max(0,(G.gfx.h-150-960*s)/2)}px) scale(${s})`;
     drawGraphic({...shot.graphic, id: 'g'+shot.idx, from: shot.from}, t, inner);
+    if (D.logo && shot.graphic.kind === 'endcard') await inner.querySelector('.g-logo').decode();
   }
 
   // look: the grade on footage and photos; each cut comes into focus; the grain moves every frame
@@ -512,6 +548,8 @@ window.seek = async function(t) {
     }
     disclosure.style.top = y + 'px';
   }
+
+  placeLogo();
   return true;
 };
 </script>
