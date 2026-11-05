@@ -506,7 +506,10 @@ window.seek = async function(t) {
     disclosure.firstChild.textContent = notice.text;
     disclosure.style.left = (b.x + 32) + 'px'; disclosure.style.width = (b.w - 64) + 'px';
     let y = b.y + 80;
-    if (G.hook === 'pill' && hookOn) y = Math.max(y, parseFloat(pill.style.top) + pill.offsetHeight + 24);
+    if (G.hook === 'pill' && hookOn) {
+      const py = parseFloat(pill.style.top), bottom = py + pill.offsetHeight;
+      if (y + disclosure.offsetHeight > py - 16 && y < bottom + 16) y = bottom + 24;
+    }
     disclosure.style.top = y + 'px';
   }
   return true;

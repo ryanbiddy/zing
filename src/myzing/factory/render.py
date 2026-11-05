@@ -177,6 +177,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
 
 def check_brief(d: Path, data: dict | None = None, *, stop: bool = True) -> dict | None:
     if not (d.parent / "brief.json").is_file():
+        (d / "brief_check.json").unlink(missing_ok=True)
         return None
     brief = campaign.read(d.parent)
     plan = json.loads((d / "plan.json").read_text(encoding="utf-8"))

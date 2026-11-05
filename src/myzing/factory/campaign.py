@@ -60,7 +60,7 @@ def length_errors(brief: dict, seconds: float) -> list[str]:
 
 
 def missing_tags(text: str, tags: list[str]) -> list[str]:
-    return [tag for tag in tags if not re.search(r"(?<!\w)" + re.escape(tag) + r"(?!\w)", text)]
+    return [tag for tag in tags if not re.search(r"(?<!\w)" + re.escape(tag) + r"(?!\w)", text, re.IGNORECASE)]
 
 
 def disclosure(brief: dict) -> dict | None:
@@ -82,7 +82,7 @@ def check(d: Path, brief: dict, seconds: float, hook: str, words: list[dict], ov
     texts = {"hook": hook.replace("*", ""), **{k: post.get(k, "") for k in (*POSTED, "first_comment")},
              "spoken": " ".join(w["w"] for w in words)}
     for term in brief.get("banned", []):
-        pattern = r"(?<!\w)" + r"\s+".join(re.escape(s) for s in term.split()) + r"(?!\w)"
+        pattern = r"(?<!\w)" + r"""[\s,.;:?!'"()‘’“”\u2010-\u2015-]+""".join(re.escape(s) for s in term.split()) + r"(?!\w)"
         for where, text in texts.items():
             if re.search(pattern, text, re.IGNORECASE):
                 flags.append({"kind": "banned", "where": where, "term": term,

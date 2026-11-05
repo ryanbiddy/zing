@@ -121,16 +121,17 @@ def _transcript(project: Path, media: Path, say, vocab: list[str] | None = None)
 def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[dict]:
     path = project / "moments.json"
     brief = campaign.read(project)
+    mode = cfg.get("mode", "context")
     data = load_moments(project)
     moments = data.get("moments", [])
     if not data.get("scouted"):
         segments = _transcript(project, media, say, cfg.get("vocab"))     # also what clips are picked from by hand
     if not data.get("scouted") and cfg["moments"]:
         n = cfg["moments"]
-        found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), cfg["mode"],
+        found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), mode,
                                                             focus=cfg.get("focus"), taste=taste(project, cfg),
                                                             news=cfg.get("news"), brief=brief)),
-                            segments[-1]["e"] if segments else None, brief=brief)
+                            segments[-1]["e"] if segments else None, brief=brief, mode=mode)
         moments = moments + found[:n]                # clips picked by hand before the scout keep their numbers
         data = {**data, "moments": moments, "bench": found[n:], "scouted": True}
         _write(path, data)
@@ -151,7 +152,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say) -> list[d
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
         words = sorted(fresh + [w for w in words if not any(a <= w["s"] <= b for a, b in span)], key=lambda w: w["s"])
         _write(project / "words.json", words)
-    moments = [m if m.get("snapped") else {**scout.snap(m, words, brief), "snapped": True} for m in moments]
+    moments = [m if m.get("snapped") else {**scout.snap(m, words, brief, mode), "snapped": True} for m in moments]
     _write(path, {**data, "moments": moments})
     return moments
 
@@ -474,7 +475,8 @@ def answer(project: Path, task: str, text: str | dict) -> dict:
     try:
         value = text if isinstance(text, dict) else parse(text)
         if kind == "scout":
-            scout.check(value, brief=campaign.read(Path(project)))
+            cfg = _read(Path(project) / "factory.json", {})
+            scout.check(value, brief=campaign.read(Path(project)), mode=cfg.get("mode", "context"))
         elif kind == "plan":
             plan.check(value)
         elif kind == "copy":

@@ -21,12 +21,18 @@ def prompt(segments: list[dict], n: int, mode: str = "context", *, focus: str | 
             .replace("{N}", str(n)).replace("{STEER}", steer(focus, taste)).replace("{TRANSCRIPT}", lines))
 
 
+def length_bounds(brief: dict, mode: str) -> dict:
+    return {key: brief[key] + margin for key, margin in (("min_seconds", 1.0),
+            ("max_seconds", -4.0 if mode == "launch" else -1.0)) if key in brief}
+
+
 def length_rule(brief: dict, mode: str) -> str:
+    brief = length_bounds(brief, mode)
     low, high = brief.get("min_seconds"), brief.get("max_seconds")
     if low is not None or high is not None:
         bounds = f"{low:g} to {high:g}" if low is not None and high is not None else (
             f"at least {low:g}" if low is not None else f"at most {high:g}")
-        return f"Each clip must run {bounds} seconds in total, including any end card."
+        return f"Each clip must use {bounds} seconds of source material in total."
     return ("40 to 120 seconds of speech in total. A second film can be a 20 to 35 second teaser."
             if mode == "launch" else "25–70 seconds of speech.")
 
@@ -63,7 +69,7 @@ def parts(moment: dict) -> list[list[float]]:
     return [[s["start"], s["end"]] for s in moment["spans"]] if moment.get("spans") else [[moment["start"], moment["end"]]]
 
 
-def check(answer: dict, duration: float | None = None, brief: dict | None = None) -> list[dict]:
+def check(answer: dict, duration: float | None = None, brief: dict | None = None, mode: str = "context") -> list[dict]:
     moments = answer.get("moments")
     if not isinstance(moments, list) or not moments:
         raise ValueError("scout answer needs a non-empty 'moments' list")
@@ -81,7 +87,7 @@ def check(answer: dict, duration: float | None = None, brief: dict | None = None
             rec.update(start=spans[0]["start"], end=spans[-1]["end"], spans=spans)
         else:
             rec.update(start=float(m["start"]), end=float(m["end"]))
-        errors = campaign.length_errors(brief or {}, sum(b - a for a, b in parts(rec)))
+        errors = campaign.length_errors(length_bounds(brief or {}, mode), sum(b - a for a, b in parts(rec)))
         if errors:                                  # one long pick drops out; the rest of the answer stands
             off += errors
             continue
@@ -91,14 +97,14 @@ def check(answer: dict, duration: float | None = None, brief: dict | None = None
     return out
 
 
-def snap(moment: dict, words: list[dict], brief: dict | None = None) -> dict:
+def snap(moment: dict, words: list[dict], brief: dict | None = None, mode: str = "context") -> dict:
     """End on a sentence end and start after a leading filler word (And/So/Yeah/Well/Um); each span of a film alike."""
     if moment.get("spans"):
         spans = [{**s, **{k: v for k, v in _snap(s, words).items() if k in ("start", "end")}} for s in moment["spans"]]
         snapped = {**moment, "spans": spans, "start": spans[0]["start"], "end": spans[-1]["end"]}
     else:
         snapped = _snap(moment, words)
-    return moment if campaign.length_errors(brief or {}, sum(b - a for a, b in parts(snapped))) else snapped
+    return moment if campaign.length_errors(length_bounds(brief or {}, mode), sum(b - a for a, b in parts(snapped))) else snapped
 
 
 def _snap(moment: dict, words: list[dict]) -> dict:

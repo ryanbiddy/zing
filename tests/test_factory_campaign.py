@@ -14,6 +14,7 @@ from myzing.factory import campaign, command, judge, pipeline, postcopy, render,
 from myzing.factory.tools import FactoryError, data_path
 
 RUN = subprocess.run
+from test_factory_review_fixes import javascript  # noqa: E402  (imported before the fixture blocks subprocess)
 
 
 @pytest.fixture(autouse=True)
@@ -167,21 +168,22 @@ def test_scout_uses_brief_rules_and_bounds(tmp_path, mode):
     got = pipeline._moments(root, ask, tmp_path / "episode.mp4", pipeline._read(root / "factory.json"), lambda m: None)
     text = ask.prompts[0][1]
     assert got[0]["end"] - got[0]["start"] == 20
-    assert "15 to 60 seconds" in text and "25–70" not in text and "120 seconds" not in text
+    high = 56 if mode == "launch" else 59                    # the scout aims inside the brief: tail pad, end card
+    assert f"16 to {high} seconds" in text and "25–70" not in text and "120 seconds" not in text
     assert "Avoid these topics. gambling; competitor names" in text and brief["notes"] in text
     assert "{BRIEF}" not in text and "{LENGTH}" not in text
-    with pytest.raises(FactoryError, match="at most 60 seconds"):
+    with pytest.raises(FactoryError, match=f"at most {high} seconds"):
         pipeline.answer(root, "scout", {"moments": [{"start": 0, "end": 61, "hook": "Long"}]})
 
 
 def test_scout_checks_each_bound_and_the_sum_of_launch_spans():
     moment = {"hook": "A test", "start": 0, "end": 10}
-    assert scout.check({"moments": [moment]}, brief={"max_seconds": 10})
-    with pytest.raises(ValueError, match="at least 15"):
+    assert scout.check({"moments": [moment]}, brief={"max_seconds": 11})     # bounds carry a one-second margin
+    with pytest.raises(ValueError, match="at least 16"):
         scout.check({"moments": [moment]}, brief={"min_seconds": 15})
     film = {"hook": "A film", "spans": [{"start": 100, "end": 110}, {"start": 0, "end": 10}]}
-    assert scout.check({"moments": [film]}, brief={"min_seconds": 20, "max_seconds": 20})
-    with pytest.raises(ValueError, match="at most 19"):
+    assert scout.check({"moments": [film]}, brief={"min_seconds": 19, "max_seconds": 21})
+    with pytest.raises(ValueError, match="at most 18"):
         scout.check({"moments": [film]}, brief={"max_seconds": 19})
     words = [{"w": "Start", "s": 0, "e": 1}, {"w": "end.", "s": 11, "e": 12}]
     assert scout.snap(moment, words)["end"] > 10
@@ -204,6 +206,86 @@ def test_tags_append_once_in_brief_order_and_keep_context_links():
 def test_one_pick_outside_the_brief_drops_out_and_the_rest_stand():
     picks = [{"hook": "Long", "start": 0, "end": 90}, {"hook": "Fits", "start": 100, "end": 140}]
     assert [m["hook"] for m in scout.check({"moments": picks}, brief={"max_seconds": 60})] == ["Fits"]
+
+
+@pytest.mark.parametrize("mode,high,hooks", [("context", 29, ["End card", "Fits"]), ("launch", 26, ["Fits"])])
+def test_scout_margin_filters_picks_before_word_timing(tmp_path, mode, high, hooks):
+    brief = {"min_seconds": 15, "max_seconds": 30}
+    root = project(tmp_path, brief=brief, mode=mode, moments=4)
+    pipeline._write(root / "transcript.json", [{"s": 0, "e": 200, "text": "A test."}])
+
+    class Picks(Answers):
+        def ask(self, task, text, images=()):
+            self.prompts.append((task, text))
+            return {"moments": [
+                {"hook": "Long", "start": 0, "end": 29.8},
+                {"hook": "End card", "spans": [{"start": 60, "end": 73.5}, {"start": 30, "end": 43.5}]},
+                {"hook": "Short", "start": 90, "end": 105.8},
+                {"hook": "Fits", "start": 120, "end": 140},
+            ]}
+
+    ask = Picks(root)
+    got = pipeline._moments(root, ask, tmp_path / "episode.mp4", pipeline._read(root / "factory.json"), lambda m: None)
+    assert [m["hook"] for m in got] == hooks
+    assert f"16 to {high} seconds of source material" in ask.prompts[0][1]
+    assert brief == {"min_seconds": 15, "max_seconds": 30}
+    with pytest.raises(FactoryError, match=f"at most {high} seconds"):
+        pipeline.answer(root, "scout", {"moments": [{"hook": "Long", "start": 0, "end": 29.8}]})
+
+
+@pytest.mark.parametrize("mode,high", [("context", 29), ("launch", 26)])
+def test_scout_snap_keeps_the_margin(tmp_path, mode, high):
+    brief = {"min_seconds": 15, "max_seconds": 30}
+    root = project(tmp_path, brief=brief, mode=mode, moments=1)
+    moment = {"hook": "Fits", "start": 0, "end": high - .5}
+    pipeline._write(root / "moments.json", {"scouted": True, "moments": [moment]})
+    pipeline._write(root / "words.json", [{"w": "Start", "s": .05, "e": 1},
+                                          {"w": "the", "s": high - 1, "e": high - .6},
+                                          {"w": "end.", "s": high - .1, "e": high + .1}])
+    got = pipeline._moments(root, Answers(root), tmp_path / "episode.mp4", pipeline._read(root / "factory.json"),
+                           lambda m: None)
+    assert got == [{**moment, "snapped": True}]
+    short = {"hook": "Fits", "start": 0, "end": 16.2}
+    words = [{"w": "Start", "s": 1, "e": 2}, {"w": "end.", "s": 15, "e": 16.15}]
+    assert scout.snap(short, words, brief, mode=mode) == short
+
+
+@pytest.mark.parametrize("brief,mode,bounds", [
+    ({"min_seconds": 15}, "context", "at least 16"),
+    ({"max_seconds": 30}, "context", "at most 29"),
+    ({"max_seconds": 30}, "launch", "at most 26"),
+])
+def test_scout_prompt_tightens_one_sided_bounds(brief, mode, bounds):
+    text = scout.prompt([], 1, mode, brief=brief)
+    assert f"{bounds} seconds of source material" in text
+    assert "{LENGTH}" not in text
+
+
+def test_tag_matching_ignores_case_without_appending_duplicates(tmp_path):
+    brief = {"tags": ["#Sponsored", "@Brand"]}
+    root = project(tmp_path, brief=brief)
+    d = clip(root)
+    post = {field: "A test. #sponsored @brand" for field in postcopy.FIELDS}
+    assert campaign.missing_tags(post["x"], brief["tags"]) == []
+    assert campaign.missing_tags("#sponsoredish @branded", brief["tags"]) == brief["tags"]
+    assert postcopy.require_tags(post, brief) == post
+    pipeline._write(d / "post.json", post)
+    assert render.check_brief(d)["flags"] == []
+
+
+@pytest.mark.parametrize("separator", [" ", "\t\n", ", ", ".", ";", ":", "?!", "'", '"', "()", "-",
+                                       "–", "—", "‘’", "“”", ', ("—")! '])
+def test_banned_phrases_match_across_spoken_punctuation(tmp_path, separator):
+    d = clip(project(tmp_path, brief={"banned": ["competitor names"]}),
+             text=f"Competitor{separator}NAMES, not competitors names or competitor namesake.")
+    flags = render.check_brief(d)["flags"]
+    assert [(f["term"], f["where"]) for f in flags] == [("competitor names", "spoken")]
+
+
+def test_banned_phrases_keep_word_boundaries(tmp_path):
+    d = clip(project(tmp_path, brief={"banned": ["competitor names"]}),
+             text="Competitors, names and competitor namesake and competitor other names.")
+    assert render.check_brief(d)["flags"] == []
 
 
 def test_pipeline_appends_tags_without_another_copy_judgment(tmp_path, monkeypatch):
@@ -266,6 +348,28 @@ def test_length_includes_endcard_and_cached_clips_are_rechecked(tmp_path, monkey
     pipeline._write(d / "plan.json", plan)
     with pytest.raises(FactoryError, match="clip runs 23 seconds"):
         render.check_brief(d)
+
+
+@pytest.mark.parametrize("seconds", [15, 30])
+def test_render_keeps_exact_brief_bounds(tmp_path, seconds):
+    d = clip(project(tmp_path, brief={"min_seconds": 15, "max_seconds": 30}), seconds=seconds)
+    assert render.check_brief(d) == {"seconds": seconds, "errors": [], "flags": []}
+
+
+def test_removing_brief_clears_stale_checks_and_keeps_videos(tmp_path):
+    root = project(tmp_path, brief={"max_seconds": 19, "banned": ["test"]})
+    d = clip(root)
+    for name in ("clip.mp4", "clip-1x1.mp4"):
+        (d / name).write_bytes(b"render")
+    got = render.check_brief(d, stop=False)
+    assert got["errors"] and got["flags"] and (d / "brief_check.json").is_file()
+    (root / "brief.json").unlink()
+    for _ in range(2):
+        assert render.check_brief(d) is None
+        assert not (d / "brief_check.json").exists()
+        assert all((d / name).read_bytes() == b"render" for name in ("clip.mp4", "clip-1x1.mp4"))
+    assert pipeline.status(root)["clips"][0]["brief_flags"] == 0
+    assert pipeline.status(root)["clips"][0]["brief_errors"] == []
 
 
 def test_one_bad_clip_does_not_stop_the_other_clips(tmp_path, monkeypatch):
@@ -344,7 +448,6 @@ def test_disclosure_changes_replace_cached_renders(tmp_path, monkeypatch):
 
 
 def test_dashboard_shows_rights_and_brief_flags_as_text():
-    from test_factory_review_fixes import javascript
     got = javascript("dashboard.html", """
       ui.project = {state: 'done', source: {name: 'Show <1>'}, rights: 'permission', clips: []};
       render();
@@ -388,6 +491,40 @@ vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8').match(/<script>([\s\
     states = json.loads(got.stdout)
     assert [s[0] for s in states] == ["block", "block", "none", "block"]
     assert all(s[1] == data["disclosure"]["text"] and 0 < s[2] < data["H"] and 0 < s[3] < data["W"] for s in states)
+
+
+@pytest.mark.parametrize("shape,height,top", [("9x16", 60, 80), ("1x1", 60, 140),
+                                            ("9x16", 695, 874), ("9x16", 694, 80)])
+def test_disclosure_moves_only_when_the_hook_pill_overlaps(tmp_path, shape, height, top):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is needed to run the page's JavaScript")
+    d = clip(project(tmp_path, brief={"disclosure": "Paid partnership with X", "disclosure_seconds": 5}))
+    data = render.scene_data(d, shape, {"solo_fill": True}, parallax=False, front=False, sharpen=False)
+    js = r"""
+const fs = require('fs'), vm = require('vm'), data = JSON.parse(fs.readFileSync(0, 'utf8'));
+const nodes = {};
+function element() { return {style: {setProperty() {}}, dataset: {}, offsetHeight: 60,
+  classList: {toggle() {}, add() {}}, decode: async () => {}, firstChild: {style: {}},
+  querySelectorAll: () => []}; }
+const document = {documentElement: element(), body: element(), fonts: {load: async () => {}},
+  getElementById: id => nodes[id] ||= element()};
+const context = {window: {DATA: data}, document};
+vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1], context);
+document.getElementById('disclosure').offsetHeight = Number(process.argv[2]);
+(async () => {
+  const states = [];
+  for (const t of [.5, 3.1, .5]) {
+    await context.window.seek(t);
+    states.push([nodes.disclosure.style.display, parseFloat(nodes.disclosure.style.top)]);
+  }
+  console.log(JSON.stringify(states));
+})().catch(e => {console.error(e); process.exitCode = 1;});
+"""
+    got = RUN([node, "-e", js, str(data_path("scene.html")), str(height)], input=json.dumps(data),
+              capture_output=True, text=True, encoding="utf-8", timeout=15)
+    assert got.returncode == 0, got.stderr
+    assert json.loads(got.stdout) == [["block", top], ["block", 80], ["block", top]]
 
 
 def test_mcp_new_accepts_rights_and_a_brief_path(tmp_path):

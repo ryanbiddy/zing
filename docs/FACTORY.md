@@ -57,8 +57,10 @@ All fields are optional. Both flags also work with `factory batch`.
 }
 ```
 
-The scout uses the supplied length bounds, banned topics and notes. A pick
-outside the bounds is dropped and the rest stand. Missing tags and mentions are
+The scout uses the supplied length bounds, banned topics and notes.
+It leaves 1 second inside each length bound and another 3 seconds below the
+maximum in launch mode for the end card. A pick outside the bounds is dropped
+and the rest stand. Missing tags and mentions are
 appended in brief order to the X, Instagram and TikTok captions and to the end of
 the YouTube title. The first comment is left alone. A disclosure
 appears over the video from the first frame in every shape. It lasts
