@@ -75,11 +75,15 @@ def _video_id(value: str) -> str | None:
     return None
 
 
-def _kept(query: str, search, resolve):
+def _kept(query: str, search, resolve, stop=None):
+    if stop and stop():
+        return
     result = search(query)
     if not result.get("ok"):
         return
     for item in result.get("results", []):
+        if stop and stop():
+            return
         result = resolve(item["item_ref"])
         data = result.get("data", {}) if result.get("ok") else {}
         media = data.get("media") or {}
@@ -121,7 +125,7 @@ def download(url: str, path: Path, *, root: Path, cap: int = CAP, stop=None) -> 
         tmp.unlink(missing_ok=True)
 
 
-def _items(src: dict, root: Path, fetch, search, resolve):
+def _items(src: dict, root: Path, fetch, search, resolve, stop=None):
     kind = src["kind"]
     if kind in ("folder", "own"):
         folder = Path(src["url"]).expanduser().resolve()
@@ -132,10 +136,12 @@ def _items(src: dict, root: Path, fetch, search, resolve):
                 media = path.resolve()
                 info = batch._settings(media, {})
                 yield {"id": hashlib.sha256(str(media).encode()).hexdigest(), "title": info["name"] or media.stem,
-                       "url": info["url"] or media.as_uri(), "published": info["date"] or datetime.fromtimestamp(
+                       "url": info["url"] or "", "published": info["date"] or datetime.fromtimestamp(
                            media.stat().st_mtime, timezone.utc).isoformat(), "media": str(media), "own": kind == "own"}
     elif kind == "youtube":
         ident = feeds.resolve(_channel(src["url"]), fetch, root=root)
+        if stop and stop():
+            return
         for row in feeds.feed(ident, fetch, root=root, watch_only=True):
             yield {key: row[key] for key in ("id", "title", "published")} | {"url": f"https://www.youtube.com/watch?v={row['id']}"}
     elif kind == "podcast":
@@ -150,7 +156,7 @@ def _items(src: dict, root: Path, fetch, search, resolve):
                    "url": item.findtext("link") or url, "published": _published(item.findtext("pubDate", "")),
                    "enclosure": url, "media_type": kind, "audio_only": kind.startswith("audio/")}
     else:
-        yield from _kept(src["url"], search, resolve)
+        yield from _kept(src["url"], search, resolve, stop)
 
 
 def _stem(src: dict, item: dict) -> str:
@@ -174,7 +180,7 @@ def _media(src: dict, item: dict, root: Path, search, resolve, downloader, stop)
             item["media"] = str(media.resolve())
             return
         for query in (item["url"], ident):
-            for kept in _kept(query, search, resolve):
+            for kept in _kept(query, search, resolve, stop):
                 if kept["url"] == item["url"] or _video_id(kept["url"]) == ident:
                     item["media"] = kept["media"]
                     return
@@ -207,7 +213,6 @@ def _start(slug: str, src: dict, item: dict, root: Path, now: datetime) -> bool:
     if settings["rights"] == "unknown":
         item["state"] = "found, needs rights"
         return False
-    settings["url"] = item["url"]
     pipeline.init(project, media, **settings)
     item.update(project=str(project), started_at=now.isoformat())
     return True
@@ -234,7 +239,7 @@ def run(slug: str, *, fetch=None, downloader=None, search=None, resolve=None, no
         changed = False
         known = registry.effective_rights(src, now) != "unknown"
         try:
-            for item in _items(src, root, fetch, search, resolve):
+            for item in _items(src, root, fetch, search, resolve, stopped):
                 if stopped():
                     break
                 if item["id"] not in seen:

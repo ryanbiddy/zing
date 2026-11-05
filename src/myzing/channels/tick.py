@@ -14,7 +14,7 @@ from myzing.factory.judge import Judge
 from myzing.model_fetch import _try_lock, _unlock
 from myzing.playbook.common import append_jsonl, parse_time
 
-from . import kit, queue, registry, watch
+from . import kit, publish, queue, registry, watch
 
 STALE = 3 * 3600
 
@@ -59,7 +59,7 @@ def pending(project: Path) -> list[dict]:
 
 
 def _advance(slug: str, channel: dict, row: dict, runner, stop, say, now) -> None:
-    chosen = None
+    chosen, retry = None, None
     for file in sorted((registry.directory(slug) / "projects").glob("*/factory.json")):
         if stop():
             return
@@ -69,15 +69,27 @@ def _advance(slug: str, channel: dict, row: dict, runner, stop, say, now) -> Non
         status = pipeline._read(project / "status.json", {})
         if status.get("state") == "done" and not status.get("failed"):
             continue
+        failed = status.get("state") == "failed" or bool(status.get("failed"))
+        attempts = pipeline._read(project / "tick_attempts.json", {}).get("attempts", 0)
+        if failed and attempts >= 2:
+            row.setdefault("notes", []).append(f"{project.name} skipped after two retries.")
+            continue
         cfg = pipeline._read(file)
-        if cfg.get("rights") not in ("own", "permission", "licensed") or (cfg.get("source") and registry.effective_rights(
-                registry.source(channel, cfg["source"]), now) == "unknown"):
+        try:
+            src = registry.source(channel, cfg["source"]) if cfg.get("source") else None
+        except registry.ChannelError as exc:
+            row["errors"].append(f"{project.name} {exc}")
+            continue
+        if cfg.get("rights") not in ("own", "permission", "licensed") or (src and registry.effective_rights(src, now) == "unknown"):
             row["blocked"][project.name] = ["Source rights need review."]
             continue
         if chosen is None and not (prompts and channel["judge"] == "host"):
             chosen = project
+            retry = attempts + 1 if failed else None
     if chosen is None or stop():
         return
+    if retry is not None:
+        pipeline._write(chosen / "tick_attempts.json", {"attempts": retry})
     result = runner(chosen, Judge(chosen, channel["judge"]), say=say, stop=stop)
     row["advanced"] += 1
     row["pending"] = [p for p in row["pending"] if p["project"] != str(chosen)]
@@ -98,7 +110,7 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
         if not acquired:
             return {"message": "another tick is running", "channels": {}, "exit_code": 0}
         for slug in channels(slugs):
-            root = registry.directory(slug)
+            root = None
             if time.monotonic() >= deadline:
                 break
             began = time.monotonic()
@@ -106,12 +118,14 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
                    "kits": 0, "blocked": {}, "pending": [], "errors": [], "seconds": 0}
 
             def stopped():
-                reason = "paused" if registry.paused(slug) else "out of time" if time.monotonic() >= deadline else None
+                paused = (registry.home() / "PAUSE").exists() or root is not None and (root / "PAUSE").exists()
+                reason = "paused" if paused else "out of time" if time.monotonic() >= deadline else None
                 if reason:
                     row["stopped"] = reason
                 return bool(reason)
 
             try:
+                root = registry.directory(slug)
                 if not stopped():
                     channel = registry.load(slug)
                     found = (watch_fn or watch.run)(slug, now=now, stop=stopped)
@@ -127,16 +141,25 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
                         made = kit.kit(slug, stop=stopped)
                         row["kits"] = made["made"]
                         row["blocked"].update(made["blocked"])
+                    if not stopped() and channel["publish"]["youtube"] != "off":
+                        uploaded = publish.upload(slug, stop=stopped)
+                        row["uploaded"] = uploaded["uploaded"]
+                        row["blocked"].update(uploaded["blocked"])
+                        if uploaded["stopped"]:
+                            row["errors"].append(uploaded["stopped"])
+                    if not stopped() and channel.get("youtube") and publish.analytics_due(slug, now):
+                        row["analytics"] = publish.analytics(slug, now=now, stop=stopped)["matched"]
                     if not stopped() and channel["handles"].get("youtube"):
                         from .outcomes import track
                         row["tracked"] = track(slug)["matched"]
             except Exception as exc:
                 stopped()
-                if not (registry.paused(slug) and isinstance(exc, registry.ChannelError)):
+                if not (row.get("stopped") == "paused" and isinstance(exc, registry.ChannelError)):
                     row["errors"].append(str(exc) or type(exc).__name__)
             row["seconds"] = round(time.monotonic() - began, 3)
             try:
-                append_jsonl(root / "ticks.jsonl", [row])
+                if root is not None:
+                    append_jsonl(root / "ticks.jsonl", [row])
             except OSError as exc:
                 row["errors"].append(f"Could not write ticks.jsonl. {exc}")
             results[slug] = row

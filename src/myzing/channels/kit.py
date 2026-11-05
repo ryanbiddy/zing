@@ -9,10 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
-from myzing.factory import campaign, tools
+from myzing.factory import campaign, render, tools
 from myzing.factory.pipeline import _read, _write
 
-from . import gate, queue, registry
+from . import gate, queue, registry, youtube
 
 TEXTS = ("youtube", "tiktok", "instagram", "x", "first_comment")
 LABELS = {"youtube_title": "YouTube title", "youtube": "YouTube description", "tiktok": "TikTok",
@@ -34,7 +34,9 @@ def _link(channel: dict) -> str:
 def _youtube(post: dict, project: Path, channel: dict, source_id: str | None) -> str:
     src = _read(project / "source.json", {})
     registered = registry.source(channel, source_id) if source_id else {}
-    name, url = src.get("name") or registered.get("name"), src.get("url") or registered.get("url")
+    name = src.get("name") or registered.get("name")
+    url = next((url for url in (src.get("url"), registered.get("url"))
+                if url and url.startswith(("http://", "https://"))), "")
     text = post.get("youtube") or post.get("youtube_description") or post.get("instagram", "")
     credit = " ".join(v for v in ("Source:", name if name and name not in text else "", url) if v) if name or url else ""
     network, link = channel["network"], _link(channel)
@@ -104,35 +106,58 @@ document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener
     return path
 
 
+def _stale(d: Path, folder: Path) -> bool:
+    pack = _read(d.parent / "factory.json", {}).get("pack", "zing")
+    pairs = ((d / f"clip{render.suffix('9x16', pack)}.mp4", folder / "video.mp4"),
+             (d / "post.json", folder / "post.json"))
+    return any(src.is_file() and (not dest.is_file() or src.stat().st_mtime_ns > dest.stat().st_mtime_ns)
+               for src, dest in pairs)
+
+
 def kit(slug: str, out: Path | None = None, *, stop=None) -> dict:
     channel = registry.load(slug)
     registry.require_running(slug)
+    with youtube.lock():
+        return _kit(channel, out, stop)
+
+
+def _kit(channel: dict, out: Path | None, stop) -> dict:
+    from .publish import _outbox
+    slug = channel["slug"]
     out = Path(out).expanduser().resolve() if out is not None else registry.directory(slug) / "kits"
     out.mkdir(parents=True, exist_ok=True)
     rows = queue.read(slug)
+    uploading = {r["id"] for r in _outbox(slug) if r["state"] == "uploading"}
     made, blocked, warnings = [], {}, []
     for row in rows:
         if stop and stop():
             break
-        if row["status"] != "queued":
+        if row["status"] not in ("queued", "kit") or row["id"] in uploading:
             continue
         project = Path(row["project"])
         d = project / row["clip"]
+        stamp = datetime.fromisoformat(row["slot"]).strftime("%Y-%m-%d-%H%M")
+        folder = Path(row["kit"]) if row.get("kit") else out / f"{stamp}-{project.name}-{row['clip']}"
+        stale = _stale(d, folder)
+        if row["status"] == "kit" and not stale:
+            continue
         result = gate.check(project, row["clip"], channel)
         if not result["publishable"]:
             blocked[row["id"]] = result["blockers"]
+            if row["status"] == "kit":
+                row["status"] = "queued"
+                queue.write(slug, rows)
             continue
-        stamp = datetime.fromisoformat(row["slot"]).strftime("%Y-%m-%d-%H%M")
-        folder = out / f"{stamp}-{project.name}-{row['clip']}"
         required = ["video.mp4", "post.json", *[f"{field}.txt" for field in TEXTS]]
         if folder.exists() and not all((folder / name).is_file() for name in required):
             raise registry.ChannelError(f"kit folder is incomplete. Remove it and try again at {folder}")
-        if not folder.exists():
+        if not folder.exists() or stale:
             post = _read(d / "post.json", {})
             cfg = _read(project / "factory.json", {})
-            with tempfile.TemporaryDirectory(prefix=".kit-", dir=out) as temp:
-                tmp = Path(temp)
-                warning = _video(d / "clip.mp4", tmp / "video.mp4")
+            with tempfile.TemporaryDirectory(prefix=".kit-", dir=folder.parent) as temp:
+                tmp, previous = Path(temp) / "ready", Path(temp) / "previous"
+                tmp.mkdir()
+                warning = _video(d / f"clip{render.suffix('9x16', cfg.get('pack', 'zing'))}.mp4", tmp / "video.mp4")
                 if warning:
                     warnings.append(f"{row['id']} {warning}")
                 for field in TEXTS:
@@ -140,7 +165,14 @@ def kit(slug: str, out: Path | None = None, *, stop=None) -> dict:
                     (tmp / f"{field}.txt").write_text(text, encoding="utf-8")
                 _write(tmp / "post.json", {**post, "slot": row["slot"], "channel": slug, "rights": cfg.get("rights", "unknown"),
                                             "source": cfg.get("source"), "gate": result})
-                tmp.rename(folder)
+                if folder.exists():
+                    folder.rename(previous)
+                try:
+                    tmp.rename(folder)
+                except OSError:
+                    if previous.exists():
+                        previous.rename(folder)
+                    raise
         row.update(status="kit", kit=str(folder))
         queue.write(slug, rows)
         made.append(str(folder))

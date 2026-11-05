@@ -229,6 +229,7 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
              news: dict | None = None) -> dict:
     """Drop what can't be shown honestly: unspoken graphics and splits without a usable visual become solo."""
     from .receipt import added
+    from . import campaign, postcopy
     d = Path(clipdir)
     heard = d / "words-heard.json"                     # the speech model's words, kept once a fix changes them
     data = json.loads((heard if heard.is_file() else d / "words.json").read_text(encoding="utf-8"))
@@ -254,8 +255,16 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
     plan = _fix_text({k: v for k, v in plan.items() if k != "fixes"}, text_pairs)
     post = d / "post.json"
     if text_pairs and post.is_file():                  # the copy was written from the same words
-        post.write_text(json.dumps(_fix_text(json.loads(post.read_text(encoding="utf-8")), text_pairs), indent=1,
-                                   ensure_ascii=False), encoding="utf-8")
+        copy = json.loads(post.read_text(encoding="utf-8"))
+        for field in postcopy.FIELDS:
+            if field in copy:
+                copy[field] = _fix_text(copy[field], text_pairs)
+        for option in copy.get("title_options", []):
+            option["text"] = _fix_text(option["text"], text_pairs)
+        chosen = next((t for t in copy.get("title_options", []) if t["pattern"] == copy.get("title_pattern")), None)
+        if chosen:
+            copy["youtube_title"] = postcopy.require_tags({"youtube_title": chosen["text"]}, campaign.read(d.parent))["youtube_title"]
+        post.write_text(json.dumps(copy, indent=1, ensure_ascii=False), encoding="utf-8")
     shots, quoted = [], False
     spoken = spoken_numbers(words)[0]
     src = d.parent / "source.json"

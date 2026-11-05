@@ -99,7 +99,7 @@ def test_expired_grant_blocks_an_existing_project(channel):
     channel["sources"][0]["rights"]["expires"] = "2026-11-04"
     assert "The source grant has expired." in gate.check(project, "clip01", channel, now=NOW)["blockers"]
     channel["sources"][0]["rights"] = {"status": "unknown", "grant": "", "expires": "2099-11-04"}
-    assert gate.check(project, "clip01", channel, now=NOW)["publishable"]
+    assert not gate.check(project, "clip01", channel, now=NOW)["publishable"]
 
 
 def test_missing_manifest_entries_and_unaccounted_render_visuals_block(channel):

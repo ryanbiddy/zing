@@ -2,12 +2,10 @@
 
 A channel is one niche identity that gets clips from new episodes over time.
 It keeps source grants, factory defaults, review history and a posting queue.
-`zing channels` keeps local files and never posts, uploads or signs in.
-`track` reads your public YouTube feed. You upload the finished kits yourself.
-
-`zing channels` saves its work in local files. Watching can read public feeds,
-fetch granted podcast enclosures and read existing Uoink media. It never posts,
-uploads, signs in or creates accounts. You upload the finished kits yourself.
+Publishing is off by default. You can upload finished kits yourself or connect
+your YouTube account and enable private or scheduled uploads.
+Watching can read public feeds, fetch granted podcast enclosures and read
+existing Uoink media. `track` reads your public YouTube feed.
 
 ## Start a channel
 
@@ -61,6 +59,10 @@ channels/
         clip01/
     queue.jsonl
     ticks.jsonl
+    youtube.token
+    outbox.jsonl
+    youtube-quota.json
+    youtube-analytics.json
     kits/
       index.html
     PAUSE
@@ -95,17 +97,25 @@ with code 1 if it finds a problem. Other command errors exit with code 2.
 - `judge` is `host` by default, or `claude` to use Claude Code's CLI during ticks.
 - `visuals` is `cleared` by default, or `editorial`. Editorial accepts screenshots
   of public pages used as commentary, so a person must judge whether that use is appropriate.
+- `publish.youtube` is `off` by default, or `private` or `scheduled`.
+  `youtube_category` is a category ID string and defaults to `"22"`.
+  `youtube_daily_cap` defaults to 6. Zero prevents new upload sessions.
 
 ## What the gate checks
 
 Each check writes `clipNN/gate.json` with `publishable` and `blockers`.
 A clip waits if any of these apply.
 
-- Project source rights are unknown, or its registered grant has expired.
+- Project source rights or the current registered grant are unknown or expired.
 - A picked visual has rights other than `cleared` or `attribution`, unless the
   channel allows `editorial`. Unknown or missing visual rights always block.
-- `context.json` has flags, or `brief_check.json` has errors or flags.
-- The `9x16` render at `clipNN/clip.mp4` or `post.json` is missing.
+- `context.json` is missing, has an error or has flags.
+- A project has `brief.json` but the clip has no `brief_check.json`, or the
+  brief check has errors or flags.
+- The project's `9x16` render or `post.json` is missing. Non-default packs use
+  `clipNN/clip-<pack>.mp4`.
+- The post copy contains a local file path (a `file:` link, a drive path or a
+  network share), so nothing private ends up in a public description.
 - The clip is rated No or still needs approval.
 - The channel or the whole network is paused.
 
@@ -171,11 +181,18 @@ zing channels digest --all --out digest.md
 ```
 
 A tick checks pause files, watches sources, advances at most one unfinished
-episode per channel, queues clips and builds kits. If a YouTube handle and a
-channel `track` command are available, tracking runs last. Otherwise it is skipped.
+episode per channel, queues clips and builds kits. It uploads only when
+`publish.youtube` is enabled. Connected channels fetch owner analytics once
+per Pacific day, including when publishing is off. `youtube-analytics.json`
+records the last attempt and whether it completed. Public tracking runs last
+when a YouTube handle is set.
 Host-judge channels stop at pending prompts until an agent answers them with
 `zing factory answer` or the existing factory MCP tools. Later ticks resume them.
 Projects with unknown or expired source rights do not advance.
+Missing sources leave an error for that project while other projects can run.
+Failed projects and projects with failed clips get at most two retries.
+`tick_attempts.json` records the retries. Later ticks skip them with a note
+so newer episodes can run.
 
 `--max-minutes` defaults to 50 and limits the whole tick. Pause and time checks
 run between steps, clips and enclosure chunks. A running model call or render
@@ -209,8 +226,8 @@ schtasks /Create /SC DAILY /ST 07:30 /TN "Zing channels digest" /TR "<full path 
 
 The second task writes the digest at 7:30 AM. To pause work, create `PAUSE` in
 the channels root or run `zing channels pause --all`. A channel's own `PAUSE`
-file pauses just that channel. A person still handles accounts, rights grants,
-posting and claims. Host-judge channels wait at prompts until an agent answers.
+file pauses just that channel. A person still handles sign-in, rights grants
+and claims. Host-judge channels wait at prompts until an agent answers.
 
 ## Queue and kits
 
@@ -248,10 +265,92 @@ FFmpeg remuxes the video with stream copy and faststart. If FFmpeg is missing,
 the original file is copied and the command reports that it was not remuxed.
 
 `kit` rechecks the gate before making files and marks each finished row `kit`.
-Repeat runs leave finished kits alone. `kit --out DIR` chooses another output
-folder. Open its `index.html` to watch videos and copy text. Its Posted checkboxes
+Repeat runs rebuild a kit when the clip's render or copy is newer. The folder
+keeps its name. Uploads refuse stale kits until you run `zing channels kit SLUG`.
+Kits with an upload in progress stay unchanged. `kit --out DIR` chooses another
+output folder. Open its `index.html` to watch videos and copy text. Its Posted checkboxes
 only change the open page. Use `posted` to save that status in the queue;
 `--url` records the platform URL without opening it.
+
+## Post to YouTube
+
+Nothing uploads while `publish.youtube` is `off`. Connecting an account does
+not change that setting. To enable uploads, first create a Google Cloud project.
+Enable YouTube Data API v3 and YouTube Analytics API. Set up its OAuth consent
+screen, create an OAuth client of type Desktop app and download its JSON.
+
+```sh
+zing channels connect gridiron-lore --client-secret client.json
+```
+
+The command prints a consent URL and opens your browser. Sign in yourself as
+the channel owner and grant upload, YouTube read and Analytics read access.
+Zing uses PKCE and a temporary loopback listener on `127.0.0.1`. It checks the
+returned state before exchanging the code.
+
+The channel ID, title and connection time go in `channel.json`. Tokens and
+client credentials go only in `youtube.token`. Windows protects that file
+with DPAPI for the current user. Other systems use permissions `0600`.
+Access tokens refresh as needed. If refresh fails, run `connect` again.
+Keep the downloaded client JSON private too.
+
+Edit `channel.json` to choose a publish policy.
+
+```json
+"publish": {"youtube": "private"}
+```
+
+- `off` sends no uploads, including unfinished sessions.
+- `private` uploads privately. You make the video public yourself.
+- `scheduled` uploads privately with `publishAt` set to the queue slot when
+  it is at least 15 minutes ahead. Nearer slots stay private.
+
+YouTube locks uploads from unaudited Cloud projects private until the project
+passes Google's API audit. Setting `scheduled` does not remove that limit.
+`zing channels show SLUG` also reports it.
+
+```sh
+zing channels upload gridiron-lore --dry-run --limit 3
+zing channels upload gridiron-lore --limit 3
+zing channels analytics gridiron-lore
+zing channels disconnect gridiron-lore
+```
+
+Upload takes `kit` rows with slots from now through the next 36 hours. It checks
+the gate again and reports blockers for skipped clips. `--limit` defaults to 3.
+`--dry-run` shows the title, privacy, publish time, video path and byte count.
+It sends no requests and needs no connection.
+
+The upload uses the title and description from the kit's `youtube.txt` and
+the category from `youtube_category`. Videos are marked as not made for kids.
+Set `generated_media` to `true` in a clip's `plan.json` or `post.json` when it
+contains generated media. A visual's `generated` flag also sets YouTube's
+synthetic media disclosure. Otherwise that disclosure is false.
+
+Video bytes travel in 8 MB chunks. `outbox.jsonl` saves the session before the
+first chunk. Later runs resume unfinished sessions, even after their slots
+pass. Keep those kits intact. A saved video ID prevents another upload and
+repairs the queue if the process stopped while saving. Finished rows become
+`posted` with the Shorts URL, video ID and upload time.
+
+Zing starts at most 80 uploads per Cloud project per Pacific day across channels
+in the same channels home. Each channel also has `youtube_daily_cap`, default 6.
+The channel and home each keep `youtube-quota.json`. Starting a session reserves
+a count even if it fails; resuming it does not reserve another. Google may impose
+lower limits. A quota or upload-limit response stops the run and is recorded
+until the next Pacific day. Server errors retry after 1, 4 and 16 seconds, then
+leave the session for a later run.
+
+Create `PAUSE` in the channels home or the channel folder to stop uploads before
+the next request. `zing channels pause --all` pauses every channel.
+`disconnect` deletes the local token and connection record. It keeps posted
+videos and upload history.
+
+Analytics merges views, engaged views, average view percentage, average view
+duration and subscribers gained into `outcomes.jsonl`. Missing metrics stay null.
+Total views use the `views` field; counts at 1h, 24h and 7d stay separate.
+Analytics data lags 48 to 72 hours. Connected ticks request it once per day;
+the `analytics` command can retry a failed request sooner.
 
 ## Pause work
 
@@ -262,8 +361,10 @@ zing channels pause --all
 zing channels resume --all
 ```
 
-Pause creates a `PAUSE` file. Watch, queue and kit commands refuse while either
-the channel file or the root file exists. Ticks stop at their next check.
+Pause creates a `PAUSE` file. Watch, track, queue, kit, upload and analytics
+commands refuse while either the channel file or the root file exists.
+A pause takes effect between steps and requests. It does not interrupt a render.
+Ticks stop at their next check.
 Resuming one channel leaves the root
 pause in effect. Pausing does not remove existing kits or queue rows.
 

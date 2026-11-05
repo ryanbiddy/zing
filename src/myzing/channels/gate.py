@@ -1,19 +1,23 @@
 """Check whether a clip can enter a channel's queue."""
 from __future__ import annotations
 
+import re
 from datetime import date, datetime, timezone
 from pathlib import Path
 
+from myzing.factory import postcopy, render
 from myzing.factory.pipeline import _read, _write
 
 from . import registry
+
+LOCAL = re.compile(r"file:/|\b[A-Za-z]:[\\/]|\\\\[^\\\s]+\\")   # file URIs, drive paths, UNC shares
 
 
 def rating(project: Path, clip: str) -> str | None:
     return (_read(project / "ratings.json", {}).get(clip) or {}).get("v")
 
 
-def _edited(project: Path, clip: str) -> bool:
+def _edited(project: Path, clip: str, pack: str = "zing") -> bool:
     row = _read(project / "ratings.json", {}).get(clip) or {}
     if row.get("v") != "post" or "at" not in row:  # older ratings have no timestamp
         return False
@@ -22,12 +26,12 @@ def _edited(project: Path, clip: str) -> bool:
         if approved.tzinfo is None:
             return True
         return any(p.is_file() and p.stat().st_mtime >= approved.timestamp()
-                   for p in (project / clip / "clip.mp4", project / clip / "post.json"))
+                   for p in (project / clip / f"clip{render.suffix('9x16', pack)}.mp4", project / clip / "post.json"))
     except (TypeError, ValueError):
         return True
 
 
-def _visuals(d: Path) -> list[dict]:
+def _visuals(d: Path, pack: str = "zing") -> list[dict]:
     vis = d / "visuals"
     manifest = _read(vis / "manifest.json", {})
     picks = _read(vis / "picks.json", {}).get("picks", {})
@@ -41,7 +45,8 @@ def _visuals(d: Path) -> list[dict]:
     planned = _read(d / "plan.json", {}).get("visuals", {})
     chosen.extend(planned.values())
     known.update(planned)
-    chosen.extend(v for ident, v in _read(d / "data.json", {}).get("visuals", {}).items() if "rights" in v or ident not in known)
+    data = _read(d / f"data{render.suffix('9x16', pack)}.json", {})
+    chosen.extend(v for ident, v in data.get("visuals", {}).items() if "rights" in v or ident not in known)
     return chosen
 
 
@@ -54,6 +59,7 @@ def check(project: Path, clip: str, channel: dict, *, now: datetime | None = Non
     project = Path(project).resolve()
     d = project / clip
     cfg = _read(project / "factory.json", {})
+    pack = cfg.get("pack", "zing")
     now = now or datetime.now(timezone.utc)
     blockers = []
     if cfg.get("rights") not in ("own", "licensed", "permission"):
@@ -61,28 +67,39 @@ def check(project: Path, clip: str, channel: dict, *, now: datetime | None = Non
     if cfg.get("source"):
         try:
             src = registry.source(channel, cfg["source"])
+            if registry.effective_rights(src, now) == "unknown" and "Source rights are unknown." not in blockers:
+                blockers.append("Source rights are unknown.")
             expires = src["rights"].get("expires")
             if expires and date.fromisoformat(expires) < now.date():
                 blockers.append("The source grant has expired.")
         except registry.ChannelError:
             blockers.append("The channel source is missing.")
     rights = ("cleared", "attribution", "editorial") if channel.get("visuals") == "editorial" else ("cleared", "attribution")
-    if any(v.get("rights") not in rights for v in _visuals(d)):
+    if any(v.get("rights") not in rights for v in _visuals(d, pack)):
         blockers.append("Picked visuals need " + ", ".join(rights[:-1]) + " or " + rights[-1] + " rights.")
-    if _read(d / "context.json", {}).get("flags"):
+    context = _read(d / "context.json", {})
+    if not (d / "context.json").is_file():
+        blockers.append("The context check has not finished.")
+    if "error" in context:
+        blockers.append(f"The context check failed: {context['error']}.")
+    if context.get("flags"):
         blockers.append("Context flags need review.")
     brief = _read(d / "brief_check.json", {})
+    if (project / "brief.json").is_file() and not (d / "brief_check.json").is_file():
+        blockers.append("The brief check has not finished.")
     if brief.get("errors"):
         blockers.append("Brief errors need fixing.")
     if brief.get("flags"):
         blockers.append("Brief flags need review.")
-    video = d / "clip.mp4"
+    video = d / f"clip{render.suffix('9x16', pack)}.mp4"
     if not video.is_file():
         blockers.append("The 9x16 render is missing.")
     if not (d / "post.json").is_file():
         blockers.append("Post copy is missing.")
+    elif any(LOCAL.search(str(_read(d / "post.json", {}).get(field, ""))) for field in postcopy.FIELDS):
+        blockers.append("Post copy contains a local file path.")
     vote = rating(project, clip)
-    if _edited(project, clip):
+    if _edited(project, clip, pack):
         blockers.append("The clip was edited after approval.")
         vote = "fix"
     if vote == "no":

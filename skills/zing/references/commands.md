@@ -32,7 +32,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
 | `zing factory` | `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (`--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
-| `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. Nothing is posted or uploaded. |
+| `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. YouTube uploads and owner analytics need a connection. Publishing defaults to off. |
 | `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
@@ -71,6 +71,11 @@ zing channels digest stories
 zing channels digest --all --out digest.md
 zing channels queue stories
 zing channels kit stories
+zing channels connect stories --client-secret client.json
+zing channels upload stories --dry-run --limit 3
+zing channels upload stories --limit 3
+zing channels analytics stories
+zing channels disconnect stories
 zing channels posted stories episode/clip01 --url https://example.org/post
 zing channels skip stories episode/clip02
 zing channels track stories
@@ -101,6 +106,9 @@ channel in `ticks.jsonl`. The channel's `judge` is `host` by default or `claude`
 Host runs wait at prompts until an agent answers them. A lock prevents overlap;
 an abandoned lock expires after three hours. Tick exits 1 only when every
 visited channel has errors. An overlapping tick exits 0.
+After kits, tick uploads only when `publish.youtube` is enabled. Connected
+channels fetch owner analytics once per Pacific day. Pause and time checks
+also run before YouTube requests.
 
 `digest [--all|SLUG] [--out FILE]` writes Markdown for the last 24 hours and
 lists waiting work. With no slug it includes all channels. With no `--out`
@@ -126,13 +134,37 @@ Slots follow the channel timezone and daily cap. Own clips are spaced by
 `kit --out DIR` changes the kit and HTML index folder. FFmpeg remuxes with
 stream copy and faststart. If missing, it copies the file and reports that.
 The index uses local videos and Copy buttons. Its Posted checkbox only changes
-the page; `posted` and `skip` update the queue. Pause files block watch, queue and kit
+the page; `posted` and `skip` update the queue. Pause files block watch, queue, kit, upload and analytics
 commands. `check` exits 1 for problems; command errors exit 2.
 
 Settings live under `<workspace>/channels/`, or `ZING_CHANNELS_HOME` when set.
 Timezones need local zoneinfo data; `PYTHONTZPATH` can point at an existing
-database. Nothing posts or connects accounts. Each channel's About text should
+database. Each channel's About text should
 name its network. See [Channels](https://github.com/ryanbiddy/zing/blob/main/docs/CHANNELS.md).
+
+`connect SLUG --client-secret FILE` reads a Google OAuth Desktop app JSON and
+opens the owner's consent flow with PKCE. Enable YouTube Data API v3 and
+YouTube Analytics API in that Cloud project first. Tokens and client credentials
+stay in `youtube.token`, protected with current-user DPAPI on Windows or `0600`
+permissions elsewhere. `disconnect SLUG` removes that file and the connection.
+
+Set `publish.youtube` in `channel.json` to `private` or `scheduled` to upload.
+Its default `off` sends nothing. `scheduled` adds the queue slot as the publish
+time only when it is at least 15 minutes ahead. All uploads start private.
+YouTube locks uploads private until the Cloud project passes Google's API audit.
+
+`upload SLUG [--dry-run] [--limit N]` takes kits due within 36 hours and rechecks
+the gate. The limit defaults to 3. Dry runs send no requests and show title,
+privacy, publish time, file and size. Interrupted sessions resume from
+`outbox.jsonl`. Daily caps are 80 new sessions per Cloud project across the
+channels home and youtube_daily_cap per channel, default 6, on Pacific days.
+The category defaults to `youtube_category="22"`. A clip's `generated_media=true`
+in its plan or post enables YouTube's synthetic media disclosure.
+
+`analytics SLUG` merges owner metrics into outcomes. Missing values stay null;
+total views stay separate from counts at known ages. Analytics data lags
+48 to 72 hours. Setup and pause details are in
+[Post to YouTube](https://github.com/ryanbiddy/zing/blob/main/docs/CHANNELS.md#post-to-youtube).
 
 `track SLUG` needs `handles.youtube` set to an `@handle` or UC channel ID. It reads
 the public feed, matches posted URLs or unambiguous queued titles, and saves

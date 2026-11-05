@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from myzing.factory import pipeline
+from myzing.factory import pipeline, render
 from myzing.playbook.common import parse_time
 
 from . import gate, queue, registry, tick, watch
@@ -41,7 +41,9 @@ def build(slugs: list[str] | None = None, *, now: datetime | None = None) -> str
             projects = sorted(root.glob("projects/*/factory.json"))
             found = sum(recent(row.get("found_at")) for row in items)
             started = sum(recent(pipeline._read(path).get("created")) for path in projects)
-            clips = [p for p in root.glob("projects/*/clip[0-9][0-9]*/clip.mp4") if re.fullmatch(r"clip\d{2,}", p.parent.name)]
+            clips = [d / f"clip{render.suffix('9x16', pipeline._read(file).get('pack', 'zing'))}.mp4"
+                     for file in projects for d in file.parent.glob("clip[0-9][0-9]*") if re.fullmatch(r"clip\d{2,}", d.name)]
+            clips = [p for p in clips if p.is_file()]
             made = sum(since.timestamp() <= p.stat().st_mtime <= now.timestamp() for p in clips)
             lines.extend([f"{count(found, 'item')} found. {count(started, 'project')} started. {count(made, 'clip')} made.", ""])
             rows = queue.read(slug)

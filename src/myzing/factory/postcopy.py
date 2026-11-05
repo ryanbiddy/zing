@@ -1,6 +1,8 @@
 """Post copy for one clip, anchored to the source's date and credited to the source."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from . import campaign
@@ -69,7 +71,9 @@ def finalize(answer: dict, words: dict, source: dict, brief: dict | None = None)
     if missing:
         raise ValueError(f"copy answer is missing {', '.join(missing)}")
     start = words["spans"][0][0] if words.get("spans") else words["start"]
-    url = source.get("url", "")
+    url = source.get("url") or ""
+    if not url.startswith(("http://", "https://")):
+        url = ""
     link = context_url(url, start)
     post = {k: answer[k].replace("{SOURCE_URL}", link if k == "first_comment" else url) for k in FIELDS}
     post["first_comment"] = post["first_comment"].replace("{TIMESTAMP}", stamp(start))
@@ -83,13 +87,25 @@ def finalize(answer: dict, words: dict, source: dict, brief: dict | None = None)
     return {**require_tags(post, brief or {}), "rights": source.get("rights", "unknown")}
 
 
-def choose(post: dict, channel: str, rng=None) -> dict:
+def choose(post: dict, channel: str, rng=None, *, clipdir: Path | None = None) -> dict:
     import random
     from myzing.channels import bandit, registry
+    from .pipeline import _read
     options = post.get("title_options", [])
     if not options:
         return post
     rows = bandit.history(channel)
+    if clipdir is not None:
+        seen = {r["id"] for r in rows}
+        at = datetime.fromtimestamp(max((bandit.when(r) for r in rows), default=0), timezone.utc).isoformat()
+        for i in range(1, int(clipdir.name[4:])):
+            d = clipdir.parent / f"clip{i:02d}"
+            arms = _read(d / "arms.json", {})
+            if not arms.get("title_pattern"):
+                arms = {**arms, **{k: v for k, v in _read(d / "post.json", {}).items() if k.startswith("title_")}}
+            ident = f"{d.parent.name}/{d.name}"
+            if ident not in seen and arms.get("title_pattern"):
+                rows.append({"id": ident, "arms": arms, "queued_at": at})
     candidates = bandit.allowed("title_pattern", [t["pattern"] for t in options], rows)
     if not candidates:
         return post
