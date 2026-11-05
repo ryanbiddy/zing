@@ -144,7 +144,8 @@ def run(argv: list[str]) -> int:
     serve.add_argument("project", type=Path)
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--judge", choices=("host", "claude"), default="host", help="who answers when Run needs judgments")
-    commands.add_parser("packs", help="list style packs")
+    packs = commands.add_parser("packs", help="list or check style packs")
+    packs.add_argument("--check", metavar="NAME", help="check pack files and font families; exit 1 on errors")
     depth = commands.add_parser("fetch-depth", help="download the depth model that moves photos (Apache-2.0, about 99 MB)")
     depth.add_argument("--yes", action="store_true", help="agree to the download")
     cut = commands.add_parser("fetch-cutout", help="download the model that lifts the speaker off their background "
@@ -232,7 +233,11 @@ def run(argv: list[str]) -> int:
             result = {"program": str(path), "verified": True, "license": "BSD-3-Clause",
                       "source": upscale.RELEASE.format(upscale.build())}
         elif args.command == "packs":
-            from .render import theme, themes
+            from .render import check_pack, theme, themes
+            if args.check is not None:
+                errors = check_pack(args.check)
+                print(json.dumps({args.check: {"ok": not errors, "errors": errors}}, indent=2, ensure_ascii=False))
+                return 1 if errors else 0
             result = {name: theme(name)["name"] for name in themes()}
         else:
             from .tools import check
