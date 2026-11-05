@@ -109,7 +109,7 @@ def resolve(handle_or_id: str, fetch=None, *, root: Path = Path(".")) -> str:
     return ident
 
 
-def feed(channel_id: str, fetch=None, *, root: Path = Path(".")) -> list[dict]:
+def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: bool = False) -> list[dict]:
     if not re.fullmatch(ID, channel_id):
         raise ValueError("invalid YouTube channel ID")
     url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
@@ -121,12 +121,17 @@ def feed(channel_id: str, fetch=None, *, root: Path = Path(".")) -> list[dict]:
         raise ValueError("response is not a YouTube feed")
     rows = []
     for entry in tree.findall("atom:entry", NS):
+        if watch_only:
+            links = [urllib.parse.urlsplit(link.get("href", "")) for link in entry.findall("atom:link", NS)]
+            if not any(p.path == "/watch" for p in links) or any(p.path.startswith("/shorts/") for p in links):
+                continue
         stats = entry.find(".//media:statistics", NS)
         ident, published = entry.findtext("yt:videoId", namespaces=NS), entry.findtext("atom:published", namespaces=NS)
-        if stats is None or not (stats.get("views") or "").isdigit() or not ident or not published:
+        views = stats.get("views", "") if stats is not None else ""
+        if not ident or not published or (not watch_only and not views.isdigit()):
             continue
         rows.append({"id": safe_name(ident), "title": entry.findtext("atom:title", "", NS),
-                     "published": parse_time(published).isoformat(), "views": int(stats.get("views")),
+                     "published": parse_time(published).isoformat(), "views": int(views) if views.isdigit() else 0,
                      "short": any("/shorts/" in link.get("href", "") for link in entry.findall("atom:link", NS)),
                      "channel_id": channel_id,
                      "channel_title": entry.findtext("atom:author/atom:name", tree.findtext("atom:title", "", NS), NS)})

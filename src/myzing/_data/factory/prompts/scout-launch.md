@@ -14,12 +14,15 @@ Rules:
 - Never splice so that a sentence changes meaning: no dropping a "but", a condition, or the answer to a question.
 - Never use the same span twice in one film.
 
+Give each moment an "archetype" from confession, conflict, counterintuitive, how_it_works, funny, origin, prediction, other.
+
 Return ONLY a JSON object, no prose, no code fence:
 {"moments": [
   {"spans": [{"start": <seconds>, "end": <seconds>, "role": "open"|"what"|"how"|"proof"|"close"}],
    "hook": "<on-screen hook, max 7 words, mark the 1–3 most important words with *asterisks*>",
    "why": "<one sentence: why someone would watch to the end>",
    "topic": "<3–6 words>",
+   "archetype": "<one of the archetypes above>",
    "score": <1-10>}
 ]}
 

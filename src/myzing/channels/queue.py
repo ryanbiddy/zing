@@ -2,14 +2,15 @@
 from __future__ import annotations
 
 import json
+import random
 import re
 from collections import Counter
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
-from myzing.factory.pipeline import _read
+from myzing.factory.pipeline import _read, _write
 
-from . import gate, registry
+from . import bandit, gate, registry
 from .registry import ChannelError
 
 STATUSES = ("queued", "kit", "posted", "skipped")
@@ -105,18 +106,24 @@ def _episode_ok(project: str, slot: datetime, rows: list[dict]) -> bool:
     return count <= 3
 
 
-def build(slug: str, now: datetime | None = None) -> dict:
+def build(slug: str, now: datetime | None = None, *, rng: random.Random | None = None, stop=None) -> dict:
     channel = registry.load(slug)
     registry.require_running(slug)
     now = _now(now)
     rows = read(slug)
+    history = bandit.history(slug)
+    rng = rng or random.Random()
     seen = {r["id"] for r in rows}
     pending, blocked = [], {}
     for project in sorted((registry.directory(slug) / "projects").iterdir()):
+        if stop and stop():
+            break
         if not project.is_dir():
             continue
         cfg = _read(project / "factory.json", {})
         for d in sorted(project.glob("clip[0-9][0-9]*")):
+            if stop and stop():
+                break
             if not d.is_dir() or not re.fullmatch(r"clip\d{2,}", d.name):
                 continue
             ident = f"{project.name}/{d.name}"
@@ -129,25 +136,41 @@ def build(slug: str, now: datetime | None = None) -> dict:
             src = registry.source(channel, cfg["source"]) if cfg.get("source") else {}
             pending.append({"id": ident, "project": str(project.resolve()), "clip": d.name, "status": "queued",
                             "title": _read(d / "post.json", {}).get("youtube_title", ""), "own": src.get("kind") == "own",
+                            "arms": _read(d / "arms.json", {"archetype": "other"}),
                             "manual": gate.rating(project, d.name) == "post", "queued_at": now.isoformat(timespec="seconds")})
     added = 0
     cursor = now
     while pending:
+        if stop and stop():
+            break
         slot = next(slots(channel, rows, cursor))
         candidates = [r for r in pending if _episode_ok(r["project"], slot, rows)]
         if not candidates and all(datetime.fromisoformat(r["slot"]).timestamp() < slot.timestamp() for r in rows):
             break
-        chosen = next((r for r in candidates if not r["own"] or _seed_ok(slot, rows, channel)), None)
+        candidates = [r for r in candidates if not r["own"] or _seed_ok(slot, rows, channel)]
+        chosen = None
+        if candidates:
+            archetypes = [r["arms"].get("archetype", "other") for r in candidates]
+            if not bandit.allowed("archetype", archetypes, history):
+                for row in candidates:
+                    blocked[row["id"]] = ["Waiting for another archetype under the variety rule."]
+                break
+            value, propensity, policy = bandit.choose("archetype", archetypes, history, rng)
+            chosen = next(r for r in candidates if r["arms"].get("archetype", "other") == value)
         if chosen is not None:
-            row = {**chosen, "slot": slot.isoformat(timespec="seconds")}
+            row = {**chosen, "slot": slot.isoformat(timespec="seconds"), "order_propensity": propensity,
+                   "order_policy": policy, "arms": {**chosen["arms"], "hour": slot.hour}}
+            _write(Path(row["project"]) / row["clip"] / "arms.json", row["arms"])
             with (registry.directory(slug) / "queue.jsonl").open("a", encoding="utf-8") as f:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
             rows.append(row)
+            history.append(row)
             pending.remove(chosen)
             added += 1
         cursor = datetime.fromtimestamp(slot.timestamp() + 1, timezone.utc)
     for row in pending:
-        blocked[row["id"]] = ["Waiting for another episode after three clips in a row."]
+        if not (stop and stop()):
+            blocked.setdefault(row["id"], ["Waiting for another episode after three clips in a row."])
     return {"added": added, "blocked": blocked, "next_slot": next_slot(channel, rows, now)}
 
 
@@ -164,5 +187,9 @@ def mark(slug: str, ident: str, status: str, url: str | None = None) -> dict:
     row["status"] = status
     if url is not None:
         row["url"] = url
+    if status == "posted":
+        from .outcomes import video_id
+        row.setdefault("posted_at", _now().isoformat(timespec="seconds"))
+        row["video_id"] = video_id(row.get("url"))
     write(slug, rows)
     return row

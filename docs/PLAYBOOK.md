@@ -110,7 +110,8 @@ or quoted speech. Edit the word lists in `src/myzing/playbook/titles.py`.
 outlier and whether the channel qualified. Skipped channels' rows stay local.
 Keep both files private. `prior.json` contains counts, lift statistics and template
 sentences only. Guidance requires a non-weak lift of at least 1.5 or at most 0.67.
-It contains no competitor titles. The factory does not consume this prior yet.
+It contains no competitor titles. Set `prior` in a channel's `channel.json` to
+this file to guide title choices and scouts. See [How a channel learns](CHANNELS.md#how-a-channel-learns).
 
 ### Watch views by age
 

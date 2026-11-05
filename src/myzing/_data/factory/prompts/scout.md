@@ -11,12 +11,15 @@ What makes a good clip (from measured data on real podcast Shorts and X clips):
 - No intros, outros, sponsor reads, housekeeping or "let's take a question from Twitter" transitions unless the question itself is the hook.
 - Do not cut so that a speaker's meaning changes (no dropping a "but", a condition or the answer to the question asked).
 
+Give each moment an "archetype" from confession, conflict, counterintuitive, how_it_works, funny, origin, prediction, other.
+
 Return ONLY a JSON object, no prose, no code fence:
 {"moments": [
   {"start": <seconds, the start of the first sentence>, "end": <seconds, the end of the last sentence>,
    "hook": "<on-screen hook, max 7 words, mark the 1–3 most important words with *asterisks*>",
    "why": "<one sentence: why a stranger would stop scrolling>",
    "topic": "<3–6 words>",
+   "archetype": "<one of the archetypes above>",
    "score": <1-10, how strong vs the others>}
 ]}
 

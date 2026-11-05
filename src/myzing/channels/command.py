@@ -1,4 +1,4 @@
-"""The local channel CLI."""
+"""Channel settings, posting kits and results."""
 from __future__ import annotations
 
 import argparse
@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 def run(argv: list[str]) -> int:
-    from . import kit, queue, registry
+    from . import digest, kit, learn, outcomes, queue, registry, tick, watch
     parser = argparse.ArgumentParser(prog="zing channels")
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="create a channel")
@@ -22,11 +22,24 @@ def run(argv: list[str]) -> int:
         new.add_argument("--" + key)
     commands.add_parser("list", help="list local channels")
     for name, help in (("show", "show settings and queue counts"), ("check", "check channel settings"),
-                       ("queue", "queue clips that pass the gate"), ("kit", "make local post kits")):
+                       ("queue", "queue clips that pass the gate"), ("kit", "make local post kits"),
+                       ("track", "measure public YouTube results"), ("metrics", "merge a YouTube Studio CSV"),
+                       ("learn", "report what worked on this channel"),
+                       ("watch", "check sources once and start ready episodes")):
         command = commands.add_parser(name, help=help)
         command.add_argument("slug")
         if name == "kit":
             command.add_argument("--out", type=Path, help="folder for kits and their index")
+        if name == "metrics":
+            command.add_argument("--csv", type=Path, required=True, help="YouTube Studio table export")
+    step = commands.add_parser("tick", help="advance channels once")
+    step.add_argument("slugs", nargs="*")
+    step.add_argument("--all", action="store_true", help="run all local channels")
+    step.add_argument("--max-minutes", type=float, default=50, help="stop between steps after this many minutes")
+    summary = commands.add_parser("digest", help="summarize the last 24 hours and waiting work")
+    summary.add_argument("slug", nargs="?")
+    summary.add_argument("--all", action="store_true", help="include all local channels")
+    summary.add_argument("--out", type=Path, help="write Markdown to this file")
     source = commands.add_parser("source", help="add or replace a source and its grant")
     source.add_argument("slug")
     for key in ("id", "name", "kind", "url", "rights", "grant"):
@@ -73,10 +86,36 @@ def run(argv: list[str]) -> int:
                    "rights": {"status": args.rights, "grant": args.grant, "expires": args.expires, "note": args.note}}
             channel["sources"] = [s for s in channel["sources"] if s["id"] != args.id] + [src]
             result = registry.save(channel)
+        elif args.command == "watch":
+            result = watch.run(args.slug)
+        elif args.command == "tick":
+            if bool(args.slugs) == args.all:
+                raise registry.ChannelError("choose channel slugs or --all")
+            result = tick.run(None if args.all else args.slugs, max_minutes=args.max_minutes,
+                              say=lambda m: print(m, file=sys.stderr, flush=True))
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return result["exit_code"]
+        elif args.command == "digest":
+            if args.slug and args.all:
+                raise registry.ChannelError("choose a channel slug or --all")
+            text = digest.build([args.slug] if args.slug else None)
+            if args.out:
+                args.out.parent.mkdir(parents=True, exist_ok=True)
+                args.out.write_text(text, encoding="utf-8")
+                print(str(args.out))
+            else:
+                print(text, end="")
+            return 0
         elif args.command == "queue":
             result = queue.build(args.slug)
         elif args.command == "kit":
             result = kit.kit(args.slug, args.out)
+        elif args.command == "track":
+            result = outcomes.track(args.slug)
+        elif args.command == "metrics":
+            result = outcomes.metrics(args.slug, args.csv)
+        elif args.command == "learn":
+            result = learn.learn(args.slug)
         elif args.command in ("posted", "skip"):
             result = queue.mark(args.slug, args.id, "posted" if args.command == "posted" else "skipped", getattr(args, "url", None))
         else:

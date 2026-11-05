@@ -32,8 +32,8 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
 | `zing factory` | `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (`--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
+| `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. Nothing is posted or uploaded. |
 | `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
-| `zing channels` | Keep niche settings, source grants, approval gates, a local queue and post kits. Nothing is posted, uploaded or fetched. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
 | `zing brief` | New/show; save interview answers after project init, not an automatic director. |
@@ -54,6 +54,96 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
+
+## Channels
+
+```sh
+zing channels new stories --name "Stories" --niche "Player stories" --pack zing --mode context
+zing channels source stories --id club --name "Club" --kind podcast --url https://example.org/show --rights permission --grant "Email from the owner"
+zing factory new --channel stories --source club --media episode.mp4 --transcript episode.vtt
+zing channels list
+zing channels show stories
+zing channels check stories
+zing channels watch stories
+zing channels tick stories another-channel --max-minutes 50
+zing channels tick --all
+zing channels digest stories
+zing channels digest --all --out digest.md
+zing channels queue stories
+zing channels kit stories
+zing channels posted stories episode/clip01 --url https://example.org/post
+zing channels skip stories episode/clip02
+zing channels track stories
+zing channels metrics stories --csv "Table data.csv"
+zing channels learn stories
+zing channels pause stories
+zing channels resume stories
+zing channels pause --all
+zing channels resume --all
+```
+
+`new` also accepts `--network-name`, `--network-line` and `--network-url`.
+`source` adds or replaces a source and accepts optional `--expires YYYY-MM-DD`
+and `--note TEXT`. Known rights need a grant. Expired grants count as unknown.
+
+`watch SLUG` checks every source once and deduplicates items in
+`sources/<source id>.jsonl`. Folder and own sources use local videos. YouTube
+feeds keep only watch entries and wait for `inbox/<video id>.<ext>` or existing
+Uoink media. Uoink sources search for already kept local files. Podcast feeds
+download enclosures only with known rights, from public HTTP or HTTPS hosts,
+up to 4 GB. Audio-only episodes wait for a video. Ready items use the shared
+factory setup and inherit channel settings.
+
+`tick [SLUG ...|--all]` watches, advances at most one episode per channel,
+queues clips and builds kits. `--max-minutes N` defaults to 50 for the whole
+tick. It stops between steps when paused or out of time and records each
+channel in `ticks.jsonl`. The channel's `judge` is `host` by default or `claude`.
+Host runs wait at prompts until an agent answers them. A lock prevents overlap;
+an abandoned lock expires after three hours. Tick exits 1 only when every
+visited channel has errors. An overlapping tick exits 0.
+
+`digest [--all|SLUG] [--out FILE]` writes Markdown for the last 24 hours and
+lists waiting work. With no slug it includes all channels. With no `--out`
+it writes to stdout. Scheduling examples are in the Channels guide.
+
+Factory `new --channel SLUG` inherits the channel's factory defaults and uses
+its slug for shared Post and No history. Explicit flags win. `--source ID`
+uses that source's rights and credit; `--rights` overrides the label.
+Brand fields default to the network name, URL and line, with the channel name
+as the fallback. `--brand-name`, `--brand-url` and `--cta` override those fields.
+Without a positional project path, the episode goes in the channel's
+`projects/<episode stem>/`. An explicit path still works. Optional `voice.md`
+guides copy prompts and allows up to 4000 characters.
+
+Queue and kit commands check source and visual rights, context and brief
+flags, the 9x16 render, copy and approval. Manual approval is the default.
+Timestamped Post ratings must be newer than both the video and copy. Channel
+`visuals` defaults to `cleared`; `editorial` also accepts picked visuals labeled
+editorial. Unknown or missing visual rights still block.
+Slots follow the channel timezone and daily cap. Own clips are spaced by
+`seeding.every`; a fourth consecutive clip from one episode waits.
+
+`kit --out DIR` changes the kit and HTML index folder. FFmpeg remuxes with
+stream copy and faststart. If missing, it copies the file and reports that.
+The index uses local videos and Copy buttons. Its Posted checkbox only changes
+the page; `posted` and `skip` update the queue. Pause files block watch, queue and kit
+commands. `check` exits 1 for problems; command errors exit 2.
+
+Settings live under `<workspace>/channels/`, or `ZING_CHANNELS_HOME` when set.
+Timezones need local zoneinfo data; `PYTHONTZPATH` can point at an existing
+database. Nothing posts or connects accounts. Each channel's About text should
+name its network. See [Channels](https://github.com/ryanbiddy/zing/blob/main/docs/CHANNELS.md).
+
+`track SLUG` needs `handles.youtube` set to an `@handle` or UC channel ID. It reads
+the public feed, matches posted URLs or unambiguous queued titles, and saves
+snapshots and outcomes. Run near 1h, 24h and 7d after uploads to measure those ages.
+`metrics SLUG --csv FILE` merges a Studio table by video ID and reports matched
+and unmatched rows. Total Studio views stay separate from counts at known ages.
+`learn SLUG` writes `learned.json` with reward estimates, uncertainty, summaries
+and a comparison with always choosing name-claim titles when the data allow it.
+Set `prior` in `channel.json` to a playbook prior file for initial title guidance.
+Relative paths start at the channel folder. See
+[How a channel learns](https://github.com/ryanbiddy/zing/blob/main/docs/CHANNELS.md#how-a-channel-learns).
 
 ## Pick a niche
 
@@ -88,57 +178,9 @@ feature lifts and original links. It copies no competitor titles. Titles stay
 in the local section of niches.json, titles.jsonl and snapshots.jsonl.
 `prior DIR --niche NAME --out FILE` exports counts, lifts and guidance only.
 Guidance needs at least ten hits and ten misses and a lift of at least 1.5 or at
-most 0.67. The factory does not consume the prior yet. See
+most 0.67. Set a channel's `prior` to this file to guide titles and scouts. See
 [Pick a niche](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md#pick-a-niche)
 for the formula, title heuristics and hourly Windows task example.
-
-## Channels
-
-```sh
-zing channels new stories --name "Stories" --niche "Player stories" --pack zing --mode context
-zing channels source stories --id club --name "Club" --kind podcast --url https://example.org/show --rights permission --grant "Email from the owner"
-zing factory new --channel stories --source club --media episode.mp4 --transcript episode.vtt
-zing channels list
-zing channels show stories
-zing channels check stories
-zing channels queue stories
-zing channels kit stories
-zing channels posted stories episode/clip01 --url https://example.org/post
-zing channels skip stories episode/clip02
-zing channels pause stories
-zing channels resume stories
-zing channels pause --all
-zing channels resume --all
-```
-
-`new` also accepts `--network-name`, `--network-line` and `--network-url`.
-`source` adds or replaces a source and accepts optional `--expires YYYY-MM-DD`
-and `--note TEXT`. Known rights need a grant. Expired grants count as unknown.
-
-Factory `new --channel SLUG` inherits the channel's factory defaults and uses
-its slug for shared Post and No history. Explicit flags win. `--source ID`
-uses that source's rights and credit; `--rights` overrides the label.
-Brand fields default to the network name, URL and line, with the channel name
-as the fallback. `--brand-name`, `--brand-url` and `--cta` override those fields.
-Without a positional project path, the episode goes in the channel's
-`projects/<episode stem>/`. An explicit path still works. Optional `voice.md`
-guides copy prompts and allows up to 4000 characters.
-
-Queue and kit commands check source and visual rights, context and brief
-flags, the 9x16 render, copy and approval. Manual approval is the default.
-Slots follow the channel timezone and daily cap. Own clips are spaced by
-`seeding.every`; a fourth consecutive clip from one episode waits.
-
-`kit --out DIR` changes the kit and HTML index folder. FFmpeg remuxes with
-stream copy and faststart. If missing, it copies the file and reports that.
-The index uses local videos and Copy buttons. Its Posted checkbox only changes
-the page; `posted` and `skip` update the queue. Pause files block queue and kit
-commands. `check` exits 1 for problems; command errors exit 2.
-
-Settings live under `<workspace>/channels/`, or `ZING_CHANNELS_HOME` when set.
-Timezones need local zoneinfo data; `PYTHONTZPATH` can point at an existing
-database. Nothing posts or connects accounts. Each channel's About text should
-name its network. See [Channels](https://github.com/ryanbiddy/zing/blob/main/docs/CHANNELS.md).
 
 ## Factory rights and campaign briefs
 

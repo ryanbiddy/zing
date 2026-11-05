@@ -7,6 +7,7 @@ from . import campaign
 from .tools import NO_HOOK, data_path
 
 FIELDS = ("x", "instagram", "tiktok", "youtube_title", "first_comment")
+PATTERNS = ("name_claim", "how_why", "superlative", "quote", "question")
 
 
 def brand_line(brand: dict | None) -> str:
@@ -72,4 +73,28 @@ def finalize(answer: dict, words: dict, source: dict, brief: dict | None = None)
     link = context_url(url, start)
     post = {k: answer[k].replace("{SOURCE_URL}", link if k == "first_comment" else url) for k in FIELDS}
     post["first_comment"] = post["first_comment"].replace("{TIMESTAMP}", stamp(start))
+    titles = answer.get("titles")
+    options = [{"text": t["text"].strip(), "pattern": t["pattern"]} for t in titles
+               if isinstance(t, dict) and isinstance(t.get("text"), str) and t["text"].strip()
+               and len(t["text"].strip()) <= 60 and not any(c in t["text"] for c in "\r\n")
+               and t.get("pattern") in PATTERNS] if isinstance(titles, list) else []
+    if options:
+        post["title_options"] = options
     return {**require_tags(post, brief or {}), "rights": source.get("rights", "unknown")}
+
+
+def choose(post: dict, channel: str, rng=None) -> dict:
+    import random
+    from myzing.channels import bandit, registry
+    options = post.get("title_options", [])
+    if not options:
+        return post
+    rows = bandit.history(channel)
+    candidates = bandit.allowed("title_pattern", [t["pattern"] for t in options], rows)
+    if not candidates:
+        return post
+    value, propensity, policy = bandit.choose("title_pattern", candidates, rows, rng or random.Random(),
+                                            baseline="name_claim", prior=bandit.prior(registry.load(channel)))
+    title = next(t["text"] for t in options if t["pattern"] == value)
+    return {**post, "youtube_title": title, "title_pattern": value, "title_propensity": propensity,
+            "title_policy": policy, "title_candidates": candidates}

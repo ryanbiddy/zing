@@ -2,12 +2,18 @@
 
 ## Unreleased
 
-- `zing playbook niches` compares channels from public metadata. `watch` saves
-  view snapshots, `velocity` compares views by age, and `prior` exports title
-  guidance. Reports omit competitor titles. No video, thumbnails or audio are fetched.
+- Channels learn from public view snapshots and Studio CSV metrics. `track`,
+  `metrics --csv FILE` and `learn` record results, compare title and clip choices,
+  and guide later scouts while keeping variety in titles and the queue.
+- Add channel source watching, bounded ticks and daily digests. Ticks resume
+  local projects and make post kits. Edited clips need fresh approval, and
+  channels can choose whether to allow editorial visuals.
 - Add `zing channels` for niche settings, source grants, approval gates, local
   queues and post kits. `factory new --channel SLUG --source ID` shares defaults
   and review history across episodes. Nothing posts by itself.
+- `zing playbook niches` compares channels from public metadata. `watch` saves
+  view snapshots, `velocity` compares views by age, and `prior` exports title
+  guidance. Reports omit competitor titles. No video, thumbnails or audio are fetched.
 
 ## Clip factory
 
