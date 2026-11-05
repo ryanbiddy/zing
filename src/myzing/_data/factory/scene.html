@@ -321,13 +321,13 @@ function place(el, b) { if (!b) { el.style.display='none'; return; }
 
 // the logo keeps one spot for the whole clip: it steps past the fixed source tag and panel, and only hides while
 // the hook, a caption or a quote is drawn where it sits
-function inked(el) {
-  if (!el || getComputedStyle(el).display === 'none' || +getComputedStyle(el).opacity === 0) return null;
+function inked(el, on = null) {
+  if (!el || getComputedStyle(el).display === 'none' || !(on ?? +getComputedStyle(el).opacity)) return null;
   const r = document.createRange(); r.selectNodeContents(el);
   const b = r.getBoundingClientRect();
   return b.width && b.height ? b : null;
 }
-function placeLogo() {
+function placeLogo(hookOn, hook) {
   if (!D.logo) return;
   const el = $('logo'), gap = 24*SW/1080, left = D.logo.pos === 'top-left', bottom = D.logo.pos === 'bottom-right';
   let h = Math.min(D.logo.h*SW/1080, SH9/4), w = h*el.naturalWidth/el.naturalHeight;
@@ -338,7 +338,8 @@ function placeLogo() {
   if (tag) y = tag.bottom + gap/2;
   if (panel && panel.height) y = Math.min(y, panel.top - gap - h);
   place(el, {x, y, w, h});
-  const hit = ['hook', 'pill', 'cap', 'quote'].map(id => inked($(id)))
+  const hit = [inked($('hook'), hookOn && hook === 'header'), inked($('pill'), hookOn && hook === 'pill'),
+               inked($('cap')), inked($('quote'))]
     .some(r => r && r.right > x - gap && r.left < x + w + gap && r.bottom > y - gap && r.top < y + h + gap);
   el.style.opacity = hit ? 0 : 1;
 }
@@ -430,7 +431,7 @@ window.seek = async function(t) {
     const inner = $('gfxIn');
     inner.style.transform = `translate(${(G.gfx.w-1080*s)/2}px,${half ? 0 : Math.max(0,(G.gfx.h-150-960*s)/2)}px) scale(${s})`;
     drawGraphic({...shot.graphic, id: 'g'+shot.idx, from: shot.from}, t, inner);
-    if (D.logo && shot.graphic.kind === 'endcard') await inner.querySelector('.g-logo').decode();
+    if (D.logo && shot.graphic.kind === 'endcard') await inner.querySelector('.g-logo').decode().catch(() => {});
   }
 
   // look: the grade on footage and photos; each cut comes into focus; the grain moves every frame
@@ -530,7 +531,8 @@ window.seek = async function(t) {
   $('srctag').textContent = PANEL && PANEL.brand !== false ? '' : D.sourceTag || '';
   $('srctag').style.display = $('srctag').textContent ? '' : 'none';
   $('srctag').style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';
-  placeLogo();
+  if (layout === 'graphic' && shot.graphic?.kind === 'endcard') $('logo').style.display = 'none';
+  else placeLogo(hookOn, G.hook);
   return true;
 };
 </script>

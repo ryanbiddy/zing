@@ -380,7 +380,7 @@ Logos can be `.svg` or `.png`. Choose `top-left`, `top-right` or `bottom-right`.
 The default is `top-right` at 72 pixels high in a 1080-wide frame. The logo scales
 with the frame and keeps one spot for the whole clip. It steps below the source tag
 and above a headline panel, and hides for a moment when the hook, a caption or a quote
-is drawn where it sits. Launch end cards also show it above the brand name.
+is drawn where it sits. Launch end cards show the logo once, centered above the brand name.
 
 Run `zing factory packs --check acme` to check files and family names. Errors
 produce exit code 1. Every render runs the same check, then verifies that the
