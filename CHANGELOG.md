@@ -2,6 +2,9 @@
 
 ## Clip factory
 
+- security: Limit Claude image reads to attached files. Check video redirects before
+  FFmpeg runs. Block private DNS answers and WebSockets in page captures.
+
 - Factory embargo mode adds `new --offline`, local visual candidates with
   `--visuals DIR`, and a host-only `network.jsonl` ledger shown in status and review.
 
