@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from statistics import mean
+from statistics import mean, median
 
 from myzing.factory import postcopy, scout
 from myzing.factory.pipeline import _read, _write
@@ -47,6 +47,10 @@ def learn(slug: str) -> dict:
                 ratio = mean(2 ** r["reward"] for r in rows if bandit.usable(r) and bandit.value(r, dimension) == value)
                 label = str(value).replace("_", " ") if dimension == "archetype" else f"{dimension.replace('_', ' ')} {value}"
                 summary.append(f"{label} clips averaged about {ratio:.1f}x the channel's typical views over {stat['n']} posts.")
+    series = sorted({bandit.value(r, "series") for r in rows if bandit.usable(r) and bandit.value(r, "series")})
+    for ident in series:
+        rewards = [r["reward"] for r in rows if bandit.usable(r) and bandit.value(r, "series") == ident]
+        summary.append(f"Series {ident} had {len(rewards)} posts with median reward {median(rewards):.2f}.")
     result = {"schema_version": 1, "channel": slug, "updated_at": utc_now(), "dimensions": dimensions,
               "ips": ips(rows), "summary": summary or ["No unmasked rewards yet. Track more posted clips."]}
     _write(registry.directory(slug) / "learned.json", result)

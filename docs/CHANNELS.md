@@ -79,7 +79,7 @@ with code 1 if it finds a problem. Other command errors exit with code 2.
   `brief`. Empty settings use factory defaults. Shapes must include `9x16`.
   The brief uses the [factory campaign rules](FACTORY.md#rights-and-campaign-briefs).
 - Sources have an ID, name, kind, URL and rights record. Kinds are `youtube`,
-  `podcast`, `uoink`, `folder` and `own`. The watcher checks these sources.
+  `podcast`, `uoink`, `folder`, `own` and `recordings`. The watcher checks these sources.
   Rights are `own`, `licensed`, `permission` or `unknown`. Known rights need
   non-empty `grant` text. `--expires YYYY-MM-DD` expires after that date;
   `--note TEXT` saves a note. Repeating a source ID replaces its record.
@@ -180,8 +180,8 @@ zing channels tick --all
 zing channels digest --all --out digest.md
 ```
 
-A tick checks pause files, watches sources, advances at most one unfinished
-episode per channel, queues clips and builds kits. It uploads only when
+A tick checks pause files, watches sources, makes a daily brief when due,
+advances at most one unfinished episode per channel, queues clips and builds kits. It uploads only when
 `publish.youtube` is enabled. Connected channels fetch owner analytics once
 per Pacific day, including when publishing is off. `youtube-analytics.json`
 records the last attempt and whether it completed. Public tracking runs last
@@ -243,7 +243,7 @@ the channel timezone. It never uses a past slot or queues the same clip twice.
 Existing slots stay reserved, including skipped rows. Clock changes cannot
 produce duplicate slots. A local time skipped by daylight saving is omitted.
 
-At most one clip from a source of kind `own` fits in any `seeding.every`
+At most one clip from a source of kind `own` or `recordings` fits in any `seeding.every`
 consecutive cadence slots. Empty slots count, so extra own clips can wait for
 a later date. No more than three consecutive queued clips can come from one
 episode. Extra clips wait until another episode can break the run.
@@ -352,6 +352,113 @@ Total views use the `views` field; counts at 1h, 24h and 7d stay separate.
 Analytics data lags 48 to 72 hours. Connected ticks request it once per day;
 the `analytics` command can retry a failed request sooner.
 
+## Daily brief and recorded takes
+
+Add `series` to `channel.json` to choose the kinds of stories you want each day.
+A series has a unique ID, a name and a daily pick limit. This example has one
+breakdown series, one news series and one clips series. Replace the example
+handles and feed URL with the sources you want to follow.
+
+```json
+{
+  "series": [
+    {
+      "id": "breakdowns",
+      "name": "What got watched",
+      "kind": "breakdown",
+      "watch": ["@examplecreator"],
+      "per_day": 2,
+      "min_multiple": 3,
+      "lesson": "End with one opening move a creator can try."
+    },
+    {
+      "id": "changes",
+      "name": "Platform changes",
+      "kind": "news",
+      "watch": ["@exampleplatform"],
+      "feeds": ["https://example.org/platform.xml"],
+      "per_day": 1,
+      "lesson": "End with what to check before the next upload."
+    },
+    {
+      "id": "clips",
+      "name": "From the show",
+      "kind": "clips",
+      "per_day": 0
+    }
+  ]
+}
+```
+
+`series` defaults to an empty list. Names allow 60 characters and optional
+lessons allow 400. `per_day` accepts 0 through 10 and defaults to 2 for breakdowns,
+1 for news and 0 for clips. Breakdown and news series accept up to 40 YouTube
+handles or UC IDs in `watch`. A breakdown needs at least one. Only news accepts
+`feeds`, with up to 10 HTTPS URLs. Only breakdowns accept `min_multiple`, from
+1 through 1000, default 3. Clips series collect nothing for the brief; their
+Shorts come from channel sources. `show` lists each series and its watch count.
+
+```sh
+zing channels brief creators --open
+zing channels brief creators --date 2026-11-06
+zing channels brief creators --date 2026-11-06 --answer script-1 answer.json
+```
+
+The brief uses the channel's local date. It saves `brief/YYYY-MM-DD/brief.json`
+and `brief.html`, with a page copy at `brief/latest.html`. Repeat runs fill
+missing scripts and rebuild the page. They keep the same picks. IDs saved in
+`brief/seen.json` prevent repeat picks on later days.
+
+Breakdowns read public YouTube RSS metadata and exact view counts for the
+newest 15 uploads. They fetch no media. The baseline is the median view count
+of at least five uploads that are two or more days old. Picks must be 1 through
+21 days old, have at least 10,000 views and meet `min_multiple`. The largest
+multiples come first. Failed channels go in `brief/errors.jsonl`.
+News series collect platform updates. If the news collector is unavailable,
+that series gets an error and the other series still run.
+
+The judge drafts 70 to 110 spoken words, aiming for 30 to 40 seconds. It uses
+the channel name, niche, optional `voice.md`, series lesson and prior title
+guidance. Each script tells the story first and ends with a move viewers can
+copy. The page shows its linked receipt, hook, script, move, title and claims
+to check. Nothing in the brief is a fact unless it is in the receipt. Treat
+explanations of why something worked as a read and verify extra claims before
+recording. The prompt forbids invented numbers, quotes and private-life claims.
+
+With the host judge, each item waits at `brief/YYYY-MM-DD/pending/script-N.md`.
+Answer with JSON containing `hook`, `script`, `move`, `title` and a `check` list.
+Use `--answer TASK FILE` to save it and refill that day's brief. A bad answer or
+failed series is recorded in the brief and leaves the other items free to run.
+Ticks make the brief once per local day after watching sources. Digest reports
+how many scripts are ready and how many need answers, with the page path.
+
+Create a folder for finished takes and register it as a `recordings` source.
+Use an absolute folder path. Recordings require `own` rights and a grant.
+
+```sh
+zing channels source creators --id takes --name "My takes" --kind recordings \
+  --url /path/to/recordings --rights own --grant "Recorded by me"
+zing channels watch creators
+```
+
+Each media file is one take. The watcher transcribes it and compares its content
+words with open scripts from the last 14 local dates. A match needs at least
+35% of a script's distinct content words. The highest share wins; ties use the
+newest brief. The match supplies the hook, receipt as the news peg, source link
+and series. The brief item becomes `recorded` and points to its project.
+
+The whole spoken take becomes one hand-picked clip, from its first word to its
+last. It must be 3 through 180 seconds long. A failed transcription or an invalid
+length leaves a source error and starts no project. With no match, the hook uses
+the first 12 transcript words and there is no news peg or series. The factory
+reuses the transcript and skips scouting. Sentence snapping may drop a leading
+"so" or "okay" but never cuts the end of a take. A matched take's first comment
+links the video or post it talks about. Its usual graphics, gate, queue and
+kits take over. Recordings follow the same seeding limit as own sources.
+Replacing a take file with a new recording starts it over.
+Series stay in clip arms, queue rows and outcomes. `learn` adds each series's
+count of unmasked rewards and median reward. The bandit does not choose series.
+
 ## Pause work
 
 ```sh
@@ -361,7 +468,7 @@ zing channels pause --all
 zing channels resume --all
 ```
 
-Pause creates a `PAUSE` file. Watch, track, queue, kit, upload and analytics
+Pause creates a `PAUSE` file. Watch, brief, track, queue, kit, upload and analytics
 commands refuse while either the channel file or the root file exists.
 A pause takes effect between steps and requests. It does not interrupt a render.
 Ticks stop at their next check.
@@ -451,3 +558,17 @@ No model weights change. Views are noisy, the dimensions are treated separately,
 and the report shows associations rather than proof that a title or edit caused
 more views. Length, density, pack and hour are measured; their settings still
 come from your plan, factory defaults and cadence.
+
+## Platform news
+
+News candidates come from RSS or Atom feeds and public YouTube upload metadata.
+When both `feeds` and `watch` are empty, the sources are the YouTube Official Blog,
+Meta's Instagram newsroom, Creator Insider uploads and YouTube Creators uploads.
+No videos are downloaded. TikTok, Twitch and X publish no feed, so they are not read.
+
+Items must have an HTTPS link and a date within the last 10 days, with up to one
+hour allowed for clock differences. Each matched keyword group adds points for
+money, reach, format, policy or creators, while off-topic terms subtract three.
+Candidates need at least four points and sort by score, then newest first.
+Duplicate links keep their first entry. Failed sources are skipped and recorded
+in the channel's `brief/news-errors.jsonl`.

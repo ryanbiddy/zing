@@ -340,6 +340,8 @@ def _arms(d: Path, moment: dict, cfg: dict, post: dict) -> dict:
             "pack": cfg["pack"], "hour": _read(d / "arms.json", {}).get("hour")}
     if "title_candidates" in post:
         arms["title_candidates"] = post["title_candidates"]
+    if moment.get("series") is not None:
+        arms["series"] = moment["series"]
     _write(d / "arms.json", arms)
     return arms
 
@@ -366,7 +368,8 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             voice = channel_voice(cfg["channel"])
         try:
             post = postcopy.finalize(judge.ask(f"{task}-copy", postcopy.prompt(m, w, src, cfg["mode"], cfg.get("brand"),
-                                                                           cfg.get("news"), voice=voice)), w, src, brief)
+                                                                           cfg.get("news"), voice=voice)), w, src, brief,
+                                     cfg.get("news"))
             if cfg.get("channel"):
                 post = postcopy.require_tags(postcopy.choose(post, cfg["channel"], clipdir=d), brief)
             _write(d / "post.json", post)

@@ -14,7 +14,7 @@ from myzing.factory.judge import Judge
 from myzing.model_fetch import _try_lock, _unlock
 from myzing.playbook.common import append_jsonl, parse_time
 
-from . import kit, publish, queue, registry, watch
+from . import brief, kit, publish, queue, registry, watch
 
 STALE = 3 * 3600
 
@@ -131,6 +131,15 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
                     found = (watch_fn or watch.run)(slug, now=now, stop=stopped)
                     row.update(found=found["found"], started=found["started"])
                     row["errors"].extend(found.get("errors", []))
+                    if not stopped():
+                        try:
+                            if brief.due(slug, now):
+                                made = brief.make(slug, now=now, stop=stopped)
+                                row["brief"] = len(made["items"])
+                                row["errors"].extend(made.get("errors", []))
+                        except Exception as exc:
+                            if not (stopped() and isinstance(exc, registry.ChannelError)):
+                                row["errors"].append(f"brief {str(exc) or type(exc).__name__}")
                     if not stopped():
                         _advance(slug, channel, row, runner or pipeline.run, stopped, say, now)
                     if not stopped():
