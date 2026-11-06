@@ -70,4 +70,4 @@ def test_uploads_use_the_outlier_id_and_feed_text_is_plain(tmp_path, metadata):
                             "watch": ["@Fixture"]}, tmp_path, fetch=metadata.fetch, now=NOW)
     news = next(row for row in rows if row["url"] == "https://example.org/money")
     assert news["source"] == "Feed name" and "<" not in news["title"] and news["summary"] == "Partner program"
-    assert {row["id"] for row in rows if "youtube.com" in row["url"]} == {"yt-short_one", "yt-video_one"}
+    assert {row["id"] for row in rows if row["url"].startswith("https://www.youtube.com/")} == {"yt-short_one", "yt-video_one"}
