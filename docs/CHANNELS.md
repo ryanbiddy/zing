@@ -451,8 +451,11 @@ The whole spoken take becomes one hand-picked clip, from its first word to its
 last. It must be 3 through 180 seconds long. A failed transcription or an invalid
 length leaves a source error and starts no project. With no match, the hook uses
 the first 12 transcript words and there is no news peg or series. The factory
-reuses the transcript and skips scouting. Its usual graphics, gate, queue and
+reuses the transcript and skips scouting. Sentence snapping may drop a leading
+"so" or "okay" but never cuts the end of a take. A matched take's first comment
+links the video or post it talks about. Its usual graphics, gate, queue and
 kits take over. Recordings follow the same seeding limit as own sources.
+Replacing a take file with a new recording starts it over.
 Series stay in clip arms, queue rows and outcomes. `learn` adds each series's
 count of unmasked rewards and median reward. The bandit does not choose series.
 

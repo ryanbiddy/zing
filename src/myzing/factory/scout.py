@@ -123,7 +123,7 @@ def _snap(moment: dict, words: list[dict]) -> dict:
     start = max(0.0, ws[k]["s"] - 0.05)
     inside = [w for w in ws[k:] if w["e"] <= moment["end"] + 0.05] or ws[k:k + 1]
     end_word = inside[-1]
-    if not re.search(r"[.?!]$", end_word["w"]):
+    if not moment.get("whole") and not re.search(r"[.?!]$", end_word["w"]):   # a whole recorded take keeps its end
         after = [w for w in ws if w["s"] > end_word["s"] and re.search(r"[.?!]$", w["w"])]
         before = [w for w in inside if re.search(r"[.?!]$", w["w"]) and w["e"] > start + 20]
         end_word = after[0] if after else (before[-1] if before else end_word)

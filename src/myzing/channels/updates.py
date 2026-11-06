@@ -6,14 +6,13 @@ import re
 import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
-from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from myzing.factory import network, visuals
 from myzing.playbook import feeds
-from myzing.playbook.common import append_jsonl
+from myzing.playbook.common import append_jsonl, parse_time
 
 DEFAULT_FEEDS = ("https://blog.youtube/rss/", "https://about.fb.com/news/category/instagram/feed/")
 DEFAULT_WATCH = ("UCGg-UqjRgzhYDPJMr-9HXCg", "UCkRfArvrzheW2E7b6SVT7vQ")   # Creator Insider, YouTube Creators; IDs skip the channel page
@@ -37,24 +36,31 @@ OFF_TOPIC = ("earnings call", "investor", "quarterly results", "emmy", "award", 
 class _Text(HTMLParser):
     def __init__(self):
         super().__init__()
-        self.parts = []
+        self.parts, self.hidden = [], 0
 
     def handle_data(self, data):
-        self.parts.append(data)
+        if not self.hidden:                 # script and style bodies are not text
+            self.parts.append(data)
 
     def handle_starttag(self, tag, attrs):
-        if tag.rsplit(":", 1)[-1] in ("p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"):
+        name = tag.rsplit(":", 1)[-1]
+        self.hidden += name in ("script", "style")
+        if name in ("p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"):
             self.parts.append(" ")
 
     def handle_endtag(self, tag):
-        self.handle_starttag(tag, ())
+        name = tag.rsplit(":", 1)[-1]
+        if name in ("script", "style"):
+            self.hidden = max(0, self.hidden - 1)
+        elif name in ("p", "div", "br", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6"):
+            self.parts.append(" ")
 
 
 def _plain(value: str) -> str:
     parser = _Text()
     parser.feed(value)
     parser.close()
-    return " ".join(unescape("".join(parser.parts)).split())
+    return " ".join("".join(parser.parts).replace("<", " ").replace(">", " ").split())   # the parser already decoded entities
 
 
 def _value(node, path: str) -> str:
@@ -100,7 +106,7 @@ def _fetch(url: str, root: Path) -> bytes:
         return _bounded(response.read(FEED_CAP + 1))
 
 
-def _feed(url: str, root: Path, fetch):
+def _feed(url: str, root: Path, fetch, stop=None):
     tree = ET.fromstring(_bounded(fetch(url) if fetch else _fetch(url, root)))
     channel = tree.find("channel") if tree.tag == "rss" else None
     if channel is not None:
@@ -120,7 +126,7 @@ def _feed(url: str, root: Path, fetch):
         raise ValueError("response is not an RSS or Atom feed")
 
 
-def _uploads(handle: str, root: Path, fetch):
+def _uploads(handle: str, root: Path, fetch, stop=None):
     root = root / "brief"
 
     def request(url):
@@ -128,16 +134,21 @@ def _uploads(handle: str, root: Path, fetch):
         if url.startswith("https://www.youtube.com/feeds/"):
             tree = ET.fromstring(body)
             for entry in tree.findall("atom:entry", NS):
-                if _published(_value(entry, "atom:published")) is None:
+                try:
+                    parse_time(entry.findtext("atom:published", "", NS))
+                except ValueError:
                     tree.remove(entry)  # one bad date must not discard the other uploads
             body = ET.tostring(tree, encoding="unicode")
         return body
 
     ident = feeds.resolve(handle, request, root=root)
+    if stop and stop():
+        return
     for row in feeds.feed(ident, request, root=root):
         path = f"shorts/{row['id']}" if row.get("short") else f"watch?v={row['id']}"
         yield {"title": row["title"], "url": "https://www.youtube.com/" + path,
-               "published": row["published"], "source": row["channel_title"], "summary": ""}
+               "published": row["published"], "source": row["channel_title"], "summary": "",
+               "ident": "yt-" + row["id"]}          # the same id an outlier pick of this upload gets
 
 
 def collect(series: dict, root: Path, *, fetch=None, now: datetime | None = None, stop=None) -> list[dict]:
@@ -153,21 +164,21 @@ def collect(series: dict, root: Path, *, fetch=None, now: datetime | None = None
         if stop and stop():
             break
         try:
-            for item in reader(source, root, fetch):
+            for item in reader(source, root, fetch, stop):
                 stamp = _published(item["published"])
                 if stamp is None or not now - timedelta(days=10) <= stamp <= now + timedelta(hours=1):
                     continue
                 url = item["url"].strip()
                 parts = urlsplit(url)
-                if parts.scheme != "https" or not parts.hostname or url in seen:
+                if parts.scheme != "https" or not parts.hostname or url in seen or any(c.isspace() for c in url):
                     continue
                 seen.add(url)
-                title, summary = _plain(item["title"]), _plain(item["summary"])[:600]
+                title, summary = _plain(item["title"])[:200], _plain(item["summary"])[:600]
                 score, why = _score(title + " " + summary)
                 if score >= 4:
-                    rows.append({"id": "news-" + hashlib.sha256(url.encode()).hexdigest()[:16],
+                    rows.append({"id": item.get("ident") or "news-" + hashlib.sha256(url.encode()).hexdigest()[:16],
                                  "series": series["id"], "kind": "news", "title": title, "url": url,
-                                 "published": stamp.isoformat(), "source": item["source"], "summary": summary,
+                                 "published": stamp.isoformat(), "source": _plain(item["source"])[:120], "summary": summary,
                                  "score": score, "why": why})
         except Exception as exc:
             append_jsonl(root / "brief" / "news-errors.jsonl", [

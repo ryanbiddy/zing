@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import shutil
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -203,7 +204,11 @@ def _recording(slug: str, item: dict, project: Path, settings: dict, now: dateti
         raise registry.ChannelError("recording must stay inside the channel inbox")
     media = Path(item["media"])
     settings = {**settings, "moments": 0}
+    stamp = {"size": media.stat().st_size, "mtime_ns": media.stat().st_mtime_ns}
+    if stage.exists() and pipeline._read(stage / "take.json") != stamp:
+        shutil.rmtree(stage)                # the file changed since the last try; its cached transcript is stale
     pipeline.init(stage, media, **settings)
+    pipeline._write(stage / "take.json", stamp)
     segments = pipeline._transcript(stage, media, lambda m: None, settings.get("vocab"))
     if registry.paused(slug) or stop and stop():
         return False
@@ -211,7 +216,7 @@ def _recording(slug: str, item: dict, project: Path, settings: dict, now: dateti
     if not text.strip():
         raise registry.ChannelError("recording has no spoken words")
     words = pipeline._read(stage / "words.json") or segments
-    start, end = pipeline.check_range(stage, max(0, words[0]["s"]), words[-1]["e"])
+    start, end = max(0, words[0]["s"]), words[-1]["e"]        # add_clip checks the range once
     matched = brief.match(slug, text, now)
     take, hook = {"series": None}, " ".join(text.split()[:12])
     if matched:
@@ -223,7 +228,7 @@ def _recording(slug: str, item: dict, project: Path, settings: dict, now: dateti
     pipeline._write(stage / "moments.json", {"moments": [], "bench": []})
     pipeline.add_clip(stage, start, end, hook=hook)
     moments = pipeline.load_moments(stage)
-    moments["moments"][0]["series"] = take["series"]
+    moments["moments"][0].update(series=take["series"], whole=True)   # snapping keeps the take's last word
     pipeline._write(stage / "moments.json", moments)
     pipeline._write(stage / "recording.json", take)
     if registry.paused(slug) or stop and stop():

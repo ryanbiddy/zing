@@ -255,7 +255,7 @@ def validate(data: dict) -> dict:
             raise ChannelError(f"{field}.id must be unique")
         ids.add(src["id"])
         _text(src.get("name"), f"{field}.name", required=True)
-        _text(src.get("url", ""), f"{field}.url")
+        _text(src.get("url", ""), f"{field}.url", required=src.get("kind") == "recordings")   # an empty path reads the current folder
         if src.get("kind") not in KINDS:
             raise ChannelError(f"{field}.kind must be one of {', '.join(KINDS)}")
         rights = src.get("rights", {})
@@ -356,6 +356,8 @@ def project_settings(slug: str, source_id: str | None = None, **settings) -> dic
     settings = {**channel["factory"], **settings, "channel": slug, "source": source_id, "show": slug, "brand": brand}
     if source_id:
         src = source(channel, source_id)
+        if src["kind"] == "recordings":
+            settings["rights"] = effective_rights(src)      # a take is always the owner's own
         settings.setdefault("rights", effective_rights(src))
         settings.setdefault("name", src["name"])
         settings["url"] = next((url for url in (settings.get("url"), src.get("url"))

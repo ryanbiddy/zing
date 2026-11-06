@@ -269,17 +269,17 @@ def test_failed_youtube_source_does_not_block_next(tmp_path, metadata):
     assert errors(tmp_path)[0]["source"] == "@Broken"
 
 
-@pytest.mark.parametrize("count", [0, 1, 2])
-def test_stop_between_sources_returns_collected_rows(tmp_path, metadata, count):
+@pytest.mark.parametrize("count,found,calls,checked", [(0, 0, 0, 1), (1, 2, 1, 2), (2, 2, 2, 3), (3, 4, 3, 3)])
+def test_stop_between_sources_returns_collected_rows(tmp_path, metadata, count, found, calls, checked):
     checks = []
 
     def stop():
         checks.append(True)
         return len(checks) > count
     rows = updates.collect(series(watch=["@Fixture"]), tmp_path, fetch=metadata.fetch, now=NOW, stop=stop)
-    assert len(rows) == count * 2
-    assert len(metadata.calls) == (0, 1, 3)[count]
-    assert len(checks) == min(count + 1, 2)
+    assert len(rows) == found                       # the third check sits between a channel's page and its feed
+    assert len(metadata.calls) == calls
+    assert len(checks) == checked
 
 
 @pytest.mark.parametrize("binary", [False, True])

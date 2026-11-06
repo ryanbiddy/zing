@@ -167,7 +167,10 @@ def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) 
                         break
                     if facts["id"] in picked:
                         continue
-                    registry.web_url(facts["url"], "candidate.url")
+                    try:
+                        registry.web_url(facts["url"], "candidate.url")
+                    except registry.ChannelError:   # one bad link drops that candidate, not the series
+                        continue
                     item = {"n": len(data["items"]) + 1, "id": facts["id"], "series": series["id"], "series_name": series["name"],
                             "kind": series["kind"], "facts": facts, "receipt": _receipt(facts), "hook": None, "script": None,
                             "move": None, "title": None, "check": [], "pending": None, "status": "open"}
@@ -183,7 +186,7 @@ def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) 
     _write(root / "seen.json", seen)
     for item in data["items"]:
         if stopped():
-            break
+            return data                 # due() finishes the unasked items on a later tick
         if item.get("script"):
             continue
         task = f"script-{item['n']}"
@@ -193,9 +196,11 @@ def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) 
             prompt = _prompt(channel, series, item["facts"])
             answer = (judge or Judge(folder, backend=channel["judge"])).ask(task, prompt)
             item.update(check(answer), pending=None)
+            data["errors"] = [e for e in data["errors"] if not e.startswith(task + " ")]
         except NeedsAnswer as exc:
             item["pending"] = str(exc.path)
         except Exception as exc:
+            Judge(folder).forget(task)  # a bad cached answer would come back on every run
             error = f"{task} {str(exc) or type(exc).__name__}"
             if error not in data["errors"]:
                 data["errors"].append(error)
@@ -205,14 +210,17 @@ def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) 
                 pending.write_text(prompt, encoding="utf-8")
                 item["pending"] = str(pending)
         _write(path, data)
-    _page(folder, channel, data)
+    newest = max((p.parent.name for p in root.glob("*/brief.json")), default=day)
+    _page(folder, channel, data, latest=day >= newest)
     return data
 
 
 def due(slug, now) -> bool:
     channel = registry.load(slug)
-    return (not registry.paused(slug) and any(s["per_day"] > 0 for s in channel["series"])
-            and not (registry.directory(slug) / "brief" / _day(channel, now) / "brief.json").is_file())
+    if registry.paused(slug) or not any(s["per_day"] > 0 for s in channel["series"]):
+        return False
+    data = _read(registry.directory(slug) / "brief" / _day(channel, now) / "brief.json")
+    return data is None or any(not item.get("script") and not item.get("pending") for item in data["items"])
 
 
 def answer(slug, task, path_or_text, date=None):

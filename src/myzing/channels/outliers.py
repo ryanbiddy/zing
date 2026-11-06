@@ -36,8 +36,8 @@ def collect(series: dict, root: Path, *, fetch=None, now=None, stop=None) -> lis
                     continue
                 url = f"https://www.youtube.com/shorts/{row['id']}" if row["short"] else f"https://www.youtube.com/watch?v={row['id']}"
                 candidates.append({"id": "yt-" + row["id"], "series": series["id"], "kind": "breakdown",
-                                   "title": row["title"], "url": url, "channel": handle,
-                                   "channel_title": row["channel_title"], "published": row["published"],
+                                   "title": row["title"][:200], "url": url, "channel": handle,
+                                   "channel_title": row["channel_title"][:120], "published": row["published"],
                                    "format": "Short" if row["short"] else "video",
                                    "views": row["views"], "median": typical, "multiple": round(row["views"] / typical, 1),
                                    "age_days": round(age, 1), "features": titles.features(row["title"])})
