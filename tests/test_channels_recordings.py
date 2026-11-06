@@ -346,3 +346,23 @@ def test_series_reaches_arms_queue_outcomes_and_learn_without_bandit_choices(cha
     report = learn.learn(channel["slug"])
     assert "Series breakdowns had 3 posts with median reward 2.00." in report["summary"]
     assert "series" not in report["dimensions"] and "series" not in bandit.DIMENSIONS
+
+
+def test_take_starts_when_the_projects_folder_is_missing(channel, monkeypatch):
+    seed(channel)
+    media(channel)
+    transcribe(monkeypatch)
+    (registry.directory(channel["slug"]) / "projects").rmdir()
+    assert watch.run(channel["slug"], now=NOW) == {"found": 1, "started": 1, "errors": []}
+    assert (Path(rows(channel)[0]["project"]) / "recording.json").is_file()
+
+
+def test_takes_credit_the_discussed_link_in_the_first_comment():
+    from myzing.factory import postcopy
+    answer = {**dict.fromkeys(postcopy.FIELDS, "Copy"), "first_comment": "Source: {SOURCE_URL} (at {TIMESTAMP})"}
+    news = {"peg": "Ludwig: 2,807,352 views", "links": ["https://www.youtube.com/shorts/MvApOELNmUU"]}
+    words = {"start": 0.0}
+    assert postcopy.finalize(answer, words, {"url": ""}, news=news)["first_comment"] == \
+        "About this: https://www.youtube.com/shorts/MvApOELNmUU"
+    sourced = postcopy.finalize(answer, words, {"url": "https://example.org/episode"}, news=news)["first_comment"]
+    assert sourced.startswith("Source: https://example.org/episode")

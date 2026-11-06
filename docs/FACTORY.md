@@ -45,6 +45,10 @@ hook, news peg and series. The factory reuses the transcript, plans graphics
 from the spoken facts and sends the clip through the usual gate and queue.
 See [Daily brief and recorded takes](CHANNELS.md#daily-brief-and-recorded-takes).
 
+Channel [platform news](CHANNELS.md#platform-news) finds candidates from public
+feeds and YouTube uploads from the last 10 days. It ranks them by creator topics
+and date. Source errors are saved in `brief/news-errors.jsonl` under the channel.
+
 ```text
 episode + captions -> scout moments -> cut -> plan the screen -> find visuals -> pick
                    -> fact-check + context check -> render 9:16 / 1:1 / 16:9 -> copy -> review page

@@ -66,7 +66,7 @@ def require_tags(post: dict, brief: dict) -> dict:
     return out
 
 
-def finalize(answer: dict, words: dict, source: dict, brief: dict | None = None) -> dict:
+def finalize(answer: dict, words: dict, source: dict, brief: dict | None = None, news: dict | None = None) -> dict:
     missing = [k for k in FIELDS if not isinstance(answer.get(k), str)]
     if missing:
         raise ValueError(f"copy answer is missing {', '.join(missing)}")
@@ -77,6 +77,9 @@ def finalize(answer: dict, words: dict, source: dict, brief: dict | None = None)
     link = context_url(url, start)
     post = {k: answer[k].replace("{SOURCE_URL}", link if k == "first_comment" else url) for k in FIELDS}
     post["first_comment"] = post["first_comment"].replace("{TIMESTAMP}", stamp(start))
+    links = [u for u in (news or {}).get("links", []) if str(u).startswith("https://")]
+    if not url and links and "{SOURCE_URL}" in answer["first_comment"]:   # a recorded take credits what it discusses
+        post["first_comment"] = f"About this: {links[0]}"
     titles = answer.get("titles")
     options = [{"text": t["text"].strip(), "pattern": t["pattern"]} for t in titles
                if isinstance(t, dict) and isinstance(t.get("text"), str) and t["text"].strip()

@@ -228,6 +228,7 @@ def _recording(slug: str, item: dict, project: Path, settings: dict, now: dateti
     pipeline._write(stage / "recording.json", take)
     if registry.paused(slug) or stop and stop():
         return False
+    project.parent.mkdir(parents=True, exist_ok=True)   # a new channel has no projects folder yet
     stage.replace(project)
     brief.recorded(slug, project, take)
     item.update(take)

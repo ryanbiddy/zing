@@ -58,7 +58,8 @@ def _prompt(channel: dict, series: dict, facts: dict) -> str:
     text = (resources.files("myzing") / "_data" / "channels" / "prompts" / "brief-script.md").read_text(encoding="utf-8")
     values = {"NAME": channel["name"], "NICHE": channel["niche"], "VOICE": registry.voice(channel["slug"]) or "None given.",
               "SERIES": series["name"], "LESSON": series.get("lesson") or "End with one move the viewer can copy.",
-              "FACTS": json.dumps(facts, ensure_ascii=False, indent=1), "PRIOR": json.dumps(prior, ensure_ascii=False)}
+              "FACTS": json.dumps(facts, ensure_ascii=False, indent=1),
+              "PRIOR": "\n".join(f"- {line}" for line in prior.get("guidance", [])) or "None yet."}
     return re.sub(r"\{(NAME|NICHE|VOICE|SERIES|LESSON|FACTS|PRIOR)\}", lambda m: values[m[1]], text)
 
 

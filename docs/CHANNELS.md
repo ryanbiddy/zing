@@ -555,3 +555,17 @@ No model weights change. Views are noisy, the dimensions are treated separately,
 and the report shows associations rather than proof that a title or edit caused
 more views. Length, density, pack and hour are measured; their settings still
 come from your plan, factory defaults and cadence.
+
+## Platform news
+
+News candidates come from RSS or Atom feeds and public YouTube upload metadata.
+When both `feeds` and `watch` are empty, the sources are the YouTube Official Blog,
+Meta's Instagram newsroom, Creator Insider uploads and YouTube Creators uploads.
+No videos are downloaded. TikTok, Twitch and X publish no feed, so they are not read.
+
+Items must have an HTTPS link and a date within the last 10 days, with up to one
+hour allowed for clock differences. Each matched keyword group adds points for
+money, reach, format, policy or creators, while off-topic terms subtract three.
+Candidates need at least four points and sort by score, then newest first.
+Duplicate links keep their first entry. Failed sources are skipped and recorded
+in the channel's `brief/news-errors.jsonl`.
