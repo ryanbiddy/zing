@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add daily channel briefs with script drafts and claims to check. Recorded takes
+  carry their hook, news peg and series into the factory, queue and learning report.
 - Channels: stricter gate and safer kits after review.
 - Add opt-in YouTube connection, private or scheduled uploads and owner analytics
   for channels. Uploads resume from saved sessions, recheck approval, honor pause

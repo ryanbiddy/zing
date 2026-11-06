@@ -37,6 +37,12 @@ def build(slugs: list[str] | None = None, *, now: datetime | None = None) -> str
         try:
             channel = registry.load(slug)
             root = registry.directory(slug)
+            day = now.astimezone(registry.zone(channel["cadence"]["timezone"])).date().isoformat()
+            brief = pipeline._read(root / "brief" / day / "brief.json")
+            if brief is not None:
+                ready = sum(bool(item.get("script")) for item in brief["items"])
+                waiting = len(brief["items"]) - ready
+                lines.extend([f"Brief: {ready} scripts ready, {waiting} waiting for answers. {root / 'brief' / 'latest.html'}", ""])
             items = [row for path in (root / "sources").glob("*.jsonl") for row in watch.read(path)]
             projects = sorted(root.glob("projects/*/factory.json"))
             found = sum(recent(row.get("found_at")) for row in items)

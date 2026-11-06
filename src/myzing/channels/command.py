@@ -5,13 +5,14 @@ import argparse
 import json
 import subprocess
 import sys
+import webbrowser
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
 
 def run(argv: list[str]) -> int:
-    from . import digest, kit, learn, outcomes, publish, queue, registry, tick, watch, youtube
+    from . import brief, digest, kit, learn, outcomes, publish, queue, registry, tick, watch, youtube
     parser = argparse.ArgumentParser(prog="zing channels")
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="create a channel")
@@ -21,6 +22,11 @@ def run(argv: list[str]) -> int:
     for key in ("network-name", "network-line", "network-url", "pack", "mode"):
         new.add_argument("--" + key)
     commands.add_parser("list", help="list local channels")
+    daily = commands.add_parser("brief", help="make or refill the daily brief")
+    daily.add_argument("slug")
+    daily.add_argument("--date", help="brief date as YYYY-MM-DD in the channel timezone")
+    daily.add_argument("--answer", nargs=2, metavar=("TASK", "FILE"), help="save a script answer and refill the brief")
+    daily.add_argument("--open", action="store_true", help="open the brief page")
     for name, help in (("show", "show settings and queue counts"), ("check", "check channel settings"),
                        ("queue", "queue clips that pass the gate"), ("kit", "make local post kits"),
                        ("track", "measure public YouTube results"), ("metrics", "merge a YouTube Studio CSV"),
@@ -76,6 +82,8 @@ def run(argv: list[str]) -> int:
             now = datetime.now(timezone.utc)
             upcoming = [r["slot"] for r in rows if r["status"] in ("queued", "kit") and datetime.fromisoformat(r["slot"]) >= now]
             result = {"settings": channel, "counts": dict(Counter(r["status"] for r in rows)),
+                      "series": [{"id": s["id"], "kind": s["kind"], "per_day": s["per_day"], "watch": len(s.get("watch", []))}
+                                 for s in channel["series"]],
                       "next_slot": min(upcoming, key=lambda s: datetime.fromisoformat(s).timestamp()) if upcoming else queue.next_slot(channel, rows),
                       "paused": registry.paused(args.slug), "youtube_notice": youtube.AUDIT}
         elif args.command == "check":
@@ -95,6 +103,16 @@ def run(argv: list[str]) -> int:
             result = registry.save(channel)
         elif args.command == "watch":
             result = watch.run(args.slug)
+        elif args.command == "brief":
+            if args.answer:
+                result = brief.answer(args.slug, args.answer[0], Path(args.answer[1]), date=args.date)
+            else:
+                result = brief.make(args.slug, now=brief.when(registry.load(args.slug), args.date))
+            root = registry.directory(args.slug) / "brief"
+            print(str(root / result["date"] / "brief.html"))
+            if args.open:
+                webbrowser.open((root / "latest.html").as_uri())
+            return 0
         elif args.command == "tick":
             if bool(args.slugs) == args.all:
                 raise registry.ChannelError("choose channel slugs or --all")

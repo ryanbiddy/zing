@@ -38,6 +38,13 @@ advances one episode per channel, queues clips and makes kits. The channel's
 `zing channels digest --all --out digest.md` reports the last day's work and
 what needs attention. See [Channels](CHANNELS.md#run-it-every-hour) for scheduling.
 
+`zing channels brief SLUG --open` makes a daily page of outliers and platform
+updates with scripts to check and record. A `recordings` source turns each local
+take into one hand-picked clip with `moments=0`. A matching brief supplies its
+hook, news peg and series. The factory reuses the transcript, plans graphics
+from the spoken facts and sends the clip through the usual gate and queue.
+See [Daily brief and recorded takes](CHANNELS.md#daily-brief-and-recorded-takes).
+
 ```text
 episode + captions -> scout moments -> cut -> plan the screen -> find visuals -> pick
                    -> fact-check + context check -> render 9:16 / 1:1 / 16:9 -> copy -> review page

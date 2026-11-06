@@ -14,7 +14,7 @@ from myzing import uoink_bridge
 from myzing.factory import batch, network, pipeline, visuals
 from myzing.playbook import feeds
 
-from . import registry
+from . import brief, registry
 
 CAP = 4 * 1024 ** 3
 FEED_CAP = 8 * 1024 ** 2
@@ -127,7 +127,7 @@ def download(url: str, path: Path, *, root: Path, cap: int = CAP, stop=None) -> 
 
 def _items(src: dict, root: Path, fetch, search, resolve, stop=None):
     kind = src["kind"]
-    if kind in ("folder", "own"):
+    if kind in ("folder", "own", "recordings"):
         folder = Path(src["url"]).expanduser().resolve()
         if not folder.is_dir():
             raise registry.ChannelError(f"source folder not found at {folder}")
@@ -137,7 +137,7 @@ def _items(src: dict, root: Path, fetch, search, resolve, stop=None):
                 info = batch._settings(media, {})
                 yield {"id": hashlib.sha256(str(media).encode()).hexdigest(), "title": info["name"] or media.stem,
                        "url": info["url"] or "", "published": info["date"] or datetime.fromtimestamp(
-                           media.stat().st_mtime, timezone.utc).isoformat(), "media": str(media), "own": kind == "own"}
+                           media.stat().st_mtime, timezone.utc).isoformat(), "media": str(media), "own": kind in ("own", "recordings")}
     elif kind == "youtube":
         ident = feeds.resolve(_channel(src["url"]), fetch, root=root)
         if stop and stop():
@@ -196,15 +196,58 @@ def _media(src: dict, item: dict, root: Path, search, resolve, downloader, stop)
             item["media"] = str(path.resolve())
 
 
-def _start(slug: str, src: dict, item: dict, root: Path, now: datetime) -> bool:
+def _recording(slug: str, item: dict, project: Path, settings: dict, now: datetime, stop=None) -> bool:
+    inbox = registry.directory(slug) / "inbox"
+    stage = (inbox / ("." + project.name)).resolve()
+    if stage.parent != inbox.resolve():
+        raise registry.ChannelError("recording must stay inside the channel inbox")
+    media = Path(item["media"])
+    settings = {**settings, "moments": 0}
+    pipeline.init(stage, media, **settings)
+    segments = pipeline._transcript(stage, media, lambda m: None, settings.get("vocab"))
+    if registry.paused(slug) or stop and stop():
+        return False
+    text = " ".join(s["text"] for s in segments)
+    if not text.strip():
+        raise registry.ChannelError("recording has no spoken words")
+    words = pipeline._read(stage / "words.json") or segments
+    start, end = pipeline.check_range(stage, max(0, words[0]["s"]), words[-1]["e"])
+    matched = brief.match(slug, text, now)
+    take, hook = {"series": None}, " ".join(text.split()[:12])
+    if matched:
+        day, chosen = matched
+        take = {"brief": day, "item": chosen["n"], "series": chosen["series"]}
+        hook = chosen["hook"]
+        settings["news"] = {"peg": chosen["receipt"], "links": [chosen["facts"]["url"]]}
+        pipeline.init(stage, media, **settings)
+    pipeline._write(stage / "moments.json", {"moments": [], "bench": []})
+    pipeline.add_clip(stage, start, end, hook=hook)
+    moments = pipeline.load_moments(stage)
+    moments["moments"][0]["series"] = take["series"]
+    pipeline._write(stage / "moments.json", moments)
+    pipeline._write(stage / "recording.json", take)
+    if registry.paused(slug) or stop and stop():
+        return False
+    stage.replace(project)
+    brief.recorded(slug, project, take)
+    item.update(take)
+    return True
+
+
+def _start(slug: str, src: dict, item: dict, root: Path, now: datetime, stop=None) -> bool:
     project = batch._project(root / "projects", Path(_stem(src, item) + ".mp4")).resolve()
     if project.parent != (root / "projects").resolve():
         raise registry.ChannelError("project must stay inside the channel projects folder")
     if (project / "factory.json").is_file():
         cfg = pipeline._read(project / "factory.json")
         saved = pipeline._read(project / "source.json", {})
-        if cfg.get("channel") != slug or cfg.get("source") != src["id"] or saved.get("url") != item["url"]:
+        url = item["url"] if item["url"].startswith(("http://", "https://")) else ""
+        if cfg.get("channel") != slug or cfg.get("source") != src["id"] or saved.get("url") != url:
             raise registry.ChannelError(f"{project.name} belongs to another episode")
+        if src["kind"] == "recordings":
+            take = pipeline._read(project / "recording.json", {})
+            brief.recorded(slug, project, take)
+            item.update(take)
         item.update(project=str(project), started_at=cfg["created"])
         return False
     media = Path(item["media"])
@@ -213,7 +256,11 @@ def _start(slug: str, src: dict, item: dict, root: Path, now: datetime) -> bool:
     if settings["rights"] == "unknown":
         item["state"] = "found, needs rights"
         return False
-    pipeline.init(project, media, **settings)
+    if src["kind"] == "recordings":
+        if not _recording(slug, item, project, settings, now, stop):
+            return False
+    else:
+        pipeline.init(project, media, **settings)
     item.update(project=str(project), started_at=now.isoformat())
     return True
 
@@ -268,7 +315,7 @@ def run(slug: str, *, fetch=None, downloader=None, search=None, resolve=None, no
                 if known and item.get("media") and Path(item["media"]).is_file() and not item.get("audio_only"):
                     item["state"] = "ready"
                     if not item.get("project") and not stopped():
-                        result["started"] += _start(slug, src, item, root, now)
+                        result["started"] += _start(slug, src, item, root, now, stopped)
             except Exception as exc:
                 item["error"] = str(exc) or type(exc).__name__
                 result["errors"].append(f"{src['id']} {item['id']} {item['error']}")

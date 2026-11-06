@@ -14,11 +14,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from myzing.factory import campaign, pipeline, render
 from myzing.factory.tools import FactoryError
+from myzing.playbook import feeds
 from myzing.storage import workspace_root
 
-KINDS = ("youtube", "podcast", "uoink", "folder", "own")
+KINDS = ("youtube", "podcast", "uoink", "folder", "own", "recordings")
 HANDLES = ("youtube", "tiktok", "instagram", "x")
-DEFAULTS = {"network": {}, "handles": {}, "factory": {}, "sources": [],
+DEFAULTS = {"network": {}, "handles": {}, "factory": {}, "sources": [], "series": [],
             "judge": "host", "visuals": "cleared",
             "publish": {"youtube": "off"}, "youtube_category": "22", "youtube_daily_cap": 6,
             "cadence": {"per_day": 3, "times": ["12:00", "17:00", "20:00"], "timezone": "local"},
@@ -201,6 +202,48 @@ def validate(data: dict) -> dict:
             factory["brief"] = campaign.validate(factory["brief"])
         except FactoryError as exc:
             raise ChannelError(f"factory.brief is invalid. {exc}") from exc
+    if not isinstance(data["series"], list):
+        raise ChannelError("series must be a list")
+    ids = set()
+    for i, series in enumerate(data["series"]):
+        field = f"series[{i}]"
+        _fields(series, {"id", "name", "kind", "watch", "feeds", "per_day", "min_multiple", "lesson"}, field)
+        kind = series.get("kind")
+        if kind not in ("breakdown", "news", "clips"):
+            raise ChannelError(f"{field}.kind must be breakdown, news or clips")
+        defaults = {"breakdown": {"watch": [], "per_day": 2, "min_multiple": 3},
+                    "news": {"watch": [], "feeds": [], "per_day": 1}, "clips": {"per_day": 0}}[kind]
+        _fields(series, {"id", "name", "kind", "lesson", *defaults}, field)
+        _slug(series.get("id"), f"{field}.id")
+        if series["id"] in ids:
+            raise ChannelError(f"{field}.id must be unique")
+        ids.add(series["id"])
+        _text(series.get("name"), f"{field}.name", required=True, most=60)
+        for key, value in {**defaults, "lesson": ""}.items():
+            series.setdefault(key, value)
+        _text(series["lesson"], f"{field}.lesson", most=400)
+        _integer(series["per_day"], f"{field}.per_day", 0, 10)
+        if kind in ("breakdown", "news"):
+            if not isinstance(series["watch"], list) or len(series["watch"]) > 40:
+                raise ChannelError(f"{field}.watch must list up to 40 YouTube handles or UC IDs")
+            for handle in series["watch"]:
+                try:
+                    feeds.channel(handle)
+                except ValueError as exc:
+                    raise ChannelError(f"{field}.watch {exc}") from exc
+        if kind == "breakdown":
+            if not series["watch"]:
+                raise ChannelError(f"{field}.watch needs at least one YouTube handle or UC ID")
+            multiple = series["min_multiple"]
+            if type(multiple) not in (int, float) or not 1 <= multiple <= 1000 or not math.isfinite(multiple):
+                raise ChannelError(f"{field}.min_multiple must be a number between 1 and 1000")
+        if kind == "news":
+            if not isinstance(series["feeds"], list) or len(series["feeds"]) > 10:
+                raise ChannelError(f"{field}.feeds must list up to 10 https URLs")
+            for url in series["feeds"]:
+                web_url(url, f"{field}.feeds")
+                if urlsplit(url).scheme != "https":
+                    raise ChannelError(f"{field}.feeds must use https URLs")
     if not isinstance(data["sources"], list):
         raise ChannelError("sources must be a list")
     ids = set()
@@ -219,6 +262,8 @@ def validate(data: dict) -> dict:
         _fields(rights, {"status", "grant", "expires", "note"}, f"{field}.rights")
         if not isinstance(rights.get("status"), str) or rights["status"] not in campaign.RIGHTS:
             raise ChannelError(f"{field}.rights.status must be own, licensed, permission or unknown")
+        if src["kind"] == "recordings" and rights["status"] != "own":
+            raise ChannelError(f"{field}.rights.status must be own for recordings")
         for key in ("grant", "expires", "note"):
             _text(rights.get(key, ""), f"{field}.rights.{key}", required=key == "grant" and rights["status"] != "unknown")
         if rights.get("expires"):

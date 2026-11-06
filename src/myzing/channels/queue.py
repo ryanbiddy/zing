@@ -158,7 +158,7 @@ def build(slug: str, now: datetime | None = None, *, rng: random.Random | None =
                 continue
             src = registry.source(channel, cfg["source"]) if cfg.get("source") else {}
             pending.append({"id": ident, "project": str(project.resolve()), "clip": d.name, "status": "queued",
-                            "title": _read(d / "post.json", {}).get("youtube_title", ""), "own": src.get("kind") == "own",
+                            "title": _read(d / "post.json", {}).get("youtube_title", ""), "own": src.get("kind") in ("own", "recordings"),
                             "arms": _read(d / "arms.json", {"archetype": "other"}),
                             "manual": gate.rating(project, d.name) == "post", "queued_at": now.isoformat(timespec="seconds")})
     added = 0

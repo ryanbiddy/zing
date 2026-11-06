@@ -340,6 +340,8 @@ def _arms(d: Path, moment: dict, cfg: dict, post: dict) -> dict:
             "pack": cfg["pack"], "hour": _read(d / "arms.json", {}).get("hour")}
     if "title_candidates" in post:
         arms["title_candidates"] = post["title_candidates"]
+    if moment.get("series") is not None:
+        arms["series"] = moment["series"]
     _write(d / "arms.json", arms)
     return arms
 

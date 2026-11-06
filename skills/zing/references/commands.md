@@ -65,6 +65,8 @@ zing channels list
 zing channels show stories
 zing channels check stories
 zing channels watch stories
+zing channels brief stories --open
+zing channels brief stories --date 2026-11-06 --answer script-1 answer.json
 zing channels tick stories another-channel --max-minutes 50
 zing channels tick --all
 zing channels digest stories
@@ -99,7 +101,20 @@ download enclosures only with known rights, from public HTTP or HTTPS hosts,
 up to 4 GB. Audio-only episodes wait for a video. Ready items use the shared
 factory setup and inherit channel settings.
 
-`tick [SLUG ...|--all]` watches, advances at most one episode per channel,
+`brief SLUG [--date YYYY-MM-DD] [--answer TASK FILE] [--open]` makes or refills
+the day's scripts and prints the page path. Dates use the channel timezone.
+`--date` selects another day. `--answer` saves JSON for a pending `script-N`
+task and fills missing scripts. `--open` opens `brief/latest.html`. Existing
+picks stay fixed. Configure breakdown, news and clips series in `channel.json`.
+The page shows linked receipts and claims to check before recording.
+
+Use `source SLUG --kind recordings` with a local folder, `--rights own` and
+a grant for finished takes. Each take becomes one clip of 3 through 180 seconds
+without scouting. A matching open brief item supplies the hook, news peg and
+series. Unmatched takes use their first 12 words as the hook. Series reach
+queue rows and outcomes; `learn` reports their counts and median rewards.
+
+`tick [SLUG ...|--all]` watches, makes the daily brief when due, advances at most one episode per channel,
 queues clips and builds kits. `--max-minutes N` defaults to 50 for the whole
 tick. It stops between steps when paused or out of time and records each
 channel in `ticks.jsonl`. The channel's `judge` is `host` by default or `claude`.
@@ -112,7 +127,8 @@ also run before YouTube requests.
 
 `digest [--all|SLUG] [--out FILE]` writes Markdown for the last 24 hours and
 lists waiting work. With no slug it includes all channels. With no `--out`
-it writes to stdout. Scheduling examples are in the Channels guide.
+it writes to stdout. Today's brief adds ready and waiting script counts and
+the page path. Scheduling examples are in the Channels guide.
 
 Factory `new --channel SLUG` inherits the channel's factory defaults and uses
 its slug for shared Post and No history. Explicit flags win. `--source ID`
@@ -134,7 +150,7 @@ Slots follow the channel timezone and daily cap. Own clips are spaced by
 `kit --out DIR` changes the kit and HTML index folder. FFmpeg remuxes with
 stream copy and faststart. If missing, it copies the file and reports that.
 The index uses local videos and Copy buttons. Its Posted checkbox only changes
-the page; `posted` and `skip` update the queue. Pause files block watch, queue, kit, upload and analytics
+the page; `posted` and `skip` update the queue. Pause files block watch, brief, queue, kit, upload and analytics
 commands. `check` exits 1 for problems; command errors exit 2.
 
 Settings live under `<workspace>/channels/`, or `ZING_CHANNELS_HOME` when set.
