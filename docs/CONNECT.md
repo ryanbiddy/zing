@@ -1,5 +1,36 @@
 # Connecting your AI to Zing
 
+## One line per app
+
+List the apps, formats and config locations for your OS, then print a config.
+
+```sh
+zing connect
+zing connect claude-desktop
+```
+
+Merge the printed entry into your client's settings. Config goes to stdout;
+the location, notes and documentation sources go to stderr. Nothing is written.
+The command uses this environment's absolute Python path and adds `ZING_HOME`
+only when it is set. It never copies other environment values.
+
+`zing connect codex --json` returns `client`, `format`, `location`, `entry`,
+`note`, `guide` and `source`. `entry` is a ready-to-paste string, or `null` when
+only a guide is available. `source` contains the documentation URLs, checked
+date, verification flag and reason for any gap. These come from Uoink's
+2026-10-21 review. Changed recipe shapes are marked unverified. Client
+acceptance has not been tested. Linux paths reuse documented POSIX locations
+where available; they were not separately checked against Linux docs.
+
+YAML recipes use JSON, which is valid YAML 1.2. Merge their keys into your
+existing file. HTTP-only clients, including n8n and Open WebUI, get a guide
+because Zing has no HTTP endpoint. Apps with no documented setup for your OS
+also get a guide.
+
+`zing connect cursor --deeplink` and `zing connect vscode --deeplink` print
+install links for the client's review flow. The command only prints the link.
+`zing serve-mcp --print-config [desktop|code]` keeps its existing output.
+
 Zing's MCP server gives any MCP client forty-four tools, plus the prompt
 pack as slash commands:
 

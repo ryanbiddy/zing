@@ -54,6 +54,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
+| `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
 
 ## Channels
 
