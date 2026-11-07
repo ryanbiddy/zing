@@ -60,20 +60,30 @@ def _video(src: Path, dest: Path) -> str | None:
 def _index(out: Path, channel: dict, rows: list[dict]) -> Path:
     folders = {p.parent.resolve() for p in out.glob("*/post.json") if not p.parent.name.startswith(".kit-")}
     folders.update(Path(r["kit"]).resolve() for r in rows if r.get("kit") and Path(r["kit"]).is_dir())
-    kits = sorted(((folder, _read(folder / "post.json", {})) for folder in folders),
-                  key=lambda item: datetime.fromisoformat(item[1]["slot"]).timestamp())
+    kits, skipped = [], []
+    for folder in folders:
+        try:
+            post = _read(folder / "post.json", {})
+            kits.append((datetime.fromisoformat(post["slot"]).timestamp(), folder, post))
+        except (OSError, ValueError, KeyError, TypeError):
+            skipped.append(folder.name)     # one damaged kit never hides the others
     cards = []
-    for i, (folder, post) in enumerate(kits):
+    for i, (_, folder, post) in enumerate(sorted(kits, key=lambda item: item[0])):
         try:
             video = quote(Path(os.path.relpath(folder / "video.mp4", out)).as_posix(), safe="/")
         except ValueError:
             video = (folder / "video.mp4").as_uri()
         texts = []
-        title, _, description = (folder / "youtube.txt").read_text(encoding="utf-8").partition("\n\n")
+        try:
+            title, _, description = (folder / "youtube.txt").read_text(encoding="utf-8").partition("\n\n")
+            copy = {field: (folder / f"{field}.txt").read_text(encoding="utf-8") for field in TEXTS if field != "youtube"}
+        except (OSError, ValueError):
+            skipped.append(folder.name)
+            continue
         for field in ("youtube_title", *TEXTS):
             text = {"youtube_title": title, "youtube": description}.get(field)
             if text is None:
-                text = (folder / f"{field}.txt").read_text(encoding="utf-8")
+                text = copy[field]
             label = LABELS[field]
             texts.append(f'<label for="copy-{i}-{field}">{label}</label>'
                          f'<textarea id="copy-{i}-{field}" readonly>{html.escape(text)}</textarea>'
@@ -98,7 +108,7 @@ textarea{display:block;box-sizing:border-box;width:100%;min-height:100px;font:in
 label{display:block;margin-top:12px}h2{overflow-wrap:anywhere}
 </style><body><h1>''' + html.escape(channel["name"]) + ''' post kits</h1>
 <p>Upload these files yourself. The Posted boxes only change this page.</p>
-''' + "".join(cards) + '''<script>
+''' + "".join(cards) + "".join(f"<p>Skipped a damaged kit: {html.escape(name)}</p>" for name in sorted(skipped)) + '''<script>
 document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener('click',async()=>{
   const text=document.getElementById(button.dataset.copy);
   try{await navigator.clipboard.writeText(text.value)}catch{ text.focus();text.select();document.execCommand('copy') }
