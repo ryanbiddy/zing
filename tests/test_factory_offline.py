@@ -164,6 +164,7 @@ def test_project_context_is_scoped_and_claude_is_refused(tmp_path, monkeypatch):
 def test_remote_video_paths_and_local_probes(tmp_path, monkeypatch):
     root = project(tmp_path)
     http(monkeypatch, VIDEO)
+    monkeypatch.setattr(visuals, "_max_redirects", lambda: True)   # this test covers the FFmpeg path
     calls = []
 
     def run(argv, **kwargs):

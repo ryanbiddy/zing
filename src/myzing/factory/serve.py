@@ -13,6 +13,7 @@ import queue
 import re
 import secrets
 import threading
+from functools import cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
@@ -20,7 +21,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 from . import edit, pipeline, plan, render
 from .edit import CLIP, TEXT_FIELDS
 from .judge import Judge
-from .tools import FactoryError, data_path
+from .tools import FactoryError, Processes, Stopped, data_path
 
 MEDIA = {".mp4", ".mov", ".webm", ".jpg", ".jpeg", ".png", ".webp"}
 
@@ -35,6 +36,11 @@ def _write(path: Path, value) -> None:
     tmp.replace(path)
 
 
+@cache
+def _project_lock(project: Path):
+    return threading.RLock()
+
+
 class Studio:
     """Project state for the page, and a single worker so renders never overlap."""
 
@@ -44,23 +50,61 @@ class Studio:
             raise FactoryError(f"{self.project} is not a factory project")
         self.jobs: queue.Queue = queue.Queue()
         self.active: list[str] = []
-        threading.Thread(target=self._work, daemon=True).start()
+        self.lock = _project_lock(self.project)
+        self._guard = threading.Lock()
+        self.worker = None
+        self.stopped = threading.Event()
+        self.processes = Processes()
 
     def _work(self) -> None:
-        while True:
-            label, job = self.jobs.get()
-            self.active.append(label)
+        while not self.stopped.is_set():
+            with self._guard:
+                try:
+                    label, job = self.jobs.get_nowait()
+                except queue.Empty:
+                    self.worker = None
+                    return
+                self.active.append(label)
             try:
-                job()
+                with self.processes.scope():       # saves take the lock; a long render must not block them
+                    if self.stopped.is_set():
+                        return
+                    job()
+            except Stopped:
+                return
             except Exception as exc:                       # surfaced on the page, never kills the server
-                _write(self.project / "status.json", {**(_read(self.project / "status.json") or {}),
-                                                      "error": f"{label}: {exc}"[:400]})
+                with self.lock:
+                    try:
+                        state = _read(self.project / "status.json")
+                    except Exception:
+                        state = None
+                    try:
+                        _write(self.project / "status.json", {**(state if isinstance(state, dict) else {}),
+                                                              "error": f"{label}: {exc}"[:400]})
+                    except Exception:
+                        pass
             finally:
-                self.active.remove(label)
+                with self._guard:
+                    self.active.remove(label)
+                self.jobs.task_done()
 
     def queue(self, label: str, job) -> dict:
-        self.jobs.put((label, job))
+        with self._guard:
+            if self.stopped.is_set():
+                raise FactoryError("dashboard is stopping")
+            self.jobs.put((label, job))
+            if self.worker is None or not self.worker.is_alive():
+                self.worker = threading.Thread(target=self._work, daemon=False)
+                self.worker.start()
         return {"queued": label}
+
+    def close(self) -> None:
+        with self._guard:
+            self.stopped.set()
+            worker = self.worker
+        self.processes.stop()
+        if worker:
+            worker.join()
 
     def state(self) -> dict:
         st = pipeline.status(self.project)
@@ -77,8 +121,9 @@ class Studio:
                           "visual_requests": _read(vis / "requests.json"), "candidates": _read(vis / "manifest.json"),
                           "picks": _read(vis / "picks.json"), "rating": ratings.get(c["clip"]),
                           "videos": {p.name: p.name for p in sorted(d.glob("clip*.mp4"))}})
-        st.update(clips=clips, packs={name: render.theme(name).get("name", name) for name in render.themes()},
-                  jobs=list(self.active) + [label for label, _ in list(self.jobs.queue)])
+        with self._guard, self.jobs.mutex:
+            jobs = list(self.active) + [label for label, _ in self.jobs.queue]
+        st.update(clips=clips, packs={name: render.theme(name).get("name", name) for name in render.themes()}, jobs=jobs)
         st["project"] = self.project.name
         st.pop("review", None)
         return st
@@ -94,13 +139,15 @@ class Studio:
 
     # ---------------------------------------------------------------- actions
     def run(self, _body: dict) -> dict:
-        return self.queue("run", lambda: pipeline.run(self.project, Judge(self.project, self.judge), say=lambda m: None))
+        return self.queue("run", lambda: pipeline.run(self.project, Judge(self.project, self.judge),
+                          say=lambda m: None, stop=self.stopped.is_set))
 
     def _make(self, label: str, change) -> dict:
         """Change the moments, then run just that clip: queued, so it never races a run already going."""
         def job():
             clip = change()
-            pipeline.run(self.project, Judge(self.project, self.judge), only={int(clip[4:])}, say=lambda m: None)
+            pipeline.run(self.project, Judge(self.project, self.judge), only={int(clip[4:])},
+                         say=lambda m: None, stop=self.stopped.is_set)
         return self.queue(label, job)
 
     def transcript(self) -> dict:
@@ -108,7 +155,8 @@ class Studio:
         return {"segments": [{"s": s["s"], "e": s["e"], "text": s["text"]} for s in segments]}
 
     def rate(self, body: dict) -> dict:
-        return edit.rate(self.project, body.get("clip"), body.get("v"), body.get("why") or "")
+        with self.lock:
+            return edit.rate(self.project, body.get("clip"), body.get("v"), body.get("why") or "")
 
     def clip(self, body: dict) -> dict:
         a, b = pipeline.check_range(self.project, body.get("start"), body.get("end"))   # refuse now, not in the queue
@@ -145,7 +193,8 @@ class Studio:
         field, value = body.get("field"), body.get("text")
         d, _, _ = edit._check_text(self.project, body.get("clip"), field, value)
         if field in TEXT_FIELDS:
-            edit.text(self.project, d.name, field, value)
+            with self.lock:
+                edit.text(self.project, d.name, field, value)
             return {"saved": field}
         return self.queue(f"{d.name}: new hook", lambda: edit.text(self.project, d.name, field, value,
                           context=self._context, rerender=self._rerender))
@@ -183,15 +232,18 @@ def handler(studio: Studio, port: int, token: str):
         def log_message(self, *args):                   # quiet; the page shows state
             pass
 
-        def _send(self, code: int, body: bytes, kind: str, extra: dict | None = None) -> None:
+        def _headers(self, code: int, length: int, kind: str, extra: dict | None = None) -> None:
             self.send_response(code)
             self.send_header("Content-Type", kind)
-            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Length", str(length))
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Cache-Control", "no-store")
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
+
+        def _send(self, code: int, body: bytes, kind: str, extra: dict | None = None) -> None:
+            self._headers(code, len(body), kind, extra)
             if self.command != "HEAD":
                 self.wfile.write(body)
 
@@ -237,6 +289,8 @@ def handler(studio: Studio, port: int, token: str):
                     return self._file(studio.media(path[len("/media/"):]))
             except FactoryError as exc:
                 return self._json(404, {"error": str(exc)})
+            except (ValueError, OSError) as exc:
+                return self._json(500, {"error": str(exc)})
             self._json(404, {"error": "not found"})
 
         do_HEAD = do_GET
@@ -254,15 +308,31 @@ def handler(studio: Studio, port: int, token: str):
                     start = max(0, size - int(rng.group(2)))
                 if start > end:
                     return self._send(416, b"", "text/plain", {"Content-Range": f"bytes */{size}"})
-            with target.open("rb") as f:
-                f.seek(start)
-                body = f.read(end - start + 1)
             extra = {"Accept-Ranges": "bytes"}
             if rng:
                 extra["Content-Range"] = f"bytes {start}-{end}/{size}"
-            self._send(206 if rng else 200, body, kind, extra)
+            with target.open("rb") as f:
+                self._headers(206 if rng else 200, end - start + 1, kind, extra)
+                if self.command == "HEAD":
+                    return
+                f.seek(start)
+                left = end - start + 1
+                while left:
+                    body = f.read(min(left, 1 << 20))
+                    if not body:
+                        break
+                    self.wfile.write(body)
+                    left -= len(body)
 
         def do_POST(self):
+            try:
+                length = max(0, int(self.headers.get("Content-Length") or 0))
+            except ValueError:
+                length = 0
+            if length > 64 << 10:
+                self.close_connection = True
+                return self._json(413, {"error": "request too large"})
+            raw = self.rfile.read(length)       # read before answering; Windows resets a socket closed with unread data
             origin = self.headers.get("Origin")
             if not self._trusted() or (origin and urlsplit(origin).netloc not in hosts):
                 return self._json(403, {"error": "localhost only"})
@@ -274,8 +344,7 @@ def handler(studio: Studio, port: int, token: str):
             if not action:
                 return self._json(404, {"error": "not found"})
             try:
-                length = min(int(self.headers.get("Content-Length") or 0), 64 << 10)
-                body = json.loads(self.rfile.read(length) or b"{}")
+                body = json.loads(raw or b"{}")
                 if not isinstance(body, dict):
                     raise FactoryError("send a JSON object")
                 self._json(200, {"ok": True, **action(body)})
@@ -296,4 +365,7 @@ def serve(project: Path, port: int = 8765, judge: str = "host", say=print) -> No
     except KeyboardInterrupt:
         pass
     finally:
-        server.server_close()
+        try:
+            server.server_close()
+        finally:
+            studio.close()

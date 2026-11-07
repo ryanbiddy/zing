@@ -20,7 +20,7 @@ from pathlib import Path
 from myzing import model_fetch
 from myzing.storage import workspace_root
 
-from .tools import FactoryError
+from .tools import FactoryError, run
 from .network import Network
 
 RELEASE = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesrgan-ncnn-vulkan-20220424-{}.zip"
@@ -127,8 +127,8 @@ def upscale(photo: Path, out: Path) -> Path | None:
         raise FactoryError(f"upscaler missing; run {FETCH_HINT}")
     out.parent.mkdir(parents=True, exist_ok=True)
     big = out.with_name(out.stem + ".x4.png")
-    done = subprocess.run([str(program()), "-i", str(photo), "-o", str(big), "-n", MODEL, "-s", "4",
-                           "-m", str(folder() / "models"), "-f", "png"], capture_output=True, check=False)
+    done = run(str(program()), "-i", str(photo), "-o", str(big), "-n", MODEL, "-s", "4",
+               "-m", str(folder() / "models"), "-f", "png", capture_output=True, check=False)
     if done.returncode or not big.is_file():
         big.unlink(missing_ok=True)
         return None                             # no Vulkan device, or the photo won't decode: keep it as it is
