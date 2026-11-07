@@ -55,6 +55,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 | `zing handoff` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
+| `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
 
 ## Hand-off with Uoink
 

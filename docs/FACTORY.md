@@ -17,6 +17,11 @@ closed, and `--idle-minutes N` to change the 60-minute idle limit. The minimum
 is 1 minute. The same item reuses its project and keeps edits. Uoink's button
 uses `--probe --json` to check support and `--json` to read the dashboard URL.
 See the [hand-off contract](UOINK-MEMORY.md#hand-off-with-uoink).
+\n## Connect an agent
+
+Run `zing connect` to list agent apps, then `zing connect claude-desktop`
+to print a config for one. Merge the entry into the app's settings to use the
+factory MCP tools. See [One line per app](CONNECT.md#one-line-per-app).
 
 ## Channels
 

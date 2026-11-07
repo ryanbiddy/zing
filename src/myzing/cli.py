@@ -62,6 +62,7 @@ _COMMANDS: dict[str, tuple[str, str]] = {
               "turn local photos and a topic into concepts, a contact sheet, and finished stills"),
     "serve-mcp": ("myzing.mcp_server",
                   "run the MCP server (connects Claude and other AI clients)"),
+    "connect": ("myzing.connect", "print MCP setup for an agent app"),
 }
 
 
@@ -89,8 +90,8 @@ def _usage() -> str:
         "Start here: zing studio\n\n"
         "usage: zing [--version] <command> [args]\n\n"
         f"commands:\n{rows}\n\n"
-        "Most commands accept --help. To connect an AI client, start with:\n"
-        "  zing serve-mcp --print-config\n"
+        "Most commands accept --help. List agent apps with zing connect.\n"
+        "  zing connect claude-desktop\n"
     )
 
 
