@@ -60,6 +60,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 ```sh
 zing channels setup creators --niche "How creators tell stories" --candidates @one @two @three
 zing channels setup creators --niche "How creators tell stories" --name "Creators" --candidates-file candidates.txt --keep 15 --min-shorts 3 --no-brief
+zing channels setup creators --niche "How creators tell stories" --suggest --judge host
 zing channels new stories --name "Stories" --niche "Player stories" --pack zing --mode context
 zing channels source stories --id club --name "Club" --kind podcast --url https://example.org/show --rights permission --grant "Email from the owner"
 zing factory new --channel stories --source club --media episode.mp4 --transcript episode.vtt
@@ -109,6 +110,16 @@ Setup writes `setup.json` and `setup.html`, makes a brief and prints its page
 path and elapsed minutes against a 15 minute target. `--no-brief` leaves the
 brief time unset. Brief failures are recorded and printed with exit code 0;
 setup input and channel errors exit with code 1.
+
+`--suggest` asks the judge for candidate handles. Explicit candidates come
+first, then suggestions, with the same duplicate checks and 40-channel limit.
+It works without `--candidates` or `--candidates-file`. Each suggestion goes
+through the public feed checks and can be dropped with a reason.
+`--judge host|claude` defaults to the existing channel's judge, or `host` for a
+new channel. New channels save that choice. With `host`, setup prints the
+prompt and answer paths and exits with code 0 before changing the channel.
+Write the JSON answer to the printed path and rerun the same command.
+With `claude`, Claude Code's CLI answers the prompt.
 
 `new` also accepts `--network-name`, `--network-line` and `--network-url`.
 `source` adds or replaces a source and accepts optional `--expires YYYY-MM-DD`
