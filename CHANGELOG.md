@@ -2,9 +2,8 @@
 
 ## Unreleased
 
-- Check public download addresses at connection time and study URL hosts before
-  fetching. Refuse API and Uoink redirects, validate ElevenLabs voice IDs, limit
-  Gemini replies, and handle broken API responses as transport failures.
+- Channel scripts learn from matched takes in the last 30 local dates. The brief
+  page shows how much of the script was kept. `brief --takes` prints recording notes.
 - Add daily channel briefs with script drafts and claims to check. Recorded takes
   carry their hook, news peg and series into the factory, queue and learning report.
 - Add channel platform news candidates from RSS, Atom and public YouTube uploads,

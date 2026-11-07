@@ -66,6 +66,7 @@ zing channels show stories
 zing channels check stories
 zing channels watch stories
 zing channels brief stories --open
+zing channels brief stories --takes
 zing channels brief stories --date 2026-11-06 --answer script-1 answer.json
 zing channels tick stories another-channel --max-minutes 50
 zing channels tick --all
@@ -107,6 +108,11 @@ the day's scripts and prints the page path. Dates use the channel timezone.
 task and fills missing scripts. `--open` opens `brief/latest.html`. Existing
 picks stay fixed. Configure breakdown, news and clips series in `channel.json`.
 The page shows linked receipts and claims to check before recording.
+
+`brief SLUG --takes [--date YYYY-MM-DD]` prints recording notes without making
+a brief. Notes use matched takes from the last 30 channel-local dates and need
+at least three takes. New script prompts use them to follow the owner's pace,
+length and wording. `--date` sets the last day of that window.
 
 Use `source SLUG --kind recordings` with a local folder, `--rights own` and
 a grant for finished takes. Each take becomes one clip of 3 through 180 seconds
