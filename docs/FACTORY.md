@@ -51,6 +51,11 @@ Set the source's `since` and `require_match` to avoid old files and unmatched
 takes. Set the channel's `phone_folder` to copy the latest brief to your phone.
 See [Record on your phone](CHANNELS.md#record-on-your-phone).
 
+`zing channels scorecard SLUG --open` compares local days, posts, recorded items,
+kept script shares, view medians and flags with the channel's bar. It writes a
+page and JSON without network or judge calls. `zing channels flag SLUG --kind
+claim --note "Check the quote"` logs an issue. See [Scorecard](CHANNELS.md#scorecard).
+
 After three matched takes in the last 30 local dates, new brief scripts use
 recording notes on pace, length and wording. `zing channels brief SLUG --takes`
 prints those notes without making a brief.

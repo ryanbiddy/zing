@@ -337,7 +337,7 @@ def test_tick_order_one_episode_and_summary(channel, tmp_path, monkeypatch):
         return {"pending": [{"task": "clip01-plan", "prompt_path": "prompt.md"}]}
     monkeypatch.setattr(queue, "build", lambda *a, **k: order.append("queue") or {"added": 3, "blocked": {"b/clip01": ["Needs review."]}})
     monkeypatch.setattr(kit, "kit", lambda *a, **k: order.append("kit") or {"made": 2, "blocked": {}})
-    monkeypatch.setattr(outcomes, "track", lambda slug: order.append("track") or {"matched": 0})
+    monkeypatch.setattr(outcomes, "track", lambda slug, **kw: order.append("track") or {"matched": 0})
     result = tick.run([channel["slug"]], watch_fn=watcher, runner=runner)
     assert order == ["watch", "run", "queue", "kit", "track"]
     row = result["channels"][channel["slug"]]

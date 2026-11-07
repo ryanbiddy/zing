@@ -514,6 +514,58 @@ own styles and copy button. Prompt paths appear as text; receipt links open the
 original web pages. A phone-folder write failure is saved in the brief's errors
 and leaves the local brief available.
 
+## Scorecard
+
+Check the channel against your bar with local briefs, queue rows and outcomes.
+No network or judge is used.
+
+```sh
+zing channels scorecard creators --open
+zing channels scorecard creators --days 14 --json
+zing channels flag creators --kind claim --note "Check the source quote" --clip episode/clip01
+```
+
+Each run writes `scorecard.html` and `scorecard.json` in the channel folder.
+`--open` opens the page. `--json` prints the saved result instead of the row
+summary. The window defaults to 30 channel-local dates, including today.
+
+- Days counts calendar days from the first brief through today, including both
+  dates. The default target is 30. Earlier briefs still count outside the window.
+- Posts counts queue rows marked `posted` within the window. It uses `posted_at`,
+  or the slot when that is missing. The default target is 60.
+- Recorded is the share of brief items marked `recorded`. Only items in the
+  window whose brief date is at least two days old count. It needs 10 items and
+  a share of at least 0.6. The detail shows recorded and total counts per series.
+- Kept is the median `take.kept` share among recorded items in the window.
+  It needs three numeric values and a median of at least 0.7. Older items
+  without take measurements are ignored.
+- Median views compares the newer half of measured posts with the older half,
+  ordered by posting time. It uses `views_7d`, falling back to numeric
+  `views_24h`. It needs 10 posts, and the newer median must be higher. An odd
+  extra post goes in the newer half. Details include per-series medians.
+- Flags counts logged flags and outcomes with `masked` set to `true` in the
+  window. The default limit is zero. Details give counts by kind.
+
+Rows with too little data say `not enough data`. Ready means all six rows pass.
+Corrupt files and invalid brief folders are skipped and listed in `problems`.
+The digest adds a scorecard count for channels with a brief.
+
+Set an optional `bar` object in `channel.json` to override any of these defaults.
+Values must be nonnegative numbers. Missing keys keep their defaults.
+
+```json
+"bar": {"days": 30, "posts": 60, "recorded": 0.6, "kept": 0.7, "flags": 0}
+```
+
+`--days` changes the window without changing the bar. The median views row
+always requires improvement over the earlier half.
+
+Use `flag` to append a claim, strike, reused-content issue or other note to
+`flags.jsonl`. `--kind` accepts `claim`, `strike`, `reused` or `other`.
+`--note` requires non-empty text of up to 500 characters. `--clip` is optional.
+Each flag uses the time it was logged. Invalid flag lines are skipped and
+reported while valid lines still count.
+
 ## Pause work
 
 ```sh

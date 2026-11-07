@@ -8,7 +8,7 @@ from pathlib import Path
 from myzing.factory import pipeline, render
 from myzing.playbook.common import parse_time
 
-from . import gate, queue, registry, tick, watch
+from . import gate, queue, registry, scorecard, tick, watch
 
 
 
@@ -37,6 +37,12 @@ def build(slugs: list[str] | None = None, *, now: datetime | None = None) -> str
         try:
             channel = registry.load(slug)
             root = registry.directory(slug)
+            if any((root / "brief").glob("*/brief.json")):
+                try:
+                    result = scorecard.build(slug, now=now)
+                    lines.extend([f"Scorecard: {result['met']} of {result['total']} met", ""])
+                except Exception as exc:
+                    lines.extend([f"Scorecard error. {_text(str(exc)[:200] or type(exc).__name__)}", ""])
             day = now.astimezone(registry.zone(channel["cadence"]["timezone"])).date().isoformat()
             brief = pipeline._read(root / "brief" / day / "brief.json")
             if brief is not None:

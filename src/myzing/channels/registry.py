@@ -124,7 +124,7 @@ def web_url(value, field):
 
 
 def validate(data: dict) -> dict:
-    _fields(data, {"schema_version", "slug", "name", "niche", "created", "prior", "youtube", "phone_folder", *DEFAULTS}, "channel")
+    _fields(data, {"schema_version", "slug", "name", "niche", "created", "prior", "youtube", "bar", "phone_folder", *DEFAULTS}, "channel")
     data = copy.deepcopy(data)
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         raise ChannelError("schema_version must be 1")
@@ -134,6 +134,12 @@ def validate(data: dict) -> dict:
     _text(data.get("created"), "created", required=True)
     if "prior" in data:
         _text(data["prior"], "prior", required=True)
+    if "bar" in data:
+        from .scorecard import BAR
+        _fields(data["bar"], BAR, "bar")
+        for key, value in data["bar"].items():
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise ChannelError(f"bar.{key} must be a nonnegative number")
     if "phone_folder" in data:
         _text(data["phone_folder"], "phone_folder", required=True)
     try:
