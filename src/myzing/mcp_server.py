@@ -219,12 +219,19 @@ def _version() -> str:
 def _pid_alive(pid: int) -> bool:
     """Whether ``pid`` is a currently-running process (best effort, no
     signals sent). Windows needs kernel32 — os.kill(pid, 0) kills there."""
-    if pid <= 0:
+    if type(pid) is not int or not 0 < pid <= 0xFFFFFFFF:
         return False
     if os.name == "nt":
         import ctypes
+        from ctypes import wintypes
 
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
         PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
         STILL_ACTIVE = 259
         ERROR_ACCESS_DENIED = 5
@@ -235,7 +242,7 @@ def _pid_alive(pid: int) -> bool:
             # access denied means the process exists but isn't ours
             return ctypes.get_last_error() == ERROR_ACCESS_DENIED
         try:
-            code = ctypes.c_ulong()
+            code = wintypes.DWORD()
             if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
                 return False
             return code.value == STILL_ACTIVE
@@ -243,10 +250,10 @@ def _pid_alive(pid: int) -> bool:
             kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
     except PermissionError:
         return True  # exists, owned by someone else
+    except (OverflowError, OSError):
+        return False
     return True
 
 
@@ -276,7 +283,7 @@ def _reconcile_running(slug: str, status: dict[str, Any]) -> dict[str, Any]:
         if job is not None and job.is_alive():
             return status
     pid = status.get("pid")
-    if not isinstance(pid, int) or pid <= 0:
+    if type(pid) is not int or not 0 < pid <= 0xFFFFFFFF:
         reason = (
             "it carries no runner pid - the study was started by a server "
             "that crashed or an older Zing"
@@ -802,6 +809,8 @@ def h_get_breakdown(slug: str, detail: str = "full") -> dict[str, Any]:
                 "state": "failed",
             }
         return {**_missing_slug_err(slug), "state": "absent"}
+    except (OSError, ValueError) as e:
+        return {**_err(f"could not read breakdown '{slug}': {e}"), "state": "failed"}
     data = b.to_dict()
     if detail == "summary":
         data = _summarize_breakdown(data)
@@ -1471,9 +1480,10 @@ def h_get_render(render_id: str) -> dict[str, Any]:
     if status.get("state") == "running":
         with _JOBS_LOCK:
             job = _RENDER_JOBS.get(render_id)
-            if (job is None or not job.is_alive()) and status.get(
-                "pid"
-            ) == os.getpid():
+            pid = status.get("pid")
+            if (job is None or not job.is_alive()) and (
+                pid == os.getpid() or not _pid_alive(pid)
+            ):
                 # crash honesty, same rule as studies: a running state
                 # without its worker is rewritten, not believed
                 error = (
@@ -1941,18 +1951,23 @@ def h_factory_clip(project: str, start: float | None = None, end: float | None =
     0-based as factory_status lists them), or new in and out points for an existing clip (clip plus start and end)."""
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
-    root = Path(project).expanduser()
     try:
-        if clip:
-            if start is None or end is None:
-                return _err("moving a clip needs start and end")
-            made = pipeline.trim(root, clip, start, end)
-        elif bench is not None:
-            made = pipeline.make_bench(root, bench)
-        elif start is not None and end is not None:
-            made = pipeline.add_clip(root, start, end, hook or "")
-        else:
-            return _err("give start and end, bench, or clip with start and end")
+        root = Path(project).expanduser().resolve()
+        if not (root / "factory.json").is_file():
+            return _err(f"{root} is not a factory project; create one with factory_new")
+        with _JOBS_LOCK:
+            if str(root) in _FACTORY_JOBS:
+                return _err("a factory run is in progress for this project; wait for factory_status to show it finished")
+            if clip:
+                if start is None or end is None:
+                    return _err("moving a clip needs start and end")
+                made = pipeline.trim(root, clip, start, end)
+            elif bench is not None:
+                made = pipeline.make_bench(root, bench)
+            elif start is not None and end is not None:
+                made = pipeline.add_clip(root, start, end, hook or "")
+            else:
+                return _err("give start and end, bench, or clip with start and end")
     except (FactoryError, ValueError, OSError, KeyError) as exc:
         return _err(str(exc))
     return _ok(clip=made, hint="Call factory_run(project); it cuts, plans and renders the new clip.")
@@ -1961,10 +1976,15 @@ def h_factory_clip(project: str, start: float | None = None, end: float | None =
 def h_factory_answer(project: str, task: str, answer: dict[str, Any] | str) -> dict[str, Any]:
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
-    root = Path(project).expanduser().resolve()
     try:
-        pipeline.answer(root, task, answer)
-    except (FactoryError, ValueError) as exc:
+        root = Path(project).expanduser().resolve()
+        if not (root / "factory.json").is_file():
+            return _err(f"{root} is not a factory project; create one with factory_new")
+        with _JOBS_LOCK:
+            if str(root) in _FACTORY_JOBS:
+                return _err("a factory run is in progress for this project; wait for factory_status to show it finished")
+            pipeline.answer(root, task, answer)
+    except (FactoryError, ValueError, OSError) as exc:
         return _err(str(exc))
     return _ok(task=task, saved=True, hint="Answer the other pending tasks, then call factory_run(project).")
 
