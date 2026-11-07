@@ -67,6 +67,9 @@ zing channels check stories
 zing channels watch stories
 zing channels brief stories --open
 zing channels brief stories --date 2026-11-06 --answer script-1 answer.json
+zing channels scorecard stories --days 30 --open
+zing channels scorecard stories --json
+zing channels flag stories --kind claim --note "Check the quote" --clip episode/clip01
 zing channels tick stories another-channel --max-minutes 50
 zing channels tick --all
 zing channels digest stories
@@ -108,6 +111,19 @@ task and fills missing scripts. `--open` opens `brief/latest.html`. Existing
 picks stay fixed. Configure breakdown, news and clips series in `channel.json`.
 The page shows linked receipts and claims to check before recording.
 
+`scorecard SLUG [--days N] [--open] [--json]` compares local briefs, posted queue
+rows, take measurements, outcomes and flags with the channel's bar. `--days`
+sets a positive window of channel-local dates ending today, default 30.
+Each run writes `scorecard.html` and `scorecard.json` in the channel folder.
+`--open` opens the page. `--json` prints the result instead of row summaries.
+Set `bar` in `channel.json` to override days, posts, recorded share, kept share
+or the flag limit. Ready means all six rows pass. No network or judge is used.
+
+`flag SLUG --kind KIND --note TEXT [--clip ID]` appends one row to `flags.jsonl`
+and prints it. Kinds are `claim`, `strike`, `reused` and `other`. Notes must be
+non-empty and at most 500 characters. The clip ID is optional. Scorecards count
+these flags and masked outcomes within the window.
+
 Use `source SLUG --kind recordings` with a local folder, `--rights own` and
 a grant for finished takes. Each take becomes one clip of 3 through 180 seconds
 without scouting. A matching open brief item supplies the hook, news peg and
@@ -128,7 +144,8 @@ also run before YouTube requests.
 `digest [--all|SLUG] [--out FILE]` writes Markdown for the last 24 hours and
 lists waiting work. With no slug it includes all channels. With no `--out`
 it writes to stdout. Today's brief adds ready and waiting script counts and
-the page path. Scheduling examples are in the Channels guide.
+the page path. Channels with a brief also get a scorecard count.
+Scheduling examples are in the Channels guide.
 
 Factory `new --channel SLUG` inherits the channel's factory defaults and uses
 its slug for shared Post and No history. Explicit flags win. `--source ID`

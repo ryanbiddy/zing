@@ -45,6 +45,11 @@ hook, news peg and series. The factory reuses the transcript, plans graphics
 from the spoken facts and sends the clip through the usual gate and queue.
 See [Daily brief and recorded takes](CHANNELS.md#daily-brief-and-recorded-takes).
 
+`zing channels scorecard SLUG --open` compares local days, posts, recorded items,
+kept script shares, view medians and flags with the channel's bar. It writes a
+page and JSON without network or judge calls. `zing channels flag SLUG --kind
+claim --note "Check the quote"` logs an issue. See [Scorecard](CHANNELS.md#scorecard).
+
 Channel [platform news](CHANNELS.md#platform-news) finds candidates from public
 feeds and YouTube uploads from the last 10 days. It ranks them by creator topics
 and date. Source errors are saved in `brief/news-errors.jsonl` under the channel.
