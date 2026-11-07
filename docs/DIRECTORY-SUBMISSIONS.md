@@ -5,6 +5,28 @@ pre-alpha, and `myzing` is not yet published to PyPI. These files do not publish
 register or submit anything. Recheck each directory's current requirements
 before a future submission; form fields and acceptance rules are unverified.
 
+Uoink is listed in most of the same places. Each Zing listing carries one
+"Works with Uoink" line in its long description, and Uoink's listings point
+back the same way. Uoink's own kit is `docs/submissions/README.md` in
+ryanbiddy/uoink.
+
+| Where | Status | First step |
+|---|---|---|
+| [Official MCP registry](#official-mcp-registry) | **Blocked** on a PyPI release | Ryan approves publishing `myzing` |
+| [GitHub MCP Registry](#github-mcp-registry) | **Blocked** on the official registry entry | Ask in the onboarding discussion |
+| [Hermes plugin catalog](#hermes-plugin-catalog) | Ready, deadline for the hackathon Tue Nov 11, 5 PM ET | Ryan opens the catalog PR |
+| [Glama](#glama) | Ready | Ryan runs the build form |
+| [mcp.so](#mcpso) | Ready | Web form |
+| [Cline marketplace](#cline-marketplace) | Ready after a Cline install test | Issue form |
+| [Cursor Directory](#cursor-directory), [LobeHub](#lobehub), [MCP Market](#mcp-market), [Smithery](#smithery) | Ready | Web forms or CLI |
+| [PulseMCP](#pulsemcp) | Follows the official registry | Nothing to submit |
+| [awesome-mcp-servers](#awesome-mcp-servers) | **Blocked** on a Glama score | PR after Glama |
+| [Claude directory and Goose](#claude-directory-and-goose) | **Blocked** on a PyPI release | One portable launch command |
+
+Not for Zing: Raycast, Homebrew, winget, Flow Launcher, Edge Add-ons, Alfred and
+Obsidian. Uoink is listed there because it ships an app or extension for each.
+Zing is a Python package with no app to list.
+
 ## Text to paste
 
 | Field | Value |
@@ -18,6 +40,7 @@ before a future submission; form fields and acceptance rules are unverified.
 | Install line | From the source checkout: `uv sync --extra mcp`, then `uv run --frozen zing serve-mcp`. |
 | Install guide | https://github.com/ryanbiddy/zing/blob/main/llms-install.md |
 | Transport | Local stdio |
+| Connect line | `zing connect <client>` prints the config for 48 agent apps. |
 | License | MIT for Zing code and docs; bundled assets retain their own notices. |
 
 Long description:
@@ -27,8 +50,9 @@ Long description:
 > measured, estimated or unknown. It also makes memes from local photos.
 > Pre-alpha; needs Python 3.11+, uv and FFmpeg.
 >
-> Works with Uoink: Zing can study a video you already saved in Uoink and save its
-> breakdown back as a note. Uoink is optional.
+> Works with Uoink: Zing can study a video you already saved in Uoink, open a
+> saved item in its clip factory with `zing handoff`, and save its breakdown back
+> as a note. Uoink is optional.
 
 Name Uoink only in long fields, as above, and always say it is optional. Never
 name it in the short description, the PyPI summary, `zing --help`, titles or the
@@ -227,6 +251,57 @@ The current issue form asks the submitter to confirm they tested Cline
 installing the server from the README or `llms-install.md`. Run that test before
 submitting; do not tick the box without it. Use the 400x400 logo above. Any
 screenshots the form requires remain to be supplied.
+
+## GitHub MCP Registry
+
+Status: **NOT SUBMITTED**
+
+The GitHub MCP Registry onboards servers that are already in the official MCP
+registry. After `io.github.ryanbiddy/zing` is published there, ask in
+[discussion #1257](https://github.com/github/github-mcp-server/discussions/1257):
+
+> Hi! Could `io.github.ryanbiddy/zing` be onboarded to the GitHub MCP Registry?
+> It's published in the official MCP Registry. Zing is a free, MIT, local video
+> studio: its stdio MCP server lets agents turn a long episode into captioned
+> short clips, study a reference video and render drafts on the user's machine.
+> It pairs with Uoink (`io.github.ryanbiddy/uoink`). Repo:
+> https://github.com/ryanbiddy/zing. Thanks!
+
+## mcp.so
+
+Status: **NOT SUBMITTED**
+
+Destination: https://mcp.so (web form; find its submit page). Paste:
+
+- **Name:** Zing
+- **URL:** https://github.com/ryanbiddy/zing
+- **Short description:** Free, local video and meme studio your AI agents can drive. Pre-alpha.
+- **Description:** Use the long description above.
+- **Transport:** stdio
+- **Tags:** video-editing, ffmpeg, captions, memes, local-first, python, pre-alpha
+
+## Hermes plugin catalog
+
+Status: **NOT SUBMITTED**
+
+The package is `plugins/hermes-zing` in this repository. It passed
+`hermes plugins validate` in an isolated Hermes 0.23 home, and Hermes connected
+to Zing and registered all 44 tools. The catalog entry is one file,
+`plugin-catalog/zing.yaml`, in a PR to
+[NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent). The
+repository owner opens it (catalog rule 5). Pin `sha` to the full commit that
+contains the package on `main`. Drafts of the entry and the PR body are kept
+outside this repository. Uoink's entry is separate, so each app has its own
+chance in the hackathon.
+
+## Claude directory and Goose
+
+Status: **NOT SUBMITTED**
+
+Both list one launch command that must work on every machine. Zing's is
+`zing serve-mcp` once `myzing` installs from PyPI with the `mcp` extra. Until then
+a user needs a source checkout, which these directories do not accept. Submit
+after the PyPI release, using `command: "zing", args: ["serve-mcp"]`.
 
 ## awesome-mcp-servers
 
