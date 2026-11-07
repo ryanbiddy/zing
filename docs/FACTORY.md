@@ -45,6 +45,11 @@ hook, news peg and series. The factory reuses the transcript, plans graphics
 from the spoken facts and sends the clip through the usual gate and queue.
 See [Daily brief and recorded takes](CHANNELS.md#daily-brief-and-recorded-takes).
 
+`zing channels scorecard SLUG --open` compares local days, posts, recorded items,
+kept script shares, view medians and flags with the channel's bar. It writes a
+page and JSON without network or judge calls. `zing channels flag SLUG --kind
+claim --note "Check the quote"` logs an issue. See [Scorecard](CHANNELS.md#scorecard).
+
 After three matched takes in the last 30 local dates, new brief scripts use
 recording notes on pace, length and wording. `zing channels brief SLUG --takes`
 prints those notes without making a brief.
