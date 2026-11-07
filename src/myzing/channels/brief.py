@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import html
 import json
+import math
 import re
 from datetime import date as Date, datetime, time, timezone
 from importlib import resources
 from pathlib import Path
+from statistics import median
 
 from myzing.factory.judge import Judge, NeedsAnswer
 from myzing.factory.pipeline import _read, _write
@@ -52,15 +54,16 @@ def check(value: dict) -> dict:
     return {key: value[key] for key in ("hook", "script", "move", "title", "check")}
 
 
-def _prompt(channel: dict, series: dict, facts: dict) -> str:
+def _prompt(channel: dict, series: dict, facts: dict, *, now: datetime) -> str:
     root = registry.directory(channel["slug"])
     prior = bandit.prior(channel) if channel.get("prior") else _read(root / "prior.json", {})
     text = (resources.files("myzing") / "_data" / "channels" / "prompts" / "brief-script.md").read_text(encoding="utf-8")
     values = {"NAME": channel["name"], "NICHE": channel["niche"], "VOICE": registry.voice(channel["slug"]) or "None given.",
               "SERIES": series["name"], "LESSON": series.get("lesson") or "End with one move the viewer can copy.",
               "FACTS": json.dumps(facts, ensure_ascii=False, indent=1),
-              "PRIOR": "\n".join(f"- {line}" for line in prior.get("guidance", [])) or "None yet."}
-    return re.sub(r"\{(NAME|NICHE|VOICE|SERIES|LESSON|FACTS|PRIOR)\}", lambda m: values[m[1]], text)
+              "PRIOR": "\n".join(f"- {line}" for line in prior.get("guidance", [])) or "None yet.",
+              "TAKES": "\n".join(f"- {line}" for line in voice(channel["slug"], now)) or "None yet."}
+    return re.sub(r"\{(NAME|NICHE|VOICE|SERIES|LESSON|FACTS|PRIOR|TAKES)\}", lambda m: values[m[1]], text)
 
 
 def _collector(kind: str, collectors):
@@ -97,7 +100,11 @@ def _page(folder: Path, channel: dict, data: dict, *, latest=True) -> Path:
         if item["kind"] == "breakdown" and item["facts"].get("title"):
             body += f'<p>Video: {html.escape(item["facts"]["title"])}</p>'
         if item.get("status") == "recorded":
-            body += '<p>Recorded</p>'
+            note = "Recorded"
+            take = item.get("take")
+            if isinstance(take, dict) and all(isinstance(take.get(k), (int, float)) for k in ("kept", "seconds")):
+                note = f"Recorded. Kept {round(take['kept'] * 100)}% of the script in {take['seconds']:g} seconds."
+            body += f'<p>{html.escape(note)}</p>'
         if item.get("script"):
             claims = "".join(f"<li>{html.escape(s)}</li>" for s in item["check"])
             body += (f'<p><strong>{html.escape(item["hook"])}</strong></p>'
@@ -193,7 +200,7 @@ def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) 
         prompt = None
         try:
             series = next((s for s in channel["series"] if s["id"] == item["series"]), {"name": item["series_name"]})
-            prompt = _prompt(channel, series, item["facts"])
+            prompt = _prompt(channel, series, item["facts"], now=now)
             answer = (judge or Judge(folder, backend=channel["judge"])).ask(task, prompt)
             item.update(check(answer), pending=None)
             data["errors"] = [e for e in data["errors"] if not e.startswith(task + " ")]
@@ -245,6 +252,67 @@ def _words(text: str) -> set[str]:
     return set(re.findall(r"\b[^\W\d_]{4,}\b", text.lower())) - STOP
 
 
+def compare(item: dict, words: list[dict]) -> dict:
+    item = item if isinstance(item, dict) else {}
+    script = item.get("script") if isinstance(item.get("script"), str) else ""
+    hook = _words(item.get("hook") if isinstance(item.get("hook"), str) else "")
+    words = [w for w in words if isinstance(w, dict) and isinstance(w.get("w"), str) and w["w"].strip()] if isinstance(words, list) else []
+    spoken = " ".join(w["w"] for w in words).split()
+    content, said = _words(script), _words(" ".join(spoken))
+    opening = " ".join(spoken[:20])
+    try:
+        seconds = float(words[-1]["e"]) - float(words[0]["s"])
+    except (IndexError, KeyError, TypeError, ValueError, OverflowError):
+        seconds = 0
+    return {"words": len(spoken), "script_words": len(script.split()),
+            "kept": round(len(content & said) / len(content), 2) if content else 0,
+            "added": round(len(said - content) / len(said), 2) if said else 0,
+            "hook_kept": bool(hook) and len(hook & _words(opening)) / len(hook) >= .6,
+            "seconds": round(max(0, seconds), 1) if math.isfinite(seconds) else 0, "opening": opening[:200]}
+
+
+def voice(slug: str, now: datetime) -> list[str]:
+    today = Date.fromisoformat(_day(registry.load(slug), now))
+    history = []
+    for path in (registry.directory(slug) / "brief").glob("*/brief.json"):
+        try:
+            day = Date.fromisoformat(path.parent.name)
+            if not 0 <= (today - day).days < 30:
+                continue
+            data = _read(path, {})
+        except (OSError, ValueError):
+            continue
+        if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+            continue
+        history.extend((day, item) for item in data["items"]
+                       if isinstance(item, dict) and isinstance(item.get("take"), dict))
+    history.sort(key=lambda row: (row[0], row[1].get("n", 0)), reverse=True)
+    if len(history) < 3:
+        return []
+    takes = [item["take"] for _, item in history]
+    lines = []
+    rates = [t.get("words", 0) / t["seconds"] for t in takes if t.get("seconds", 0) >= 5]
+    if rates:
+        rate = median(rates)
+        lines.append(f"The owner speaks about {rate:.1f} words a second. Aim for about {round(rate * 35)} spoken words.")
+    ratios = [t.get("words", 0) / t["script_words"] for t in takes if t.get("script_words", 0) > 0]
+    if ratios:
+        ratio = median(ratios)
+        if ratio < .85 or ratio > 1.15:
+            lines.append(f"Recorded takes ran about {round(ratio * 100)}% of the script length.")
+    changed = [item for _, item in history if not item["take"].get("hook_kept")]
+    if len(changed) > len(takes) / 2:
+        lines.append(f"The owner rewrote {len(changed)} of the last {len(takes)} hooks when recording.")
+    kept = median(t.get("kept", 0) for t in takes)
+    if kept < .6:
+        lines.append(f"The owner kept about {round(kept * 100)}% of the script's words. Write closer to how they talk.")
+    for item in changed[:3]:
+        hook = " ".join(str(item.get("hook") or "").split())[:120]
+        opening = " ".join(str(item["take"].get("opening") or "").split())[:120]
+        lines.append(f"Script hook: {hook} | Said instead: {opening}")
+    return lines
+
+
 def match(slug: str, text: str, now: datetime):
     today = Date.fromisoformat(_day(registry.load(slug), now))
     words, best, score = _words(text), None, .35
@@ -271,7 +339,11 @@ def recorded(slug: str, project: Path, take: dict) -> None:
     folder = registry.directory(slug) / "brief" / take["brief"]
     data = _read(folder / "brief.json")
     item = next(item for item in data["items"] if item["n"] == take["item"])
-    item.update(status="recorded", project=str(project))
+    try:
+        words = _read(project / "words.json", [])
+    except (OSError, ValueError):
+        words = []
+    item.update(status="recorded", project=str(project), take=compare(item, words if isinstance(words, list) else []))
     _write(folder / "brief.json", data)
     newest = max(p.parent.name for p in folder.parent.glob("*/brief.json"))
     _page(folder, registry.load(slug), data, latest=folder.name == newest)
