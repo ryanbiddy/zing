@@ -51,6 +51,11 @@ Set the source's `since` and `require_match` to avoid old files and unmatched
 takes. Set the channel's `phone_folder` to copy the latest brief to your phone.
 See [Record on your phone](CHANNELS.md#record-on-your-phone).
 
+With `phone_folder` set, channel kit runs also copy approved kits and their text
+to `<phone_folder>/<slug>-kits/`. The command prints the phone index path.
+Posted or skipped kits leave the mirror on the next kit run or tick.
+Phone folder errors appear as warnings and do not stop the kit run.
+
 `zing channels scorecard SLUG --open` compares local days, posts, recorded items,
 kept script shares, view medians and flags with the channel's bar. It writes a
 page and JSON without network or judge calls. `zing channels flag SLUG --kind

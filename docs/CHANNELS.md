@@ -475,6 +475,11 @@ Edit the recordings source in `channel.json`. Set `require_match` to `true` and
 `since` to today's date. Replace the example date and paths below. Add
 `phone_folder` at the top level to copy the latest brief into a synced folder.
 
+With `phone_folder` set, `zing channels kit SLUG` also copies approved kits and
+their post copy into `<phone_folder>/<slug>-kits/`. Open its `index.html` on your
+phone to play clips and copy text before uploading in the platform's app.
+Posted or skipped kits leave this folder on the next kit run or tick.
+
 ```json
 {
   "phone_folder": "C:/Users/ExampleUser/OneDrive/Zing/briefs",
