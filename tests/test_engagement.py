@@ -55,7 +55,7 @@ def test_opened_event_is_exact_and_accepted(
             json.dumps(accepted_response()).encode("utf-8"))
 
     monkeypatch.setattr(
-        engagement.urllib.request, "urlopen", answer)
+        engagement.urls, "open_no_redirect", answer)
 
     receipt = engagement.record_opened(ITEM_REF, SHA256)
 
@@ -101,8 +101,8 @@ def test_unconfigured_event_is_spooled_then_retried(
     monkeypatch.delenv("UOINK_TOKEN", raising=False)
     calls = {"count": 0}
     monkeypatch.setattr(
-        engagement.urllib.request,
-        "urlopen",
+        engagement.urls,
+        "open_no_redirect",
         lambda *args, **kwargs: calls.__setitem__(
             "count", calls["count"] + 1),
     )
@@ -122,7 +122,7 @@ def test_unconfigured_event_is_spooled_then_retried(
             json.dumps(accepted_response()).encode("utf-8"))
 
     monkeypatch.setattr(
-        engagement.urllib.request, "urlopen", answer)
+        engagement.urls, "open_no_redirect", answer)
     second = engagement.record_opened(ITEM_REF, SHA256)
 
     assert second["state"] == "accepted"
@@ -143,7 +143,7 @@ def test_accepted_event_is_locally_idempotent(
             json.dumps(accepted_response()).encode("utf-8"))
 
     monkeypatch.setattr(
-        engagement.urllib.request, "urlopen", answer)
+        engagement.urls, "open_no_redirect", answer)
 
     first = engagement.record_opened(ITEM_REF, SHA256)
     second = engagement.record_opened(ITEM_REF, SHA256)
@@ -175,8 +175,8 @@ def test_retryable_rejection_remains_spooled(
         },
     }
     monkeypatch.setattr(
-        engagement.urllib.request,
-        "urlopen",
+        engagement.urls,
+        "open_no_redirect",
         lambda *args, **kwargs: FakeResponse(
             json.dumps(body).encode("utf-8")),
     )
@@ -217,7 +217,7 @@ def test_auth_failure_is_a_durable_rejection(
         )
 
     monkeypatch.setattr(
-        engagement.urllib.request, "urlopen", reject)
+        engagement.urls, "open_no_redirect", reject)
 
     receipt = engagement.record_opened(ITEM_REF, SHA256)
 
@@ -238,8 +238,8 @@ def test_contract_drift_is_not_silently_retried(
     drifted = accepted_response()
     drifted["unexpected"] = True
     monkeypatch.setattr(
-        engagement.urllib.request,
-        "urlopen",
+        engagement.urls,
+        "open_no_redirect",
         lambda *args, **kwargs: FakeResponse(
             json.dumps(drifted).encode("utf-8")),
     )
@@ -395,7 +395,7 @@ def _serve(monkeypatch, payload, status=200):
 
     body = json.dumps(payload).encode("utf-8") if not isinstance(payload, bytes) else payload
     monkeypatch.setattr(
-        engagement.urllib.request, "urlopen",
+        engagement.urls, "open_no_redirect",
         lambda *a, **k: Resp(body),
     )
 
@@ -447,7 +447,7 @@ def test_malformed_rejection_entry_is_refused():
 def test_invalid_uoink_url_never_attempts_delivery(monkeypatch, zing_workspace):
     monkeypatch.setenv(suite_peer_env := "UOINK_URL", "http://evil.example.com:80")
     monkeypatch.setattr(
-        engagement.urllib.request, "urlopen",
+        engagement.urls, "open_no_redirect",
         lambda *a, **k: pytest.fail("must not deliver to a non-loopback URL"),
     )
     receipt = engagement.record_opened("uoink://item/x", "ab" * 32)
@@ -511,7 +511,7 @@ def delivery_seam(monkeypatch, zing_workspace):
     """
     monkeypatch.setenv("UOINK_TOKEN", "local-token")
     seam = _Seam()
-    monkeypatch.setattr(engagement.urllib.request, "urlopen", seam)
+    monkeypatch.setattr(engagement.urls, "open_no_redirect", seam)
     yield seam
     assert seam.calls > 0, (
         "this test never reached the transport, so it proves nothing about "
@@ -636,7 +636,7 @@ def test_settled_rejection_is_never_re_delivered(zing_workspace, monkeypatch):
         calls["n"] += 1
         return FakeResponse(b"<html>not json</html>")
 
-    monkeypatch.setattr(engagement.urllib.request, "urlopen", reject)
+    monkeypatch.setattr(engagement.urls, "open_no_redirect", reject)
 
     first = engagement.record_opened(ITEM_REF, SHA256)
     assert first["state"] == "rejected"
@@ -666,7 +666,7 @@ def test_corrupt_pending_event_is_named_not_delivered(
     def never(request, timeout=0):
         raise AssertionError("a nonconformant event must not be delivered")
 
-    monkeypatch.setattr(engagement.urllib.request, "urlopen", never)
+    monkeypatch.setattr(engagement.urls, "open_no_redirect", never)
     with pytest.raises(engagement.EngagementStorageError):
         engagement.record_opened(ITEM_REF, SHA256)
 

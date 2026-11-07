@@ -48,23 +48,32 @@ def isolated_uoink_transport(monkeypatch):
     """Default peer requests must be mocked; never inherit real credentials."""
     import urllib.error
     import urllib.request
-    from myzing import suite_peer, uoink_bridge
+    from myzing import suite_peer, uoink_bridge, urls
 
     monkeypatch.delenv("UOINK_TOKEN", raising=False)
     monkeypatch.delenv("UOINK_URL", raising=False)
     monkeypatch.setattr(suite_peer, "UOINK_DEFAULT_URL", "http://127.0.0.1:1")
     monkeypatch.setattr(uoink_bridge, "UOINK_DEFAULT_URL", "http://127.0.0.1:1")
     original = urllib.request.urlopen
+    no_redirect = urls.open_no_redirect
 
-    def offline_peer(request, *args, **kwargs):
+    def check(request):
         url = request.full_url if hasattr(request, "full_url") else str(request)
         if url.startswith("http://127.0.0.1:1/"):
             raise urllib.error.URLError("isolated test peer is offline")
         if ":5179" in url:
             raise AssertionError("Patch peer discovery before making test requests")
+
+    def offline_peer(request, *args, **kwargs):
+        check(request)
         return original(request, *args, **kwargs)
 
+    def offline_no_redirect(request, *args, **kwargs):
+        check(request)
+        return no_redirect(request, *args, **kwargs)
+
     monkeypatch.setattr(urllib.request, "urlopen", offline_peer)
+    monkeypatch.setattr(urls, "open_no_redirect", offline_no_redirect)
 
 
 @pytest.fixture(autouse=True)

@@ -39,7 +39,7 @@ def fake_search_peer(monkeypatch, request):
         body["data"]["page"].update(state="matches" if hits else "no_matches", total=int(hits), corpus_total=1)
         return io.BytesIO(json.dumps(body).encode())
 
-    monkeypatch.setattr(suite_search.urllib.request, "urlopen", respond)
+    monkeypatch.setattr(suite_search.urls, "open_no_redirect", respond)
     return matching, calls
 
 

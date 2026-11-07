@@ -553,8 +553,11 @@ def test_family_scenario_tampered_kept_media_refetches_honestly(
     be measured — integrity fails, the study refetches, and provenance
     says so (acquisition source_refetch / reason integrity_mismatch)."""
     import hashlib
+    import socket
     import subprocess as sp
 
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port))])
     wire_measurement_stages_only(monkeypatch)
     fetched: list[list[str]] = []
 

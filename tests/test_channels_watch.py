@@ -280,7 +280,7 @@ def test_podcast_cannot_redirect_to_private_host(channel, monkeypatch):
     monkeypatch.setattr(socket, "getaddrinfo", lambda host, *a, **k: [
         (2, 1, 6, "", ("127.0.0.1" if host == "private.test" else "8.8.8.8", 443))])
 
-    def opener(handler):
+    def opener(handler, *handlers):
         class Opener:
             def open(self, request, **kwargs):
                 return handler.redirect_request(request, io.BytesIO(), 302, "Found", {}, "https://private.test/file")

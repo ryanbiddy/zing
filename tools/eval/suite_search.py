@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 from unittest.mock import patch
 
-from myzing import suite_peer, uoink_bridge
+from myzing import suite_peer, uoink_bridge, urls
 
 
 SEARCH_CASES = (
@@ -30,7 +30,7 @@ def collect_search_evidence() -> dict:
         raise ValueError("Uoink does not advertise corpus.read/1")
     evidence = {"capabilities": capabilities, "status": "checked", "queries": []}
 
-    transport = urllib.request.urlopen
+    transport = urls.open_no_redirect
     evidence["status"] = "checked"
     for case, query in SEARCH_CASES:
         exchanges = []
@@ -47,7 +47,7 @@ def collect_search_evidence() -> dict:
                               "response": json.loads(raw)})
             return io.BytesIO(raw)
 
-        with patch.object(urllib.request, "urlopen", observe):
+        with patch.object(urls, "open_no_redirect", observe):
             parsed = uoink_bridge.search_references(query)
         if len(exchanges) != 1 or parsed.get("ok") is not True:
             raise ValueError("Zing rejected advertised search v1: " + case)
