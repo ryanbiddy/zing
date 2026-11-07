@@ -190,7 +190,7 @@ def test_torn_stage_is_rebuilt(clip, monkeypatch, marker):
 
 @pytest.mark.parametrize("stage", ["cams", "manifest", "plan", "answer"])
 def test_stage_and_answer_writes_keep_the_previous_file_on_interruption(clip, monkeypatch, stage):
-    import cv2
+    cv2 = pytest.importorskip("cv2")
     import numpy as np
     from myzing.layout import detector
 
