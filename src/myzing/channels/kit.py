@@ -117,6 +117,40 @@ def _stale(d: Path, folder: Path) -> bool:
                for src, dest in pairs)
 
 
+def _phone(channel: dict, rows: list[dict]) -> Path:
+    out = Path(channel["phone_folder"]).expanduser().resolve() / f"{channel['slug']}-kits"
+    out.mkdir(parents=True, exist_ok=True)
+    folders = {Path(r["kit"]).name: Path(r["kit"]) for r in rows if r["status"] == "kit" and r.get("kit")}
+    for folder in out.iterdir():
+        if folder.is_dir() and (folder / ".zing-kit").is_file() and folder.name not in folders:
+            shutil.rmtree(folder)
+    for name, src in folders.items():
+        folder = out / name
+        if folder.exists() and not (folder / ".zing-kit").is_file():
+            raise registry.ChannelError(f"kit folder has no .zing-kit marker at {folder}")
+        stamp = {}
+        for file in ("video.mp4", "post.json"):
+            stat = (src / file).stat()
+            stamp[file] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+        if _read(folder / ".zing-kit", {}) == stamp:
+            continue
+        with tempfile.TemporaryDirectory(prefix=".kit-", dir=out) as temp:
+            tmp, previous = Path(temp) / "ready", Path(temp) / "previous"
+            tmp.mkdir()
+            for file in ("video.mp4", "post.json", *[f"{field}.txt" for field in TEXTS]):
+                shutil.copyfile(src / file, tmp / file)
+            _write(tmp / ".zing-kit", stamp)
+            if folder.exists():
+                folder.rename(previous)
+            try:
+                tmp.rename(folder)
+            except OSError:
+                if previous.exists():
+                    previous.rename(folder)
+                raise
+    return _index(out, channel, [])
+
+
 def kit(slug: str, out: Path | None = None, *, now: datetime | None = None, stop=None) -> dict:
     channel = registry.load(slug)
     registry.require_running(slug)
@@ -180,4 +214,10 @@ def _kit(channel: dict, out: Path | None, stop, now=None) -> dict:
         queue.write(slug, rows)
         made.append(str(folder))
     index = _index(out, channel, rows)
-    return {"made": len(made), "kits": made, "blocked": blocked, "warnings": warnings, "index": str(index)}
+    phone = None
+    if channel.get("phone_folder"):
+        try:
+            phone = str(_phone(channel, rows))
+        except Exception as exc:
+            warnings.append(f"phone_folder {str(exc) or type(exc).__name__}")
+    return {"made": len(made), "kits": made, "blocked": blocked, "warnings": warnings, "index": str(index), "phone": phone}
