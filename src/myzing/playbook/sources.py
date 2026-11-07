@@ -9,6 +9,7 @@ from statistics import median
 
 from myzing import doctor
 from myzing.study import proc
+from . import feeds
 from .common import SCHEMA_VERSION, number, read_json, safe_name, utc_now, write_json
 
 
@@ -16,7 +17,7 @@ def list_channel(handle: str) -> list[dict]:
     argv = doctor.resolve_ytdlp_argv()
     if argv is None:
         raise ValueError("yt-dlp is unavailable; run zing doctor")
-    name = safe_name(handle)
+    name = feeds.channel(handle)
     channel = f"channel/{name}" if name.startswith("UC") and len(name) == 24 else f"@{name}"
     result = proc.run([*argv, "--ignore-config", "--no-update", "--flat-playlist",
                        "--skip-download", "--playlist-end", "160", "-j",
@@ -70,19 +71,25 @@ def build(out: Path, channels=(), *, from_candidates: Path | None = None, skip_n
     else:
         selected = {}
         for handle in channels:
-            handle = safe_name(handle.lstrip("@"))
+            handle = handle.removeprefix("@")
             if handle in selected:
                 continue
             try:
+                handle = feeds.channel(handle)
                 selected[handle] = select(list_channel(handle), skip_newest=skip_newest, k=k)
             except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
                 selected[handle] = {"status": "failed", "reason": str(exc)}
     entries, summaries, seen = [], {}, set()
     listed_at = utc_now()
     for handle, summary in selected.items():
-        handle = safe_name(handle.lstrip("@"))
+        handle = handle.removeprefix("@")
         if summary.get("status") in ("skipped", "failed"):
             summaries[handle] = summary
+            continue
+        try:
+            handle = feeds.channel(handle)
+        except ValueError as exc:
+            summaries[handle] = {"status": "failed", "reason": str(exc)}
             continue
         med = summary["median_views"]
         if summary["n"] < 30 or not number(med) or med <= 0:
@@ -113,5 +120,9 @@ def build(out: Path, channels=(), *, from_candidates: Path | None = None, skip_n
     result = {"schema_version": SCHEMA_VERSION, "listed_at": listed_at, "entries": entries, "channels": summaries}
     write_json(out / "library.json", result)
     for handle, summary in summaries.items():
-        write_json(out / "channels" / f"{handle}.json", summary)
+        try:
+            name = feeds.channel(handle).replace(".", "_")
+        except ValueError:
+            continue
+        write_json(out / "channels" / f"{name}.json", summary)
     return result

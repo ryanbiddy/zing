@@ -208,10 +208,11 @@ def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) 
             item["pending"] = str(exc.path)
         except Exception as exc:
             Judge(folder).forget(task)  # a bad cached answer would come back on every run
+            item["attempts"] = item.get("attempts", 0) + 1
             error = f"{task} {str(exc) or type(exc).__name__}"
             if error not in data["errors"]:
                 data["errors"].append(error)
-            if prompt is not None:
+            if prompt is not None and (channel["judge"] == "host" or item["attempts"] >= 3):
                 pending = folder / "pending" / f"{task}.md"
                 pending.parent.mkdir(parents=True, exist_ok=True)
                 pending.write_text(prompt, encoding="utf-8")

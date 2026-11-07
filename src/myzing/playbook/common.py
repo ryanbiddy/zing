@@ -50,13 +50,14 @@ def write_json(path: Path, value) -> None:
 
 
 def library(root: Path) -> dict:
+    from .feeds import channel
     data = read_json(root / "library.json")
     if data.get("schema_version") != SCHEMA_VERSION or not isinstance(data.get("entries"), list):
         raise ValueError("unsupported library schema")
     seen = set()
     for entry in data["entries"]:
         ident = safe_name(entry["id"])
-        safe_name(entry["channel"])
+        channel(entry["channel"])
         if ident in seen or entry.get("set") not in ("worked", "didnt"):
             raise ValueError("duplicate ID or invalid comparison set in library")
         seen.add(ident)

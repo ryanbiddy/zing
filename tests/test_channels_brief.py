@@ -386,7 +386,7 @@ const navigator={clipboard:{writeText:async value=>copied.push(value)}};
 ''' + script + '''
 (async()=>{await click();navigator.clipboard.writeText=async()=>{throw Error()};await click();
 console.log(JSON.stringify([copied,fallback,text.style.height]))})();'''
-    result = RUN([node, "-"], input=program, text=True, capture_output=True, timeout=15)
+    result = RUN([node, "-"], input=program, text=True, capture_output=True, timeout=60)   # Node starts slowly on Windows CI
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == [["spoken words"], ["focus", "select", "copy"], "480px"]
 
