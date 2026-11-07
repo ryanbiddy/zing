@@ -12,6 +12,11 @@ Zing command. Start with `factory_new`, call `factory_run` and poll
 `factory_status`. Hermes answers each `factory_prompt` through `factory_answer`,
 then resumes the run. Use `factory_clip` for new cuts and `factory_edit` for
 caption, hook, copy or visual changes. Return the review page and receipts.
+\n## Connect an agent
+
+Run `zing connect` to list agent apps, then `zing connect claude-desktop`
+to print a config for one. Merge the entry into the app's settings to use the
+factory MCP tools. See [One line per app](CONNECT.md#one-line-per-app).
 
 ## Channels
 
