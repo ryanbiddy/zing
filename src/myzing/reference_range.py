@@ -60,12 +60,13 @@ def options(args):
 
 
 def slug(source, ref_start=None, ref_end=None, reference_range=None, *, analysis_seconds=None, analysis_max_side=None):
-    from myzing.storage import slug_for
+    from myzing.storage import _hash8, slug_for
     start, end = parse(ref_start, ref_end, reference_range)
-    key = source if start is None and end is None else f"{source}#reference={start or 0:g}-{end}"
+    base = slug_for(source)
+    key = base if start is None and end is None else f"{base}#reference={start or 0:g}-{end}"
     if analysis_seconds is not None or analysis_max_side is not None:
         key += f"#analysis={analysis_seconds};max-side={analysis_max_side}"
-    return slug_for(key)
+    return base if key == base else f"{base[:68].rstrip('-')}-ref-{_hash8(key.encode())}"  # room for -reference-source
 
 
 def validate_duration(duration, ref_start=None, ref_end=None, reference_range=None, *, limit=LIMIT_SECONDS):

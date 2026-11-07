@@ -356,11 +356,17 @@ def _whisper_cache() -> tuple[Path | None, bool]:
 
 def check_whisper() -> Check:
     from .study import speech_models
-    model = _whisper_model_name()
-    if model == "skip":
-        return Check(name="faster-whisper", tier=RECOMMENDED, ok=True,
-                     detail=speech_models.SKIP_NOTE, data={"model": "skip", "network_used": False})
-    rows = speech_models.inventory()
+    try:
+        model = _whisper_model_name()
+        if model == "skip":
+            return Check(name="faster-whisper", tier=RECOMMENDED, ok=True,
+                         detail=speech_models.SKIP_NOTE, data={"model": "skip", "network_used": False})
+        rows = speech_models.inventory()
+    except (ValueError, OSError) as exc:
+        return Check(name="faster-whisper", tier=RECOMMENDED, ok=False,
+                     detail=f"could not read speech settings or inventory: {exc}",
+                     fix="Run zing doctor --speech-model small.en --yes to replace speech.json.",
+                     data={"network_used": False})
     row = next(r for r in rows if r["model"] == model)
     installed = _has_module("faster_whisper")
     data = {**row, "models": rows, "network_used": False}
@@ -992,7 +998,10 @@ def run(argv: list[str]) -> int:
         print(json.dumps(summary, indent=2))
     else:
         _print_human(checks)
-        speech_models.print_inventory()
+        try:
+            speech_models.print_inventory()
+        except (ValueError, OSError) as exc:
+            print(f"Speech inventory unavailable: {exc}")
         for item in (receipt, audio_receipt):
             if item:
                 print(json.dumps(item, indent=2))

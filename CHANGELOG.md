@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reject factory changes outside projects or during runs, keep reference trims
+  separate, and recover jobs after their runners exit. Report corrupt state and
+  invalid process IDs without crashing; stage profile and thumbnail updates
+  before replacing saved files.
 - Add daily channel briefs with script drafts and claims to check. Recorded takes
   carry their hook, news peg and series into the factory, queue and learning report.
 - Add channel platform news candidates from RSS, Atom and public YouTube uploads,

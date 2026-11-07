@@ -523,7 +523,7 @@ def list_breakdowns() -> list[dict[str, Any]]:
                 "has_media": find_media(d.name) is not None,
                 "judgment_sections": sorted(raw.get("judgment", {})),
             })
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError, AttributeError, KeyError, TypeError) as e:
             index.append({"slug": d.name, "error": f"unreadable breakdown.json: {e}"})
     return index
 
@@ -542,12 +542,22 @@ def save_profile(p: StyleProfile) -> Path:
     """Write a StyleProfile; returns its directory. An existing
     profile.json is kept as profile.json.bak (rebuilds are expected as
     the source set grows — never silently destroy the prior aggregate)."""
+    import tempfile
+
     d = profile_dir(p.name)
     d.mkdir(parents=True, exist_ok=True)
     json_path = d / "profile.json"
     if json_path.exists():
-        json_path.replace(d / "profile.json.bak")
-    json_path.write_text(p.to_json(indent=2) + "\n", encoding="utf-8")
+        shutil.copyfile(json_path, d / "profile.json.bak")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=d, suffix=".part", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(p.to_json(indent=2) + "\n")
+        _replace(temporary, json_path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return d
 
 
@@ -590,6 +600,6 @@ def list_profiles() -> list[dict[str, Any]]:
                 ),
                 "warnings": len(raw.get("warnings", [])),
             })
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError, AttributeError, KeyError, TypeError) as e:
             index.append({"name": d.name, "error": f"unreadable profile.json: {e}"})
     return index

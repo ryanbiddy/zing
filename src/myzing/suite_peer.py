@@ -225,8 +225,8 @@ def lease_defect(payload: Any, service_id: str) -> str | None:
     ui_defect = _ui_defect(payload.get("ui"))
     if ui_defect is not None:
         return ui_defect
-    if not isinstance(payload.get("pid"), int) or payload["pid"] <= 0:
-        return "pid must be a positive integer"
+    if type(payload.get("pid")) is not int or not 0 < payload["pid"] <= 0xFFFFFFFF:
+        return "pid must be a positive integer no greater than 4294967295"
     if not isinstance(payload.get("started_at"), str):
         return "started_at must be a string"
     return None
