@@ -5,6 +5,8 @@
 - Keep YouTube channel metadata available during feed outages with yt-dlp.
   Receipts say "about" for rounded counts. Shorts use exact metadata, and
   approximate counts never become measured learning results.
+- Add channel scorecards with local progress rows, owner-set bars, flags and
+  digest counts. `channels scorecard` writes HTML and JSON; `channels flag` logs issues.
 - Channel scripts learn from matched takes in the last 30 local dates. The brief
   page shows how much of the script was kept. `brief --takes` prints recording notes.
 - Add daily channel briefs with script drafts and claims to check. Recorded takes

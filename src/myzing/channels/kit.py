@@ -64,7 +64,10 @@ def _index(out: Path, channel: dict, rows: list[dict]) -> Path:
                   key=lambda item: datetime.fromisoformat(item[1]["slot"]).timestamp())
     cards = []
     for i, (folder, post) in enumerate(kits):
-        video = quote(Path(os.path.relpath(folder / "video.mp4", out)).as_posix(), safe="/")
+        try:
+            video = quote(Path(os.path.relpath(folder / "video.mp4", out)).as_posix(), safe="/")
+        except ValueError:
+            video = (folder / "video.mp4").as_uri()
         texts = []
         title, _, description = (folder / "youtube.txt").read_text(encoding="utf-8").partition("\n\n")
         for field in ("youtube_title", *TEXTS):
@@ -114,14 +117,14 @@ def _stale(d: Path, folder: Path) -> bool:
                for src, dest in pairs)
 
 
-def kit(slug: str, out: Path | None = None, *, stop=None) -> dict:
+def kit(slug: str, out: Path | None = None, *, now: datetime | None = None, stop=None) -> dict:
     channel = registry.load(slug)
     registry.require_running(slug)
     with youtube.lock():
-        return _kit(channel, out, stop)
+        return _kit(channel, out, stop, now)
 
 
-def _kit(channel: dict, out: Path | None, stop) -> dict:
+def _kit(channel: dict, out: Path | None, stop, now=None) -> dict:
     from .publish import _outbox
     slug = channel["slug"]
     out = Path(out).expanduser().resolve() if out is not None else registry.directory(slug) / "kits"
@@ -141,7 +144,7 @@ def _kit(channel: dict, out: Path | None, stop) -> dict:
         stale = _stale(d, folder)
         if row["status"] == "kit" and not stale:
             continue
-        result = gate.check(project, row["clip"], channel)
+        result = gate.check(project, row["clip"], channel, now=now)
         if not result["publishable"]:
             blocked[row["id"]] = result["blockers"]
             if row["status"] == "kit":

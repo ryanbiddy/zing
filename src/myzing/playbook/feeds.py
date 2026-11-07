@@ -210,8 +210,13 @@ def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: boo
         views = stats.get("views", "") if stats is not None else ""
         if not ident or not published or (not watch_only and not views.isdigit()):
             continue
-        rows.append({"id": safe_name(ident), "title": entry.findtext("atom:title", "", NS),
-                     "published": parse_time(published).isoformat(), "views": int(views) if views.isdigit() else 0,
+        try:
+            ident, published = safe_name(ident), parse_time(published).isoformat()
+            views = int(views) if views.isdigit() else 0
+        except ValueError:
+            continue
+        rows.append({"id": ident, "title": entry.findtext("atom:title", "", NS),
+                     "published": published, "views": views,
                      "short": any("/shorts/" in link.get("href", "") for link in entry.findall("atom:link", NS)),
                      "channel_id": channel_id,
                      "channel_title": entry.findtext("atom:author/atom:name", tree.findtext("atom:title", "", NS), NS)})

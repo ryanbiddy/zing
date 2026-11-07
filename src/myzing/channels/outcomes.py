@@ -5,6 +5,7 @@ import csv
 import json
 import math
 import re
+import secrets
 from pathlib import Path
 from statistics import median
 from urllib.parse import parse_qs, urlsplit
@@ -13,7 +14,7 @@ from myzing.factory.pipeline import _read
 from myzing.playbook import feeds, watch
 from myzing.playbook.common import append_jsonl, number, utc_now
 
-from . import bandit, queue, registry
+from . import bandit, queue, registry, youtube
 
 
 def read(slug: str) -> list[dict]:
@@ -23,9 +24,12 @@ def read(slug: str) -> list[dict]:
 
 def write(slug: str, rows: list[dict]) -> None:
     path = registry.directory(slug) / "outcomes.jsonl"
-    tmp = path.with_suffix(".jsonl.tmp")
-    tmp.write_text("".join(json.dumps(r, ensure_ascii=False, allow_nan=False) + "\n" for r in rows), encoding="utf-8")
-    tmp.replace(path)
+    tmp = path.with_name(".outcomes-" + secrets.token_hex(8) + ".tmp")
+    try:
+        tmp.write_text("".join(json.dumps(r, ensure_ascii=False, allow_nan=False) + "\n" for r in rows), encoding="utf-8")
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def video_id(url: str | None) -> str | None:
@@ -49,8 +53,10 @@ def _title(text: str) -> str:
     return " ".join(text.split()).casefold()
 
 
-def _match(rows: list[dict], videos: list[dict]) -> int:
+def _match(rows: list[dict], videos: list[dict], entries=()) -> int:
     matched, used = set(), {r.get("video_id") or video_id(r.get("url")) for r in rows if r["status"] == "posted"}
+    saved = {r["id"] for r in entries}
+    used.update(r["video_id"] for r in entries if r.get("video_id"))
     by_id = {v["id"]: v for v in videos}
 
     def posted(row, video):
@@ -64,7 +70,7 @@ def _match(rows: list[dict], videos: list[dict]) -> int:
         ident = row.get("video_id") or video_id(row.get("url"))
         if row["status"] == "posted" and ident in by_id:
             posted(row, by_id[ident])
-    waiting = [r for r in rows if r["status"] in ("kit", "queued") and _title(r.get("title", ""))]
+    waiting = [r for r in rows if r["id"] not in saved and r["status"] in ("kit", "queued") and _title(r.get("title", ""))]
     for row in waiting:
         title = _title(row["title"])
         matches = [v for v in videos if v["id"] not in used and _title(v["title"]) == title]
@@ -96,6 +102,13 @@ def rewards(rows: list[dict]) -> list[dict]:
 def track(slug: str, *, fetch=None, now=None) -> dict:
     registry.require_running(slug)
     channel = registry.load(slug)
+    with youtube.lock():
+        return _track(channel, fetch, now)
+
+
+def _track(channel, fetch, now):
+    from .publish import _outbox
+    slug = channel["slug"]
     handle = channel["handles"].get("youtube", "").strip()
     if not handle or not (handle.startswith("@") or re.fullmatch(feeds.ID, handle)):
         raise registry.ChannelError("Set handles.youtube to an @handle or UC channel ID before tracking.")
@@ -107,7 +120,7 @@ def track(slug: str, *, fetch=None, now=None) -> dict:
                  **{key: v[key] for key in ("channel_id", "id", "title", "published", "views", "short")}}
                 for v in videos if not v.get("approximate")])
     rows = queue.read(slug)
-    matched = _match(rows, videos)
+    matched = _match(rows, videos, _outbox(slug))
     queue.write(slug, rows)
     velocity = {v["id"]: v for v in watch.velocity(root)["videos"] if v["channel_id"] == ident}
     saved = {r["id"]: r for r in read(slug)}
@@ -146,6 +159,11 @@ def _number(value):
 
 def metrics(slug: str, path: Path) -> dict:
     registry.load(slug)
+    with youtube.lock():
+        return _metrics(slug, path)
+
+
+def _metrics(slug, path):
     rows = read(slug)
     by_id = {r["video_id"]: r for r in rows if r.get("video_id")}
     matched, unmatched, at = 0, 0, utc_now()

@@ -14,18 +14,21 @@ TARGETS = {"1h": 1, "6h": 6, "24h": 24, "72h": 72, "7d": 168}
 def watch(out: Path, channels=(), *, fetch=None, now=None) -> dict:
     summaries, seen, total = {}, set(), 0
     for handle in dict.fromkeys(channels):
-        ident = feeds.resolve(handle, fetch, root=out)
-        if ident in seen:
-            continue
-        seen.add(ident)
-        rows = feeds.feed(ident, fetch, root=out)
-        at = now.isoformat() if now is not None else utc_now()
-        append_jsonl(out / "snapshots.jsonl", [{"at": at, "channel": handle,
-                     **({"approximate": row["approximate"]} if "approximate" in row else {}),
-                     **{key: row[key] for key in ("channel_id", "id", "title", "published", "views", "short")}}
-                    for row in rows])
-        summaries[handle] = {"channel_id": ident, "entries": len(rows)}
-        total += len(rows)
+        try:
+            ident = feeds.resolve(handle, fetch, root=out)
+            if ident in seen:
+                continue
+            rows = feeds.feed(ident, fetch, root=out)
+            at = now.isoformat() if now is not None else utc_now()
+            append_jsonl(out / "snapshots.jsonl", [{"at": at, "channel": handle,
+                         **({"approximate": row["approximate"]} if "approximate" in row else {}),
+                         **{key: row[key] for key in ("channel_id", "id", "title", "published", "views", "short")}}
+                        for row in rows])
+            seen.add(ident)
+            summaries[handle] = {"channel_id": ident, "entries": len(rows)}
+            total += len(rows)
+        except (OSError, ValueError) as exc:
+            summaries[handle] = {"status": "failed", "reason": str(exc)}
     return {"entries": total, "channels": summaries}
 
 

@@ -5,6 +5,7 @@ from the shared zing_workspace fixture (Lane B's conftest)."""
 from __future__ import annotations
 
 import json
+import socket
 import subprocess
 from pathlib import Path
 
@@ -13,6 +14,12 @@ import pytest
 from myzing import storage
 from myzing.study import ingest
 from myzing.study.proc import MediaError, ToolMissing
+
+
+@pytest.fixture(autouse=True)
+def public_dns(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, **kwargs: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", port))])
 
 
 def probe_json(

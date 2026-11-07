@@ -91,7 +91,7 @@ def bare_machine(monkeypatch):
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", refuse)
     from myzing import suite_peer
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", refuse)
 
 
 @pytest.fixture
@@ -109,7 +109,7 @@ def full_machine(monkeypatch):
 
     monkeypatch.setattr(doctor.urllib.request, "urlopen", refuse)
     from myzing import suite_peer
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", refuse)
 
 
 # -- bare machine ------------------------------------------------------------

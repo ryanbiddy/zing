@@ -22,6 +22,7 @@ TRANSCRIPT = "FIXTURE_TRANSCRIPT_MUST_NEVER_BE_PUBLISHED"
 def offline(monkeypatch):
     def refuse(*args, **kwargs):
         raise AssertionError("unmocked external operation")
+    monkeypatch.setattr(notes.urls, "open_no_redirect", refuse)
     monkeypatch.setattr(notes.urllib.request, "urlopen", refuse)
     monkeypatch.setattr(sources.proc, "run", refuse)
     monkeypatch.setattr(measure.study_api, "study", refuse)
@@ -195,7 +196,7 @@ def test_notes_blind_header_cache_and_no_secret(tmp_path, monkeypatch, capsys, c
         assert body["generationConfig"]["responseMimeType"] == "application/json"
         assert "responseSchema" in body["generationConfig"]
         return response()
-    monkeypatch.setattr(notes.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", urlopen)
     assert notes.notes(tmp_path)["done"] == 1
     assert notes.notes(tmp_path, model="another-model")["cached"] == 1
     assert len(calls) == 1
@@ -211,7 +212,7 @@ def test_notes_blind_header_cache_and_no_secret(tmp_path, monkeypatch, capsys, c
     rubric(opening_line="word " * 21), rubric(attention_reason="word " * 61), rubric(extra="field")])
 def test_invalid_rubric_failure(tmp_path, monkeypatch, bad):
     make_library(tmp_path)
-    monkeypatch.setattr(notes.urllib.request, "urlopen", lambda *a, **k: response(bad))
+    monkeypatch.setattr(notes.urls, "open_no_redirect", lambda *a, **k: response(bad))
     summary = notes.notes(tmp_path)
     assert summary["failed_count"] == 1
     record = read_json(tmp_path / "notes" / "video0.json")
@@ -228,7 +229,7 @@ def test_retry_then_success(tmp_path, monkeypatch, code):
         if len(calls) == 1:
             raise urllib.error.HTTPError(req.full_url, code, SECRET, {}, FakeHTTPResponse(SECRET.encode()))
         return response()
-    monkeypatch.setattr(notes.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", urlopen)
     monkeypatch.setattr(notes.time, "sleep", sleeps.append)
     result = notes.notes(tmp_path)
     assert result["done"] == 1 and result["video_seconds_sent"] == 120
@@ -241,7 +242,7 @@ def test_retry_bounded_and_error_sanitized(tmp_path, monkeypatch):
     def fail(req, **kwargs):
         calls.append(req)
         raise urllib.error.HTTPError(req.full_url, 429, SECRET, {}, FakeHTTPResponse(SECRET.encode()))
-    monkeypatch.setattr(notes.urllib.request, "urlopen", fail)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", fail)
     summary = notes.notes(tmp_path)
     assert len(calls) == 4 and summary["failed_count"] == 1
     assert SECRET not in json.dumps(summary)
@@ -251,7 +252,7 @@ def test_budget_duration_fallback_and_retries(tmp_path, monkeypatch):
     make_library(tmp_path, [entry("v0", duration=15), entry("v1"), entry("v2")])
     write_json(tmp_path / "measured" / "v1.json", {"meta": {"duration": 20}})
     calls = []
-    monkeypatch.setattr(notes.urllib.request, "urlopen", lambda *a, **k: (calls.append(1), response())[1])
+    monkeypatch.setattr(notes.urls, "open_no_redirect", lambda *a, **k: (calls.append(1), response())[1])
     summary = notes.notes(tmp_path, budget_hours=35/3600)
     assert summary["done"] == 2 and summary["skipped_for_budget"] == 1
     assert summary["video_seconds_sent"] == 35 and len(calls) == 2
@@ -264,7 +265,7 @@ def test_retry_cannot_exceed_budget(tmp_path, monkeypatch):
     def fail(req, **kwargs):
         calls.append(req)
         raise urllib.error.HTTPError(req.full_url, 429, "busy", {}, FakeHTTPResponse(b"{}"))
-    monkeypatch.setattr(notes.urllib.request, "urlopen", fail)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", fail)
     summary = notes.notes(tmp_path, budget_hours=60/3600)
     assert len(calls) == 1 and summary["skipped_for_budget"] == 1
     assert summary["video_seconds_sent"] == 60
@@ -280,7 +281,7 @@ def test_missing_key_and_limit(tmp_path, monkeypatch):
 
 def test_response_echo_cannot_persist_key(tmp_path, monkeypatch):
     make_library(tmp_path)
-    monkeypatch.setattr(notes.urllib.request, "urlopen", lambda *a, **k: response(rubric(topic=SECRET)))
+    monkeypatch.setattr(notes.urls, "open_no_redirect", lambda *a, **k: response(rubric(topic=SECRET)))
     assert notes.notes(tmp_path)["failed_count"] == 1
     assert all(SECRET not in p.read_text() for p in tmp_path.rglob("*.json"))
 
@@ -289,7 +290,7 @@ def test_nested_json_escape_cannot_persist_key(tmp_path, monkeypatch):
     make_library(tmp_path)
     inner = json.dumps(rubric(topic=SECRET)).replace(SECRET, "".join(f"\\u{ord(c):04x}" for c in SECRET))
     payload = {"candidates": [{"content": {"parts": [{"text": inner}]}}]}
-    monkeypatch.setattr(notes.urllib.request, "urlopen", lambda *a, **k: FakeHTTPResponse(json.dumps(payload).encode()))
+    monkeypatch.setattr(notes.urls, "open_no_redirect", lambda *a, **k: FakeHTTPResponse(json.dumps(payload).encode()))
     assert notes.notes(tmp_path)["failed_count"] == 1
     assert all(SECRET not in p.read_text() for p in tmp_path.rglob("*.json"))
 
@@ -297,7 +298,7 @@ def test_nested_json_escape_cannot_persist_key(tmp_path, monkeypatch):
 @pytest.mark.parametrize("candidates", [None, [], [None], [123], [{"content": {"parts": [None]}}]])
 def test_malformed_response_envelope_is_recorded(tmp_path, monkeypatch, candidates):
     make_library(tmp_path)
-    monkeypatch.setattr(notes.urllib.request, "urlopen", lambda *a, **k: FakeHTTPResponse(json.dumps({"candidates": candidates}).encode()))
+    monkeypatch.setattr(notes.urls, "open_no_redirect", lambda *a, **k: FakeHTTPResponse(json.dumps({"candidates": candidates}).encode()))
     assert notes.notes(tmp_path)["failed_count"] == 1
 
 
@@ -317,14 +318,14 @@ def test_models_pagination_and_model_precedence(tmp_path, monkeypatch):
         assert req.get_header("X-goog-api-key") == SECRET
         return FakeHTTPResponse(json.dumps({"models": [{"name": f"models/m{len(calls)}"}],
             **({"nextPageToken": "next token"} if len(calls) == 1 else {})}).encode())
-    monkeypatch.setattr(notes.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", urlopen)
     assert len(notes.models()) == 2 and "pageToken=next+token" in calls[1]
     make_library(tmp_path)
     monkeypatch.setenv("ZING_GEMINI_MODEL", "env-model")
     def generate(req, **kwargs):
         assert "/models/env-model:generateContent" in req.full_url
         return response()
-    monkeypatch.setattr(notes.urllib.request, "urlopen", generate)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", generate)
     assert notes.notes(tmp_path)["done"] == 1
 
 
@@ -546,7 +547,7 @@ def test_retry_after_header(tmp_path, monkeypatch, code, header, expected):
         if len(calls) == 1:
             raise urllib.error.HTTPError(req.full_url, code, "busy", {"Retry-After": header}, FakeHTTPResponse(b"{}"))
         return response()
-    monkeypatch.setattr(notes.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", urlopen)
     monkeypatch.setattr(notes.time, "sleep", sleeps.append)
     assert notes.notes(tmp_path)["done"] == 1
     assert sleeps[0] == expected
@@ -557,7 +558,7 @@ def test_daily_budget_across_runs_and_utc_rollover(tmp_path, monkeypatch):
     day = ["2026-10-30"]
     monkeypatch.setattr(notes, "utc_now", lambda: day[0] + "T23:59:59+00:00")
     calls = []
-    monkeypatch.setattr(notes.urllib.request, "urlopen", lambda *a, **k: (calls.append(1), response())[1])
+    monkeypatch.setattr(notes.urls, "open_no_redirect", lambda *a, **k: (calls.append(1), response())[1])
     assert notes.notes(tmp_path, limit=1, budget_hours=120/3600)["video_seconds_sent"] == 60
     second = notes.notes(tmp_path, budget_hours=120/3600)
     assert second["done"] == 1 and second["skipped_for_budget"] == 1
@@ -574,7 +575,7 @@ def test_failed_attempts_persist_daily_usage(tmp_path, monkeypatch):
     def fail(req, **kwargs):
         calls.append(req)
         raise urllib.error.HTTPError(req.full_url, 503, "busy", {}, FakeHTTPResponse(b"{}"))
-    monkeypatch.setattr(notes.urllib.request, "urlopen", fail)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", fail)
     assert notes.notes(tmp_path, budget_hours=120/3600)["video_seconds_sent"] == 120
     assert notes.notes(tmp_path, budget_hours=120/3600)["video_seconds_sent"] == 0
     assert len(calls) == 2
@@ -586,7 +587,7 @@ def test_ledger_reservation_precedes_send_and_locks(tmp_path, monkeypatch):
         ledgers = list((tmp_path / "notes").glob("usage-*.json"))
         assert read_json(ledgers[0])["video_seconds_sent"] == 60
         raise KeyboardInterrupt
-    monkeypatch.setattr(notes.urllib.request, "urlopen", interrupted)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", interrupted)
     with pytest.raises(KeyboardInterrupt):
         notes.notes(tmp_path)
     assert notes.notes(tmp_path, budget_hours=60/3600)["skipped_for_budget"] == 1
@@ -611,5 +612,5 @@ def test_notes_dry_run_exact_request_no_send_or_writes(tmp_path, monkeypatch, ca
     def live(req, **kwargs):
         assert req.full_url == preview["url"] and json.loads(req.data) == preview["body"]
         return response()
-    monkeypatch.setattr(notes.urllib.request, "urlopen", live)
+    monkeypatch.setattr(notes.urls, "open_no_redirect", live)
     assert notes.notes(tmp_path, model="fixture-model", limit=1)["done"] == 1

@@ -166,6 +166,10 @@ def _finish(slug, rows, row, entries, entry, now, video=None):
             raise registry.ChannelError("YouTube did not return a video ID. Resume this upload later.")
         entry.update(video_id=ident, posted_at=now.isoformat(timespec="seconds"))
         _save_outbox(slug, entries)  # save the ID before touching the queue
+    rows = queue.read(slug)
+    row = next((r for r in rows if r["id"] == row["id"]), None)
+    if row is None:
+        raise registry.ChannelError("A YouTube outbox row is missing from the queue.")
     if row.get("video_id") and row["video_id"] != entry["video_id"]:
         raise registry.ChannelError("The queue and upload have different video IDs.")
     row.update(status="posted", video_id=entry["video_id"], posted_at=entry.get("posted_at") or now.isoformat(timespec="seconds"),
@@ -203,6 +207,9 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                 break
             registry.require_running(slug)
             now = queue._now(clock)
+            row = next((r for r in queue.read(slug) if r["id"] == row["id"]), None)
+            if row is None:
+                continue
             entry = saved.get(row["id"])
             if row["status"] != "kit" or row.get("video_id") or (entry and entry.get("video_id")):
                 continue
@@ -241,8 +248,22 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                 if entry and entry.get("channel_id", channel["youtube"]["channel_id"]) != channel["youtube"]["channel_id"]:
                     raise registry.ChannelError("Reconnect the YouTube channel that started this upload.")
                 try:
+                    if entry:
+                        try:
+                            video = _transfer(client, entry, resume=True)
+                        except youtube.Error as exc:
+                            if exc.status not in (404, 410):
+                                raise
+                            entries.remove(entry)
+                            _save_outbox(slug, entries)
+                            saved.pop(row["id"], None)
+                            entry = None
+                            metadata = _metadata({**row, "kit": str(folder)}, channel, now)
                     if not entry:
                         client.checkpoint()
+                        current = next((r for r in queue.read(slug) if r["id"] == row["id"]), None)
+                        if current is None or current["status"] != "kit" or current.get("video_id"):
+                            continue
                         result["stopped"] = _quota(channel, project, now, reserve=True)
                         if result["stopped"]:
                             break
@@ -257,8 +278,6 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                         entries.append(entry)
                         _save_outbox(slug, entries)
                         video = _transfer(client, entry, resume=False)
-                    else:
-                        video = _transfer(client, entry, resume=True)
                     result["posted"].append(_finish(slug, rows, row, entries, entry, queue._now(clock), video))
                 except youtube.Error as exc:
                     if exc.reason:
