@@ -66,6 +66,7 @@ zing channels show stories
 zing channels check stories
 zing channels watch stories
 zing channels brief stories --open
+zing channels brief stories --takes
 zing channels brief stories --date 2026-11-06 --answer script-1 answer.json
 zing channels scorecard stories --days 30 --open
 zing channels scorecard stories --json
@@ -123,6 +124,11 @@ or the flag limit. Ready means all six rows pass. No network or judge is used.
 and prints it. Kinds are `claim`, `strike`, `reused` and `other`. Notes must be
 non-empty and at most 500 characters. The clip ID is optional. Scorecards count
 these flags and masked outcomes within the window.
+
+`brief SLUG --takes [--date YYYY-MM-DD]` prints recording notes without making
+a brief. Notes use matched takes from the last 30 channel-local dates and need
+at least three takes. New script prompts use them to follow the owner's pace,
+length and wording. `--date` sets the last day of that window.
 
 Use `source SLUG --kind recordings` with a local folder, `--rights own` and
 a grant for finished takes. Each take becomes one clip of 3 through 180 seconds

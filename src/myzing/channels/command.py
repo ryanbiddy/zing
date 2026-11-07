@@ -27,6 +27,7 @@ def run(argv: list[str]) -> int:
     daily.add_argument("--date", help="brief date as YYYY-MM-DD in the channel timezone")
     daily.add_argument("--answer", nargs=2, metavar=("TASK", "FILE"), help="save a script answer and refill the brief")
     daily.add_argument("--open", action="store_true", help="open the brief page")
+    daily.add_argument("--takes", action="store_true", help="show what recent recordings teach the scripts")
     score = commands.add_parser("scorecard", help="compare local results with the channel bar")
     score.add_argument("slug")
     score.add_argument("--days", type=int, default=30, help="number of local days ending today")
@@ -127,6 +128,10 @@ def run(argv: list[str]) -> int:
         elif args.command == "flag":
             result = scorecard.flag(args.slug, args.kind, args.note, clip=args.clip)
         elif args.command == "brief":
+            if args.takes:
+                lines = brief.voice(args.slug, brief.when(registry.load(args.slug), args.date))
+                print("\n".join(lines) or "Fewer than 3 recorded takes in the last 30 days.")
+                return 0
             if args.answer:
                 result = brief.answer(args.slug, args.answer[0], Path(args.answer[1]), date=args.date)
             else:

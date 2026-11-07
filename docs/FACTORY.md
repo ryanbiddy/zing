@@ -50,6 +50,10 @@ kept script shares, view medians and flags with the channel's bar. It writes a
 page and JSON without network or judge calls. `zing channels flag SLUG --kind
 claim --note "Check the quote"` logs an issue. See [Scorecard](CHANNELS.md#scorecard).
 
+After three matched takes in the last 30 local dates, new brief scripts use
+recording notes on pace, length and wording. `zing channels brief SLUG --takes`
+prints those notes without making a brief.
+
 Channel [platform news](CHANNELS.md#platform-news) finds candidates from public
 feeds and YouTube uploads from the last 10 days. It ranks them by creator topics
 and date. Source errors are saved in `brief/news-errors.jsonl` under the channel.
