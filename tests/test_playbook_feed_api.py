@@ -196,12 +196,47 @@ def test_injected_fetch_requires_explicit_api_or_fallback(tmp_path, monkeypatch)
     assert calls == [CHANNEL] and log(tmp_path)["source"] == "api" and log(tmp_path)["rows"] == 1
 
 
-def test_injected_fallback_keeps_priority(tmp_path, monkeypatch):
+def test_api_runs_before_an_injected_fallback(tmp_path, monkeypatch):
+    # platform news always passes fallback=feeds.listing; the key must still come first
+    monkeypatch.setenv("YOUTUBE_API_KEY", KEY)
+    rows = [{"id": "a", "short": True}]
+    assert feeds.feed(CHANNEL, outage, root=tmp_path, api=lambda ident: rows, fallback=refuse) == rows
+    assert log(tmp_path)["source"] == "api"
+
+
+def test_failed_api_hands_over_to_the_injected_fallback(tmp_path, monkeypatch):
     monkeypatch.setenv("YOUTUBE_API_KEY", KEY)
     calls = []
-    assert feeds.feed(CHANNEL, outage, root=tmp_path, api=refuse,
+
+    def broken(ident):
+        raise ValueError("YouTube Data API refused the request: quotaExceeded")
+
+    assert feeds.feed(CHANNEL, outage, root=tmp_path, api=broken,
                       fallback=lambda ident: calls.append(ident) or []) == []
-    assert calls == [CHANNEL] and "api_error" not in log(tmp_path)
+    assert calls == [CHANNEL]
+    assert log(tmp_path)["source"] == "ytdlp" and "quotaExceeded" in log(tmp_path)["api_error"]
+
+
+def test_truncated_chunked_api_body_falls_back(tmp_path, monkeypatch):
+    import http.client
+
+    class Cut:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self, n):
+            raise http.client.IncompleteRead(b'{"items": [', 100)
+
+    monkeypatch.setenv("YOUTUBE_API_KEY", KEY)
+    monkeypatch.setattr(feeds, "request", outage)
+    monkeypatch.setattr(feeds.urls, "open_no_redirect", lambda request, timeout: Cut())
+    monkeypatch.setattr(feeds, "listing", lambda *args, **kwargs: [])
+    assert feeds.feed(CHANNEL, root=tmp_path) == []
+    row = log(tmp_path)
+    assert row["source"] == "ytdlp" and row["api_error"] == "YouTube Data API request failed"
 
 
 @pytest.mark.parametrize("code", [400, 403, 429])

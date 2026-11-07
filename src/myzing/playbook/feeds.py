@@ -1,6 +1,7 @@
 """Public channel metadata, with no cookies or media requests."""
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -202,8 +203,8 @@ def _api_request(endpoint, params, key, opener):
         if isinstance(reason, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,100}", reason):
             message = "YouTube Data API refused the request: " + reason.replace(key, "[redacted]")
         raise ValueError(message) from None
-    except (ValueError, OSError):
-        raise ValueError("YouTube Data API request failed") from None
+    except (ValueError, OSError, http.client.HTTPException):
+        raise ValueError("YouTube Data API request failed") from None   # IncompleteRead is not an OSError
     data = _api_json(body)
     if key in json.dumps(data, ensure_ascii=False):
         raise ValueError("YouTube Data API response contains the API key")
@@ -281,7 +282,7 @@ def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: boo
         at, rows, extra = utc_now(), [], {}
         try:
             key = os.environ.get("YOUTUBE_API_KEY", "").strip()
-            if key and fallback is None:
+            if key:                     # the API comes first even when a caller supplies the yt-dlp step
                 extra["source"] = "api"
                 try:
                     rows = api(channel_id) if api is not None else api_listing(channel_id, key=key, watch_only=watch_only)
