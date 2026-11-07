@@ -79,7 +79,8 @@ def _collector(kind: str, collectors):
 
 def _receipt(facts: dict) -> str:
     if facts["kind"] == "breakdown":
-        text = f"{facts['channel_title']}: {facts['views']:,} views, {facts['multiple']}x their typical {facts.get('format', 'Short')}"
+        about = "about " if facts.get("approximate") else ""
+        text = f"{facts['channel_title']}: {about}{facts['views']:,} views, {facts['multiple']}x their typical {facts.get('format', 'Short')}"
     else:
         day = parse_time(facts["published"])
         text = f"{facts['source']}, {day.strftime('%b')} {day.day}: {facts['title']}"
