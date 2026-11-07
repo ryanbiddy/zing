@@ -282,6 +282,12 @@ def _reconcile_running(slug: str, status: dict[str, Any]) -> dict[str, Any]:
         job = _JOBS.get(slug)
         if job is not None and job.is_alive():
             return status
+    # The caller read ``status`` before this check. A worker that finished in
+    # between has already written its own ending, so read again: overwriting
+    # it would replace the real error with "worker is gone".
+    fresh = storage.read_status(slug)
+    if isinstance(fresh, dict) and fresh.get("state") != "running":
+        return fresh
     pid = status.get("pid")
     if type(pid) is not int or not 0 < pid <= 0xFFFFFFFF:
         reason = (
