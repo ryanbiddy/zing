@@ -432,11 +432,10 @@ def sample_schedule(duration: float) -> list[tuple[float, float]]:
 # -- seams that touch heavy deps (tests mock these) -------------------------
 
 def _engine():
-    from importlib.metadata import version as pkg_version
-
     from rapidocr import RapidOCR
-
-    return RapidOCR(), pkg_version("rapidocr")
+    from .caption_models import engine
+    reader, version = engine(RapidOCR)
+    return reader, version.removeprefix("rapidocr-")
 
 
 def _iter_frames(

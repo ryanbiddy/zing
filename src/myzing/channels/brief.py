@@ -140,6 +140,18 @@ document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener
     _publish(path, page)
     if latest:
         _publish(folder.parent / "latest.html", page)
+        if channel.get("phone_folder"):
+            try:
+                phone = Path(channel["phone_folder"]).expanduser() / f"{channel['slug']}-brief.html"
+                phone.parent.mkdir(parents=True, exist_ok=True)
+                tmp = phone.with_suffix(".html.tmp")
+                tmp.write_text(page, encoding="utf-8")
+                tmp.replace(phone)
+            except Exception as exc:
+                error = f"phone_folder {str(exc) or type(exc).__name__}"
+                if error not in data["errors"]:
+                    data["errors"].append(error)
+                    _write(folder / "brief.json", data)
     return path
 
 

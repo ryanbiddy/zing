@@ -103,85 +103,87 @@ def build_pack(
     from myzing.study.api import study
     from myzing.study.proc import MediaError
 
-    manifest = load_manifest(manifest_path)
-    manifest_sha = hashlib.sha256(
-        manifest_path.read_text(encoding="utf-8").encode("utf-8")
-    ).hexdigest()
+    workspace = storage.resolve_workspace(workspace)
+    with storage.use_workspace(workspace):
+        manifest = load_manifest(manifest_path)
+        manifest_sha = hashlib.sha256(
+            manifest_path.read_text(encoding="utf-8").encode("utf-8")
+        ).hexdigest()
 
-    studied: list[str] = []
-    reused: list[str] = []
-    failed: list[tuple[str, str]] = []
-    slugs: list[str] = []
-    ref_provenance: list[dict[str, Any]] = []
+        studied: list[str] = []
+        reused: list[str] = []
+        failed: list[tuple[str, str]] = []
+        slugs: list[str] = []
+        ref_provenance: list[dict[str, Any]] = []
 
-    for reference in manifest["references"]:
-        ref_id, url = reference["id"], reference["url"]
-        slug = storage.slug_for(url)
-        entry = {
-            "id": ref_id,
-            "slug": slug,
-            "verified_at": reference["verified_at"],
-        }
-        try:
-            storage.load_breakdown(slug)
-            reused.append(ref_id)
-            entry["outcome"] = "reused"
-        except FileNotFoundError:
-            if not study_missing:
-                failed.append((ref_id, "not studied (study_missing=False)"))
-                entry["outcome"] = "missing"
-                ref_provenance.append(entry)
-                continue
+        for reference in manifest["references"]:
+            ref_id, url = reference["id"], reference["url"]
+            slug = storage.slug_for(url)
+            entry = {
+                "id": ref_id,
+                "slug": slug,
+                "verified_at": reference["verified_at"],
+            }
             try:
-                study(url, workspace=workspace)
-                studied.append(ref_id)
-                entry["outcome"] = "studied"
-            except MediaError as exc:
-                failed.append((ref_id, str(exc).splitlines()[0]))
-                entry["outcome"] = "failed"
-                ref_provenance.append(entry)
-                continue
-        slugs.append(slug)
-        ref_provenance.append(entry)
+                storage.load_breakdown(slug)
+                reused.append(ref_id)
+                entry["outcome"] = "reused"
+            except FileNotFoundError:
+                if not study_missing:
+                    failed.append((ref_id, "not studied (study_missing=False)"))
+                    entry["outcome"] = "missing"
+                    ref_provenance.append(entry)
+                    continue
+                try:
+                    study(url, workspace=workspace)
+                    studied.append(ref_id)
+                    entry["outcome"] = "studied"
+                except MediaError as exc:
+                    failed.append((ref_id, str(exc).splitlines()[0]))
+                    entry["outcome"] = "failed"
+                    ref_provenance.append(entry)
+                    continue
+            slugs.append(slug)
+            ref_provenance.append(entry)
 
-    if not slugs:
-        # D-12: when everything fails (often one shared root cause), the
-        # collected per-reference causes are the only actionable detail —
-        # they must survive into the error.
-        causes = "; ".join(
-            f"{ref_id}: {cause}" for ref_id, cause in failed[:3]
-        )
-        more = f" (+{len(failed) - 3} more)" if len(failed) > 3 else ""
-        raise PackError(
-            f"pack '{manifest['pack_id']}': no reference could be studied - "
-            "a preset built from nothing would be a lie. Failures: "
-            f"{causes}{more}"
-        )
+        if not slugs:
+            # D-12: when everything fails (often one shared root cause), the
+            # collected per-reference causes are the only actionable detail —
+            # they must survive into the error.
+            causes = "; ".join(
+                f"{ref_id}: {cause}" for ref_id, cause in failed[:3]
+            )
+            more = f" (+{len(failed) - 3} more)" if len(failed) > 3 else ""
+            raise PackError(
+                f"pack '{manifest['pack_id']}': no reference could be studied - "
+                "a preset built from nothing would be a lie. Failures: "
+                f"{causes}{more}"
+            )
 
-    profile = build_profile(
-        f"pack-{manifest['pack_id']}",
-        slugs,
-        workspace=workspace,
-        genre=manifest["genre"],
-        platform=manifest["platform"],
-    )
-    profile.warnings.extend(
-        f"pack reference {ref_id} excluded: {reason}"
-        for ref_id, reason in failed
-    )
-    profile.provenance["preset_pack"] = {
-        "pack_id": manifest["pack_id"],
-        "manifest_sha256": manifest_sha,
-        "curated_at": manifest.get("curated_at", ""),
-        "orientation": manifest.get("orientation", ""),
-        "references": ref_provenance,
-        "rebuilt_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-    }
-    storage.save_profile(profile)
-    return PackResult(
-        profile=profile,
-        studied=studied,
-        reused=reused,
-        failed=failed,
-        warnings=list(profile.warnings),
-    )
+        profile = build_profile(
+            f"pack-{manifest['pack_id']}",
+            slugs,
+            workspace=workspace,
+            genre=manifest["genre"],
+            platform=manifest["platform"],
+        )
+        profile.warnings.extend(
+            f"pack reference {ref_id} excluded: {reason}"
+            for ref_id, reason in failed
+        )
+        profile.provenance["preset_pack"] = {
+            "pack_id": manifest["pack_id"],
+            "manifest_sha256": manifest_sha,
+            "curated_at": manifest.get("curated_at", ""),
+            "orientation": manifest.get("orientation", ""),
+            "references": ref_provenance,
+            "rebuilt_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        }
+        storage.save_profile(profile)
+        return PackResult(
+            profile=profile,
+            studied=studied,
+            reused=reused,
+            failed=failed,
+            warnings=list(profile.warnings),
+        )

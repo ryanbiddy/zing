@@ -618,6 +618,8 @@ const ui = {
   shape: {},            // clip id -> shape id
   pack: {},             // clip id -> pack id for re-render
   drafts: {},           // "clip:field" -> unsaved text
+  revisions: {},
+  saving: {},
   word: {},
   rated: {},            // clip id -> last rating sent
   why: {},              // clip id -> why text
@@ -864,11 +866,25 @@ function render() {
     ? plural(clips.length - done, "clip", "clips") + " still in progress"
     : "All clips rendered";
 
-  $("#grid").replaceChildren(...(clips.length
-    ? clips.map(c => isRendered(c) ? clipCard(c) : pendingCard(c))
-    : [el("div", { class: "empty-state" },
+  const grid = $("#grid");
+  if (!clips.length) grid.replaceChildren(el("div", { class: "empty-state" },
         el("h2", { text: "No clips yet" }),
-        el("p", { text: "Press Run and your agent will scout the episode for moments." }))]));
+        el("p", { text: "Press Run and your agent will scout the episode for moments." })));
+  else {
+    for (const node of [...grid.children]) if (!clips.some(c => c.clip === node.clipId)) node.remove();
+    clips.forEach((c, i) => {
+      let node = [...grid.children].find(n => n.clipId === c.clip);
+      const key = JSON.stringify([c, ui.selected === c.clip, ui.shape[c.clip], ui.pack[c.clip], defaultPack(), ui.rated[c.clip]]);
+      if (!node || node.renderKey !== key) {
+        const next = isRendered(c) ? clipCard(c) : pendingCard(c);
+        next.clipId = c.clip;
+        next.renderKey = JSON.stringify([c, ui.selected === c.clip, ui.shape[c.clip], ui.pack[c.clip], defaultPack(), ui.rated[c.clip]]);
+        if (node) grid.replaceChild(next, node);
+        node = next;
+      }
+      if (grid.children[i] !== node) grid.insertBefore(node, grid.children[i] || null);
+    });
+  }
 
   renderDetail();
   renderBench();
@@ -912,7 +928,7 @@ function clipCard(c) {
   let shape = ui.shape[c.clip];
   if (!shape || !shapes.some(s => s.id === shape)) shape = (shapes[0] || SHAPES[0]).id;
   ui.shape[c.clip] = shape;
-  const file = fileFor(c, shape, ui.pack[c.clip] || defaultPack()) || videoNames(c)[0];
+  const file = fileFor(c, shape, ui.pack[c.clip] || defaultPack()) || fileFor(c, shape, defaultPack()) || videoNames(c)[0];
 
   const player = el("div", { class: "player", "data-shape": shape });
   const video = el("video", { controls: true, preload: "metadata", playsinline: true,
@@ -999,12 +1015,15 @@ function focusLater(sel) { requestAnimationFrame(() => { const n = $(sel); if (n
 function renderDetail() {
   const box = $("#detail");
   const c = (ui.project.clips || []).find(x => x.clip === ui.selected);
-  if (!c) { box.hidden = true; box.replaceChildren(); return; }
+  if (!c) { box.hidden = true; box.replaceChildren(); delete box.renderKey; return; }
   box.hidden = false;
 
   const packs = ui.project.packs || {};
   const pack = ui.pack[c.clip] || defaultPack();
   const shape = ui.shape[c.clip] || "9x16";
+  const key = JSON.stringify([c, packs, pack, shape, ui.word[c.clip]?.index, ui.word[c.clip]?.old]);
+  if (box.renderKey === key) return;
+  box.renderKey = key;
   const packSel = el("select", { class: "field", id: "pack-" + c.clip,
     onchange: e => { ui.pack[c.clip] = e.target.value; } },
     Object.entries(packs).map(([id, name]) => el("option", { value: id, selected: id === pack }, name)));
@@ -1134,12 +1153,22 @@ function textField(c, f, saved, hint, copyable) {
   requestAnimationFrame(grow);
   area.addEventListener("input", () => {
     grow();
-    if (area.value === saved) delete ui.drafts[key]; else ui.drafts[key] = area.value;
+    ui.revisions[key] = (ui.revisions[key] || 0) + 1;
+    if (area.value === saved && !(key in ui.saving)) delete ui.drafts[key]; else ui.drafts[key] = area.value;
     sync();
   });
   save.addEventListener("click", e => {
     const text = area.value;
-    act(e.currentTarget, async () => { await api.text(c.clip, f.id, text); delete ui.drafts[key]; },
+    const revision = ui.revisions[key];
+    ui.saving[key] = revision;
+    act(e.currentTarget, async () => {
+      try {
+        await api.text(c.clip, f.id, text);
+        if (ui.revisions[key] === revision) delete ui.drafts[key];
+      } finally {
+        if (ui.saving[key] === revision) delete ui.saving[key];
+      }
+    },
       f.label + " saved.");
   });
   sync();
@@ -1223,6 +1252,9 @@ async function startTrim(c) {
 
 function renderPicker() {
   const box = $("#picker"), L = ui.lines, P = ui.pick;
+  const key = JSON.stringify([L, P.a, P.b, P.wantEnd, P.clip, P.find]);
+  if (box.renderKey === key) return;
+  box.renderKey = key;
   if (!L) {
     box.replaceChildren(el("div", { class: "picker-head" },
       el("p", { text: "Read the episode and pick any stretch of it, or move a clip's start and end." }),

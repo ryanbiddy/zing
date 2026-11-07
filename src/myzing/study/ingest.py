@@ -39,7 +39,7 @@ from urllib.parse import urlparse
 
 from myzing import doctor, storage
 from myzing.schemas import VideoMeta
-from myzing.urls import has_http_scheme, is_http_url
+from myzing.urls import has_http_scheme, is_http_url, require_public_host
 
 from . import proc
 from .proc import MediaError
@@ -389,6 +389,10 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
         "-P", str(dest),
         url,
     ]
+    try:
+        require_public_host(url)
+    except ValueError as exc:
+        raise MediaError(str(exc)) from None
     res = proc.run(cmd, timeout=600)
     if res.returncode != 0:
         raise MediaError(
@@ -597,9 +601,9 @@ def _normalize(media: Path, fps: float) -> Path:
     if not tmp.is_file():
         raise MediaError("ffmpeg exited 0 but produced no normalized file")
     final = media.with_name("media.mp4")
+    tmp.replace(final)
     if media != final:
         media.unlink()
-    tmp.replace(final)
     return final
 
 

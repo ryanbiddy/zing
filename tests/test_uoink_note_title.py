@@ -81,9 +81,9 @@ def peer(monkeypatch, media, *, capabilities=("uoink.corpus.read/1", "uoink.medi
             return respond({"ok": True, "video_id": "n1", "slug": "note"})
         raise AssertionError(f"unexpected peer request {url}")
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", answer)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", answer)
     from myzing import suite_peer
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", answer)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", answer)
     return calls, notes
 
 
@@ -190,7 +190,7 @@ def test_url_studies_keep_their_platform_title_without_extra_requests(zing_works
         return respond({"ok": True, "video_id": "v1", "slug": "s"})
 
     monkeypatch.setenv("UOINK_TOKEN", TOKEN)
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", notes_only)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", notes_only)
     pushed = uoink_bridge.push_breakdown("tiktok-42")
     assert pushed["title_source"] == "platform"
     assert len(seen) == 1

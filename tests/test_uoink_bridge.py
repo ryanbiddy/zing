@@ -51,7 +51,7 @@ def test_push_success_sends_note_with_token(studied, monkeypatch):
         )
 
     monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "secret-token")
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", fake_urlopen)
     result = uoink_bridge.push_breakdown(SLUG)
     assert result["ok"] is True
     assert result["uoink_id"] == "v1"
@@ -66,7 +66,7 @@ def test_push_auth_rejection_names_the_token(studied, monkeypatch):
     def forbidden(request, timeout=0):
         raise urllib.error.HTTPError(request.full_url, 403, "forbidden", {}, None)
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", forbidden)
     result = uoink_bridge.push_breakdown(SLUG)
     assert result["ok"] is False
     assert "UOINK_TOKEN" in result["error"] and "token.txt" in result["error"]
@@ -76,7 +76,7 @@ def test_push_helper_down_is_calm(studied, monkeypatch):
     def down(request, timeout=0):
         raise urllib.error.URLError("refused")
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", down)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", down)
     result = uoink_bridge.push_breakdown(SLUG)
     assert result["ok"] is False
     assert "works fine without it" in result["error"]
@@ -88,7 +88,7 @@ def test_push_declined_by_uoink_reports_its_error(studied, monkeypatch):
             json.dumps({"ok": False, "error": "note text required"}).encode()
         )
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", declined)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", declined)
     result = uoink_bridge.push_breakdown(SLUG)
     assert result["ok"] is False
     assert "note text required" in result["error"]
@@ -102,7 +102,7 @@ def test_push_rejects_traversal_slug_as_data(zing_workspace, bad, monkeypatch):
     def no_network(*a, **k):
         raise AssertionError("a traversal slug must never reach the network")
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", no_network)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", no_network)
     result = uoink_bridge.push_breakdown(bad)
     assert result["ok"] is False
     assert "slug" in result["error"]
@@ -147,8 +147,8 @@ def test_bridge_rejects_off_loopback_explicit_url_before_sending_token(
     )
     monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "must-not-leak")
     monkeypatch.setattr(
-        suite_peer.urllib.request,
-        "urlopen",
+        suite_peer.urls,
+        "open_no_redirect",
         lambda *_args, **_kwargs: pytest.fail(
             "invalid explicit URL must never receive the Uoink token"
         ),
@@ -183,8 +183,8 @@ def test_operations_stop_on_invalid_or_stale_lease(
         ),
     )
     monkeypatch.setattr(
-        suite_peer.urllib.request,
-        "urlopen",
+        suite_peer.urls,
+        "open_no_redirect",
         lambda *_args, **_kwargs: pytest.fail(
             "invalid or stale lease must never fall through to port 5179"
         ),
@@ -237,7 +237,7 @@ def test_one_lease_drives_resolver_kept_media_note_and_engagement(
             raise AssertionError(f"unexpected leased Uoink URL: {url}")
         return FakeResponse(json.dumps(body).encode("utf-8"))
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", leased_server)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", leased_server)
 
     resolution = suite_peer.resolve_uoink_base()
     resolved = uoink_bridge.resolve_kept_media(REF)
@@ -300,13 +300,13 @@ def serve(monkeypatch, body, capture=None):
             capture["token"] = request.get_header("X-uoink-token")
         return FakeResponse(json.dumps(body).encode("utf-8"))
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", fake_urlopen)
 
 
 def test_resolve_rejects_paths_and_junk_refs(monkeypatch):
     calls = {"n": 0}
     monkeypatch.setattr(
-        uoink_bridge.urllib.request, "urlopen",
+        uoink_bridge.urls, "open_no_redirect",
         lambda *a, **k: calls.__setitem__("n", calls["n"] + 1),
     )
     for bad in ("C:\video.mp4", "/tmp/x.mp4", "writer://script/1", "uoink://item/"):
@@ -319,7 +319,7 @@ def test_resolve_without_token_is_unconfigured_and_offline(monkeypatch):
     monkeypatch.delenv(uoink_bridge.UOINK_TOKEN_ENV, raising=False)
     calls = {"n": 0}
     monkeypatch.setattr(
-        uoink_bridge.urllib.request, "urlopen",
+        uoink_bridge.urls, "open_no_redirect",
         lambda *a, **k: calls.__setitem__("n", calls["n"] + 1),
     )
     result = uoink_bridge.resolve_kept_media(REF)
@@ -382,8 +382,8 @@ def test_resolve_rejects_noncanonical_item_refs_without_network(
         monkeypatch, item_ref):
     monkeypatch.setenv(uoink_bridge.UOINK_TOKEN_ENV, "tok")
     monkeypatch.setattr(
-        uoink_bridge.urllib.request,
-        "urlopen",
+        uoink_bridge.urls,
+        "open_no_redirect",
         lambda *_args, **_kwargs: pytest.fail(
             "invalid item_ref reached the network"),
     )
@@ -450,7 +450,7 @@ def test_resolve_auth_rejection_names_the_token(monkeypatch):
     def forbidden(request, timeout=0):
         raise urllib.error.HTTPError(request.full_url, 401, "no", {}, io.BytesIO())
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", forbidden)
     result = uoink_bridge.resolve_kept_media(REF)
     assert result["ok"] is False and "UOINK_TOKEN" in result["error"]
 
@@ -461,7 +461,7 @@ def test_resolve_helper_down_is_calm(monkeypatch):
     def down(request, timeout=0):
         raise urllib.error.URLError("refused")
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", down)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", down)
     result = uoink_bridge.resolve_kept_media(REF)
     assert result["ok"] is False
     assert "is Uoink running" in result["error"]
@@ -507,7 +507,7 @@ def test_resolve_http_error_with_unparseable_body(monkeypatch):
             request.full_url, 500, "boom", {}, io.BytesIO(b"<html>")
         )
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", boom)
     result = uoink_bridge.resolve_kept_media(REF)
     assert result["ok"] is False
     assert "HTTP 500" in result["error"]
@@ -567,7 +567,7 @@ def test_push_title_fallback_when_breakdown_unloadable(studied, monkeypatch):
         captured["body"] = json.loads(request.data.decode("utf-8"))
         return FakeResponse(json.dumps({"ok": True}).encode())
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", fake_urlopen)
     result = uoink_bridge.push_breakdown(SLUG)
     assert result["ok"] is True
     assert captured["body"]["title"] == f"Zing breakdown: {SLUG}"
@@ -577,7 +577,7 @@ def test_push_http_error_names_the_status(studied, monkeypatch):
     def teapot(request, timeout=0):
         raise urllib.error.HTTPError(request.full_url, 500, "boom", {}, None)
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", teapot)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", teapot)
     result = uoink_bridge.push_breakdown(SLUG)
     assert result["ok"] is False
     assert "HTTP 500" in result["error"]
@@ -601,7 +601,7 @@ def test_rejected_credential_error_names_the_installed_app_token_path(monkeypatc
     def forbidden(request, timeout=0):
         raise urllib.error.HTTPError(request.full_url, 403, "no", {}, io.BytesIO())
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", forbidden)
     error = uoink_bridge.resolve_kept_media(REF)["error"]
     assert uoink_bridge.TOKEN_LOCATION in error
 
@@ -610,7 +610,7 @@ def test_push_auth_error_names_the_installed_app_token_path(studied, monkeypatch
     def forbidden(request, timeout=0):
         raise urllib.error.HTTPError(request.full_url, 401, "no", {}, None)
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", forbidden)
     error = uoink_bridge.push_breakdown(SLUG)["error"]
     assert uoink_bridge.TOKEN_LOCATION in error
     assert uoink_bridge.UOINK_TOKEN_ENV in error

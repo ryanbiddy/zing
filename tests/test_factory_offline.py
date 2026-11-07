@@ -48,7 +48,7 @@ def rows(root):
 def http(monkeypatch, body=b'{"ok": true}', redirect=False):
     calls = []
 
-    def opener(handler):
+    def opener(handler, *handlers):
         def opened(req, **kwargs):
             calls.append(req)
             if redirect:
@@ -59,6 +59,7 @@ def http(monkeypatch, body=b'{"ok": true}', redirect=False):
         return SimpleNamespace(open=opened)
     monkeypatch.setattr(network.urllib.request, "build_opener", opener)
     monkeypatch.setattr(visuals, "_check_host", lambda url: None)
+    monkeypatch.setattr(network, "_public_address", lambda ip: True)
     return calls
 
 
@@ -93,7 +94,7 @@ def test_redirects_and_failed_requests_are_recorded(tmp_path, monkeypatch):
 
     def fail(*args, **kwargs):
         raise OSError("connection failed")
-    monkeypatch.setattr(network.urllib.request, "build_opener", lambda handler: SimpleNamespace(open=fail))
+    monkeypatch.setattr(network.urllib.request, "build_opener", lambda *handlers: SimpleNamespace(open=fail))
     with pytest.raises(OSError):
         client.get_json(URL)
     assert rows(root)[-1]["host"] == "example.org" and rows(root)[-1]["bytes"] == 0
@@ -163,6 +164,7 @@ def test_project_context_is_scoped_and_claude_is_refused(tmp_path, monkeypatch):
 def test_remote_video_paths_and_local_probes(tmp_path, monkeypatch):
     root = project(tmp_path)
     http(monkeypatch, VIDEO)
+    monkeypatch.setattr(visuals, "_max_redirects", lambda: True)   # this test covers the FFmpeg path
     calls = []
 
     def run(argv, **kwargs):

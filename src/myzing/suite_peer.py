@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+from myzing import urls
+
 UOINK_URL_ENV = "UOINK_URL"
 UOINK_TOKEN_ENV = "UOINK_TOKEN"
 UOINK_DEFAULT_URL = "http://127.0.0.1:5179"
@@ -225,8 +227,8 @@ def lease_defect(payload: Any, service_id: str) -> str | None:
     ui_defect = _ui_defect(payload.get("ui"))
     if ui_defect is not None:
         return ui_defect
-    if not isinstance(payload.get("pid"), int) or payload["pid"] <= 0:
-        return "pid must be a positive integer"
+    if type(payload.get("pid")) is not int or not 0 < payload["pid"] <= 0xFFFFFFFF:
+        return "pid must be a positive integer no greater than 4294967295"
     if not isinstance(payload.get("started_at"), str):
         return "started_at must be a string"
     return None
@@ -277,7 +279,7 @@ def _get_json(url: str) -> tuple[int, Any]:
     failures; a non-2xx HTTP status is returned, not raised."""
     request = urllib.request.Request(url, method="GET")
     try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
+        with urls.open_no_redirect(request, timeout=_TIMEOUT) as resp:
             return resp.status, json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         try:
@@ -598,11 +600,6 @@ def probe_uoink() -> tuple[dict[str, Any], str]:
     return _conformance_read(base, token, capabilities, evidence)
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
-
-
 def _conformance_read(
     base: str, token: str, capabilities: list[str], evidence: str
 ) -> tuple[dict[str, Any], str]:
@@ -620,7 +617,7 @@ def _conformance_read(
     )
     request.add_unredirected_header("X-Uoink-Token", token)
     try:
-        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=_TIMEOUT) as resp:
+        with urls.open_no_redirect(request, timeout=_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         seen = evidence + f"; conformance read: HTTP {e.code}"

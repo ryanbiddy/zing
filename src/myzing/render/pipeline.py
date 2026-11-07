@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -59,6 +60,28 @@ def _create_directory(directory: Path, error: str) -> None:
         raise RenderError(f"{error}: {exc}") from exc
 
 
+@contextmanager
+def _work_directory(directory: Path):
+    _create_directory(directory, "could not create render work directory")
+    yield directory                 # no lock file: a crashed render must not block the folder forever
+
+
+def _check_work_paths(paths, input_paths, owned_dirs=()):
+    paths = set(paths)
+    for directory in owned_dirs:
+        if directory.is_symlink() or directory.resolve() != directory:
+            raise RenderError("render work directory contains a symlink; choose a separate --keep-work directory")
+        if any(directory in path.parents for path in input_paths):
+            raise RenderError("render work directory would overwrite an input; choose a separate --keep-work directory")
+        paths.add(directory)
+        paths.update(directory.rglob("*"))
+    for path in paths:
+        if path.is_symlink():
+            raise RenderError("render work target is a symlink; choose a separate --keep-work directory")
+        if path.resolve() in input_paths or (path.is_file() and any(path.samefile(source) for source in input_paths)):
+            raise RenderError("render work directory would overwrite an input; choose a separate --keep-work directory")
+
+
 def _publish_output(staged_output: Path, output_path: Path) -> None:
     _create_directory(output_path.parent, "could not create output directory")
     try:
@@ -70,12 +93,23 @@ def _publish_output(staged_output: Path, output_path: Path) -> None:
         )
         if not cross_device:
             raise RenderError(f"could not publish rendered output: {exc}") from exc
+    temporary = None
     try:
-        shutil.move(staged_output, output_path)
+        with tempfile.NamedTemporaryFile(prefix=".render-", dir=output_path.parent, delete=False) as target:
+            temporary = Path(target.name)
+            with staged_output.open("rb") as source:
+                shutil.copyfileobj(source, target)
+            target.flush()
+            os.fsync(target.fileno())
+        os.replace(temporary, output_path)
+        staged_output.unlink()
     except OSError as exc:
         raise RenderError(
             f"could not publish rendered output across filesystems: {exc}"
         ) from exc
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = False) -> MediaInfo:
@@ -90,8 +124,8 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
                 "-show_entries",
                 "format=duration",
                 "-show_entries",
-                ("stream=codec_type,duration,color_space,color_transfer,color_primaries,color_range,pix_fmt:stream_tags:format_tags"
-                 if include_color else "stream=codec_type"),
+                ("stream=codec_type,duration,sample_aspect_ratio,color_space,color_transfer,color_primaries,color_range,pix_fmt:stream_tags:format_tags"
+                 if include_color else "stream=codec_type,duration,sample_aspect_ratio:stream_tags=DURATION"),
                 "-of",
                 "json",
                 str(path),
@@ -99,6 +133,7 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
             check=False,
             capture_output=True,
             text=True,
+            encoding="utf-8", errors="replace",
             timeout=30,
         )
     except (OSError, subprocess.SubprocessError) as exc:
@@ -115,29 +150,27 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
         }
         metadata = {}
         video_duration = None
+        video = next((s for s in payload.get("streams", []) if s.get("codec_type") == "video"), {})
         if include_color:
-            video = next((s for s in payload.get("streams", []) if s.get("codec_type") == "video"), {})
             metadata = {key: str(video.get(key, "unknown")) for key in (
                 "color_space", "color_transfer", "color_primaries", "color_range", "pix_fmt",
             )}
             tags = {**payload.get("format", {}).get("tags", {}), **video.get("tags", {})}
             metadata["profile_tags"] = json.dumps({k: v for k, v in tags.items()
                 if any(term in k.lower() for term in ("color", "gamma", "transfer", "profile"))}, sort_keys=True)
-            # Container duration can include audio that outlasts the video.
-            # Matroska commonly stores this as a DURATION stream tag instead.
-            stream_duration = video.get("duration")
-            try:
-                if stream_duration not in (None, "N/A"):
-                    video_duration = float(stream_duration)
-                else:
-                    stamp = video.get("tags", {}).get("DURATION", "")
-                    if re.fullmatch(r"\d+:\d{2}:\d{2}(?:\.\d+)?", stamp):
-                        hours, minutes, seconds = map(float, stamp.split(":"))
-                        video_duration = hours * 3600 + minutes * 60 + seconds
-                if video_duration is not None and (not math.isfinite(video_duration) or video_duration <= 0):
-                    video_duration = None
-            except (TypeError, ValueError):
+        stream_duration = video.get("duration")
+        try:
+            if stream_duration not in (None, "N/A"):
+                video_duration = float(stream_duration)
+            else:
+                stamp = video.get("tags", {}).get("DURATION", "")
+                if re.fullmatch(r"\d+:\d{2}:\d{2}(?:\.\d+)?", stamp):
+                    hours, minutes, seconds = map(float, stamp.split(":"))
+                    video_duration = hours * 3600 + minutes * 60 + seconds
+            if video_duration is not None and (not math.isfinite(video_duration) or video_duration <= 0):
                 video_duration = None
+        except (TypeError, ValueError):
+            video_duration = None
     except (KeyError, TypeError, ValueError) as exc:
         raise RenderError(f"ffprobe returned malformed metadata for {path}") from exc
     if not math.isfinite(duration) or duration <= 0:
@@ -148,6 +181,7 @@ def probe_media(path: Path, ffprobe: str = "ffprobe", *, include_color: bool = F
         has_audio="audio" in stream_types,
         color_metadata=metadata,
         video_duration=video_duration,
+        sample_aspect_ratio=str(video.get("sample_aspect_ratio") or "1:1"),
     )
 
 
@@ -261,6 +295,11 @@ def _render_in_directory(
         raise RenderError(f"could not create render work directory: {exc}") from exc
     if shutil.which(ffmpeg) is None:
         raise RenderError(f"ffmpeg executable not found: {ffmpeg}")
+    _check_work_paths(
+        (directory / name for name in ("captions.ass", "filter graph.txt", "rendered.mp4",
+                                      "music-stem.wav", "source-stem.wav", "music-duck.wav", "music-measurements.json")),
+        {item.path for item in (*validated.clips, *validated.audio_tracks)},
+    )
 
     include_captions = bool(validated.edl.captions)
     if caption_writer is not None:
@@ -330,6 +369,7 @@ def _render_in_directory(
                 check=False,
                 capture_output=True,
                 text=True,
+                encoding="utf-8", errors="replace",
                 timeout=900,
             )
     except (OSError, subprocess.SubprocessError) as exc:
@@ -408,20 +448,17 @@ def render_edl(
     if output_path in input_paths:
         raise RenderError("output path must not overwrite an input media file")
     if work_dir is not None:
-        return _render_in_directory(
-            validated,
-            output_path,
-            work_dir.expanduser().resolve(),
-            ffmpeg,
-            caption_filter_name,
-        )
+        with _work_directory(work_dir.expanduser().resolve()) as directory:
+            return _render_in_directory(
+                validated, output_path, directory, ffmpeg, caption_filter_name,
+            )
 
     _create_directory(
         output_path.parent,
         f"could not create output directory {output_path.parent}",
     )
     with tempfile.TemporaryDirectory(
-        prefix=f".{output_path.stem}-render-",
+        prefix=".render-",
         dir=output_path.parent,
     ) as temporary:
         result = _render_in_directory(

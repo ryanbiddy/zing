@@ -21,9 +21,11 @@ provider produced a track.
 
 from __future__ import annotations
 
+import http.client
 import json
 import importlib.util
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -31,6 +33,7 @@ import wave
 from pathlib import Path
 from typing import Any, Callable
 
+from myzing import urls
 from myzing.render.tts import (
     SynthesisRequest,
     SynthesisResult,
@@ -83,6 +86,8 @@ class ElevenLabsProvider:
                     f"voice id or set {ELEVENLABS_VOICE_ENV} (ids are in "
                     "your ElevenLabs VoiceLab)"
                 )
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", voice_id):
+            raise TTSGenerationError("invalid ElevenLabs voice id")
         # Lane C SG-1 (#206 review): reject a bad local output path BEFORE
         # the network call — the API request is billable, and a wrong
         # suffix used to spend quota just to fail locally afterwards.
@@ -100,12 +105,12 @@ class ElevenLabsProvider:
             data=payload,
             headers={
                 "Content-Type": "application/json",
-                "xi-api-key": key,
             },
             method="POST",
         )
+        http_request.add_unredirected_header("xi-api-key", key)
         try:
-            with urllib.request.urlopen(http_request, timeout=self._timeout) as resp:
+            with urls.open_no_redirect(http_request, timeout=self._timeout) as resp:
                 pcm = resp.read()
         except urllib.error.HTTPError as e:
             if e.code in (401, 403):
@@ -122,7 +127,7 @@ class ElevenLabsProvider:
                 f"ElevenLabs API error HTTP {e.code}: "
                 f"{e.read()[:200].decode(errors='replace')}"
             ) from e
-        except (urllib.error.URLError, OSError) as e:
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
             raise TTSGenerationError(
                 f"could not reach ElevenLabs: {e} - voiceover needs the "
                 "network for this provider; the local kokoro provider "

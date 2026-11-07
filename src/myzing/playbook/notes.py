@@ -1,6 +1,7 @@
 """Blind Gemini rubric over public URLs, using only stdlib HTTP."""
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -12,6 +13,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+
+from myzing import urls
 
 from .common import SCHEMA_VERSION, library, number, read_json, utc_now, write_json
 
@@ -154,10 +157,13 @@ class Client:
             self.last_request = time.monotonic()
             req = urllib.request.Request(API + path,
                 data=json.dumps(body).encode("utf-8") if body is not None else None,
-                headers={"x-goog-api-key": self.key, "Content-Type": "application/json"})
+                headers={"Content-Type": "application/json"})
+            req.add_unredirected_header("x-goog-api-key", self.key)
             try:
-                with urllib.request.urlopen(req, timeout=120) as response:
-                    raw = response.read()
+                with urls.open_no_redirect(req, timeout=120) as response:
+                    raw = response.read(8 * 1024 * 1024 + 1)
+                if len(raw) > 8 * 1024 * 1024:
+                    raise NotesError("Gemini response exceeds 8 MB")
                 # Never persist a key even if an upstream response echoes it.
                 if self.key.encode() in raw:
                     raise NotesError("response rejected: credential echo")
@@ -175,7 +181,7 @@ class Client:
                     time.sleep(delay if delay is not None else 2 ** attempt)
                     continue
                 raise NotesError(f"Gemini HTTP {code}") from None
-            except (urllib.error.URLError, OSError):
+            except (urllib.error.URLError, OSError, http.client.HTTPException):
                 raise NotesError("Gemini transport failed") from None
             except (ValueError, UnicodeError) as exc:
                 if isinstance(exc, NotesError):

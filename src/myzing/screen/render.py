@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -135,28 +136,33 @@ def render_screen(plan, output, *, aspect="16:9", short_side=720, ffmpeg="ffmpeg
     cam = camera(plan,width,height)
     output.parent.mkdir(parents=True,exist_ok=True)
     work = Path(work_dir).resolve() if work_dir else Path(tempfile.mkdtemp(prefix="screen-work-",dir=output.parent))
-    work.mkdir(parents=True,exist_ok=True)
-    captions,caption_notes = _captions(plan,cam,width,height,work,ffmpeg)
-    script = work/"camera.ffscript"
-    script.write_text(graph(plan,cam,width,height,info.has_audio,captions),encoding="utf-8")
-    staging = Path(tempfile.mkdtemp(prefix="output-",dir=work))
-    staged = staging/"render.mp4"
-    command = [ffmpeg,"-hide_banner","-v","error","-nostdin","-y",*input_args(source),
-               "-filter_complex_threads","1",*filter_script_args(ffmpeg,script),"-map","[video]"]
-    if info.has_audio:
-        command += ["-map","[audio]","-c:a","aac","-b:a","160k"]
-    command += ["-c:v","libx264","-preset","fast","-crf","18","-threads","2","-pix_fmt","yuv420p",
-                "-color_primaries","bt709","-color_trc","bt709","-colorspace","bt709","-color_range","tv",
-                "-t",f"{cam['duration']:.9f}","-movflags","+faststart",str(staged)]
-    run = subprocess.run(command,cwd=work,capture_output=True,timeout=max(120,plan.duration*40))
-    if run.returncode:
-        raise RuntimeError("Screen render failed: "+run.stderr.decode(errors="replace")[-2500:])
-    checked = probe_media(staged,ffprobe)
-    if abs(checked.duration-cam["duration"]) > 2/plan.fps+.03:
-        raise RuntimeError("Screen render duration differs from the source/output map.")
-    _publish_output(staged,output)
-    staging.rmdir()
-    evidence = work/"camera.json"
-    evidence.write_text(json.dumps(cam,indent=2,allow_nan=False),encoding="utf-8")
-    return {"video":str(output),"camera":str(evidence),"filtergraph":str(script),"duration":checked.duration,
-            "width":width,"height":height,"warnings":[*plan.warnings,*cam["warnings"],*caption_notes]}
+    try:
+        work.mkdir(parents=True,exist_ok=True)
+        captions,caption_notes = _captions(plan,cam,width,height,work,ffmpeg)
+        script = work/"camera.ffscript"
+        script.write_text(graph(plan,cam,width,height,info.has_audio,captions),encoding="utf-8")
+        staging = Path(tempfile.mkdtemp(prefix="output-",dir=work))
+        staged = staging/"render.mp4"
+        command = [ffmpeg,"-hide_banner","-v","error","-nostdin","-y",*input_args(source),
+                   "-filter_complex_threads","1",*filter_script_args(ffmpeg,script),"-map","[video]"]
+        if info.has_audio:
+            command += ["-map","[audio]","-c:a","aac","-b:a","160k"]
+        command += ["-c:v","libx264","-preset","fast","-crf","18","-threads","2","-pix_fmt","yuv420p",
+                    "-color_primaries","bt709","-color_trc","bt709","-colorspace","bt709","-color_range","tv",
+                    "-t",f"{cam['duration']:.9f}","-movflags","+faststart",str(staged)]
+        run = subprocess.run(command,cwd=work,capture_output=True,timeout=max(120,plan.duration*40))
+        if run.returncode:
+            raise RuntimeError("Screen render failed: "+run.stderr.decode(errors="replace")[-2500:])
+        checked = probe_media(staged,ffprobe)
+        if abs(checked.duration-cam["duration"]) > 2/plan.fps+.03:
+            raise RuntimeError("Screen render duration differs from the source/output map.")
+        _publish_output(staged,output)
+        staging.rmdir()
+        evidence = work/"camera.json"
+        evidence.write_text(json.dumps(cam,indent=2,allow_nan=False),encoding="utf-8")
+        return {"video":str(output),"camera":str(evidence),"filtergraph":str(script),"duration":checked.duration,
+                "width":width,"height":height,"warnings":[*plan.warnings,*cam["warnings"],*caption_notes]}
+    except BaseException:
+        if not work_dir:
+            shutil.rmtree(work, ignore_errors=True)
+        raise

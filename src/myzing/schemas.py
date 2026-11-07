@@ -184,20 +184,23 @@ class Breakdown:
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Breakdown":
-        return cls(
-            meta=VideoMeta(**d["meta"]),
-            shots=[Shot(**s) for s in d.get("shots", [])],
-            words=[Word(**w) for w in d.get("words", [])],
-            captions=[CaptionEvent(**c) for c in d.get("captions", [])],
-            audio=AudioLayout(**d.get("audio", {})),
-            avg_shot_duration=d.get("avg_shot_duration", 0.0),
-            cuts_per_10s=d.get("cuts_per_10s", []),
-            transitions=[TransitionObservation(**t) for t in d.get("transitions", [])],
-            warnings=d.get("warnings", []),
-            provenance=d.get("provenance", {}),
-            judgment=d.get("judgment", {}),
-            schema_version=d.get("schema_version", 1),
-        )
+        try:
+            return cls(
+                meta=VideoMeta(**d["meta"]),
+                shots=[Shot(**s) for s in d.get("shots", [])],
+                words=[Word(**w) for w in d.get("words", [])],
+                captions=[CaptionEvent(**c) for c in d.get("captions", [])],
+                audio=AudioLayout(**d.get("audio", {})),
+                avg_shot_duration=d.get("avg_shot_duration", 0.0),
+                cuts_per_10s=d.get("cuts_per_10s", []),
+                transitions=[TransitionObservation(**t) for t in d.get("transitions", [])],
+                warnings=d.get("warnings", []),
+                provenance=d.get("provenance", {}),
+                judgment=d.get("judgment", {}),
+                schema_version=d.get("schema_version", 1),
+            )
+        except (AttributeError, KeyError, TypeError) as exc:
+            raise ValueError(f"invalid breakdown: {exc}") from exc
 
     @classmethod
     def from_json(cls, s: str) -> "Breakdown":

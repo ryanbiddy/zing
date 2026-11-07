@@ -43,7 +43,7 @@ def project(tmp_path, monkeypatch, zing_workspace):
     monkeypatch.setenv("UOINK_TOKEN", TOKEN)
     # Even a missed HTTP mock cannot discover the real peer.
     monkeypatch.setenv("UOINK_URL", "http://127.0.0.1:61983")
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen",
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect",
                         lambda *a, **k: pytest.fail("Unexpected HTTP request; install a fake peer"))
     return root
 
@@ -68,7 +68,7 @@ def serve(monkeypatch, body, calls):
         calls.append(req)
         logging.getLogger("fake-peer").info("%s %s", req.method, req.full_url)
         return response(body)
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", request)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", request)
 
 
 def test_resolve_keeps_path_hash_provenance_and_studies_offline(project, handoff, monkeypatch, caplog):
@@ -85,7 +85,7 @@ def test_resolve_keeps_path_hash_provenance_and_studies_offline(project, handoff
     assert api.load_project(project).reference.resolution == result
     assert calls[0].get_header("X-uoink-token") == TOKEN
     assert TOKEN not in caplog.text
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", lambda *a, **k: pytest.fail("study contacted peer"))
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", lambda *a, **k: pytest.fail("study contacted peer"))
     from myzing.study import api as study_api, ingest
     monkeypatch.setattr(ingest, "_fetch", lambda *a, **k: pytest.fail("web refetch"))
     studied = []
@@ -107,7 +107,7 @@ def test_resolve_keeps_path_hash_provenance_and_studies_offline(project, handoff
 def test_offline_project_usable_and_file_override(project, monkeypatch, tmp_path):
     def down(*a, **k):
         raise urllib.error.URLError("offline " + TOKEN)
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", down)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", down)
     result = resolve_reference(project)
     assert result.state == "unresolved" and "no uoink helper" in result.reason
     assert TOKEN not in (project / "project.json").read_text()
@@ -215,7 +215,7 @@ def test_search_lists_never_selects(project, monkeypatch, capsys, caplog):
                         title=candidate["title"], source_url=candidate["source_url"])
         return response(body)
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", answer)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", answer)
     assert cli.main(["project", "find-reference", "soft cuts"]) == 0
     output = capsys.readouterr().out
     assert "First" in output and "Second" in output and "No reference selected" in output
@@ -251,7 +251,7 @@ def test_search_refuses_unsupported_or_invalid_responses(project, monkeypatch, f
             raise urllib.error.HTTPError(req.full_url, 404, "missing", {}, None)
         return response(body)
 
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen", answer)
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect", answer)
     result = uoink_bridge.search_references("cuts")
     assert result["ok"] is False
     assert TOKEN not in json.dumps(result)
@@ -264,7 +264,7 @@ def test_search_unconfigured_never_contacts_peer(project, monkeypatch):
 
 def test_search_never_puts_a_pasted_credential_in_the_url(project, monkeypatch):
     calls = []
-    monkeypatch.setattr(uoink_bridge.urllib.request, "urlopen",
+    monkeypatch.setattr(uoink_bridge.urls, "open_no_redirect",
                         lambda req, **kwargs: calls.append(req))
     result = uoink_bridge.search_references("soft cuts " + TOKEN)
     assert result["code"] == "invalid_query"
@@ -294,7 +294,7 @@ def test_choice_local_then_opt_in_and_retry_same_event(project, monkeypatch, cap
             raise urllib.error.URLError("response lost " + TOKEN)
         return response(accepted(duplicates=1))
 
-    monkeypatch.setattr(engagement.urllib.request, "urlopen", retry)
+    monkeypatch.setattr(engagement.urls, "open_no_redirect", retry)
     pending = choose_draft(project, "A", share_choice=True)["receipt"]
     assert pending["delivery"]["state"] == "spooled"
     assert choose_draft(project, "A")["receipt"]["event_id"] == local["event_id"]
@@ -352,7 +352,7 @@ def test_peer_rejection_redacts_escaped_credentials(project, monkeypatch, zing_w
                          "data": {"submitted": 1, "accepted": 0, "duplicates": 0, "rejected": [
                              {"event_id": event_id, "code": "invalid_event", "message": secret, "retryable": False}]}})
 
-    monkeypatch.setattr(engagement.urllib.request, "urlopen", reject)
+    monkeypatch.setattr(engagement.urls, "open_no_redirect", reject)
     result = choose_draft(project, "A", share_choice=True)
     assert result["receipt"]["delivery"]["state"] == "rejected"
     assert secret not in caplog.text + str(json.loads((zing_workspace / "engagement.json").read_text()))
