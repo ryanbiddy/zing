@@ -59,6 +59,10 @@ def assert_wire(actual, expected):
                                                          "factory_new", "factory_run", "factory_status", "factory_prompt",
                                                          "factory_answer", "factory_clip", "factory_edit"}]
         for tool in actual["result"]["tools"]:
+            if tool["name"] == "study_video":
+                option = tool["inputSchema"]["properties"].pop("save_source_to_uoink")
+                assert option["type"] == "boolean" and option["default"] is False
+                assert "save_source_to_uoink" not in tool["inputSchema"].get("required", [])
             if tool["name"] in {"study_video", "study_uoink_item", "match_start"}:
                 # DOGFOOD2 adds optional reference trims. Preserve the historical
                 # schema and pin the new fields' optional/default behavior.

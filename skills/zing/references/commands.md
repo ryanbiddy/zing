@@ -54,6 +54,31 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
+| `zing handoff` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
+
+## Hand-off with Uoink
+
+```sh
+zing handoff --probe --json
+zing handoff uoink:short-123 --json --no-open
+zing handoff uoink://item/short-123 --project ./episode --judge claude --idle-minutes 30
+```
+
+`--probe` prints the supported contract and installed version without network
+access. `REF` accepts either Uoink item form. `--json` prints one readiness
+envelope with the absolute project path, dashboard URL, item reference and
+reuse flag. Errors print a JSON envelope and exit 1.
+
+`--project DIR` chooses the project folder. By default it goes under
+`<ZING_HOME or ~/.zing>/handoff/`, with a safe title slug and a short item hash.
+The same item reuses its project; another project in the folder is refused.
+`--judge host` is the default. Press Run on the page, then answer its pending
+prompts through the factory commands or MCP tools. `--judge claude` uses
+Claude Code. `--no-open` leaves the browser closed. `--idle-minutes N` sets
+the limit without HTTP requests, default 60 and minimum 1 whole minute.
+Ctrl+C or the idle limit stops the server with exit 0.
+
+See the [button contract and capture behavior](https://github.com/ryanbiddy/zing/blob/main/docs/UOINK-MEMORY.md#hand-off-with-uoink).
 
 ## Channels
 

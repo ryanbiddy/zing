@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `zing handoff` for Uoink's saved-item button and optional source capture
+  through `study_video` when Uoink advertises `uoink.capture/1`.
 - A study that fails while Zing checks on it keeps its real error instead of
   "worker is gone".
 - Keep YouTube channel metadata available during feed outages with yt-dlp.

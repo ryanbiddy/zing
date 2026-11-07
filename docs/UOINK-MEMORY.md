@@ -31,6 +31,109 @@ the peer's source URL as a fallback. Study artifacts go to the Zing workspace
 for brief recommendations. Keep project and workspace outputs outside Git or
 under the ignored `zing-workspace/` directory.
 
+## Hand-off with Uoink
+
+Uoink's "Make a Short with Zing" button can check support before launching a
+project. `zing handoff --probe --json` prints exactly one JSON object and exits
+0. It makes no network request and does not call Uoink.
+
+```json
+{"ok":true,"contract":"ryan.suite.handoff","version":1,"service":"zing","service_version":"<installed myzing version>","accepts":["uoink.item/1"],"needs":["uoink.media.handoff/1"]}
+```
+
+Launch the saved item with its canonical reference or `uoink:<id>` shorthand.
+
+```sh
+zing handoff uoink://item/short-123 --json --no-open
+```
+
+Zing resolves `uoink.media.handoff/1`, checks the kept file's size and SHA-256,
+and creates a factory project through the same path as `zing factory new`.
+The optional corpus metadata lookup supplies the title. The title and source
+URL go in `source.json`; the canonical `uoink_ref` goes in `factory.json`.
+No source video is downloaded or copied.
+
+The default folder is `<workspace>/handoff/<title-or-item-slug>-<short-id>`.
+The workspace follows `ZING_HOME`, defaulting to `~/.zing`. The short ID is
+derived from the item reference. `--project DIR` chooses another folder.
+A project from the same item is reused with its edits intact. A different
+project in that folder is refused.
+
+After binding an ephemeral port on `127.0.0.1`, Zing flushes this first stdout
+line. Paths, port and dashboard token below are placeholders.
+
+```json
+{"ok":true,"contract":"ryan.suite.handoff","version":1,"project":"<absolute project path>","page":"http://127.0.0.1:<port>/?t=<dashboard-token>","item_ref":"uoink://item/short-123","reused":false}
+```
+
+Uoink can read this line and detach while Zing keeps serving in the same
+process. The page opens in the browser unless `--no-open` is set. Without
+`--json`, Zing prints the usual `Open ...` line. Press Run on the page to start
+the factory. `--judge host` is the default and leaves prompts for the user's
+agent. `--judge claude` passes judgments to Claude Code.
+
+Ctrl+C or 60 minutes without an HTTP request stops the server with exit 0.
+`--idle-minutes N` changes that limit and accepts whole minutes of at least 1.
+Every HTTP request resets the idle timer.
+
+Before the dashboard is ready, a failure prints this shape and exits 1 with
+`--json`. Plain mode prints the message. Peer error details and the Uoink
+credential are never printed.
+
+```json
+{"ok":false,"contract":"ryan.suite.handoff","version":1,"error":"media_unavailable","message":"The item's kept media is unavailable. Keep the video in Uoink and try again."}
+```
+
+| Error | Meaning |
+|---|---|
+| `invalid_ref` | The reference does not identify one Uoink item. |
+| `uoink_unavailable` | Discovery, authentication or kept-media resolution failed. |
+| `media_unavailable` | The item or kept file is missing, not kept, or fails verification. |
+| `project_exists` | The chosen folder holds another project or other files. |
+| `failed` | Invalid arguments or another startup error stopped the hand-off. |
+
+### Save a source link
+
+`uoink_bridge.capture(url, source_hint=None, wait_seconds=0)` supports the
+planned `uoink.capture/1` capability. Uoink does not ship this capability yet.
+Zing checks the suite manifest before calling the route. If it is absent,
+capture returns a house error with `code="unsupported_capability"` and makes
+no POST request.
+
+When advertised, Zing sends `POST /api/suite/v1/capture` with JSON containing
+`url` and, when supplied, `source_hint`. Only HTTP and HTTPS source URLs are
+accepted. Peer discovery follows `UOINK_URL`, a valid runtime lease, then the
+default loopback address. `UOINK_TOKEN` is sent only in the `X-Uoink-Token`
+header. Redirects are refused. Credentials in input URLs are refused before
+sending them.
+
+Successful replies have exactly these keys. `status` is `saved`, `queued` or
+`exists`. `source` is text, `canonical` is an HTTP or HTTPS URL, and `item_id`
+and `job_id` are text or null. `item_uri` is the canonical reference for
+`item_id`, or null.
+
+```json
+{"ok":true,"contract":"uoink.capture","version":1,"status":"saved","source":"youtube","item_id":"short-123","job_id":null,"canonical":"https://example.test/watch/123","item_uri":"uoink://item/short-123"}
+```
+
+Failure replies have exactly `ok`, `contract`, `version`, `error` and
+`message`. `ok` is false, the contract is `uoink.capture`, and the version is 1.
+`error` is `unsupported_url`, `consent_required`, `media_unavailable` or `busy`.
+`message` is text. Zing returns validated replies and redacts credentials in
+error messages. Other shapes return a house error with `code="contract_mismatch"`
+to identify a nonconformant peer.
+
+With `wait_seconds > 0`, a queued reply with a job ID is polled using
+`GET /api/suite/v1/capture/<encoded-job-id>` every 2 seconds. Polls use the same
+token header and response checks. A completed result or error ends polling.
+When time runs out, capture returns the last queued reply.
+
+The existing MCP `study_video` tool accepts `save_source_to_uoink=true`.
+For an HTTP or HTTPS source, it calls capture before starting the study and
+adds the capture envelope as `uoink_capture` in the result. Capture failure
+does not fail the study. The flag defaults to false and has no effect on
+local files. This adds no MCP tool.
+
 ## Search handoff
 
 ```powershell

@@ -5,6 +5,19 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
+## Hand-off with Uoink
+
+`zing handoff uoink:short-123` starts a factory project from the item's kept
+video and opens the review dashboard. Press Run to begin. The host judge is
+the default; `--judge claude` uses Claude Code. The source title and link are
+saved when available. The media stays in Uoink.
+
+Use `--project DIR` to choose the folder, `--no-open` to leave the browser
+closed, and `--idle-minutes N` to change the 60-minute idle limit. The minimum
+is 1 minute. The same item reuses its project and keeps edits. Uoink's button
+uses `--probe --json` to check support and `--json` to read the dashboard URL.
+See the [hand-off contract](UOINK-MEMORY.md#hand-off-with-uoink).
+
 ## Channels
 
 Use [`zing channels`](CHANNELS.md) to keep source grants, factory defaults,
