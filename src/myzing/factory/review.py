@@ -27,23 +27,24 @@ def build(project: Path, pack: str | None = None) -> Path:
         d = ep / f"clip{i:02d}"
         videos = [(shape, f"clip{i:02d}/clip{suffix(shape, pack)}.mp4") for shape in SHAPES
                   if (d / f"clip{suffix(shape, pack)}.mp4").is_file()]
-        checked = _load(d / "brief_check.json")
-        if not videos and not checked:
-            continue
-        plan, post = _load(d / "plan.json"), _load(d / "post.json")
-        mix: dict[str, int] = {}
-        for s in plan.get("shots", []):
-            k = s["layout"] + (f" · {s['graphic']['kind']}" if s.get("graphic") else "")
-            mix[k] = mix.get(k, 0) + 1
-        credits = sorted({v.get("credit", "") for v in plan.get("visuals", {}).values() if v.get("credit")})
-        unclear = sorted({v.get("rights", "unknown") for v in plan.get("visuals", {}).values()} - {"cleared", "attribution"})
-        mm, ss = divmod(int(m.get("start", 0)), 60)
-        players = "".join(f'<video class="s{shape}" src="{e(path)}" controls playsinline preload="metadata"></video>'
-                          for shape, path in videos)
-        copy = "".join(f"<dt>{e(k.replace('_', ' '))}</dt><dd>{e(post[k])}</dd>" for k in FIELDS if k in post)
-        flags = "".join(f'<p class="tag warn">{e(text)}</p>' for text in checked.get("errors", [])
-                        + [f["why"] for f in checked.get("flags", [])])
-        cards.append(f"""
+        try:
+            checked = _load(d / "brief_check.json")
+            if not videos and not checked:
+                continue
+            plan, post = _load(d / "plan.json"), _load(d / "post.json")
+            mix: dict[str, int] = {}
+            for s in plan.get("shots", []):
+                k = s["layout"] + (f" · {s['graphic']['kind']}" if s.get("graphic") else "")
+                mix[k] = mix.get(k, 0) + 1
+            credits = sorted({v.get("credit", "") for v in plan.get("visuals", {}).values() if v.get("credit")})
+            unclear = sorted({v.get("rights", "unknown") for v in plan.get("visuals", {}).values()} - {"cleared", "attribution"})
+            mm, ss = divmod(int(m.get("start", 0)), 60)
+            players = "".join(f'<video class="s{shape}" src="{e(path)}" controls playsinline preload="metadata"></video>'
+                              for shape, path in videos)
+            copy = "".join(f"<dt>{e(k.replace('_', ' '))}</dt><dd>{e(post[k])}</dd>" for k in FIELDS if k in post)
+            flags = "".join(f'<p class="tag warn">{e(text)}</p>' for text in checked.get("errors", [])
+                            + [f["why"] for f in checked.get("flags", [])])
+            cards.append(f"""
 <article>
   <div class="vids">{players}</div>
   <div class="meta">
@@ -60,6 +61,8 @@ def build(project: Path, pack: str | None = None) -> Path:
     <dl>{copy}</dl>
   </div>
 </article>""")
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            cards.append(f'<article><p class="tag warn">Clip {i} could not be reviewed: {e(str(exc))}</p></article>')
     network_text = json.dumps(summary(ep)["summary"]).replace("<", "\\u003c")
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Clip Pack</title>

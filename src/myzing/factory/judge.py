@@ -59,6 +59,7 @@ class Judge:
         if backend not in ("host", "claude"):
             raise ValueError("judge must be 'host' or 'claude'")
         self.project, self.backend, self.model, self.retry_wait = Path(project), backend, model, retry_wait
+        self.validate = None
         if backend == "claude":
             Network(self.project).check("Claude judge")
 
@@ -73,22 +74,37 @@ class Judge:
 
     def ask(self, task: str, prompt: str, images: tuple[Path, ...] = ()) -> dict:
         answer, pending = self._paths(task)
+        invalid = False
         if answer.is_file():
-            return json.loads(answer.read_text(encoding="utf-8"))
+            try:
+                value = json.loads(answer.read_text(encoding="utf-8"))
+                if self.validate:
+                    self.validate(task, value)
+                return value
+            except (ValueError, KeyError, TypeError, AttributeError):
+                answer.unlink(missing_ok=True)
+                invalid = True
         cfg = self.project / "factory.json"
         local = images and cfg.is_file() and json.loads(cfg.read_text(encoding="utf-8")).get("visuals")
-        if self.backend == "claude" and not local:
-            return self.save(task, self._claude(task, prompt, images))
+        if self.backend == "claude" and not local and not invalid:
+            try:
+                value = parse(self._claude(task, prompt, images))
+                if self.validate:
+                    self.validate(task, value)
+            except (ValueError, KeyError, TypeError, AttributeError):
+                pass
+            else:
+                return self.save(task, value)
         pending.parent.mkdir(parents=True, exist_ok=True)
         head = "".join(f"<!-- image: {Path(p).resolve().as_posix()} -->\n" for p in images)
         pending.write_text(head + prompt, encoding="utf-8")
         raise NeedsAnswer(task, pending)
 
     def save(self, task: str, text: str | dict) -> dict:
+        from .pipeline import _write
         answer, pending = self._paths(task)
         value = text if isinstance(text, dict) else parse(text)
-        answer.parent.mkdir(parents=True, exist_ok=True)
-        answer.write_text(json.dumps(value, indent=1, ensure_ascii=False), encoding="utf-8")
+        _write(answer, value)
         pending.unlink(missing_ok=True)
         return value
 

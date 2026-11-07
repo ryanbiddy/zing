@@ -189,7 +189,7 @@ function ring(w, h, seed) { const pts = []; for (let k = 0; k <= 48; k++) { cons
 const shotAt = t => D.shots.find(s => t >= s.from && t < s.to) || D.shots[D.shots.length-1];
 const camAt = t => D.cams.find(c => t >= c.from && t < c.to) || D.cams[D.cams.length-1];
 
-async function setImg(img, src) { if (img.dataset.src !== src) { img.src = src; img.dataset.src = src; await img.decode().catch(()=>{}); } }
+async function setImg(img, src) { if (img.dataset.src !== src) { img.src = src; delete img.dataset.src; await img.decode(); img.dataset.src = src; } }
 
 // cover-fit an image of (iw,ih) into box (bw,bh) around focus (fx,fy) at zoom z
 function cover(img, iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {

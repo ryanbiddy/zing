@@ -134,7 +134,7 @@ def _fix_text(value, pairs: list[tuple[str, str]]):
     if isinstance(value, str):
         for heard, meant in pairs:
             pattern = f"(?:{re.escape(meant)})|(?:{re.escape(heard)})" if heard.lower() in meant.lower() else re.escape(heard)
-            value = re.sub(pattern, meant, value, flags=re.IGNORECASE)
+            value = re.sub(rf"(?<!\w)(?:{pattern})(?!\w)", lambda m: meant, value, flags=re.IGNORECASE)
         return value
     if isinstance(value, list):
         return [_fix_text(v, pairs) for v in value]
@@ -229,6 +229,7 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
              news: dict | None = None) -> dict:
     """Drop what can't be shown honestly: unspoken graphics and splits without a usable visual become solo."""
     from .receipt import added
+    from .pipeline import _write
     from . import campaign, postcopy
     d = Path(clipdir)
     heard = d / "words-heard.json"                     # the speech model's words, kept once a fix changes them
@@ -311,6 +312,6 @@ def finalize(clipdir: Path, plan: dict, found: dict[str, dict], brand: dict | No
     if hook_bad:
         log.append(f"hook number not spoken {hook_bad}: review the hook")
     final["fact_check"] = log or ["every drawn number and quote is in the clip's words"]
-    (d / "plan.json").write_text(json.dumps(final, indent=1, ensure_ascii=False), encoding="utf-8")
+    _write(d / "plan.json", final)
     (d / "receipt.json").write_text(json.dumps(added(d), indent=1, ensure_ascii=False), encoding="utf-8")
     return final

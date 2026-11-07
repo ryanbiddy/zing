@@ -104,8 +104,11 @@ def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float
                      f"afade=t=in:d=0.02,afade=t=out:st={max(0, e - s - 0.02):.3f}:d=0.02[a{i}]")
         labels.append(f"[v{i}][a{i}]")
     graph = ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(ranges)}:v=1:a=1[v][a]"
-    run(ff, "-v", "error", "-y", "-i", seg, "-filter_complex", graph, "-map", "[v]", "-map", "[a]", "-r", FPS,
+    script = d / "silences.txt"
+    script.write_text(graph, encoding="utf-8")
+    run(ff, "-v", "error", "-y", "-i", seg, "-filter_complex_script", script, "-map", "[v]", "-map", "[a]", "-r", FPS,
         "-c:v", "libx264", "-crf", "12", "-preset", "fast", "-c:a", "aac", "-b:a", "192k", d / "cut.mp4")
+    script.unlink(missing_ok=True)
     (d / "frames").mkdir(exist_ok=True)
     for f in (d / "frames").glob("*.jpg"):
         f.unlink()
@@ -129,6 +132,7 @@ def cams(d: Path) -> dict:
     """Camera shots, and in each the face to frame. Close-ups teach what the main speaker wears; in wide shots the
     frame follows them, leaving only when someone else clearly out-talks them for a while."""
     import cv2
+    from .pipeline import _write
     from myzing.layout.detector import require_model
     log = run(ffmpeg(), "-hide_banner", "-i", str(d / "cut.mp4"), "-vf", "select='gt(scene,0.3)',showinfo",
               "-f", "null", "-", check=False, capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
@@ -227,7 +231,7 @@ def cams(d: Path) -> dict:
     out.sort(key=lambda c: c["from"])
     first = frame(0)
     info = {"cams": out, "size": [first.shape[1], first.shape[0]], "frames": n, "burn_top": burned_caption_top(d)}
-    (d / "cams.json").write_text(json.dumps(info, indent=0), encoding="utf-8")
+    _write(d / "cams.json", info)
     return info
 
 

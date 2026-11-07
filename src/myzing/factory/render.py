@@ -368,13 +368,18 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     capture(data, data_file, frames)
     duration = data["duration"]
     uhd = data.get("scale", 1) == 2
-    run(ffmpeg(), "-v", "error", "-y", "-framerate", 30, "-i", frames / "%05d.jpg", "-i", d / "cut.mp4",
-        "-map", "0:v", "-map", "1:a", "-af", f"apad,afade=t=out:st={duration - 0.3:.2f}:d=0.3", "-t", duration,
-        "-c:v", "libx264", "-crf", 20 if uhd else 18, "-preset", "medium",
-        *(["-profile:v", "high", "-level:v", "5.1", "-maxrate", "40M", "-bufsize", "80M",
-           "-vf", "scale=in_range=pc:out_range=tv", "-color_range", "tv"] if uhd else []),
-        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-        "-movflags", "+faststart", out)
+    part = out.with_name(f"_{out.stem}.part{out.suffix}")
+    try:
+        run(ffmpeg(), "-v", "error", "-y", "-framerate", 30, "-i", frames / "%05d.jpg", "-i", d / "cut.mp4",
+            "-map", "0:v", "-map", "1:a", "-af", f"apad,afade=t=out:st={duration - 0.3:.2f}:d=0.3", "-t", duration,
+            "-c:v", "libx264", "-crf", 20 if uhd else 18, "-preset", "medium",
+            *(["-profile:v", "high", "-level:v", "5.1", "-maxrate", "40M", "-bufsize", "80M",
+               "-vf", "scale=in_range=pc:out_range=tv", "-color_range", "tv"] if uhd else []),
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", part)
+        part.replace(out)
+    finally:
+        part.unlink(missing_ok=True)
     tall = shape == "9x16"
     tools.run(ffmpeg(), "-v", "error", "-y", "-i", str(out), "-vf",
         f"fps=1/2.5,scale={180 if tall else 240}:-1,tile={10 if tall else 6}x{2 if tall else 4}",

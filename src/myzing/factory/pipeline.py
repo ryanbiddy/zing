@@ -46,6 +46,14 @@ def _write(path: Path, value) -> None:
     tmp.replace(path)
 
 
+def _stage(path: Path):
+    try:
+        return _read(path)
+    except json.JSONDecodeError:
+        path.unlink(missing_ok=True)
+        return None
+
+
 def init(project: Path, media: Path, *, transcript: Path | None = None, offset: float = 0.0, name: str | None = None,
          url: str = "", date: str = "", tag: str = "", rights: str = "unknown", brief: Path | dict | None = None, **settings) -> dict:
     """Create a factory project. The media stays where it is; nothing is downloaded or uploaded."""
@@ -350,7 +358,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     """Advance one clip as far as it can go; returns the tasks it is waiting on."""
     d = project / f"clip{i:02d}"
     task = f"clip{i:02d}"
-    if not (d / "cams.json").is_file():
+    if _stage(d / "cams.json") is None:
         _forget_context(d, judge)
         say(f"{task}: cutting " + ", ".join(f"{a:.1f}-{b:.1f}s" for a, b in scout.parts(m)))
         cut.cut(d, media, words, m["start"], m["end"], **({"spans": scout.parts(m)} if m.get("spans") else {}))
@@ -390,7 +398,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
     found: dict = {}
     _checkpoint(stop)
     if reqs:
-        if not (visdir / "manifest.json").is_file():
+        if _stage(visdir / "manifest.json") is None:
             say(f"{task}: finding visuals for {len(reqs)} requests ({mode})")
             _write(visdir / "requests.json", reqs)
             visuals.find(reqs, visdir, "context" if mode == "launch" else mode, public=cfg.get("public", False), say=say,
@@ -416,7 +424,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
                 found = pick.chosen(visdir, reqs, manifest, saved["picks"])
     final_path = d / "plan.json"
     inputs = [project / "answers" / f"{task}-{kind}.json" for kind in ("plan", "pick")] + [visdir / "picks.json"]
-    if not final_path.is_file() or any(p.is_file() and p.stat().st_mtime > final_path.stat().st_mtime for p in inputs):
+    if _stage(final_path) is None or any(p.is_file() and p.stat().st_mtime > final_path.stat().st_mtime for p in inputs):
         plan.finalize(d, raw, found, cfg.get("brand"), cfg.get("news"))
         _forget_context(d, judge)
     try:
@@ -456,6 +464,9 @@ def run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print,
 
 def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print, stop=None) -> dict:
     project = Path(project).resolve()
+    if isinstance(judge, Judge):
+        judge.validate = lambda task, value: _check_answer(project, task, value) \
+            if task == "scout" or task.endswith("-plan") else None
     if getattr(judge, "backend", "host") == "claude":
         network.Network(project).check("Claude judge")
     src, cfg = _read(project / "source.json"), _read(project / "factory.json")
@@ -478,7 +489,9 @@ def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print
                 continue
             try:
                 _clip(project, i, m, judge, media, cfg, words, say, **({"stop": stop} if stop else {}))
-            except (FactoryError, ValueError, OSError) as exc:      # one bad clip never sinks the episode
+            except _Stopped:
+                raise
+            except Exception as exc:                  # one bad clip never sinks the episode
                 failed[f"clip{i:02d}"] = str(exc)[:300]
                 say(f"clip{i:02d}: failed: {exc}")
         _checkpoint(stop)
@@ -533,27 +546,35 @@ def status(project: Path, judge: Judge | None = None) -> dict:
             "review": str(project / "index.html") if (project / "index.html").is_file() else None}
 
 
+def _check_answer(project: Path, task: str, value: dict) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("the answer must be a JSON object")
+    kind = task.split("-")[-1]
+    if kind == "scout":
+        cfg = _read(project / "factory.json", {})
+        segments = _read(project / "transcript.json", [])
+        scout.check(value, segments[-1]["e"] if segments else None, brief=campaign.read(project),
+                    mode=cfg.get("mode", "context"))
+    elif kind == "plan":
+        plan.check(value)
+    elif kind == "copy":
+        missing = [k for k in postcopy.FIELDS if not isinstance(value.get(k), str)]
+        if missing:
+            raise ValueError(f"copy answer is missing {', '.join(missing)}")
+    elif kind == "context":
+        context.check(value, "", [])
+
+
 def answer(project: Path, task: str, text: str | dict) -> dict:
     """Record an answer for a pending task (validated like the claude judge's answers)."""
     from .judge import parse
-    kind = task.split("-")[-1]
     try:
         value = text if isinstance(text, dict) else parse(text)
-        if kind == "scout":
-            cfg = _read(Path(project) / "factory.json", {})
-            scout.check(value, brief=campaign.read(Path(project)), mode=cfg.get("mode", "context"))
-        elif kind == "plan":
-            plan.check(value)
-        elif kind == "copy":
-            missing = [k for k in postcopy.FIELDS if not isinstance(value.get(k), str)]
-            if missing:
-                raise ValueError(f"copy answer is missing {', '.join(missing)}")
-        elif kind == "context":
-            context.check(value, "", [])
-    except (ValueError, KeyError, TypeError) as exc:       # the prompt stays pending for another try
+        _check_answer(Path(project), task, value)
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:       # the prompt stays pending for another try
         raise FactoryError(f"answer for {task} rejected: {exc}") from exc
     Judge(Path(project)).save(task, value)
-    if kind == "context":
+    if task.endswith("-context"):
         (Path(project) / task.rsplit("-", 1)[0] / "context.json").unlink(missing_ok=True)
     return {"task": task, "saved": True}
 
