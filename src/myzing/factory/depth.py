@@ -15,7 +15,7 @@ from pathlib import Path
 from myzing import model_fetch
 from myzing.storage import workspace_root
 
-from .tools import FactoryError, ffmpeg
+from .tools import FactoryError, ffmpeg, process
 from .network import Network
 
 MODEL = "depth-anything-v2-small"
@@ -145,15 +145,15 @@ def parallax(image: Path, out: Path, seconds: float, *, key: str = "", width: in
         return None
     h, w = depth.shape
     out.parent.mkdir(parents=True, exist_ok=True)
-    enc = subprocess.Popen([ffmpeg(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{w}x{h}",
-                            "-r", str(fps), "-i", "-", "-c:v", "libx264", "-crf", "17", "-preset", "medium",
-                            "-pix_fmt", "yuv420p", str(out)], stdin=subprocess.PIPE)
-    try:
-        for frame in frames(bgr, depth, n, stamp["move"]):
-            enc.stdin.write(np.ascontiguousarray(frame).tobytes())
-    finally:
-        enc.stdin.close()
-        enc.wait()
+    with process([ffmpeg(), "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{w}x{h}",
+                  "-r", str(fps), "-i", "-", "-c:v", "libx264", "-crf", "17", "-preset", "medium",
+                  "-pix_fmt", "yuv420p", str(out)], stdin=subprocess.PIPE) as enc:
+        try:
+            for frame in frames(bgr, depth, n, stamp["move"]):
+                enc.stdin.write(np.ascontiguousarray(frame).tobytes())
+        finally:
+            enc.stdin.close()
+            enc.wait()
     if enc.returncode:
         raise FactoryError(f"FFmpeg could not encode the parallax for {image.name}")
     meta.write_text(json.dumps(stamp), encoding="utf-8")

@@ -6,16 +6,58 @@ from __future__ import annotations
 
 import os
 import shutil
+import signal
 import subprocess
 import sys
+import threading
+from contextlib import contextmanager, nullcontext
+from contextvars import ContextVar
 from importlib import resources
 from pathlib import Path
 
 DATA = resources.files("myzing") / "_data" / "factory"
+_processes = ContextVar("factory_processes", default=None)
 
 
 class FactoryError(RuntimeError):
     """An actionable factory failure."""
+
+
+class Stopped(BaseException):
+    pass
+
+
+class Processes:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.child = None
+        self.stopped = False
+
+    @contextmanager
+    def scope(self):
+        token = _processes.set(self)
+        try:
+            yield
+        finally:
+            _processes.reset(token)
+
+    def stop(self):
+        with self.lock:
+            self.stopped = True
+            if self.child and self.child.poll() is None:
+                self.kill(self.child)
+
+    def kill(self, child):
+        try:
+            if os.name == "nt":
+                subprocess.run(["taskkill", "/PID", str(child.pid), "/T", "/F"], capture_output=True,
+                               timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
+            else:
+                os.killpg(child.pid, signal.SIGKILL)
+        except (OSError, subprocess.SubprocessError):
+            pass
+        if child.poll() is None:
+            child.kill()
 
 
 NO_HOOK = "none yet (the clip was picked by hand): write one from what is said"
@@ -90,8 +132,56 @@ def sidecar_env(tmp: Path | None = None) -> dict[str, str]:
     return env
 
 
+@contextmanager
+def process(argv, **kwargs):
+    owner = _processes.get()
+    if owner:
+        if os.name == "nt":
+            kwargs["creationflags"] = kwargs.get("creationflags", 0) | subprocess.CREATE_NO_WINDOW
+        else:
+            kwargs["start_new_session"] = True
+    with owner.lock if owner else nullcontext():
+        if owner and owner.stopped:
+            raise Stopped
+        child = subprocess.Popen(argv, **kwargs)
+        if owner:
+            owner.child = child
+    try:
+        yield child
+    finally:
+        if owner:
+            with owner.lock:
+                owner.child = None
+            if owner.stopped:
+                raise Stopped
+
+
 def run(*argv, **kwargs) -> subprocess.CompletedProcess:
-    return subprocess.run([str(a) for a in argv], check=True, **kwargs)
+    argv = [str(a) for a in argv]
+    kwargs.setdefault("check", True)
+    owner = _processes.get()
+    if owner is None:
+        return subprocess.run(argv, **kwargs)
+    check, timeout = kwargs.pop("check"), kwargs.pop("timeout", None)
+    data = kwargs.pop("input", None)
+    if data is not None:
+        kwargs["stdin"] = subprocess.PIPE
+    if kwargs.pop("capture_output", False):
+        kwargs["stdout"] = kwargs["stderr"] = subprocess.PIPE
+    with process(argv, **kwargs) as child, child:
+        try:
+            stdout, stderr = child.communicate(data, timeout=timeout)
+        except subprocess.TimeoutExpired as exc:
+            owner.kill(child)
+            exc.stdout, exc.stderr = child.communicate()
+            raise
+        except BaseException:
+            owner.kill(child)
+            child.communicate()
+            raise
+        if check and child.returncode:
+            raise subprocess.CalledProcessError(child.returncode, argv, stdout, stderr)
+        return subprocess.CompletedProcess(argv, child.returncode, stdout, stderr)
 
 
 def check() -> dict:
