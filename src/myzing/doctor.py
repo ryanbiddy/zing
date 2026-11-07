@@ -919,6 +919,8 @@ def _next_step() -> str:
 def _print_human(checks: list[Check]) -> None:
     print("zing doctor\n")
     print(_verdict_line(checks) + "\n")
+    key = "set" if os.environ.get("YOUTUBE_API_KEY", "").strip() else "not set (optional; used when YouTube RSS is down)"
+    print("YouTube Data API key: " + key + "\n")
     for c in checks:
         status = _MARKS[c.ok]
         if c.tier == OPTIONAL and not c.ok:
