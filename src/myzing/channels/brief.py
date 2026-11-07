@@ -137,9 +137,9 @@ document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener
 }));
 </script></body></html>'''
     path = folder / "brief.html"
-    path.write_text(page, encoding="utf-8")
+    _publish(path, page)
     if latest:
-        (folder.parent / "latest.html").write_text(page, encoding="utf-8")
+        _publish(folder.parent / "latest.html", page)
         if channel.get("phone_folder"):
             try:
                 phone = Path(channel["phone_folder"]).expanduser() / f"{channel['slug']}-brief.html"
@@ -153,6 +153,12 @@ document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener
                     data["errors"].append(error)
                     _write(folder / "brief.json", data)
     return path
+
+
+def _publish(path: Path, text: str) -> None:
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)                   # a stopped run never leaves a torn page
 
 
 def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) -> dict:
@@ -239,8 +245,10 @@ def due(slug, now) -> bool:
     channel = registry.load(slug)
     if registry.paused(slug) or not any(s["per_day"] > 0 for s in channel["series"]):
         return False
-    data = _read(registry.directory(slug) / "brief" / _day(channel, now) / "brief.json")
-    return data is None or any(not item.get("script") and not item.get("pending") for item in data["items"])
+    folder = registry.directory(slug) / "brief" / _day(channel, now)
+    data = _read(folder / "brief.json")
+    return (data is None or not (folder / "brief.html").is_file()     # a crash after the last script leaves no page
+            or any(not item.get("script") and not item.get("pending") for item in data["items"]))
 
 
 def answer(slug, task, path_or_text, date=None):

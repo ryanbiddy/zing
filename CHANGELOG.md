@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Review fixes across Zing. Channel uploads, ticks, queues and kits survive races,
+  expired upload sessions and bad project files. Downloads connect only to addresses
+  checked as public, study URLs refuse private hosts, and API keys never follow a redirect.
+- The review dashboard streams media, keeps parallel saves apart and stops its render
+  on Ctrl+C. One failing clip, answer or stage file no longer sinks a factory episode,
+  and renders publish only when finished.
+- Renders handle 4:5, anamorphic and non-ASCII sources and outputs on another drive.
+  Study, match, stills, screen and explain runs keep good work when one input fails.
+- Recordings sources can wait for phone sync, skip old or long files and require a
+  brief match. `phone_folder` copies the latest brief to a folder your phone syncs.
+- Write brief pages atomically and remake a missing page on the next tick. One
+  damaged kit no longer breaks the kit index, and torn network ledger lines are skipped.
 - Mirror approved post kits and their copy to `phone_folder` under `<slug>-kits`.
   Later kit runs remove posted or skipped kits and report phone folder errors as warnings.
 - Add channel scorecards with local progress rows, owner-set bars, flags and

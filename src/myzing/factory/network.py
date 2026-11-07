@@ -252,7 +252,14 @@ class _Response:
 def summary(project: Path) -> dict:
     net = Network(project)
     path = net.project / "network.jsonl"
-    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.is_file() else []
+    rows = []
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines() if path.is_file() else []:
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue                    # a line torn by a killed run is not worth failing the project
+        if isinstance(row, dict) and isinstance(row.get("purpose"), str):
+            rows.append(row)
     hosts, purposes = Counter(r.get("host") or "?" for r in rows), Counter(r["purpose"] for r in rows)
     if not rows:
         text = "offline: nothing fetched" if net.offline else "No network requests recorded"
