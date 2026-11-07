@@ -322,7 +322,8 @@ SEARCH_CAPABILITY = "uoink.corpus.read/1"
 CAPTURE_CAPABILITY = "uoink.capture/1"
 _CAPTURE_KEYS = {"ok", "contract", "version", "status", "source", "item_id", "job_id", "canonical", "item_uri"}
 _CAPTURE_ERROR_KEYS = {"ok", "contract", "version", "error", "message"}
-_CAPTURE_ERRORS = ("unsupported_url", "consent_required", "media_unavailable", "busy")
+_CAPTURE_ERRORS = ("bad_request", "unsupported_url", "consent_required", "media_unavailable", "busy",
+                   "not_found", "capture_failed")
 
 
 def parse_capture_response(body: Any) -> dict[str, Any]:
@@ -336,8 +337,9 @@ def parse_capture_response(body: Any) -> dict[str, Any]:
                 or not isinstance(body["message"], str)):
             return invalid
         return {**body, "message": redact(body["message"])}
-    if (set(body) != _CAPTURE_KEYS or body["ok"] is not True
-            or body["status"] not in ("saved", "queued", "exists")
+    if (set(body) - {"message"} != _CAPTURE_KEYS or body["ok"] is not True        # saves and job errors may add a message
+            or not isinstance(body.get("message", ""), str)
+            or body["status"] not in ("saved", "queued", "exists", "error")
             or not isinstance(body["source"], str) or not is_http_url(body["canonical"])
             or any(body[key] is not None and not isinstance(body[key], str) for key in ("item_id", "job_id"))):
         return invalid
@@ -363,6 +365,9 @@ def _capture_request(url: str, token: str, payload: dict | None = None, timeout:
             if 300 <= error.code < 400:
                 error.close()
                 return _err("Uoink capture refused a redirect.", code="peer_error")
+            if error.code in (401, 403):              # the shared token gate answers outside the capture contract
+                error.close()
+                return _err("Uoink refused the token. Check UOINK_TOKEN.", code="unauthorized")
             response = error
         with response:
             raw = response.read(1024 * 1024 + 1)

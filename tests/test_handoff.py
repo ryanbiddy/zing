@@ -328,7 +328,8 @@ def test_capture_timeout_returns_last_queued_reply(peer, clock):
     assert clock == [2, 1] and len(peer.requests) == 2
 
 
-@pytest.mark.parametrize("code", ["unsupported_url", "consent_required", "media_unavailable", "busy"])
+@pytest.mark.parametrize("code", ["bad_request", "unsupported_url", "consent_required", "media_unavailable",
+                                  "busy", "not_found", "capture_failed"])
 @pytest.mark.parametrize("queued", [False, True])
 def test_capture_failure_envelopes_on_http_errors(peer, clock, code, queued):
     body = {"ok": False, "contract": "uoink.capture", "version": 1, "error": code, "message": "Try later."}
@@ -456,3 +457,20 @@ def test_study_already_running_includes_capture(monkeypatch, fake_engine, live_j
     result = mcp_server.h_study_video(URL, save_source_to_uoink=True)
     assert result["status"] == "already_studying" and result["uoink_capture"] == capture_body("exists")
     assert not fake_engine.calls
+
+
+def test_capture_accepts_a_message_on_saves_and_job_errors(peer, clock):
+    # Uoink #418: a save may add "message"; a failed job polls back as status "error" with ok true
+    saved = {**capture_body("saved"), "message": "Saved the thread."}
+    peer.replies.append(saved)
+    assert uoink_bridge.capture(URL) == saved
+    peer.replies.extend([capture_body("queued"), {**capture_body("error"), "message": "The video is private."}])
+    result = uoink_bridge.capture(URL, wait_seconds=10)
+    assert result["ok"] is True and result["status"] == "error" and result["message"] == "The video is private."
+
+
+def test_capture_token_refusal_is_unauthorized(peer):
+    body = json.dumps({"ok": False, "error": "missing or invalid token"}).encode()
+    peer.replies.append(urllib.error.HTTPError("http://127.0.0.1:1", 403, "Forbidden", {}, io.BytesIO(body)))
+    result = uoink_bridge.capture(URL)
+    assert not result["ok"] and result["code"] == "unauthorized"

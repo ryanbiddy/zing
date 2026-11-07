@@ -107,8 +107,10 @@ default loopback address. `UOINK_TOKEN` is sent only in the `X-Uoink-Token`
 header. Redirects are refused. Credentials in input URLs are refused before
 sending them.
 
-Successful replies have exactly these keys. `status` is `saved`, `queued` or
-`exists`. `source` is text, `canonical` is an HTTP or HTTPS URL, and `item_id`
+Successful replies have exactly these keys, plus an optional text `message`.
+`status` is `saved`, `queued` or `exists` (Uoink answers 200 or 202), and a polled
+job can also report `error` with a message. A finished playlist is `saved` with a
+null `item_id`. `source` is text, `canonical` is an HTTP or HTTPS URL, and `item_id`
 and `job_id` are text or null. `item_uri` is the canonical reference for
 `item_id`, or null.
 
@@ -118,8 +120,11 @@ and `job_id` are text or null. `item_uri` is the canonical reference for
 
 Failure replies have exactly `ok`, `contract`, `version`, `error` and
 `message`. `ok` is false, the contract is `uoink.capture`, and the version is 1.
-`error` is `unsupported_url`, `consent_required`, `media_unavailable` or `busy`.
-`message` is text. Zing returns validated replies and redacts credentials in
+`error` is `bad_request`, `unsupported_url`, `consent_required`,
+`media_unavailable`, `busy`, `not_found` or `capture_failed`. `message` is text.
+A 401 or 403 from Uoink's token gate returns a house error with
+`code="unauthorized"`. Uoink keeps video jobs in memory, so a poll after a Uoink
+restart returns `not_found`. Zing returns validated replies and redacts credentials in
 error messages. Other shapes return a house error with `code="contract_mismatch"`
 to identify a nonconformant peer.
 
