@@ -27,6 +27,7 @@ def run(argv: list[str]) -> int:
     daily.add_argument("--date", help="brief date as YYYY-MM-DD in the channel timezone")
     daily.add_argument("--answer", nargs=2, metavar=("TASK", "FILE"), help="save a script answer and refill the brief")
     daily.add_argument("--open", action="store_true", help="open the brief page")
+    daily.add_argument("--takes", action="store_true", help="show what recent recordings teach the scripts")
     for name, help in (("show", "show settings and queue counts"), ("check", "check channel settings"),
                        ("queue", "queue clips that pass the gate"), ("kit", "make local post kits"),
                        ("track", "measure public YouTube results"), ("metrics", "merge a YouTube Studio CSV"),
@@ -104,6 +105,10 @@ def run(argv: list[str]) -> int:
         elif args.command == "watch":
             result = watch.run(args.slug)
         elif args.command == "brief":
+            if args.takes:
+                lines = brief.voice(args.slug, brief.when(registry.load(args.slug), args.date))
+                print("\n".join(lines) or "Fewer than 3 recorded takes in the last 30 days.")
+                return 0
             if args.answer:
                 result = brief.answer(args.slug, args.answer[0], Path(args.answer[1]), date=args.date)
             else:
