@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from myzing import storage, suite_peer
+from myzing import storage, suite_peer, urls
 
 _STATE_VERSION = 1
 _MAX_RESPONSE_BYTES = 1024 * 1024
@@ -297,7 +297,7 @@ def _post(event: dict[str, Any]) -> dict[str, Any]:
     request.add_unredirected_header("X-Uoink-Token", token)
     status = 200
     try:
-        with urllib.request.urlopen(
+        with urls.open_no_redirect(
             request, timeout=_TIMEOUT) as response:
             status = int(response.status)
             raw = response.read(_MAX_RESPONSE_BYTES + 1)

@@ -79,7 +79,7 @@ def test_synthesize_writes_wav(monkeypatch, tmp_path):
         captured["key"] = request.get_header("Xi-api-key")
         return FakeResponse(pcm)
 
-    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(tts_providers.urls, "open_no_redirect", fake_urlopen)
     result = tts_providers.ElevenLabsProvider().synthesize(
         SynthesisRequest(text="hello world", voice="v123"), tmp_path / "vo.wav"
     )
@@ -99,7 +99,7 @@ def test_auth_rejection_names_the_key(monkeypatch, tmp_path):
     def forbidden(request, timeout=0):
         raise urllib.error.HTTPError(request.full_url, 401, "no", {}, io.BytesIO())
 
-    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(tts_providers.urls, "open_no_redirect", forbidden)
     with pytest.raises(TTSUnavailableError, match="ELEVENLABS_API_KEY"):
         tts_providers.ElevenLabsProvider().synthesize(
             SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.wav"
@@ -112,7 +112,7 @@ def test_network_failure_names_the_offline_alternative(monkeypatch, tmp_path):
     def down(request, timeout=0):
         raise urllib.error.URLError("refused")
 
-    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", down)
+    monkeypatch.setattr(tts_providers.urls, "open_no_redirect", down)
     with pytest.raises(TTSGenerationError, match="kokoro provider"):
         tts_providers.ElevenLabsProvider().synthesize(
             SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.wav"
@@ -152,7 +152,7 @@ def test_quota_429_names_the_plan(monkeypatch, tmp_path):
     def limited(request, timeout=0):
         raise urllib.error.HTTPError(request.full_url, 429, "slow down", {}, io.BytesIO())
 
-    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", limited)
+    monkeypatch.setattr(tts_providers.urls, "open_no_redirect", limited)
     with pytest.raises(TTSGenerationError, match="quota"):
         tts_providers.ElevenLabsProvider().synthesize(
             SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.wav"
@@ -167,7 +167,7 @@ def test_server_error_includes_status_and_body(monkeypatch, tmp_path):
             request.full_url, 500, "oops", {}, io.BytesIO(b"internal fire")
         )
 
-    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", boom)
+    monkeypatch.setattr(tts_providers.urls, "open_no_redirect", boom)
     with pytest.raises(TTSGenerationError, match="HTTP 500.*internal fire"):
         tts_providers.ElevenLabsProvider().synthesize(
             SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.wav"
@@ -177,7 +177,7 @@ def test_server_error_includes_status_and_body(monkeypatch, tmp_path):
 def test_empty_audio_body_is_loud(monkeypatch, tmp_path):
     monkeypatch.setenv(tts_providers.ELEVENLABS_KEY_ENV, "k")
     monkeypatch.setattr(
-        tts_providers.urllib.request, "urlopen",
+        tts_providers.urls, "open_no_redirect",
         lambda request, timeout=0: FakeResponse(b""),
     )
     with pytest.raises(TTSGenerationError, match="empty audio"):
@@ -198,7 +198,7 @@ def test_non_wav_output_rejected_before_any_network_call(monkeypatch, tmp_path):
         calls["n"] += 1
         return FakeResponse(b"ok" * 50)
 
-    monkeypatch.setattr(tts_providers.urllib.request, "urlopen", counting)
+    monkeypatch.setattr(tts_providers.urls, "open_no_redirect", counting)
     with pytest.raises(TTSGenerationError, match=".wav extension"):
         tts_providers.ElevenLabsProvider().synthesize(
             SynthesisRequest(text="hi", voice="v1"), tmp_path / "vo.mp3"

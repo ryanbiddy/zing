@@ -122,8 +122,6 @@ class FakeUoink:
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch):
-    monkeypatch.setattr(suite_peer.urllib.request, "build_opener", lambda *handlers: SimpleNamespace(
-        open=lambda *args, **kwargs: suite_peer.urllib.request.urlopen(*args, **kwargs)))
     monkeypatch.delenv(suite_peer.UOINK_URL_ENV, raising=False)
     monkeypatch.delenv(suite_peer.UOINK_TOKEN_ENV, raising=False)
     doctor._peer_cache.clear()
@@ -143,7 +141,7 @@ def test_refusal_at_default_is_calm_absent(monkeypatch):
     def refuse(request, timeout=0):
         raise urllib.error.URLError("refused")
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", refuse)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "absent" and peer["ok"] is True
     assert peer_is_valid(peer)
@@ -155,7 +153,7 @@ def test_refusal_at_explicit_url_is_unhealthy_not_absent(monkeypatch):
     def refuse(request, timeout=0):
         raise urllib.error.URLError("refused")
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", refuse)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unhealthy"
     assert peer["error"]["code"] == "unavailable"
@@ -175,7 +173,7 @@ def test_invalid_explicit_url_never_falls_through(monkeypatch, url, why):
     monkeypatch.setenv(suite_peer.UOINK_URL_ENV, url)
     calls = {"n": 0}
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen",
+        suite_peer.urls, "open_no_redirect",
         lambda *a, **k: calls.__setitem__("n", calls["n"] + 1),
     )
     peer, evidence = suite_peer.probe_uoink()
@@ -193,7 +191,7 @@ def test_answering_service_without_manifest_is_drift_not_absence(monkeypatch):
             request.full_url, 404, "nf", {}, io.BytesIO(b"not json")
         )
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", not_found)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", not_found)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unhealthy"
     assert peer["error"]["code"] == "contract_mismatch"
@@ -203,7 +201,7 @@ def test_answering_service_without_manifest_is_drift_not_absence(monkeypatch):
 
 def test_wrong_identity_is_named(monkeypatch):
     fake = FakeUoink(manifest=make_manifest(id="writer", name="Writer"))
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", fake)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "wrong_service"
     assert peer_is_valid(peer)
@@ -213,7 +211,7 @@ def test_missing_required_capability_is_drift(monkeypatch):
     fake = FakeUoink(
         manifest=make_manifest(capabilities=["uoink.corpus.read/1"])
     )
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", fake)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "contract_mismatch"
     assert "uoink.media.handoff/1" in peer["error"]["message"]
@@ -230,7 +228,7 @@ def test_failed_required_health_check_is_peer_unhealthy(monkeypatch):
         ],
     )
     fake = FakeUoink(health=health)
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", fake)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "peer_unhealthy"
     assert "index" in peer["error"]["message"]
@@ -239,7 +237,7 @@ def test_failed_required_health_check_is_peer_unhealthy(monkeypatch):
 
 def test_verified_manifest_without_token_is_unconfigured(monkeypatch):
     fake = FakeUoink()
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", fake)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unconfigured" and peer["ok"] is True
     assert fake.tokens_seen == []  # never an auth attempt with no token
@@ -249,7 +247,7 @@ def test_verified_manifest_without_token_is_unconfigured(monkeypatch):
 def test_available_after_credentialed_conformance_read(monkeypatch):
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
     fake = FakeUoink()
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", fake)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "available"
     assert "uoink.media.handoff/1" in peer["capabilities"]
@@ -260,7 +258,7 @@ def test_available_after_credentialed_conformance_read(monkeypatch):
 def test_rejected_credential_is_authentication_failed(monkeypatch):
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "bad")
     fake = FakeUoink(handoff_status=401)
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", fake)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "authentication_failed"
     assert peer["error"]["retryable"] is False
@@ -349,7 +347,7 @@ def test_unconfigured_verdict_names_what_the_manifest_said(monkeypatch):
     manifest the reviewer could not fetch. Every peer verdict now names
     its evidence — a false "verified" claim requires a false receipt."""
     fake = FakeUoink()
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", fake)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", fake)
     check = doctor.check_uoink()
     assert check.mark == "unconfig"
     assert "manifest read: uoink 3.6.0" in check.detail
@@ -372,7 +370,7 @@ def test_unhealthy_verdict_names_probe_evidence(monkeypatch):
             request.full_url, 403, "no", {}, io.BytesIO(b"{}")
         )
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", forbidden)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", forbidden)
     check = doctor.check_uoink()
     assert check.mark == "unhealthy"
     assert "probe evidence: manifest fetch: HTTP 403" in check.detail
@@ -471,7 +469,7 @@ class ConformanceFails(FakeUoink):
 def test_conformance_read_nonjson_500_is_drift(monkeypatch):
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen", ConformanceFails("http500-nonjson")
+        suite_peer.urls, "open_no_redirect", ConformanceFails("http500-nonjson")
     )
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "contract_mismatch"
@@ -484,7 +482,7 @@ def test_conformance_read_500_with_valid_envelope_is_available(monkeypatch):
     same contract metadata'). The peer is available, not unhealthy."""
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen", ConformanceFails("http500-envelope")
+        suite_peer.urls, "open_no_redirect", ConformanceFails("http500-envelope")
     )
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "available"
@@ -493,7 +491,7 @@ def test_conformance_read_500_with_valid_envelope_is_available(monkeypatch):
 def test_conformance_read_network_death_is_unavailable(monkeypatch):
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen", ConformanceFails("dies")
+        suite_peer.urls, "open_no_redirect", ConformanceFails("dies")
     )
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "unavailable"
@@ -503,7 +501,7 @@ def test_conformance_read_network_death_is_unavailable(monkeypatch):
 def test_conformance_read_wrong_shape_is_drift(monkeypatch):
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "tok")
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen", ConformanceFails("not-handoff")
+        suite_peer.urls, "open_no_redirect", ConformanceFails("not-handoff")
     )
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "contract_mismatch"
@@ -541,7 +539,7 @@ def test_token_gated_manifest_is_reported_as_drift_even_with_a_token(monkeypatch
     Failing this test would disprove the claim; it does not."""
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "a-perfectly-good-token")
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen", TokenGatingUoink()
+        suite_peer.urls, "open_no_redirect", TokenGatingUoink()
     )
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unhealthy"
@@ -555,7 +553,7 @@ def test_public_manifest_peer_is_available_with_the_same_token(monkeypatch):
     zing reaches 'available'. The ONLY difference is the gating, which
     isolates the cause to uoink's side, not zing's."""
     monkeypatch.setenv(suite_peer.UOINK_TOKEN_ENV, "a-perfectly-good-token")
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", FakeUoink())
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", FakeUoink())
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "available"
 
@@ -691,7 +689,7 @@ def test_lease_supplies_the_base_url_when_no_env_var(lease_dir, monkeypatch):
             seen["url"] = request.full_url if hasattr(request, "full_url") else request
             return super().__call__(request, timeout)
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", LeaseServer())
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", LeaseServer())
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unconfigured"  # no token, but discovered fine
     assert "127.0.0.1:5999" in seen["url"]  # the LEASED port, not the default
@@ -709,7 +707,7 @@ def test_explicit_url_beats_the_lease(lease_dir, monkeypatch):
             seen["url"] = request.full_url
             return super().__call__(request, timeout)
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", Server())
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", Server())
     peer, evidence = suite_peer.probe_uoink()
     assert "127.0.0.1:6189" in seen["url"]
     assert suite_peer.UOINK_URL_ENV in evidence
@@ -719,7 +717,7 @@ def test_hostile_lease_is_never_followed(lease_dir, monkeypatch):
     """A writable file must not be able to point zing off-loopback."""
     write_lease(lease_dir, valid_lease(base_url="http://evil.example.com:80"))
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen",
+        suite_peer.urls, "open_no_redirect",
         lambda *a, **k: pytest.fail("a hostile lease must not be followed"),
     )
     peer, evidence = suite_peer.probe_uoink()
@@ -739,7 +737,7 @@ def test_hostile_lease_is_never_followed(lease_dir, monkeypatch):
 def test_malformed_leases_are_invalid_lease(lease_dir, monkeypatch, payload):
     write_lease(lease_dir, payload)
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen",
+        suite_peer.urls, "open_no_redirect",
         lambda *a, **k: pytest.fail("an invalid lease must not be followed"),
     )
     peer, evidence = suite_peer.probe_uoink()
@@ -753,7 +751,7 @@ def test_stale_lease_is_named_not_downgraded_to_absent(lease_dir, monkeypatch):
     write_lease(lease_dir, valid_lease())
     monkeypatch.setattr(suite_peer, "_pid_is_live", lambda pid: False)
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen",
+        suite_peer.urls, "open_no_redirect",
         lambda *a, **k: pytest.fail("a stale lease must not be followed"),
     )
     peer, evidence = suite_peer.probe_uoink()
@@ -771,7 +769,7 @@ def test_leased_peer_that_refuses_is_unhealthy_not_absent(lease_dir, monkeypatch
     def refuse(request, timeout=0):
         raise urllib.error.URLError("refused")
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", refuse)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "unhealthy"
     assert peer["error"]["code"] == "unavailable"
@@ -781,7 +779,7 @@ def test_no_lease_falls_through_to_the_default(lease_dir, monkeypatch):
     def refuse(request, timeout=0):
         raise urllib.error.URLError("refused")
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", refuse)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", refuse)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["state"] == "absent"  # calm: nothing configured, nothing there
 
@@ -803,7 +801,7 @@ def test_oversized_lease_is_refused_without_reading_it(lease_dir, monkeypatch):
     big = lease_dir / "uoink.json"
     big.write_bytes(b"{" + b" " * (suite_peer._LEASE_SIZE_LIMIT + 1))
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen",
+        suite_peer.urls, "open_no_redirect",
         lambda *a, **k: pytest.fail("an oversized lease must not be followed"),
     )
     peer, evidence = suite_peer.probe_uoink()
@@ -825,7 +823,7 @@ def test_configured_token_never_appears_in_any_surface(lease_dir, monkeypatch):
             seen_urls.append(request.full_url)
             return super().__call__(request, timeout)
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", Recording())
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", Recording())
     peer, evidence = suite_peer.probe_uoink()
     doctor._peer_cache.clear()
     monkeypatch.setattr(suite_peer, "probe_uoink", lambda: (peer, evidence))
@@ -895,7 +893,7 @@ def test_configured_peer_timeout_is_named_timeout(monkeypatch):
     def slow(request, timeout=0):
         raise TimeoutError("timed out")
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", slow)
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", slow)
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "timeout"
     assert peer["error"]["retryable"] is True
@@ -908,7 +906,7 @@ def test_drifted_manifest_body_is_contract_mismatch(monkeypatch):
     bad = make_manifest()
     del bad["service"]["mcp"]
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen", FakeUoink(manifest=bad)
+        suite_peer.urls, "open_no_redirect", FakeUoink(manifest=bad)
     )
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "contract_mismatch"
@@ -924,7 +922,7 @@ def test_health_endpoint_that_dies_after_a_good_manifest(monkeypatch):
                 raise urllib.error.URLError("gone")
             return super().__call__(request, timeout)
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", ManifestThenDeath())
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", ManifestThenDeath())
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "unavailable"
     assert "manifest read: uoink 3.6.0" in evidence  # what WAS verified
@@ -941,7 +939,7 @@ def test_health_non_200_and_drifted_health_are_distinguished(monkeypatch):
                 )
             return super().__call__(request, timeout)
 
-    monkeypatch.setattr(suite_peer.urllib.request, "urlopen", HealthHTTPError())
+    monkeypatch.setattr(suite_peer.urls, "open_no_redirect", HealthHTTPError())
     peer, evidence = suite_peer.probe_uoink()
     assert peer["error"]["code"] == "contract_mismatch"
     assert "health: HTTP 500" in evidence
@@ -949,7 +947,7 @@ def test_health_non_200_and_drifted_health_are_distinguished(monkeypatch):
     bad = make_health()
     del bad["state"]
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen", FakeUoink(health=bad)
+        suite_peer.urls, "open_no_redirect", FakeUoink(health=bad)
     )
     peer, evidence = suite_peer.probe_uoink()
     assert "health drift" in peer["error"]["message"]
@@ -959,7 +957,7 @@ def test_health_claiming_another_service_is_wrong_service(monkeypatch):
     """Manifest says uoink, health says writer — identity must be
     checked at BOTH seams, not just the first."""
     monkeypatch.setattr(
-        suite_peer.urllib.request, "urlopen",
+        suite_peer.urls, "open_no_redirect",
         FakeUoink(health=make_health(service_id="writer")),
     )
     peer, evidence = suite_peer.probe_uoink()
