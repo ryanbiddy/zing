@@ -40,6 +40,7 @@ def collect(series: dict, root: Path, *, fetch=None, now=None, stop=None) -> lis
                                    "channel_title": row["channel_title"][:120], "published": row["published"],
                                    "format": "Short" if row["short"] else "video",
                                    "views": row["views"], "median": typical, "multiple": round(row["views"] / typical, 1),
+                                   **({"approximate": row["approximate"]} if "approximate" in row else {}),
                                    "age_days": round(age, 1), "features": titles.features(row["title"])})
             found.extend(candidates)
         except Exception as exc:

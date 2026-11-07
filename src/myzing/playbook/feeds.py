@@ -1,23 +1,32 @@
 """Public channel metadata, with no cookies, keys or media requests."""
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
-from .common import append_jsonl, parse_time, read_json, safe_name, utc_now, write_json
+from myzing import doctor
+from myzing.study import proc
+from .common import append_jsonl, number, parse_time, read_json, safe_name, utc_now, write_json
 
 ID = r"UC[A-Za-z0-9_-]{22}"
 NS = {"atom": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015",
       "media": "http://search.yahoo.com/mrss/"}
 _lock = threading.Lock()
 _last_request = None
+
+
+class _Unavailable(ValueError):
+    pass
 
 
 def channel(value: str) -> str:
@@ -63,10 +72,11 @@ def request(url: str, *, root: Path = Path(".")) -> str:
                 status = exc.code
                 exc.close()
                 if exc.code not in (301, 302, 303, 307, 308) or not exc.headers.get("Location"):
-                    raise ValueError(f"YouTube feed request failed with HTTP {exc.code}") from None
+                    error = _Unavailable if exc.code == 404 or 500 <= exc.code < 600 else ValueError
+                    raise error(f"YouTube feed request failed with HTTP {exc.code}") from None
                 redirect = urllib.parse.urljoin(url, exc.headers["Location"])
             except OSError:
-                raise ValueError("YouTube feed request failed") from None
+                raise _Unavailable("YouTube feed request failed") from None
             finally:
                 append_jsonl(root / "feeds" / "requests.jsonl", [{"at": at, "url": url, "status": status}])
         url = redirect
@@ -109,12 +119,82 @@ def resolve(handle_or_id: str, fetch=None, *, root: Path = Path(".")) -> str:
     return ident
 
 
-def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: bool = False) -> list[dict]:
+def listing(channel_id: str, *, runner=None, now=None, watch_only: bool = False) -> list[dict]:
+    if not re.fullmatch(ID, channel_id):
+        raise ValueError("invalid YouTube channel ID")
+    argv = doctor.resolve_ytdlp_argv()
+    if argv is None:
+        raise ValueError("yt-dlp is unavailable; run zing doctor")
+    runner, now = runner or proc.run, now or datetime.now(timezone.utc)
+    tabs = ("videos",) if watch_only else ("videos", "shorts")
+    rows, failed = [], []
+    for tab in tabs:
+        result = runner([*argv, "--ignore-config", "--no-update", "--flat-playlist", "--skip-download",
+                         "--playlist-end", "15", "--extractor-args", "youtubetab:approximate_date", "-j",
+                         f"https://www.youtube.com/channel/{channel_id}/{tab}"], timeout=240)
+        if result.returncode and not result.stdout.strip():
+            failed.append(result.returncode)
+            continue
+        entries = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+        if tab == "shorts":
+            shorts = {safe_name(row["id"]): row for row in entries[:15] if row.get("id")}
+            entries = []
+            if shorts:
+                try:
+                    result = runner([*argv, "--ignore-config", "--no-update", "--skip-download", "--no-playlist", "-j",
+                                     *[f"https://www.youtube.com/shorts/{ident}" for ident in shorts]], timeout=180)
+                    entries = [{**shorts[row["id"]], **row} for line in result.stdout.splitlines() if line.strip()
+                               and (row := json.loads(line)).get("id") in shorts
+                               and number(row.get("timestamp")) and number(row.get("view_count"))]
+                except (OSError, RuntimeError, subprocess.SubprocessError):
+                    pass
+        found = []
+        for row in entries:
+            stamp, views = row.get("timestamp"), row.get("view_count")
+            if not row.get("id") or not number(stamp) or not number(views) or views < 0:
+                continue
+            try:
+                published = datetime.fromtimestamp(stamp, timezone.utc)
+            except (ValueError, OSError, OverflowError):
+                continue
+            if published > now:
+                continue
+            found.append({"id": safe_name(row["id"]), "title": row.get("title") or "",
+                          "published": published.isoformat(), "views": int(views), "short": tab == "shorts",
+                          "channel_id": channel_id, "channel_title": row.get("channel") or row.get("uploader") or "",
+                          "approximate": tab == "videos"})
+        rows.extend(sorted(found, key=lambda row: row["published"], reverse=True)[:15])
+    if len(failed) == len(tabs):
+        raise ValueError(f"channel listing failed (exit {failed[-1]})")
+    return sorted(rows, key=lambda row: row["published"], reverse=True)
+
+
+def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: bool = False, fallback=None) -> list[dict]:
     if not re.fullmatch(ID, channel_id):
         raise ValueError("invalid YouTube channel ID")
     url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
     try:
-        tree = ET.fromstring(fetch(url) if fetch else request(url, root=root))
+        body = fetch(url) if fetch else request(url, root=root)
+    except ET.ParseError:
+        raise ValueError("invalid YouTube feed XML") from None
+    except (_Unavailable, OSError) as exc:
+        if ((fetch is not None and fallback is None) or
+                (isinstance(exc, urllib.error.HTTPError) and exc.code != 404 and not 500 <= exc.code < 600)):
+            raise
+        reason = (str(exc) if isinstance(exc, _Unavailable) else
+                  f"YouTube feed request failed with HTTP {exc.code}" if isinstance(exc, urllib.error.HTTPError) else
+                  "YouTube feed request failed")
+        at, rows = utc_now(), []
+        try:
+            rows = fallback(channel_id) if fallback is not None else listing(channel_id, watch_only=watch_only)
+            if watch_only:
+                rows = [row for row in rows if not row["short"]]
+            return rows
+        finally:
+            append_jsonl(root / "feed-fallbacks.jsonl", [{"at": at, "channel_id": channel_id,
+                                                        "reason": reason, "rows": len(rows)}])
+    try:
+        tree = ET.fromstring(body)
     except ET.ParseError:
         raise ValueError("invalid YouTube feed XML") from None
     if tree.tag != "{" + NS["atom"] + "}feed":

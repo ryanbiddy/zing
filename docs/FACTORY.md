@@ -69,6 +69,10 @@ Channel [platform news](CHANNELS.md#platform-news) finds candidates from public
 feeds and YouTube uploads from the last 10 days. It ranks them by creator topics
 and date. Source errors are saved in `brief/news-errors.jsonl` under the channel.
 
+During YouTube feed outages, channels use yt-dlp for public metadata without
+cookies or media downloads. Receipts mark rounded counts with "about". Those
+counts can match posted clips but do not become measured learning results.
+
 ```text
 episode + captions -> scout moments -> cut -> plan the screen -> find visuals -> pick
                    -> fact-check + context check -> render 9:16 / 1:1 / 16:9 -> copy -> review page

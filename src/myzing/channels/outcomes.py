@@ -117,7 +117,8 @@ def _track(channel, fetch, now):
     registry.require_running(slug)
     videos = feeds.feed(ident, fetch, root=root)
     append_jsonl(root / "snapshots.jsonl", [{"at": at, "channel": slug,
-                 **{key: v[key] for key in ("channel_id", "id", "title", "published", "views", "short")}} for v in videos])
+                 **{key: v[key] for key in ("channel_id", "id", "title", "published", "views", "short")}}
+                for v in videos if not v.get("approximate")])
     rows = queue.read(slug)
     matched = _match(rows, videos, _outbox(slug))
     queue.write(slug, rows)

@@ -21,6 +21,7 @@ def watch(out: Path, channels=(), *, fetch=None, now=None) -> dict:
             rows = feeds.feed(ident, fetch, root=out)
             at = now.isoformat() if now is not None else utc_now()
             append_jsonl(out / "snapshots.jsonl", [{"at": at, "channel": handle,
+                         **({"approximate": row["approximate"]} if "approximate" in row else {}),
                          **{key: row[key] for key in ("channel_id", "id", "title", "published", "views", "short")}}
                         for row in rows])
             seen.add(ident)
@@ -37,6 +38,8 @@ def velocity(root: Path) -> dict:
         if not line.strip():
             continue
         row = json.loads(line)
+        if row.get("approximate"):
+            continue
         if not number(row["views"]) or row["views"] < 0:
             raise ValueError("snapshot views must be nonnegative numbers")
         parse_time(row["published"])

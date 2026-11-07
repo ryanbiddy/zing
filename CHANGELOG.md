@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep YouTube channel metadata available during feed outages with yt-dlp.
+  Receipts say "about" for rounded counts. Shorts use exact metadata, and
+  approximate counts never become measured learning results.
 - Review fixes across Zing. Channel uploads, ticks, queues and kits survive races,
   expired upload sessions and bad project files. Downloads connect only to addresses
   checked as public, study URLs refuse private hosts, and API keys never follow a redirect.

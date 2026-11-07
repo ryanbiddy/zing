@@ -409,7 +409,7 @@ and `brief.html`, with a page copy at `brief/latest.html`. Repeat runs fill
 missing scripts and rebuild the page. They keep the same picks. IDs saved in
 `brief/seen.json` prevent repeat picks on later days.
 
-Breakdowns read public YouTube RSS metadata and exact view counts for the
+Breakdowns normally read public YouTube RSS metadata and exact view counts for the
 newest 15 uploads. They fetch no media. The baseline is the median view count
 of at least five uploads that are two or more days old. Picks must be 1 through
 21 days old, have at least 10,000 views and meet `min_multiple`. The largest
@@ -608,6 +608,8 @@ feed's publish time and marks the queue row posted.
 playbook's nearest snapshot within 25% of the target age. The 1h count stays
 empty if the first observation came after two hours. Missing windows stay empty.
 The feed keeps only the newest 15 uploads, so frequent uploads can lose coverage.
+During feed outages, rounded counts still allow matches but do not fill measured
+view windows or teach the bandit.
 No video, audio or thumbnails are fetched.
 
 `metrics --csv FILE` reads a YouTube Studio table export. Headers ignore case.
@@ -677,6 +679,15 @@ News candidates come from RSS or Atom feeds and public YouTube upload metadata.
 When both `feeds` and `watch` are empty, the sources are the YouTube Official Blog,
 Meta's Instagram newsroom, Creator Insider uploads and YouTube Creators uploads.
 No videos are downloaded. TikTok, Twitch and X publish no feed, so they are not read.
+
+When YouTube's feed returns 404 or a server error, or the connection fails, Zing
+reads the same public metadata with yt-dlp. It uses no cookies and downloads no
+media. It reads up to 15 videos and 15 Shorts. Video dates and rounded counts are
+marked approximate, and receipts say "about 88,000 views". Shorts use exact dates
+and counts from one extra yt-dlp call. Shorts with missing metadata are
+skipped. YouTube watch sources still use only long-form videos. Each attempt is
+saved in `feed-fallbacks.jsonl` under the caller's output folder. If yt-dlp is
+missing, run `zing doctor`.
 
 Items must have an HTTPS link and a date within the last 10 days, with up to one
 hour allowed for clock differences. Each matched keyword group adds points for

@@ -144,7 +144,7 @@ def _uploads(handle: str, root: Path, fetch, stop=None):
     ident = feeds.resolve(handle, request, root=root)
     if stop and stop():
         return
-    for row in feeds.feed(ident, request, root=root):
+    for row in feeds.feed(ident, request, root=root, fallback=feeds.listing if fetch is None else None):
         path = f"shorts/{row['id']}" if row.get("short") else f"watch?v={row['id']}"
         yield {"title": row["title"], "url": "https://www.youtube.com/" + path,
                "published": row["published"], "source": row["channel_title"], "summary": "",
