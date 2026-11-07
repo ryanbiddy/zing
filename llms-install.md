@@ -58,6 +58,8 @@ media.
 
 ## Connect over MCP
 
+Run `zing connect` to list apps or `zing connect claude-desktop` to print a config.
+
 The server command is `zing serve-mcp`, with stdio transport. It requires the
 `mcp` extra. Prefer the config printed above: it uses this environment's exact
 Python interpreter with `-m myzing.cli serve-mcp`, which avoids client PATH

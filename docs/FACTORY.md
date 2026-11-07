@@ -17,6 +17,11 @@ MCP hints mark `factory_status` and `factory_prompt` as read-only. The other
 factory tools write files and can replace existing work. `factory_run` can
 fetch visuals, so its open-world hint is true even when a project is offline.
 Hosts apply their own approval rules. See [Tool hints](CONNECT.md#tool-hints).
+\n## Connect an agent
+
+Run `zing connect` to list agent apps, then `zing connect claude-desktop`
+to print a config for one. Merge the entry into the app's settings to use the
+factory MCP tools. See [One line per app](CONNECT.md#one-line-per-app).
 
 ## Channels
 
