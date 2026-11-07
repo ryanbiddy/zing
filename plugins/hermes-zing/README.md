@@ -54,9 +54,14 @@ version probe for this executable.
 ## Permissions and long calls
 
 The server is `untrusted` because it writes files and starts jobs. Hermes gates
-calls without `readOnlyHint: true`. Zing currently has no read-only annotations,
-so all 44 tools are gated, including status calls. Hermes can remember approval
-per tool; unanswered approvals fail closed in unattended runs.
+calls without `readOnlyHint: true`. All 44 Zing tools now declare hints, with
+14 marked read-only, including `factory_status`, `factory_prompt`, `get_prompt`
+and the list tools. Those calls can run without an approval prompt under this
+rule. `zing_status`, `get_breakdown`, `get_render` and `match_status` remain gated
+because they can update stale job state. `zing_studio` writes temporary preview
+media and remains gated too. See [Tool hints](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md#tool-hints)
+for every tool. Hermes can remember approval per tool; unanswered approvals
+fail closed in unattended runs.
 
 The call timeout is 7200 seconds. Study, match, factory runs and EDL renders
 return jobs to poll. `factory_edit` can synchronously re-render every shape;

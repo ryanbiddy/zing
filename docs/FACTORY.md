@@ -13,6 +13,11 @@ Zing command. Start with `factory_new`, call `factory_run` and poll
 then resumes the run. Use `factory_clip` for new cuts and `factory_edit` for
 caption, hook, copy or visual changes. Return the review page and receipts.
 
+MCP hints mark `factory_status` and `factory_prompt` as read-only. The other
+factory tools write files and can replace existing work. `factory_run` can
+fetch visuals, so its open-world hint is true even when a project is offline.
+Hosts apply their own approval rules. See [Tool hints](CONNECT.md#tool-hints).
+
 ## Channels
 
 Use [`zing channels`](CHANNELS.md) to keep source grants, factory defaults,

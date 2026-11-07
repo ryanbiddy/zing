@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add read-only, destructive, idempotent and open-world MCP hints for all 44 tools.
+  Hosts can use them to approve read-only calls without prompting.
 - Add a portable Hermes Agent plugin for installed Zing, with app detection,
   approval gates and a skill for factory clips, reference study, renders and memes.
 - A study that fails while Zing checks on it keeps its real error instead of

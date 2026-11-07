@@ -30,6 +30,78 @@ pack as slash commands:
 (This list is pinned by a test against the server's own tool registry —
 if it drifts, CI fails.)
 
+## Tool hints
+
+All 44 tools declare read-only, destructive, idempotent and open-world hints.
+Hints cover every supported argument combination. Hosts decide whether to ask
+for approval.
+
+| Tool | Read-only | Destructive | Open world |
+|---|---|---|---|
+| `brief_questions` | yes | no | no |
+| `brief_save` | no | yes | no |
+| `build_profile` | no | yes | no |
+| `export_otio` | no | yes | no |
+| `factory_answer` | no | yes | no |
+| `factory_clip` | no | yes | no |
+| `factory_edit` | no | yes | no |
+| `factory_new` | no | yes | no |
+| `factory_prompt` | yes | no | no |
+| `factory_run` | no | yes | yes |
+| `factory_status` | yes | no | no |
+| `generate_thumbnails` | no | yes | no |
+| `get_breakdown` | no | no | no |
+| `get_frames` | yes | no | no |
+| `get_profile` | yes | no | no |
+| `get_prompt` | yes | no | no |
+| `get_render` | no | no | no |
+| `import_shot_list` | no | no | no |
+| `inspect_timeline` | no | yes | no |
+| `list_breakdowns` | yes | no | no |
+| `list_presets` | yes | no | no |
+| `list_profiles` | yes | no | no |
+| `match_start` | no | yes | yes |
+| `match_status` | no | no | no |
+| `meme_check` | yes | no | no |
+| `meme_ideas` | yes | no | no |
+| `meme_render` | no | yes | yes |
+| `meme_render_video` | no | yes | no |
+| `meme_templates` | yes | no | no |
+| `music_check` | yes | no | no |
+| `plan_drafts` | no | yes | no |
+| `push_to_uoink` | no | no | no |
+| `render_edl` | no | yes | no |
+| `save_judgment` | no | yes | no |
+| `setup_taste` | no | yes | yes |
+| `still_concepts` | no | no | no |
+| `still_render` | no | yes | no |
+| `study_uoink_item` | no | yes | yes |
+| `study_video` | no | yes | yes |
+| `zing_explain` | no | no | yes |
+| `zing_moments` | yes | no | no |
+| `zing_status` | no | no | no |
+| `zing_studio` | no | no | no |
+| `zing_studio_run` | no | yes | yes |
+
+Destructive means a call can replace or remove existing work, including earlier
+outputs. Creating new outputs alone does not count. Idempotent means repeating
+the same call adds no persistent effect with unchanged inputs. Jobs,
+timestamped saves and automatically named meme outputs are not idempotent.
+
+`zing_status`, `get_breakdown`, `get_render` and `match_status` can rewrite stale
+job state. `match_status` can also cancel a job. They are not read-only.
+`zing_studio` is not read-only either because its reference preview writes
+temporary media. `get_frames` and `music_check` keep their media processing in
+memory.
+
+Uoink health checks, saved-reference search and note creation use loopback and
+count as closed-world. `study_uoink_item` can fetch external media when a kept
+copy is unavailable, so it is open-world. `study_video` can fetch URLs directly;
+its MCP handler has no `offline` argument. `zing_explain` can download with
+`offline=false`. Factory MCP runs use the host judge and can fetch visuals.
+The separate CLI's Claude judge reaches Anthropic but is not called by these
+MCP tools.
+
 The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
 launch commands still work. It accepts legacy initialization through
 `2025-11-25` and the stateless `2026-07-28` protocol. The current registry has

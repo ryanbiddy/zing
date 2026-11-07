@@ -63,7 +63,9 @@ def test_skill_and_permissions_match_the_existing_mcp_surface():
                                                         for t in n.targets))
     tools = asyncio.run(mcp_server.build_server().list_tools())
     assert {t.name for t in tools} == expected and len(expected) == 44
-    assert all(t.annotations is None or t.annotations.readOnlyHint is not True for t in tools)
+    read_only = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is True}
+    assert len(read_only) == 14 and "14 marked read-only" in read("README.md")   # the README states the count
+    assert not read_only & {"zing_status", "get_breakdown", "get_render", "match_status", "zing_studio"}
     text = read("skills/zing/SKILL.md")
     assert text.startswith("---\nname: zing\ndescription: ")
     front, body = text.split("---", 2)[1:]

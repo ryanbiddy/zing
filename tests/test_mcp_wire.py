@@ -59,6 +59,9 @@ def assert_wire(actual, expected):
                                                          "factory_new", "factory_run", "factory_status", "factory_prompt",
                                                          "factory_answer", "factory_clip", "factory_edit"}]
         for tool in actual["result"]["tools"]:
+            # Tool hints are new metadata; test_mcp_annotations.py pins their values.
+            hints = tool.pop("annotations")
+            assert {"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"} <= set(hints)
             if tool["name"] in {"study_video", "study_uoink_item", "match_start"}:
                 # DOGFOOD2 adds optional reference trims. Preserve the historical
                 # schema and pin the new fields' optional/default behavior.
