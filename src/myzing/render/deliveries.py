@@ -228,11 +228,17 @@ def render_deliveries(composition, output, *, aspects=None, base_dir=None, work_
                                   base_dir, framing, max_upscale, short_side, ffmpeg, ffprobe, continue_on_error)
 
 
-def quarantine_failed_delivery(row):
+def quarantine_failed_delivery(row, *, previous=None):
     """Keep diagnostic bytes out of the playable delivery filenames."""
     video = row.pop("video", None)
     if video and Path(video).is_file():
+        if previous is not None and os.path.samestat(previous, Path(video).stat()):
+            return
         failed = Path(video).with_suffix(Path(video).suffix + ".failed")
+        if failed.exists():
+            fd, name = tempfile.mkstemp(prefix=".delivery-", suffix=".mp4.failed", dir=failed.parent)
+            os.close(fd)
+            failed = Path(name)
         Path(video).replace(failed)
         row["failed_artifact"] = str(failed)
 
@@ -253,12 +259,13 @@ def _render_deliveries(composition, output, work, selected, report_path, base_di
                                   "width": plan.width, "height": plan.height,
                                   "resolution": evidence["resolution"][aspect]}
             _write(saved, plan.to_dict())
+            previous = video.stat() if video.exists() else None
             try:
                 result = render_composition(plan, video, base_dir=saved.parent, work_dir=work / aspect.replace(":", "x"),
                                             ffmpeg=ffmpeg, ffprobe=ffprobe)
             except Exception as exc:
                 row.update(delivery_failure(aspect, exc))
-                quarantine_failed_delivery(row)
+                quarantine_failed_delivery(row, previous=previous)
                 if not continue_on_error:
                     raise
                 _write(report_path, report)

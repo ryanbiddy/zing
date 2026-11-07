@@ -24,7 +24,7 @@ def display_dimensions(stream):
 def probe_dimensions(path, ffprobe="ffprobe"):
     result = subprocess.run([ffprobe, "-v", "error", "-protocol_whitelist", "file,pipe",
                              "-select_streams", "v:0", "-show_streams", "-of", "json", str(path)],
-                            capture_output=True, text=True, timeout=30, check=False)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, check=False)
     try:
         if result.returncode:
             raise ValueError(result.stderr[-1000:])
@@ -82,8 +82,10 @@ def _bounded_expression(framing, axis, rate):
     return f"clip({_expression(framing,axis,rate)},{_number(low)},{_number(low+extent-size)})"
 
 
-def framing_filter(framing, width, height, rate, label="framing"):
+def framing_filter(framing, width, height, rate, label="framing", *, sample_aspect_ratio="1:1"):
     normal = "" if framing is None else f"scale={framing.source_width}:{framing.source_height},setsar=1,"
+    if framing is None and sample_aspect_ratio not in ("1:1", "0:1", "N/A"):
+        normal = "scale=round(iw*sar):ih,setsar=1,"
     if framing is not None and framing.mode in ("fit", "blurfill") and framing.picture:
         # Only a detected live picture is cropped; other fit/blurfill bounds
         # describe the source (for example a matte) and keep the full frame.
