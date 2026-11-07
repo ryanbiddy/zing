@@ -4,6 +4,8 @@
 
 - Add `zing channels setup` to rank candidate channels, save a watch list and
   make the first brief. The setup report and scorecard track the 15 minute bar.
+- A study that fails while Zing checks on it keeps its real error instead of
+  "worker is gone".
 - Keep YouTube channel metadata available during feed outages with yt-dlp.
   Receipts say "about" for rounded counts. Shorts use exact metadata, and
   approximate counts never become measured learning results.

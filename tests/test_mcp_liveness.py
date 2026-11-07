@@ -116,6 +116,17 @@ def test_reconcile_own_pid_without_thread_is_orphan(zing_workspace):
     assert "study_video again" in result["error"]
 
 
+def test_reconcile_keeps_an_ending_written_after_the_callers_read(zing_workspace):
+    # main CI, macOS 3.12: the caller read "running", then the worker failed
+    # and exited before the liveness check. Its real error must survive.
+    stale = _running_status()
+    storage.write_status(SLUG, state="failed", error="fetch blocked: LOGIN_REQUIRED")
+    result = mcp_server._reconcile_running(SLUG, stale)
+    assert result["state"] == "failed"
+    assert result["error"] == "fetch blocked: LOGIN_REQUIRED"
+    assert storage.read_status(SLUG)["error"] == "fetch blocked: LOGIN_REQUIRED"
+
+
 def test_reconcile_dead_foreign_pid(zing_workspace, dead_pid):
     storage.write_status(SLUG, **_running_status(pid=dead_pid))
     result = mcp_server._reconcile_running(SLUG, _running_status(pid=dead_pid))
