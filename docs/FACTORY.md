@@ -5,6 +5,12 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
+## Connect an agent
+
+Run `zing connect` to list agent apps, then `zing connect claude-desktop`
+to print a config for one. Merge the entry into the app's settings to use the
+factory MCP tools. See [One line per app](CONNECT.md#one-line-per-app).
+
 ## Channels
 
 Use [`zing channels`](CHANNELS.md) to keep source grants, factory defaults,

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `zing connect CLIENT` with configs or setup guides for 48 apps, OS-specific
+  locations, JSON output and Cursor and VS Code install links. Nothing is written.
 - A study that fails while Zing checks on it keeps its real error instead of
   "worker is gone".
 - Keep YouTube channel metadata available during feed outages with yt-dlp.
