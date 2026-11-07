@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix channel queue races, stalled uploads, title approval timestamps and stale
+  posting times. Keep ticks and feed batches running past bad inputs, retry failed
+  brief scripts, and support kits on other drives and dotted YouTube handles.
 - Add daily channel briefs with script drafts and claims to check. Recorded takes
   carry their hook, news peg and series into the factory, queue and learning report.
 - Add channel platform news candidates from RSS, Atom and public YouTube uploads,

@@ -64,33 +64,37 @@ def _advance(slug: str, channel: dict, row: dict, runner, stop, say, now) -> Non
         if stop():
             return
         project = file.parent
-        prompts = pending(project)
-        row["pending"].extend(prompts)
-        status = pipeline._read(project / "status.json", {})
-        if status.get("state") == "done" and not status.get("failed"):
-            continue
-        failed = status.get("state") == "failed" or bool(status.get("failed"))
-        attempts = pipeline._read(project / "tick_attempts.json", {}).get("attempts", 0)
-        if failed and attempts >= 2:
-            row.setdefault("notes", []).append(f"{project.name} skipped after two retries.")
-            continue
-        cfg = pipeline._read(file)
         try:
+            prompts = pending(project)
+            row["pending"].extend(prompts)
+            status = pipeline._read(project / "status.json", {})
+            if status.get("state") == "done" and not status.get("failed"):
+                continue
+            failed = status.get("state") == "failed" or bool(status.get("failed"))
+            attempts = pipeline._read(project / "tick_attempts.json", {}).get("attempts", 0)
+            if failed and attempts >= 2:
+                row.setdefault("notes", []).append(f"{project.name} skipped after two retries.")
+                continue
+            cfg = pipeline._read(file)
             src = registry.source(channel, cfg["source"]) if cfg.get("source") else None
-        except registry.ChannelError as exc:
+            if cfg.get("rights") not in ("own", "permission", "licensed") or (src and registry.effective_rights(src, now) == "unknown"):
+                row["blocked"][project.name] = ["Source rights need review."]
+                continue
+            if chosen is None and not (prompts and channel["judge"] == "host"):
+                chosen = project
+                retry = attempts + 1 if failed else None
+        except (OSError, ValueError, KeyError, TypeError) as exc:
             row["errors"].append(f"{project.name} {exc}")
-            continue
-        if cfg.get("rights") not in ("own", "permission", "licensed") or (src and registry.effective_rights(src, now) == "unknown"):
-            row["blocked"][project.name] = ["Source rights need review."]
-            continue
-        if chosen is None and not (prompts and channel["judge"] == "host"):
-            chosen = project
-            retry = attempts + 1 if failed else None
     if chosen is None or stop():
         return
     if retry is not None:
         pipeline._write(chosen / "tick_attempts.json", {"attempts": retry})
-    result = runner(chosen, Judge(chosen, channel["judge"]), say=say, stop=stop)
+    try:
+        result = runner(chosen, Judge(chosen, channel["judge"]), say=say, stop=stop)
+    except Exception as exc:
+        if not stop():
+            row["errors"].append(f"{chosen.name} {str(exc) or type(exc).__name__}")
+        return
     row["advanced"] += 1
     row["pending"] = [p for p in row["pending"] if p["project"] != str(chosen)]
     row["pending"].extend({"project": str(chosen), **p} for p in result.get("pending", []))
@@ -103,7 +107,7 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
         now: datetime | None = None) -> dict:
     if isinstance(max_minutes, bool) or not math.isfinite(max_minutes) or max_minutes <= 0:
         raise registry.ChannelError("--max-minutes must be a positive number")
-    now = now or datetime.now(timezone.utc)
+    clock, now = now, now or datetime.now(timezone.utc)
     deadline = time.monotonic() + max_minutes * 60
     results = {}
     with lock(now) as acquired:
@@ -143,24 +147,24 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
                     if not stopped():
                         _advance(slug, channel, row, runner or pipeline.run, stopped, say, now)
                     if not stopped():
-                        queued = queue.build(slug, now, stop=stopped)
+                        queued = queue.build(slug, clock or datetime.now(timezone.utc), stop=stopped)
                         row["queued"] = queued["added"]
                         row["blocked"].update(queued["blocked"])
                     if not stopped():
-                        made = kit.kit(slug, stop=stopped)
+                        made = kit.kit(slug, now=clock or datetime.now(timezone.utc), stop=stopped)
                         row["kits"] = made["made"]
                         row["blocked"].update(made["blocked"])
                     if not stopped() and channel["publish"]["youtube"] != "off":
-                        uploaded = publish.upload(slug, stop=stopped)
+                        uploaded = publish.upload(slug, now=clock or datetime.now(timezone.utc), stop=stopped)
                         row["uploaded"] = uploaded["uploaded"]
                         row["blocked"].update(uploaded["blocked"])
                         if uploaded["stopped"]:
                             row["errors"].append(uploaded["stopped"])
-                    if not stopped() and channel.get("youtube") and publish.analytics_due(slug, now):
-                        row["analytics"] = publish.analytics(slug, now=now, stop=stopped)["matched"]
+                    if not stopped() and channel.get("youtube") and publish.analytics_due(slug, clock):
+                        row["analytics"] = publish.analytics(slug, now=clock, stop=stopped)["matched"]
                     if not stopped() and channel["handles"].get("youtube"):
                         from .outcomes import track
-                        row["tracked"] = track(slug)["matched"]
+                        row["tracked"] = track(slug, now=clock or datetime.now(timezone.utc))["matched"]
             except Exception as exc:
                 stopped()
                 if not (row.get("stopped") == "paused" and isinstance(exc, registry.ChannelError)):
