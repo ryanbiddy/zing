@@ -80,6 +80,12 @@ episode + captions -> scout moments -> cut -> plan the screen -> find visuals ->
 
 ## Pick a channel niche
 
+`zing channels setup SLUG --niche "TEXT" --candidates @one @two @three` ranks
+public channels by median Shorts views, saves a watch list and makes the first
+brief. `setup.html` lists kept and dropped channels and the time to the brief.
+The scorecard checks that time against 15 minutes. See
+[Set up a new niche](CHANNELS.md#set-up-a-new-niche) for inputs and limits.
+
 Use `zing playbook niches niches.json --out zing-workspace/scout` to compare
 channels from public metadata. `watch` saves view snapshots, `velocity` compares
 views at fixed ages, and `prior` exports title guidance without competitor titles.

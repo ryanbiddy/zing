@@ -7,6 +7,41 @@ your YouTube account and enable private or scheduled uploads.
 Watching can read public feeds, fetch granted podcast enclosures and read
 existing Uoink media. `track` reads your public YouTube feed.
 
+## Set up a new niche
+
+```sh
+zing channels setup streamer-lessons --niche "What small streamers can learn" \
+  --candidates @creatorone @creatortwo @creatorthree --keep 15
+zing channels setup streamer-lessons --niche "What small streamers can learn" \
+  --candidates-file candidates.txt --no-brief
+```
+
+Replace the example handles with channels in your niche. Supply up to 40 unique
+YouTube handles, channel URLs or UC IDs. A candidates file has one per line.
+Blank lines and `#` comments are ignored. Both inputs can be used together.
+Duplicates ignore case. Channel URLs become handles or IDs in the watch list.
+
+Setup ranks candidates by median Shorts views and keeps the top 15 by default.
+`--keep` accepts 3 through 40. Channels need at least three Shorts among their 15 newest uploads and a Short
+from the last 60 days. Channels that mostly post long videos often drop out. Change the count with `--min-shorts N`, at least 1.
+Unresolved channels, failed feeds, small samples and stale channels are dropped
+with reasons. Fewer than three survivors leaves channel settings unchanged and
+exits with code 1.
+
+A new channel gets a breakdown series, a news series and an inactive podcast
+clips series. It uses the default host judge, manual approval and cadence.
+`--name` sets its name; otherwise the slug becomes a title-cased name.
+For an existing channel, only its first breakdown watch list changes. A channel
+without a breakdown series cannot use setup.
+
+Setup saves `setup.json` and `setup.html` in the channel folder, then makes the
+first brief. It prints both page paths and the elapsed minutes. The bar is
+15 minutes or less from starting setup to writing the brief page. The scorecard
+adds this row when a time is recorded. With the host judge, the brief can have
+pending script prompts to answer. `--no-brief` saves only the channel and setup
+report. A brief failure leaves the channel saved, records `brief_error`, prints
+the error and exits with code 0. Retry with `zing channels brief streamer-lessons`.
+
 ## Start a channel
 
 ```sh
@@ -73,7 +108,8 @@ and caption prompts. Existing copy stays as it is.
 
 `channel.json` uses schema version 1. Edit it to set factory defaults, handles,
 cadence, approval and seeding. `zing channels check SLUG` validates it and exits
-with code 1 if it finds a problem. Other command errors exit with code 2.
+with code 1 if it finds a problem. Setup input and channel errors also exit
+with code 1. Other command errors exit with code 2.
 
 - `factory` accepts `pack`, `mode`, `shapes`, `moments`, `focus`, `vocab` and
   `brief`. Empty settings use factory defaults. Shapes must include `9x16`.
@@ -550,12 +586,14 @@ summary. The window defaults to 30 channel-local dates, including today.
   extra post goes in the newer half. Details include per-series medians.
 - Flags counts logged flags and outcomes with `masked` set to `true` in the
   window. The default limit is zero. Details give counts by kind.
+- Niche to first brief appears when `setup.json` has elapsed minutes. It passes
+  at 15 minutes or less and is independent of the date window.
 
-Rows with too little data say `not enough data`. Ready means all six rows pass.
+Rows with too little data say `not enough data`. Ready means all displayed rows pass.
 Corrupt files and invalid brief folders are skipped and listed in `problems`.
 The digest adds a scorecard count for channels with a brief.
 
-Set an optional `bar` object in `channel.json` to override any of these defaults.
+Set an optional `bar` object in `channel.json` to override the following defaults.
 Values must be nonnegative numbers. Missing keys keep their defaults.
 
 ```json
@@ -563,7 +601,7 @@ Values must be nonnegative numbers. Missing keys keep their defaults.
 ```
 
 `--days` changes the window without changing the bar. The median views row
-always requires improvement over the earlier half.
+always requires improvement over the earlier half. The setup target stays at 15 minutes.
 
 Use `flag` to append a claim, strike, reused-content issue or other note to
 `flags.jsonl`. `--kind` accepts `claim`, `strike`, `reused` or `other`.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `zing channels setup` to rank candidate channels, save a watch list and
+  make the first brief. The setup report and scorecard track the 15 minute bar.
 - Keep YouTube channel metadata available during feed outages with yt-dlp.
   Receipts say "about" for rounded counts. Shorts use exact metadata, and
   approximate counts never become measured learning results.
