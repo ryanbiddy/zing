@@ -178,23 +178,30 @@ def inventory(folder: str | Path) -> tuple[list[Photo], list[str]]:
             if Path(entry.name).suffix.lower() not in EXTENSIONS:
                 continue
             if not 0 < info.st_size <= MAX_BYTES:
-                raise MemeError(f"Photo is empty or over {MAX_BYTES // 2 ** 20} MiB: {entry.name}; resize or remove it.")
+                notes.append(f"Photo is empty or over {MAX_BYTES // 2 ** 20} MiB: {entry.name}; skipped; resize or remove it.")
+                continue
             total += info.st_size
             paths.append(Path(entry.path))
             if len(paths) > MAX_PHOTOS or total > MAX_TOTAL_BYTES:
                 raise MemeError("Photo inventory exceeds 64 files / 256 MiB; use a smaller folder.")
     if not paths:
-        raise MemeError("No supported photos found; add JPEG, PNG, WebP, BMP, TIFF, or HEIC files directly to the folder.")
+        raise MemeError("No supported photos found; add JPEG, PNG, WebP, BMP, TIFF, or HEIC files directly to the folder. " + " ".join(notes))
     try:
         detector = YuNetDetector(download=False)
     except LayoutError:
         detector = None
     photos, seen = [], set()
     for path in sorted(paths, key=lambda p: (p.name.casefold(), p.name)):
-        photo = describe_photo(path, detector)
+        try:
+            photo = describe_photo(path, detector)
+        except MemeError as exc:
+            notes.append(f"Skipped {path.name}: {exc}")
+            continue
         if photo.sha256 in seen:
             notes.append(f"Skipped byte-identical photo: {path.name}")
             continue
         seen.add(photo.sha256)
         photos.append(photo)
+    if not photos:
+        raise MemeError("No readable photos found. " + " ".join(notes))
     return photos, notes

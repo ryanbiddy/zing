@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import subprocess
 
+from myzing.project.probe import MEDIA_DEMUXERS
+
 FLAT_RANGE = 14          # max-min luma (0-255) for a row/column to count as matte
 MIN_BAR_FRACTION = .02   # thinner edges are compression noise, not a matte
 ANALYSIS_LONG_SIDE = 256
@@ -23,6 +25,7 @@ def _analysis_size(width: int, height: int) -> tuple[int, int]:
 
 def _frame(media, t: float, w: int, h: int) -> bytes | None:
     command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin", "-protocol_whitelist", "file,pipe",
+               "-format_whitelist", MEDIA_DEMUXERS, "-enable_drefs", "0", "-use_absolute_path", "0",
                "-ss", f"{t:.6f}", "-i", str(media), "-map", "0:v:0", "-an", "-sn", "-dn", "-frames:v", "1",
                # Explicit full-range gray so FFmpeg 6 and 8 agree on black.
                "-vf", f"scale={w}:{h}:flags=neighbor:out_range=full,format=gray",

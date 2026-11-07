@@ -64,7 +64,7 @@ def match(argv):
     except (ValueError,OSError,RuntimeError,TypeError,KeyError,subprocess.SubprocessError) as exc:
         print(f"zing match screen: {exc}",file=sys.stderr)
         return 1
-    return 0
+    return 0 if result["status"] == "ready" else 1
 
 
 def render_payload(payload,args):

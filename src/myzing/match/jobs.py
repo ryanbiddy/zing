@@ -70,7 +70,12 @@ def execute(options, *, progress=None, cancel=None, locked=False):
                 for folder in (root, root / "director"):
                     lock = folder / ".project.lock"
                     try:
-                        if pid is not None and read(lock).get("pid") == pid:
-                            lock.unlink()
+                        if pid is not None:
+                            from myzing.project.locking import _release_lock
+                            with lock.open(encoding="utf-8") as handle:
+                                identity = os.fstat(handle.fileno())
+                                owner = json.load(handle)
+                            if owner.get("pid") == pid:
+                                _release_lock(lock, identity, owner.get("token"), True)
                     except (FileNotFoundError, ValueError, OSError):
                         pass

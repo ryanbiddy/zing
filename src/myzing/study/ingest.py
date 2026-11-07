@@ -597,9 +597,9 @@ def _normalize(media: Path, fps: float) -> Path:
     if not tmp.is_file():
         raise MediaError("ffmpeg exited 0 but produced no normalized file")
     final = media.with_name("media.mp4")
+    tmp.replace(final)
     if media != final:
         media.unlink()
-    tmp.replace(final)
     return final
 
 

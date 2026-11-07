@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 import subprocess
 
-from .analysis import input_args
+from .analysis import decode_deadline, input_args
 
 
 def union(boxes):
@@ -194,7 +194,7 @@ def attach_regions(path, zooms, duration, ffmpeg="ffmpeg"):
     proc = subprocess.Popen([ffmpeg,"-v","error","-nostdin",*input_args(path),"-t",str(duration),
                              "-vf",f"fps={rate},scale={width}:{height}","-an","-f","rawvideo","-pix_fmt","rgb24","pipe:1"],
                             stdout=subprocess.PIPE,stderr=subprocess.DEVNULL)
-    try:
+    with decode_deadline(proc, duration):
         for index in range(math.ceil(duration*rate)+3):
             frame = proc.stdout.read(width*height*3)
             if not frame:
@@ -213,11 +213,6 @@ def attach_regions(path, zooms, duration, ffmpeg="ffmpeg"):
                     words[i].extend(guards)
         if proc.wait(timeout=15):
             raise RuntimeError("FFmpeg could not decode UI-region frames.")
-    finally:
-        proc.stdout.close()
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait()
     for i,zoom in enumerate(zooms):
         zoom.box = union(found[i]) if found[i] else [0.,0.,1.,1.]
         zoom.box_evidence = {"kind":"focus-content" if found[i] else "unknown-full-source",

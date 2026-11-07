@@ -25,13 +25,15 @@ def probe_video(path) -> dict:
     Display size applies the rotation flag and pixel aspect ratio, which is what
     a viewer sees and what FFmpeg's default autorotation decodes.
     """
-    from myzing.project.probe import parse_probe
+    from myzing.project.probe import MEDIA_DEMUXERS, parse_probe
     from myzing.study import proc
     name = Path(path).name
     if Path(path).is_file() and Path(path).stat().st_size == 0:
         raise ValueError(f"{name} is empty (0 bytes); supply a complete video file.")
     try:
-        result = proc.run(["ffprobe", "-v", "error", "-protocol_whitelist", "file", "-show_streams", "-show_format",
+        result = proc.run(["ffprobe", "-v", "error", "-protocol_whitelist", "file",
+                           "-format_whitelist", MEDIA_DEMUXERS, "-enable_drefs", "0", "-use_absolute_path", "0",
+                           "-show_streams", "-show_format",
                            "-of", "json", str(path)], timeout=60)
     except proc.MediaError as exc:
         raise ValueError(f"{exc} Install FFmpeg and run zing doctor.") from exc
@@ -319,7 +321,10 @@ def _explain(source, out_dir, *, transitions=True, offline=True, against=None, a
             card.comparison = compare_cards(card, other)
             _publish(other, other_media, other_out)
         result = _publish(card, media, out)
-        (out / PARTIAL_MARKER).unlink(missing_ok=True)
+        try:
+            (out / PARTIAL_MARKER).unlink(missing_ok=True)
+        except OSError:
+            pass  # The published card is complete.
         return result
     except BaseException as exc:
         from myzing.uoink_bridge import redact
