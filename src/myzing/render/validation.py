@@ -92,7 +92,7 @@ def _resolve_media(raw_path: str, base_dir: Path, field: str) -> Path:
     path = Path(raw_path).expanduser()
     if not path.is_absolute():
         path = base_dir / path
-    if str(path).replace("\\", "/").startswith("//"):
+    if any(str(p).replace("\\", "/").startswith("//") for p in (raw_path, path)):   # a UNC string is relative on POSIX
         raise EDLValidationError(f"{field}: use a local file path; network paths are not allowed")
     path = path.resolve()
     _require_media(path, field)
