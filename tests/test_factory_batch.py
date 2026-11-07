@@ -259,11 +259,12 @@ def test_without_sidecars_the_pipeline_gets_its_usual_transcription(folders, mon
 def test_colliding_stems_cannot_resume_the_wrong_episode(folders):
     inbox, out = folders
     first = episode(inbox, "a b.mp4", mtime=1)
-    episode(inbox, "a-b.mov", mtime=2)
+    second = episode(inbox, "a-b.mov", mtime=2)
     rows = batch.run(inbox, out)["episodes"]
-    assert [r["state"] for r in rows] == ["waiting", "failed"]
-    assert "another episode" in rows[1]["error"]
+    assert [r["state"] for r in rows] == ["waiting", "waiting"]      # the second file gets its own project
     assert read(out / "a-b" / "source.json")["media"] == str(first)
+    other, = [p for p in out.glob("a-b-*") if p.is_dir()]
+    assert read(other / "source.json")["media"] == str(second)
     assert batch._project(out, Path("CON.mp4")) == out / "_CON"
     assert batch._project(out, Path("...mp4")) == out / "episode"
 

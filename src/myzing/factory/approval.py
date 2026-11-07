@@ -27,7 +27,10 @@ def build(project: Path, out: Path | None = None) -> Path:
         plan, words, context = _load(d / "plan.json"), _load(d / "words.json"), _load(d / "context.json")
         hook = plan.get("hook", m.get("hook", "")).replace("*", "")
         transcript = " ".join(w["w"] for w in words.get("words", []))
-        path = quote(Path(os.path.relpath(video, out.parent)).as_posix())
+        try:
+            path = quote(Path(os.path.relpath(video, out.parent)).as_posix())
+        except ValueError:
+            path = video.resolve().as_uri()
         near = context.get("text") or context               # context.json keeps the window text under "text"
         around = "".join(f'<h3>{label}</h3><p class="text">{e(near[key])}</p>'
                          for key, label in (("before", "Before the clip"), ("after", "After the clip")) if near.get(key))

@@ -1,6 +1,7 @@
 """Clip the stable episodes in a folder, resuming each project on later passes."""
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -20,7 +21,19 @@ def _project(out: Path, media: Path) -> Path:
     stem = re.sub(r"[^\w.-]+", "-", media.stem).strip(".-") or "episode"
     if PureWindowsPath(stem).is_reserved():
         stem = "_" + stem
-    return out / stem
+    project = out / stem
+    try:
+        if media.is_file():                            # channels pass a synthetic name
+            other = out / f"{stem}-{hashlib.sha256(media.name.encode('utf-8')).hexdigest()[:8]}"
+            saved = pipeline._read(other / "source.json", {})
+            if saved.get("media") and Path(saved["media"]).resolve() == media.resolve():
+                return other
+            saved = pipeline._read(project / "source.json", {})
+            if saved.get("media") and Path(saved["media"]).resolve() != media.resolve():
+                return other
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return project
 
 
 def _stamp(media: Path) -> tuple[int, int]:

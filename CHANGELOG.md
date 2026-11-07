@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep factory runs moving after clip errors, recover damaged answers and stage files,
+  preserve words during caption fixes, separate colliding episodes, bound video excerpts,
+  and keep interrupted renders and corrupt clips out of finished review cards.
+  Long silence edits and guest approval pages also work across Windows command and drive limits.
 - Add daily channel briefs with script drafts and claims to check. Recorded takes
   carry their hook, news peg and series into the factory, queue and learning report.
 - Add channel platform news candidates from RSS, Atom and public YouTube uploads,

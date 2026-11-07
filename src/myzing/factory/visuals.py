@@ -1144,8 +1144,11 @@ def fetch_video(ctx, c: dict, url: str, folder: Path):
                                       "-protocol_whitelist", "https,http,tls,tcp"] + (seek if seek_in else []) +
                                       (["-max_redirects", "0"] if _max_redirects() else []) +
                                       ["-i", src] + ([] if seek_in else seek) +
-                                      ["-t", str(EXCERPT_S), "-map", "0:v:0", "-c", "copy", "-an", "-f", ext, str(part)],
+                                      ["-t", str(EXCERPT_S), "-fs", str(VID_CAP), "-map", "0:v:0", "-c", "copy",
+                                       "-an", "-f", ext, str(part)],
                                       validate=_check_host, capture_output=True, timeout=180)
+                if part.is_file() and part.stat().st_size >= VID_CAP:
+                    raise ValueError("video exceeds the byte limit")
                 try:
                     info = probe_video(part)
                     start = s
@@ -1495,6 +1498,7 @@ def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: b
          maxc: int = 5, min_video: int = MIN_LONG_SIDE, sheet: bool = True, say=print,
          project: Path | None = None, visuals: Path | None = None) -> dict:
     """Search, download and rank candidates for every request; returns the manifest written to outdir."""
+    from .pipeline import _write
     if mode not in ("context", "fun", "documentary"):
         raise ValueError("mode must be 'context', 'fun' or 'documentary'")
     outdir = Path(outdir).resolve()
@@ -1533,7 +1537,7 @@ def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: b
         ctx.tmp.rmdir()
     except OSError:
         pass
-    (outdir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    _write(outdir / "manifest.json", manifest)
     (outdir / "run_log.json").write_text(json.dumps({
         "generated": time.strftime("%Y-%m-%dT%H:%M:%S"), "mode": mode, "public": public,
         "runtime_s": round(time.monotonic() - t0, 1), "http_requests": ctx.http.count, "keys": keys,
