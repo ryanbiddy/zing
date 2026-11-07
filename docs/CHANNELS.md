@@ -447,6 +447,12 @@ words with open scripts from the last 14 local dates. A match needs at least
 newest brief. The match supplies the hook, receipt as the news peg, source link
 and series. The brief item becomes `recorded` and points to its project.
 
+Matched takes also save how much of the script you kept, your opening and the
+spoken length. After at least three takes in the last 30 channel-local dates,
+new script prompts use notes on your pace, length and wording, with examples
+of hooks you changed. The brief page shows the share kept and the take's duration.
+Run `zing channels brief creators --takes` to read the notes without making a brief.
+
 The whole spoken take becomes one hand-picked clip, from its first word to its
 last. That spoken span must be 3 through 180 seconds long. A failed transcription
 or an invalid spoken span leaves a source error and starts no project. With no

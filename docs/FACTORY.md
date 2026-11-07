@@ -51,6 +51,10 @@ Set the source's `since` and `require_match` to avoid old files and unmatched
 takes. Set the channel's `phone_folder` to copy the latest brief to your phone.
 See [Record on your phone](CHANNELS.md#record-on-your-phone).
 
+After three matched takes in the last 30 local dates, new brief scripts use
+recording notes on pace, length and wording. `zing channels brief SLUG --takes`
+prints those notes without making a brief.
+
 Channel [platform news](CHANNELS.md#platform-news) finds candidates from public
 feeds and YouTube uploads from the last 10 days. It ranks them by creator topics
 and date. Source errors are saved in `brief/news-errors.jsonl` under the channel.

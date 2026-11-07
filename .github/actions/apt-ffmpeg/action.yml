@@ -1,0 +1,29 @@
+name: Install FFmpeg from apt
+description: Install apt packages, reusing the .deb files from earlier runs on the same runner image. A slow Ubuntu mirror once made this step time out.
+inputs:
+  packages:
+    description: Space-separated apt packages
+    default: ffmpeg
+runs:
+  using: composite
+  steps:
+    - id: image
+      shell: bash
+      run: echo "key=apt-${ImageOS:-unknown}-${ImageVersion:-unknown}-$(echo '${{ inputs.packages }}' | tr ' ' '-')" >> "$GITHUB_OUTPUT"
+    - id: restore
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/apt-debs
+        key: ${{ steps.image.outputs.key }}
+    - shell: bash
+      run: |
+        apt="sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o APT::Keep-Downloaded-Packages=true"
+        $apt update
+        if compgen -G "$HOME/apt-debs/*.deb" > /dev/null; then sudo cp "$HOME"/apt-debs/*.deb /var/cache/apt/archives/; fi
+        $apt install -y --no-install-recommends ${{ inputs.packages }}
+        mkdir -p "$HOME/apt-debs" && cp /var/cache/apt/archives/*.deb "$HOME/apt-debs/"
+    - if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ~/apt-debs
+        key: ${{ steps.image.outputs.key }}
