@@ -357,3 +357,14 @@ def test_cli_channel_errors_exit_one_without_creating_channel(public, capsys, ar
     assert command.run(["setup", "creator-stories", "--niche", "Stories", *args]) == 1
     assert message in capsys.readouterr().err
     assert not (registry.directory("creator-stories") / "channel.json").exists()
+
+
+
+def test_ranking_uses_only_the_15_newest_uploads(public):
+    # a yt-dlp fallback returns up to 15 long videos plus 15 Shorts; only the newest 15 count, like RSS
+    long = [{"id": f"long{i}", "title": "Long", "channel_title": "Long channel", "short": False, "views": 10,
+             "published": (NOW - timedelta(hours=i + 1)).isoformat()} for i in range(15)]
+    public.ids["@longform"] = "longform"
+    public.rows["longform"] = long + rows([900] * 15, age=20)
+    result = setup.run("creator-stories", "Stories", HANDLES + ["@longform"], no_brief=True)
+    assert {"handle": "@longform", "reason": "fewer than 3 Shorts in its 15 newest uploads"} in result["dropped"]

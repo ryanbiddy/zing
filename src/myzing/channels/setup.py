@@ -112,6 +112,7 @@ def run(slug: str, niche: str, candidates=(), *, name=None, candidates_file=None
             continue
         try:
             rows = (feed or feeds.feed)(ident, fetch, root=root)
+            rows = sorted(rows, key=lambda row: parse_time(row["published"]), reverse=True)[:15]  # fallbacks return up to 30
             shorts = [row for row in rows if row["short"] is True]
             newest = max((parse_time(row["published"]) for row in shorts), default=None)
             if len(shorts) < min_shorts:
