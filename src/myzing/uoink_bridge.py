@@ -428,7 +428,10 @@ def capture(url: str, *, source_hint: str | None = None, wait_seconds: float = 0
         if remaining <= 0:
             break
         route = base + "/api/suite/v1/capture/" + urllib.parse.quote(job, safe="").replace(".", "%2E")
-        result = _capture_request(route, token, timeout=min(_TIMEOUT, remaining))
+        polled = _capture_request(route, token, timeout=min(_TIMEOUT, remaining))
+        if not polled["ok"] and polled.get("code") == "unavailable" and time.monotonic() >= deadline:
+            break                               # the wait ran out mid-poll; Uoink is still working
+        result = polled
     return result
 
 

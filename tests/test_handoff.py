@@ -474,3 +474,27 @@ def test_capture_token_refusal_is_unauthorized(peer):
     peer.replies.append(urllib.error.HTTPError("http://127.0.0.1:1", 403, "Forbidden", {}, io.BytesIO(body)))
     result = uoink_bridge.capture(URL)
     assert not result["ok"] and result["code"] == "unauthorized"
+
+
+def test_poll_cut_off_by_the_deadline_keeps_the_queued_reply(peer, monkeypatch):
+    # Grok review: a poll whose timeout ends at the deadline is not "Uoink is down"
+    now = [0.0]
+    monkeypatch.setattr(uoink_bridge.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(uoink_bridge.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
+    queued = capture_body("queued")
+
+    def slow(*args, **kwargs):
+        now[0] += 5
+        return {"ok": False, "error": "Uoink capture is unavailable. Check that Uoink is running.", "code": "unavailable"}
+
+    peer.replies.append(queued)
+    real = uoink_bridge._capture_request
+    calls = []
+
+    def request(url, token, payload=None, timeout=5):
+        calls.append(url)
+        return real(url, token, payload, timeout) if payload is not None else slow()
+
+    monkeypatch.setattr(uoink_bridge, "_capture_request", request)
+    assert uoink_bridge.capture(URL, wait_seconds=2.1) == queued
+    assert len(calls) == 2
