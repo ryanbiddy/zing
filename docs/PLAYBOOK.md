@@ -46,11 +46,16 @@ dates, so they drop their newest `--skip-newest 10` entries instead. Set either
 to 0 to keep everything.
 
 Handles and channel IDs are accepted. Feed handle resolutions are cached in
-`feeds/ids.json` under the output directory. The feed client uses no cookies or
-API key, has a 20-second timeout, and permits only HTTPS requests to
+`feeds/ids.json` under the output directory. RSS requests use no cookies or
+API key, have a 20-second timeout, and permit only HTTPS requests to
 `www.youtube.com`, including redirects. Requests start at least 1.5 seconds apart
 within a process. Each attempt adds its time, URL and HTTP status, or `error`, to
 `feeds/requests.jsonl`. Raw channel pages and XML are not saved.
+
+During RSS outages, an optional `YOUTUBE_API_KEY` lets Zing fetch exact counts
+from the YouTube Data API before trying yt-dlp. The fallback reads up to 15 Shorts
+and 15 long videos. See [feed outages](CHANNELS.md#platform-news) for setup,
+quota use and the fallback ledger.
 
 Rights, fit, money and notes remain separate human inputs. They are optional and
 are carried through as supplied. Rights accepts `campaign`, `encouraged`, `mixed`,
@@ -173,6 +178,12 @@ Each Study failure, including a subprocess timeout, records `failed` with the ex
 ### Gemini setup and spending
 
 Set `GEMINI_API_KEY` in the process environment. There is no key file or command-line key option. Requests send the key only in `x-goog-api-key`; errors omit upstream bodies and credentials. `zing playbook models` lists model IDs and supported methods using paginated `GET models` requests.
+
+The optional `YOUTUBE_API_KEY` keeps public channel counts exact when YouTube RSS
+is down. Set it yourself in the process environment. Zing tries the YouTube Data
+API before yt-dlp and sends the key only in a header. `zing doctor` reports its
+presence without printing it or making an API request. See
+[feed outages](CHANNELS.md#platform-news) for quota use and fallback behavior.
 
 Model precedence is `--model`, then `ZING_GEMINI_MODEL`, then **`gemini-3.8-flash`**. This stable model supports video input and structured output, and Google's current guidance directs new projects toward it or 3.5 Flash-Lite. The default is an implementation choice, not a claim that this key has access or a free allowance. Run `models` with the pilot key and select an available video-capable model before the pilot. See Google's [model page](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash), [2.5 access note](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash), and [model discovery API](https://ai.google.dev/api/models).
 

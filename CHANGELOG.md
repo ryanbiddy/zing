@@ -6,6 +6,8 @@
   Hosts can use them to approve read-only calls without prompting.
 - Add a portable Hermes Agent plugin for installed Zing, with app detection,
   approval gates and a skill for factory clips, reference study, renders and memes.
+- Keep YouTube counts exact during RSS outages with an owner-set `YOUTUBE_API_KEY`.
+  Try the Data API before yt-dlp and report key presence in `zing doctor`.
 - A study that fails while Zing checks on it keeps its real error instead of
   "worker is gone".
 - Keep YouTube channel metadata available during feed outages with yt-dlp.

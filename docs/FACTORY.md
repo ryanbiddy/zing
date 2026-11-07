@@ -82,9 +82,12 @@ Channel [platform news](CHANNELS.md#platform-news) finds candidates from public
 feeds and YouTube uploads from the last 10 days. It ranks them by creator topics
 and date. Source errors are saved in `brief/news-errors.jsonl` under the channel.
 
-During YouTube feed outages, channels use yt-dlp for public metadata without
-cookies or media downloads. Receipts mark rounded counts with "about". Those
-counts can match posted clips but do not become measured learning results.
+Set the optional `YOUTUBE_API_KEY` in the process environment to keep channel
+counts exact during YouTube feed outages. Zing tries the YouTube Data API first.
+Without the key, or if the API fails, it uses yt-dlp without cookies or media
+downloads. Receipts mark rounded counts with "about". Those counts can match
+posted clips but do not become measured learning results. `zing doctor` reports
+whether the key is set without printing it or testing it online.
 
 ```text
 episode + captions -> scout moments -> cut -> plan the screen -> find visuals -> pick
