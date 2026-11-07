@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Recordings wait for file sync, filter old files and skip long or unreadable
+  videos. They can require a brief match. Channels can copy the latest brief
+  into a synced phone folder.
 - Add daily channel briefs with script drafts and claims to check. Recorded takes
   carry their hook, news peg and series into the factory, queue and learning report.
 - Add channel platform news candidates from RSS, Atom and public YouTube uploads,
