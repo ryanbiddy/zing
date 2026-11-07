@@ -1,9 +1,12 @@
 """Project network policy and the host-only request ledger."""
 from __future__ import annotations
 
+import http.client
+import ipaddress
 import json
 import os
 import re
+import socket
 import subprocess
 import urllib.request
 from collections import Counter
@@ -88,7 +91,10 @@ class Network:
             if validate:
                 url = validate(url) or url
             req = urllib.request.Request(url, method=method, data=data, headers=headers or {})
-            response = urllib.request.build_opener(_Redirect(self, row, validate)).open(req, timeout=timeout)
+            handlers = [_Redirect(self, row, validate)]
+            if validate:
+                handlers.extend((_HTTPHandler(), _HTTPSHandler()))
+            response = urllib.request.build_opener(*handlers).open(req, timeout=timeout)
             return _Response(response, row, call)
         except BaseException:
             call.__exit__(None, None, None)
@@ -135,6 +141,59 @@ class Network:
             return model_fetch.fetch_verified(url, target, digest, limit, progress=progress)
 
 
+def _public_address(ip: str) -> bool:
+    return ipaddress.ip_address(ip).is_global
+
+
+def _public_connection(address, timeout=socket._GLOBAL_DEFAULT_TIMEOUT, source_address=None):
+    host, port = address
+    addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    if not addresses or any(not _public_address(row[4][0]) for row in addresses):
+        raise ValueError(f"refusing private address {host}")
+    error = None
+    for family, kind, proto, _, target in addresses:
+        sock = None
+        try:
+            sock = socket.socket(family, kind, proto)
+            if timeout is not socket._GLOBAL_DEFAULT_TIMEOUT:
+                sock.settimeout(timeout)
+            if source_address:
+                sock.bind(source_address)
+            sock.connect(target)
+            return sock
+        except OSError as exc:
+            error = exc
+            if sock is not None:
+                sock.close()
+    raise error
+
+
+class _HTTPConnection(http.client.HTTPConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = _public_connection
+
+
+class _HTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._create_connection = _public_connection
+
+
+class _HTTPHandler(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        if req.has_proxy():
+            return super().http_open(req)
+        return self.do_open(_HTTPConnection, req)
+
+
+class _HTTPSHandler(urllib.request.HTTPSHandler):
+    def do_open(self, http_class, req, **kwargs):
+        if not req.has_proxy() and not req._tunnel_host:
+            http_class = _HTTPSConnection
+        return super().do_open(http_class, req, **kwargs)  # retain this Python's TLS options
+
+
 class _Redirect(urllib.request.HTTPRedirectHandler):
     def __init__(self, network, row, validate):
         self.network, self.row, self.validate = network, row, validate
@@ -152,6 +211,10 @@ class _Redirect(urllib.request.HTTPRedirectHandler):
                     fp.close()
                     raise
                 redirect.full_url = newurl
+            if urlsplit(req.full_url).hostname != urlsplit(newurl).hostname:
+                for key, _ in redirect.header_items():
+                    if key.lower() in {"authorization", "cookie", "proxy-authorization", "x-api-key"}:
+                        redirect.remove_header(key)
             self.network._finish(self.row)
             self.row.update(host=urlsplit(newurl).hostname, size=0,
                             at=datetime.now(timezone.utc).isoformat(timespec="seconds"))

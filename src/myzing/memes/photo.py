@@ -27,6 +27,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 
+from myzing.project.probe import MEDIA_DEMUXERS
 from . import MemeError, PILLOW_HINT
 
 # Explicit decode bounds. A 108 MP phone photo (12000x9000) fits; 200 MP
@@ -169,7 +170,9 @@ def _ffmpeg_version(ffmpeg: str) -> str:
 def _heif_probe(path: Path, ffmpeg: str, ffprobe: str) -> tuple[int, int]:
     """Coded canvas size of the primary image (a tile grid's full size)."""
     try:
-        result = subprocess.run([ffprobe, "-v", "error", "-show_streams", "-show_stream_groups",
+        result = subprocess.run([ffprobe, "-v", "error", "-protocol_whitelist", "file",
+                                 "-format_whitelist", MEDIA_DEMUXERS, "-enable_drefs", "0", "-use_absolute_path", "0",
+                                 "-show_streams", "-show_stream_groups",
                                  "-of", "json", str(path)], capture_output=True, text=True,
                                 encoding="utf-8", errors="replace", timeout=60, check=False)
     except (OSError, subprocess.SubprocessError) as exc:
@@ -205,7 +208,8 @@ def _heif(path: Path, mode: str, ffmpeg: str, ffprobe: str):
     # The CLI applies HEIF irot/imir (display matrix) and assembles tile
     # grids. PPM keeps the pipe uncompressed; rgb24 also flattens 10-bit HEVC.
     try:
-        result = subprocess.run([ffmpeg, "-hide_banner", "-v", "error", "-nostdin", "-i", str(path),
+        result = subprocess.run([ffmpeg, "-hide_banner", "-v", "error", "-nostdin", "-protocol_whitelist", "file",
+                                 "-format_whitelist", MEDIA_DEMUXERS, "-enable_drefs", "0", "-use_absolute_path", "0", "-i", str(path),
                                  "-frames:v", "1", "-pix_fmt", "rgb24", "-f", "image2pipe", "-c:v", "ppm", "-"],
                                 capture_output=True, timeout=DECODE_TIMEOUT, check=False)
     except (OSError, subprocess.SubprocessError) as exc:

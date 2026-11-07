@@ -30,7 +30,7 @@ import urllib.request
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
 
-from myzing import storage, suite_peer
+from myzing import storage, suite_peer, urls
 from myzing.urls import is_http_url
 
 UOINK_DEFAULT_URL = suite_peer.UOINK_DEFAULT_URL
@@ -274,7 +274,7 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
         return _err(str(error))
     request.add_unredirected_header("X-Uoink-Token", token)
     try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
+        with urls.open_no_redirect(request, timeout=_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):
@@ -347,7 +347,7 @@ def search_references(query: str) -> dict[str, Any]:
             method="GET",
         )
         request.add_unredirected_header("X-Uoink-Token", token)
-        with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
+        with urls.open_no_redirect(request, timeout=_TIMEOUT) as response:
             raw = response.read(1024 * 1024 + 1)
         if len(raw) > 1024 * 1024:
             raise ValueError("oversized search response")
@@ -494,7 +494,7 @@ def item_metadata(item_ref: str) -> dict[str, Any]:
         request = urllib.request.Request(
             credential_safe_url(base + "/api/corpus/v1/items/" + urllib.parse.quote(item_id, safe="")), method="GET")
         request.add_unredirected_header("X-Uoink-Token", token)
-        with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
+        with urls.open_no_redirect(request, timeout=_TIMEOUT) as response:
             raw = response.read(_GET_MAX_BYTES + 1)
         if len(raw) > _GET_MAX_BYTES:
             raise ValueError("oversized item response")
@@ -614,7 +614,7 @@ def push_breakdown(slug: str) -> dict[str, Any]:
     )
     request.add_unredirected_header("X-Uoink-Token", _token())
     try:
-        with urllib.request.urlopen(request, timeout=_TIMEOUT) as resp:
+        with urls.open_no_redirect(request, timeout=_TIMEOUT) as resp:
             body = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         if e.code in (401, 403):

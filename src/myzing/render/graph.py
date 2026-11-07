@@ -167,7 +167,8 @@ def build_graph(
             f"trim=start={_number(clip.src_in)}:end={_number(clip.src_out)},"
             "setpts=PTS-STARTPTS,"
             f"fps={fps_rate or _number(edl.fps)},"
-            + grade + framing_clock + framing_filter(framing, edl.width, edl.height, rate, label)
+            + grade + framing_clock + framing_filter(framing, edl.width, edl.height, rate, label,
+                                                     sample_aspect_ratio=resolved.media.sample_aspect_ratio)
             + edge + f"[{label}]"
         )
         audio_extra = tuple(clip_audio_filters[input_index]) if clip_audio_filters else ()

@@ -389,7 +389,7 @@ def test_saved_reference_offer_and_search_use_fake_peer_contract(inputs, monkeyp
         assert parse_qs(urlparse(request.full_url).query) == {"q": ["soft cuts"], "limit": ["20"]}
         assert "fake-studio-token" not in request.full_url and ":5179" not in request.full_url
         return FakeHTTPResponse(json.dumps(search_body()).encode())
-    monkeypatch.setattr(bridge.urllib.request, "urlopen", peer)
+    monkeypatch.setattr(bridge.urls, "open_no_redirect", peer)
     a = {"path": "a", "project": inputs["project"]}
     assert any(o["value"] == "uoink" for o in flow.next_step(a)["question"]["options"])
     a.update(reference_kind="uoink", reference_query="soft cuts")

@@ -64,7 +64,10 @@ def _index(out: Path, channel: dict, rows: list[dict]) -> Path:
                   key=lambda item: datetime.fromisoformat(item[1]["slot"]).timestamp())
     cards = []
     for i, (folder, post) in enumerate(kits):
-        video = quote(Path(os.path.relpath(folder / "video.mp4", out)).as_posix(), safe="/")
+        try:
+            video = quote(Path(os.path.relpath(folder / "video.mp4", out)).as_posix(), safe="/")
+        except ValueError:
+            video = (folder / "video.mp4").as_uri()
         texts = []
         title, _, description = (folder / "youtube.txt").read_text(encoding="utf-8").partition("\n\n")
         for field in ("youtube_title", *TEXTS):
@@ -114,14 +117,48 @@ def _stale(d: Path, folder: Path) -> bool:
                for src, dest in pairs)
 
 
-def kit(slug: str, out: Path | None = None, *, stop=None) -> dict:
+def _phone(channel: dict, rows: list[dict]) -> Path:
+    out = Path(channel["phone_folder"]).expanduser().resolve() / f"{channel['slug']}-kits"
+    out.mkdir(parents=True, exist_ok=True)
+    folders = {Path(r["kit"]).name: Path(r["kit"]) for r in rows if r["status"] == "kit" and r.get("kit")}
+    for folder in out.iterdir():
+        if folder.is_dir() and (folder / ".zing-kit").is_file() and folder.name not in folders:
+            shutil.rmtree(folder)
+    for name, src in folders.items():
+        folder = out / name
+        if folder.exists() and not (folder / ".zing-kit").is_file():
+            raise registry.ChannelError(f"kit folder has no .zing-kit marker at {folder}")
+        stamp = {}
+        for file in ("video.mp4", "post.json"):
+            stat = (src / file).stat()
+            stamp[file] = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+        if _read(folder / ".zing-kit", {}) == stamp:
+            continue
+        with tempfile.TemporaryDirectory(prefix=".kit-", dir=out) as temp:
+            tmp, previous = Path(temp) / "ready", Path(temp) / "previous"
+            tmp.mkdir()
+            for file in ("video.mp4", "post.json", *[f"{field}.txt" for field in TEXTS]):
+                shutil.copyfile(src / file, tmp / file)
+            _write(tmp / ".zing-kit", stamp)
+            if folder.exists():
+                folder.rename(previous)
+            try:
+                tmp.rename(folder)
+            except OSError:
+                if previous.exists():
+                    previous.rename(folder)
+                raise
+    return _index(out, channel, [])
+
+
+def kit(slug: str, out: Path | None = None, *, now: datetime | None = None, stop=None) -> dict:
     channel = registry.load(slug)
     registry.require_running(slug)
     with youtube.lock():
-        return _kit(channel, out, stop)
+        return _kit(channel, out, stop, now)
 
 
-def _kit(channel: dict, out: Path | None, stop) -> dict:
+def _kit(channel: dict, out: Path | None, stop, now=None) -> dict:
     from .publish import _outbox
     slug = channel["slug"]
     out = Path(out).expanduser().resolve() if out is not None else registry.directory(slug) / "kits"
@@ -141,7 +178,7 @@ def _kit(channel: dict, out: Path | None, stop) -> dict:
         stale = _stale(d, folder)
         if row["status"] == "kit" and not stale:
             continue
-        result = gate.check(project, row["clip"], channel)
+        result = gate.check(project, row["clip"], channel, now=now)
         if not result["publishable"]:
             blocked[row["id"]] = result["blockers"]
             if row["status"] == "kit":
@@ -177,4 +214,10 @@ def _kit(channel: dict, out: Path | None, stop) -> dict:
         queue.write(slug, rows)
         made.append(str(folder))
     index = _index(out, channel, rows)
-    return {"made": len(made), "kits": made, "blocked": blocked, "warnings": warnings, "index": str(index)}
+    phone = None
+    if channel.get("phone_folder"):
+        try:
+            phone = str(_phone(channel, rows))
+        except Exception as exc:
+            warnings.append(f"phone_folder {str(exc) or type(exc).__name__}")
+    return {"made": len(made), "kits": made, "blocked": blocked, "warnings": warnings, "index": str(index), "phone": phone}

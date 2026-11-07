@@ -48,8 +48,8 @@
     "schema_version": 1
   },
   "ass_sha256": {
-    "nt": "1182786742c54998aad18ea58205f7233e016ee6255e294e27812077f048c105",
-    "posix": "e283aa2c2ba2c4014143b6e117f328c05db79512992c3bd2ae6fd0ef926f4f4e"
+    "nt": "6850a6ea5e5732614bbe6881962e802c21e707f14ada9211a8515fefd03e311e",
+    "posix": "4a9859680c812ca0f085cee5b5a3bc8a98a5f3f0b4f4e8a434de32ac9207cdf0"
   },
   "graph": "[0:v:0]trim=start=0:end=2,setpts=PTS-STARTPTS,fps=30,scale=640:360:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=640:360:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p[clipv0];\n[clipv0]concat=n=1:v=1:a=0,trim=duration=2[video_concat];\n[video_concat]ass=filename='captions.ass':original_size=640x360[video_out];\nanullsrc=r=48000:cl=stereo:d=2[audio_out]\n",
   "commands": {

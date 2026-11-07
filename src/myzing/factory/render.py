@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path, PureWindowsPath
 
-from . import campaign, cutout, depth, upscale
+from . import campaign, cutout, depth, tools, upscale
 from .tools import FactoryError, data_path, ffmpeg, ffprobe, node_sidecar, run, sidecar_env
 
 SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
@@ -129,6 +129,23 @@ def pack_data(pack: str | dict) -> tuple[dict, dict, list[str]]:
                 faces(value, f"{prefix}{key}.")
 
     faces(pack)
+
+    def css(value, key=""):
+        if isinstance(value, dict):
+            for k, v in value.items():
+                if k not in ("fonts", "logo"):
+                    css(v, f"{key}.{k}" if key else k)
+        elif isinstance(value, list):
+            for v in value:
+                css(v, key)
+        elif isinstance(value, str):
+            value = re.sub(r"/\*.*?\*/", "", value, flags=re.S)
+            value = re.sub(r"\\([0-9a-fA-F]{1,6})\s?|\\(.)",
+                           lambda m: chr(int(m[1], 16) or 0xfffd) if m[1] and int(m[1], 16) <= 0x10ffff else m[2] or "\ufffd", value)
+            if re.search(r"(?:url|src|(?:-webkit-)?image(?:-set)?|(?:-webkit-)?cross-fade|paint|element)\s*\(|@import", value, re.I):
+                errors.append(f"{key} cannot reference resources; use the pack's fonts and logo")
+
+    css(pack)
     pos, height = pack.get("logo_pos", "top-right"), pack.get("logo_h", 72)
     if pos not in ("top-left", "top-right", "bottom-right"):
         errors.append("logo_pos must be top-left, top-right or bottom-right")
@@ -364,9 +381,9 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     finally:
         part.unlink(missing_ok=True)
     tall = shape == "9x16"
-    subprocess.run([ffmpeg(), "-v", "error", "-y", "-i", str(out), "-vf",
-                    f"fps=1/2.5,scale={180 if tall else 240}:-1,tile={10 if tall else 6}x{2 if tall else 4}",
-                    "-frames:v", "1", str(sheet)], check=False)
+    tools.run(ffmpeg(), "-v", "error", "-y", "-i", str(out), "-vf",
+        f"fps=1/2.5,scale={180 if tall else 240}:-1,tile={10 if tall else 6}x{2 if tall else 4}",
+        "-frames:v", "1", str(sheet), check=False)
     for f in frames.glob("*.jpg"):                     # the mp4 is the product; 2k JPEGs per clip are not
         f.unlink()
     frames.rmdir()

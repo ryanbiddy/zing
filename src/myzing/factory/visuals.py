@@ -42,12 +42,14 @@ import warnings
 from collections import Counter
 from functools import cache
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from PIL import Image, ImageDraw, ImageFont
 
+from . import tools
 from .network import Network
 from .plan import visual_id
-from .tools import FactoryError
+from .tools import FactoryError, run
 
 FFPROBE = shutil.which("ffprobe") or "ffprobe"
 FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
@@ -907,7 +909,9 @@ def _og_from_html(http: Http, url: str) -> tuple[str | None, str | None, str | N
 def capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: bool = True) -> list[dict]:
     net = getattr(ctx, "network", None) or Network(folder)
     with net.request(url, "site capture"):
-        _check_host(safe_url(url))
+        fragment = urllib.parse.urlsplit(url.strip()).fragment
+        url = safe_url(url) + ("#" + fragment if fragment else "")
+        _check_host(url)
         return _capture_site(ctx, url, folder, rel, why, scroll, net)
 
 
@@ -926,7 +930,7 @@ def _capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: boo
         node, sidecar = node_sidecar()
         env = sidecar_env(ctx.tmp)  # no stock keys; Chrome's throwaway profile stays inside the clip folder
         try:
-            p = subprocess.run([node, str(sidecar / "shot.cjs"), url, str(shot)] + ([str(frames)] if scroll else []),
+            p = run(node, str(sidecar / "shot.cjs"), url, str(shot), *([str(frames)] if scroll else []), check=False,
                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=240, env=env,
                                cwd=str(sidecar))
         except subprocess.TimeoutExpired as exc:
@@ -958,9 +962,9 @@ def _capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: boo
     if scroll and res.get("frames") and not res.get("blocked"):
         mp4 = folder / f"scroll_{hid}.mp4"
         try:
-            subprocess.run([str(FFMPEG), "-v", "error", "-y", "-framerate", "30", "-i", str(frames / "f%04d.jpg"),
+            run(str(FFMPEG), "-v", "error", "-y", "-framerate", "30", "-i", str(frames / "f%04d.jpg"),
                             "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p",
-                            "-movflags", "+faststart", str(mp4)], capture_output=True, timeout=180, check=True)
+                            "-movflags", "+faststart", str(mp4), capture_output=True, timeout=180)
             info = probe_video(mp4)
             out.append(cand("scroll", "video", title=f"{title} (6 s scroll)", path=mp4, mime="video/mp4",
                             base=rel + 0.02, notes=f"scrolls {res.get('scroll_px')}px of {host}", **info, **common))
@@ -1039,19 +1043,40 @@ def _video_url(url, network: Network):
 
 
 @cache
+def _redirect_support():
+    with tools.process([str(FFMPEG), "-hide_banner", "-h", "protocol=http"], stdin=subprocess.DEVNULL,
+                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as p, p:
+        try:
+            output, _ = p.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.communicate()
+            raise
+    if p.returncode != 0 or b"max_redirects" not in output:
+        raise ValueError("FFmpeg cannot disable redirects")
+    return True
+
+
 def _max_redirects():
     try:
-        with subprocess.Popen([str(FFMPEG), "-hide_banner", "-h", "protocol=http"], stdin=subprocess.DEVNULL,
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as p:
-            try:
-                output, _ = p.communicate(timeout=10)
-            except subprocess.TimeoutExpired:
-                p.kill()
-                p.communicate()
-                return False
-        return p.returncode == 0 and b"max_redirects" in output
+        return _redirect_support()
     except Exception:
         return False
+
+
+_max_redirects.cache_clear = _redirect_support.cache_clear
+
+
+def _run_video(net, url, purpose, argv, **kwargs):
+    with net.request(url, purpose):
+        _check_host(url)
+        try:
+            result = run(*argv, check=False, **kwargs)
+        except subprocess.TimeoutExpired as exc:
+            net.video_requests(exc.stderr, url, purpose)
+            raise
+        net.video_requests(result.stderr, url, purpose)
+        return result
 
 
 def probe_video(path_or_url, *, project: Path | None = None) -> dict:
@@ -1067,14 +1092,18 @@ def probe_video(path_or_url, *, project: Path | None = None) -> dict:
     else:
         Network(project).check("video probe")
         src = _video_url(src, Network(project))
-        args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp"] + \
-            (["-max_redirects", "0"] if _max_redirects() else []) + [src]
+        if not _max_redirects():
+            with TemporaryDirectory(prefix="zing-video-", dir=project) as tmp:
+                part = Path(tmp) / "video.part"
+                Http(project=project).download_to(src, part, VID_CAP)
+                return probe_video(part)
+        args = ["-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp", "-max_redirects", "0", src]
     remote = not isinstance(path_or_url, Path)
     argv = [str(FFPROBE), "-v", "debug" if remote else "error", "-select_streams", "v:0", "-show_entries",
             "stream=width,height,codec_name:format=duration", "-of", "json"] + args
     options = dict(capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
-    p = Network(project).run_video(src, "video probe", argv, validate=_check_host, **options) if remote else \
-        subprocess.run(argv, **options)
+    p = _run_video(Network(project), src, "video probe", argv, **options) if remote else \
+        run(*argv, check=False, **options)
     d = json.loads(p.stdout or "{}")
     st = (d.get("streams") or [{}])[0]
     if not st.get("width"):
@@ -1122,31 +1151,42 @@ def fetch_video(ctx, c: dict, url: str, folder: Path):
     ext = "webm" if re.search(r"\.webm(\?|$)", url, re.I) or "webm" in (c.get("mime") or "") else "mp4"
     final = folder / f"{c['source']}_{h8(url)}.{ext}"
     part = final.with_name(final.name + ".part")
-    if c.get("width") and c.get("height") and c.get("duration"):  # known from the API: skip a remote probe
-        remote = {"width": c["width"], "height": c["height"], "duration_s": float(c["duration"])}
-    else:
-        remote = probe_video(url, project=ctx.network.project)  # dims + duration before spending bandwidth
-    if max(remote["width"], remote["height"]) < ctx.min_video:
-        raise ValueError(f"video too small {remote['width']}x{remote['height']}")
-    dur = float(c.get("duration") or remote["duration_s"] or 0)
+    downloaded = part.with_name(part.name + ".download")
     try:
+        local = not _max_redirects()
+        if local:
+            src = _video_url(url, ctx.network)
+            c["bytes"] = ctx.http.download_to(src, part, VID_CAP)
+            remote = probe_video(part)
+        elif c.get("width") and c.get("height") and c.get("duration"):
+            remote = {"width": c["width"], "height": c["height"], "duration_s": float(c["duration"])}
+        else:
+            remote = probe_video(url, project=ctx.network.project)
+        if max(remote["width"], remote["height"]) < ctx.min_video:
+            raise ValueError(f"video too small {remote['width']}x{remote['height']}")
+        dur = float(c.get("duration") or remote["duration_s"] or 0)
         if 0 < dur <= EXCERPT_S + 10:
-            c["bytes"] = ctx.http.download_to(url, part, VID_CAP)
+            if not local:
+                c["bytes"] = ctx.http.download_to(url, part, VID_CAP)
         else:  # long video: cut a 20 s excerpt over HTTP range requests (no full download)
             start = min(0.15 * dur, 60.0)
             info = None
+            if local:
+                part.replace(downloaded)
             # input-side seek is fast (mp4); some hosts' webm can't seek remotely, so fall back to reading from
             # the start and seeking on the output side (bounded at 15 s so we don't stream much)
             for seek_in, s in ((True, start), (False, min(start, 15.0))):
-                src = _video_url(url, ctx.network)
+                src = str(downloaded) if local else _video_url(url, ctx.network)
                 seek = ["-ss", f"{s:.1f}"]
-                ctx.network.run_video(src, "video excerpt", [str(FFMPEG), "-v", "debug", "-y", "-user_agent", UA,
-                                      "-protocol_whitelist", "https,http,tls,tcp"] + (seek if seek_in else []) +
-                                      (["-max_redirects", "0"] if _max_redirects() else []) +
-                                      ["-i", src] + ([] if seek_in else seek) +
-                                      ["-t", str(EXCERPT_S), "-fs", str(VID_CAP), "-map", "0:v:0", "-c", "copy",
-                                       "-an", "-f", ext, str(part)],
-                                      validate=_check_host, capture_output=True, timeout=180)
+                args = ["-protocol_whitelist", "file,pipe"] if local else [
+                    "-user_agent", UA, "-protocol_whitelist", "https,http,tls,tcp", "-max_redirects", "0"]
+                argv = [str(FFMPEG), "-v", "debug", "-y"] + args + (seek if seek_in else []) + \
+                    ["-i", src] + ([] if seek_in else seek) + \
+                    ["-t", str(EXCERPT_S), "-fs", str(VID_CAP), "-map", "0:v:0", "-c", "copy", "-an", "-f", ext, str(part)]
+                if local:
+                    run(*argv, check=False, capture_output=True, timeout=180)
+                else:
+                    _run_video(ctx.network, src, "video excerpt", argv, capture_output=True, timeout=180)
                 if part.is_file() and part.stat().st_size >= VID_CAP:
                     raise ValueError("video exceeds the byte limit")
                 try:
@@ -1163,6 +1203,8 @@ def fetch_video(ctx, c: dict, url: str, folder: Path):
     except Exception:
         part.unlink(missing_ok=True)
         raise
+    finally:
+        downloaded.unlink(missing_ok=True)
     final.unlink(missing_ok=True)
     part.rename(final)
     c.update(info, path=final, file_url=safe_url(url), mime=f"video/{ext}")
@@ -1424,8 +1466,8 @@ def _thumb(path: Path, media: str, box: tuple[int, int], duration=None) -> Image
     try:
         if media == "video":  # sample ~35% in: openings are often title slates
             at = f"{max(0.5, 0.35 * (duration or 4)):.1f}"
-            p = subprocess.run([str(FFMPEG), "-v", "error", "-ss", at, "-i", str(path), "-frames:v", "1",
-                                "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True, timeout=60)
+            p = run(str(FFMPEG), "-v", "error", "-ss", at, "-i", str(path), "-frames:v", "1",
+                    "-f", "image2pipe", "-vcodec", "png", "-", check=False, capture_output=True, timeout=60)
             im = Image.open(io.BytesIO(p.stdout))
         else:
             im = Image.open(path)

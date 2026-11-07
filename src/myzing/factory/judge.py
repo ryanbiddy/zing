@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 from .network import CLAUDE, Network
-from .tools import FactoryError
+from .tools import FactoryError, run
 
 TASK = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 DEFAULT_MODEL = "claude-opus-5-5"
@@ -145,8 +145,8 @@ class Judge:
         last = ""
         for attempt in range(2):        # one retry: a refused or empty call usually goes through a minute later
             with net.request(CLAUDE, task):
-                r = subprocess.run(argv, input=prompt, capture_output=True, text=True, encoding="utf-8", timeout=900,
-                                   cwd=cwd)
+                r = run(*argv, input=prompt, capture_output=True, text=True, encoding="utf-8", timeout=900,
+                        cwd=cwd, check=False)
             try:
                 out = json.loads(r.stdout)
             except ValueError:

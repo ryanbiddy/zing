@@ -18,9 +18,9 @@ PAD = 0.25                      # around each span of a multi-span moment
 
 
 def silences(wav: Path, start: float, end: float) -> list[tuple[float, float]]:
-    log = subprocess.run([ffmpeg(), "-hide_banner", "-ss", str(start), "-t", str(end - start), "-i", str(wav),
-                          "-af", f"silencedetect=noise={SILENCE_DB}dB:d={SILENCE_S}", "-f", "null", "-"],
-                         capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
+    log = run(ffmpeg(), "-hide_banner", "-ss", str(start), "-t", str(end - start), "-i", str(wav),
+              "-af", f"silencedetect=noise={SILENCE_DB}dB:d={SILENCE_S}", "-f", "null", "-",
+              check=False, capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
     marks = [float(x) + start for x in re.findall(r"silence_(?:start|end): ([0-9.]+)", log)]
     return [(a, b) for a, b in zip(marks[::2], marks[1::2]) if b - a > SILENCE_S]
 
@@ -60,8 +60,8 @@ def moment_words(words: list[dict], start: float, end: float, off: float) -> lis
 
 
 def _duration(path: Path) -> float:
-    out = subprocess.run([ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
-                         capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
+    out = run(ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path),
+              check=False, capture_output=True, text=True, encoding="utf-8", errors="replace").stdout
     return float(out.strip())
 
 
@@ -134,8 +134,8 @@ def cams(d: Path) -> dict:
     import cv2
     from .pipeline import _write
     from myzing.layout.detector import require_model
-    log = subprocess.run([ffmpeg(), "-hide_banner", "-i", str(d / "cut.mp4"), "-vf", "select='gt(scene,0.3)',showinfo",
-                          "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
+    log = run(ffmpeg(), "-hide_banner", "-i", str(d / "cut.mp4"), "-vf", "select='gt(scene,0.3)',showinfo",
+              "-f", "null", "-", check=False, capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
     cuts = [float(x) for x in re.findall(r"pts_time:([0-9.]+)", log)]
     n = len(list((d / "frames").glob("*.jpg")))
     bounds = [0.0] + cuts + [n / FPS]

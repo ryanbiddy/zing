@@ -121,7 +121,9 @@ def plan_setup(
     platform: str = "",
 ) -> dict[str, Any]:
     """The idempotent core: what state is each reference in, and is the
-    profile buildable right now? Pure inspection — starts nothing."""
+    profile buildable right now? Reconciles stale jobs; starts nothing."""
+    from myzing.mcp_server import _reconcile_running
+
     storage.validate_profile_name(name)
     if not links:
         raise ValueError("at least one reference link is required")
@@ -129,7 +131,7 @@ def plan_setup(
     for url in links:
         slug = storage.slug_for(url)
         has_breakdown = (storage.breakdown_dir(slug) / "breakdown.json").is_file()
-        job = storage.read_status(slug) or {}
+        job = _reconcile_running(slug, storage.read_status(slug) or {})
         state = (
             "studied" if has_breakdown
             else job.get("state", "unstudied")

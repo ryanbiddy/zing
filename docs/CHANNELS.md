@@ -454,16 +454,122 @@ of hooks you changed. The brief page shows the share kept and the take's duratio
 Run `zing channels brief creators --takes` to read the notes without making a brief.
 
 The whole spoken take becomes one hand-picked clip, from its first word to its
-last. It must be 3 through 180 seconds long. A failed transcription or an invalid
-length leaves a source error and starts no project. With no match, the hook uses
-the first 12 transcript words and there is no news peg or series. The factory
-reuses the transcript and skips scouting. Sentence snapping may drop a leading
-"so" or "okay" but never cuts the end of a take. A matched take's first comment
-links the video or post it talks about. Its usual graphics, gate, queue and
-kits take over. Recordings follow the same seeding limit as own sources.
-Replacing a take file with a new recording starts it over.
+last. That spoken span must be 3 through 180 seconds long. A failed transcription
+or an invalid spoken span leaves a source error and starts no project. With no
+match, the hook uses the first 12 transcript words and there is no news peg or
+series. The factory reuses the transcript and skips scouting. Sentence snapping
+may drop a leading "so" or "okay" but never cuts the end of a take. A matched
+take's first comment links the video or post it talks about. Its usual graphics,
+gate, queue and kits take over. Recordings follow the same seeding limit as own sources.
+A changed file clears any cached transcript before a project is created.
 Series stay in clip arms, queue rows and outcomes. `learn` adds each series's
 count of unmasked rewards and median reward. The bandit does not choose series.
+
+## Record on your phone
+
+Use a dedicated synced folder for takes in OneDrive, iCloud Drive or Google Drive
+for desktop. Do not point a recordings source at a whole camera roll. Save each
+take into the dedicated folder from your phone's share sheet.
+
+Edit the recordings source in `channel.json`. Set `require_match` to `true` and
+`since` to today's date. Replace the example date and paths below. Add
+`phone_folder` at the top level to copy the latest brief into a synced folder.
+
+With `phone_folder` set, `zing channels kit SLUG` also copies approved kits and
+their post copy into `<phone_folder>/<slug>-kits/`. Open its `index.html` on your
+phone to play clips and copy text before uploading in the platform's app.
+Posted or skipped kits leave this folder on the next kit run or tick.
+
+```json
+{
+  "phone_folder": "C:/Users/ExampleUser/OneDrive/Zing/briefs",
+  "sources": [
+    {
+      "id": "takes",
+      "kind": "recordings",
+      "name": "My takes",
+      "url": "C:/Users/ExampleUser/OneDrive/Zing/takes",
+      "rights": {"status": "own", "grant": "Recorded by me"},
+      "settle_seconds": 120,
+      "since": "2026-11-06",
+      "max_seconds": 180,
+      "require_match": true
+    }
+  ]
+}
+```
+
+- `settle_seconds` defaults to 120. A newer modification time leaves the file
+  `found, still syncing` until a later watch or tick. Set it to 0 to disable the wait.
+- `since` skips files modified before that date in UTC. They do not enter the
+  source log. Without it, all dates are eligible.
+- `max_seconds` defaults to 180 and accepts any positive finite number. Longer
+  or unreadable videos are skipped before transcription.
+- `require_match` defaults to `false`. When `true`, a take must match an open
+  brief item. An unmatched take leaves no project or staging folder.
+
+These four settings apply only to recordings sources. Skipped files keep their
+reason in the source log and are retried only when their size or modification
+time changes. Waiting and skipped takes create no projects.
+
+Run `zing channels check creators` after editing the settings. Run
+`zing channels brief creators` to write `creators-brief.html` in `phone_folder`,
+then open that file from the synced folder on your phone. The page includes its
+own styles and copy button. Prompt paths appear as text; receipt links open the
+original web pages. A phone-folder write failure is saved in the brief's errors
+and leaves the local brief available.
+
+## Scorecard
+
+Check the channel against your bar with local briefs, queue rows and outcomes.
+No network or judge is used.
+
+```sh
+zing channels scorecard creators --open
+zing channels scorecard creators --days 14 --json
+zing channels flag creators --kind claim --note "Check the source quote" --clip episode/clip01
+```
+
+Each run writes `scorecard.html` and `scorecard.json` in the channel folder.
+`--open` opens the page. `--json` prints the saved result instead of the row
+summary. The window defaults to 30 channel-local dates, including today.
+
+- Days counts calendar days from the first brief through today, including both
+  dates. The default target is 30. Earlier briefs still count outside the window.
+- Posts counts queue rows marked `posted` within the window. It uses `posted_at`,
+  or the slot when that is missing. The default target is 60.
+- Recorded is the share of brief items marked `recorded`. Only items in the
+  window whose brief date is at least two days old count. It needs 10 items and
+  a share of at least 0.6. The detail shows recorded and total counts per series.
+- Kept is the median `take.kept` share among recorded items in the window.
+  It needs three numeric values and a median of at least 0.7. Older items
+  without take measurements are ignored.
+- Median views compares the newer half of measured posts with the older half,
+  ordered by posting time. It uses `views_7d`, falling back to numeric
+  `views_24h`. It needs 10 posts, and the newer median must be higher. An odd
+  extra post goes in the newer half. Details include per-series medians.
+- Flags counts logged flags and outcomes with `masked` set to `true` in the
+  window. The default limit is zero. Details give counts by kind.
+
+Rows with too little data say `not enough data`. Ready means all six rows pass.
+Corrupt files and invalid brief folders are skipped and listed in `problems`.
+The digest adds a scorecard count for channels with a brief.
+
+Set an optional `bar` object in `channel.json` to override any of these defaults.
+Values must be nonnegative numbers. Missing keys keep their defaults.
+
+```json
+"bar": {"days": 30, "posts": 60, "recorded": 0.6, "kept": 0.7, "flags": 0}
+```
+
+`--days` changes the window without changing the bar. The median views row
+always requires improvement over the earlier half.
+
+Use `flag` to append a claim, strike, reused-content issue or other note to
+`flags.jsonl`. `--kind` accepts `claim`, `strike`, `reused` or `other`.
+`--note` requires non-empty text of up to 500 characters. `--clip` is optional.
+Each flag uses the time it was logged. Invalid flag lines are skipped and
+reported while valid lines still count.
 
 ## Pause work
 

@@ -239,8 +239,10 @@ def markdown(summary):
         lines.append("| " + " | ".join([label, state, ", ".join(failed) or "none established; unverified dimensions remain", *cells]) + " |")
     for label, row in summary["drafts"].items():
         if row["status"] == "ready":
-            lines += ["", f"{label}: [video](<{link(row['video'])}>) · [plan](<{link(row['plan'])}>) · "
-                      f"[timeline](<{link(row['timeline'])}>) · [match report](<{link(row['report'])}>)"]
+            links = [f"[{name}](<{link(row[key])}>)" for name, key in
+                     (("video", "video"), ("plan", "plan"), ("timeline", "timeline"), ("match report", "report"))
+                     if key != "timeline" or row.get(key)]
+            lines += ["", f"{label}: " + " · ".join(links)]
             if row.get("alternative"):
                 lines += ["", f"{label}: {row['alternative']['label']}: {row['alternative']['reason']}. "
                           "It never counts as a style match pass."]

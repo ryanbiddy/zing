@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -52,6 +53,59 @@ def _save_index(root: Path, index: StillIndex):
         os.replace(temporary, target)
     finally:
         temporary.unlink(missing_ok=True)
+
+
+def _recover(root: Path):
+    transaction = root / ".still-publish"
+    if not transaction.exists():
+        return
+    if transaction.is_symlink():
+        raise MemeError("Still publication folder must not be a symlink.")
+    records = _read_json(transaction / "publish.json")
+    if not isinstance(records, dict) or "index.json" not in records or any(
+            not re.fullmatch(r"(?:index\.json|contact-sheet\.png|meme-writer\.md|"
+                             r"(?:candidate|finished)-still-[0-9a-f]{16}\.(?:png|mp4|gif))", name)
+            or not isinstance(record, dict) or set(record) != {"before", "after"}
+            for name, record in records.items()):
+        raise MemeError("Invalid still publication journal; preserve the folder for recovery.")
+    if not (transaction / "index.json").exists():
+        if hash_file(root / "index.json") != records["index.json"]["after"]:
+            raise MemeError("Still index changed during publication; preserve the folder for recovery.")
+    else:
+        for name, record in records.items():
+            if name == "index.json":
+                continue
+            target, backup = root / name, transaction / "previous" / name
+            if target.is_symlink() or (target.exists() and hash_file(target) not in (record["before"], record["after"])):
+                raise MemeError(f"Output changed during publication: {target}; preserve the folder for recovery.")
+            if backup.exists():
+                backup.replace(target)
+            elif record["before"] is None and not (transaction / name).exists():
+                target.unlink(missing_ok=True)
+    shutil.rmtree(transaction)
+
+
+def _publish(stage: Path, root: Path):
+    sources = sorted(stage.iterdir(), key=lambda p: p.name == "index.json")
+    records = {p.name: {"before": hash_file(root / p.name) if (root / p.name).exists() else None,
+                        "after": hash_file(p)} for p in sources}
+    (stage / "publish.json").write_text(_json(records), encoding="utf-8")
+    for path in [*sources, stage / "publish.json"]:
+        with path.open("r+b") as handle:
+            os.fsync(handle.fileno())
+    (stage / "previous").mkdir()
+    transaction = root / ".still-publish"
+    stage.rename(transaction)  # Keep recovery files after an abrupt process exit.
+    try:
+        for source in sources:
+            target = root / source.name
+            if source.name != "index.json" and target.exists():
+                target.replace(transaction / "previous" / source.name)
+            (transaction / source.name).replace(target)
+    except BaseException:
+        _recover(root)
+        raise
+    shutil.rmtree(transaction, ignore_errors=True)
 
 
 def _validate(texts, count=None) -> list[str]:
@@ -230,6 +284,7 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
         raise MemeError("Use fit auto, fill, blur, contain, or cover.")
     protect = user_boxes(protect) or None
     root = local_path(out)
+    _recover(root)
     if root.exists() and (not root.is_dir() or any(root.iterdir())):
         raise MemeError(f"Use a new or empty output folder: {root}")
     topic = " ".join(topic.split())
@@ -262,8 +317,7 @@ def create_stills(photos: str | Path, topic: str, out: str | Path, *, n: int = 6
         index = StillIndex(topic, aspect, candidates, concepts, sheet, warnings=notes, protect=protect)
         (stage / index.prompt_path).write_text(prompt, encoding="utf-8")
         _save_index(stage, index)
-        for source in sorted(stage.iterdir(), key=lambda p: p.name == "index.json"):
-            source.replace(root / source.name)
+        _publish(stage, root)
     return {"out_folder": str(root), "index_path": str(root / "index.json"),
             "contact_sheet": str(root / sheet["path"]), "prompt_path": str(root / index.prompt_path),
             "prompt": prompt, "count": len(concepts),
@@ -279,6 +333,7 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
     if type(video) is not bool or type(gif) is not bool:
         raise MemeError("video and gif must be boolean")
     root = local_path(out_folder)
+    _recover(root)
     index = StillIndex.from_dict(_read_json(root / "index.json"))
     if index.aspect not in ASPECTS:
         raise MemeError("Invalid index aspect; recreate this still run.")
@@ -357,6 +412,5 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
         concept.outputs = list(previous.values())
         index.selected = concept.id
         _save_index(stage, index)
-        for source in sorted(stage.iterdir(), key=lambda p: p.name == "index.json"):
-            source.replace(root / source.name)
+        _publish(stage, root)
     return result

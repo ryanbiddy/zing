@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
+import secrets
 from collections import Counter
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
@@ -11,7 +13,7 @@ from pathlib import Path
 from myzing.factory import campaign, postcopy
 from myzing.factory.pipeline import _read, _write
 
-from . import bandit, gate, registry
+from . import bandit, gate, registry, youtube
 from .registry import ChannelError
 
 STATUSES = ("queued", "kit", "posted", "skipped")
@@ -36,9 +38,12 @@ def read(slug: str) -> list[dict]:
 
 def write(slug: str, rows: list[dict]) -> None:
     path = registry.directory(slug) / "queue.jsonl"
-    tmp = path.with_suffix(".jsonl.tmp")
-    tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-    tmp.replace(path)
+    tmp = path.with_name(".queue-" + secrets.token_hex(8) + ".tmp")
+    try:
+        tmp.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _now(now: datetime | None = None) -> datetime:
@@ -124,7 +129,9 @@ def _title(row: dict, history: list[dict], channel: dict, rng) -> None:
     post.update(youtube_title=next(t["text"] for t in options if t["pattern"] == value), title_pattern=value,
                 title_propensity=propensity, title_policy=policy, title_candidates=candidates)
     post = postcopy.require_tags(post, campaign.read(d.parent))
+    stat = (d / "post.json").stat()
     _write(d / "post.json", post)
+    os.utime(d / "post.json", ns=(stat.st_atime_ns, stat.st_mtime_ns))  # keep the approved copy's timestamp
     row["title"] = post["youtube_title"]
     row["arms"].update({k: post[k] for k in ("title_pattern", "title_propensity", "title_policy", "title_candidates")})
 
@@ -132,6 +139,12 @@ def _title(row: dict, history: list[dict], channel: dict, rng) -> None:
 def build(slug: str, now: datetime | None = None, *, rng: random.Random | None = None, stop=None) -> dict:
     channel = registry.load(slug)
     registry.require_running(slug)
+    with youtube.lock():
+        return _build(channel, now, rng, stop)
+
+
+def _build(channel, now, rng, stop):
+    slug = channel["slug"]
     now = _now(now)
     rows = read(slug)
     history = bandit.history(slug)
@@ -143,7 +156,11 @@ def build(slug: str, now: datetime | None = None, *, rng: random.Random | None =
             break
         if not project.is_dir():
             continue
-        cfg = _read(project / "factory.json", {})
+        try:
+            cfg = _read(project / "factory.json", {})
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            blocked[project.name] = [str(exc) or type(exc).__name__]
+            continue
         for d in sorted(project.glob("clip[0-9][0-9]*")):
             if stop and stop():
                 break
@@ -152,15 +169,18 @@ def build(slug: str, now: datetime | None = None, *, rng: random.Random | None =
             ident = f"{project.name}/{d.name}"
             if ident in seen:
                 continue
-            result = gate.check(project, d.name, channel, now=now)
-            if not result["publishable"]:
-                blocked[ident] = result["blockers"]
-                continue
-            src = registry.source(channel, cfg["source"]) if cfg.get("source") else {}
-            pending.append({"id": ident, "project": str(project.resolve()), "clip": d.name, "status": "queued",
-                            "title": _read(d / "post.json", {}).get("youtube_title", ""), "own": src.get("kind") in ("own", "recordings"),
-                            "arms": _read(d / "arms.json", {"archetype": "other"}),
-                            "manual": gate.rating(project, d.name) == "post", "queued_at": now.isoformat(timespec="seconds")})
+            try:
+                result = gate.check(project, d.name, channel, now=now)
+                if not result["publishable"]:
+                    blocked[ident] = result["blockers"]
+                    continue
+                src = registry.source(channel, cfg["source"]) if cfg.get("source") else {}
+                pending.append({"id": ident, "project": str(project.resolve()), "clip": d.name, "status": "queued",
+                                "title": _read(d / "post.json", {}).get("youtube_title", ""), "own": src.get("kind") in ("own", "recordings"),
+                                "arms": _read(d / "arms.json", {"archetype": "other"}),
+                                "manual": gate.rating(project, d.name) == "post", "queued_at": now.isoformat(timespec="seconds")})
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                blocked[ident] = [str(exc) or type(exc).__name__]
     added = 0
     cursor = now
     while pending:
@@ -181,10 +201,15 @@ def build(slug: str, now: datetime | None = None, *, rng: random.Random | None =
             value, propensity, policy = bandit.choose("archetype", archetypes, history, rng)
             chosen = next(r for r in candidates if r["arms"].get("archetype", "other") == value)
         if chosen is not None:
-            _title(chosen, history, channel, rng)
-            row = {**chosen, "slot": slot.isoformat(timespec="seconds"), "order_propensity": propensity,
-                   "order_policy": policy, "arms": {**chosen["arms"], "hour": slot.hour}}
-            _write(Path(row["project"]) / row["clip"] / "arms.json", row["arms"])
+            try:
+                _title(chosen, history, channel, rng)
+                row = {**chosen, "slot": slot.isoformat(timespec="seconds"), "order_propensity": propensity,
+                       "order_policy": policy, "arms": {**chosen["arms"], "hour": slot.hour}}
+                _write(Path(row["project"]) / row["clip"] / "arms.json", row["arms"])
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                blocked[chosen["id"]] = [str(exc) or type(exc).__name__]
+                pending.remove(chosen)
+                continue
             with (registry.directory(slug) / "queue.jsonl").open("a", encoding="utf-8") as f:
                 f.write(json.dumps(row, ensure_ascii=False) + "\n")
             rows.append(row)
@@ -204,16 +229,17 @@ def mark(slug: str, ident: str, status: str, url: str | None = None) -> dict:
         raise ChannelError("status must be posted or skipped")
     if url is not None:
         registry.web_url(url, "url")
-    rows = read(slug)
-    row = next((r for r in rows if r["id"] == ident), None)
-    if row is None:
-        raise ChannelError(f"queue id {ident} was not found")
-    row["status"] = status
-    if url is not None:
-        row["url"] = url
-    if status == "posted":
-        from .outcomes import video_id
-        row.setdefault("posted_at", _now().isoformat(timespec="seconds"))
-        row["video_id"] = video_id(row.get("url"))
-    write(slug, rows)
-    return row
+    with youtube.lock():
+        rows = read(slug)
+        row = next((r for r in rows if r["id"] == ident), None)
+        if row is None:
+            raise ChannelError(f"queue id {ident} was not found")
+        row["status"] = status
+        if url is not None:
+            row["url"] = url
+        if status == "posted":
+            from .outcomes import video_id
+            row.setdefault("posted_at", _now().isoformat(timespec="seconds"))
+            row["video_id"] = video_id(url) if url is not None else row.get("video_id") or video_id(row.get("url"))
+        write(slug, rows)
+        return row

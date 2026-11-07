@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def run(argv: list[str]) -> int:
-    from . import brief, digest, kit, learn, outcomes, publish, queue, registry, tick, watch, youtube
+    from . import brief, digest, kit, learn, outcomes, publish, queue, registry, scorecard, tick, watch, youtube
     parser = argparse.ArgumentParser(prog="zing channels")
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="create a channel")
@@ -28,6 +28,16 @@ def run(argv: list[str]) -> int:
     daily.add_argument("--answer", nargs=2, metavar=("TASK", "FILE"), help="save a script answer and refill the brief")
     daily.add_argument("--open", action="store_true", help="open the brief page")
     daily.add_argument("--takes", action="store_true", help="show what recent recordings teach the scripts")
+    score = commands.add_parser("scorecard", help="compare local results with the channel bar")
+    score.add_argument("slug")
+    score.add_argument("--days", type=int, default=30, help="number of local days ending today")
+    score.add_argument("--open", action="store_true", help="open the scorecard page")
+    score.add_argument("--json", action="store_true", help="print the scorecard as JSON")
+    flag = commands.add_parser("flag", help="record a channel problem")
+    flag.add_argument("slug")
+    flag.add_argument("--kind", required=True, choices=scorecard.KINDS)
+    flag.add_argument("--note", required=True, help="what happened in up to 500 characters")
+    flag.add_argument("--clip", help="clip ID")
     for name, help in (("show", "show settings and queue counts"), ("check", "check channel settings"),
                        ("queue", "queue clips that pass the gate"), ("kit", "make local post kits"),
                        ("track", "measure public YouTube results"), ("metrics", "merge a YouTube Studio CSV"),
@@ -104,6 +114,19 @@ def run(argv: list[str]) -> int:
             result = registry.save(channel)
         elif args.command == "watch":
             result = watch.run(args.slug)
+        elif args.command == "scorecard":
+            result = scorecard.build(args.slug, days=args.days)
+            path = scorecard.page(args.slug, result)
+            if args.open:
+                webbrowser.open(path.as_uri())
+            if not args.json:
+                for row in result["rows"]:
+                    print(f"{row['label']} {scorecard._value(row['value'])} / {scorecard._value(row['target'])} "
+                          f"{scorecard._status(row['met'])}")
+                print(f"Ready: {scorecard._status(result['ready'])} ({result['met']} of {result['total']} met)")
+                return 0
+        elif args.command == "flag":
+            result = scorecard.flag(args.slug, args.kind, args.note, clip=args.clip)
         elif args.command == "brief":
             if args.takes:
                 lines = brief.voice(args.slug, brief.when(registry.load(args.slug), args.date))

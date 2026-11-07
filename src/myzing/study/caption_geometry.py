@@ -246,10 +246,14 @@ def iter_frames(path: Path, duration: float) -> Iterator[tuple[float, float, flo
             if duration > 60:
                 index = max(index, math.ceil(schedule[want][0] * fps - 1e-8))
                 if not cap.set(cv2.CAP_PROP_POS_FRAMES, index):
-                    raise RuntimeError("bounded caption sample seek failed")
+                    want += 1
+                    continue
             got, frame = cap.read()
             if not got:
                 break
+            if duration > 60 and cap.get(cv2.CAP_PROP_POS_FRAMES) != index + 1:
+                want += 1  # Missing targets remain coverage gaps.
+                continue
             t = index / fps
             if t >= duration:
                 break

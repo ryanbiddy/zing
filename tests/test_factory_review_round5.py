@@ -134,15 +134,18 @@ def test_video_excerpt_caps_ffmpeg_and_rejects_oversize_output(tmp_path, monkeyp
     ctx = SimpleNamespace(network=net, min_video=900)
     monkeypatch.setattr(visuals, "VID_CAP", 64)
     monkeypatch.setattr(visuals, "_video_url", lambda url, net: url)
-    monkeypatch.setattr(visuals, "_max_redirects", lambda: False)
+    monkeypatch.setattr(visuals, "_max_redirects", lambda: True)   # the remote FFmpeg path; a failed probe downloads first
     monkeypatch.setattr(visuals, "probe_video", lambda *a, **k: {"width": 1920, "height": 1080, "duration_s": duration})
     calls = []
 
-    def run(url, purpose, argv, **kwargs):
+    def run(*argv, **kwargs):
+        argv = [str(a) for a in argv]
         calls.append(argv)
         assert int(argv[argv.index("-fs") + 1]) == 64
         Path(argv[-1]).write_bytes(b"x" * size)
-    monkeypatch.setattr(net, "run_video", run)
+        return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+    monkeypatch.setattr(visuals, "_check_host", lambda url: None)
+    monkeypatch.setattr(visuals, "run", run)
     candidate = {"source": "commons", "width": 1920, "height": 1080, "duration": duration}
     if size >= 64:
         with pytest.raises(ValueError, match="video.*limit"):

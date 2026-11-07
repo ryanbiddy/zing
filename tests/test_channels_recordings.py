@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import socket
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -34,6 +35,7 @@ def local(tmp_path, monkeypatch):
     monkeypatch.setattr(source, "scout_model", lambda: None)
     monkeypatch.setattr(source, "transcribe_episode", refuse)
     monkeypatch.setattr(source, "transcribe_moments", refuse)
+    monkeypatch.setattr(watch, "_duration", lambda path: 180)
 
 
 @pytest.fixture
@@ -49,6 +51,8 @@ def channel(tmp_path):
 def media(channel, name="take.mp4"):
     path = Path(channel["sources"][0]["url"]) / name
     path.write_bytes(b"local take")
+    stamp = (NOW - timedelta(seconds=120)).timestamp()
+    os.utime(path, (stamp, stamp))
     return path
 
 

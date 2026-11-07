@@ -836,7 +836,7 @@ def test_push_to_uoink_rejects_traversal_as_data(zing_workspace, bad, monkeypatc
         raise AssertionError("a traversal slug must never reach the network")
 
     monkeypatch.setattr(
-        "myzing.uoink_bridge.urllib.request.urlopen", no_network
+        "myzing.uoink_bridge.urls.open_no_redirect", no_network
     )
     result = mcp_server.h_push_to_uoink(bad)
     assert result["ok"] is False
@@ -869,7 +869,7 @@ def test_push_to_uoink_cannot_push_outside_workspace(
         raise AssertionError("out-of-workspace markdown must never be pushed")
 
     monkeypatch.setattr(
-        "myzing.uoink_bridge.urllib.request.urlopen", no_network
+        "myzing.uoink_bridge.urls.open_no_redirect", no_network
     )
     result = mcp_server.h_push_to_uoink("../../escape")
     assert result["ok"] is False

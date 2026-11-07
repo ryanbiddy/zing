@@ -130,16 +130,14 @@ def test_publish_falls_back_for_cross_device_work_directory(
     staged.parent.mkdir()
     staged.write_bytes(b"rendered")
     output = tmp_path / "output" / "final.mp4"
+    replace = pipeline.os.replace
 
     def cross_device(source: Path, destination: Path) -> None:
-        raise OSError(errno.EXDEV, "cross-device link")
-
-    def move(source: Path, destination: Path) -> None:
-        destination.write_bytes(source.read_bytes())
-        source.unlink()
+        if source == staged:
+            raise OSError(errno.EXDEV, "cross-device link")
+        replace(source, destination)
 
     monkeypatch.setattr(pipeline.os, "replace", cross_device)
-    monkeypatch.setattr(pipeline.shutil, "move", move)
 
     pipeline._publish_output(staged, output)
 

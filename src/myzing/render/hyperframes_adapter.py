@@ -277,7 +277,8 @@ def check_install(*, sidecar: Path | None = None, browser: Path | None = None,
     if not node:
         raise HyperframesError("Node is missing; install Node.js 24 LTS and add node to PATH.")
     try:
-        version = subprocess.run([node, "--version"], capture_output=True, text=True, check=True, timeout=10).stdout.strip()
+        version = subprocess.run([node, "--version"], capture_output=True, text=True,
+                                 encoding="utf-8", errors="replace", check=True, timeout=10).stdout.strip()
         if int(version.lstrip("v").split(".")[0]) < 24:
             raise ValueError(version)
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
@@ -317,15 +318,35 @@ def _run_process(command: list[str], *, env: dict, timeout: float, log: Path) ->
         raise HyperframesError(f"Could not start HyperFrames: {exc}. {SETUP_HINT}") from exc
     try:
         stdout, _ = process.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        # Kill this render's entire tree: Node -> CLI -> Chrome/FFmpeg.
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, timeout=15, check=False)
-        else:
-            os.killpg(process.pid, signal.SIGKILL)
-        stdout, _ = process.communicate(timeout=15)
-        log.write_bytes(stdout or b"")
-        raise HyperframesError(f"HyperFrames timed out after {timeout}s; render tree stopped. Inspect {log}, or increase timeout.") from exc
+    except BaseException as exc:
+        from contextlib import suppress
+
+        stdout = b""
+        try:
+            try:
+                if os.name == "nt":
+                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, timeout=15, check=False)
+                else:
+                    os.killpg(process.pid, signal.SIGKILL)
+            except (OSError, subprocess.SubprocessError):
+                with suppress(OSError):
+                    process.kill()
+            try:
+                stdout, _ = process.communicate(timeout=15)
+            except (OSError, subprocess.SubprocessError):
+                with suppress(OSError, subprocess.SubprocessError):
+                    process.kill()
+                    process.wait(timeout=15)
+        finally:
+            for name in ("stdin", "stdout", "stderr"):
+                pipe = getattr(process, name, None)
+                if pipe is not None:
+                    with suppress(OSError):
+                        pipe.close()
+        if isinstance(exc, subprocess.TimeoutExpired):
+            log.write_bytes(stdout or b"")
+            raise HyperframesError(f"HyperFrames timed out after {timeout}s; render tree stopped. Inspect {log}, or increase timeout.") from exc
+        raise
     log.write_bytes(stdout or b"")
     if process.returncode:
         detail = (stdout or b"").decode("utf-8", errors="replace")[-2000:]
@@ -337,7 +358,7 @@ def verify_output(path: Path, plan: HyperframesPlan | dict, ffprobe: str = "ffpr
     try:
         result = subprocess.run(
             [ffprobe, "-v", "error", "-protocol_whitelist", "file,pipe,fd", "-select_streams", "v:0", "-count_frames", "-show_streams", "-show_format", "-of", "json", str(path)],
-            capture_output=True, text=True, check=True, timeout=60,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=60,
         )
         probe = json.loads(result.stdout)
         video = probe["streams"][0]
