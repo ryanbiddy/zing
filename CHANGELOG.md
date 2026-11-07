@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Write brief pages atomically and remake a missing page on the next tick. One
+  damaged kit no longer breaks the kit index, and torn network ledger lines are skipped.
 - Add channel scorecards with local progress rows, owner-set bars, flags and
   digest counts. `channels scorecard` writes HTML and JSON; `channels flag` logs issues.
 - Channel scripts learn from matched takes in the last 30 local dates. The brief
