@@ -118,6 +118,12 @@ Verify with `/mcp` (server listed, connected) — the prompt pack appears
 as `/mcp__zing__study`. `study_video` returns in under a second and
 studies in the background, so no timeout tuning is needed.
 
+## Hermes Agent
+
+Install the [Hermes Agent plugin](../plugins/hermes-zing/README.md) after Zing.
+It starts `zing serve-mcp`, checks that Zing is installed and adds a skill for
+factory prompts, reference study, rendering and memes.
+
 ## Any other MCP client
 
 Zing is a standard stdio server: launch `<python> -m myzing.cli

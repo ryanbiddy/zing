@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a portable Hermes Agent plugin for installed Zing, with app detection,
+  approval gates and a skill for factory clips, reference study, renders and memes.
 - A study that fails while Zing checks on it keeps its real error instead of
   "worker is gone".
 - Keep YouTube channel metadata available during feed outages with yt-dlp.

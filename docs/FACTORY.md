@@ -5,6 +5,14 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
+## Hermes Agent
+
+The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
+Zing command. Start with `factory_new`, call `factory_run` and poll
+`factory_status`. Hermes answers each `factory_prompt` through `factory_answer`,
+then resumes the run. Use `factory_clip` for new cuts and `factory_edit` for
+caption, hook, copy or visual changes. Return the review page and receipts.
+
 ## Channels
 
 Use [`zing channels`](CHANNELS.md) to keep source grants, factory defaults,

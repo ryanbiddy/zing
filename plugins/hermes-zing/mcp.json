@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "zing": {
+      "type": "stdio",
+      "command": "zing",
+      "args": ["serve-mcp"],
+      "env": {
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1",
+        "ZING_HOME": "${ZING_HOME}",
+        "ZING_FACTORY_SIDECAR": "${ZING_FACTORY_SIDECAR}",
+        "ZING_BROWSER_PATH": "${ZING_BROWSER_PATH}",
+        "UOINK_URL": "${UOINK_URL}",
+        "UOINK_TOKEN": "${UOINK_TOKEN}",
+        "PEXELS_API_KEY": "${PEXELS_API_KEY}",
+        "PIXABAY_API_KEY": "${PIXABAY_API_KEY}",
+        "EXA_API_KEY": "${EXA_API_KEY}"
+      }
+    }
+  }
+}
