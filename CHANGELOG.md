@@ -5,6 +5,8 @@
 - Keep YouTube channel metadata available during feed outages with yt-dlp.
   Receipts say "about" for rounded counts. Shorts use exact metadata, and
   approximate counts never become measured learning results.
+- Mirror approved post kits and their copy to `phone_folder` under `<slug>-kits`.
+  Later kit runs remove posted or skipped kits and report phone folder errors as warnings.
 - Add channel scorecards with local progress rows, owner-set bars, flags and
   digest counts. `channels scorecard` writes HTML and JSON; `channels flag` logs issues.
 - Channel scripts learn from matched takes in the last 30 local dates. The brief

@@ -35,7 +35,10 @@ def run_media(command, *, data=None, cwd=None, timeout=120):
 
 
 def local_video(path: Path | str) -> Path:
-    path = Path(path).expanduser().resolve()
+    path = Path(path).expanduser()
+    if str(path).replace("\\", "/").startswith("//"):
+        raise ColorError("Video input must be a local file; network paths are not allowed.")
+    path = path.resolve()
     if not path.is_file():
         raise ColorError(f"Local video does not exist: {path}. Supply a local file; no downloads are performed.")
     return path

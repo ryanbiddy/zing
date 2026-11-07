@@ -122,7 +122,8 @@ def draft_edl(
             src_out=round(end, 3),
             timeline_start=round(cursor, 3),
         ))
-        cursor += end - start
+        clip = clips[-1]
+        cursor = clip.timeline_start + (clip.src_out - clip.src_in)
 
     if not clips:
         raise AssembleError(

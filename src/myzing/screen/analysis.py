@@ -5,12 +5,43 @@ from __future__ import annotations
 import re
 import subprocess
 import shutil
+import threading
+from contextlib import contextmanager
 
 from myzing.project.probe import MEDIA_DEMUXERS
 
 
 def input_args(path):
     return ["-protocol_whitelist", "file,pipe", "-format_whitelist", MEDIA_DEMUXERS, "-i", str(path)]
+
+
+@contextmanager
+def decode_deadline(proc, duration):
+    expired = threading.Event()
+
+    def stop():
+        expired.set()
+        if proc.poll() is None:
+            proc.kill()
+
+    timer = threading.Timer(max(60, duration*4), stop)
+    timer.daemon = True
+    timer.start()
+    try:
+        try:
+            yield
+        except Exception:
+            if not expired.is_set():
+                raise
+        if expired.is_set():
+            raise RuntimeError("Screen frame analysis timed out.")
+    finally:
+        timer.cancel()
+        timer.join()
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait()
+        proc.stdout.close()
 
 
 def parse_freezes(text, duration):
@@ -50,7 +81,7 @@ def activity(path, duration, ffmpeg="ffmpeg"):
                              "-t", str(duration), "-vf", f"fps={rate},scale={w}:{h}", "-an", "-pix_fmt", "gray", "-f", "rawvideo", "pipe:1"],
                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     previous, events, index = None, [], 0
-    try:
+    with decode_deadline(proc, duration):
         while index <= duration*rate+2:
             frame = proc.stdout.read(w*h)
             if not frame:
@@ -89,9 +120,4 @@ def activity(path, duration, ffmpeg="ffmpeg"):
             previous, index = frame, index+1
         if proc.wait(timeout=15):
             raise RuntimeError("FFmpeg could not decode screen activity frames.")
-    finally:
-        proc.stdout.close()
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait()
     return events

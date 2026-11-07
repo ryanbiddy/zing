@@ -249,14 +249,15 @@ def test_invalid_inputs_and_changed_photo_fail_honestly(photos, tmp_path, capsys
 
 
 def test_unreadable_and_animated_photo_refused(photos):
+    good = {photo.path for photo in inv.inventory(photos)[0]}
     (photos / "broken.png").write_bytes(b"not an image")
-    with pytest.raises(MemeError, match="Cannot read photo"):
-        inv.inventory(photos)
+    found, notes = inv.inventory(photos)                      # one bad photo is skipped with a note, not fatal
+    assert {photo.path for photo in found} == good and any("Cannot read photo" in note for note in notes)
     (photos / "broken.png").unlink()
     frames = [Image.new("RGB", (40, 40), color) for color in ("red", "blue")]
     frames[0].save(photos / "animated.png", save_all=True, append_images=frames[1:], duration=100)
-    with pytest.raises(MemeError, match="single-frame"):
-        inv.inventory(photos)
+    found, notes = inv.inventory(photos)
+    assert {photo.path for photo in found} == good and any("single-frame" in note for note in notes)
 
 
 def test_core_without_pillow_has_install_hint(tmp_path):

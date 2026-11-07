@@ -14,6 +14,7 @@ import shutil
 import statistics
 import subprocess
 import sys
+import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -795,6 +796,7 @@ def generate_thumbnails(
             f"stored media is missing for '{slug}' - re-run 'zing study <video>'"
         )
 
+    _hook_evidence(breakdown)
     candidates = select_thumbnail_candidates(
         breakdown,
         lambda timestamp: _frame_metrics(media_path, timestamp, ffmpeg),
@@ -802,21 +804,11 @@ def generate_thumbnails(
     output_dir = storage.breakdown_dir(slug) / THUMBNAILS_DIR
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "thumbs.json"
-    if manifest_path.exists():
-        manifest_path.unlink()
-    for stale in output_dir.glob("candidate-*.jpg"):
-        stale.unlink()
 
     for index, candidate in enumerate(candidates, start=1):
         safe_selector = candidate["selector"].replace("_", "-")
         filename = f"candidate-{index:02d}-{safe_selector}.jpg"
         target = output_dir / filename
-        _extract_source_frame(
-            media_path,
-            candidate["timestamp"],
-            target,
-            ffmpeg,
-        )
         candidate["frame"] = f"{THUMBNAILS_DIR}/{filename}"
         candidate["frame_path"] = str(target.resolve())
         candidate["perceptual_hash"] = (
@@ -873,10 +865,25 @@ def generate_thumbnails(
         "prompts": prompts,
         "limitations": limitations,
     }
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    with tempfile.TemporaryDirectory(prefix=".thumbs-", dir=output_dir) as temporary:
+        staged = Path(temporary)
+        for candidate in candidates:
+            _extract_source_frame(
+                media_path, candidate["timestamp"],
+                staged / Path(candidate["frame_path"]).name, ffmpeg,
+            )
+        (staged / "thumbs.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        for candidate in candidates:
+            target = Path(candidate["frame_path"])
+            storage._replace(staged / target.name, target)
+        storage._replace(staged / "thumbs.json", manifest_path)
+    current = {Path(candidate["frame_path"]).name for candidate in candidates}
+    for stale in output_dir.glob("candidate-*.jpg"):
+        if stale.name not in current:
+            stale.unlink()
     return {
         **manifest,
         "candidates": candidates,

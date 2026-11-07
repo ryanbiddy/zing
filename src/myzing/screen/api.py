@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -104,28 +105,33 @@ def run_folder(clips, out, *, cursor=None, aspects=("16:9",), progress=print, sp
         raise ValueError("One cursor session aligns to one video. Use a folder containing only that recording, or omit the log.")
     if options.get("words") and len(files) != 1:
         raise ValueError("Supplied word timings align to one recording; use a folder containing only that video.")
-    results = []
+    results, failures = [], []
     for i, source in enumerate(files):
         progress(f"Plan screen demo: {source.name}")
-        local_options = dict(options)
-        if speech_model and speech_model != "skip":
-            from myzing.study.api import study
-            from myzing import storage
-            measured = study(str(source), workspace=root, raw_mode=True, local_models_only=True,
-                             model_workspace=storage.resolve_workspace(), speech_model=speech_model)
-            local_options["words"] = [{"text":w.text,"start":w.start,"end":w.end} for w in measured.words]
-        plan = plan_screen(source, cursor=cursor, **local_options)
-        if not plan.words and plan.caption_preset != "none":
-            plan.warnings.append("No supplied/transcribed word timings; no spoken captions were added.")
-        if isinstance(music,list):
-            plan.warnings.append("Screen-demo mode preserves source audio; supplied music beds are not mixed in this version.")
-        folder = root / f"screen-{i+1}-{source.stem}"
-        plan_path = save_plan(plan, folder / "plan.json")
         deliveries = {}
-        for aspect in aspects:
-            progress(f"Render smooth screen camera: {aspect}")
-            deliveries[aspect] = render_screen(plan, folder / (aspect.replace(":", "x")+".mp4"), aspect=aspect)
-        results.append({"plan": str(plan_path), "deliveries": deliveries, "warnings": plan.warnings})
-    return {"status": "ready", "screens": results,
-            "summary": f"Rendered {len(results)} continuous screen demos.",
+        try:
+            local_options = dict(options)
+            if speech_model and speech_model != "skip":
+                from myzing.study.api import study
+                from myzing import storage
+                measured = study(str(source), workspace=root, raw_mode=True, local_models_only=True,
+                                 model_workspace=storage.resolve_workspace(), speech_model=speech_model)
+                local_options["words"] = [{"text":w.text,"start":w.start,"end":w.end} for w in measured.words]
+            plan = plan_screen(source, cursor=cursor, **local_options)
+            if not plan.words and plan.caption_preset != "none":
+                plan.warnings.append("No supplied/transcribed word timings; no spoken captions were added.")
+            if isinstance(music,list):
+                plan.warnings.append("Screen-demo mode preserves source audio; supplied music beds are not mixed in this version.")
+            folder = root / f"screen-{i+1}-{source.stem}"
+            plan_path = save_plan(plan, folder / "plan.json")
+            for aspect in aspects:
+                progress(f"Render smooth screen camera: {aspect}")
+                deliveries[aspect] = render_screen(plan, folder / (aspect.replace(":", "x")+".mp4"), aspect=aspect)
+        except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as exc:
+            failures.append({"source": str(source), "error": str(exc)})
+        if deliveries:
+            results.append({"plan": str(plan_path), "deliveries": deliveries, "warnings": plan.warnings})
+    return {"status": "partial" if failures and results else "failed" if failures else "ready",
+            "screens": results, "failures": failures,
+            "summary": f"Rendered {len(results)} continuous screen demos." + (f" {len(failures)} recording(s) failed." if failures else ""),
             "warnings": ["Screen-demo mode follows UI activity. Reference hard-cut pacing is not applied."]}

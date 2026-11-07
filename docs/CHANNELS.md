@@ -454,16 +454,70 @@ of hooks you changed. The brief page shows the share kept and the take's duratio
 Run `zing channels brief creators --takes` to read the notes without making a brief.
 
 The whole spoken take becomes one hand-picked clip, from its first word to its
-last. It must be 3 through 180 seconds long. A failed transcription or an invalid
-length leaves a source error and starts no project. With no match, the hook uses
-the first 12 transcript words and there is no news peg or series. The factory
-reuses the transcript and skips scouting. Sentence snapping may drop a leading
-"so" or "okay" but never cuts the end of a take. A matched take's first comment
-links the video or post it talks about. Its usual graphics, gate, queue and
-kits take over. Recordings follow the same seeding limit as own sources.
-Replacing a take file with a new recording starts it over.
+last. That spoken span must be 3 through 180 seconds long. A failed transcription
+or an invalid spoken span leaves a source error and starts no project. With no
+match, the hook uses the first 12 transcript words and there is no news peg or
+series. The factory reuses the transcript and skips scouting. Sentence snapping
+may drop a leading "so" or "okay" but never cuts the end of a take. A matched
+take's first comment links the video or post it talks about. Its usual graphics,
+gate, queue and kits take over. Recordings follow the same seeding limit as own sources.
+A changed file clears any cached transcript before a project is created.
 Series stay in clip arms, queue rows and outcomes. `learn` adds each series's
 count of unmasked rewards and median reward. The bandit does not choose series.
+
+## Record on your phone
+
+Use a dedicated synced folder for takes in OneDrive, iCloud Drive or Google Drive
+for desktop. Do not point a recordings source at a whole camera roll. Save each
+take into the dedicated folder from your phone's share sheet.
+
+Edit the recordings source in `channel.json`. Set `require_match` to `true` and
+`since` to today's date. Replace the example date and paths below. Add
+`phone_folder` at the top level to copy the latest brief into a synced folder.
+
+With `phone_folder` set, `zing channels kit SLUG` also copies approved kits and
+their post copy into `<phone_folder>/<slug>-kits/`. Open its `index.html` on your
+phone to play clips and copy text before uploading in the platform's app.
+Posted or skipped kits leave this folder on the next kit run or tick.
+
+```json
+{
+  "phone_folder": "C:/Users/ExampleUser/OneDrive/Zing/briefs",
+  "sources": [
+    {
+      "id": "takes",
+      "kind": "recordings",
+      "name": "My takes",
+      "url": "C:/Users/ExampleUser/OneDrive/Zing/takes",
+      "rights": {"status": "own", "grant": "Recorded by me"},
+      "settle_seconds": 120,
+      "since": "2026-11-06",
+      "max_seconds": 180,
+      "require_match": true
+    }
+  ]
+}
+```
+
+- `settle_seconds` defaults to 120. A newer modification time leaves the file
+  `found, still syncing` until a later watch or tick. Set it to 0 to disable the wait.
+- `since` skips files modified before that date in UTC. They do not enter the
+  source log. Without it, all dates are eligible.
+- `max_seconds` defaults to 180 and accepts any positive finite number. Longer
+  or unreadable videos are skipped before transcription.
+- `require_match` defaults to `false`. When `true`, a take must match an open
+  brief item. An unmatched take leaves no project or staging folder.
+
+These four settings apply only to recordings sources. Skipped files keep their
+reason in the source log and are retried only when their size or modification
+time changes. Waiting and skipped takes create no projects.
+
+Run `zing channels check creators` after editing the settings. Run
+`zing channels brief creators` to write `creators-brief.html` in `phone_folder`,
+then open that file from the synced folder on your phone. The page includes its
+own styles and copy button. Prompt paths appear as text; receipt links open the
+original web pages. A phone-folder write failure is saved in the brief's errors
+and leaves the local brief available.
 
 ## Scorecard
 

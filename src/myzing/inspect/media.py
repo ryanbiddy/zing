@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 
+from myzing.project.probe import MEDIA_DEMUXERS
 from . import InspectionError
 
 PROCESS_TIMEOUT = 20
@@ -42,6 +43,7 @@ class Decoder:
     def probe(self, video: Path) -> dict:
         raw = self.run([
             "ffprobe", "-v", "error", "-protocol_whitelist", "file,pipe",
+            "-format_whitelist", MEDIA_DEMUXERS, "-enable_drefs", "0", "-use_absolute_path", "0",
             "-show_entries", "format=duration:stream=codec_type,duration,avg_frame_rate",
             "-of", "json", str(video),
         ], "video probe")
@@ -62,7 +64,8 @@ class Decoder:
     @staticmethod
     def input_args(video: Path, start: float) -> list[str]:
         return ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
-                "-protocol_whitelist", "file,pipe", "-ss", f"{start:.9f}", "-i", str(video)]
+                "-protocol_whitelist", "file,pipe", "-format_whitelist", MEDIA_DEMUXERS,
+                "-enable_drefs", "0", "-use_absolute_path", "0", "-ss", f"{start:.9f}", "-i", str(video)]
 
     def frame(self, video: Path, timestamp: float, width: int, height: int) -> bytes:
         data = self.run(self.input_args(video, timestamp) + [
@@ -82,7 +85,8 @@ class Decoder:
         # some FFmpeg builds, which hid the failure (macOS CI, Oct 2026).
         data = self.run([
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
-            "-protocol_whitelist", "file,pipe", "-i", str(video),
+            "-protocol_whitelist", "file,pipe", "-format_whitelist", MEDIA_DEMUXERS,
+            "-enable_drefs", "0", "-use_absolute_path", "0", "-i", str(video),
             "-ss", f"{start:.9f}", "-t", f"{duration:.9f}",
             "-map", "0:a:0", "-vn", "-sn", "-dn",
             "-ac", "1", "-ar", str(SAMPLE_RATE), "-c:a", "pcm_s16le",

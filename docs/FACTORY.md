@@ -39,11 +39,22 @@ advances one episode per channel, queues clips and makes kits. The channel's
 what needs attention. See [Channels](CHANNELS.md#run-it-every-hour) for scheduling.
 
 `zing channels brief SLUG --open` makes a daily page of outliers and platform
-updates with scripts to check and record. A `recordings` source turns each local
+updates with scripts to check and record. A `recordings` source turns an eligible local
 take into one hand-picked clip with `moments=0`. A matching brief supplies its
 hook, news peg and series. The factory reuses the transcript, plans graphics
 from the spoken facts and sends the clip through the usual gate and queue.
 See [Daily brief and recorded takes](CHANNELS.md#daily-brief-and-recorded-takes).
+
+For phone takes, use a dedicated synced folder. Recordings wait 120 seconds
+after the last file modification and skip videos over 180 seconds by default.
+Set the source's `since` and `require_match` to avoid old files and unmatched
+takes. Set the channel's `phone_folder` to copy the latest brief to your phone.
+See [Record on your phone](CHANNELS.md#record-on-your-phone).
+
+With `phone_folder` set, channel kit runs also copy approved kits and their text
+to `<phone_folder>/<slug>-kits/`. The command prints the phone index path.
+Posted or skipped kits leave the mirror on the next kit run or tick.
+Phone folder errors appear as warnings and do not stop the kit run.
 
 `zing channels scorecard SLUG --open` compares local days, posts, recorded items,
 kept script shares, view medians and flags with the channel's bar. It writes a

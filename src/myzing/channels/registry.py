@@ -124,7 +124,7 @@ def web_url(value, field):
 
 
 def validate(data: dict) -> dict:
-    _fields(data, {"schema_version", "slug", "name", "niche", "created", "prior", "youtube", "bar", *DEFAULTS}, "channel")
+    _fields(data, {"schema_version", "slug", "name", "niche", "created", "prior", "youtube", "bar", "phone_folder", *DEFAULTS}, "channel")
     data = copy.deepcopy(data)
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         raise ChannelError("schema_version must be 1")
@@ -140,6 +140,8 @@ def validate(data: dict) -> dict:
         for key, value in data["bar"].items():
             if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
                 raise ChannelError(f"bar.{key} must be a nonnegative number")
+    if "phone_folder" in data:
+        _text(data["phone_folder"], "phone_folder", required=True)
     try:
         datetime.fromisoformat(data["created"])
     except ValueError:
@@ -255,7 +257,10 @@ def validate(data: dict) -> dict:
     ids = set()
     for i, src in enumerate(data["sources"]):
         field = f"sources[{i}]"
-        _fields(src, {"id", "name", "kind", "url", "rights"}, field)
+        fields = {"id", "name", "kind", "url", "rights"}
+        if isinstance(src, dict) and src.get("kind") == "recordings":
+            fields.update({"settle_seconds", "since", "max_seconds", "require_match"})
+        _fields(src, fields, field)
         _slug(src.get("id"), f"{field}.id")
         if src["id"] in ids:
             raise ChannelError(f"{field}.id must be unique")
@@ -264,6 +269,21 @@ def validate(data: dict) -> dict:
         _text(src.get("url", ""), f"{field}.url", required=src.get("kind") == "recordings")   # an empty path reads the current folder
         if src.get("kind") not in KINDS:
             raise ChannelError(f"{field}.kind must be one of {', '.join(KINDS)}")
+        if "settle_seconds" in src:
+            _integer(src["settle_seconds"], f"{field}.settle_seconds", 0)
+        if "since" in src:
+            _text(src["since"], f"{field}.since", required=True)
+            try:
+                if date.fromisoformat(src["since"]).isoformat() != src["since"]:
+                    raise ValueError
+            except ValueError:
+                raise ChannelError(f"{field}.since must be YYYY-MM-DD") from None
+        if "max_seconds" in src:
+            seconds = src["max_seconds"]
+            if type(seconds) not in (int, float) or seconds <= 0 or not math.isfinite(seconds):
+                raise ChannelError(f"{field}.max_seconds must be a positive number")
+        if "require_match" in src and type(src["require_match"]) is not bool:
+            raise ChannelError(f"{field}.require_match must be true or false")
         rights = src.get("rights", {})
         _fields(rights, {"status", "grant", "expires", "note"}, f"{field}.rights")
         if not isinstance(rights.get("status"), str) or rights["status"] not in campaign.RIGHTS:

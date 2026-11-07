@@ -112,7 +112,7 @@ def recommend(project: str | Path, brief: Brief) -> dict:
     stale = [r["path"] for r in rows.values() if r["needs_scan"]]
     if stale:
         missing.append("Inventory needs a scan: " + _names(stale) + "; cached measurements excluded.")
-    expected = {"9:16": "portrait", "1:1": "square", "16:9": "landscape"}[brief.aspect]
+    expected = {"9:16": "portrait", "4:5": "portrait", "1:1": "square", "16:9": "landscape"}[brief.aspect]
     other = [a.path for a in ready if a.probe.orientation != expected]
     if other:
         missing.append(f"Framing review needed for {brief.aspect}: {_names(other)}. Orientation alone cannot establish a safe crop.")

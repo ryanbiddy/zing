@@ -211,6 +211,10 @@ class _Redirect(urllib.request.HTTPRedirectHandler):
                     fp.close()
                     raise
                 redirect.full_url = newurl
+            if urlsplit(req.full_url).hostname != urlsplit(newurl).hostname:
+                for key, _ in redirect.header_items():
+                    if key.lower() in {"authorization", "cookie", "proxy-authorization", "x-api-key"}:
+                        redirect.remove_header(key)
             self.network._finish(self.row)
             self.row.update(host=urlsplit(newurl).hostname, size=0,
                             at=datetime.now(timezone.utc).isoformat(timespec="seconds"))

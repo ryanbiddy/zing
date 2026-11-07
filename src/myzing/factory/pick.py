@@ -4,7 +4,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from .tools import data_path, ffmpeg
+from .tools import data_path, ffmpeg, run
 
 TW, TH, BAND = 360, 240, 64
 VIDEO = (".mp4", ".mov", ".webm", ".gif")
@@ -29,7 +29,7 @@ def _thumb(path: Path):
         still = p.with_suffix(".pick.jpg")
         for seek in (["-ss", "1.5"], []):
             if not still.exists():
-                subprocess.run([ffmpeg(), "-v", "error", "-y", *seek, "-i", str(p), "-frames:v", "1", str(still)], check=False)
+                run(ffmpeg(), "-v", "error", "-y", *seek, "-i", str(p), "-frames:v", "1", str(still), check=False)
         p = still
     im = Image.open(p).convert("RGB")
     im.thumbnail((TW, TH))

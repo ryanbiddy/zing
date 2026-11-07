@@ -59,7 +59,7 @@ def fetch_models() -> list[Path]:
     return paths
 
 
-def engine():
+def engine(factory=None):
     from importlib.metadata import version
     from rapidocr import RapidOCR
 
@@ -69,7 +69,7 @@ def engine():
     params.update({"Global.text_score": 0.0, "Global.log_level": "error",
                    "EngineConfig.onnxruntime.intra_op_num_threads": 2,
                    "EngineConfig.onnxruntime.inter_op_num_threads": 1})
-    return RapidOCR(params=params), f"rapidocr-{version('rapidocr')}"
+    return (factory or RapidOCR)(params=params), f"rapidocr-{version('rapidocr')}"
 
 
 if __name__ == "__main__":
