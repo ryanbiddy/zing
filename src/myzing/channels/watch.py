@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import shutil
+import subprocess
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -13,6 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from myzing import uoink_bridge
 from myzing.factory import batch, network, pipeline, visuals
+from myzing.factory.tools import FactoryError, ffprobe
 from myzing.playbook import feeds
 
 from . import brief, registry
@@ -135,10 +138,13 @@ def _items(src: dict, root: Path, fetch, search, resolve, stop=None):
         for path in sorted(folder.iterdir()):
             if path.is_file() and path.suffix.lower() in batch.MEDIA:
                 media = path.resolve()
+                modified = datetime.fromtimestamp(media.stat().st_mtime, timezone.utc)
+                if kind == "recordings" and src.get("since") and modified.date().isoformat() < src["since"]:
+                    continue
                 info = batch._settings(media, {})
                 yield {"id": hashlib.sha256(str(media).encode()).hexdigest(), "title": info["name"] or media.stem,
-                       "url": info["url"] or "", "published": info["date"] or datetime.fromtimestamp(
-                           media.stat().st_mtime, timezone.utc).isoformat(), "media": str(media), "own": kind in ("own", "recordings")}
+                       "url": info["url"] or "", "published": info["date"] or modified.isoformat(),
+                       "media": str(media), "own": kind in ("own", "recordings")}
     elif kind == "youtube":
         ident = feeds.resolve(_channel(src["url"]), fetch, root=root)
         if stop and stop():
@@ -197,14 +203,24 @@ def _media(src: dict, item: dict, root: Path, search, resolve, downloader, stop)
             item["media"] = str(path.resolve())
 
 
-def _recording(slug: str, item: dict, project: Path, settings: dict, now: datetime, stop=None) -> bool:
+def _duration(path: Path) -> float:
+    out = subprocess.run([ffprobe(), "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", check=True, timeout=30).stdout
+    seconds = float(out.strip())
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError("invalid duration")
+    return seconds
+
+
+def _recording(slug: str, item: dict, project: Path, settings: dict, now: datetime, stop=None, *, require_match=False) -> bool:
     inbox = registry.directory(slug) / "inbox"
     stage = (inbox / ("." + project.name)).resolve()
     if stage.parent != inbox.resolve():
         raise registry.ChannelError("recording must stay inside the channel inbox")
     media = Path(item["media"])
     settings = {**settings, "moments": 0}
-    stamp = {"size": media.stat().st_size, "mtime_ns": media.stat().st_mtime_ns}
+    stat = media.stat()
+    stamp = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
     if stage.exists() and pipeline._read(stage / "take.json") != stamp:
         shutil.rmtree(stage)                # the file changed since the last try; its cached transcript is stale
     pipeline.init(stage, media, **settings)
@@ -218,6 +234,11 @@ def _recording(slug: str, item: dict, project: Path, settings: dict, now: dateti
     words = pipeline._read(stage / "words.json") or segments
     start, end = max(0, words[0]["s"]), words[-1]["e"]        # add_clip checks the range once
     matched = brief.match(slug, text, now)
+    if not matched and require_match:
+        shutil.rmtree(stage)
+        item["skip"] = {"reason": "matched no brief item", **stamp}
+        item["state"] = "skipped, matched no brief item"
+        return False
     take, hook = {"series": None}, " ".join(text.split()[:12])
     if matched:
         day, chosen = matched
@@ -257,13 +278,34 @@ def _start(slug: str, src: dict, item: dict, root: Path, now: datetime, stop=Non
         item.update(project=str(project), started_at=cfg["created"])
         return False
     media = Path(item["media"])
+    if src["kind"] == "recordings":
+        stat = media.stat()
+        stamp = {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+        skip = item.get("skip", {})
+        if skip and all(skip.get(key) == value for key, value in stamp.items()):
+            item["state"] = f"skipped, {skip['reason']}"
+            return False
+        item.pop("skip", None)
+        if stat.st_mtime > now.timestamp() - src.get("settle_seconds", 120):
+            item["state"] = "found, still syncing"
+            return False
+        try:
+            seconds = _duration(media)
+            limit = src.get("max_seconds", 180)
+            reason = f"longer than {limit:g} seconds" if seconds > limit else None
+        except (FactoryError, OSError, ValueError, subprocess.SubprocessError):
+            reason = "could not read the video"
+        if reason:
+            item["skip"] = {"reason": reason, **stamp}
+            item["state"] = f"skipped, {reason}"
+            return False
     settings = registry.project_settings(slug, src["id"], **batch._settings(media, {
         "name": item["title"], "url": item["url"], "date": item["published"][:10]}))
     if settings["rights"] == "unknown":
         item["state"] = "found, needs rights"
         return False
     if src["kind"] == "recordings":
-        if not _recording(slug, item, project, settings, now, stop):
+        if not _recording(slug, item, project, settings, now, stop, require_match=src.get("require_match", False)):
             return False
     else:
         pipeline.init(project, media, **settings)
