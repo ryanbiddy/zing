@@ -257,8 +257,11 @@ the view statistics. Rights accepts campaign, encouraged, mixed, claims,
 public_domain or unknown. Fit accepts high, medium or low. Money accepts low, mid
 or high. `--out DIR` holds the reports and local metadata.
 
-`--source feeds` is the default and reads the newest 15 uploads per channel with
-no key or cookies. Only Shorts links qualify. `--source ytdlp` uses the existing
+`--source feeds` is the default and reads the newest 15 uploads per channel from
+RSS without a key or cookies. During RSS outages, an owner-set `YOUTUBE_API_KEY`
+lets Zing try the Data API for exact counts before yt-dlp. The fallback reads up
+to 15 Shorts and 15 long videos. Only Shorts qualify for niche scores.
+`--source ytdlp` uses the existing
 flat metadata listing and also accepts known durations of at most 180 seconds.
 `--min-shorts N` defaults to 15. Channels below that usable sample size are skipped
 with a reason. These commands never fetch or store video, thumbnails or audio.
