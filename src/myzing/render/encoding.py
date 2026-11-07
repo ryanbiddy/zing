@@ -17,7 +17,8 @@ def _audio_bytes(path, ffprobe):
     """
     try:
         probe = subprocess.run([ffprobe, "-v", "error", "-select_streams", "a:0", "-show_entries", "packet=size",
-                                "-of", "csv=p=0", str(path)], capture_output=True, text=True, timeout=60, check=False)
+                                "-of", "csv=p=0", str(path)], capture_output=True, text=True,
+                                encoding="utf-8", errors="replace", timeout=60, check=False)
     except (OSError, subprocess.SubprocessError):
         return None
     if probe.returncode:
@@ -51,7 +52,8 @@ def encode(command, settings, duration, width, height, fps, directory, *, ffprob
     first[first.index(str(directory / "rendered.mp4"))] = str(first_path)
 
     def run(args):
-        result = subprocess.run(args, cwd=directory, capture_output=True, text=True, timeout=900, check=False)
+        result = subprocess.run(args, cwd=directory, capture_output=True, text=True,
+                                encoding="utf-8", errors="replace", timeout=900, check=False)
         if result.returncode:
             raise RenderError(f"x264 two-pass render failed: {result.stderr[-4000:]}")
         return result
@@ -59,7 +61,8 @@ def encode(command, settings, duration, width, height, fps, directory, *, ffprob
     def second_pass():
         """Pass two; x264 refuses a rate below its pass-one minimum, so use that floor."""
         nonlocal rate
-        result = subprocess.run(command, cwd=directory, capture_output=True, text=True, timeout=900, check=False)
+        result = subprocess.run(command, cwd=directory, capture_output=True, text=True,
+                                encoding="utf-8", errors="replace", timeout=900, check=False)
         floor = re.search(r"requested bitrate is too low\. estimated minimum is (\d+) kbps", result.stderr)
         if result.returncode and floor and int(floor.group(1)) * 1000 > rate:
             rate = round(int(floor.group(1)) * 1000 * 1.05)

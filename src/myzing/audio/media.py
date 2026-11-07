@@ -32,7 +32,10 @@ def duration_limit(value: float) -> float:
 
 
 def local_file(path: str | Path) -> Path:
-    path = Path(path).expanduser().resolve()
+    path = Path(path).expanduser()
+    if str(path).replace("\\", "/").startswith("//"):
+        raise AudioError("Audio input must be a local file; network paths are not allowed.")
+    path = path.resolve()
     if not path.is_file():
         raise AudioError(f"Audio input is not a local file: {path}. Supply a local audio or video file.")
     return path

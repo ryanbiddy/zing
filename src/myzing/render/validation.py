@@ -21,6 +21,7 @@ OUTPUT_PRESETS = {
     "vertical": (9, 16),
     "landscape": (16, 9),
     "square": (1, 1),
+    "portrait": (4, 5),
 }
 
 
@@ -35,6 +36,7 @@ class MediaInfo:
     has_audio: bool
     color_metadata: dict[str, str] = field(default_factory=dict)
     video_duration: float | None = None
+    sample_aspect_ratio: str = "1:1"
 
 
 @dataclass(frozen=True)
@@ -69,7 +71,7 @@ def output_preset(width: int, height: int) -> str:
         if width * ratio_height == height * ratio_width:
             return name
     raise EDLValidationError(
-        "output aspect ratio must match a 9:16, 16:9, or 1:1 preset"
+        "output aspect ratio must match a 4:5, 9:16, 16:9, or 1:1 preset"
     )
 
 
@@ -90,12 +92,16 @@ def _resolve_media(raw_path: str, base_dir: Path, field: str) -> Path:
     path = Path(raw_path).expanduser()
     if not path.is_absolute():
         path = base_dir / path
+    if str(path).replace("\\", "/").startswith("//"):
+        raise EDLValidationError(f"{field}: use a local file path; network paths are not allowed")
     path = path.resolve()
     _require_media(path, field)
     return path
 
 
 def _require_media(path: Path, field: str) -> None:
+    if str(path).replace("\\", "/").startswith("//"):
+        raise EDLValidationError(f"{field}: use a local file path; network paths are not allowed")
     if not path.is_file():
         raise EDLValidationError(
             f"{field} does not exist: {path}. Restore the file at this path "
@@ -281,7 +287,7 @@ def validate_edl(
         media = inspect(path)
         if not media.has_video:
             raise EDLValidationError(f"{label}.src has no video stream: {path}")
-        source_duration = media.video_duration if overlaps and media.video_duration is not None else media.duration
+        source_duration = media.video_duration if media.video_duration is not None else media.duration
         tolerance = TIME_EPSILON if overlaps else SOURCE_DURATION_EPSILON
         if src_out > source_duration + tolerance:
             raise EDLValidationError(

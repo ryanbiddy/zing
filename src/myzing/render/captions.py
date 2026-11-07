@@ -32,6 +32,13 @@ ANCHOR_GUIDES = {
         "lower": Fraction(3, 4),
         "bottom": Fraction(17, 20),
     },
+    "portrait": {
+        "x": Fraction(1, 2),
+        "top": Fraction(3, 20),
+        "center": Fraction(1, 2),
+        "lower": Fraction(3, 4),
+        "bottom": Fraction(17, 20),
+    },
 }
 
 
@@ -46,7 +53,7 @@ def caption_anchor(position: str, width: int, height: int) -> tuple[int, int]:
 
 def _ass_text(text: str) -> str:
     return (
-        text.replace("\\", r"\\")
+        text.replace("\\", "\\\u2060")
         .replace("{", r"\{")
         .replace("}", r"\}")
         .replace("\r\n", r"\N")

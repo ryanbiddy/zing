@@ -342,7 +342,7 @@ def render_composition(
         from .positioned_captions import generate_positioned_ass
 
         # Internal filenames must never overwrite inputs, including in --keep-work.
-        reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "filter graph.txt", "rendered.mp4")}
+        reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "caption-geometry.json", "filter graph.txt", "rendered.mp4")}
         reserved.update(directory / name for name in ("music-stem.wav", "source-stem.wav", "music-duck.wav"))
         reserved.add(directory / "music-measurements.json")
         if c.delivery:
@@ -354,8 +354,7 @@ def render_composition(
         if prepared.luts:
             reserved.add(directory / "color-transforms.json")
             owned_dirs.append(directory / "luts")
-        if reserved & prepared.input_paths or any(d in p.parents for p in prepared.input_paths for d in owned_dirs):
-            raise pipeline.RenderError("render work directory would overwrite an input; choose a separate --keep-work directory")
+        pipeline._check_work_paths(reserved, prepared.input_paths, owned_dirs)
         caption_overlay = None
         if hf_plan is not None:
             from .hyperframes_cache import cached_overlay
@@ -397,8 +396,9 @@ def render_composition(
         )
 
     if work_dir is not None:
-        return render(work_dir.expanduser().resolve())
+        with pipeline._work_directory(work_dir.expanduser().resolve()) as directory:
+            return render(directory)
     pipeline._create_directory(output.parent, f"could not create output directory {output.parent}")
-    with tempfile.TemporaryDirectory(prefix=f".{output.stem}-render-", dir=output.parent) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".render-", dir=output.parent) as temporary:
         result = render(Path(temporary))
     return replace(result, work_dir=None)
