@@ -1,7 +1,9 @@
-"""Public channel metadata, with no cookies, keys or media requests."""
+"""Public channel metadata, with no cookies or media requests."""
 from __future__ import annotations
 
+import http.client
 import json
+import os
 import re
 import subprocess
 import threading
@@ -14,7 +16,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
-from myzing import doctor
+from myzing import doctor, urls
 from myzing.study import proc
 from .common import append_jsonl, number, parse_time, read_json, safe_name, utc_now, write_json
 
@@ -23,6 +25,7 @@ NS = {"atom": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/s
       "media": "http://search.yahoo.com/mrss/"}
 _lock = threading.Lock()
 _last_request = None
+_API_LIMIT = 2 * 1024 * 1024
 
 
 class _Unavailable(ValueError):
@@ -169,7 +172,99 @@ def listing(channel_id: str, *, runner=None, now=None, watch_only: bool = False)
     return sorted(rows, key=lambda row: row["published"], reverse=True)
 
 
-def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: bool = False, fallback=None) -> list[dict]:
+def _api_json(body):
+    if len(body) > _API_LIMIT:
+        raise ValueError("YouTube Data API response exceeds 2 MB")
+    try:
+        data = json.loads(body)
+    except (ValueError, UnicodeError):
+        raise ValueError("invalid YouTube Data API JSON") from None
+    if not isinstance(data, dict):
+        raise ValueError("invalid YouTube Data API response")
+    return data
+
+
+def _api_request(endpoint, params, key, opener):
+    req = urllib.request.Request("https://www.googleapis.com/youtube/v3/" + endpoint + "?" +
+                                 urllib.parse.urlencode(params))
+    req.add_unredirected_header("X-Goog-Api-Key", key)
+    try:
+        with opener(req, timeout=30) as response:
+            body = response.read(_API_LIMIT + 1)
+    except urllib.error.HTTPError as exc:
+        with exc:
+            if exc.code == 404 and endpoint == "playlistItems":
+                return []
+            try:
+                reason = _api_json(exc.read(_API_LIMIT + 1))["error"]["errors"][0]["reason"]
+            except (ValueError, OSError, LookupError, TypeError):
+                reason = None
+        message = f"YouTube Data API request failed with HTTP {exc.code}"
+        if isinstance(reason, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,100}", reason):
+            message = "YouTube Data API refused the request: " + reason.replace(key, "[redacted]")
+        raise ValueError(message) from None
+    except (ValueError, OSError, http.client.HTTPException):
+        raise ValueError("YouTube Data API request failed") from None   # IncompleteRead is not an OSError
+    data = _api_json(body)
+    if key in json.dumps(data, ensure_ascii=False):
+        raise ValueError("YouTube Data API response contains the API key")
+    items = data.get("items")
+    if not isinstance(items, list) or any(not isinstance(row, dict) for row in items):
+        raise ValueError("YouTube Data API response has no valid items")
+    return items
+
+
+def api_listing(channel_id: str, *, key, opener=None, now=None, watch_only: bool = False) -> list[dict]:
+    if not re.fullmatch(ID, channel_id):
+        raise ValueError("invalid YouTube channel ID")
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError("YouTube Data API key is not set")
+    key, opener, now = key.strip(), opener or urls.open_no_redirect, now or datetime.now(timezone.utc)
+    ids, found = {}, {}
+    for prefix in (("UULF",) if watch_only else ("UUSH", "UULF")):
+        items = _api_request("playlistItems", {"part": "contentDetails,snippet", "maxResults": 15,
+                                               "playlistId": prefix + channel_id[2:]}, key, opener)
+        for row in items[:15]:
+            try:
+                ident = row["contentDetails"].get("videoId")
+            except (KeyError, AttributeError):
+                raise ValueError("YouTube Data API playlist item has no contentDetails") from None
+            try:
+                ident = safe_name(ident)
+            except ValueError:
+                continue
+            ids[ident] = prefix == "UUSH" or ids.get(ident, False)
+    if not ids:
+        return []
+    items = _api_request("videos", {"part": "snippet,statistics", "id": ",".join(ids)}, key, opener)
+    for row in items:
+        ident = row.get("id")
+        if not isinstance(ident, str) or ident not in ids:
+            continue
+        try:
+            snippet, stats = row["snippet"], row["statistics"]
+            title, channel_title = snippet["title"], snippet["channelTitle"]
+            views, stamp = stats.get("viewCount"), snippet.get("publishedAt")
+        except (KeyError, TypeError, AttributeError):
+            raise ValueError("YouTube Data API video has missing fields") from None
+        if not isinstance(title, str) or not isinstance(channel_title, str):
+            raise ValueError("YouTube Data API video has invalid text fields")
+        if not isinstance(views, str) or not views.isascii() or not views.isdigit():
+            continue
+        try:
+            published, views = parse_time(stamp), int(views)
+        except (ValueError, OverflowError):
+            continue
+        if published > now:
+            continue
+        found[ident] = {"id": ident, "title": title, "published": published.isoformat(), "views": views,
+                        "short": ids[ident], "channel_id": channel_id, "channel_title": channel_title,
+                        "approximate": False}
+    return sorted(found.values(), key=lambda row: row["published"], reverse=True)
+
+
+def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: bool = False,
+         fallback=None, api=None) -> list[dict]:
     if not re.fullmatch(ID, channel_id):
         raise ValueError("invalid YouTube channel ID")
     url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
@@ -178,21 +273,29 @@ def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: boo
     except ET.ParseError:
         raise ValueError("invalid YouTube feed XML") from None
     except (_Unavailable, OSError) as exc:
-        if ((fetch is not None and fallback is None) or
+        if ((fetch is not None and fallback is None and api is None) or
                 (isinstance(exc, urllib.error.HTTPError) and exc.code != 404 and not 500 <= exc.code < 600)):
             raise
         reason = (str(exc) if isinstance(exc, _Unavailable) else
                   f"YouTube feed request failed with HTTP {exc.code}" if isinstance(exc, urllib.error.HTTPError) else
                   "YouTube feed request failed")
-        at, rows = utc_now(), []
+        at, rows, extra = utc_now(), [], {}
         try:
-            rows = fallback(channel_id) if fallback is not None else listing(channel_id, watch_only=watch_only)
+            key = os.environ.get("YOUTUBE_API_KEY", "").strip()
+            if key:                     # the API comes first even when a caller supplies the yt-dlp step
+                extra["source"] = "api"
+                try:
+                    rows = api(channel_id) if api is not None else api_listing(channel_id, key=key, watch_only=watch_only)
+                except (ValueError, OSError) as error:
+                    extra.update(source="ytdlp", api_error=str(error).replace(key, "[redacted]") if key else str(error))
+            if extra.get("source") != "api":
+                rows = fallback(channel_id) if fallback is not None else listing(channel_id, watch_only=watch_only)
             if watch_only:
                 rows = [row for row in rows if not row["short"]]
             return rows
         finally:
             append_jsonl(root / "feed-fallbacks.jsonl", [{"at": at, "channel_id": channel_id,
-                                                        "reason": reason, "rows": len(rows)}])
+                                                        "reason": reason, "rows": len(rows), **extra}])
     try:
         tree = ET.fromstring(body)
     except ET.ParseError:
