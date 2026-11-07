@@ -2,10 +2,8 @@
 
 ## Unreleased
 
-- Preserve existing renders during failed copies and delivery retries; protect local
-  inputs and shared work files. Fix interrupted HyperFrames cleanup, Windows filenames,
-  long output names, video trim limits, 4:5 output, anamorphic framing and literal
-  backslashes in captions.
+- Channel scripts learn from matched takes in the last 30 local dates. The brief
+  page shows how much of the script was kept. `brief --takes` prints recording notes.
 - Add daily channel briefs with script drafts and claims to check. Recorded takes
   carry their hook, news peg and series into the factory, queue and learning report.
 - Add channel platform news candidates from RSS, Atom and public YouTube uploads,
