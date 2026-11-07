@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep YouTube counts exact during RSS outages with an owner-set `YOUTUBE_API_KEY`.
+  Try the Data API before yt-dlp and report key presence in `zing doctor`.
 - Keep YouTube channel metadata available during feed outages with yt-dlp.
   Receipts say "about" for rounded counts. Shorts use exact metadata, and
   approximate counts never become measured learning results.

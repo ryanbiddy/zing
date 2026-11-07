@@ -681,13 +681,21 @@ Meta's Instagram newsroom, Creator Insider uploads and YouTube Creators uploads.
 No videos are downloaded. TikTok, Twitch and X publish no feed, so they are not read.
 
 When YouTube's feed returns 404 or a server error, or the connection fails, Zing
-reads the same public metadata with yt-dlp. It uses no cookies and downloads no
-media. It reads up to 15 videos and 15 Shorts. Video dates and rounded counts are
-marked approximate, and receipts say "about 88,000 views". Shorts use exact dates
-and counts from one extra yt-dlp call. Shorts with missing metadata are
-skipped. YouTube watch sources still use only long-form videos. Each attempt is
-saved in `feed-fallbacks.jsonl` under the caller's output folder. If yt-dlp is
-missing, run `zing doctor`.
+asks the YouTube Data API first if you have set `YOUTUBE_API_KEY` in the process
+environment. Counts and dates stay exact. Each channel uses about 3 of the 10,000
+free daily quota units. Zing only reads the key you set. It sends the key in a
+header, never in a URL or log, and refuses redirects. `zing doctor` reports only
+whether the key is set.
+
+Without the key, or if the API fails, Zing reads public metadata with yt-dlp.
+It uses no cookies and downloads no media. Both paths read up to 15 videos and
+15 Shorts. With yt-dlp, video dates and rounded counts are marked approximate,
+and receipts say "about 88,000 views". Shorts use exact dates and counts from
+one extra yt-dlp call. Shorts with missing metadata are skipped. YouTube watch
+sources still use only long-form videos. Each attempt is saved in
+`feed-fallbacks.jsonl` under the caller's output folder. API attempts add `source`
+as `api` or `ytdlp`; an API failure also adds `api_error` without the key. If
+yt-dlp is missing, run `zing doctor`.
 
 Items must have an HTTPS link and a date within the last 10 days, with up to one
 hour allowed for clock differences. Each matched keyword group adds points for
