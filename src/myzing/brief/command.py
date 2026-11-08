@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from myzing.project.api import load_project
@@ -56,25 +57,31 @@ def run(argv: list[str]) -> int:
     try:
         load_project(args.project)
         path = brief_path(args.project)
+        save, overwrite = False, True
         if args.action == "show":
             brief = load_brief(path)
         elif args.brief:
-            brief = save_brief(args.project, load_brief(args.brief))
+            brief = load_brief(args.brief)
+            save = True
         elif args.answers is not None:
             try:
                 answers = json.loads(args.answers)
             except ValueError as exc:
                 raise BriefError(f"--answers: invalid JSON ({exc}). Supply an object, such as '{{}}'.") from exc
-            brief = save_brief(args.project, Brief.from_answers(answers))
+            brief = Brief.from_answers(answers)
+            save = True
         elif path.exists() and not args.restart:
             brief = load_brief(path)
         else:
             if args.json:
                 raise BriefError("No saved brief to reuse. Supply --answers '{}' or --brief <file> with --json, or omit --json for the interview.")
-            brief = save_brief(args.project, interview(args.project, sys.stdin, sys.stdout), replace=args.restart)
+            brief = interview(args.project, sys.stdin, sys.stdout)
+            save, overwrite = True, args.restart
         if args.action == "new" and args.short_side is not None:
-            from dataclasses import replace
-            brief = save_brief(args.project, replace(brief, short_side=args.short_side))
+            brief = replace(brief, short_side=args.short_side)
+            save = True
+        if save:
+            brief = save_brief(args.project, brief, replace=overwrite)
         result = brief_result(args.project, brief)
     except KeyboardInterrupt:
         print("\nzing brief: interview cancelled; no completed answers were saved.", file=sys.stderr)

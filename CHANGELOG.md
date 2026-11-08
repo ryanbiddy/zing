@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Keep saved briefs when `--short-side` is invalid, replace draft EDLs atomically,
+  and preserve the previous profile backup on pack rebuilds. Count repeated profile
+  sources once. Report malformed packs and timing provenance, reject boolean keeper
+  times, keep failed Uoink error-body reads retryable, and reject control characters
+  in credentials without echoing their values.
 - Record local study source hashes, split cuts outside transition legs, keep crops
   within each shot and handle thin contact-sheet frames. Assign overlapping caption
   words once and give silent music excerpts zero energy points.

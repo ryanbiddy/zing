@@ -39,8 +39,9 @@ def build_profile(
     *,
     genre: str = "",
     platform: str = "",
+    save: bool = True,
 ) -> StyleProfile:
-    """Build and persist a StyleProfile from stored breakdowns.
+    """Build a StyleProfile from stored breakdowns and save it by default.
 
     Raises ProfileError when a named source has no stored breakdown —
     a profile must not silently aggregate a subset of what was asked for.
@@ -55,7 +56,15 @@ def build_profile(
     with context:
         storage.validate_profile_name(name)
         sources: list[tuple[str, Breakdown]] = []
+        seen: set[str] = set()
+        repeated: list[str] = []
         for slug in slugs:
+            storage.validate_slug(slug)
+            if slug in seen:
+                if slug not in repeated:
+                    repeated.append(slug)
+                continue
+            seen.add(slug)
             try:
                 sources.append((slug, storage.load_breakdown(slug)))
             except FileNotFoundError as exc:
@@ -66,7 +75,9 @@ def build_profile(
                 ) from exc
 
         profile = _aggregate(name, sources, genre=genre, platform=platform)
-        storage.save_profile(profile)
+        profile.warnings.extend(f"duplicate source '{slug}' ignored" for slug in repeated)
+        if save:
+            storage.save_profile(profile)
         return profile
 
 
