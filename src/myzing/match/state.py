@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 import time
 import traceback
@@ -67,7 +68,8 @@ class Checkpoints:
                 self.reused.append(name)
                 self.emit(name, "reused")
                 return old["result"]
-        log = self.root / "logs" / (name.replace("/", "-") + ".log")
+        filename = re.sub(r"[^A-Za-z0-9._-]", "-", name).lstrip(".") or "step"
+        log = self.root / "logs" / (filename + ".log")
         log.parent.mkdir(parents=True, exist_ok=True)
         entry = {"status": "running", "key": key, "log": str(log), "started_at": time.time()}
         self.data["steps"][name] = entry

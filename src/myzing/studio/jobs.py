@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
 import threading
 from contextlib import contextmanager, nullcontext
@@ -18,6 +19,10 @@ _LOCK = threading.Lock()
 _JOBS = {}
 
 
+class BusyError(ValueError):
+    pass
+
+
 @contextmanager
 def busy_lock(root):
     """The production lock, with a studio message instead of match_status advice."""
@@ -25,12 +30,19 @@ def busy_lock(root):
         lease = run_lock(root)
         lease.__enter__()
     except ValueError:
-        raise ValueError(f"Another studio session is already making something in {root}. Wait for it to "
-                         "finish, or use another output folder (o on the plan screen).") from None
+        raise BusyError(f"Another studio session is already making something in {root}. Wait for it to "
+                        "finish, or use another output folder (o on the plan screen).") from None
     try:
         yield
     finally:
         lease.__exit__(None, None, None)
+
+
+def ensure_idle(root):
+    """Raise BusyError while another run holds the production lock; creates nothing."""
+    if (Path(root) / "match-job" / "run.lock").is_file():
+        with busy_lock(Path(root)):
+            pass
 
 
 def _discard_abandoned_speech(answers):
@@ -44,21 +56,44 @@ def _discard_abandoned_speech(answers):
             pass  # the next download attempt removes them under its lock
 
 
+def _release_worker_locks(root, pid):
+    from myzing.project.locking import LOCK_NAME, _pid_alive, _release_lock
+    if pid is None:
+        return
+    for folder in (root, root / "drafts"):
+        lock = folder / LOCK_NAME
+        try:
+            with lock.open(encoding="utf-8") as handle:
+                identity = os.fstat(handle.fileno())
+                owner = json.load(handle)
+            if (owner.get("host") == socket.gethostname() and type(owner.get("pid")) is int
+                    and owner["pid"] == pid and not _pid_alive(pid)):
+                _release_lock(lock, identity, owner.get("token"), True)
+        except (OSError, ValueError, AttributeError):
+            pass
+
+
 def execute(answers, *, progress=None, cancel=None, locked=False):
     root = Path(answers["project"])
     root.mkdir(parents=True, exist_ok=True)
     run_id = uuid4().hex
     result_path = root / f"studio-job-{run_id}.json"
+    pid, code = None, None
+    def started(value):
+        nonlocal pid
+        pid = value
     with nullcontext() if locked else busy_lock(root):
         try:
             code = run_owned([sys.executable, "-m", "myzing.studio.worker"],
                          json.dumps({"answers": answers, "result_path": str(result_path)}),
-                         progress=progress, cancel=cancel,
+                         progress=progress, cancel=cancel, on_started=started,
                          env={**os.environ, "ZING_HOME": str(storage.resolve_workspace()),
                               "HF_HUB_OFFLINE": "1", "HF_HUB_DISABLE_TELEMETRY": "1", "PYTHONIOENCODING": "utf-8"})
         except Cancelled:
             raise Cancelled("Studio run cancelled; owned processes stopped.") from None
         finally:
+            if code != 0:
+                _release_worker_locks(root, pid)
             _discard_abandoned_speech(answers)
     if code not in (0, 1) or not result_path.is_file():
         raise RuntimeError(f"Studio worker exited {code}; resume the saved session to retry.")

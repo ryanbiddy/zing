@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Keep match logs inside their folder, refresh color grades and studio results when
+  the reference range changes, and skip generated clip outputs during preflight.
+  Validate studio choices, lock screen runs and the run's session saves, and remove only
+  project locks left by this run's dead worker on this machine.
+
 - Mark NC, ND and NASA third-party visuals as unknown, require modification rights
   in Openverse searches, preserve licenses in shortened attribution credits and
   keep ranking when a candidate has non-numeric dimensions.
