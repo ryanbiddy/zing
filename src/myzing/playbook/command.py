@@ -21,6 +21,11 @@ def run(argv: list[str]) -> int:
     measure.add_argument("--media-dir", type=Path)
     measure.add_argument("--download", action="store_true")
     measure.add_argument("--force", action="store_true")
+    measure.add_argument("--retry-failed", action="store_true", help="retry only saved failures")
+    measure.add_argument("--max-blocks", type=int, default=3, metavar="N",
+                         help="pause downloads after N consecutive YouTube blocks (default 3, minimum 1)")
+    measure.add_argument("--gap", type=float, default=3, metavar="SECONDS",
+                         help="wait between download attempts (default 3, minimum 0)")
     notes = commands.add_parser("notes", help="request cached blind Gemini notes")
     notes.add_argument("directory", type=Path)
     notes.add_argument("--model")
@@ -64,8 +69,9 @@ def run(argv: list[str]) -> int:
             print(json.dumps({"entries": len(result["entries"]), "channels": result["channels"]}, indent=2))
             return int(any(s.get("status") == "failed" for s in result["channels"].values()))
         if args.command == "measure":
-            from .measure import measure
-            result = measure(args.directory, media_dir=args.media_dir, download=args.download, force=args.force)
+            from .measure import DOWNLOAD_HINTS, measure
+            result = measure(args.directory, media_dir=args.media_dir, download=args.download, force=args.force,
+                             retry_failed=args.retry_failed, max_blocks=args.max_blocks, gap=args.gap)
         elif args.command == "notes":
             from .notes import notes
             result = notes(args.directory, model=args.model, limit=args.limit, budget_hours=args.budget_hours, dry_run=args.dry_run)
@@ -97,6 +103,14 @@ def run(argv: list[str]) -> int:
             data = distill(args.directory, version=args.version, thresholds=thresholds)
             result = {"kept": len(data["patterns"]), "no_separation": len(data["no_separation"])}
         print(json.dumps(result, indent=2))
+        if args.command == "measure":
+            for category, hint in DOWNLOAD_HINTS.items():
+                count = sum(row.get("reason", "").partition(": ")[2] == category
+                            for row in result["entries"] if row["status"] == "failed")
+                if count:
+                    print(f"{count} failed: {category}. {hint}")
+            if result["paused"]:
+                print(f"Downloads paused after {result['stopped']}. {result['paused']} left unmeasured.")
         return int(bool(result.get("failed"))) if isinstance(result, dict) else 0
     except (OSError, ValueError, RuntimeError, KeyError, TypeError) as exc:
         # NotesError text is deliberately credential-free; raw HTTP failures stay inside its client.

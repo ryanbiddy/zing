@@ -171,9 +171,59 @@ For a fresh metadata listing, use `zing playbook list --channels channels.txt --
 
 A channel needs at least 30 remaining Shorts, a positive median, and enough distinct entries on each side. `--k 5` selects five strictly above and five strictly below the median. Outlier is views divided by that median, without rounding. Zero-view entries count; missing view counts do not. Ties at the median belong to neither side. Candidate imports preserve the supplied selection, validate it, and recompute outliers from the supplied median. Their `listed_at` records import time, not the original observation time. Per-channel summaries include skips and failures. Curate channels for podcast/interview content before listing; the listing does not classify format.
 
-Measurement looks for `<id>.mp4`, `.mov`, `.mkv`, `.webm`, `.m4v` or `.avi` in `--media-dir` (default: `<dir>/media`). Missing files remain in `features.json` as `unmeasured: no local media`. Only `measure --download` allows Study's existing downloader to fetch a missing video. Local files take precedence. Existing `<dir>/measured/<id>.json` files skip Study on reruns; `--force` recomputes them. Features are rebuilt from cached Breakdowns and `measured/<id>.caption-geometry.json`, so cleaning `working/` preserves caption/face evidence. Existing caches migrate their geometry from `working/` on the next measure run; run that before cleaning older workspaces.
+### Measure and retry downloads
 
-Each Study failure, including a subprocess timeout, records `failed` with the exception type and a short fixed message; raw exception text, private paths and credentials are omitted. Later entries still run. Failure records in `measured/<id>.failed.json` are skipped on reruns until `--force`; missing-media entries remain retryable. Study's metadata ffprobe has a 60-second timeout. Study uses local models only, including caption geometry; missing model assets leave measurements unavailable rather than triggering model downloads. The normal Zing workspace (`ZING_HOME` when set) supplies provisioned models, while each video's working artifacts stay under the playbook directory. Existing Hugging Face snapshots remain available through Study's normal cache lookup.
+Measurement looks for `<id>.mp4`, `.mov`, `.mkv`, `.webm`, `.m4v` or `.avi` in
+`--media-dir`, which defaults to `<dir>/media`. Missing files stay `unmeasured`
+with reason `no local media`. Only `measure --download` allows Study to fetch a
+missing video. Local files take precedence. Zing never uses browser cookies.
+
+`--gap SECONDS` waits between download attempts. It defaults to 3 and accepts 0.
+The first download starts immediately. Local files, cached measurements and
+skipped entries cause no wait. After `--max-blocks N` consecutive bot-check or
+rate-limit failures, downloads pause for the rest of the run. The default is 3;
+the minimum is 1. A success resets the count before that limit is reached.
+Local media and cached entries still process after the pause. Remaining entries
+that need downloads stay `unmeasured` with reason
+`download paused after YouTube blocks`. They get no new failure record.
+The summary reports the stop category in `stopped` and the paused count in `paused`.
+
+Each failure saves the exception type and a fixed reason in
+`measured/<id>.failed.json`. Known download errors also save a fixed `hint`.
+Raw stderr, exception text, private paths and credentials are never saved there.
+The CLI prints a count and hint for each category after the summary.
+
+| Category | Meaning |
+| --- | --- |
+| `download_bot_check` | YouTube asked for sign-in or a bot check. Wait before retrying. |
+| `download_rate_limited` | YouTube limited requests. Wait before retrying. |
+| `download_unavailable` | The video is unavailable, private, removed, members-only or age-restricted. |
+| `ytdlp_missing` | yt-dlp is not installed. Run `zing doctor`. |
+
+Saved failures are skipped on normal reruns. After waiting, retry only those
+entries with `--retry-failed`. It works with `--download` and `--media-dir`.
+
+```powershell
+zing playbook measure zing-workspace\playbook --download --retry-failed
+zing playbook measure zing-workspace\playbook --retry-failed --media-dir path\to\local-shorts
+```
+
+The failure record is deleted when its retry starts. Failed retries write a new
+record. Entries that cannot start keep their saved failure record. Successful
+measurement files stay unchanged. Entries without a failure record are not
+retried; run again without `--retry-failed` to try entries left unmeasured by a
+pause. `--force` recomputes all entries and cannot be combined with `--retry-failed`.
+
+Normal reruns rebuild features from cached Breakdowns and
+`measured/<id>.caption-geometry.json`, so cleaning `working/` preserves
+caption/face evidence. Older caches copy geometry from `working/` on a normal
+measure run; run that before cleaning older workspaces.
+
+Study's metadata ffprobe has a 60-second timeout. Study uses local models only,
+including caption geometry. Missing model assets leave measurements unavailable
+without triggering model downloads. The normal Zing workspace (`ZING_HOME` when
+set) supplies provisioned models. Each video's working artifacts stay under the
+playbook directory. Existing Hugging Face snapshots use Study's normal cache lookup.
 
 ### Gemini setup and spending
 
@@ -209,7 +259,7 @@ Duration comes from measured features, then a saved Breakdown, then the library.
   working/<id>/                # local Study workspace, frames and geometry
   measured/<id>.json           # full local Breakdown; may contain transcript text
   measured/<id>.caption-geometry.json # local geometry preserved across resume
-  measured/<id>.failed.json    # safe failure record; retry with --force
+  measured/<id>.failed.json    # safe failure record; retry with --retry-failed
   features.json                # schema_version 1; flat measured rows and statuses
   notes/<id>.json              # schema_version 1; rubric or safe failure reason
   notes/usage-<YYYY-MM-DD>.json # UTC-day video seconds reserved across runs
