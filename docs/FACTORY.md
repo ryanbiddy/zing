@@ -61,6 +61,8 @@ YouTube publishing is off by default. `zing channels connect SLUG --client-secre
 connects an owner's account. Set `publish.youtube` to `private` or `scheduled`
 before using `zing channels upload SLUG`; `--dry-run` previews the upload.
 Uploads recheck the gate, honor pause files and resume interrupted sessions.
+Scheduled uploads use the queue slot or 15 minutes from now, whichever is later,
+rounded up to a whole minute. Ticks link manual YouTube posts before uploading.
 The gate requires finished context and brief checks and current source grants.
 After editing and approving a clip, run `zing channels kit SLUG` to refresh its
 video and copy. Uploads refuse stale kits. Channel steps use the project's pack

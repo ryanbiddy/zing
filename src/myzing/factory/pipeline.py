@@ -203,7 +203,7 @@ def taste(project: Path, cfg: dict) -> list[dict]:
     """The newest Post/No calls to learn from: every episode of the project's show, or this project alone."""
     project = Path(project)
     if cfg.get("show") and _show_file(cfg["show"]).is_file():
-        rows = [json.loads(line) for line in _show_file(cfg["show"]).read_text(encoding="utf-8").splitlines()
+        rows = [json.loads(line.rstrip("\r")) for line in _show_file(cfg["show"]).read_text(encoding="utf-8").split("\n")
                 if line.strip()]
     else:
         moments = load_moments(project).get("moments", [])

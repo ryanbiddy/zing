@@ -24,7 +24,7 @@ def read(slug: str) -> list[dict]:
     if not path.is_file():
         return []
     try:
-        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        rows = [json.loads(line.rstrip("\r")) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
         for row in rows:
             slot = datetime.fromisoformat(row["slot"])
             if slot.tzinfo is None or row["status"] not in STATUSES:
@@ -210,13 +210,13 @@ def _build(channel, now, rng, stop):
                 blocked[chosen["id"]] = [str(exc) or type(exc).__name__]
                 pending.remove(chosen)
                 continue
-            with (registry.directory(slug) / "queue.jsonl").open("a", encoding="utf-8") as f:
-                f.write(json.dumps(row, ensure_ascii=False) + "\n")
             rows.append(row)
             history.append(row)
             pending.remove(chosen)
             added += 1
         cursor = datetime.fromtimestamp(slot.timestamp() + 1, timezone.utc)
+    if added:
+        write(slug, rows)
     for row in pending:
         if not (stop and stop()):
             blocked.setdefault(row["id"], ["Waiting for another episode after three clips in a row."])

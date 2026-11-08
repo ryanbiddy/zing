@@ -242,7 +242,7 @@ def test_dry_run_needs_no_token_and_sends_nothing(channel):
     assert not (registry.directory(channel["slug"]) / "outbox.jsonl").exists()
 
 
-@pytest.mark.parametrize("policy,minutes,scheduled", [("private", 60, False), ("scheduled", 14, False),
+@pytest.mark.parametrize("policy,minutes,scheduled", [("private", 60, False), ("scheduled", 14, True),
                                                     ("scheduled", 15, True), ("scheduled", 90, True)])
 def test_metadata_uses_kit_copy_and_policy(channel, policy, minutes, scheduled):
     channel.update(publish={"youtube": policy}, youtube_category="24")
@@ -259,7 +259,7 @@ def test_metadata_uses_kit_copy_and_policy(channel, policy, minutes, scheduled):
     assert metadata["status"]["containsSyntheticMedia"] is False
     assert ("publishAt" in metadata["status"]) == scheduled
     if scheduled:
-        assert metadata["status"]["publishAt"] == (NOW + timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z")
+        assert metadata["status"]["publishAt"] == (NOW + timedelta(minutes=max(minutes, 15))).isoformat().replace("+00:00", "Z")
     assert headers(request)["x-upload-content-length"] == "5" and headers(request)["x-upload-content-type"] == "video/mp4"
     posted = queue.read(channel["slug"])[0]
     assert posted["status"] == "posted" and posted["video_id"] == VIDEO
@@ -568,7 +568,8 @@ def test_analytics_failure_records_attempt_and_keeps_outcomes(channel):
     with pytest.raises(youtube.Error):
         publish.analytics(channel["slug"], opener=Transport(Response(400)), now=NOW)
     assert outcomes.read(channel["slug"]) == old
-    assert not publish.analytics_due(channel["slug"], NOW + timedelta(hours=1))
+    assert not publish.analytics_due(channel["slug"], NOW + timedelta(minutes=59))
+    assert publish.analytics_due(channel["slug"], NOW + timedelta(hours=1))
     assert publish.analytics_due(channel["slug"], NOW + timedelta(days=1))
     assert pipeline._read(registry.directory(channel["slug"]) / "youtube-analytics.json")["complete"] is False
 

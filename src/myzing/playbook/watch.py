@@ -34,10 +34,10 @@ def watch(out: Path, channels=(), *, fetch=None, now=None) -> dict:
 
 def velocity(root: Path) -> dict:
     grouped = {}
-    for line in (root / "snapshots.jsonl").read_text(encoding="utf-8").splitlines():
+    for line in (root / "snapshots.jsonl").read_text(encoding="utf-8").split("\n"):
         if not line.strip():
             continue
-        row = json.loads(line)
+        row = json.loads(line.rstrip("\r"))
         if row.get("approximate"):
             continue
         if not number(row["views"]) or row["views"] < 0:
