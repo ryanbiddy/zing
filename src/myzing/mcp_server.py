@@ -2081,6 +2081,101 @@ def mcp_sdk_defect() -> str | None:
     return None
 
 
+def _tool_annotations():
+    from mcp.types import ToolAnnotations
+
+    return {
+        "brief_questions": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                           idempotent_hint=True, open_world_hint=False),
+        "brief_save": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                      idempotent_hint=True, open_world_hint=False),
+        "build_profile": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                         idempotent_hint=False, open_world_hint=False),
+        "export_otio": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=True, open_world_hint=False),
+        "factory_answer": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                          idempotent_hint=True, open_world_hint=False),
+        "factory_clip": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                        idempotent_hint=False, open_world_hint=False),
+        "factory_edit": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                        idempotent_hint=False, open_world_hint=False),
+        "factory_new": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=False, open_world_hint=False),
+        "factory_prompt": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                          idempotent_hint=True, open_world_hint=False),
+        "factory_run": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=False, open_world_hint=True),  # host judge; visuals can be fetched
+        "factory_status": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                          idempotent_hint=True, open_world_hint=False),
+        "generate_thumbnails": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                               idempotent_hint=True, open_world_hint=False),
+        "get_breakdown": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                         idempotent_hint=True, open_world_hint=False),  # stale jobs are rewritten
+        "get_frames": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                      idempotent_hint=True, open_world_hint=False),
+        "get_profile": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                       idempotent_hint=True, open_world_hint=False),
+        "get_prompt": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                      idempotent_hint=True, open_world_hint=False),
+        "get_render": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                      idempotent_hint=True, open_world_hint=False),  # stale jobs are rewritten
+        "import_shot_list": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                            idempotent_hint=True, open_world_hint=False),
+        "inspect_timeline": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                            idempotent_hint=True, open_world_hint=False),
+        "list_breakdowns": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                           idempotent_hint=True, open_world_hint=False),
+        "list_presets": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                        idempotent_hint=True, open_world_hint=False),
+        "list_profiles": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                         idempotent_hint=True, open_world_hint=False),
+        "match_start": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=False, open_world_hint=True),
+        "match_status": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                        idempotent_hint=True, open_world_hint=False),
+        "meme_check": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                      idempotent_hint=True, open_world_hint=False),
+        "meme_ideas": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                      idempotent_hint=True, open_world_hint=False),
+        "meme_render": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=False, open_world_hint=True),
+        "meme_render_video": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                             idempotent_hint=False, open_world_hint=False),
+        "meme_templates": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                          idempotent_hint=True, open_world_hint=False),
+        "music_check": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                       idempotent_hint=True, open_world_hint=False),
+        "plan_drafts": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=True, open_world_hint=False),
+        "push_to_uoink": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                         idempotent_hint=False, open_world_hint=False),  # loopback note creation
+        "render_edl": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                      idempotent_hint=False, open_world_hint=False),
+        "save_judgment": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                         idempotent_hint=False, open_world_hint=False),
+        "setup_taste": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=False, open_world_hint=True),
+        "still_concepts": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                          idempotent_hint=True, open_world_hint=False),
+        "still_render": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                        idempotent_hint=True, open_world_hint=False),
+        "study_uoink_item": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                            idempotent_hint=False, open_world_hint=True),  # kept media can fall back to a URL
+        "study_video": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=False, open_world_hint=True),
+        "zing_explain": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                        idempotent_hint=True, open_world_hint=True),
+        "zing_moments": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                        idempotent_hint=True, open_world_hint=False),
+        "zing_status": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                       idempotent_hint=True, open_world_hint=False),  # stale jobs are rewritten
+        "zing_studio": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                       idempotent_hint=True, open_world_hint=False),  # the preview writes temporary media
+        "zing_studio_run": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                           idempotent_hint=False, open_world_hint=True),
+    }
+
+
 def build_server():
     from mcp.server.mcpserver import MCPServer
     from mcp.server.mcpserver.prompts import Prompt
@@ -2106,22 +2201,27 @@ def build_server():
             "require explicit consent. Return paths and metadata, never media bytes."
         ),
     )
-    mcp.tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
-    mcp.tool(
+    annotations = _tool_annotations()
+
+    def tool(name, **kwargs):
+        return mcp.tool(name=name, annotations=annotations[name], **kwargs)
+
+    tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
+    tool(
         name="zing_studio",
         description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Local probes and a bounded offline reference preview; saved-reference search only with a configured reachable peer. No production or downloads.",
     )(h_zing_studio)
     h_zing_studio_run.__annotations__["confirmed"] = StrictBool
     h_zing_studio_run.__annotations__["cancel"] = StrictBool
-    mcp.tool(
+    tool(
         name="zing_studio_run",
         description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For c/e reuse still_concepts/still_render and music_check. Speech downloads require an explicit speech_setup download choice or speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
     )(h_zing_studio_run)
-    mcp.tool(
+    tool(
         name="brief_questions",
         description="Get six creative-brief topics with optional answer fields, defaults, and JSON examples. No model calls.",
     )(h_brief_questions)
-    mcp.tool(
+    tool(
         name="brief_save",
         description=(
             "Validate and atomically save answers to brief.json in an existing local project folder. "
@@ -2130,7 +2230,7 @@ def build_server():
             "No media bytes, downloads, or model calls."
         ),
     )(h_brief_save)
-    mcp.tool(
+    tool(
         name="study_video",
         description=(
             "Start studying a video (URL or local file path). Returns a slug "
@@ -2143,7 +2243,7 @@ def build_server():
             "falls back to fetching with the reason named in warnings."
         ),
     )(h_study_video)
-    mcp.tool(
+    tool(
         name="study_uoink_item",
         description=(
             "Study a uoink corpus item by its stable reference "
@@ -2156,7 +2256,7 @@ def build_server():
             "never accepts a file path."
         ),
     )(h_study_uoink_item)
-    mcp.tool(
+    tool(
         name="import_shot_list",
         description=(
             "Import a Writer shot-list export (the user-chosen .md file) "
@@ -2169,7 +2269,7 @@ def build_server():
             "the authority for keeper spans."
         ),
     )(h_import_shot_list)
-    mcp.tool(
+    tool(
         name="get_breakdown",
         description=(
             "Fetch a studied video's Breakdown JSON by slug. Every response "
@@ -2186,14 +2286,14 @@ def build_server():
             "per-word/per-caption arrays (use it for long videos)."
         ),
     )(h_get_breakdown)
-    mcp.tool(
+    tool(
         name="list_breakdowns",
         description=(
             "List all studied videos in the workspace: slug, platform, "
             "title, duration, measurement counts, judgment sections."
         ),
     )(h_list_breakdowns)
-    mcp.tool(
+    tool(
         name="generate_thumbnails",
         description=(
             "For a studied video slug, extract 3-5 source-resolution "
@@ -2206,7 +2306,7 @@ def build_server():
         ),
         structured_output=False,
     )(mcp_thumbnail_content)
-    mcp.tool(
+    tool(
         name="save_judgment",
         description=(
             "Write your judgment of a breakdown back to Zing (hook type, "
@@ -2216,7 +2316,7 @@ def build_server():
             "provenance."
         ),
     )(h_save_judgment)
-    mcp.tool(
+    tool(
         name="zing_status",
         description=(
             "Zing's health and state: tool availability (ffmpeg, yt-dlp, "
@@ -2224,7 +2324,7 @@ def build_server():
             "available prompts. Cheap - call freely."
         ),
     )(h_zing_status)
-    mcp.tool(
+    tool(
         name="push_to_uoink",
         description=(
             "Optional: push a studied video's breakdown.md into the user's "
@@ -2234,7 +2334,7 @@ def build_server():
         ),
     )(h_push_to_uoink)
 
-    mcp.tool(
+    tool(
         name="list_presets",
         description=(
             "List installed taste preset packs (curated reference sets with "
@@ -2242,7 +2342,7 @@ def build_server():
             "via setup_taste(links=...) work without any packs."
         ),
     )(h_list_presets)
-    mcp.tool(
+    tool(
         name="setup_taste",
         description=(
             "Onboard a named taste: from a preset pack OR your own "
@@ -2252,7 +2352,7 @@ def build_server():
             "Multiple named tastes are first-class."
         ),
     )(h_setup_taste)
-    mcp.tool(
+    tool(
         name="render_edl",
         description=(
             "Render EDL v1 or Composition v2 JSON to a video with ffmpeg "
@@ -2263,21 +2363,21 @@ def build_server():
             "Renders without voiceover when no TTS is available (stated)."
         ),
     )(h_render_edl)
-    mcp.tool(
+    tool(
         name="get_render",
         description=(
             "A render job's honest state: running / done (with the output "
             "path) / failed (with the error and next step)."
         ),
     )(h_get_render)
-    mcp.tool(
+    tool(
         name="export_otio",
         description=(
             "Export an EDL json as an OpenTimelineIO (.otio) timeline that "
             "opens in real NLEs. Fast and synchronous."
         ),
     )(h_export_otio)
-    mcp.tool(
+    tool(
         name="build_profile",
         description=(
             "Aggregate N studied+judged reference videos into a "
@@ -2287,7 +2387,7 @@ def build_server():
             "genre = a docs/taste rubric key (e.g. 'talking-head')."
         ),
     )(h_build_profile)
-    mcp.tool(
+    tool(
         name="get_profile",
         description=(
             "Fetch a StyleProfile by name: the measured aggregates and "
@@ -2295,7 +2395,7 @@ def build_server():
             "'compare' prompt)."
         ),
     )(h_get_profile)
-    mcp.tool(
+    tool(
         name="list_profiles",
         description=(
             "List stored StyleProfiles: name, genre, platform, source "
@@ -2324,7 +2424,7 @@ def build_server():
     # advertised array-of-numbers contract.
     get_frames.__annotations__["timestamps"] = list[StrictFloat]
 
-    mcp.tool(
+    tool(
         name="get_frames",
         description=(
             "SEE the video: extract labeled still frames at the given "
@@ -2337,7 +2437,7 @@ def build_server():
             "nothing is cached."
         ),
     )(get_frames)
-    mcp.tool(
+    tool(
         name="get_prompt",
         description=(
             "Fetch a Zing prompt-pack file by name (e.g. 'study': how to "
@@ -2346,39 +2446,39 @@ def build_server():
         ),
     )(h_get_prompt)
 
-    mcp.tool(
+    tool(
         name="still_concepts",
         description="Create 1-8 distinct meme concepts from a local photo folder and topic. Requires myzing[memes]. No model calls, network, or media uploads. Supply a new/empty out folder. Optional lines is a local JSON file of AI/user-written ideas; all text is validated. aspect: 1:1, 4:5, 9:16, 16:9. layout: auto, classic, caption, labels. Uses local YuNet when installed/cached; otherwise reports a center heuristic."
         + PROTECT_DESCRIPTIONS["still_concepts"] + " Returns index_path, contact_sheet path, writer prompt, concept IDs, scores, alt text and warnings, never media bytes.",
     )(h_still_concepts)
-    mcp.tool(
+    tool(
         name="still_render",
         description="Re-render a concept from still_concepts: supply its out_folder and concept_id. Verifies the source photo hash, writes a full-size PNG, and records the selection and alt text in index.json. video=true also exports a five-second MP4; gif=true adds MP4 and a bounded GIF (requires FFmpeg). No network. Returns file paths and metadata, never media bytes.",
     )(h_still_render)
 
-    mcp.tool(
+    tool(
         name="meme_templates",
         description="Search the offline classic meme catalog: ids, names, box counts, and normalized regions. No images are downloaded.",
     )(h_meme_templates)
-    mcp.tool(
+    tool(
         name="meme_ideas",
         description="Generate 1-8 deterministic formula ideas for a topic and optional template. No model or network. Use get_prompt('meme-writer') for your own writing judgment.",
     )(h_meme_ideas)
-    mcp.tool(
+    tool(
         name="meme_check",
         description="Check on-image texts: 70 characters per box, 110 total, beat count, banned filler. Returns valid and structured problems. Empty strings preserve template slots; box_count supports custom regions.",
     )(h_meme_check)
-    mcp.tool(
+    tool(
         name="meme_render",
         description="Render a finished PNG/JPEG/WebP from exactly one local image path or template id. Requires myzing[memes]. Explicit template requests download a blank from api.memegen.link on cache miss; offline=true forbids downloads. Local photos stay offline. An existing out file is refused unless overwrite=true. Returns a file path and layout metadata, never image bytes. Layouts: classic, caption, labels; regions are normalized [x,y,width,height] in source-image coordinates. Font accepts anton, sans, a system font name, or file path."
         + PROTECT_DESCRIPTIONS["meme_render"],
     )(h_meme_render)
-    mcp.tool(
+    tool(
         name="meme_render_video",
         description="Render a local video/GIF or still image/cached template to H.264 MP4 (AAC when source has audio), optionally a companion GIF. Requires myzing[memes], FFmpeg and ffprobe. No network. Maximum selected duration 30s; trim with source start/end. Still duration defaults to 5s; zoom is 0..0.25. Layouts and text caps match meme_render. at/until arrays give one inclusive output-time window per text, relative to the trimmed clip. GIF limits: 8s, 10fps, 640px wide; parameters may lower these. Existing outputs require overwrite=true. Returns paths, dimensions, durations, byte sizes and text boxes, never media bytes.",
     )(h_meme_render_video)
 
-    mcp.tool(
+    tool(
         name="inspect_timeline",
         description=(
             "Create one local PNG showing a filmstrip, aligned waveform, planned cuts "
@@ -2392,9 +2492,9 @@ def build_server():
             "output is refused unless overwrite=true."
         ),
     )(h_inspect_timeline)
-    mcp.tool(name="music_check", description="Rate local music candidates for a brief or v2 plan: good, usable or bad, with measured reasons. Optional length seconds, pace seconds per cut and speech context. Requires myzing[audio] and FFmpeg. No downloads, uploads or song identification. Licensing stays unknown unless the user records a claim; Zing does not verify it.")(h_music_check)
+    tool(name="music_check", description="Rate local music candidates for a brief or v2 plan: good, usable or bad, with measured reasons. Optional length seconds, pace seconds per cut and speech context. Requires myzing[audio] and FFmpeg. No downloads, uploads or song identification. Licensing stays unknown unless the user records a claim; Zing does not verify it.")(h_music_check)
 
-    mcp.tool(
+    tool(
         name="plan_drafts",
         description=(
             "Plan three distinct Composition v2 edits from a project folder, StyleRecipe JSON path, "
@@ -2405,11 +2505,11 @@ def build_server():
         ),
     )(h_plan_drafts)
 
-    mcp.tool(
+    tool(
         name="zing_moments",
         description="Suggest complete transcript windows from a cached local clip, study slug or breakdown.json. No model calls or downloads. Returns Estimated scores, reasons and exact must_keep arrays for the match brief; never selects a moment automatically. target is seconds (0 < target <= 60); top is 1..100.",
     )(h_zing_moments)
-    mcp.tool(
+    tool(
         name="match_start",
         description=(
             "Start a resumable background reference-to-drafts job. Supply a local file, uoink:<id>, or URL; "
@@ -2418,37 +2518,37 @@ def build_server():
             "match reports. Missing footage yields director shortages. Poll match_status; ready counts require full decode and report."
         ),
     )(h_match_start)
-    mcp.tool(
+    tool(
         name="match_status",
         description="Read match job progress, failures/log paths, final comparison and actual ready count. cancel=true stops this server's owned worker tree and preserves checkpoints for resume.",
     )(h_match_status)
 
-    mcp.tool(
+    tool(
         name="factory_new",
         description="Start a clip-factory project from a local episode video and an optional SRT/VTT/word-JSON transcript (without one, Zing transcribes locally). Settings: moments (clips to make), mode context|fun (visual style), shapes (9x16, 1x1, 16x9), pack (style pack), public (only cleared/attribution visuals). vocab supplies exact spellings for transcription and captions. No downloads of the episode, no uploads, nothing posted.",
     )(h_factory_new)
-    mcp.tool(
+    tool(
         name="factory_run",
         description="Advance a factory project in the background: transcribe, cut moments, find visuals (public archives and the named company's own site; stock libraries only with the user's keys), fact-check graphics against the spoken words, render each shape and build a local review page. Zing makes no model calls: when a judgment is needed (scout, per-clip plan and copy, per-clip visual pick) the run stops and factory_status lists it. Resumable.",
     )(h_factory_run)
-    mcp.tool(
+    tool(
         name="factory_status",
         description="Progress of a factory project: state (running, waiting, done, failed, interrupted), pending judgment tasks, per-clip renders, and the review page path. Answer every pending task, then call factory_run again.",
     )(h_factory_status)
-    mcp.tool(
+    tool(
         name="factory_prompt",
         description="Read one pending judgment prompt. A pick task attaches its contact sheet image. Reply to the prompt exactly as it asks (one JSON object) through factory_answer. Never invent facts the transcript doesn't contain.",
         structured_output=False,
     )(mcp_factory_prompt)
-    mcp.tool(
+    tool(
         name="factory_clip",
         description="Make a factory clip by hand: a stretch of the episode by start and end seconds, one of the scout's runners-up (bench, as factory_status lists them), or new in and out points for an existing clip. The next factory_run snaps it to sentences, then cuts, plans and renders it.",
     )(h_factory_clip)
-    mcp.tool(
+    tool(
         name="factory_answer",
         description="Save the JSON answer to a pending factory task (validated; a malformed answer is rejected with the reason). Then call factory_run to continue.",
     )(h_factory_answer)
-    mcp.tool(name="factory_edit", description=h_factory_edit.__doc__)(h_factory_edit)
+    tool(name="factory_edit", description=h_factory_edit.__doc__)(h_factory_edit)
 
     for prompt_name in available_prompts():
         def _make(nm: str):
