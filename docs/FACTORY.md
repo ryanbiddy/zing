@@ -25,6 +25,13 @@ gate still applies. Progress goes to stderr. With `--json`, stdout has one
 readiness line after the download, including a `downloaded` flag. Reusing
 the same project does not download again.
 
+While a download is in progress, another launch for the same item in the
+default hand-off folder returns `project_exists`. Try again when it finishes.
+Kept media must use a local path. Network shares and device paths are refused
+before Zing opens the file. The Windows long-path form of a local drive, such as
+`\\?\C:\...`, is accepted. A library on a network share falls back to
+`download_needed`.
+
 Use `--project DIR` to choose the folder, `--no-open` to leave the browser
 closed, and `--idle-minutes N` to change the 60-minute idle limit. The minimum
 is 1 minute. The same item reuses its project and keeps edits. Uoink's button

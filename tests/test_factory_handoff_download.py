@@ -85,7 +85,7 @@ class Process:
 
 @pytest.fixture
 def popen(monkeypatch):
-    fake = SimpleNamespace(calls=[], lines="download:  42.0%\ndownload: 42.9 %\ndownload: 100%\n", code=0)
+    fake = SimpleNamespace(calls=[], lines="[zing-progress]  42.0%\n[zing-progress] 42.9 %\n[zing-progress] 100%\n", code=0)
 
     def start(cmd, **kwargs):
         fake.calls.append((cmd, kwargs))
@@ -99,14 +99,14 @@ def popen(monkeypatch):
 
 
 def test_download_streams_parsed_progress_with_only_requested_flags(tmp_path, popen):
-    popen.lines = "setup\ndownload: N/A\ndownload:  0.0%\ndownload: 42.5 %\ndownload: nope\n"
-    popen.lines += "download: nan\ndownload: inf\ndownload: -1%\ndownload: 101%\ndownload: 100%\nmerged\n"
+    popen.lines = "setup\n[zing-progress] N/A\n[zing-progress]  0.0%\n[zing-progress] 42.5 %\n[zing-progress] nope\n"
+    popen.lines += "[zing-progress] nan\n[zing-progress] inf\n[zing-progress] -1%\n[zing-progress] 101%\n[zing-progress] 100%\nmerged\n"
     dest = tmp_path / "source"
     seen = []
     assert ingest.download(URL, dest, progress=seen.append) == dest / "media.mp4"
     assert seen == [0.0, 42.5, 100.0]
     expected = argv(dest)
-    expected[-1:-1] = ["--newline", "--progress-template", "download:%(progress._percent_str)s"]
+    expected[-1:-1] = ["--newline", "--progress-template", "download:[zing-progress] %(progress._percent_str)s"]
     assert popen.calls == [(expected, dict(stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                          text=True, encoding="utf-8", errors="replace", bufsize=1))]
     assert popen.process.stdout.closed and not popen.process.killed
@@ -152,8 +152,8 @@ def test_handoff_progress_is_flushed_only_to_stderr(monkeypatch, tmp_path, popen
     monkeypatch.setattr(uoink_bridge, "resolve_kept_media",
                         lambda ref: {"ok": True, "data": {"state": "not_kept", "source_url": URL, "media": None}})
     monkeypatch.setattr(uoink_bridge, "item_metadata", lambda ref: {"ok": True, "title": "Episode", "source_url": URL})
-    popen.lines = "private downloader output\ndownload: 42.0%\ndownload: 42.9%\ndownload: 43.1%\n"
-    popen.lines += "download: 42%\ndownload: 100%\nmerging\n"
+    popen.lines = "private downloader output\n[zing-progress] 42.0%\n[zing-progress] 42.9%\n[zing-progress] 43.1%\n"
+    popen.lines += "[zing-progress] 42%\n[zing-progress] 100%\nmerging\n"
 
     class Output(io.StringIO):
         def __init__(self):

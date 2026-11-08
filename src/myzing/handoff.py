@@ -65,13 +65,16 @@ def _project(ref: str, folder: Path | None, *, allow_download: bool = False, pro
     title = item.get("title", "").strip() if item.get("ok") else ""
     url = next((value for value in (data.get("source_url"), item.get("source_url") if item.get("ok") else None)
                 if is_http_url(value)), "")
-    if any(uoink_bridge.redact(value) != value for value in (title, url)):
+    host = urlsplit(url).hostname or ""
+    if any(uoink_bridge.redact(value) != value for value in (title, url, host)):
         raise HandoffError("failed")
     if folder is None:
         home = storage.workspace_root() / "handoff"
         short = storage._hash8(ref.encode("utf-8"))
         folder = home / f"{storage._sanitize(title or uoink_bridge._item_id_from_ref(ref))}-{short}"
         for candidate in sorted(home.glob(f"*-{short}")):
+            if candidate.is_dir() and not (candidate / "factory.json").is_file():
+                raise HandoffError("project_exists")      # another launch is still downloading into it
             try:
                 settings = pipeline._read(candidate / "factory.json", {})
             except (OSError, ValueError):
@@ -96,7 +99,7 @@ def _project(ref: str, folder: Path | None, *, allow_download: bool = False, pro
         if not url:
             raise HandoffError("media_unavailable")
         if not allow_download:
-            raise HandoffError("download_needed", host=urlsplit(url).hostname)
+            raise HandoffError("download_needed", host=host)
         created = False
         try:
             if not folder.exists():

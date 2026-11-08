@@ -5,6 +5,9 @@
 - Exclude masked posts from channel reward medians, check scorecard shares before
   rounding, compare the median-views halves on one view window and reject missing
   folder source paths.
+- Fix `from-uoink` download progress, reject network and device media paths,
+  screen lowercased hostnames for credentials, refuse unfinished projects for
+  the same item, and return errors for malformed media types.
 - Block old renders after visual edits and recheck existing kits before phone sync.
   Kit stamps detect replaced video and copy even with older timestamps. Retry takes
   changed during intake, preserve brief items claimed by another project and keep
