@@ -744,10 +744,12 @@ clip, while keeping the existing episode and seeding limits.
 
 The variety rule excludes a value used by at least five of the last ten queued,
 kit or posted clips, unless it is the only candidate. If every candidate is
-excluded, the queue waits and copy keeps its original title without a logged
-choice. Each sampled title and queue choice records its policy and estimated
-probability. The estimate uses 400 seeded draws with the uniform share included
-exactly. Offered title patterns that remain allowed are saved for comparison.
+excluded, the queue checks later slots. It stops after 48 consecutive slots
+without adding a clip, or twice `seeding.every` plus two when that is larger. Copy keeps its original title without a logged choice
+when every title pattern is excluded. Each sampled title and queue choice
+records its policy and estimated probability. The estimate uses 400 seeded
+draws with the uniform share included exactly. Offered title patterns that
+remain allowed are saved for comparison.
 
 Optionally set `prior` in `channel.json` to a `PRIOR.json` from `zing playbook prior`.
 Relative paths start at the channel folder. Strong title-feature lifts set a

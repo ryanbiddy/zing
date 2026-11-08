@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Check later queue slots when the variety rule blocks all candidates. Stop after
+  48 consecutive slots without adding a clip (more for wide seed spacing) and clear
+  blockers for queued clips.
 - Exclude masked posts from channel reward medians, check scorecard shares before
   rounding, compare the median-views halves on one view window and reject missing
   folder source paths.
