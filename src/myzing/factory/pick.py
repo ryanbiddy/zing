@@ -117,10 +117,20 @@ def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, 
             continue
         c = cands[0]
         credit = c.get("attribution") or c.get("creator") or c.get("source") or ""
-        if c.get("license"):
-            credit = f"{credit} · {c['license']}" if credit else c["license"]
+        lic = c.get("license") or ""
+        text = c.get("credit_text") or (f"{credit} · {lic}" if credit and lic else credit or lic)
+        if c.get("rights") == "attribution" and len(text) > 80 and lic:
+            room = max(0, 77 - len(lic))
+            title = c.get("title") or ""
+            credit = credit or text.split(lic, 1)[0].rstrip(" ·,")
+            if title and credit and room > 3:
+                credit = credit[:room // 2]
+                credit = f"{title[:room - len(credit) - 3].rstrip()} / {credit}"
+            text = f"{credit[:room].rstrip()} · {lic}" if room and credit else lic
+        else:
+            text = text[:80]
         kind = next((r.get("kind") for r in requests if r.get("id") == rid), "")
         whole = kind == "logo" or c.get("source") in ("screenshot", "scroll", "ogimage")   # never crop a logo or a page
-        found[rid] = {"path": str(visdir / c["path"]), "credit": (c.get("credit_text") or credit)[:80],
+        found[rid] = {"path": str(visdir / c["path"]), "credit": text,
                       "rights": c.get("rights", "unknown"), **({"fit": "contain"} if whole else {})}
     return found

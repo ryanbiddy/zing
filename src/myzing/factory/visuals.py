@@ -220,7 +220,7 @@ def logo_adjust(c: dict) -> float:
 
 
 def shape_bonus(w, h, q: Query) -> float:
-    if not w or not h:
+    if not isinstance(w, (int, float)) or not isinstance(h, (int, float)) or not w or not h:
         return 0.0
     a, s = w / h, 0.0
     if q.vertical:
@@ -427,17 +427,22 @@ def rights_for(c: dict) -> tuple[str, str]:
     low = lic.lower()
     creator = strip_html(c.get("creator") or "")[:80]
     label = SOURCE_LABEL.get(src, src)
-    if src in ("screenshot", "scroll", "ogimage", "ogvideo", "exa"):
+    if re.search(r"\b(nc|nd)\b|non[- ]?commercial|no[- ]?deriv", f"{lic} {c.get('license_url') or ''}", re.I):
+        r = "unknown"
+    elif src == "nasa" and re.search(r"copyright|©|all rights reserved|used with permission",
+                                   " ".join(strip_html(c.get(k)) for k in ("desc", "title", "creator")), re.I):
+        r = "unknown"
+    elif src in ("screenshot", "scroll", "ogimage", "ogvideo", "exa"):
         what = {"screenshot": "Screenshot", "scroll": "Screen recording", "ogimage": "Image",
                 "ogvideo": "Video", "exa": "Image"}[src]
         return "editorial", f"{what}: {host_of(c.get('source_url') or c.get('file_url') or '')}"
-    if src in ("pexels", "pixabay"):
+    elif src in ("pexels", "pixabay"):
         return "cleared", f"{creator or 'Creator'} / {label}"
-    if src == "loc":
+    elif src == "loc":
         adv = (c.get("rights_advisory") or "").lower()
         r = "cleared" if "no known restrictions" in adv else "unknown"
         return r, f"{creator} / Library of Congress" if creator else "Library of Congress"
-    if re.search(r"public domain|\bpd\b|pd-|cc0|cc-zero|publicdomain|\bpdm\b|no known restrictions", low):
+    elif re.search(r"public domain|\bpd\b|pd-|cc0|cc-zero|publicdomain|\bpdm\b|no known restrictions", low):
         r = "cleared"
     elif re.search(r"\bcc[- ]by\b|creativecommons\.org/licenses/by|gfdl|apache|\bmit\b|\bbsd\b|attribution|"
                    r"free art|\bogl\b", low):
@@ -742,7 +747,7 @@ def ov_license(r: dict) -> str:
 
 def search_openverse(ctx, q: Query) -> list[dict]:
     d = ctx.http.get_json("https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
-        {"q": q.core, "license_type": "commercial", "page_size": 10}), timeout=15)
+        {"q": q.core, "license_type": "commercial,modification", "page_size": 10}), timeout=15)
     out = []
     for i, r in enumerate(d.get("results") or []):
         w, h = r.get("width"), r.get("height")

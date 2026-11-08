@@ -5,6 +5,9 @@
 - Check kept reference copies by hash, stage media atomically and stop download
   child processes on timeout or error. Keep caption times aligned on low frame-rate
   videos, handle scattered speech and report failed transition detection as not measured.
+- Mark NC, ND and NASA third-party visuals as unknown, require modification rights
+  in Openverse searches, preserve licenses in shortened attribution credits and
+  keep ranking when a candidate has non-numeric dimensions.
 - Keep finished match and render results during MCP polling and record factory
   setup failures. Return OTIO probe errors as data and omit paths from shot-list
   import errors.
