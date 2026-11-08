@@ -518,7 +518,7 @@ def test_capture_refuses_redirect_without_following_or_forwarding_token(peer, mo
     requests = []
 
     class Redirect:
-        def __init__(self, handler):
+        def __init__(self, handler, *extra):  # loopback openers also carry an empty ProxyHandler
             self.handler = handler
 
         def open(self, req, timeout):

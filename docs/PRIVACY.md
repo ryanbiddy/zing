@@ -63,6 +63,7 @@ the default `127.0.0.1:5179` endpoint when no override is set. Explicit peer
 configuration and credentials enable saved-reference lookup, verified kept-media
 reuse, notes and engagement operations. Zing does not read Uoink's token file
 or put tokens in URLs. It works without the peer.
+Local Uoink calls never use a proxy.
 
 A saved `uoink:<id>` may refer to retained local media or a source URL.
 Match uses verified retained media without a web fallback. Other study paths

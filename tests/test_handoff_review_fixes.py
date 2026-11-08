@@ -13,7 +13,7 @@ from myzing import doctor, handoff, storage, uoink_bridge, urls
 from myzing.factory import judge, pipeline, serve
 from myzing.project import references
 from myzing.study import downloader, ingest
-from test_factory_handoff_download import Process
+from test_factory_handoff_download import Process, process_tree
 from test_uoink_bridge import handoff_body
 
 REF = "uoink://item/short-123"
@@ -25,7 +25,7 @@ def refuse(*args, **kwargs):
 
 
 @pytest.fixture(autouse=True)
-def offline(monkeypatch, zing_workspace, isolated_uoink_transport):
+def offline(monkeypatch, zing_workspace, isolated_uoink_transport, process_tree):
     monkeypatch.setenv("UOINK_URL", "http://127.0.0.1:1")
     monkeypatch.setattr(socket, "create_connection", refuse)
     monkeypatch.setattr(socket, "getaddrinfo", refuse)

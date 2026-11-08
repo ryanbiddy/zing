@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import subprocess
 import threading
 from pathlib import Path
@@ -23,7 +24,7 @@ def refuse(*args, **kwargs):
 
 
 @pytest.fixture(autouse=True)
-def offline(monkeypatch, zing_workspace):
+def offline(monkeypatch, zing_workspace, process_tree):
     monkeypatch.setattr(judge.subprocess, "run", refuse)
     monkeypatch.setattr(ingest.subprocess, "Popen", refuse)
     monkeypatch.setattr(ingest, "require_public_host", lambda url: None)
@@ -31,6 +32,13 @@ def offline(monkeypatch, zing_workspace):
     monkeypatch.setattr(doctor, "resolve_ytdlp_argv", lambda: ["yt-dlp"])
     monkeypatch.setattr(downloader, "runtime_options", lambda: {})
     monkeypatch.setattr(handoff.webbrowser, "open", refuse)
+
+
+@pytest.fixture
+def process_tree(monkeypatch):
+    monkeypatch.setattr("myzing.match.process.WindowsJob", lambda: SimpleNamespace(attach=lambda child: None, close=lambda: None))
+    monkeypatch.setattr("myzing.match.process._stop_posix_tree", lambda pid: None)
+    monkeypatch.setattr(ingest.proc, "_resume", lambda child: None)
 
 
 def argv(dest):
@@ -65,6 +73,9 @@ def test_fetch_keeps_exact_download_command_and_reuses_media(monkeypatch, mode):
 
 
 class Process:
+    pid = 1234
+    stderr = None
+
     def __init__(self, lines, code=0):
         self.stdout = io.StringIO(lines)
         self.returncode = None
@@ -107,8 +118,9 @@ def test_download_streams_parsed_progress_with_only_requested_flags(tmp_path, po
     assert seen == [0.0, 42.5, 100.0]
     expected = argv(dest)
     expected[-1:-1] = ["--newline", "--progress-template", "download:[zing-progress] %(progress._percent_str)s"]
+    options = {"creationflags": subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP | 0x4} if os.name == "nt" else {"start_new_session": True}
     assert popen.calls == [(expected, dict(stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                         text=True, encoding="utf-8", errors="replace", bufsize=1))]
+                                         text=True, encoding="utf-8", errors="replace", bufsize=1, **options))]
     assert popen.process.stdout.closed and not popen.process.killed
 
 
