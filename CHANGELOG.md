@@ -6,6 +6,8 @@
   upload sessions, keep scheduled uploads scheduled and link manual posts before
   uploading. Analytics uses Pacific dates and retries incomplete runs after an hour.
   Duplicate feed entries prefer exact Shorts metadata.
+- Add `zing channels setup --from-scan` to reuse niche scan candidates, choose
+  a niche with `--scan-niche` and record the scan source and any channels left out.
 - Add `playbook list --scope` and `distill --scope` for cohort labels, defaulting
   to `YouTube Shorts`. List and measure warn when a library has fewer than 8 channels.
 - Add `zing from-uoink --allow-download` to fetch videos Uoink did not keep,

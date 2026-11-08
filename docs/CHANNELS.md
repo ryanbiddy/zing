@@ -16,6 +16,8 @@ zing channels setup streamer-lessons --niche "What small streamers can learn" \
   --candidates-file candidates.txt --no-brief
 zing channels setup streamer-lessons --niche "What small streamers can learn" \
   --suggest --judge host
+zing channels setup streamer-lessons --from-scan zing-workspace/scout \
+  --scan-niche "Creator breakdowns"
 ```
 
 Replace the example handles with channels in your niche. Supply up to 40 unique
@@ -23,9 +25,28 @@ YouTube handles, channel URLs or UC IDs. A candidates file has one per line.
 Blank lines and `#` comments are ignored. Both inputs can be used together.
 Duplicates ignore case. Channel URLs become handles or IDs in the watch list.
 
+Use `--from-scan PATH` to reuse a `zing playbook niches` output folder or its
+`niches.json` file. A scan with one niche selects it automatically. Otherwise,
+choose a name with `--scan-niche NAME`. Names ignore case and surrounding spaces.
+`--niche` defaults to the selected name, clipped to 200 characters. An explicit
+`--niche` wins. Without a scan, `--niche` is required.
+
+Candidates enter in this order.
+
+1. `--candidates`
+2. `--candidates-file`
+3. Scan channels listed by median views, highest first, with ties in scan order.
+   Skipped channels follow in scan order.
+4. `--suggest` suggestions
+
+The first occurrence of a duplicate wins. Extra scan candidates are left out
+once 40 slots are filled. Explicit candidates and suggestions still obey the
+40-channel limit. Setup checks every selected channel's current feed, including
+channels the scan skipped. Fresh feed results decide the final watch list.
+
 Use `--suggest` to ask the judge for channels in the niche. It works without
-explicit candidates. Supplied candidates come first, then suggestions, with
-the same duplicate checks and 40-channel limit. Suggestions are checked against
+explicit candidates. Suggestions follow supplied and scan candidates, with
+the same duplicate checks and 40-channel limit. They are checked against
 public feeds and dropped with reasons like any candidate.
 
 `--judge host|claude` defaults to the existing channel's judge, or `host` for a
@@ -51,6 +72,10 @@ Setup saves `setup.json` and `setup.html` in the channel folder, then makes the
 first brief. With `--suggest`, the JSON records the suggestions and marks which
 kept and dropped channels came from them. The page marks those channels with
 `(suggested)` and shows the judge's reason on hover.
+With `--from-scan`, the JSON records the resolved scan path, niche, scan date,
+unique scan candidate count and count left out by the cap. Kept and dropped
+rows added by the scan have `from_scan` set to true. The page names the scan
+under the heading.
 Setup prints both page paths and the elapsed minutes. The bar is
 15 minutes or less from starting setup to writing the brief page. The scorecard
 adds this row when a time is recorded. With the host judge, the brief can have
