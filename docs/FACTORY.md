@@ -749,6 +749,19 @@ promise about platform reach, monetization or originality decisions.
   detection stays inconclusive when speech is present but no one-second bucket
   is mostly speech.
 - Failed transition detection is reported as not measured.
+- Local studies record the original file's SHA-256 before trimming or staging.
+  Planning rejects studies whose source hash has changed. Older studies still load.
+
+## Reframe clips and check music
+
+- Auto, reframe and zoomfill deliveries split at detected cuts unless the clip
+  is linked by a transition. Tracks from an adjacent shot do not set its vertical crop.
+- Contact sheets support frames as thin as one pixel.
+- Caption presets assign each word to the first clip containing its start time.
+  Transition overlaps no longer repeat the word in two cues.
+- Music advice gives silent excerpts zero energy points. An excerpt counts as
+  silent when its median level is at or below -60 dBFS. Missing energy analysis
+  is reported as missing, not silent.
 
 ## Learn a style from a clip you like
 

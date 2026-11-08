@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 from myzing import storage
 from myzing.schemas import Breakdown
+from myzing.urls import is_http_url
 
 from . import audio as audio_mod
 from . import captions as captions_mod
@@ -83,6 +84,10 @@ def study(
         raise ValueError("font candidates require caption_geometry=True (CLI: --caption-geometry --fonts)")
     with _workspace_override(workspace):
         _phase(phase_callback, "ingest")
+        source_hash = None
+        if not is_http_url(source) and Path(source).expanduser().is_file():
+            from myzing.project.api import hash_file
+            source_hash = hash_file(Path(source).expanduser())
         ing = ingest_mod.ingest(
             source, kept_media=kept_media, handoff=handoff,
             **{k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range,
@@ -92,6 +97,8 @@ def study(
         # A-S6: ingest provenance (kept-media evidence) merges first so
         # stage provenance never masks how the media was obtained.
         provenance: dict[str, Any] = dict(ing.provenance)
+        if source_hash is not None:
+            provenance["source_sha256"] = source_hash
 
         _phase(phase_callback, "shots")
         shots_r = shots_mod.detect_shots(

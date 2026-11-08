@@ -34,7 +34,7 @@ def write_contact_sheet(samples: list[tuple[float, Path]], detections: list[Fram
         source = read_image(path)
         height, width = source.shape[:2]
         ratio = min(280 / width, 400 / height)
-        frame = cv2.resize(source, (round(width * ratio), round(height * ratio)))
+        frame = cv2.resize(source, (max(1, round(width * ratio)), max(1, round(height * ratio))))
         h, w = frame.shape[:2]
 
         def rectangle(box, color, label, *, fill=False):
