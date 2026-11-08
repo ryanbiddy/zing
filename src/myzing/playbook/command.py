@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 
@@ -107,6 +108,9 @@ def run(argv: list[str]) -> int:
             data = distill(args.directory, version=args.version, thresholds=thresholds, scope=args.scope)
             result = {"kept": len(data["patterns"]), "no_separation": len(data["no_separation"])}
         print(json.dumps(result, indent=2))
+        if args.command == "niches":
+            print(f'Set up a channel from one niche with: zing channels setup SLUG --from-scan "{args.out}" --scan-niche "NAME"',
+                  file=sys.stderr)
         if args.command == "measure":
             for category, hint in DOWNLOAD_HINTS.items():
                 count = sum(row.get("reason", "").partition(": ")[2] == category
