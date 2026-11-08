@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
+from contextlib import contextmanager
 
 
 class MediaError(RuntimeError):
@@ -40,44 +42,75 @@ def run(cmd: list[str], timeout: float | None = None) -> subprocess.CompletedPro
     """Run a tool, capturing text output. Raises ToolMissing when the binary
     is absent; returns the completed process otherwise (caller checks
     returncode so it can attach step-specific context)."""
-    process, job, finished = None, None, False
     try:
         pipes = dict(stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                      text=True, encoding="utf-8", errors="replace")
         if timeout is None:
             return subprocess.run(cmd, **pipes)
-        from myzing.match.process import WindowsJob, _stop_posix_tree
-        options = {"start_new_session": True}
-        if os.name == "nt":
-            options = {"creationflags": subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP | 0x4}  # Start suspended until attached.
-            job = WindowsJob()
-        process = subprocess.Popen(cmd, **pipes, **options)
-        if job:
-            job.attach(process)
-            import ctypes
-            resume = ctypes.WinDLL("ntdll").NtResumeProcess
-            resume.argtypes, resume.restype = [ctypes.c_void_p], ctypes.c_long
-            status = resume(int(process._handle))
-            if status:
-                raise OSError(f"Could not resume {cmd[0]} (NTSTATUS {status:#x}).")
-        stdout, stderr = process.communicate(timeout=timeout)
-        finished = True
-        return subprocess.CompletedProcess(cmd, process.returncode, stdout, stderr)
+        with _process(cmd, **pipes) as (process, stop):
+            stdout, stderr = process.communicate(timeout=timeout)
+            return subprocess.CompletedProcess(cmd, process.returncode, stdout, stderr)
     except FileNotFoundError as e:
         raise ToolMissing(cmd[0]) from e
     except subprocess.TimeoutExpired as e:
         raise Timeout(cmd, timeout) from e
-    finally:
+
+
+def _resume(process):
+    import ctypes
+    resume = ctypes.WinDLL("ntdll").NtResumeProcess
+    resume.argtypes, resume.restype = [ctypes.c_void_p], ctypes.c_long
+    status = resume(int(process._handle))
+    if status:
+        raise OSError(f"Could not resume {process.args[0]} (NTSTATUS {status:#x}).")
+
+
+@contextmanager
+def _process(cmd, **pipes):
+    from myzing.match.process import WindowsJob, _stop_posix_tree
+
+    process, job, stopped = None, None, False
+    lock = threading.Lock()
+
+    def stop():
+        nonlocal stopped
+        with lock:
+            if stopped:
+                return
+            stopped = True
+            try:
+                if job:
+                    job.close()
+                elif process:
+                    _stop_posix_tree(process.pid)
+            finally:
+                if process:
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait()
+
+    try:
+        options = {"start_new_session": True}
+        if os.name == "nt":
+            options = {"creationflags": subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP | 0x4}  # Start suspended until attached.
+            job = WindowsJob()
+        try:
+            process = subprocess.Popen(cmd, **pipes, **options)
+        except FileNotFoundError as exc:
+            raise ToolMissing(cmd[0]) from exc
         if job:
-            job.close()
-        elif process and not finished:
-            _stop_posix_tree(process.pid)
-        if process:
-            if process.poll() is None:
-                process.kill()
-            process.wait()
-            process.stdout.close()
-            process.stderr.close()
+            job.attach(process)
+            _resume(process)
+        yield process, stop
+    finally:
+        try:
+            if job or (process and process.poll() is None):
+                stop()  # a POSIX tool that already exited needs no tree walk
+        finally:
+            if process:
+                for stream in (process.stdout, process.stderr):
+                    if stream:
+                        stream.close()
 
 
 def tail(text: str, lines: int = 5) -> str:

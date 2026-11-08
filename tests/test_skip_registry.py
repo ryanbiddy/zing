@@ -28,6 +28,10 @@ TESTS = Path(__file__).resolve().parent
 # Authored skip reason (substring) -> why it is legitimate AND where the
 # product surfaces the same fact, or an explicit note that it needs none.
 REGISTERED_SKIPS = {
+    "symlinks are unavailable on this system": (
+        "workspace write regressions need permission to create file symlinks. "
+        "No product capability depends on creating symlinks; atomic replacement tests run everywhere."
+    ),
     "factory render needs the sidecar and a local browser": (
         "real brand asset checks use the installed factory sidecar and Chrome or Edge, without downloads. "
         "PRODUCT SURFACE: factory doctor reports both prerequisites; node_sidecar() and browser() name missing tools."

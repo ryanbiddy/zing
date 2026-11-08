@@ -28,11 +28,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import math
 import re
 import shutil
 import statistics
+import tempfile
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -138,7 +140,6 @@ def ingest(
     dest = storage.breakdown_dir(slug)
     dest.mkdir(parents=True, exist_ok=True)
     selecting = any(v is not None for v in (ref_start, ref_end, reference_range, analysis_seconds, analysis_max_side))
-    import os
     in_place = not is_url(source) and os.environ.get("ZING_LOCAL_MEDIA_IN_PLACE") == "1"
 
     if is_url(source):
@@ -313,11 +314,7 @@ def _stage_kept(
         return None, "missing"
     try:
         size = src.stat().st_size
-        digest = hashlib.sha256()
-        with src.open("rb") as fh:
-            for chunk in iter(lambda: fh.read(1 << 20), b""):
-                digest.update(chunk)
-        sha = digest.hexdigest()
+        sha = _digest(src)
         expected_sha = (handoff or {}).get("sha256")
         expected_len = (handoff or {}).get("byte_length")
         sha_matches = (
@@ -339,8 +336,8 @@ def _stage_kept(
             )
             return None, "integrity_mismatch"
         target = storage.media_target(slug, src.suffix or ".mp4")
-        if not (target.exists() and target.stat().st_size == size):
-            shutil.copy2(src, target)
+        if not (target.exists() and target.stat().st_size == size and _digest(target) == sha):
+            _copy(src, target)
     except OSError as exc:
         warnings.append(
             f"kept media unreadable ({exc}) - falling back to fetch"
@@ -435,42 +432,35 @@ def download(url: str, dest: Path, *, timeout: float = 600, progress: Callable[[
 
 
 def _download_progress(cmd: list[str], timeout: float, progress) -> subprocess.CompletedProcess:
-    try:
-        process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                   text=True, encoding="utf-8", errors="replace", bufsize=1)
-    except FileNotFoundError as exc:
-        raise proc.ToolMissing(cmd[0]) from exc
-    expired = threading.Event()
+    with proc._process(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                       text=True, encoding="utf-8", errors="replace", bufsize=1) as (process, stop):
+        expired = threading.Event()
 
-    def stop():
-        expired.set()
-        process.kill()
+        def expire():
+            expired.set()
+            stop()
 
-    timer = threading.Timer(timeout, stop)
-    timer.daemon = True
-    timer.start()
-    last = ""
-    try:
-        for line in process.stdout:
-            last = line.strip() or last
-            line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line).strip()
-            if line.startswith("[zing-progress]"):
-                try:
-                    percent = float(line.removeprefix("[zing-progress]").strip().rstrip("%").strip())
-                except ValueError:
-                    continue
-                if math.isfinite(percent) and 0 <= percent <= 100:
-                    progress(percent)
-        process.wait()
-        if expired.is_set():
-            raise proc.Timeout(cmd, timeout)
-        return subprocess.CompletedProcess(cmd, process.returncode, "", last)
-    finally:
-        timer.cancel()
-        if process.poll() is None:
-            process.kill()
-        process.wait()
-        process.stdout.close()
+        timer = threading.Timer(timeout, expire)
+        timer.daemon = True
+        last = ""
+        try:
+            timer.start()
+            for line in process.stdout:
+                last = line.strip() or last
+                line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line).strip()
+                if line.startswith("[zing-progress]"):
+                    try:
+                        percent = float(line.removeprefix("[zing-progress]").strip().rstrip("%").strip())
+                    except ValueError:
+                        continue
+                    if math.isfinite(percent) and 0 <= percent <= 100:
+                        progress(percent)
+            process.wait()
+            if expired.is_set():
+                raise proc.Timeout(cmd, timeout)
+            return subprocess.CompletedProcess(cmd, process.returncode, "", last)
+        finally:
+            timer.cancel()
 
 
 def _stage_local(path_str: str, slug: str) -> Path:
@@ -478,19 +468,29 @@ def _stage_local(path_str: str, slug: str) -> Path:
     if not src.is_file():
         raise MediaError(f"no such file: {src}")
     target = storage.media_target(slug, src.suffix)
-    # A same-length replacement is still new content. Project reference hashes
-    # must describe the bytes studied, not a stale workspace copy.
-    def digest(path: Path) -> str:
-        sha = hashlib.sha256()
-        with path.open("rb") as stream:
-            for chunk in iter(lambda: stream.read(1 << 20), b""):
-                sha.update(chunk)
-        return sha.hexdigest()
-
     if not (target.exists() and target.stat().st_size == src.stat().st_size
-            and digest(target) == digest(src)):
-        shutil.copy2(src, target)
+            and _digest(target) == _digest(src)):
+        _copy(src, target)
     return target
+
+
+def _digest(path: Path) -> str:
+    sha = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b""):
+            sha.update(chunk)
+    return sha.hexdigest()
+
+
+def _copy(src: Path, target: Path) -> None:
+    with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".media-", suffix=".part", delete=False) as stream:
+        temporary = Path(stream.name)
+    try:
+        shutil.copy2(src, temporary)
+        os.replace(temporary, target)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 # yt-dlp's sidecar carries the full format/thumbnail/subtitle inventory

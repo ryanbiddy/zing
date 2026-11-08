@@ -19,6 +19,10 @@ video and opens the review dashboard. Press Run to begin. The host judge is
 the default; `--judge claude` uses Claude Code. The source title and link are
 saved when available. The media stays in Uoink.
 
+Local Uoink calls never use a proxy. Peer checks reject invalid JSON and replies
+larger than 1 MiB. Saved breakdown Markdown is replaced atomically. A symlinked
+breakdown.md or JSON backup is replaced, not written through.
+
 If Uoink did not keep the video, add `--allow-download` to fetch its source
 into the project's `source/` folder. Rights stay `unknown`, so the posting
 gate still applies. Progress goes to stderr. With `--json`, stdout has one
@@ -736,6 +740,15 @@ has `null`. Each dashboard card shows the percentage and an expandable source li
 Visual swaps and hook edits rewrite the receipt when the plan is finalized again.
 The receipt leaves `post.json` alone. It records planned additions and makes no
 promise about platform reach, monetization or originality decisions.
+
+## Study a reference video
+
+- Reference studies check kept copies by SHA-256 and publish staged media only
+  after the copy finishes. Download timeouts and errors stop child processes too.
+- Caption samples follow decoded frame times on low frame-rate videos. Music
+  detection stays inconclusive when speech is present but no one-second bucket
+  is mostly speech.
+- Failed transition detection is reported as not measured.
 
 ## Learn a style from a clip you like
 
