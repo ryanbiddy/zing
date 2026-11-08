@@ -23,7 +23,9 @@ def run(argv: list[str]) -> int:
         new.add_argument("--" + key)
     start = commands.add_parser("setup", help="choose a watch list and make the first brief")
     start.add_argument("slug")
-    start.add_argument("--niche", required=True)
+    start.add_argument("--niche", help="channel niche, defaulting to the selected scan niche with --from-scan")
+    start.add_argument("--from-scan", type=Path, help="playbook niches output folder or niches.json file")
+    start.add_argument("--scan-niche", help="niche name in the scan, required when it has more than one")
     start.add_argument("--candidates", nargs="+", default=[], help="YouTube handles, channel URLs or UC IDs")
     start.add_argument("--name", help="channel name, defaulting to the slug in title case")
     start.add_argument("--candidates-file", type=Path, help="one candidate per line, with # comments allowed")
@@ -98,9 +100,11 @@ def run(argv: list[str]) -> int:
             factory = {k: getattr(args, k) for k in ("pack", "mode") if getattr(args, k) is not None}
             result = registry.create(args.name, args.niche, args.slug, network=network, factory=factory)
         elif args.command == "setup":
+            if args.niche is None and args.from_scan is None and args.scan_niche is None:
+                start.error("the following arguments are required: --niche")
             result = setup.run(args.slug, args.niche, args.candidates, name=args.name, candidates_file=args.candidates_file,
                                keep=args.keep, min_shorts=args.min_shorts, no_brief=args.no_brief, suggest=args.suggest,
-                               judge=args.judge)
+                               judge=args.judge, from_scan=args.from_scan, scan_niche=args.scan_niche)
             if result.get("pending"):
                 print(result["pending"])
                 print(f"Write the JSON answer to {result['answer']} and run the same command again.")

@@ -97,6 +97,7 @@ See the [button contract and capture behavior](https://github.com/ryanbiddy/zing
 zing channels setup creators --niche "How creators tell stories" --candidates @one @two @three
 zing channels setup creators --niche "How creators tell stories" --name "Creators" --candidates-file candidates.txt --keep 15 --min-shorts 3 --no-brief
 zing channels setup creators --niche "How creators tell stories" --suggest --judge host
+zing channels setup creators --from-scan zing-workspace/scout --scan-niche "Creator stories"
 zing channels new stories --name "Stories" --niche "Player stories" --pack zing --mode context
 zing channels source stories --id club --name "Club" --kind podcast --url https://example.org/show --rights permission --grant "Email from the owner"
 zing factory new --channel stories --source club --media episode.mp4 --transcript episode.vtt
@@ -147,8 +148,22 @@ path and elapsed minutes against a 15 minute target. `--no-brief` leaves the
 brief time unset. Brief failures are recorded and printed with exit code 0;
 setup input and channel errors exit with code 1.
 
+`--from-scan PATH` accepts a `playbook niches` output folder or its `niches.json`.
+`--scan-niche NAME` selects a niche without regard to case or surrounding spaces.
+A scan with one niche selects it automatically. Other scans need `--scan-niche`.
+`--niche` defaults to the scan name, clipped to 200 characters, and an explicit
+value wins. It remains required without `--from-scan`.
+Candidates enter from `--candidates`, then `--candidates-file`, then the scan,
+then suggestions. Listed scan channels come first by descending median views,
+with ties in scan order. Skipped channels follow in scan order and get fresh
+feed checks too. The first occurrence of a duplicate wins. Scan candidates
+beyond the 40-channel limit are left out. The JSON records the scan path, name,
+date, unique candidate count and count left out. Rows added by the scan have
+`"from_scan"` set to true. The page names the scan under its heading.
+
 `--suggest` asks the judge for candidate handles. Explicit candidates come
-first, then suggestions, with the same duplicate checks and 40-channel limit.
+first, then scan candidates and suggestions, with the same duplicate checks
+and 40-channel limit.
 It works without `--candidates` or `--candidates-file`. Each suggestion goes
 through the public feed checks and can be dropped with a reason.
 `--judge host|claude` defaults to the existing channel's judge, or `host` for a

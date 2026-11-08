@@ -118,6 +118,8 @@ sentences only. Guidance requires a non-weak lift of at least 1.5 or at most 0.6
 It contains no competitor titles. Set `prior` in a channel's `channel.json` to
 this file to guide title choices and scouts. See [How a channel learns](CHANNELS.md#how-a-channel-learns).
 
+Use `zing channels setup SLUG --from-scan zing-workspace/scout --scan-niche "NAME"` to [set up a channel from a scan](CHANNELS.md#set-up-a-new-niche).
+
 ### Watch views by age
 
 ```powershell

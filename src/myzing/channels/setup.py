@@ -12,7 +12,7 @@ from urllib.parse import unquote, urlsplit
 
 from myzing.factory.judge import Judge, NeedsAnswer
 from myzing.playbook import feeds
-from myzing.playbook.common import parse_time
+from myzing.playbook.common import SCHEMA_VERSION, number, parse_time, read_json
 
 from . import brief, registry
 
@@ -37,7 +37,7 @@ def _handle(value):
     return value
 
 
-def _candidates(values, path, *, required=True):
+def _candidates(values, path, *, required=True, limit=40):
     values = list(values)
     if path is not None:
         try:
@@ -59,9 +59,46 @@ def _candidates(values, path, *, required=True):
             seen.add(key)
     if required and not result:
         raise registry.ChannelError("supply --candidates or --candidates-file")
-    if len(result) > 40:
+    if limit is not None and len(result) > limit:
         raise registry.ChannelError("candidates must list at most 40 channels")
     return result
+
+
+def _scan(path, niche):
+    path = Path(path)
+    path = (path / "niches.json" if path.is_dir() else path).resolve()
+    try:
+        data = read_json(path)
+    except (OSError, ValueError) as exc:
+        raise registry.ChannelError(f"niche scan could not be read. {path}. {exc}") from exc
+    if (not isinstance(data, dict) or type(data.get("schema_version")) is not int
+            or data["schema_version"] != SCHEMA_VERSION):
+        raise registry.ChannelError(f"unsupported niche scan schema. {path}")
+    niches = data.get("niches")
+    if not isinstance(niches, list) or any(not isinstance(row, dict) or not isinstance(row.get("niche"), str)
+                                         or not row["niche"].strip() for row in niches):
+        raise registry.ChannelError(f"invalid niches in scan. {path}")
+    if niche is None:
+        selected = niches[0] if len(niches) == 1 else None
+    else:
+        exact = [row for row in niches if row["niche"].strip() == niche.strip()]
+        loose = [row for row in niches if row["niche"].strip().casefold() == niche.strip().casefold()]
+        matches = exact or loose                        # scans may hold names that differ only by case
+        selected = matches[0] if len(matches) == 1 else None
+    if selected is None:
+        raise registry.ChannelError("choose a niche with --scan-niche: " + " | ".join(row["niche"] for row in niches))
+    rows = selected.get("channels")
+    if not isinstance(rows, list) or any(
+            not isinstance(row, dict) or not isinstance(row.get("channel"), str) or not row["channel"].strip()
+            or row.get("status") not in ("listed", "skipped")
+            or row["status"] == "listed" and (not number(row.get("median_views")) or row["median_views"] < 0)
+            for row in rows):
+        raise registry.ChannelError(f"invalid channels in niche scan. {path}")
+    listed = sorted((row for row in rows if row["status"] == "listed"), key=lambda row: row["median_views"], reverse=True)
+    handles = _candidates([row["channel"] for row in listed + [row for row in rows if row["status"] == "skipped"]],
+                          None, required=False, limit=None)
+    return {"path": str(path), "niche": selected["niche"], "made_at": data.get("made_at"),
+            "candidates": len(handles), "left_out": 0}, handles
 
 
 def _suggestions(value):
@@ -100,13 +137,22 @@ def _page(channel, data):
     dropped = "".join(f'<li{title(row)}>{label(row)} — {html.escape(row["reason"])}</li>' for row in data["dropped"])
     minutes = f'Niche to first brief {data["minutes"]:.1f} min' if data["minutes"] is not None else "No first brief yet"
     error = f'<p>Brief failed. {html.escape(data["brief_error"])}</p>' if data.get("brief_error") else ""
+    scan = ""
+    if data.get("scan"):
+        made = data["scan"]["made_at"]
+        try:
+            made = parse_time(made).date().isoformat()  # scans store a full timestamp
+        except ValueError:
+            pass
+        when = f" made {made}" if made else ""
+        scan = "<p>" + html.escape(f'Candidates came from the niche scan{when} for {data["scan"]["niche"]}.') + "</p>"
     return '''<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Channel setup</title><style>
 body{max-width:760px;margin:32px auto;padding:0 16px;font:16px/1.5 system-ui;color:#222;background:#fafafa}
 table{width:100%;border-collapse:collapse;background:white}th,td{padding:8px;text-align:left;border:1px solid #ccc}
 h1,h2,p,li,td{overflow-wrap:anywhere}h2{font-size:24px}
-</style><body><h1>''' + html.escape(channel["name"]) + ''' setup</h1><p>''' + html.escape(data["niche"]) + '''</p>
+</style><body><h1>''' + html.escape(channel["name"]) + ''' setup</h1>''' + scan + '''<p>''' + html.escape(data["niche"]) + '''</p>
 <p>''' + minutes + '''. Target 15 min.</p>''' + error + '''<h2>Kept channels</h2>
 <table><thead><tr><th>Channel</th><th>Shorts</th><th>Median views</th><th>Newest Short</th></tr></thead>
 <tbody>''' + rows + '''</tbody></table><h2>Dropped channels</h2>''' + (
@@ -118,9 +164,16 @@ def _publish(root, channel, data):
     brief._publish(root / "setup.html", _page(channel, data))
 
 
-def run(slug: str, niche: str, candidates=(), *, name=None, candidates_file=None, keep=15, min_shorts=3,
-        no_brief=False, suggest=False, judge=None, fetch=None, feed=None) -> dict:
+def run(slug: str, niche: str | None = None, candidates=(), *, name=None, candidates_file=None, keep=15, min_shorts=3,
+        no_brief=False, suggest=False, judge=None, from_scan=None, scan_niche=None, fetch=None, feed=None) -> dict:
     started = datetime.now(timezone.utc)
+    if scan_niche is not None and from_scan is None:
+        raise registry.ChannelError("--scan-niche requires --from-scan")
+    scan, scanned = None, []
+    if from_scan is not None:
+        scan, scanned = _scan(from_scan, scan_niche)
+        if niche is None:
+            niche = scan["niche"].strip()[:200]
     registry._text(niche, "niche", required=True, most=200)
     registry._integer(keep, "keep", 3, 40)
     registry._integer(min_shorts, "min-shorts", 1)
@@ -136,8 +189,15 @@ def run(slug: str, niche: str, candidates=(), *, name=None, candidates_file=None
     if channel is None:
         name = slug.replace("-", " ").title() if name is None else name
         registry._text(name, "name", required=True)
-    handles = _candidates(candidates, candidates_file, required=not suggest)
-    explicit = {handle.removeprefix("@").casefold() for handle in handles}
+    handles = _candidates(candidates, candidates_file, required=not suggest and scan is None)
+    supplied = {handle.removeprefix("@").casefold() for handle in handles}
+    scan_only = set()
+    if scan is not None:
+        handles = _candidates([*handles, *scanned], None, required=not suggest, limit=None)
+        scan["left_out"] = max(0, len(handles) - 40)
+        handles = handles[:40]
+        scan_only = {handle.removeprefix("@").casefold() for handle in handles} - supplied
+        supplied.update(scan_only)
     suggested = []
     if suggest:
         folder = root / "setup"
@@ -188,9 +248,13 @@ def run(slug: str, niche: str, candidates=(), *, name=None, candidates_file=None
     kept.sort(key=lambda row: row["median_views"], reverse=True)
     dropped.extend({"handle": row["handle"], "reason": f"outside top {keep}"} for row in kept[keep:])
     kept = kept[:keep]
-    if suggest:
+    if suggest or scan is not None:
         for row in kept + dropped:
-            row["suggested"] = row["handle"].removeprefix("@").casefold() not in explicit
+            key = row["handle"].removeprefix("@").casefold()
+            if key in scan_only:
+                row["from_scan"] = True
+            if suggest:
+                row["suggested"] = key not in supplied
     watch = [row["handle"] for row in kept]
     if channel is None:
         channel = registry.create(name, niche, slug, judge=judge, series=[
@@ -204,6 +268,8 @@ def run(slug: str, niche: str, candidates=(), *, name=None, candidates_file=None
         channel = registry.save(channel)
     data = {"niche": niche, "started": started.isoformat(), "saved": datetime.now(timezone.utc).isoformat(),
             "first_brief": None, "minutes": None, "kept": kept, "dropped": dropped}
+    if scan is not None:
+        data["scan"] = scan
     if suggest:
         data["suggested"] = suggested
     _publish(root, channel, data)
