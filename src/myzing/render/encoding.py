@@ -29,7 +29,7 @@ def _audio_bytes(path, ffprobe):
     return sum(int(size) for size in sizes)
 
 
-def encode(command, settings, duration, width, height, fps, directory, *, ffprobe="ffprobe"):
+def encode(command, settings, duration, width, height, fps, directory, *, ffprobe="ffprobe", output=None):
     from .pipeline import RenderError
 
     if settings.target_mb is not None:
@@ -49,7 +49,8 @@ def encode(command, settings, duration, width, height, fps, directory, *, ffprob
     first = command.copy()
     first[first.index("-pass") + 1] = "1"
     first_path = directory / "budget-pass1.mp4"
-    first[first.index(str(directory / "rendered.mp4"))] = str(first_path)
+    output = output or directory / "rendered.mp4"
+    first[first.index(str(output))] = str(first_path)
 
     def run(args):
         result = subprocess.run(args, cwd=directory, capture_output=True, text=True,
@@ -89,7 +90,6 @@ def encode(command, settings, duration, width, height, fps, directory, *, ffprob
                               f"{audio_bytes * 8 / duration / 1000:.0f} kb/s of measured audio; increase --target-mb.")
         rate = round(video_bits / duration)
         command[command.index("-b:v") + 1] = str(rate)
-    output = directory / "rendered.mp4"
     attempts = []
     for attempt in range(RETRIES + 1):
         result, floored = second_pass()

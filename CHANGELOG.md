@@ -5,6 +5,8 @@
 - Reject meme captions that cannot fit and regions that are not a list. Use the
   still canvas background for transparent images in video memes and handle topics
   such as `my :` without a traceback.
+- Preserve previous videos when a render fails in a kept work folder or a receipt
+  cannot be published. Keep OTIO audio gaps within the video duration.
 - Check kept reference copies by hash, stage media atomically and stop download
   child processes on timeout or error. Keep caption times aligned on low frame-rate
   videos, handle scattered speech and report failed transition detection as not measured.
