@@ -248,6 +248,7 @@ const page = {
     for (const url of urls) await handler({request: () => ({url: () => url}),
       abort: async () => requests.push([url, 'abort']), continue: async () => requests.push([url, 'continue'])});
     await socketHandler({close: async () => { closed = true; }, connectToServer: () => { throw Error('socket connected'); }});
+    return {status: () => 200};
   },
   waitForLoadState: async () => {}, waitForTimeout: async () => {},
   url: () => 'http://public.example/', title: async () => 'Page',

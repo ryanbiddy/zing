@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import re
+import tempfile
 
 from .looks import apply_transform
 from .models import Contract, Transform
@@ -48,7 +50,14 @@ def write_cube(cube: Cube, path: Path | str) -> Path:
     header = (f'TITLE "{cube.title}"\nLUT_3D_SIZE {cube.size}\n'
               'DOMAIN_MIN 0.0 0.0 0.0\nDOMAIN_MAX 1.0 1.0 1.0\n')
     rows = "".join(" ".join(f"{v:.10f}" for v in row) + "\n" for row in cube.values)
-    path.write_text(header + rows, encoding="utf-8", newline="\n")
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as file:
+            file.write(header + rows)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
     return path
 
 

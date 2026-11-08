@@ -313,11 +313,14 @@ def capture(data: dict, data_file: Path, frames: Path, *, layer: str | None = No
     data_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
     frames.mkdir(exist_ok=True)
     tmp = frames.parent / "_tmp"
+    count = len(samples) if samples is not None else round(data["duration"] * data.get("fps", 30))
     try:
         run(node, data_path("render.cjs"), data_path("scene.html"), data_file, frames,
-            env=sidecar_env(tmp), cwd=sidecar, capture_output=True)
+            env=sidecar_env(tmp), cwd=sidecar, capture_output=True, timeout=300 + 3 * count)
         if layer == "overlay":
             flatten_backdrop(frames)
+    except subprocess.TimeoutExpired as exc:
+        raise FactoryError("scene render timed out") from exc
     except subprocess.CalledProcessError as exc:
         message = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else exc.stderr
         raise FactoryError(message or "scene capture failed") from exc

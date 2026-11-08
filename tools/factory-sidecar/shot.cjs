@@ -3,7 +3,7 @@
 // 1) renders <url> at 1280x900 and writes a viewport PNG;
 // 2) if framesDir is given, switches to 1280x800 and records a smooth 6 s scroll as 180 JPEG frames
 //    (f0000.jpg..f0179.jpg, 30 fps when encoded) - deterministic, so capture speed doesn't matter;
-// 3) prints one JSON line: {ok, title, og_image, og_video, final_url, blocked, frames, scroll_px, error}.
+// 3) prints one JSON line: {ok, title, og_image, og_video, final_url, http_status, blocked, frames, scroll_px, error}.
 // The page is untrusted: we only render it and read a few meta tags; nothing from it is executed here.
 "use strict";
 const { lookup } = require("dns").promises;
@@ -45,7 +45,7 @@ function isPrivate(address) {
 
 async function main() {
   const res = { ok: false, title: null, og_image: null, og_video: null, final_url: null, blocked: false,
-                frames: 0, scroll_px: 0, error: null };
+                http_status: null, frames: 0, scroll_px: 0, error: null };
   if (!url || !outPath || !/^https?:\/\//i.test(url)) {
     res.error = "usage: node shot.cjs <http(s) url> <out.png> [framesDir]";
     console.log(JSON.stringify(res));
@@ -86,7 +86,11 @@ async function main() {
       }
     });
     const page = await ctx.newPage();
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
+    res.http_status = response ? response.status() : null;
+    res.final_url = page.url();
+    if (!response || res.http_status >= 400)
+      throw new Error(response ? `HTTP ${res.http_status}` : "page navigation returned no response");
     try { await page.waitForLoadState("networkidle", { timeout: 10000 }); } catch (_) {}
     await page.waitForTimeout(1500);
     res.final_url = page.url();
