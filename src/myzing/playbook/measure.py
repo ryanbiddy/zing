@@ -6,12 +6,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
 import subprocess
+import time
 
 from myzing import storage
 from myzing.profile import api as profiles
 from myzing.schemas import Breakdown
 from myzing.study import api as study_api
-from .common import SCHEMA_VERSION, library, read_json, utc_now, write_json
+from myzing.study.ingest import download_category
+from .common import SCHEMA_VERSION, library, number, read_json, utc_now, write_json
+
+DOWNLOAD_HINTS = {
+    "download_bot_check": "YouTube blocked downloads for now. Wait, then run measure --download --retry-failed.",
+    "download_rate_limited": "YouTube blocked downloads for now. Wait, then run measure --download --retry-failed.",
+    "download_unavailable": "The video cannot be downloaded.",
+    "ytdlp_missing": "Install yt-dlp: zing doctor.",
+}
 
 
 @dataclass(frozen=True)
@@ -51,8 +60,16 @@ def music_present(b: Breakdown) -> bool | None:
 
 
 def failure_reason(exc: Exception) -> str:
-    # Never interpolate exception text: subprocess commands and stderr can carry
-    # private paths, URLs and credentials. Fixed messages are bounded and safe.
+    pending, seen = [exc], set()
+    while pending:
+        error = pending.pop()
+        if error is None or id(error) in seen:
+            continue
+        seen.add(id(error))
+        category = download_category(str(error))
+        if category:
+            return f"{type(exc).__name__[:64]}: {category}"  # never persist exception text
+        pending.extend((error.__context__, error.__cause__))
     message = "tool timed out" if isinstance(exc, subprocess.TimeoutExpired) else "measurement failed; details omitted"
     return f"{type(exc).__name__[:64]}: {message}"
 
@@ -93,12 +110,21 @@ def extract(b: Breakdown, geometry: dict | None = None) -> dict:
     return values
 
 
-def measure(root: Path, *, media_dir: Path | None = None, download=False, force=False) -> dict:
+def measure(root: Path, *, media_dir: Path | None = None, download=False, force=False,
+            retry_failed=False, max_blocks=3, gap=3, sleep=None) -> dict:
+    if force and retry_failed:
+        raise ValueError("use one of --force or --retry-failed")
+    if type(max_blocks) is not int or max_blocks < 1:
+        raise ValueError("--max-blocks must be an integer of at least 1")
+    if not number(gap) or gap < 0:
+        raise ValueError("--gap must be a finite number of at least 0 seconds")
     data = library(root)
     media_dir = media_dir or root / "media"
     model_workspace = storage.workspace_root()
+    sleep = sleep or time.sleep
+    blocks, attempted = 0, False
     rows = []
-    summary = {"done": 0, "cached": 0, "unmeasured": 0, "failed": 0}
+    summary = {"done": 0, "cached": 0, "unmeasured": 0, "failed": 0, "paused": 0}
     for entry in data["entries"]:
         ident = entry["id"]
         target = root / "measured" / f"{ident}.json"
@@ -107,44 +133,69 @@ def measure(root: Path, *, media_dir: Path | None = None, download=False, force=
         work = root / "working" / ident
         row = {"id": ident, "source": "measured"}
         try:
-            if failure.exists() and not force:
+            retry = retry_failed and failure.exists()
+            if failure.exists() and not (force or retry):
                 row.update(status="failed", reason=read_json(failure)["reason"])
+                category = row["reason"].partition(": ")[2]
+                if category in DOWNLOAD_HINTS:
+                    row["hint"] = DOWNLOAD_HINTS[category]
                 summary["failed"] += 1
                 rows.append(row)
                 write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "entries": rows})
                 continue
-            if target.exists() and not force:
+            if target.exists() and not (force or retry):
                 b = Breakdown.from_dict(read_json(target))
                 outcome = "cached"
             else:
                 files = sorted(p for p in media_dir.glob(f"{ident}.*")
                                if p.is_file() and p.suffix.lower() in (".mp4", ".mov", ".mkv", ".webm", ".m4v", ".avi"))
-                if not files and not download:
-                    row.update(status="unmeasured", reason="no local media")
+                reason = None
+                if retry_failed and not retry:
+                    reason = "no failure record"
+                elif not files and not download:
+                    reason = "no local media"
+                elif not files and summary.get("stopped"):
+                    reason = "download paused after YouTube blocks"
+                    summary["paused"] += 1
+                if reason:
+                    row.update(status="unmeasured", reason=reason)
                     summary["unmeasured"] += 1
                     rows.append(row)
                     write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "entries": rows})
                     continue
-                # A URL reaches Study's existing ingest downloader ONLY on explicit opt-in.
+                if not files:
+                    if attempted and gap:
+                        sleep(gap)
+                    attempted = True
+                if retry:
+                    failure.unlink()
                 b = study_api.study(str(files[0]) if files else entry["url"], workspace=work,
                                     model_workspace=model_workspace, local_models_only=True, caption_geometry=True)
                 write_json(target, b.to_dict())
                 outcome = "done"
             geometries = sorted(work.rglob("caption-geometry.json")) if work.exists() else []
-            if geometries and (force or not sidecar.exists()):
+            if geometries and (force or retry or (not retry_failed and not sidecar.exists())):
                 write_json(sidecar, read_json(geometries[0]))
-            elif force:
+            elif force or retry:
                 sidecar.unlink(missing_ok=True)
             geometry = read_json(sidecar) if sidecar.exists() else None
             row.update(status="measured", **extract(b, geometry))
             failure.unlink(missing_ok=True)
             summary[outcome] += 1
+            blocks = 0
         except Exception as exc:
             row.update(status="failed", reason=failure_reason(exc))
+            category = row["reason"].partition(": ")[2]
+            if category in DOWNLOAD_HINTS:
+                row["hint"] = DOWNLOAD_HINTS[category]
             write_json(failure, row)
             summary["failed"] += 1
+            blocks = blocks + 1 if category in ("download_bot_check", "download_rate_limited") else 0
+            if blocks >= max_blocks and not summary.get("stopped"):
+                summary["stopped"] = category
         rows.append(row)
         write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "entries": rows})
     write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "created_at": utc_now(), "entries": rows})
-    summary["entries"] = [{"id": r["id"], "status": r["status"], **({"reason": r["reason"]} if "reason" in r else {})} for r in rows]
+    summary["entries"] = [{"id": r["id"], "status": r["status"],
+                           **{key: r[key] for key in ("reason", "hint") if key in r}} for r in rows]
     return summary
