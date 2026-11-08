@@ -946,12 +946,15 @@ def _capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: boo
         res = json.loads(lines[-1]) if lines else {"ok": False, "error": (p.stderr or "no output")[-300:]}
     except Exception as e:
         res = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+    http_error = isinstance(res.get("http_status"), int) and res["http_status"] >= 400
+    if http_error:  # an error page is neither a screenshot nor a source of og tags
+        res.update(ok=False, error=res.get("error") or f"HTTP {res['http_status']}", og_image=None, og_video=None)
     final = res.get("final_url") or url
     host = host_of(final)
     title = res.get("title") or host
     common = dict(license=EDITORIAL, creator=host, source_url=final)
     ctx.log["site"] = {"url": url, "why": why, "seconds": round(time.monotonic() - t, 1),
-                       "blocked": res.get("blocked"), "error": res.get("error")}
+                       "blocked": res.get("blocked"), "http_status": res.get("http_status"), "error": res.get("error")}
     if res.get("ok") and not res.get("blocked") and shot.exists():
         try:
             ext, w, hh, alpha = validate_image(shot.read_bytes())
@@ -964,7 +967,7 @@ def _capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: boo
         ctx.health.fail("screenshot", RuntimeError(res.get("error") or ("bot wall" if res.get("blocked") else "failed")))
     if shot.exists() and not any(c["source"] == "screenshot" for c in out):
         shot.unlink()
-    if scroll and res.get("frames") and not res.get("blocked"):
+    if scroll and res.get("ok") and res.get("frames") and not res.get("blocked"):
         mp4 = folder / f"scroll_{hid}.mp4"
         try:
             run(str(FFMPEG), "-v", "error", "-y", "-framerate", "30", "-i", str(frames / "f%04d.jpg"),
@@ -979,7 +982,7 @@ def _capture_site(ctx, url: str, folder: Path, rel: float, why: str, scroll: boo
             ctx.health.fail("scroll", e)
     shutil.rmtree(frames, ignore_errors=True)
     og_img, og_vid = res.get("og_image"), res.get("og_video")
-    if not res.get("ok"):
+    if not res.get("ok") and not http_error:
         try:
             og_img, og_vid, t2 = _og_from_html(ctx.http, url)
             title = t2 or title
