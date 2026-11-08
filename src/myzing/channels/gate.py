@@ -50,6 +50,15 @@ def _visuals(d: Path, pack: str = "zing") -> list[dict]:
     return chosen
 
 
+def _older(d: Path, video: Path, pack: str) -> bool:
+    data = d / f"data{render.suffix('9x16', pack)}.json"
+    if not _read(data, {}).get("shots"):     # rights metadata alone does not describe a render
+        return False
+    inputs = [d / "plan.json", data, d / "visuals" / "picks.json", d / "visuals" / "manifest.json",
+              d / "words.json", d / "cams.json", d / "cut.mp4"]
+    return any(p.is_file() and p.stat().st_mtime_ns > video.stat().st_mtime_ns for p in inputs)
+
+
 def _manual_count(channel: dict) -> int:
     from .queue import read
     return sum(row.get("manual", False) for row in read(channel["slug"]) if row["status"] in ("queued", "kit", "posted"))
@@ -94,6 +103,8 @@ def check(project: Path, clip: str, channel: dict, *, now: datetime | None = Non
     video = d / f"clip{render.suffix('9x16', pack)}.mp4"
     if not video.is_file():
         blockers.append("The 9x16 render is missing.")
+    elif _older(d, video, pack):
+        blockers.append("The 9x16 render is older than its plan.")
     if not (d / "post.json").is_file():
         blockers.append("Post copy is missing.")
     elif any(LOCAL.search(str(_read(d / "post.json", {}).get(field, ""))) for field in postcopy.FIELDS):

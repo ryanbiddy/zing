@@ -129,7 +129,7 @@ def download(url: str, path: Path, *, root: Path, cap: int = CAP, stop=None) -> 
         tmp.unlink(missing_ok=True)
 
 
-def _items(src: dict, root: Path, fetch, search, resolve, stop=None):
+def _items(src: dict, root: Path, fetch, search, resolve, stop=None, errors=None):
     kind = src["kind"]
     if kind in ("folder", "own", "recordings"):
         folder = Path(src["url"]).expanduser().resolve()
@@ -141,7 +141,12 @@ def _items(src: dict, root: Path, fetch, search, resolve, stop=None):
                 modified = datetime.fromtimestamp(media.stat().st_mtime, timezone.utc)
                 if kind == "recordings" and src.get("since") and modified.date().isoformat() < src["since"]:
                     continue
-                info = batch._settings(media, {})
+                try:
+                    info = batch._settings(media, {})
+                except (OSError, ValueError, TypeError, FactoryError) as exc:
+                    if errors is not None:
+                        errors.append(f"{src['id']} {media.name} {exc}")
+                    continue
                 yield {"id": hashlib.sha256(str(media).encode()).hexdigest(), "title": info["name"] or media.stem,
                        "url": info["url"] or "", "published": info["date"] or modified.isoformat(),
                        "media": str(media), "own": kind in ("own", "recordings")}
@@ -255,6 +260,11 @@ def _recording(slug: str, item: dict, project: Path, settings: dict, now: dateti
     if registry.paused(slug) or stop and stop():
         return False
     project.parent.mkdir(parents=True, exist_ok=True)   # a new channel has no projects folder yet
+    stat = media.stat()
+    if stamp != {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}:
+        shutil.rmtree(stage)
+        item["state"] = "found, changed during intake"
+        return False
     stage.replace(project)
     brief.recorded(slug, project, take)
     item.update(take)
@@ -273,7 +283,10 @@ def _start(slug: str, src: dict, item: dict, root: Path, now: datetime, stop=Non
             raise registry.ChannelError(f"{project.name} belongs to another episode")
         if src["kind"] == "recordings":
             take = pipeline._read(project / "recording.json", {})
-            brief.recorded(slug, project, take)
+            saved = pipeline._read(root / "brief" / take["brief"] / "brief.json", {}) if take.get("brief") else {}
+            chosen = next((i for i in saved.get("items", []) if i["n"] == take["item"]), {})
+            if not chosen.get("project") or Path(chosen["project"]).resolve() == project:
+                brief.recorded(slug, project, take)
             item.update(take)
         item.update(project=str(project), started_at=cfg["created"])
         return False
@@ -334,7 +347,7 @@ def run(slug: str, *, fetch=None, downloader=None, search=None, resolve=None, no
         changed = False
         known = registry.effective_rights(src, now) != "unknown"
         try:
-            for item in _items(src, root, fetch, search, resolve, stopped):
+            for item in _items(src, root, fetch, search, resolve, stopped, result["errors"]):
                 if stopped():
                     break
                 if item["id"] not in seen:
