@@ -110,7 +110,8 @@ def _centers(framing, times):
 
 def _vertical(clip, tracks, source_height):
     """Highest headroom line of any subject and the preferred subjects' vertical span."""
-    in_range = [t for t in tracks if t.keyframes[0].time <= clip.src_out and t.keyframes[-1].time >= clip.src_in]
+    in_range = [t for t in tracks if min(t.keyframes[-1].time, clip.src_out) > max(t.keyframes[0].time, clip.src_in)
+                or len(t.keyframes) == 1 and clip.src_in <= t.keyframes[0].time < clip.src_out]
     in_range = [t for t in in_range if is_face(t)] or in_range
     people = any(not t.id.startswith("saliency-") for t in in_range)
     boxes, preferred = [], []

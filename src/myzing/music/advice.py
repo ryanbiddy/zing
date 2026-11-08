@@ -44,6 +44,7 @@ def _attacks(entry):
 
 
 REGION_TOLERANCE = .02
+SILENCE_DBFS = -60.0
 SPEECH_SPREAD_DB, SPEECH_ATTACKS = 6.0, 1.5
 MONTAGE_RISE_DB, MONTAGE_ATTACKS = 3.0, 1.5
 
@@ -76,6 +77,7 @@ def _window(audio, start, length, pace):
     end = min(audio.duration_seconds, start + length)
     energy = [e for e in s.energy if start <= e["time"] < end] if s else []
     levels = [e["rms_dbfs"] for e in energy]
+    silent = bool(levels) and median(levels) <= SILENCE_DBFS  # measured silence, not missing analysis
     quarter = max(1, len(levels) // 4)
     rise = median(levels[-quarter:]) - median(levels[:quarter]) if levels else None
     spread = _percentile(levels, .9) - _percentile(levels, .1) if levels else None
@@ -94,7 +96,7 @@ def _window(audio, start, length, pace):
         ceiling = _percentile(levels, .85)
         intro = next((e["time"] - start for i, e in enumerate(energy)
                       if len(levels[i:i + 4]) == 4 and median(levels[i:i + 4]) >= ceiling - 5), None)
-    return {"start": start, "end": end, "rise_db": rise, "spread_db": spread,
+    return {"start": start, "end": end, "rise_db": rise, "spread_db": spread, "silent": silent,
             "density": density, "moment": moment, "drops": [m for m in moments if m.kind == "drop"],
             "pace_fit": fit, "has_pulse": bool(bpms), "intro_seconds": intro}
 
@@ -109,11 +111,11 @@ def _points(window, mode, vocal_status):
     intro_points = 0 if intro is None else 1 if intro <= short else .5 if intro <= max(short, 6) else 0
     if mode == "speech-led":
         return {"vocals": 1 if vocal_status == "not_detected" else .7 if vocal_status == "unknown" else 0,
-                "energy": (1 if spread <= SPEECH_SPREAD_DB and density <= SPEECH_ATTACKS else .5 if spread <= 10 else 0) if spread is not None else 0,
+                "energy": (1 if spread <= SPEECH_SPREAD_DB and density <= SPEECH_ATTACKS else .5 if spread <= 10 else 0) if spread is not None and not window["silent"] else 0,
                 "moment": 0 if window["drops"] else 1, "intro": intro_points}
     moment = window["moment"]
     return {"pace": pace, "moment": 1 if moment and moment.kind == "drop" else .5 if moment else 0,
-            "energy": (1 if rise >= MONTAGE_RISE_DB and active else .4 if active else 0) if rise is not None else 0,
+            "energy": (1 if rise >= MONTAGE_RISE_DB and active else .4 if active else 0) if rise is not None and not window["silent"] else 0,
             "intro": intro_points}
 
 
@@ -179,6 +181,8 @@ def rate(audio, *, length=30.0, speech=False, pace=None, purpose="", license_rec
     rise, spread, density = (window[k] for k in ("rise_db", "spread_db", "density"))
     if rise is None:
         energy_reason = "Energy evidence is missing; analyze the track again before matching its arc to the edit."
+    elif window["silent"]:
+        energy_reason = "This excerpt is silent. Choose an excerpt with audible music."
     elif speech:
         # Each sentence names the rule that actually failed (docs/MUSIC.md).
         swings, busy = spread > SPEECH_SPREAD_DB, density > SPEECH_ATTACKS

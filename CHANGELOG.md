@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Record local study source hashes, split cuts outside transition legs, keep crops
+  within each shot and handle thin contact-sheet frames. Assign overlapping caption
+  words once and give silent music excerpts zero energy points.
 - Check kept reference copies by hash, stage media atomically and stop download
   child processes on timeout or error. Keep caption times aligned on low frame-rate
   videos, handle scattered speech and report failed transition detection as not measured.
