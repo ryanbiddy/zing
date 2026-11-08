@@ -15,7 +15,8 @@ import secrets
 import threading
 import time
 from functools import cache
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import socketserver
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as _ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -220,6 +221,14 @@ class Studio:
         if not target.is_relative_to(self.project / parts[0]) or target.suffix.lower() not in MEDIA or not target.is_file():
             raise FactoryError("not found")
         return target
+
+
+class ThreadingHTTPServer(_ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer.server_bind calls socket.getfqdn(), a reverse lookup that can
+        # stall for 30 s or more on macOS. A loopback-only server has no use for it.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 def handler(studio: Studio, port: int, token: str, on_request=None):
