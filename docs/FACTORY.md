@@ -17,6 +17,18 @@ closed, and `--idle-minutes N` to change the 60-minute idle limit. The minimum
 is 1 minute. The same item reuses its project and keeps edits. Uoink's button
 uses `--probe --json` to check support and `--json` to read the dashboard URL.
 See the [hand-off contract](UOINK-MEMORY.md#hand-off-with-uoink).
+\n## Hermes Agent
+
+The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
+Zing command. Start with `factory_new`, call `factory_run` and poll
+`factory_status`. Hermes answers each `factory_prompt` through `factory_answer`,
+then resumes the run. Use `factory_clip` for new cuts and `factory_edit` for
+caption, hook, copy or visual changes. Return the review page and receipts.
+
+MCP hints mark `factory_status` and `factory_prompt` as read-only. The other
+factory tools write files and can replace existing work. `factory_run` can
+fetch visuals, so its open-world hint is true even when a project is offline.
+Hosts apply their own approval rules. See [Tool hints](CONNECT.md#tool-hints).
 \n## Connect an agent
 
 Run `zing connect` to list agent apps, then `zing connect claude-desktop`

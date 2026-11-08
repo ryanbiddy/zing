@@ -4,6 +4,10 @@
 
 - Add `zing from-uoink` for Uoink's saved-item button and optional source capture
   through `study_video` when Uoink advertises `uoink.capture/1`.
+- Add read-only, destructive, idempotent and open-world MCP hints for all 44 tools.
+  Hosts can use them to approve read-only calls without prompting.
+- Add a portable Hermes Agent plugin for installed Zing, with app detection,
+  approval gates and a skill for factory clips, reference study, renders and memes.
 - Add `zing channels setup --suggest` to propose channels and check their public
   feeds. Choose `--judge host` to answer a saved prompt or `--judge claude`.
 - Add `zing channels setup` to rank candidate channels, save a watch list and
