@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Check kept reference copies by hash, stage media atomically and stop download
+  child processes on timeout or error. Keep caption times aligned on low frame-rate
+  videos, handle scattered speech and report failed transition detection as not measured.
 - Keep finished match and render results during MCP polling and record factory
   setup failures. Return OTIO probe errors as data and omit paths from shot-list
   import errors.
