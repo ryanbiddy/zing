@@ -741,6 +741,15 @@ Visual swaps and hook edits rewrite the receipt when the plan is finalized again
 The receipt leaves `post.json` alone. It records planned additions and makes no
 promise about platform reach, monetization or originality decisions.
 
+## Study a reference video
+
+- Reference studies check kept copies by SHA-256 and publish staged media only
+  after the copy finishes. Download timeouts and errors stop child processes too.
+- Caption samples follow decoded frame times on low frame-rate videos. Music
+  detection stays inconclusive when speech is present but no one-second bucket
+  is mostly speech.
+- Failed transition detection is reported as not measured.
+
 ## Learn a style from a clip you like
 
 ```bash

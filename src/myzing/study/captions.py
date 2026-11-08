@@ -460,6 +460,8 @@ def _iter_frames(
             t = frame_index / fps
             frame_index += 1
             if t + 1e-9 >= schedule[want][0]:
+                while want + 1 < len(schedule) and t + 1e-9 >= schedule[want + 1][0]:
+                    want += 1
                 yield schedule[want][0], schedule[want][1], frame
                 want += 1
     finally:

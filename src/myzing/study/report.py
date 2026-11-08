@@ -68,6 +68,8 @@ def _pacing(b: Breakdown) -> str:
         lines.append(
             f"- transitions: {len(b.transitions)} observed (see Transitions)"
         )
+    elif b.provenance.get("transition_status") == "failed":
+        lines.append("- transitions: not measured, detection failed")
     elif _transition_ran(b):
         lines.append("- transitions: detector ran, none observed")
     else:
@@ -78,7 +80,7 @@ def _pacing(b: Breakdown) -> str:
 def _transition_ran(b: Breakdown) -> bool:
     """Detection is opt-in (C-Q12); the detector self-records under a
     transition* provenance key when it actually ran."""
-    return any(key.startswith("transition") for key in b.provenance)
+    return b.provenance.get("transition_status") != "failed" and any(key.startswith("transition") for key in b.provenance)
 
 
 def _transition_line(t) -> str:
@@ -99,8 +101,7 @@ def _transition_line(t) -> str:
 
 
 def _transitions(b: Breakdown) -> str:
-    """Honest in all three states (A-Q11): observations rendered plainly;
-    ran-but-none stated; not-run stated as opt-in, never implied-measured."""
+    """Distinguish observed, measured-empty, failed and not-run detection."""
     if b.transitions:
         lines = ["## Transitions", ""]
         lines += [
@@ -108,6 +109,8 @@ def _transitions(b: Breakdown) -> str:
             for t in sorted(b.transitions, key=lambda t: t.start)
         ]
         return "\n".join(lines)
+    if b.provenance.get("transition_status") == "failed":
+        return "## Transitions\n\nTransitions were not measured because detection failed."
     if _transition_ran(b):
         return (
             "## Transitions\n\n(detector ran: no transitions beyond plain "

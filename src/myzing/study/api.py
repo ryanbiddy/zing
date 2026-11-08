@@ -212,6 +212,7 @@ def study(
                     "recorded in provenance"
                 )
                 provenance.update(transitions_mod.detector_provenance())
+                provenance["transition_status"] = "failed"
             else:
                 transitions = transitions_r.transitions
                 warnings += transitions_r.warnings
