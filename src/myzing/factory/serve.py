@@ -13,8 +13,10 @@ import queue
 import re
 import secrets
 import threading
+import time
 from functools import cache
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import socketserver
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as _ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -221,7 +223,15 @@ class Studio:
         return target
 
 
-def handler(studio: Studio, port: int, token: str):
+class ThreadingHTTPServer(_ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer.server_bind calls socket.getfqdn(), a reverse lookup that can
+        # stall for 30 s or more on macOS. A loopback-only server has no use for it.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
+def handler(studio: Studio, port: int, token: str, on_request=None):
     hosts = {f"127.0.0.1:{port}", f"localhost:{port}"}
     actions = {"/api/run": studio.run, "/api/rate": studio.rate, "/api/visual": studio.visual,
                "/api/text": studio.text, "/api/render": studio.rerender, "/api/clip": studio.clip,
@@ -231,6 +241,12 @@ def handler(studio: Studio, port: int, token: str):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):                   # quiet; the page shows state
             pass
+
+        def parse_request(self):
+            parsed = super().parse_request()
+            if parsed and on_request:
+                on_request()
+            return parsed
 
         def _headers(self, code: int, length: int, kind: str, extra: dict | None = None) -> None:
             self.send_response(code)
@@ -354,14 +370,29 @@ def handler(studio: Studio, port: int, token: str):
     return Handler
 
 
-def serve(project: Path, port: int = 8765, judge: str = "host", say=print) -> None:
+def serve(project: Path, port: int = 8765, judge: str = "host", say=print, *, ready=None,
+          idle_seconds: float | None = None) -> None:
     studio = Studio(project, judge)
     token = secrets.token_urlsafe(24)
     server = ThreadingHTTPServer(("127.0.0.1", port), BaseHTTPRequestHandler)
-    server.RequestHandlerClass = handler(studio, server.server_port, token)
-    say(f"Open http://127.0.0.1:{server.server_port}/?t={token}  (Ctrl+C to stop)")
+    last_request = time.monotonic()
+
+    def touched():
+        nonlocal last_request
+        last_request = time.monotonic()
+
+    server.RequestHandlerClass = handler(studio, server.server_port, token, touched)
     try:
-        server.serve_forever()
+        page = f"http://127.0.0.1:{server.server_port}/?t={token}"
+        say(f"Open {page}  (Ctrl+C to stop)")
+        if ready:
+            ready(page)
+        if idle_seconds is None:
+            server.serve_forever()
+        else:
+            while (remaining := idle_seconds - (time.monotonic() - last_request)) > 0:
+                server.timeout = min(0.5, remaining)
+                server.handle_request()
     except KeyboardInterrupt:
         pass
     finally:

@@ -12,6 +12,25 @@ library. `distill --scope TEXT` can override its saved label. The default is
 `YouTube Shorts`. List and measure warn when fewer than 8 channels are available
 for distill. See [Set the cohort scope](PLAYBOOK.md#set-the-cohort-scope).
 
+## Hand-off with Uoink
+
+`zing from-uoink uoink:short-123` starts a factory project from the item's kept
+video and opens the review dashboard. Press Run to begin. The host judge is
+the default; `--judge claude` uses Claude Code. The source title and link are
+saved when available. The media stays in Uoink.
+
+If Uoink did not keep the video, add `--allow-download` to fetch its source
+into the project's `source/` folder. Rights stay `unknown`, so the posting
+gate still applies. Progress goes to stderr. With `--json`, stdout has one
+readiness line after the download, including a `downloaded` flag. Reusing
+the same project does not download again.
+
+Use `--project DIR` to choose the folder, `--no-open` to leave the browser
+closed, and `--idle-minutes N` to change the 60-minute idle limit. The minimum
+is 1 minute. The same item reuses its project and keeps edits. Uoink's button
+uses `--probe --json` to check support and `--json` to read the dashboard URL.
+See the [hand-off contract](UOINK-MEMORY.md#hand-off-with-uoink).
+
 ## Hermes Agent
 
 The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
@@ -24,7 +43,8 @@ MCP hints mark `factory_status` and `factory_prompt` as read-only. The other
 factory tools write files and can replace existing work. `factory_run` can
 fetch visuals, so its open-world hint is true even when a project is offline.
 Hosts apply their own approval rules. See [Tool hints](CONNECT.md#tool-hints).
-\n## Connect an agent
+
+## Connect an agent
 
 Run `zing connect` to list agent apps, then `zing connect claude-desktop`
 to print a config for one. Merge the entry into the app's settings to use the

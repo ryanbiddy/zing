@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import http.client
 import json
+import math
 import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -317,6 +319,120 @@ def resolve_kept_media(item_ref: str) -> dict[str, Any]:
 
 
 SEARCH_CAPABILITY = "uoink.corpus.read/1"
+CAPTURE_CAPABILITY = "uoink.capture/1"
+_CAPTURE_KEYS = {"ok", "contract", "version", "status", "source", "item_id", "job_id", "canonical", "item_uri"}
+_CAPTURE_ERROR_KEYS = {"ok", "contract", "version", "error", "message"}
+_CAPTURE_ERRORS = ("bad_request", "unsupported_url", "consent_required", "media_unavailable", "busy",
+                   "not_found", "capture_failed")
+
+
+def parse_capture_response(body: Any) -> dict[str, Any]:
+    invalid = _err("Uoink capture response is not contract-conformant. Expected uoink.capture v1 with exact keys.",
+                   code="contract_mismatch")
+    if (not isinstance(body, dict) or body.get("contract") != "uoink.capture"
+            or type(body.get("version")) is not int or body["version"] != 1):
+        return invalid
+    if body.get("ok") is False:
+        if (set(body) != _CAPTURE_ERROR_KEYS or body["error"] not in _CAPTURE_ERRORS
+                or not isinstance(body["message"], str)):
+            return invalid
+        return {**body, "message": redact(body["message"])}
+    if (set(body) - {"message"} != _CAPTURE_KEYS or body["ok"] is not True        # saves and job errors may add a message
+            or not isinstance(body.get("message", ""), str)
+            or body["status"] not in ("saved", "queued", "exists", "error")
+            or not isinstance(body["source"], str) or not is_http_url(body["canonical"])
+            or any(body[key] is not None and not isinstance(body[key], str) for key in ("item_id", "job_id"))):
+        return invalid
+    if body["item_uri"] is not None:
+        item_id = _item_id_from_ref(body["item_uri"])
+        if item_id is None or item_id != body["item_id"]:
+            return invalid
+    if any(isinstance(value, str) and redact(value) != value for value in body.values()):
+        return invalid
+    return body
+
+
+def _capture_request(url: str, token: str, payload: dict | None = None, timeout: float = _TIMEOUT) -> dict[str, Any]:
+    request = urllib.request.Request(credential_safe_url(url), method="GET" if payload is None else "POST",
+                                     data=None if payload is None else json.dumps(payload).encode("utf-8"))
+    request.add_unredirected_header("X-Uoink-Token", token)
+    if payload is not None:
+        request.add_header("Content-Type", "application/json")
+    try:
+        try:
+            response = urls.open_no_redirect(request, timeout=timeout)
+        except urllib.error.HTTPError as error:
+            if 300 <= error.code < 400:
+                error.close()
+                return _err("Uoink capture refused a redirect.", code="peer_error")
+            if error.code in (401, 403):              # the shared token gate answers outside the capture contract
+                error.close()
+                return _err("Uoink refused the token. Check UOINK_TOKEN.", code="unauthorized")
+            response = error
+        with response:
+            raw = response.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            return parse_capture_response(None)
+        result = parse_capture_response(json.loads(raw.decode("utf-8")))
+        if response.status >= 400 and result["ok"]:
+            return parse_capture_response(None)
+        return result
+    except (ValueError, RecursionError):
+        return parse_capture_response(None)
+    except (OSError, http.client.HTTPException):
+        return _err("Uoink capture is unavailable. Check that Uoink is running.", code="unavailable")
+
+
+def capture(url: str, *, source_hint: str | None = None, wait_seconds: float = 0) -> dict[str, Any]:
+    """Save a source link only when Uoink advertises the capture contract."""
+    if not is_http_url(url):
+        return _err("Capture needs an HTTP or HTTPS URL.", code="unsupported_url")
+    if (type(wait_seconds) not in (int, float) or not math.isfinite(wait_seconds) or wait_seconds < 0
+            or (source_hint is not None and not isinstance(source_hint, str))):
+        return _err("Use a text source hint and a nonnegative wait in seconds.", code="invalid_input")
+    try:
+        credential_safe_url(url)
+        if source_hint is not None and redact(source_hint) != source_hint:
+            raise ValueError
+    except ValueError:
+        return _err("Remove the Uoink credential from the capture input.", code="invalid_input")
+    token = _token()
+    if not token:
+        return _err("Configure UOINK_TOKEN to save a source in Uoink.", code="unconfigured")
+    try:
+        base = credential_safe_url(helper_url())
+        status, manifest = suite_peer._get_json(base + "/.well-known/suite-service.json")
+        if status != 200 or suite_peer._manifest_defect(manifest) is not None:
+            return _err("Uoink capture service manifest is nonconformant.", code="contract_mismatch")
+        service = manifest["service"]
+        if service["id"] != "uoink":
+            return _err("The capture endpoint is not Uoink.", code="wrong_service")
+        if CAPTURE_CAPABILITY not in service["capabilities"]:
+            return _err("Uoink does not advertise uoink.capture/1.", code="unsupported_capability")
+    except suite_peer.UoinkResolutionError as error:
+        return _err("Uoink capture discovery failed.", code=error.code)
+    except (ValueError, RecursionError):
+        return _err("Uoink capture service manifest is nonconformant.", code="contract_mismatch")
+    except (OSError, http.client.HTTPException):
+        return _err("Uoink capture is unavailable. Check that Uoink is running.", code="unavailable")
+    payload = {"url": url, **({"source_hint": source_hint} if source_hint is not None else {})}
+    result = _capture_request(base + "/api/suite/v1/capture", token, payload)
+    deadline = time.monotonic() + wait_seconds
+    job = result.get("job_id")
+    while result["ok"] and result.get("status") == "queued" and job:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(2, remaining))
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        route = base + "/api/suite/v1/capture/" + urllib.parse.quote(job, safe="").replace(".", "%2E")
+        polled = _capture_request(route, token, timeout=min(_TIMEOUT, remaining))
+        if not polled["ok"] and polled.get("code") == "unavailable" and time.monotonic() >= deadline:
+            break                               # the wait ran out mid-poll; Uoink is still working
+        result = polled
+    return result
 
 
 def search_references(query: str) -> dict[str, Any]:

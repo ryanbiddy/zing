@@ -498,9 +498,12 @@ def _run_study(
 def h_study_video(
     url_or_path: str, kept_media: str | None = None, ref_start: str | float | None = None,
     ref_end: str | float | None = None, reference_range: str | None = None,
+    save_source_to_uoink: bool = False,
 ) -> dict[str, Any]:
     if not isinstance(url_or_path, str) or not url_or_path.strip():
         return _err("url_or_path required: a video URL or a local file path")
+    if not isinstance(save_source_to_uoink, bool):
+        return _err("save_source_to_uoink must be true or false.")
     source = url_or_path.strip()
     # B-S6 seam: a locally kept copy of the URL source (uoink keep_media
     # sidecar hands us a path; corpus-id resolution arrives with contract
@@ -554,7 +557,14 @@ def h_study_video(
     except ValueError as exc:
         return _err(str(exc))
     trim = {k: v for k, v in dict(ref_start=ref_start, ref_end=ref_end, reference_range=reference_range).items() if v is not None}
-    return _dispatch_study(api, source, kept, **({"trim": trim} if trim else {}))
+    extra = {}
+    if save_source_to_uoink and is_http_url(source):
+        from myzing.uoink_bridge import capture
+        try:
+            extra["uoink_capture"] = capture(source)
+        except Exception:
+            extra["uoink_capture"] = {"ok": False, "error": "Uoink capture failed.", "code": "failed"}
+    return {**_dispatch_study(api, source, kept, **({"trim": trim} if trim else {})), **extra}
 
 
 def _engine_supports(api: Any, param: str) -> bool:

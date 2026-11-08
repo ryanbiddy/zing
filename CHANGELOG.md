@@ -4,6 +4,10 @@
 
 - Add `playbook list --scope` and `distill --scope` for cohort labels, defaulting
   to `YouTube Shorts`. List and measure warn when a library has fewer than 8 channels.
+- Add `zing from-uoink --allow-download` to fetch videos Uoink did not keep,
+  with download progress on stderr and rights left unknown.
+- Add `zing from-uoink` for Uoink's saved-item button and optional source capture
+  through `study_video` when Uoink advertises `uoink.capture/1`.
 - The learning report says which series beat, matched or trailed the channel's
   typical views.
 - Report safe download errors in `playbook measure`, pause after repeated YouTube

@@ -51,7 +51,7 @@ Long description:
 > Pre-alpha; needs Python 3.11+, uv and FFmpeg.
 >
 > Works with Uoink: Zing can study a video you already saved in Uoink, open a
-> saved item in its clip factory with `zing handoff`, and save its breakdown back
+> saved item in its clip factory with `zing from-uoink`, and save its breakdown back
 > as a note. Uoink is optional.
 
 Name Uoink only in long fields, as above, and always say it is optional. Never

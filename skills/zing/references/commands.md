@@ -54,7 +54,42 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
+| `zing from-uoink` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
 | `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
+
+## Hand-off with Uoink
+
+```sh
+zing from-uoink --probe --json
+zing from-uoink uoink:short-123 --json --no-open
+zing from-uoink uoink:short-123 --allow-download --json --no-open
+zing from-uoink uoink://item/short-123 --project ./episode --judge claude --idle-minutes 30
+```
+
+`--probe` prints the supported contract, installed version and
+`features: ["allow_download"]` without network access. `REF` accepts either
+Uoink item form. `--json` prints one readiness envelope with the absolute
+project path, dashboard URL, item reference and
+the `reused` and `downloaded` flags. Errors print a JSON envelope and exit 1.
+
+`--allow-download` permits a source download when Uoink did not keep the
+video. Without it, a known source URL returns `error="download_needed"`. Downloads
+go in `<project>/source/` and time out after one hour. Failures return
+`error="download_failed"`. Rights stay `unknown`, so the posting gate still applies.
+Progress goes to stderr as JSON lines with `--json`, or `Downloading 42%`
+in plain mode. The first stdout line arrives after the download. Kept media
+and reused projects report `downloaded` as `false`.
+
+`--project DIR` chooses the project folder. By default it goes under
+`<ZING_HOME or ~/.zing>/handoff/`, with a safe title slug and a short item hash.
+The same item reuses its project; another project in the folder is refused.
+`--judge host` is the default. Press Run on the page, then answer its pending
+prompts through the factory commands or MCP tools. `--judge claude` uses
+Claude Code. `--no-open` leaves the browser closed. `--idle-minutes N` sets
+the limit without HTTP requests, default 60 and minimum 1 whole minute.
+Ctrl+C or the idle limit stops the server with exit 0.
+
+See the [button contract and capture behavior](https://github.com/ryanbiddy/zing/blob/main/docs/UOINK-MEMORY.md#hand-off-with-uoink).
 
 ## Channels
 
