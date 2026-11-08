@@ -5,6 +5,10 @@
 - Fix daily brief take stats with quick speech models, serialize builds and answers,
   and repair stale latest pages. News skips malformed links, shares YouTube IDs
   across feeds and keeps uploads without view counts.
+- Preserve Unicode text in JSONL and save channel queues atomically. Refund failed
+  upload sessions, keep scheduled uploads scheduled and link manual posts before
+  uploading. Analytics uses Pacific dates and retries incomplete runs after an hour.
+  Duplicate feed entries prefer exact Shorts metadata.
 - Add `zing channels setup --from-scan` to reuse niche scan candidates, choose
   a niche with `--scan-niche` and record the scan source and any channels left out.
 - Add `playbook list --scope` and `distill --scope` for cohort labels, defaulting

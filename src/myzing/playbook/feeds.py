@@ -138,7 +138,7 @@ def listing(channel_id: str, *, runner=None, now=None, watch_only: bool = False)
         if result.returncode and not result.stdout.strip():
             failed.append(result.returncode)
             continue
-        entries = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+        entries = [json.loads(line.rstrip("\r")) for line in result.stdout.split("\n") if line.strip()]
         if tab == "shorts":
             shorts = {safe_name(row["id"]): row for row in entries[:15] if row.get("id")}
             entries = []
@@ -146,8 +146,8 @@ def listing(channel_id: str, *, runner=None, now=None, watch_only: bool = False)
                 try:
                     result = runner([*argv, "--ignore-config", "--no-update", "--skip-download", "--no-playlist", "-j",
                                      *[f"https://www.youtube.com/shorts/{ident}" for ident in shorts]], timeout=180)
-                    entries = [{**shorts[row["id"]], **row} for line in result.stdout.splitlines() if line.strip()
-                               and (row := json.loads(line)).get("id") in shorts
+                    entries = [{**shorts[row["id"]], **row} for line in result.stdout.split("\n") if line.strip()
+                               and (row := json.loads(line.rstrip("\r"))).get("id") in shorts
                                and number(row.get("timestamp")) and number(row.get("view_count"))]
                 except (OSError, RuntimeError, subprocess.SubprocessError):
                     pass

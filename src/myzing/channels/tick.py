@@ -154,6 +154,9 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
                         made = kit.kit(slug, now=clock or datetime.now(timezone.utc), stop=stopped)
                         row["kits"] = made["made"]
                         row["blocked"].update(made["blocked"])
+                    if not stopped() and channel["handles"].get("youtube"):
+                        from .outcomes import track
+                        row["tracked"] = track(slug, now=clock or datetime.now(timezone.utc))["matched"]
                     if not stopped() and channel["publish"]["youtube"] != "off":
                         uploaded = publish.upload(slug, now=clock or datetime.now(timezone.utc), stop=stopped)
                         row["uploaded"] = uploaded["uploaded"]
@@ -162,9 +165,6 @@ def run(slugs: list[str] | None = None, *, max_minutes: float = 50, runner=None,
                             row["errors"].append(uploaded["stopped"])
                     if not stopped() and channel.get("youtube") and publish.analytics_due(slug, clock):
                         row["analytics"] = publish.analytics(slug, now=clock, stop=stopped)["matched"]
-                    if not stopped() and channel["handles"].get("youtube"):
-                        from .outcomes import track
-                        row["tracked"] = track(slug, now=clock or datetime.now(timezone.utc))["matched"]
             except Exception as exc:
                 stopped()
                 if not (row.get("stopped") == "paused" and isinstance(exc, registry.ChannelError)):

@@ -28,7 +28,7 @@ def read(path: Path) -> list[dict]:
     if not path.is_file():
         return []
     try:
-        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        rows = [json.loads(line.rstrip("\r")) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()]
         if any(not isinstance(row, dict) for row in rows):
             raise ValueError("rows must be objects")
         return rows
