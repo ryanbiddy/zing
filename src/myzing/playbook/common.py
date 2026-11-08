@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -32,6 +33,26 @@ def safe_name(value: str) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", value):
         raise ValueError("IDs, handles and versions must contain only letters, digits, _ or -")
     return value
+
+
+def scope_text(value: str | None) -> str:
+    if value is None:
+        return "YouTube Shorts"
+    if not isinstance(value, str):
+        raise ValueError("scope must be plain text")
+    value = " ".join(value.split())
+    if not 1 <= len(value) <= 120 or not value.isprintable():
+        raise ValueError("scope must be 1 to 120 printable characters")
+    return value
+
+
+def warn_channels(data: dict) -> None:
+    from .distill import Thresholds
+    minimum = Thresholds().min_channels
+    count = len({entry["channel"] for entry in data["entries"]})
+    if count < minimum:
+        print(f"distill needs at least {minimum} channels to keep a pattern; this library has {count}. "
+              "Add channels, or pass --min-channels N to distill.", file=sys.stderr)
 
 
 def number(value) -> bool:

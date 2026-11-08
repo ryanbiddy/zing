@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `playbook list --scope` and `distill --scope` for cohort labels, defaulting
+  to `YouTube Shorts`. List and measure warn when a library has fewer than 8 channels.
 - Add `zing from-uoink --allow-download` to fetch videos Uoink did not keep,
   with download progress on stderr and rights left unknown.
 - Add `zing from-uoink` for Uoink's saved-item button and optional source capture

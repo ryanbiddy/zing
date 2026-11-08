@@ -5,6 +5,13 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
+## Playbook cohorts
+
+Use `zing playbook list --scope "Developer channel Shorts"` to label a comparison
+library. `distill --scope TEXT` can override its saved label. The default is
+`YouTube Shorts`. List and measure warn when fewer than 8 channels are available
+for distill. See [Set the cohort scope](PLAYBOOK.md#set-the-cohort-scope).
+
 ## Hand-off with Uoink
 
 `zing from-uoink uoink:short-123` starts a factory project from the item's kept
@@ -23,7 +30,8 @@ closed, and `--idle-minutes N` to change the 60-minute idle limit. The minimum
 is 1 minute. The same item reuses its project and keeps edits. Uoink's button
 uses `--probe --json` to check support and `--json` to read the dashboard URL.
 See the [hand-off contract](UOINK-MEMORY.md#hand-off-with-uoink).
-\n## Hermes Agent
+
+## Hermes Agent
 
 The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
 Zing command. Start with `factory_new`, call `factory_run` and poll
@@ -35,7 +43,8 @@ MCP hints mark `factory_status` and `factory_prompt` as read-only. The other
 factory tools write files and can replace existing work. `factory_run` can
 fetch visuals, so its open-world hint is true even when a project is offline.
 Hosts apply their own approval rules. See [Tool hints](CONNECT.md#tool-hints).
-\n## Connect an agent
+
+## Connect an agent
 
 Run `zing connect` to list agent apps, then `zing connect claude-desktop`
 to print a config for one. Merge the entry into the app's settings to use the

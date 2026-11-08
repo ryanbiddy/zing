@@ -7,6 +7,7 @@ from pathlib import Path
 
 
 def run(argv: list[str]) -> int:
+    from .distill import Thresholds
     parser = argparse.ArgumentParser(prog="zing playbook")
     commands = parser.add_subparsers(dest="command", required=True)
     listing = commands.add_parser("list", help="list channel Shorts metadata or import pilot candidates")
@@ -16,6 +17,7 @@ def run(argv: list[str]) -> int:
     listing.add_argument("--out", type=Path, required=True)
     listing.add_argument("--skip-newest", type=int, default=10)
     listing.add_argument("--k", type=int, default=5)
+    listing.add_argument("--scope", metavar="TEXT", help="cohort label, up to 120 characters (default YouTube Shorts)")
     measure = commands.add_parser("measure", help="measure local media; fetching requires --download")
     measure.add_argument("directory", type=Path)
     measure.add_argument("--media-dir", type=Path)
@@ -52,9 +54,10 @@ def run(argv: list[str]) -> int:
     distill = commands.add_parser("distill", help="compare the two sets and write publishable patterns")
     distill.add_argument("directory", type=Path)
     distill.add_argument("--version", required=True)
+    distill.add_argument("--scope", metavar="TEXT", help="override the library's cohort label, up to 120 characters")
     for name, kind, default in (("min-n", int, 20), ("min-delta", float, .33),
                                 ("min-rate-diff", float, .15), ("min-consistency", float, .6),
-                                ("min-channel-n", int, 3), ("min-channels", int, 8), ("bootstrap-samples", int, 2000), ("seed", int, 42)):
+                                ("min-channel-n", int, 3), ("min-channels", int, Thresholds().min_channels), ("bootstrap-samples", int, 2000), ("seed", int, 42)):
         distill.add_argument("--" + name, type=kind, default=default)
     distill.add_argument("--multiple-testing", choices=("bonferroni", "none"), default="bonferroni")
     args = parser.parse_args(argv)
@@ -65,7 +68,8 @@ def run(argv: list[str]) -> int:
             if len(channels) == 1 and Path(channels[0]).is_file():
                 channels = [word for line in Path(channels[0]).read_text(encoding="utf-8-sig").splitlines()
                             for word in line.split("#", 1)[0].split()]
-            result = build(args.out, channels, from_candidates=args.from_candidates, skip_newest=args.skip_newest, k=args.k)
+            result = build(args.out, channels, from_candidates=args.from_candidates, skip_newest=args.skip_newest,
+                           k=args.k, scope=args.scope)
             print(json.dumps({"entries": len(result["entries"]), "channels": result["channels"]}, indent=2))
             return int(any(s.get("status") == "failed" for s in result["channels"].values()))
         if args.command == "measure":
@@ -98,9 +102,9 @@ def run(argv: list[str]) -> int:
             from .niches import prior
             result = prior(args.directory, args.niche, args.out)
         else:
-            from .distill import Thresholds, distill
+            from .distill import distill
             thresholds = Thresholds(**{name: getattr(args, name) for name in Thresholds.__dataclass_fields__})
-            data = distill(args.directory, version=args.version, thresholds=thresholds)
+            data = distill(args.directory, version=args.version, thresholds=thresholds, scope=args.scope)
             result = {"kept": len(data["patterns"]), "no_separation": len(data["no_separation"])}
         print(json.dumps(result, indent=2))
         if args.command == "measure":
