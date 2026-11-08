@@ -249,6 +249,7 @@ are present (INTEGRATION-CONTRACT v1):
   failed refetch leaves the study failed rather than guessing. The
   breakdown records whether it used kept media or refetched, with the
   reason. `UOINK_URL` defaults to `http://127.0.0.1:5179`.
+  Local Uoink calls never use a proxy.
 - **Supply the Uoink credential explicitly:** set `UOINK_TOKEN` in the
   environment that launches Zing's MCP server. For an installed Uoink
   helper, the value is stored at
