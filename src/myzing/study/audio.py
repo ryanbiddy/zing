@@ -215,6 +215,10 @@ def _music_heuristic(
         )
         return False, 0.0
 
+    if not speech_buckets:
+        warnings.append("music detection inconclusive because no one-second bucket is mostly speech")
+        return False, 0.0
+
     closeness = median(gap_buckets) - median(speech_buckets)  # dB, usually <0
     if closeness > -18.0:
         # Gaps stay nearly as loud as speech: something sustained is playing.
