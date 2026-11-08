@@ -66,6 +66,11 @@ def _work_directory(directory: Path):
     yield directory                 # no lock file: a crashed render must not block the folder forever
 
 
+def _staged_output(output_path: Path, directory: Path) -> Path:
+    staged = directory / "rendered.mp4"
+    return directory / "rendered-staging.mp4" if staged.resolve() == output_path else staged
+
+
 def _check_work_paths(paths, input_paths, owned_dirs=()):
     paths = set(paths)
     for directory in owned_dirs:
@@ -295,8 +300,9 @@ def _render_in_directory(
         raise RenderError(f"could not create render work directory: {exc}") from exc
     if shutil.which(ffmpeg) is None:
         raise RenderError(f"ffmpeg executable not found: {ffmpeg}")
+    staged_output = _staged_output(output_path, directory)
     _check_work_paths(
-        (directory / name for name in ("captions.ass", "filter graph.txt", "rendered.mp4",
+        (directory / name for name in ("captions.ass", "filter graph.txt", "rendered.mp4", staged_output.name,
                                       "music-stem.wav", "source-stem.wav", "music-duck.wav", "music-measurements.json")),
         {item.path for item in (*validated.clips, *validated.audio_tracks)},
     )
@@ -351,7 +357,6 @@ def _render_in_directory(
         graph_path.write_text(plan.graph, encoding="utf-8")
     except OSError as exc:
         raise RenderError(f"could not write FFmpeg filtergraph: {exc}") from exc
-    staged_output = directory / "rendered.mp4"
     command = _ffmpeg_command(ffmpeg, plan, graph_path, staged_output, validated, fps_rate)
     for label, name in ((plan.music_label, "music-stem.wav"), (plan.source_label, "source-stem.wav")):
         if label:
@@ -361,7 +366,7 @@ def _render_in_directory(
         if delivery is not None:
             from .encoding import encode
             result, command, delivery_receipt = encode(command, delivery, validated.duration,
-                validated.edl.width, validated.edl.height, validated.edl.fps, directory, ffprobe=ffprobe)
+                validated.edl.width, validated.edl.height, validated.edl.fps, directory, ffprobe=ffprobe, output=staged_output)
         else:
             result = subprocess.run(
                 command,
@@ -400,11 +405,11 @@ def _render_in_directory(
         from myzing.project.api import hash_file
         measurements.update(render_sha256=hash_file(staged_output), music_plan=music_metadata)
         (directory / "music-measurements.json").write_text(json.dumps(measurements, indent=2, allow_nan=False), encoding="utf-8")
-    _publish_output(staged_output, output_path)
     if delivery_receipt is not None:
         _publish_output(directory / "delivery-encoding.json", output_path.with_suffix(".encoding.json"))
     if measurements is not None:
         _publish_output(directory / "music-measurements.json", output_path.with_suffix(".music.json"))
+    _publish_output(staged_output, output_path)
     return RenderResult(
         output_path=output_path,
         duration=validated.duration,

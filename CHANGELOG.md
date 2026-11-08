@@ -5,6 +5,13 @@
 - Record local study source hashes, split cuts outside transition legs, keep crops
   within each shot and handle thin contact-sheet frames. Assign overlapping caption
   words once and give silent music excerpts zero energy points.
+- Keep match logs inside their folder, refresh color grades and studio results when
+  the reference range changes, and skip generated clip outputs during preflight.
+  Validate studio choices, lock screen runs and the run's session saves, and remove only
+  project locks left by this run's dead worker on this machine.
+
+- Preserve previous videos when a render fails in a kept work folder or a receipt
+  cannot be published. Keep OTIO audio gaps within the video duration.
 - Check kept reference copies by hash, stage media atomically and stop download
   child processes on timeout or error. Keep caption times aligned on low frame-rate
   videos, handle scattered speech and report failed transition detection as not measured.
