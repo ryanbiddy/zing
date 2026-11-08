@@ -266,9 +266,11 @@ def validate(data: dict) -> dict:
             raise ChannelError(f"{field}.id must be unique")
         ids.add(src["id"])
         _text(src.get("name"), f"{field}.name", required=True)
-        _text(src.get("url", ""), f"{field}.url", required=src.get("kind") == "recordings")   # an empty path reads the current folder
+        _text(src.get("url", ""), f"{field}.url")
         if src.get("kind") not in KINDS:
             raise ChannelError(f"{field}.kind must be one of {', '.join(KINDS)}")
+        if src["kind"] in ("folder", "own", "recordings") and not src.get("url", "").strip():
+            raise ChannelError(f"set {field}.url to the folder to watch")
         if "settle_seconds" in src:
             _integer(src["settle_seconds"], f"{field}.settle_seconds", 0)
         if "since" in src:

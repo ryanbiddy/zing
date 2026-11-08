@@ -119,13 +119,15 @@ def build(slug: str, *, now: datetime | None = None, days: int = 30) -> dict:
     eligible = [item for day, item in items if (today - day).days >= 2]
     totals = Counter(str(item.get("series") or "unknown") for item in eligible)
     recorded = Counter(str(item.get("series") or "unknown") for item in eligible if item.get("status") == "recorded")
-    share = round(sum(recorded.values()) / len(eligible), 2) if eligible else None
+    share = sum(recorded.values()) / len(eligible) if eligible else None
     kept = [item["take"]["kept"] for _, item in items if item.get("status") == "recorded"
             and isinstance(item.get("take"), dict) and number(item["take"].get("kept"))]
-    retention = round(median(kept), 2) if kept else None
+    retention = median(kept) if kept else None
     views, series = [], defaultdict(list)
-    for _, row in measured:
-        value = row.get("views_7d") if number(row.get("views_7d")) else row.get("views_24h")
+    counted = [row for _, row in measured if number(row.get("views_7d")) or number(row.get("views_24h"))]
+    basis = "views_7d" if counted and all(number(row.get("views_7d")) for row in counted) else "views_24h"
+    for row in counted:                                 # one window for every post, so halves compare like with like
+        value = row.get(basis)
         if not number(value):
             continue
         views.append(value)
@@ -149,11 +151,13 @@ def build(slug: str, *, now: datetime | None = None, days: int = 30) -> dict:
     add("days", "Days", age, bar["days"], age >= bar["days"] if age is not None else None,
         f"First brief {first.isoformat()}" if first else "No briefs")
     add("posts", "Posts", len(posts), bar["posts"], len(posts) >= bar["posts"], f"{start.isoformat()} through {today.isoformat()}")
-    add("recorded", "Recorded", share, bar["recorded"], share >= bar["recorded"] if len(eligible) >= 10 else None,
+    add("recorded", "Recorded", round(share, 2) if share is not None else None, bar["recorded"],
+        share >= bar["recorded"] if len(eligible) >= 10 else None,
         ", ".join(f"{name} {recorded[name]}/{n}" for name, n in sorted(totals.items())) or "No items at least 2 days old")
-    add("kept", "Kept", retention, bar["kept"], retention >= bar["kept"] if len(kept) >= 3 else None,
+    add("kept", "Kept", round(retention, 2) if retention is not None else None, bar["kept"],
+        retention >= bar["kept"] if len(kept) >= 3 else None,
         f"{len(kept)} recorded takes with a kept share")
-    detail = [f"earlier half median {_value(earlier)}"]
+    detail = [("7-day" if basis == "views_7d" else "24-hour") + " views", f"earlier half median {_value(earlier)}"]
     detail.extend(f"{name} median {_value(median(values))}" for name, values in sorted(series.items()))
     add("median", "Median views", newer, earlier, newer > earlier if len(views) >= 10 else None, ", ".join(detail))
     add("flags", "Flags", sum(kinds.values()), bar["flags"], sum(kinds.values()) <= bar["flags"],

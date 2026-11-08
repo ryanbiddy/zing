@@ -140,7 +140,7 @@ def test_median_halves_are_chronological_and_odd_row_goes_to_newer_half(channel,
     assert f"earlier half median {earlier}" in row["detail"]
 
 
-def test_median_uses_numeric_seven_day_then_one_day_and_series_arms(channel):
+def test_median_falls_back_to_one_day_for_every_post_when_any_lacks_seven_day(channel):
     data = [measured(i, None if i < 5 else 0, views_24h=100 if i < 5 else 999,
                      arms={"series": "news"} if i < 5 else {}, series="breakdown") for i in range(10)]
     data[0]["views_7d"] = "missing"
@@ -148,8 +148,8 @@ def test_median_uses_numeric_seven_day_then_one_day_and_series_arms(channel):
     data += [measured(12, "bad", views_24h=True), measured(13, None), measured(14, "bad", views_24h="5")]
     outcomes.write(channel["slug"], data)
     row = rows(channel)["median"]
-    assert row["target"] == 100 and row["value"] == 0 and row["met"] is False
-    assert row["detail"] == "earlier half median 100, breakdown median 0, news median 100"
+    assert row["target"] == 100 and row["value"] == 999 and row["met"] is True
+    assert row["detail"] == "24-hour views, earlier half median 100, breakdown median 999, news median 100"
 
 
 def test_channel_local_window_edges_and_posted_slot_fallback(channel):

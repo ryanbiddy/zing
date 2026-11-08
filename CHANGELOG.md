@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Exclude masked posts from channel reward medians, check scorecard shares before
+  rounding, compare the median-views halves on one view window and reject missing
+  folder source paths.
 - Fix `from-uoink` download progress, reject network and device media paths,
   screen lowercased hostnames for credentials, refuse unfinished projects for
   the same item, and return errors for malformed media types.
