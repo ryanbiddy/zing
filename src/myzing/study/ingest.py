@@ -30,6 +30,7 @@ import hashlib
 import json
 import subprocess
 import math
+import re
 import shutil
 import statistics
 import threading
@@ -416,7 +417,7 @@ def download(url: str, dest: Path, *, timeout: float = 600, progress: Callable[[
     if progress is None:
         res = proc.run(cmd, timeout=timeout)
     else:
-        cmd[-1:-1] = ["--newline", "--progress-template", "download:%(progress._percent_str)s"]
+        cmd[-1:-1] = ["--newline", "--progress-template", "download:[zing-progress] %(progress._percent_str)s"]
         res = _download_progress(cmd, timeout, progress)
     if res.returncode != 0:
         raise MediaError(
@@ -452,9 +453,10 @@ def _download_progress(cmd: list[str], timeout: float, progress) -> subprocess.C
     try:
         for line in process.stdout:
             last = line.strip() or last
-            if line.startswith("download:"):
+            line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line).strip()
+            if line.startswith("[zing-progress]"):
                 try:
-                    percent = float(line.removeprefix("download:").strip().rstrip("%").strip())
+                    percent = float(line.removeprefix("[zing-progress]").strip().rstrip("%").strip())
                 except ValueError:
                     continue
                 if math.isfinite(percent) and 0 <= percent <= 100:
