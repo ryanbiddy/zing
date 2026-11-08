@@ -199,8 +199,16 @@ def test_request_at_idle_deadline_finishes_before_the_next_idle_period(dashboard
 
 
 @pytest.mark.parametrize("kind", ["nested", "text", "visual", "array", "invalid"])
-def test_bad_post_bodies_return_json(dashboard, capsys, kind):
+def test_bad_post_bodies_return_json(dashboard, capsys, monkeypatch, kind):
     depth = sys.getrecursionlimit() + 100
+    if kind == "nested":                                # how deep the C scanner recurses varies by Python version
+        real = json.loads
+
+        def loads(value, *args, **kwargs):
+            if isinstance(value, bytes) and value.startswith(b'{"text":[['):
+                raise RecursionError("maximum recursion depth exceeded while decoding a JSON array")
+            return real(value, *args, **kwargs)
+        monkeypatch.setattr(json, "loads", loads)
     path, raw = {
         "nested": ("text", '{"text":' + "[" * depth + "0" + "]" * depth + "}"),
         "text": ("text", '{"clip":"clip01","field":[],"text":"x"}'),
