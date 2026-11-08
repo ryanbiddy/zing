@@ -127,7 +127,7 @@ def render_screen(plan, output, *, aspect="16:9", short_side=720, ffmpeg="ffmpeg
     if hash_file(source) != plan.sha256:
         raise ValueError("Screen source changed after planning; run zing plan screen again.")
     info = probe_media(source, ffprobe)
-    duration = info.video_duration if info.video_duration is not None else info.duration
+    duration = getattr(info, "video_duration", None) or info.duration  # video stream, as plan_screen measured
     if probe_dimensions(source,ffprobe) != (plan.width,plan.height) or abs(duration-plan.duration) > .1:
         raise ValueError("Screen plan dimensions/duration differ from the source; replan.")
     if any(z.box is None for z in plan.zooms):

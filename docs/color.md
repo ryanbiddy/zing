@@ -264,7 +264,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 460
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 461
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.
