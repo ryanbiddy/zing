@@ -51,6 +51,9 @@ def learn(slug: str) -> dict:
     for ident in series:
         rewards = [r["reward"] for r in rows if bandit.usable(r) and bandit.value(r, "series") == ident]
         summary.append(f"Series {ident} had {len(rewards)} posts with median reward {median(rewards):.2f}.")
+        ratio = 2 ** median(rewards)                    # a reward is log2 of views over the channel's typical views
+        verdict = "beat" if ratio > 1.05 else "trailed" if ratio < 0.95 else "matched"
+        summary.append(f"Series {ident} {verdict} the channel's typical views, about {ratio:.1f}x over {len(rewards)} post{'s' * (len(rewards) != 1)}.")
     result = {"schema_version": 1, "channel": slug, "updated_at": utc_now(), "dimensions": dimensions,
               "ips": ips(rows), "summary": summary or ["No unmasked rewards yet. Track more posted clips."]}
     _write(registry.directory(slug) / "learned.json", result)
