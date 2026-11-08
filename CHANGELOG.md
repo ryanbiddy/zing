@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Check free queue slots through the existing schedule and honor legacy news IDs in
+  brief history. Remove failed report temp files and use the planning duration probe
+  for screen renders. Restore receipts when video publication fails and keep caption
+  words with the clip that covers more of their timing during an overlap.
 - Keep saved briefs when `--short-side` is invalid, replace draft EDLs atomically,
   and preserve the previous profile backup on pack rebuilds. Count repeated profile
   sources once. Report malformed packs and timing provenance, reject boolean keeper
