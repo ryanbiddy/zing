@@ -1316,8 +1316,12 @@ def h_match_status(project: str, cancel: bool = False) -> dict[str, Any]:
             foreign = type(pid) is int and pid != os.getpid() and owner_alive(pid)
             fresh = beat is not None and (datetime.now(timezone.utc) - beat).total_seconds() <= HEARTBEAT_STALE_AFTER
             if not (foreign and fresh):
-                storage.write_status_at(directory, state="failed", error="Match worker is gone or stale; rerun match_start with resume=true.", updated_at=_now())
-                status = storage.read_status_at(directory)
+                current = storage.read_status_at(directory)
+                if isinstance(current, dict) and current.get("state") != "running":
+                    status = current
+                else:
+                    storage.write_status_at(directory, state="failed", error="Match worker is gone or stale; rerun match_start with resume=true.", updated_at=_now())
+                    status = storage.read_status_at(directory)
         result = _ok(project=str(root), **{k: v for k, v in status.items() if k != "pid"})
         if cancel:
             result["cancellation_requested"] = live
@@ -1500,6 +1504,9 @@ def h_get_render(render_id: str) -> dict[str, Any]:
             if (job is None or not job.is_alive()) and (
                 pid == os.getpid() or not _pid_alive(pid)
             ):
+                fresh = storage.read_status_at(d)
+                if isinstance(fresh, dict) and fresh.get("state") != "running":
+                    return _ok(render_id=render_id, **{k: v for k, v in fresh.items() if k != "pid"})
                 # crash honesty, same rule as studies: a running state
                 # without its worker is rewritten, not believed
                 error = (
@@ -1533,14 +1540,12 @@ def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
         if output_path
         else src.with_suffix(".otio")
     )
+    from myzing.render.pipeline import RenderError
     from myzing.render.validation import EDLValidationError
 
     try:
         result = export_otio(edl, out, base_dir=base_dir)
-    except OTIOExportError as e:
-        return _err(f"OTIO export failed: {e}")
-    except EDLValidationError as e:
-        # A missing asset is caught before ffprobe; report it in the envelope.
+    except (OTIOExportError, EDLValidationError, RenderError) as e:
         return _err(f"OTIO export failed: {e}")
     return _ok(
         output=str(out),
@@ -1901,11 +1906,15 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
 
 def _run_factory(root: Path) -> None:
     from myzing.factory import pipeline
-    from myzing.factory.judge import Judge
     try:
+        pipeline._write(root / "status.json", {"state": "running", "at": _now()})
+        from myzing.factory.judge import Judge
         pipeline.run(root, Judge(root, "host"), say=lambda _m: None)
-    except Exception:
-        pass  # pipeline.run records the failure in status.json
+    except Exception as exc:
+        status = storage.read_status_at(root)
+        if not status or status.get("state") not in {"done", "failed", "waiting", "stopped"}:
+            pipeline._write(root / "status.json", {"state": "failed", "at": _now(),
+                                                   "error": f"factory run could not finish ({type(exc).__name__})"})
     finally:
         with _JOBS_LOCK:
             _FACTORY_JOBS.pop(str(root), None)
