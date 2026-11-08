@@ -268,8 +268,13 @@ def _post(event: dict[str, Any]) -> dict[str, Any]:
             redact(str(error)),
             retryable=error.retryable,
         ) from error
-    token = os.environ.get(
-        suite_peer.UOINK_TOKEN_ENV, "").strip()
+    token = os.environ.get(suite_peer.UOINK_TOKEN_ENV, "").strip()
+    if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in token):  # never echo the value
+        raise _DeliveryError(
+            "invalid_configuration",
+            "UOINK_TOKEN must not contain control characters",
+            retryable=False,
+        )
     if not token:
         raise _DeliveryError(
             "unconfigured",
@@ -297,13 +302,14 @@ def _post(event: dict[str, Any]) -> dict[str, Any]:
     request.add_unredirected_header("X-Uoink-Token", token)
     status = 200
     try:
-        with urls.open_no_redirect(
-            request, timeout=_TIMEOUT) as response:
-            status = int(response.status)
-            raw = response.read(_MAX_RESPONSE_BYTES + 1)
-    except urllib.error.HTTPError as error:
-        status = int(error.code)
-        raw = error.read(_MAX_RESPONSE_BYTES + 1)
+        try:
+            with urls.open_no_redirect(
+                request, timeout=_TIMEOUT) as response:
+                status = int(response.status)
+                raw = response.read(_MAX_RESPONSE_BYTES + 1)
+        except urllib.error.HTTPError as error:
+            status = int(error.code)
+            raw = error.read(_MAX_RESPONSE_BYTES + 1)
     except (TimeoutError, socket.timeout) as error:
         raise _DeliveryError(
             "timeout",

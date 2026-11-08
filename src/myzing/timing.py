@@ -94,6 +94,8 @@ def _provenance(word: Word) -> TimingProvenance:
                 raise ValueError("unsupported timing provenance")
             if not timing.method or set(timing.original) != {"start", "end"}:
                 raise ValueError("timing method/original measurement missing")
+            if not isinstance(timing.adjustments, list):
+                raise ValueError("timing adjustments must be a list")
             return timing
         except (TypeError, ValueError) as exc:
             raise _review(word, f"invalid timing provenance: {exc}") from exc

@@ -788,6 +788,21 @@ frames above ours.
 Everything is measured from pixels. The original font, project and settings stay
 unknown, and the closest bundled font is reported with its similarity.
 
+## Briefs, drafts and reference profiles
+
+- `zing brief new` checks `--short-side` before saving. A rejected value leaves
+  the saved brief unchanged. Valid answers and the override are saved together.
+- `zing assemble` replaces `draft-edl.json` atomically. A failed write keeps the
+  previous draft. Keeper times must be numbers. Invalid word timing provenance
+  asks for review before assembly continues.
+- `zing profile pack` saves once, after adding provenance. The previous profile
+  stays in `profile.json.bak`. Repeated source slugs count once and get a warning.
+- Malformed reference packs report errors. `zing setup --list` lists broken packs
+  without stopping the whole listing.
+- Timeouts and OS errors while reading Uoink error replies leave delivery pending.
+  `UOINK_TOKEN` and `ELEVENLABS_API_KEY` reject control characters before a request
+  is built. Errors name the setting and omit its value.
+
 ## Match and studio resumes
 
 - Match keeps step logs inside `logs/`, even when asset IDs contain path separators.

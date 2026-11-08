@@ -64,6 +64,8 @@ class ElevenLabsProvider:
 
     def _key(self) -> str:
         key = self._api_key or os.environ.get(ELEVENLABS_KEY_ENV, "").strip()
+        if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in key):  # never echo the value
+            raise TTSUnavailableError("ELEVENLABS_API_KEY must not contain control characters")
         if not key:
             raise TTSUnavailableError(
                 "ElevenLabs is key-gated: set the ELEVENLABS_API_KEY env var "
