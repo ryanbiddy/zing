@@ -79,7 +79,7 @@ def test_download_marker_reaches_handoff_progress(peer, monkeypatch, tmp_path, c
 
 
 @pytest.mark.parametrize("path", [r"\\host\share\video.mp4", "//host/share/video.mp4",
-                                 r"\\?\C:\video.mp4", r"\\.\C:\video.mp4", r"\\?\UNC\host\share\video.mp4",
+                                 r"\\.\C:\video.mp4", r"\\?\UNC\host\share\video.mp4",
                                  "//?/C:/video.mp4", "//./C:/video.mp4", r"\/host/share/video.mp4"])
 def test_media_paths_are_rejected_before_file_access(peer, monkeypatch, path):
     peer["media"]["path"] = path
@@ -93,6 +93,13 @@ def test_media_paths_are_rejected_before_file_access(peer, monkeypatch, path):
     assert set(result) == {"ok", "error"} and result["ok"] is False
     assert "not contract-conformant" in result["error"] and "media.path" in result["error"]
     assert caught.value.code == "uoink_unavailable"
+
+
+@pytest.mark.parametrize("path", [r"\\?\C:\Library\video.mp4", "\\\\?\\E:\\" + "a" * 260 + "\\video.mp4"])
+def test_long_path_form_of_a_local_drive_is_accepted(path):
+    body = handoff_body(source_url=URL)
+    body["data"]["media"]["path"] = path
+    assert uoink_bridge.handoff_defect(body) is None
 
 
 @pytest.mark.parametrize("json_output", [False, True])

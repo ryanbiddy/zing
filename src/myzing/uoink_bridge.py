@@ -202,7 +202,8 @@ def handoff_defect(body: Any) -> str | None:
             or PurePosixPath(media_path).is_absolute()
         ):
             return f"media.path must be absolute, got {media_path!r}"
-        if media_path.replace("\\", "/").startswith("//"):
+        long_local = re.match(r"\\\\\?\\[A-Za-z]:\\", media_path)   # Windows long-path form of a local drive
+        if media_path.replace("\\", "/").startswith("//") and not long_local:
             return f"media.path must be local, got {media_path!r}"
         media_type = media.get("media_type")
         if not isinstance(media_type, str) or media_type not in _HANDOFF_MEDIA_TYPES:
