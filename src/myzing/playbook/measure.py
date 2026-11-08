@@ -13,7 +13,7 @@ from myzing.profile import api as profiles
 from myzing.schemas import Breakdown
 from myzing.study import api as study_api
 from myzing.study.ingest import download_category
-from .common import SCHEMA_VERSION, library, number, read_json, utc_now, write_json
+from .common import SCHEMA_VERSION, library, number, read_json, utc_now, warn_channels, write_json
 
 DOWNLOAD_HINTS = {
     "download_bot_check": "YouTube blocked downloads for now. Wait, then run measure --download --retry-failed.",
@@ -119,6 +119,7 @@ def measure(root: Path, *, media_dir: Path | None = None, download=False, force=
     if not number(gap) or gap < 0:
         raise ValueError("--gap must be a finite number of at least 0 seconds")
     data = library(root)
+    warn_channels(data)
     media_dir = media_dir or root / "media"
     model_workspace = storage.workspace_root()
     sleep = sleep or time.sleep

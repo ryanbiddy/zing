@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from statistics import mean, median
 
-from .common import SCHEMA_VERSION, library, number, read_json, safe_name, write_json
+from .common import SCHEMA_VERSION, library, number, read_json, safe_name, scope_text, write_json
 from .measure import FEATURES, Feature
 from .notes import ENUMS, cached
 
@@ -181,11 +181,12 @@ def compare(feature, source, spec, rows, thresholds, category=None, tests_run=1)
     return result
 
 
-def distill(root: Path, *, version="v0", thresholds: Thresholds | None = None) -> dict:
+def distill(root: Path, *, version="v0", thresholds: Thresholds | None = None, scope: str | None = None) -> dict:
     safe_name(version)
     thresholds = thresholds or Thresholds()
     thresholds.validate()
     data = library(root)
+    scope = scope_text(scope if scope is not None else data.get("scope"))
     entries = sorted(data["entries"], key=lambda e: e["id"])
     hashes = {"library.json": hashlib.sha256((root / "library.json").read_bytes()).hexdigest()}
     features, notes = {}, {}
@@ -231,14 +232,14 @@ def distill(root: Path, *, version="v0", thresholds: Thresholds | None = None) -
     kept = sorted((p for p in tested if p["status"] == "kept"), key=lambda p: (-abs(p["effect"]), p["feature"], str(p.get("category"))))
     dropped = [p for p in tested if p["status"] != "kept"]
     counts = Counter(e["set"] for e in entries)
-    result = {"schema_version": SCHEMA_VERSION, "version": version, "scope": "YouTube podcast/interview Shorts",
+    result = {"schema_version": SCHEMA_VERSION, "version": version, "scope": scope,
               "patterns": kept, "no_separation": dropped, "inputs_sha256": hashes, "thresholds": asdict(thresholds),
               "tests_run": tests_run,
               "ci_level": 1 - .05 / max(1, tests_run) if thresholds.multiple_testing == "bonferroni" else .95,
               "sample_sizes": {"worked": counts["worked"], "didnt": counts["didnt"], "channels": len({e["channel"] for e in entries}),
                                "measured": sum(bool(features.get(e["id"])) for e in entries), "estimated": len(notes)},
               "originals": [e["url"] for e in entries],
-              "caveats": ["YouTube podcast Shorts only; format membership is curated, not verified by listing.",
+              "caveats": [f"{scope} only; cohort membership is curated, not verified by listing.",
                           "Views are a noisy proxy for attention, not a causal outcome.",
                           "Estimated means model judgment; missing measurements are excluded per feature.",
                           "Cluster bootstrap resamples channels with both sides intact: Shorts share a host, editor and audience.",

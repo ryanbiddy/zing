@@ -10,7 +10,7 @@ from statistics import median
 from myzing import doctor
 from myzing.study import proc
 from . import feeds
-from .common import SCHEMA_VERSION, number, read_json, safe_name, utc_now, write_json
+from .common import SCHEMA_VERSION, number, read_json, safe_name, scope_text, utc_now, warn_channels, write_json
 
 
 def list_channel(handle: str) -> list[dict]:
@@ -63,9 +63,11 @@ def select(rows: list[dict], *, skip_newest=10, k=5, now=None) -> dict:
     return {**summary, "status": "listed", "median_views": med, "worked": worked, "didnt": didnt}
 
 
-def build(out: Path, channels=(), *, from_candidates: Path | None = None, skip_newest=10, k=5) -> dict:
+def build(out: Path, channels=(), *, from_candidates: Path | None = None, skip_newest=10, k=5,
+          scope: str | None = None) -> dict:
     if skip_newest < 0 or k < 1:
         raise ValueError("skip-newest must be nonnegative and k must be positive")
+    scope = scope_text(scope)
     if from_candidates is not None:
         selected = read_json(from_candidates)
     else:
@@ -117,8 +119,10 @@ def build(out: Path, channels=(), *, from_candidates: Path | None = None, skip_n
             "worked": k, "didnt": k, "age_unverified": summary.get("age_unverified", summary["n"]),
             "age_policy": "skip newest; exclude known uploads under 14 days; unknown dates unverified",
             "origin": "candidates" if from_candidates else "yt-dlp", "listed_at": listed_at}
-    result = {"schema_version": SCHEMA_VERSION, "listed_at": listed_at, "entries": entries, "channels": summaries}
+    result = {"schema_version": SCHEMA_VERSION, "listed_at": listed_at, "scope": scope,
+              "entries": entries, "channels": summaries}
     write_json(out / "library.json", result)
+    warn_channels(result)
     for handle, summary in summaries.items():
         try:
             name = feeds.channel(handle).replace(".", "_")

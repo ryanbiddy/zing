@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `playbook list --scope` and `distill --scope` for cohort labels, defaulting
+  to `YouTube Shorts`. List and measure warn when a library has fewer than 8 channels.
 - The learning report says which series beat, matched or trailed the channel's
   typical views.
 - Report safe download errors in `playbook measure`, pause after repeated YouTube

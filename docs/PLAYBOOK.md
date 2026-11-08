@@ -1,6 +1,6 @@
 # Playbook v0
 
-Playbook compares Shorts that beat their own channel's median with Shorts that fell below it. It saves Zing measurements and blind model judgments, then keeps patterns that separate the two groups. This is a library and a statistical comparison, not model fine-tuning. v0 covers curated YouTube podcast/interview Shorts; it does not change Study or Clip defaults.
+Playbook compares Shorts that beat their own channel's median with Shorts that fell below it. It saves Zing measurements and blind model judgments, then keeps patterns that separate the two groups. This is a library and a statistical comparison, not model fine-tuning. v0 compares curated YouTube Shorts. Study and Clip defaults stay unchanged.
 
 ## Pick a niche
 
@@ -155,7 +155,7 @@ so busy channels can lose coverage before the 7d target. All times use UTC.
 
 ## Run the four stages
 
-Use the existing pilot listing first. This command reads a local JSON file and makes no network requests:
+Use the existing pilot listing first. This command reads a local JSON file and makes no network requests.
 
 ```powershell
 zing playbook list --from-candidates pilot-candidates.json --out zing-workspace\playbook
@@ -169,7 +169,42 @@ For a fresh metadata listing, use `zing playbook list --channels channels.txt --
 
 `--skip-newest 10` drops the newest ten entries. Known upload dates under 14 days are also excluded. Flat listings often lack upload dates: those entries use the newest-ten proxy and appear in the channel summary's `age_unverified` count. The existing pilot has unverified dates. Do not describe this cohort as fully age-verified.
 
-A channel needs at least 30 remaining Shorts, a positive median, and enough distinct entries on each side. `--k 5` selects five strictly above and five strictly below the median. Outlier is views divided by that median, without rounding. Zero-view entries count; missing view counts do not. Ties at the median belong to neither side. Candidate imports preserve the supplied selection, validate it, and recompute outliers from the supplied median. Their `listed_at` records import time, not the original observation time. Per-channel summaries include skips and failures. Curate channels for podcast/interview content before listing; the listing does not classify format.
+A channel needs at least 30 remaining Shorts, a positive median, and enough distinct entries on each side. `--k 5` selects five strictly above and five strictly below the median. Outlier is views divided by that median, without rounding. Zero-view entries count; missing view counts do not. Ties at the median belong to neither side. Candidate imports preserve the supplied selection, validate it, and recompute outliers from the supplied median. Their `listed_at` records import time, not the original observation time. Per-channel summaries include skips and failures. Choose channels that fit your cohort before listing. The listing does not classify format.
+
+### Set the cohort scope
+
+`list --scope TEXT` saves a cohort label as `scope` in `library.json`. It also
+works with `--from-candidates`. `distill --scope TEXT` overrides that label for
+one report without changing the library. Distill uses the flag, then the saved
+label, then `YouTube Shorts` if neither is set. The JSON and WHATS-WORKING report
+carry the effective scope and its cohort caveat.
+
+Scope is plain text of 1 to 120 characters. Whitespace, including newlines, is
+trimmed and collapsed to single spaces before the length check. Empty labels
+and other nonprintable characters are rejected. The label does not filter
+entries or verify cohort membership.
+
+For developer channels, put your chosen handles in `developer-channels.txt`.
+
+```powershell
+zing playbook list --channels developer-channels.txt --scope "Developer channel Shorts" --out zing-workspace\developers
+zing playbook measure zing-workspace\developers --media-dir path\to\local-shorts
+zing playbook distill zing-workspace\developers --version dev-v0
+zing playbook distill zing-workspace\developers --version dev-v1 --scope "Developer tutorial Shorts"
+```
+
+`list` warns on stderr after saving the library if it has fewer than 8 distinct
+channels in its selected entries. `measure` prints the same warning before it
+starts work, including downloads. Skipped and failed channels do not count.
+The warning names the actual count. A seven-channel library prints this message.
+
+```text
+distill needs at least 8 channels to keep a pattern; this library has 7. Add channels, or pass --min-channels N to distill.
+```
+
+The warning does not stop either command. Distill still applies its thresholds
+and records why patterns fail. Eight channels is the default minimum; each
+pattern also needs enough usable measurements on both sides within each channel.
 
 ### Measure and retry downloads
 
@@ -268,7 +303,7 @@ Duration comes from measured features, then a saved Breakdown, then the library.
   WHATS-WORKING-v0.md          # compact read; top five patterns, six dropped tests
 ```
 
-Keep the directory under `zing-workspace/`, which Git already ignores. Downloaded video, keyframes, geometry, transcripts and full Breakdowns are local working data. `library.json` and `features.json` carry no frame images or keyframe paths. Only `playbook-<version>.json` and `WHATS-WORKING-<version>.md` are publication candidates. The exporter constructs these from an allowlist of numeric fields and closed categories, template-written guidance, and original links. It never copies source titles, transcript/OCR text, model prose, clips or frames. v0 does not publish anything.
+Keep the directory under `zing-workspace/`, which Git already ignores. Downloaded video, keyframes, geometry, transcripts and full Breakdowns are local working data. `library.json` and `features.json` carry no frame images or keyframe paths. Only `playbook-<version>.json` and `WHATS-WORKING-<version>.md` are publication candidates. The exporter constructs these from an allowlist of numeric fields and closed categories, the cohort label, template-written guidance, and original links. It never copies source titles, transcript/OCR text, model prose, clips or frames. v0 does not publish anything.
 
 The published JSON includes SHA-256 hashes of `library.json`, `features.json` when present, and every note file considered, including failures. Full Breakdowns are not distillation inputs. Missing measurements stay null and are excluded per feature; each claim reports its actual n per side. A cached measurement can be rebuilt after interruption without fetching video again.
 

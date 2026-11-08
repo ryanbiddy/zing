@@ -286,6 +286,28 @@ most 0.67. Set a channel's `prior` to this file to guide titles and scouts. See
 [Pick a niche](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md#pick-a-niche)
 for the formula, title heuristics and hourly Windows task example.
 
+## Label a playbook cohort
+
+```sh
+zing playbook list --channels developer-channels.txt --scope "Developer channel Shorts" --out zing-workspace/developers
+zing playbook distill zing-workspace/developers --version dev-v0
+zing playbook distill zing-workspace/developers --version dev-v1 --scope "Developer tutorial Shorts"
+```
+
+`list --scope TEXT` saves the label in `library.json`, including candidate imports.
+`distill --scope TEXT` overrides it for that report. Without a flag or saved label,
+distill uses `YouTube Shorts`. The label appears in the JSON and WHATS-WORKING
+report. It does not filter entries or verify cohort membership.
+
+Scope accepts 1 to 120 plain text characters after whitespace is trimmed and
+collapsed to single spaces. This removes newlines. Empty labels and other
+nonprintable characters are rejected.
+
+List warns on stderr after saving a library with fewer than 8 distinct selected
+channels. Measure warns before starting work. Both name the actual count.
+Add channels or pass `--min-channels N` to distill. The warning does not stop
+the run; distill still records why patterns fail its thresholds.
+
 ## Measure a playbook library
 
 ```sh

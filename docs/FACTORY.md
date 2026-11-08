@@ -5,6 +5,13 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
+## Playbook cohorts
+
+Use `zing playbook list --scope "Developer channel Shorts"` to label a comparison
+library. `distill --scope TEXT` can override its saved label. The default is
+`YouTube Shorts`. List and measure warn when fewer than 8 channels are available
+for distill. See [Set the cohort scope](PLAYBOOK.md#set-the-cohort-scope).
+
 ## Hermes Agent
 
 The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
