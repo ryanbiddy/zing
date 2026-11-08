@@ -34,7 +34,9 @@ under the ignored `zing-workspace/` directory.
 ## Hand-off with Uoink
 
 Uoink's "Make a Short with Zing" button can check support before launching a
-project. `zing from-uoink --probe --json` prints exactly one JSON object and exits
+project. Uoink 3.16.0 is the first release with the button. It shows only when
+Zing is installed, and it asks you before it passes `--allow-download`.
+`zing from-uoink --probe --json` prints exactly one JSON object and exits
 0. It makes no network request and does not call Uoink.
 
 ```json
