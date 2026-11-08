@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Keep measured speech shares when unrelated audio checks fail and escape card names
+  and titles. Handle unreadable music sidecars and map trimmed study words from their
+  source offset. Preserve delayed screen audio, compare video durations, composite
+  animated stills onto the still background, and reject source in-points at or past the end.
+
 - Keep match logs inside their folder, refresh color grades and studio results when
   the reference range changes, and skip generated clip outputs during preflight.
   Validate studio choices, lock screen runs and the run's session saves, and remove only

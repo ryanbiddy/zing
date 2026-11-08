@@ -23,6 +23,7 @@ from .validate import check_texts
 ASPECTS = {"16:9": (1200, 675), "1:1": (1080, 1080),
            "4:5": (1080, 1350), "9:16": (1080, 1920)}
 ASPECT_ALIASES = {"x-landscape": "16:9", "square": "1:1", "portrait": "4:5", "story": "9:16"}
+BACKGROUND = "#181818"
 # Outline width as a share of the font size (per unit of TextLayer.stroke_width):
 # 0.5 * 0.16 = 8% of the font size, about 6 px on 73 px Anton. A width-only
 # outline (3 px at 1080) vanished over bright sky and smoke at phone size.
@@ -323,7 +324,7 @@ def _draw_layer(canvas: Any, layer: TextLayer) -> dict:
 
 
 def draw_composition(source: Any, *, size: tuple[int, int], layers: list[TextLayer],
-                     fit: str = "cover", background: str = "#181818",
+                     fit: str = "cover", background: str = BACKGROUND,
                      viewport: Rect | None = None, caption: bool = False,
                      focus: list[float] | None = None) -> tuple[Any, list[dict]]:
     Image, _, _, _, _ = require_pillow()

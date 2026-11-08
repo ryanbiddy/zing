@@ -13,7 +13,8 @@ from pathlib import Path
 
 from myzing.memes import MemeError
 from myzing.memes.ideas import HONESTY, generate_ideas, photo_facts
-from myzing.memes.render import ASPECTS, render_meme, require_pillow, resolve_font, wrap_text
+from myzing.memes.photo import load_photo
+from myzing.memes.render import ASPECTS, BACKGROUND, render_meme, require_pillow, resolve_font, wrap_text
 from myzing.memes.score import idea_score
 from myzing.memes.subject import user_boxes
 from myzing.memes.templates import get_template
@@ -386,8 +387,12 @@ def pick_still(out_folder: str | Path, concept_id: str, *, video: bool = False, 
             # Normalize supported photo formats (including BMP/TIFF) to the
             # animated renderer's local PNG input; preserve EXIF orientation.
             motion_source = stage / "source.png"
-            with open_photo(source) as decoded:
-                decoded.save(motion_source)
+            Image, _, _, _, _ = require_pillow()
+            decoded, _ = load_photo(source, mode="RGBA", single_frame=True)
+            with decoded:
+                background = Image.new("RGBA", decoded.size, BACKGROUND)
+                background.alpha_composite(decoded)
+                background.convert("RGB").save(motion_source)
             motion = render_meme_video(concept.texts, image=str(motion_source), layout=concept.layout,
                                        aspect=index.aspect, out=str(stage / (basename + ".mp4")),
                                        fit=concept.fit, focus=concept.focus,

@@ -67,7 +67,7 @@ def graph(plan, cam, width, height, has_audio, caption_filter=""):
     n = len(segments)
     lines.append(f"[0:v]split={n}"+"".join(f"[v{i}]" for i in range(n)))
     if has_audio:
-        lines.append(f"[0:a]asplit={n}"+"".join(f"[a{i}]" for i in range(n)))
+        lines.append(f"[0:a]aresample=async=1:first_pts=0,asplit={n}"+"".join(f"[a{i}]" for i in range(n)))
     for i,s in enumerate(segments):
         lines.append(f"[v{i}]trim=start={s['start']:.9f}:end={s['end']:.9f},setpts=(PTS-STARTPTS)/{s['speed']}[p{i}]")
         if has_audio:
@@ -127,7 +127,8 @@ def render_screen(plan, output, *, aspect="16:9", short_side=720, ffmpeg="ffmpeg
     if hash_file(source) != plan.sha256:
         raise ValueError("Screen source changed after planning; run zing plan screen again.")
     info = probe_media(source, ffprobe)
-    if probe_dimensions(source,ffprobe) != (plan.width,plan.height) or abs(info.duration-plan.duration) > .1:
+    duration = info.video_duration if info.video_duration is not None else info.duration
+    if probe_dimensions(source,ffprobe) != (plan.width,plan.height) or abs(duration-plan.duration) > .1:
         raise ValueError("Screen plan dimensions/duration differ from the source; replan.")
     if any(z.box is None for z in plan.zooms):
         from .regions import attach_regions
