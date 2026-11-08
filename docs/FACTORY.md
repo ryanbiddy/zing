@@ -7,7 +7,7 @@ being said. It also gets post copy and a local review page. Nothing is posted.
 
 ## Hand-off with Uoink
 
-`zing handoff uoink:short-123` starts a factory project from the item's kept
+`zing from-uoink uoink:short-123` starts a factory project from the item's kept
 video and opens the review dashboard. Press Run to begin. The host judge is
 the default; `--judge claude` uses Claude Code. The source title and link are
 saved when available. The media stays in Uoink.

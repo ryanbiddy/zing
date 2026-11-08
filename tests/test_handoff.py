@@ -91,7 +91,7 @@ def test_probe_is_one_exact_object_without_network(monkeypatch, capsys):
     for name in ("socket", "create_connection", "getaddrinfo"):
         monkeypatch.setattr(socket, name, refuse)
     monkeypatch.setattr(suite_peer, "resolve_uoink_base", refuse)
-    assert cli.main(["handoff", "--probe", "--json"]) == 0
+    assert cli.main(["from-uoink", "--probe", "--json"]) == 0
     assert output(capsys) == {"ok": True, "contract": "ryan.suite.handoff", "version": 1, "service": "zing",
                               "service_version": cli._version(), "accepts": ["uoink.item/1"],
                               "needs": ["uoink.media.handoff/1"]}
@@ -107,7 +107,7 @@ def test_handoff_creates_project_prints_page_and_exits_when_idle(kept, dashboard
 
     monkeypatch.setattr(pipeline, "init", create)
     start = time.monotonic()
-    assert cli.main(["handoff", "uoink:short-123", "--json", "--no-open"]) == 0
+    assert cli.main(["from-uoink", "uoink:short-123", "--json", "--no-open"]) == 0
     assert time.monotonic() - start >= .02
     body = output(capsys)
     assert set(body) == {"ok", "contract", "version", "project", "page", "item_ref", "reused"}
@@ -133,7 +133,7 @@ def test_handoff_creates_project_prints_page_and_exits_when_idle(kept, dashboard
 
 @pytest.mark.parametrize("explicit", [False, True])
 def test_same_item_reuses_project_and_keeps_edits(kept, dashboard, tmp_path, capsys, explicit):
-    args = ["handoff", REF, "--json", "--no-open"]
+    args = ["from-uoink", REF, "--json", "--no-open"]
     if explicit:
         args += ["--project", str(tmp_path / "chosen")]
     assert cli.main(args) == 0
@@ -162,7 +162,7 @@ def test_existing_project_is_refused_without_changes(kept, dashboard, tmp_path, 
         else:
             (root / ("factory.json" if kind == "corrupt" else "project.json")).write_text("keep", encoding="utf-8")
     before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} if root.is_dir() else root.read_bytes()
-    assert cli.main(["handoff", REF, "--project", str(root), "--json", "--no-open"]) == 1
+    assert cli.main(["from-uoink", REF, "--project", str(root), "--json", "--no-open"]) == 1
     assert output(capsys)["error"] == "project_exists"
     after = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} if root.is_dir() else root.read_bytes()
     assert before == after and not dashboard
@@ -176,7 +176,7 @@ def test_resolve_errors_have_stable_codes_and_no_private_details(monkeypatch, ca
     private = str(tmp_path / "private-library")
     monkeypatch.setattr(uoink_bridge, "resolve_kept_media",
                         lambda ref: {"ok": False, "code": code, "error": f"{TOKEN} {private}"})
-    assert cli.main(["handoff", REF, "--json", "--no-open"]) == 1
+    assert cli.main(["from-uoink", REF, "--json", "--no-open"]) == 1
     body = output(capsys)
     assert set(body) == {"ok", "contract", "version", "error", "message"}
     assert body["ok"] is False and body["error"] == expected
@@ -186,7 +186,7 @@ def test_resolve_errors_have_stable_codes_and_no_private_details(monkeypatch, ca
 
 @pytest.mark.parametrize("ref", ["", "https://example.test/1", "uoink:", "uoink://item/a/b", "uoink://item/a%2Fb"])
 def test_invalid_ref_never_calls_uoink(capsys, ref):
-    assert cli.main(["handoff", *([ref] if ref else []), "--json", "--no-open"]) == 1
+    assert cli.main(["from-uoink", *([ref] if ref else []), "--json", "--no-open"]) == 1
     assert output(capsys)["error"] == "invalid_ref"
 
 
@@ -198,20 +198,20 @@ def test_unavailable_media_stops_before_creating_project(kept, dashboard, zing_w
         kept.path.write_bytes(b"different media")
     else:
         kept.data.update(state=state, media=None)
-    assert cli.main(["handoff", REF, "--json", "--no-open"]) == 1
+    assert cli.main(["from-uoink", REF, "--json", "--no-open"]) == 1
     assert output(capsys)["error"] == "media_unavailable"
     assert not (zing_workspace / "handoff").exists() and not dashboard
 
 
 def test_metadata_is_optional(kept, dashboard, capsys, monkeypatch):
     monkeypatch.setattr(uoink_bridge, "item_metadata", lambda ref: {"ok": False, "error": "offline"})
-    assert cli.main(["handoff", REF, "--json", "--no-open"]) == 0
+    assert cli.main(["from-uoink", REF, "--json", "--no-open"]) == 0
     assert Path(output(capsys)["project"]).name.startswith("short-123-")
 
 
 def test_name_and_url_from_metadata(kept, dashboard, capsys):
     kept.data["source_url"] = None
-    assert cli.main(["handoff", REF, "--json", "--no-open"]) == 0
+    assert cli.main(["from-uoink", REF, "--json", "--no-open"]) == 0
     root = Path(output(capsys)["project"])
     assert pipeline._read(root / "source.json")["url"] == URL
 
@@ -229,7 +229,7 @@ def test_browser_opens_after_ready_and_claude_and_idle_are_forwarded(kept, dashb
         opened.append(page)
 
     monkeypatch.setattr(handoff.webbrowser, "open", open_page)
-    args = ["handoff", REF, "--judge", "claude", "--idle-minutes", "1"] + (["--json"] if json_output else [])
+    args = ["from-uoink", REF, "--judge", "claude", "--idle-minutes", "1"] + (["--json"] if json_output else [])
     assert cli.main(args) == 0
     assert len(opened) == 1 and dashboard[0]["judge"] == "claude" and dashboard[0]["idle_seconds"] == 60
     assert capsys.readouterr().out == ""
@@ -238,7 +238,7 @@ def test_browser_opens_after_ready_and_claude_and_idle_are_forwarded(kept, dashb
 @pytest.mark.parametrize("args", [["--idle-minutes", "0"], ["--idle-minutes", "-1"], ["--idle-minutes", "no"],
                                   ["--judge", "bad"], ["--unknown"]])
 def test_argument_failures_are_json(capsys, args):
-    assert cli.main(["handoff", REF, "--json", *args]) == 1
+    assert cli.main(["from-uoink", REF, "--json", *args]) == 1
     assert output(capsys)["error"] == "failed"
 
 
@@ -247,7 +247,7 @@ def test_unexpected_failure_is_private_in_plain_output(monkeypatch, capsys):
         raise RuntimeError(TOKEN + " private folders")
 
     monkeypatch.setattr(uoink_bridge, "resolve_kept_media", fail)
-    assert cli.main(["handoff", REF, "--no-open"]) == 1
+    assert cli.main(["from-uoink", REF, "--no-open"]) == 1
     assert capsys.readouterr().out == handoff.ERRORS["failed"] + "\n"
 
 

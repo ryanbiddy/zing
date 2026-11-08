@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add `zing handoff` for Uoink's saved-item button and optional source capture
+- Add `zing from-uoink` for Uoink's saved-item button and optional source capture
   through `study_video` when Uoink advertises `uoink.capture/1`.
 - Add `zing connect CLIENT` with configs or setup guides for 48 apps, OS-specific
   locations, JSON output and Cursor and VS Code install links. Nothing is written.

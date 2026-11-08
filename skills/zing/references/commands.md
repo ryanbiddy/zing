@@ -54,15 +54,15 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing meme` | Template metadata, formula ideas, text checks, still rendering and MP4/GIF animation. |
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
-| `zing handoff` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
+| `zing from-uoink` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
 | `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
 
 ## Hand-off with Uoink
 
 ```sh
-zing handoff --probe --json
-zing handoff uoink:short-123 --json --no-open
-zing handoff uoink://item/short-123 --project ./episode --judge claude --idle-minutes 30
+zing from-uoink --probe --json
+zing from-uoink uoink:short-123 --json --no-open
+zing from-uoink uoink://item/short-123 --project ./episode --judge claude --idle-minutes 30
 ```
 
 `--probe` prints the supported contract and installed version without network

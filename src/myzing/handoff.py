@@ -86,7 +86,7 @@ def _project(ref: str, folder: Path | None) -> tuple[Path, bool]:
 
 
 def run(argv: list[str]) -> int:
-    parser = Parser(prog="zing handoff", description=__doc__)
+    parser = Parser(prog="zing from-uoink", description=__doc__)
     parser.add_argument("ref", nargs="?", metavar="REF", help="a saved Uoink item reference")
     parser.add_argument("--probe", action="store_true", help="print the hand-off contract without contacting Uoink")
     parser.add_argument("--json", action="store_true", help="print one JSON line when the dashboard is ready")

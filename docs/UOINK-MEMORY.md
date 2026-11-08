@@ -34,7 +34,7 @@ under the ignored `zing-workspace/` directory.
 ## Hand-off with Uoink
 
 Uoink's "Make a Short with Zing" button can check support before launching a
-project. `zing handoff --probe --json` prints exactly one JSON object and exits
+project. `zing from-uoink --probe --json` prints exactly one JSON object and exits
 0. It makes no network request and does not call Uoink.
 
 ```json
@@ -44,7 +44,7 @@ project. `zing handoff --probe --json` prints exactly one JSON object and exits
 Launch the saved item with its canonical reference or `uoink:<id>` shorthand.
 
 ```sh
-zing handoff uoink://item/short-123 --json --no-open
+zing from-uoink uoink://item/short-123 --json --no-open
 ```
 
 Zing resolves `uoink.media.handoff/1`, checks the kept file's size and SHA-256,
