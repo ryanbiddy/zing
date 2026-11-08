@@ -6,6 +6,8 @@
   with download progress on stderr and rights left unknown.
 - Add `zing from-uoink` for Uoink's saved-item button and optional source capture
   through `study_video` when Uoink advertises `uoink.capture/1`.
+- Report safe download errors in `playbook measure`, pause after repeated YouTube
+  blocks, space attempts with `--gap`, and retry saved failures with `--retry-failed`.
 - Add read-only, destructive, idempotent and open-world MCP hints for all 44 tools.
   Hosts can use them to approve read-only calls without prompting.
 - Add a portable Hermes Agent plugin for installed Zing, with app detection,

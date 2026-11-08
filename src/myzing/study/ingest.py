@@ -359,6 +359,21 @@ def _stage_kept(
         provenance["kept_media_sha256"] = sha
     return target, None
 
+
+def download_category(text: str) -> str | None:
+    text = text.lower()
+    for category, phrases in (       # unavailable first: "Sign in to confirm your age" is not a bot check
+        ("download_unavailable", ("video unavailable", "private video", "this video has been removed",
+                                  "members-only", "age-restricted", "confirm your age")),
+        ("download_bot_check", ("confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm")),
+        ("download_rate_limited", ("http error 429", "too many requests", "rate-limit", "rate limit")),
+        ("ytdlp_missing", ("yt-dlp is not installed",)),
+    ):
+        if any(phrase in text for phrase in phrases):
+            return category
+    return None
+
+
 def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     existing = storage.find_media(slug)
     if existing is not None:
