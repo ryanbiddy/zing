@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reject meme captions that cannot fit and regions that are not a list. Use the
+  still canvas background for transparent images in video memes and handle topics
+  such as `my :` without a traceback.
 - Mark NC, ND and NASA third-party visuals as unknown, require modification rights
   in Openverse searches, preserve licenses in shortened attribution credits and
   keep ranking when a candidate has non-numeric dimensions.

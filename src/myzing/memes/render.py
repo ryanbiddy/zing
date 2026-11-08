@@ -23,6 +23,7 @@ from .validate import check_texts
 ASPECTS = {"16:9": (1200, 675), "1:1": (1080, 1080),
            "4:5": (1080, 1350), "9:16": (1080, 1920)}
 ASPECT_ALIASES = {"x-landscape": "16:9", "square": "1:1", "portrait": "4:5", "story": "9:16"}
+BACKGROUND = "#181818"
 # Outline width as a share of the font size (per unit of TextLayer.stroke_width):
 # 0.5 * 0.16 = 8% of the font size, about 6 px on 73 px Anton. A width-only
 # outline (3 px at 1080) vanished over bright sky and smoke at phone size.
@@ -323,7 +324,7 @@ def _draw_layer(canvas: Any, layer: TextLayer) -> dict:
 
 
 def draw_composition(source: Any, *, size: tuple[int, int], layers: list[TextLayer],
-                     fit: str = "cover", background: str = "#181818",
+                     fit: str = "cover", background: str = BACKGROUND,
                      viewport: Rect | None = None, caption: bool = False,
                      focus: list[float] | None = None) -> tuple[Any, list[dict]]:
     Image, _, _, _, _ = require_pillow()
@@ -380,8 +381,10 @@ def caption_geometry(texts: list[str], size: tuple[int, int], font: str) -> tupl
         fitted = [fit_text(t, font_path, w, width, limit, size_px, 0) for t in shown]
         gap = round(size_px * .1)
         total = sum(f["block_height"] for f in fitted) + gap * max(0, len(fitted) - 1)
-        if total + 2 * margin <= limit or size_px <= 10:
+        if total + 2 * margin <= limit:
             break
+        if size_px <= 10:
+            raise MemeError("Text does not fit its box at a readable size; shorten it or enlarge the region.")
         size_px -= 1
     bar = min(limit, max(round(size_px * 2.2), total + 2 * max(margin, round(size_px * .3))))
     y = (bar - total) / 2
@@ -547,6 +550,8 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                         ("overwrite", overwrite)):
         if not isinstance(value, bool):
             raise MemeError(f"{name} must be boolean")
+    if regions is not None:
+        normalized_regions(regions)
     count = selected["box_count"] if selected else (len(regions) if regions is not None else None)
     validation = check_texts(texts, box_count=count)
     if not validation["valid"]:
