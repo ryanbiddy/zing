@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `zing channels setup --suggest` to propose channels and check their public
+  feeds. Choose `--judge host` to answer a saved prompt or `--judge claude`.
+- Add `zing channels setup` to rank candidate channels, save a watch list and
+  make the first brief. The setup report and scorecard track the 15 minute bar.
 - Add `zing connect CLIENT` with configs or setup guides for 48 apps, OS-specific
   locations, JSON output and Cursor and VS Code install links. Nothing is written.
 - Keep YouTube counts exact during RSS outages with an owner-set `YOUTUBE_API_KEY`.
