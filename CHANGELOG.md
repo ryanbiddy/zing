@@ -5,6 +5,9 @@
 - Mark NC, ND and NASA third-party visuals as unknown, require modification rights
   in Openverse searches, preserve licenses in shortened attribution credits and
   keep ranking when a candidate has non-numeric dimensions.
+- Check later queue slots when the variety rule blocks all candidates. Stop after
+  48 consecutive slots without adding a clip (more for wide seed spacing) and clear
+  blockers for queued clips.
 - Retry failed re-renders, refresh replaced dashboard videos, label variants older
   than the latest edit, and reject queued word corrections when the word has changed.
 - Keep saved playbook features and failure records after interrupted measurements,
