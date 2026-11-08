@@ -5,6 +5,8 @@
 - Keep finished match and render results during MCP polling and record factory
   setup failures. Return OTIO probe errors as data and omit paths from shot-list
   import errors.
+- Retry failed re-renders, refresh replaced dashboard videos, label variants older
+  than the latest edit, and reject queued word corrections when the word has changed.
 - Keep saved playbook features and failure records after interrupted measurements,
   use the newest caption geometry, skip non-object listing rows and save reports atomically.
 - Exclude masked posts from channel reward medians, check scorecard shares before

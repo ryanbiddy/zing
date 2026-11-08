@@ -165,7 +165,8 @@ def test_dashboard_serves_state_and_media(studio_server):
     assert status == 200 and b'id="mock"' in page and b"zing-playbook" not in page
     status, data, _ = call(port, "GET", "/api/project")
     state = json.loads(data)
-    assert state["project"] == "proj" and state["clips"][0]["videos"] == {"clip.mp4": "clip.mp4"}
+    assert state["project"] == "proj" and state["clips"][0]["videos"] == {
+        "clip.mp4": str((project / "clip01" / "clip.mp4").stat().st_mtime_ns)}
     assert "zing" in state["packs"] and json.dumps(str(project))[1:-1] not in data.decode()
     status, data, headers = call(port, "GET", "/media/clip01/clip.mp4", headers={"Range": "bytes=10-19"})
     assert status == 206 and data == bytes(range(10, 20)) and headers["Content-Range"] == "bytes 10-19/1024"
