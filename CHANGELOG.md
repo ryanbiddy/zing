@@ -5,6 +5,8 @@
 - Check later queue slots when the variety rule blocks all candidates. Stop after
   48 consecutive slots without adding a clip (more for wide seed spacing) and clear
   blockers for queued clips.
+- Keep saved playbook features and failure records after interrupted measurements,
+  use the newest caption geometry, skip non-object listing rows and save reports atomically.
 - Exclude masked posts from channel reward medians, check scorecard shares before
   rounding, compare the median-views halves on one view window and reject missing
   folder source paths.
