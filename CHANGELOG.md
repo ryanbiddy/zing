@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Check later queue slots when the variety rule blocks all candidates. Stop after
+  48 consecutive slots without adding a clip (more for wide seed spacing) and clear
+  blockers for queued clips.
 - Retry failed re-renders, refresh replaced dashboard videos, label variants older
   than the latest edit, and reject queued word corrections when the word has changed.
 - Keep saved playbook features and failure records after interrupted measurements,

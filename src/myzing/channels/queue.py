@@ -181,9 +181,10 @@ def _build(channel, now, rng, stop):
                                 "manual": gate.rating(project, d.name) == "post", "queued_at": now.isoformat(timespec="seconds")})
             except (OSError, ValueError, KeyError, TypeError) as exc:
                 blocked[ident] = [str(exc) or type(exc).__name__]
-    added = 0
+    added = idle = 0
+    lookahead = max(48, 2 * channel["seeding"]["every"] + 2)   # own clips may need many slots of spacing
     cursor = now
-    while pending:
+    while pending and idle < lookahead:
         if stop and stop():
             break
         slot = next(slots(channel, rows, cursor))
@@ -197,9 +198,9 @@ def _build(channel, now, rng, stop):
             if not bandit.allowed("archetype", archetypes, history):
                 for row in candidates:
                     blocked[row["id"]] = ["Waiting for another archetype under the variety rule."]
-                break
-            value, propensity, policy = bandit.choose("archetype", archetypes, history, rng)
-            chosen = next(r for r in candidates if r["arms"].get("archetype", "other") == value)
+            else:
+                value, propensity, policy = bandit.choose("archetype", archetypes, history, rng)
+                chosen = next(r for r in candidates if r["arms"].get("archetype", "other") == value)
         if chosen is not None:
             try:
                 _title(chosen, history, channel, rng)
@@ -213,7 +214,11 @@ def _build(channel, now, rng, stop):
             rows.append(row)
             history.append(row)
             pending.remove(chosen)
+            blocked.pop(chosen["id"], None)
             added += 1
+            idle = 0
+        else:
+            idle += 1
         cursor = datetime.fromtimestamp(slot.timestamp() + 1, timezone.utc)
     if added:
         write(slug, rows)
