@@ -224,11 +224,38 @@ class Studio:
 
 
 class ThreadingHTTPServer(_ThreadingHTTPServer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._guard = threading.Lock()
+        self.active = 0
+        self.last_request = time.monotonic()
+
     def server_bind(self):
         # HTTPServer.server_bind calls socket.getfqdn(), a reverse lookup that can
         # stall for 30 s or more on macOS. A loopback-only server has no use for it.
         socketserver.TCPServer.server_bind(self)
         self.server_name, self.server_port = self.server_address[:2]
+
+    def process_request(self, request, client_address):
+        with self._guard:
+            self.active += 1
+            self.last_request = time.monotonic()
+        try:
+            super().process_request(request, client_address)
+        except BaseException:
+            self._finished()
+            raise
+
+    def _finished(self):
+        with self._guard:
+            self.active -= 1
+            self.last_request = time.monotonic()
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self._finished()
 
 
 def handler(studio: Studio, port: int, token: str, on_request=None):
@@ -239,6 +266,8 @@ def handler(studio: Studio, port: int, token: str, on_request=None):
     page = data_path("dashboard.html")
 
     class Handler(BaseHTTPRequestHandler):
+        timeout = 30
+
         def log_message(self, *args):                   # quiet; the page shows state
             pass
 
@@ -360,12 +389,18 @@ def handler(studio: Studio, port: int, token: str, on_request=None):
             if not action:
                 return self._json(404, {"error": "not found"})
             try:
-                body = json.loads(raw or b"{}")
+                try:
+                    body = json.loads(raw or b"{}")
+                except RecursionError:
+                    raise FactoryError("send a JSON object") from None
                 if not isinstance(body, dict):
                     raise FactoryError("send a JSON object")
-                self._json(200, {"ok": True, **action(body)})
+                result = {"ok": True, **action(body)}
             except (FactoryError, ValueError) as exc:
-                self._json(400, {"ok": False, "error": str(exc)})
+                return self._json(400, {"ok": False, "error": str(exc)})
+            except Exception as exc:
+                return self._json(500, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+            self._json(200, result)
 
     return Handler
 
@@ -375,13 +410,7 @@ def serve(project: Path, port: int = 8765, judge: str = "host", say=print, *, re
     studio = Studio(project, judge)
     token = secrets.token_urlsafe(24)
     server = ThreadingHTTPServer(("127.0.0.1", port), BaseHTTPRequestHandler)
-    last_request = time.monotonic()
-
-    def touched():
-        nonlocal last_request
-        last_request = time.monotonic()
-
-    server.RequestHandlerClass = handler(studio, server.server_port, token, touched)
+    server.RequestHandlerClass = handler(studio, server.server_port, token)
     try:
         page = f"http://127.0.0.1:{server.server_port}/?t={token}"
         say(f"Open {page}  (Ctrl+C to stop)")
@@ -390,8 +419,12 @@ def serve(project: Path, port: int = 8765, judge: str = "host", say=print, *, re
         if idle_seconds is None:
             server.serve_forever()
         else:
-            while (remaining := idle_seconds - (time.monotonic() - last_request)) > 0:
-                server.timeout = min(0.5, remaining)
+            while True:
+                with server._guard:
+                    remaining = idle_seconds - (time.monotonic() - server.last_request)
+                    if not server.active and remaining <= 0:
+                        break
+                server.timeout = min(0.5, remaining) if remaining > 0 else 0.5
                 server.handle_request()
     except KeyboardInterrupt:
         pass

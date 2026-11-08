@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The review dashboard closes stalled connections, waits for active requests before
+  idle shutdown, and returns JSON errors for deeply nested bodies and failed actions.
 - Add `playbook list --scope` and `distill --scope` for cohort labels, defaulting
   to `YouTube Shorts`. List and measure warn when a library has fewer than 8 channels.
 - Add `zing from-uoink --allow-download` to fetch videos Uoink did not keep,
