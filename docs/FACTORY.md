@@ -112,9 +112,14 @@ kept script shares, view medians and flags with the channel's bar. It writes a
 page and JSON without network or judge calls. `zing channels flag SLUG --kind
 claim --note "Check the quote"` logs an issue. See [Scorecard](CHANNELS.md#scorecard).
 
-After three matched takes in the last 30 local dates, new brief scripts use
+After three matched takes with measured words in the last 30 local dates, new brief scripts use
 recording notes on pace, length and wording. `zing channels brief SLUG --takes`
 prints those notes without making a brief.
+
+- Take stats use transcript segments when word timing is missing or empty.
+  Takes without measured words do not guide new scripts.
+- Brief builds and answers share a channel lock. A caller waits up to 30 seconds.
+  Ticks repair a missing or stale latest page for the newest brief.
 
 Channel [platform news](CHANNELS.md#platform-news) finds candidates from public
 feeds and YouTube uploads from the last 10 days. It ranks them by creator topics
