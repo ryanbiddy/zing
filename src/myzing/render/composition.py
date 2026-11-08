@@ -343,6 +343,7 @@ def render_composition(
 
         # Internal filenames must never overwrite inputs, including in --keep-work.
         reserved = {directory / name for name in ("captions.ass", "caption-probe.ass", "caption-fonts.json", "caption-geometry.json", "filter graph.txt", "rendered.mp4")}
+        reserved.add(pipeline._staged_output(output, directory))
         reserved.update(directory / name for name in ("music-stem.wav", "source-stem.wav", "music-duck.wav"))
         reserved.add(directory / "music-measurements.json")
         if c.delivery:
