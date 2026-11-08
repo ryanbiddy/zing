@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Bypass proxies for local Uoink calls, reject malformed or oversized peer replies,
+  write breakdown Markdown atomically, and never write through a symlinked breakdown.md
+  or JSON backup.
 - Keep finished match and render results during MCP polling and record factory
   setup failures. Return OTIO probe errors as data and omit paths from shot-list
   import errors.

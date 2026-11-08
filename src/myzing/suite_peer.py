@@ -37,6 +37,7 @@ UOINK_URL_ENV = "UOINK_URL"
 UOINK_TOKEN_ENV = "UOINK_TOKEN"
 UOINK_DEFAULT_URL = "http://127.0.0.1:5179"
 _TIMEOUT = 3.0
+_JSON_SIZE_LIMIT = 1024 * 1024
 
 PEER_CONTRACT = "ryan.suite.peer"
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -274,16 +275,27 @@ def read_lease(service_id: str) -> tuple[str | None, str | None, str]:
     return None, None, ""
 
 
+def _read_json(response) -> Any:
+    raw = response.read(_JSON_SIZE_LIMIT + 1)
+    if len(raw) > _JSON_SIZE_LIMIT:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except (ValueError, RecursionError):
+        return None
+
+
 def _get_json(url: str) -> tuple[int, Any]:
     """(status, parsed body). Raises urllib/OS errors for transport
     failures; a non-2xx HTTP status is returned, not raised."""
     request = urllib.request.Request(url, method="GET")
     try:
         with urls.open_no_redirect(request, timeout=_TIMEOUT) as resp:
-            return resp.status, json.loads(resp.read().decode("utf-8"))
+            return resp.status, _read_json(resp)
     except urllib.error.HTTPError as e:
         try:
-            return e.code, json.loads(e.read().decode("utf-8"))
+            with e:
+                return e.code, _read_json(e)
         except (ValueError, OSError):
             return e.code, None
 
@@ -334,7 +346,7 @@ def _health_defect(body: Any) -> str | None:
         return f"health keys {sorted(body)}"
     if body.get("contract") != "ryan.suite.health" or body.get("version") != 1:
         return "health contract/version"
-    if body.get("state") not in _HEALTH_STATES:
+    if not isinstance(body.get("state"), str) or body["state"] not in _HEALTH_STATES:
         return f"unknown health state {body.get('state')!r}"
     checks = body.get("checks")
     if not isinstance(checks, list) or not checks:
@@ -343,10 +355,12 @@ def _health_defect(body: Any) -> str | None:
     for item in checks:
         if not isinstance(item, dict) or set(item) != _CHECK_KEYS:
             return "health check item keys"
-        if item.get("status") not in _CHECK_STATUSES:
+        if not isinstance(item.get("status"), str) or item["status"] not in _CHECK_STATUSES:
             return f"unknown check status {item.get('status')!r}"
         if not isinstance(item.get("required"), bool):
             return "check.required must be a boolean"
+        if not isinstance(item.get("id"), str):
+            return "check.id must be a string"
         seen.add(item.get("id"))
     missing = _REQUIRED_UOINK_CHECKS - seen
     if missing:
@@ -618,13 +632,14 @@ def _conformance_read(
     request.add_unredirected_header("X-Uoink-Token", token)
     try:
         with urls.open_no_redirect(request, timeout=_TIMEOUT) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
+            body = _read_json(resp)
     except urllib.error.HTTPError as e:
         seen = evidence + f"; conformance read: HTTP {e.code}"
         if 300 <= e.code < 400:
             e.close()
             return _bad("contract_mismatch", "uoink redirected the conformance read", seen, retryable=False)
         if e.code in (401, 403):
+            e.close()
             return _bad(
                 "authentication_failed",
                 f"uoink rejected the configured {UOINK_TOKEN_ENV} "
@@ -633,8 +648,11 @@ def _conformance_read(
                 retryable=False,
             )
         try:
-            body = json.loads(e.read().decode("utf-8"))
+            with e:
+                body = _read_json(e)
         except (ValueError, OSError):
+            body = None
+        if body is None:
             return _bad(
                 "contract_mismatch",
                 f"conformance read answered HTTP {e.code} without a "
