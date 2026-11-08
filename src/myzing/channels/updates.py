@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from myzing.factory import network, visuals
 from myzing.playbook import feeds
@@ -144,11 +144,23 @@ def _uploads(handle: str, root: Path, fetch, stop=None):
     ident = feeds.resolve(handle, request, root=root)
     if stop and stop():
         return
-    for row in feeds.feed(ident, request, root=root, fallback=feeds.listing if fetch is None else None):
+    for row in feeds.feed(ident, request, root=root, require_views=False, fallback=feeds.listing if fetch is None else None):
         path = f"shorts/{row['id']}" if row.get("short") else f"watch?v={row['id']}"
         yield {"title": row["title"], "url": "https://www.youtube.com/" + path,
                "published": row["published"], "source": row["channel_title"], "summary": "",
                "ident": "yt-" + row["id"]}          # the same id an outlier pick of this upload gets
+
+
+def _video_id(parts):
+    ident = ""
+    if parts.hostname in ("youtube.com", "www.youtube.com", "m.youtube.com"):
+        if parts.path == "/watch":
+            ident = (parse_qs(parts.query).get("v") or [""])[0]
+        elif parts.path.startswith("/shorts/"):
+            ident = parts.path[len("/shorts/"):].rstrip("/")
+    elif parts.hostname in ("youtu.be", "www.youtu.be"):
+        ident = parts.path.strip("/")
+    return ident if re.fullmatch(r"[A-Za-z0-9_-]{11}", ident) else None
 
 
 def collect(series: dict, root: Path, *, fetch=None, now: datetime | None = None, stop=None) -> list[dict]:
@@ -169,14 +181,18 @@ def collect(series: dict, root: Path, *, fetch=None, now: datetime | None = None
                 if stamp is None or not now - timedelta(days=10) <= stamp <= now + timedelta(hours=1):
                     continue
                 url = item["url"].strip()
-                parts = urlsplit(url)
+                try:
+                    parts = urlsplit(url)
+                except ValueError:
+                    continue
                 if parts.scheme != "https" or not parts.hostname or url in seen or any(c.isspace() for c in url):
                     continue
                 seen.add(url)
                 title, summary = _plain(item["title"])[:200], _plain(item["summary"])[:600]
                 score, why = _score(title + " " + summary)
                 if score >= 4:
-                    rows.append({"id": item.get("ident") or "news-" + hashlib.sha256(url.encode()).hexdigest()[:16],
+                    ident = _video_id(parts)
+                    rows.append({"id": "yt-" + ident if ident else item.get("ident") or "news-" + hashlib.sha256(url.encode()).hexdigest()[:16],
                                  "series": series["id"], "kind": "news", "title": title, "url": url,
                                  "published": stamp.isoformat(), "source": _plain(item["source"])[:120], "summary": summary,
                                  "score": score, "why": why})

@@ -264,7 +264,7 @@ def api_listing(channel_id: str, *, key, opener=None, now=None, watch_only: bool
 
 
 def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: bool = False,
-         fallback=None, api=None) -> list[dict]:
+         require_views: bool = True, fallback=None, api=None) -> list[dict]:
     if not re.fullmatch(ID, channel_id):
         raise ValueError("invalid YouTube channel ID")
     url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
@@ -311,7 +311,7 @@ def feed(channel_id: str, fetch=None, *, root: Path = Path("."), watch_only: boo
         stats = entry.find(".//media:statistics", NS)
         ident, published = entry.findtext("yt:videoId", namespaces=NS), entry.findtext("atom:published", namespaces=NS)
         views = stats.get("views", "") if stats is not None else ""
-        if not ident or not published or (not watch_only and not views.isdigit()):
+        if not ident or not published or (require_views and not watch_only and not views.isdigit()):
             continue
         try:
             ident, published = safe_name(ident), parse_time(published).isoformat()

@@ -5,18 +5,22 @@ import html
 import json
 import math
 import re
+from contextlib import contextmanager
 from datetime import date as Date, datetime, time, timezone
 from importlib import resources
 from pathlib import Path
 from statistics import median
+from time import monotonic, sleep
 
 from myzing.factory.judge import Judge, NeedsAnswer
 from myzing.factory.pipeline import _read, _write
+from myzing.model_fetch import _try_lock, _unlock
 from myzing.playbook.common import parse_time
 
 from . import bandit, outliers, registry
 
 updates = None
+LOCK_TIMEOUT = 30
 STOP = set("about been could from have into just more should some that their them then there these they this those were what when where which with would your".split())
 
 
@@ -162,8 +166,31 @@ def _publish(path: Path, text: str) -> None:
     tmp.replace(path)                   # a stopped run never leaves a torn page
 
 
+@contextmanager
+def _lock(slug):
+    root = registry.directory(slug) / "brief"
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / ".brief.guard").open("a+b") as stream:
+        until = monotonic() + LOCK_TIMEOUT
+        while not _try_lock(stream):
+            if monotonic() >= until:
+                raise registry.ChannelError(f"Timed out waiting for another brief command for {slug}. Try again.")
+            sleep(.1)
+        try:
+            yield
+        finally:
+            _unlock(stream)
+
+
 def make(slug, *, now=None, fetch=None, judge=None, stop=None, collectors=None) -> dict:
     channel = registry.load(slug)
+    registry.require_running(slug)
+    with _lock(slug):
+        return _make(channel, now=now, fetch=fetch, judge=judge, stop=stop, collectors=collectors)
+
+
+def _make(channel, *, now=None, fetch=None, judge=None, stop=None, collectors=None) -> dict:
+    slug = channel["slug"]
     registry.require_running(slug)
     now = now or datetime.now(timezone.utc)
     root = registry.directory(slug) / "brief"
@@ -248,25 +275,32 @@ def due(slug, now) -> bool:
         return False
     folder = registry.directory(slug) / "brief" / _day(channel, now)
     data = _read(folder / "brief.json")
-    return (data is None or not (folder / "brief.html").is_file()     # a crash after the last script leaves no page
-            or any(not item.get("script") and not item.get("pending") for item in data["items"]))
+    page = folder / "brief.html"
+    if (data is None or not page.is_file()     # a crash after the last script leaves no page
+            or any(not item.get("script") and not item.get("pending") for item in data["items"])):
+        return True
+    newest = max((p.parent.name for p in folder.parent.glob("*/brief.json")), default=folder.name)
+    latest = folder.parent / "latest.html"
+    return folder.name == newest and (not latest.is_file() or latest.stat().st_mtime_ns < page.stat().st_mtime_ns)
 
 
 def answer(slug, task, path_or_text, date=None):
     channel = registry.load(slug)
     registry.require_running(slug)
     now = when(channel, date)
-    folder = registry.directory(slug) / "brief" / _day(channel, now)
-    data = _read(folder / "brief.json", {})
-    if task not in {f"script-{item['n']}" for item in data.get("items", [])}:
-        raise registry.ChannelError("task must name an item in that day's brief")
-    text = path_or_text
-    if isinstance(text, Path):
-        text = text.read_text(encoding="utf-8-sig")
-    elif isinstance(text, str) and not text.lstrip().startswith(("{", "```")):
-        text = Path(text).read_text(encoding="utf-8-sig")
-    Judge(folder).save(task, text)
-    return make(slug, now=now)
+    with _lock(slug):
+        registry.require_running(slug)
+        folder = registry.directory(slug) / "brief" / _day(channel, now)
+        data = _read(folder / "brief.json", {})
+        if task not in {f"script-{item['n']}" for item in data.get("items", [])}:
+            raise registry.ChannelError("task must name an item in that day's brief")
+        text = path_or_text
+        if isinstance(text, Path):
+            text = text.read_text(encoding="utf-8-sig")
+        elif isinstance(text, str) and not text.lstrip().startswith(("{", "```")):
+            text = Path(text).read_text(encoding="utf-8-sig")
+        Judge(folder).save(task, text)
+        return _make(channel, now=now)
 
 
 def _words(text: str) -> set[str]:
@@ -306,7 +340,7 @@ def voice(slug: str, now: datetime) -> list[str]:
         if not isinstance(data, dict) or not isinstance(data.get("items"), list):
             continue
         history.extend((day, item) for item in data["items"]
-                       if isinstance(item, dict) and isinstance(item.get("take"), dict))
+                       if isinstance(item, dict) and isinstance(item.get("take"), dict) and item["take"].get("words", 0) > 0)
     history.sort(key=lambda row: (row[0], row[1].get("n", 0)), reverse=True)
     if len(history) < 3:
         return []
@@ -364,6 +398,12 @@ def recorded(slug: str, project: Path, take: dict) -> None:
         words = _read(project / "words.json", [])
     except (OSError, ValueError):
         words = []
+    if not words or not isinstance(words, list):
+        try:
+            segments = _read(project / "transcript.json", [])
+        except (OSError, ValueError):
+            segments = []
+        words = [{**s, "w": s.get("text")} for s in segments if isinstance(s, dict)] if isinstance(segments, list) else []
     item.update(status="recorded", project=str(project), take=compare(item, words if isinstance(words, list) else []))
     _write(folder / "brief.json", data)
     newest = max(p.parent.name for p in folder.parent.glob("*/brief.json"))

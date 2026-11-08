@@ -487,7 +487,9 @@ zing channels brief creators --date 2026-11-06 --answer script-1 answer.json
 The brief uses the channel's local date. It saves `brief/YYYY-MM-DD/brief.json`
 and `brief.html`, with a page copy at `brief/latest.html`. Repeat runs fill
 missing scripts and rebuild the page. They keep the same picks. IDs saved in
-`brief/seen.json` prevent repeat picks on later days.
+`brief/seen.json` prevent repeat picks on later days. YouTube links in feeds and
+watched uploads use the same video ID. Builds and answers share a lock in the
+channel's brief folder. A caller waits up to 30 seconds, then reports a timeout.
 
 Breakdowns normally read public YouTube RSS metadata and exact view counts for the
 newest 15 uploads. They fetch no media. The baseline is the median view count
@@ -509,8 +511,9 @@ With the host judge, each item waits at `brief/YYYY-MM-DD/pending/script-N.md`.
 Answer with JSON containing `hook`, `script`, `move`, `title` and a `check` list.
 Use `--answer TASK FILE` to save it and refill that day's brief. A bad answer or
 failed series is recorded in the brief and leaves the other items free to run.
-Ticks make the brief once per local day after watching sources. Digest reports
-how many scripts are ready and how many need answers, with the page path.
+Ticks make the brief once per local day after watching sources. They also repair
+a missing `latest.html` or one older than the newest day's `brief.html`. Digest
+reports how many scripts are ready and how many need answers, with the page path.
 
 Create a folder for finished takes and register it as a `recordings` source.
 Use an absolute folder path. Recordings require `own` rights and a grant.
@@ -528,9 +531,11 @@ newest brief. The match supplies the hook, receipt as the news peg, source link
 and series. The brief item becomes `recorded` and points to its project.
 
 Matched takes also save how much of the script you kept, your opening and the
-spoken length. After at least three takes in the last 30 channel-local dates,
-new script prompts use notes on your pace, length and wording, with examples
-of hooks you changed. The brief page shows the share kept and the take's duration.
+spoken length. When word timing is missing or empty, these stats use transcript
+segments. After at least three takes with measured words in the last 30
+channel-local dates, new script prompts use notes on your pace, length and
+wording, with examples of hooks you changed. Takes without measured words are
+ignored. The brief page shows the share kept and the take's duration.
 Run `zing channels brief creators --takes` to read the notes without making a brief.
 
 The whole spoken take becomes one hand-picked clip, from its first word to its
@@ -758,6 +763,7 @@ come from your plan, factory defaults and cadence.
 ## Platform news
 
 News candidates come from RSS or Atom feeds and public YouTube upload metadata.
+YouTube feeds do not need view counts for news scoring. Shorts remain included.
 When both `feeds` and `watch` are empty, the sources are the YouTube Official Blog,
 Meta's Instagram newsroom, Creator Insider uploads and YouTube Creators uploads.
 No videos are downloaded. TikTok, Twitch and X publish no feed, so they are not read.
@@ -783,5 +789,5 @@ Items must have an HTTPS link and a date within the last 10 days, with up to one
 hour allowed for clock differences. Each matched keyword group adds points for
 money, reach, format, policy or creators, while off-topic terms subtract three.
 Candidates need at least four points and sort by score, then newest first.
-Duplicate links keep their first entry. Failed sources are skipped and recorded
-in the channel's `brief/news-errors.jsonl`.
+Duplicate links keep their first entry. A malformed link drops only that item.
+Failed sources are skipped and recorded in the channel's `brief/news-errors.jsonl`.
