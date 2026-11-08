@@ -1,0 +1,48 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "zing",
+  "version": "0.1.0",
+  "description": "Turn local episodes into short clips, study reference videos, render drafts and make memes with your installed Zing command.",
+  "author": {
+    "name": "Ryan Biddy",
+    "url": "https://github.com/ryanbiddy"
+  },
+  "homepage": "https://github.com/ryanbiddy/zing",
+  "repository": "https://github.com/ryanbiddy/zing",
+  "license": "MIT",
+  "keywords": ["video", "shorts", "editing", "factory", "memes", "uoink", "mcp"],
+  "extensions": {
+    "com.nousresearch.hermes": {
+      "servers": {
+        "zing": {
+          "trust": "untrusted",
+          "timeout": 7200,
+          "app": {
+            "win32": {
+              "presence": "executable",
+              "location": [
+                {"kind": "command", "name": "zing"},
+                "%USERPROFILE%/.local/bin/zing.exe"
+              ]
+            },
+            "darwin": {
+              "presence": "executable",
+              "location": [
+                {"kind": "command", "name": "zing"},
+                "~/.local/bin/zing"
+              ]
+            },
+            "linux": {
+              "presence": "executable",
+              "location": [
+                {"kind": "command", "name": "zing"},
+                "~/.local/bin/zing"
+              ]
+            }
+          },
+          "requires": {"app": true}
+        }
+      }
+    }
+  }
+}

@@ -5,7 +5,19 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
-## Connect an agent
+## Hermes Agent
+
+The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
+Zing command. Start with `factory_new`, call `factory_run` and poll
+`factory_status`. Hermes answers each `factory_prompt` through `factory_answer`,
+then resumes the run. Use `factory_clip` for new cuts and `factory_edit` for
+caption, hook, copy or visual changes. Return the review page and receipts.
+
+MCP hints mark `factory_status` and `factory_prompt` as read-only. The other
+factory tools write files and can replace existing work. `factory_run` can
+fetch visuals, so its open-world hint is true even when a project is offline.
+Hosts apply their own approval rules. See [Tool hints](CONNECT.md#tool-hints).
+\n## Connect an agent
 
 Run `zing connect` to list agent apps, then `zing connect claude-desktop`
 to print a config for one. Merge the entry into the app's settings to use the
