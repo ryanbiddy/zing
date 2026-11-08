@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix `from-uoink` download progress, reject network and device media paths,
+  screen lowercased hostnames for credentials, refuse unfinished projects for
+  the same item, and return errors for malformed media types.
 - Fix daily brief take stats with quick speech models, serialize builds and answers,
   and repair stale latest pages. News skips malformed links, shares YouTube IDs
   across feeds and keeps uploads without view counts.

@@ -202,8 +202,10 @@ def handoff_defect(body: Any) -> str | None:
             or PurePosixPath(media_path).is_absolute()
         ):
             return f"media.path must be absolute, got {media_path!r}"
+        if media_path.replace("\\", "/").startswith("//"):
+            return f"media.path must be local, got {media_path!r}"
         media_type = media.get("media_type")
-        if media_type not in _HANDOFF_MEDIA_TYPES:
+        if not isinstance(media_type, str) or media_type not in _HANDOFF_MEDIA_TYPES:
             return f"unsupported media_type {media_type!r}"
         byte_length = media.get("byte_length")
         if (
