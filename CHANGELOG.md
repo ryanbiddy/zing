@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Block old renders after visual edits and recheck existing kits before phone sync.
+  Kit stamps detect replaced video and copy even with older timestamps. Retry takes
+  changed during intake, preserve brief items claimed by another project and keep
+  watching other files when one sidecar is unreadable.
 - Fix daily brief take stats with quick speech models, serialize builds and answers,
   and repair stale latest pages. News skips malformed links, shares YouTube IDs
   across feeds and keeps uploads without view counts.

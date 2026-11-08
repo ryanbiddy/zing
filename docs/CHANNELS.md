@@ -190,7 +190,9 @@ A clip waits if any of these apply.
 - A project has `brief.json` but the clip has no `brief_check.json`, or the
   brief check has errors or flags.
 - The project's `9x16` render or `post.json` is missing. Non-default packs use
-  `clipNN/clip-<pack>.mp4`.
+  `clipNN/clip-<pack>.mp4`. Clips with saved scene shot data also wait if the render
+  is older than the plan, visual picks, manifest, scene data, captions, camera data
+  or cut video.
 - The post copy contains a local file path (a `file:` link, a drive path or a
   network share), so nothing private ends up in a public description.
 - The clip is rated No or still needs approval.
@@ -334,7 +336,7 @@ next free slot. `list` prints all channel settings.
 Each kit lives in `kits/<YYYY-MM-DD-HHMM>-<project>-<clip>/`. It contains
 `video.mp4`, `youtube.txt`, `tiktok.txt`, `instagram.txt`, `x.txt`,
 `first_comment.txt` and `post.json`. The JSON retains the copy fields and adds
-the slot, channel, source ID, rights and gate result.
+the slot, channel, source ID, rights, gate result and source file stamps.
 
 YouTube text starts with the title, a blank line and the YouTube description
 if supplied, otherwise the Instagram caption. It then adds the source credit,
@@ -342,9 +344,12 @@ network line and URL, and a link back to the channel when a handle is set.
 FFmpeg remuxes the video with stream copy and faststart. If FFmpeg is missing,
 the original file is copied and the command reports that it was not remuxed.
 
-`kit` rechecks the gate before making files and marks each finished row `kit`.
-Repeat runs rebuild a kit when the clip's render or copy is newer. The folder
-keeps its name. Uploads refuse stale kits until you run `zing channels kit SLUG`.
+`kit` rechecks queued and existing kit rows and marks each finished row `kit`.
+A kit that fails goes back to `queued` and leaves the phone folder on that sync.
+Repeat runs rebuild a kit when the source render or copy changes size or modification
+time, even if the timestamp is older. Source stamps live in the kit's `post.json`.
+Older kits without stamps use the previous newer-than check. The folder keeps its
+name. Uploads refuse stale kits until you run `zing channels kit SLUG`.
 Kits with an upload in progress stay unchanged. `kit --out DIR` chooses another
 output folder. Open its `index.html` to watch videos and copy text. Its Posted checkboxes
 only change the open page. Use `posted` to save that status in the queue;
@@ -546,7 +551,9 @@ series. The factory reuses the transcript and skips scouting. Sentence snapping
 may drop a leading "so" or "okay" but never cuts the end of a take. A matched
 take's first comment links the video or post it talks about. Its usual graphics,
 gate, queue and kits take over. Recordings follow the same seeding limit as own sources.
-A changed file clears any cached transcript before a project is created.
+A changed file clears any cached transcript before a project is created. Intake
+checks its size and modification time again before saving the project. A change
+discards the staged take and leaves `found, changed during intake` for a later watch.
 Series stay in clip arms, queue rows and outcomes. `learn` adds each series's
 count of unmasked rewards and median reward. The bandit does not choose series.
 
@@ -563,7 +570,7 @@ Edit the recordings source in `channel.json`. Set `require_match` to `true` and
 With `phone_folder` set, `zing channels kit SLUG` also copies approved kits and
 their post copy into `<phone_folder>/<slug>-kits/`. Open its `index.html` on your
 phone to play clips and copy text before uploading in the platform's app.
-Posted or skipped kits leave this folder on the next kit run or tick.
+Posted, skipped or newly blocked kits leave this folder on the next kit run or tick.
 
 ```json
 {

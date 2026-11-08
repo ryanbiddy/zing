@@ -119,10 +119,20 @@ document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener
     return path
 
 
+def _sources(d: Path) -> dict:
+    pack = _read(d.parent / "factory.json", {}).get("pack", "zing")
+    files = {"video.mp4": d / f"clip{render.suffix('9x16', pack)}.mp4", "post.json": d / "post.json"}
+    return {name: {"size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+            for name, path in files.items() if path.is_file() for stat in (path.stat(),)}
+
+
 def _stale(d: Path, folder: Path) -> bool:
     pack = _read(d.parent / "factory.json", {}).get("pack", "zing")
     pairs = ((d / f"clip{render.suffix('9x16', pack)}.mp4", folder / "video.mp4"),
              (d / "post.json", folder / "post.json"))
+    stamp = _read(folder / "post.json", {}).get("kit_sources")
+    if stamp is not None:
+        return stamp != _sources(d) or any(not dest.is_file() for _, dest in pairs)
     return any(src.is_file() and (not dest.is_file() or src.stat().st_mtime_ns > dest.stat().st_mtime_ns)
                for src, dest in pairs)
 
@@ -185,9 +195,6 @@ def _kit(channel: dict, out: Path | None, stop, now=None) -> dict:
         d = project / row["clip"]
         stamp = datetime.fromisoformat(row["slot"]).strftime("%Y-%m-%d-%H%M")
         folder = Path(row["kit"]) if row.get("kit") else out / f"{stamp}-{project.name}-{row['clip']}"
-        stale = _stale(d, folder)
-        if row["status"] == "kit" and not stale:
-            continue
         result = gate.check(project, row["clip"], channel, now=now)
         if not result["publishable"]:
             blocked[row["id"]] = result["blockers"]
@@ -195,10 +202,14 @@ def _kit(channel: dict, out: Path | None, stop, now=None) -> dict:
                 row["status"] = "queued"
                 queue.write(slug, rows)
             continue
+        stale = _stale(d, folder)
+        if row["status"] == "kit" and not stale:
+            continue
         required = ["video.mp4", "post.json", *[f"{field}.txt" for field in TEXTS]]
         if folder.exists() and not all((folder / name).is_file() for name in required):
             raise registry.ChannelError(f"kit folder is incomplete. Remove it and try again at {folder}")
         if not folder.exists() or stale:
+            sources = _sources(d)
             post = _read(d / "post.json", {})
             cfg = _read(project / "factory.json", {})
             with tempfile.TemporaryDirectory(prefix=".kit-", dir=folder.parent) as temp:
@@ -211,7 +222,7 @@ def _kit(channel: dict, out: Path | None, stop, now=None) -> dict:
                     text = _youtube(post, project, channel, cfg.get("source")) if field == "youtube" else post.get(field, "")
                     (tmp / f"{field}.txt").write_text(text, encoding="utf-8")
                 _write(tmp / "post.json", {**post, "slot": row["slot"], "channel": slug, "rights": cfg.get("rights", "unknown"),
-                                            "source": cfg.get("source"), "gate": result})
+                                            "source": cfg.get("source"), "gate": result, "kit_sources": sources})
                 if folder.exists():
                     folder.rename(previous)
                 try:
