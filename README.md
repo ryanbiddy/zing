@@ -239,6 +239,10 @@ the original font, LUT, transition preset or editor project from pixels.
 Zing studies and edits media. Its agent kit uses the same portable skill-folder
 approach. Zing works standalone with local files.
 
+Uoink 3.16.0 and later has a "Make a Short with Zing" button in its reader.
+It shows only when Zing is installed and opens the saved item with
+`zing from-uoink`. See [Hand-off with Uoink](docs/UOINK-MEMORY.md#hand-off-with-uoink).
+
 Suite-aware commands may make loopback HTTP calls to a local Uoink helper for
 peer health, retained media, corpus notes and engagement. Zing never puts the
 Uoink token in a URL. A verified kept-media handoff can avoid a new download;
