@@ -128,6 +128,10 @@ episode + captions -> scout moments -> cut -> plan the screen -> find visuals ->
 
 ## Pick a channel niche
 
+Use `zing channels setup SLUG --from-scan zing-workspace/scout --scan-niche "NAME"`
+to reuse a niche scan's channels. Setup checks their current feeds and saves the
+scan source in its report. See [Set up a new niche](CHANNELS.md#set-up-a-new-niche).
+
 Add `--suggest` to `zing channels setup` to ask the judge for candidate handles.
 Setup checks their public feeds and records why channels were dropped.
 `--judge host|claude` chooses the judge. With `host`, answer the printed prompt
