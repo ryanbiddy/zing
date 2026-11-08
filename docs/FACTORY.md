@@ -5,7 +5,25 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
-## Hermes Agent
+## Hand-off with Uoink
+
+`zing from-uoink uoink:short-123` starts a factory project from the item's kept
+video and opens the review dashboard. Press Run to begin. The host judge is
+the default; `--judge claude` uses Claude Code. The source title and link are
+saved when available. The media stays in Uoink.
+
+If Uoink did not keep the video, add `--allow-download` to fetch its source
+into the project's `source/` folder. Rights stay `unknown`, so the posting
+gate still applies. Progress goes to stderr. With `--json`, stdout has one
+readiness line after the download, including a `downloaded` flag. Reusing
+the same project does not download again.
+
+Use `--project DIR` to choose the folder, `--no-open` to leave the browser
+closed, and `--idle-minutes N` to change the 60-minute idle limit. The minimum
+is 1 minute. The same item reuses its project and keeps edits. Uoink's button
+uses `--probe --json` to check support and `--json` to read the dashboard URL.
+See the [hand-off contract](UOINK-MEMORY.md#hand-off-with-uoink).
+\n## Hermes Agent
 
 The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
 Zing command. Start with `factory_new`, call `factory_run` and poll

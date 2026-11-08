@@ -12,6 +12,7 @@ import sys
 # the remaining drift class — a command added here appears in help by
 # construction, ordered as listed).
 _COMMANDS: dict[str, tuple[str, str]] = {
+    "from-uoink": ("myzing.handoff", "open a saved Uoink item in the clip factory"),
     "factory": ("myzing.factory.command", "turn a long episode into social clips with visuals, graphics and copy"),
     "channels": ("myzing.channels.command", "run niche channels: sources, rights, queue and post kits"),
     "playbook": ("myzing.playbook.command", "compare worked and under-performing Shorts; local measurements and blind notes"),

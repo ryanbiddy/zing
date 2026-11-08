@@ -58,6 +58,14 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `push_to_uoink` | Explicit library write; not part of default local editing. |
 | `import_shot_list` | Attach a local Writer-exported Markdown shot list to a studied slug. |
 
+`study_video(..., save_source_to_uoink=True)` asks Uoink to save an HTTP or
+HTTPS source before the study starts. The flag defaults to `False` and has
+no effect on local files. Zing calls the capture route only when Uoink
+advertises `uoink.capture/1`; that capability is planned and not yet shipped.
+The capture envelope is in `result["uoink_capture"]`. A capture
+failure does not fail the study. See the
+[capture contract](https://github.com/ryanbiddy/zing/blob/main/docs/UOINK-MEMORY.md#save-a-source-link).
+
 Copy fields are `"x"`, `"instagram"`, `"tiktok"`, `"youtube_title"` and `"first_comment"`.
 Hook text is trimmed to 120 characters; copy to 2200. Word indices start at 0 in
 the clip's `words.json`. `at` is seconds in the edited clip, within the current

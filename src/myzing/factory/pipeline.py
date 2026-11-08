@@ -19,7 +19,8 @@ from .tools import FactoryError
 MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
             "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
-            "news": None, "offline": False, "visuals": None, "rights": "unknown", "channel": None, "source": None}
+            "news": None, "offline": False, "visuals": None, "rights": "unknown", "channel": None, "source": None,
+            "uoink_ref": None}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds

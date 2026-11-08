@@ -62,6 +62,10 @@ def assert_wire(actual, expected):
             # Tool hints are new metadata; test_mcp_annotations.py pins their values.
             hints = tool.pop("annotations")
             assert {"readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"} <= set(hints)
+            if tool["name"] == "study_video":
+                option = tool["inputSchema"]["properties"].pop("save_source_to_uoink")
+                assert option["type"] == "boolean" and option["default"] is False
+                assert "save_source_to_uoink" not in tool["inputSchema"].get("required", [])
             if tool["name"] in {"study_video", "study_uoink_item", "match_start"}:
                 # DOGFOOD2 adds optional reference trims. Preserve the historical
                 # schema and pin the new fields' optional/default behavior.
