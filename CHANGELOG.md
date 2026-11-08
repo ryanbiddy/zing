@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fix daily brief take stats with quick speech models, serialize builds and answers,
+  and repair stale latest pages. News skips malformed links, shares YouTube IDs
+  across feeds and keeps uploads without view counts.
 - Add `zing channels setup --from-scan` to reuse niche scan candidates, choose
   a niche with `--scan-niche` and record the scan source and any channels left out.
 - Add `playbook list --scope` and `distill --scope` for cohort labels, defaulting
