@@ -32,11 +32,10 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
             graphic.style = replace(graphic.style, size=min(512, max(1, graphic.style.size * min(width, height) / old_short)))
     clips = []
     rate = plan.fps.numerator / plan.fps.denominator
+    transition_clips = {name for t in plan.transitions for name in (t.outgoing_clip, t.incoming_clip)}
     for clip in plan.clips:
         boundaries = [clip.src_in]
-        # Splitting transition legs would invalidate their linked handles.
-        # Auto coverage checks instead fall back to full-picture blurfill.
-        if not plan.transitions and requested in ("auto", "reframe", "zoomfill"):
+        if clip.id not in transition_clips and requested in ("auto", "reframe", "zoomfill"):  # Keep transition handles intact.
             for cut in sorted((cuts or {}).get(clip.asset_id, [])):
                 if cut - boundaries[-1] >= 1 / rate and clip.src_out - cut >= 1 / rate:
                     boundaries.append(cut)

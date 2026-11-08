@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Record local study source hashes, split cuts outside transition legs, keep crops
+  within each shot and handle thin contact-sheet frames. Assign overlapping caption
+  words once and give silent music excerpts zero energy points.
 - Reject meme captions that cannot fit and regions that are not a list. Use the
   still canvas background for transparent images in video memes and handle topics
   such as `my :` without a traceback.
