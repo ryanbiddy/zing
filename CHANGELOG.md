@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve previous videos when a render fails in a kept work folder or a receipt
+  cannot be published. Keep OTIO audio gaps within the video duration.
 - Keep finished match and render results during MCP polling and record factory
   setup failures. Return OTIO probe errors as data and omit paths from shot-list
   import errors.

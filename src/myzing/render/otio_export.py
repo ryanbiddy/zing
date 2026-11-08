@@ -185,7 +185,7 @@ def _timeline_from_validated(otio: Any, validated: ValidatedEDL, name: str) -> A
             metadata={"myzing": {"role": spec.kind}},
         )
         if spec.timeline_start > 0:
-            audio_track.append(_gap(otio, spec.timeline_start, rate))
+            audio_track.append(_gap(otio, min(spec.timeline_start, validated.duration), rate))
         audible_duration = max(
             0.0,
             min(
