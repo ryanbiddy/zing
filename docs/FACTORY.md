@@ -595,6 +595,11 @@ Key values are never printed, logged or passed to the browser.
 Each candidate carries a rights record (`cleared`, `attribution`, `editorial` or
 `unknown`) and a credit line. The review page flags anything not cleared. `--public`
 keeps only cleared and attribution-licensed visuals and skips site captures.
+CC BY and CC BY-SA count as `attribution`. Licenses with NC or ND terms in their
+name or URL count as `unknown`. Openverse searches require commercial use and
+modification. NASA items with copyright or permission notices in their title,
+description or creator also count as `unknown`. Long attribution credits shorten
+the title and creator to keep the license whole at the end.
 GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 
 ## Style packs

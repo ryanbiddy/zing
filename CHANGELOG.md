@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Mark NC, ND and NASA third-party visuals as unknown, require modification rights
+  in Openverse searches, preserve licenses in shortened attribution credits and
+  keep ranking when a candidate has non-numeric dimensions.
 - Retry failed re-renders, refresh replaced dashboard videos, label variants older
   than the latest edit, and reject queued word corrections when the word has changed.
 - Keep saved playbook features and failure records after interrupted measurements,
