@@ -124,14 +124,15 @@ def run_confirmed(answers, *, progress=None, locked=False):
     root.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     progress("Starting " + plan["title"])
+    from .jobs import busy_lock
     if path in "ab" and a.get("footage_kind") == "screen":
         from myzing.screen.api import run_folder
-        result = run_folder(a["clips"], root, cursor=None if a.get("cursor_log", "none") == "none" else a["cursor_log"],
-                            aspects=a["aspects"], caption_preset=a["captions"] if a["captions"] in {"clean","punch","box"} else "none",
-                            progress=progress, speech_model=a.get("speech_model"), music=a.get("music"))
+        with nullcontext() if locked else busy_lock(root):
+            result = run_folder(a["clips"], root, cursor=None if a.get("cursor_log", "none") == "none" else a["cursor_log"],
+                                aspects=a["aspects"], caption_preset=a["captions"] if a["captions"] in {"clean","punch","box"} else "none",
+                                progress=progress, speech_model=a.get("speech_model"), music=a.get("music"))
     elif path == "a":
         from myzing.match.jobs import execute
-        from .jobs import busy_lock
         with nullcontext() if locked else busy_lock(root):
             result = execute({"reference": a["reference"], "clips": a["clips"], "out": str(root),
                               "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),

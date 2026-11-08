@@ -8,6 +8,7 @@ import pathlib
 import sys
 import threading
 import time
+from contextlib import ExitStack
 
 from . import flow, jobs
 from .models import SESSION_NAME, Session, load_session, read_json, save_session
@@ -152,6 +153,7 @@ def run(argv):
     parser.add_argument("--json", action="store_true", help="JSON Lines events: question, plan, progress, result")
     args = parser.parse_args(argv)
     session = Session()
+    lease = ExitStack()  # the production lock, held from persist('running') to the end
     cache = {"progress": lambda text: print(text, file=sys.stderr if args.json else sys.stdout, flush=True)}
 
     def emit(event, data):
@@ -263,6 +265,9 @@ def run(argv):
             session.result = {}
         trim = range_options(args)
         if trim:
+            previous = {k: session.answers[k] for k in ("ref_start", "ref_end", "reference_range") if k in session.answers}
+            if previous != trim:
+                session.result = {}
             for key in ("ref_start", "ref_end", "reference_range"):
                 session.answers.pop(key, None)
             session.answers.update(trim)
@@ -358,6 +363,7 @@ def run(argv):
                     persist()
                 continue
             plan = step["plan"]
+            jobs.ensure_idle(session.answers["project"])  # a busy project keeps its running session
             persist("planned")
             emit("plan", {"ok": True, "plan": plan})
             if not args.json:
@@ -397,6 +403,7 @@ def run(argv):
                     print("Enter yes to run, b to change an answer, or q to save.")
                     continue
             break
+        lease.enter_context(jobs.busy_lock(pathlib.Path(session.answers["project"])))
         persist("running")
         output_lock = threading.Lock()
         last_progress = time.monotonic()
@@ -421,9 +428,9 @@ def run(argv):
         try:
             if session.answers["path"] == "a":
                 from .execute import run_confirmed
-                result = run_confirmed(session.answers, progress=progress)
+                result = run_confirmed(session.answers, progress=progress, locked=True)
             else:
-                result = jobs.execute(session.answers, progress=progress)
+                result = jobs.execute(session.answers, progress=progress, locked=True)
         finally:
             stop.set()
             beat.join(timeout=2)
@@ -444,10 +451,12 @@ def run(argv):
         emit("result", result)
         if not args.json:
             print("Studio: " + str(exc), file=sys.stderr)
-        if "project" in session.answers:
+        if "project" in session.answers and not isinstance(exc, jobs.BusyError):
             session.result = result
             try:
                 persist("failed")
             except (ValueError, OSError):
                 pass  # The error may be an input/output collision; preserve it.
         return 1
+    finally:
+        lease.close()

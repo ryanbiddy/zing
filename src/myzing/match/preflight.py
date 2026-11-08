@@ -71,7 +71,10 @@ def check(reference, clips, out, *, brief=None, answers=None, studio_options=Non
     paths = []
     directory = Path(clips).expanduser()
     try:
-        paths = sorted(p for p in directory.rglob("*") if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS) if directory.is_dir() else []
+        output = Path(out).expanduser().resolve()
+        nested = output.is_relative_to(directory.resolve())
+        paths = sorted(p for p in directory.rglob("*") if p.is_file() and p.suffix.lower() in MEDIA_EXTENSIONS
+                       and not (nested and p.resolve().is_relative_to(output))) if directory.is_dir() else []
         if not paths:
             problems.append("No readable video clips; put supported video files in --clips.")
     except OSError as exc:

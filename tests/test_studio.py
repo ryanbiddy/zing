@@ -325,7 +325,7 @@ def test_answers_plan_only_then_run_json(inputs, tmp_path, monkeypatch, capsys):
     assert command.run(["--answers", str(answer_file), "--json"]) == 0
     events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert [e["event"] for e in events] == ["plan", "confirmation_required"]
-    def execute(*args, progress):
+    def execute(*args, progress, locked):
         progress("audio analysis")
         return {"ok": True, "status": "ready", "outputs": []}
     monkeypatch.setattr(command.jobs, "execute", execute)
