@@ -72,8 +72,11 @@ def test_ephemeral_dashboard_auth_and_http_activity_extend_idle(project, monkeyp
         assert request("/", {"Host": "elsewhere.test", "Cookie": cookie})[0] == 403
         assert request("/")[0] == 403
     finally:
-        now[0] = 100
-        worker.join(3)
+        for step in range(1, 31):               # a connection that finishes late refreshes the idle clock
+            now[0] = 100 * step
+            worker.join(.1)
+            if not worker.is_alive():
+                break
     assert not worker.is_alive() and not errors and closed == [True]
 
 

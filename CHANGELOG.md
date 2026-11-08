@@ -5,6 +5,8 @@
 - Fix daily brief take stats with quick speech models, serialize builds and answers,
   and repair stale latest pages. News skips malformed links, shares YouTube IDs
   across feeds and keeps uploads without view counts.
+- The review dashboard closes stalled connections, waits for active requests before
+  idle shutdown, and returns JSON errors for deeply nested bodies and failed actions.
 - Preserve Unicode text in JSONL and save channel queues atomically. Refund failed
   upload sessions, keep scheduled uploads scheduled and link manual posts before
   uploading. Analytics uses Pacific dates and retries incomplete runs after an hour.
