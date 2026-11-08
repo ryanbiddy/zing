@@ -115,6 +115,8 @@ class Studio:
         for c in st["clips"]:
             d = self.project / c["clip"]
             vis = d / "visuals"
+            videos = {p.name: p.stat().st_mtime_ns for p in sorted(d.glob("clip*.mp4"))}
+            edited = max((p.stat().st_mtime_ns for p in (d / "plan.json", d / "words.json") if p.is_file()), default=0)
             clips.append({**c, "plan": _read(d / "plan.json"), "post": _read(d / "post.json"),
                           "receipt": _read(d / "receipt.json"),
                           "context": _read(d / "context.json"),
@@ -122,7 +124,8 @@ class Studio:
                           "brief_check": _read(d / "brief_check.json"),
                           "visual_requests": _read(vis / "requests.json"), "candidates": _read(vis / "manifest.json"),
                           "picks": _read(vis / "picks.json"), "rating": ratings.get(c["clip"]),
-                          "videos": {p.name: p.name for p in sorted(d.glob("clip*.mp4"))}})
+                          "videos": {name: str(rev) for name, rev in videos.items()},
+                          "stale_videos": [name for name, rev in videos.items() if rev < edited]})
         with self._guard, self.jobs.mutex:
             jobs = list(self.active) + [label for label, _ in self.jobs.queue]
         st.update(clips=clips, packs={name: render.theme(name).get("name", name) for name in render.themes()}, jobs=jobs)
@@ -204,9 +207,15 @@ class Studio:
     def word(self, body: dict) -> dict:
         clip, index, new = body.get("clip"), body.get("index"), body.get("new")
         at, old = body.get("at"), body.get("old")
-        edit._word(self.project, clip, index, at, old, new)
-        return self.queue(f"{clip}: new word", lambda: edit.word(self.project, clip, index, new, at=at, old=old,
-                          context=self._context, rerender=self._rerender))
+        d, _, fix = edit._word(self.project, clip, index, at, old, new)
+
+        def job():
+            words = _read(d / "words.json", {}).get("words", [])
+            index = fix["index"]
+            if index >= len(words) or words[index]["w"] != fix["heard"]:
+                raise FactoryError("the clip changed since this edit was queued; reload and try again")
+            edit.word(self.project, clip, index, new, old=fix["heard"], context=self._context, rerender=self._rerender)
+        return self.queue(f"{clip}: new word", job)
 
     def rerender(self, body: dict) -> dict:
         shape, pack = body.get("shape", "9x16"), body.get("pack", "zing")
@@ -214,7 +223,7 @@ class Studio:
         return self.queue(f"{d.name}: {shape} {pack}", lambda: edit.rerender(self.project, d.name, shape, pack))
 
     def media(self, path: str) -> Path:
-        parts = [unquote(p) for p in path.split("/") if p]
+        parts = [unquote(p) for p in urlsplit(path).path.split("/") if p]
         if not parts or not CLIP.match(parts[0]):
             raise FactoryError("not found")
         target = (self.project / Path(*parts)).resolve()

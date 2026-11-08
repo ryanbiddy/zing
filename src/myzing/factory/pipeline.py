@@ -448,8 +448,10 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         _checkpoint(stop)
         tag = render.suffix(shape, cfg["pack"])
         out = d / f"clip{tag}.mp4"
-        saved = _read(d / f"data{tag}.json", {})
+        data_file = d / f"data{tag}.json"
+        saved = _read(data_file, {})
         if (not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime
+                or (data_file.is_file() and data_file.stat().st_mtime_ns > out.stat().st_mtime_ns)
                 or saved.get("scale", 1) != render.scale(cfg)
                 or saved.get("disclosure") != campaign.disclosure(brief)
                 or any(saved.get(k) != brand.get(k) for k in ("theme", "fonts", "logo"))):

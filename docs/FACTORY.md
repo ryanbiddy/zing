@@ -682,6 +682,12 @@ style pack. Swaps and hook edits re-run the fact check and re-render in the back
 Ratings save to `ratings.json`. `--judge claude` lets the page's Run button answer
 judgments with Claude Code; otherwise they wait for your agent.
 
+The player reloads a video after a re-render. Variants older than `plan.json` or
+`words.json` are labeled "older than the latest edit". They stay available to
+watch and download. Re-render those shapes and packs to include the edit.
+If encoding fails after capture, the next run retries when `data<tag>.json`
+is newer than the MP4.
+
 The server listens on 127.0.0.1 only, answers only to localhost Host headers, refuses
 writes from other sites and non-JSON posts, and serves files only from the project's
 clip folders. Nothing on the page posts or publishes.
