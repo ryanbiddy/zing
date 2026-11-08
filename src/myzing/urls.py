@@ -51,7 +51,15 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def open_no_redirect(request, *, timeout):
-    return urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout)
+    host = urlsplit(request.full_url if isinstance(request, urllib.request.Request) else request).hostname
+    try:
+        loopback = ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        loopback = host == "localhost"
+    handlers = [_NoRedirect()]
+    if loopback:
+        handlers.append(urllib.request.ProxyHandler({}))
+    return urllib.request.build_opener(*handlers).open(request, timeout=timeout)
 
 
 def has_http_scheme(value: Any) -> bool:

@@ -19,6 +19,10 @@ video and opens the review dashboard. Press Run to begin. The host judge is
 the default; `--judge claude` uses Claude Code. The source title and link are
 saved when available. The media stays in Uoink.
 
+Local Uoink calls never use a proxy. Peer checks reject invalid JSON and replies
+larger than 1 MiB. Saved breakdown Markdown is replaced atomically. A symlinked
+breakdown.md or JSON backup is replaced, not written through.
+
 If Uoink did not keep the video, add `--allow-download` to fetch its source
 into the project's `source/` folder. Rights stay `unknown`, so the posting
 gate still applies. Progress goes to stderr. With `--json`, stdout has one

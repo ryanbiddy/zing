@@ -5,6 +5,9 @@
 - Check kept reference copies by hash, stage media atomically and stop download
   child processes on timeout or error. Keep caption times aligned on low frame-rate
   videos, handle scattered speech and report failed transition detection as not measured.
+- Bypass proxies for local Uoink calls, reject malformed or oversized peer replies,
+  write breakdown Markdown atomically, and never write through a symlinked breakdown.md
+  or JSON backup.
 - Mark NC, ND and NASA third-party visuals as unknown, require modification rights
   in Openverse searches, preserve licenses in shortened attribution credits and
   keep ranking when a candidate has non-numeric dimensions.
