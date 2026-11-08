@@ -40,7 +40,16 @@ def test_ephemeral_dashboard_auth_and_http_activity_extend_idle(project, monkeyp
     worker = threading.Thread(target=run, daemon=True)
     worker.start()
     try:
-        page = urlsplit(pages.get(timeout=5))
+        for _ in range(60):                     # slow CI runners (macOS) can take a while to bind
+            if errors:
+                raise errors[0]
+            try:
+                page = urlsplit(pages.get(timeout=.5))
+                break
+            except queue.Empty:
+                continue
+        else:
+            raise AssertionError("the dashboard never reported ready")
         assert page.hostname == "127.0.0.1" and page.port > 0
 
         def request(path, headers=None):
