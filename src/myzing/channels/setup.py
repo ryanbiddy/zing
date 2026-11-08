@@ -78,8 +78,13 @@ def _scan(path, niche):
     if not isinstance(niches, list) or any(not isinstance(row, dict) or not isinstance(row.get("niche"), str)
                                          or not row["niche"].strip() for row in niches):
         raise registry.ChannelError(f"invalid niches in scan. {path}")
-    selected = (niches[0] if len(niches) == 1 else None) if niche is None else next(
-        (row for row in niches if row["niche"].strip().casefold() == niche.strip().casefold()), None)
+    if niche is None:
+        selected = niches[0] if len(niches) == 1 else None
+    else:
+        exact = [row for row in niches if row["niche"].strip() == niche.strip()]
+        loose = [row for row in niches if row["niche"].strip().casefold() == niche.strip().casefold()]
+        matches = exact or loose                        # scans may hold names that differ only by case
+        selected = matches[0] if len(matches) == 1 else None
     if selected is None:
         raise registry.ChannelError("choose a niche with --scan-niche: " + " | ".join(row["niche"] for row in niches))
     rows = selected.get("channels")

@@ -320,3 +320,11 @@ def test_scan_setup_makes_first_brief_with_fake_judge(public, tmp_path, monkeypa
     assert "brief_error" not in result and Path(result["brief"]).is_file()
     assert calls == ["script-1", "script-2"] and saved()["first_brief"] == NOW.isoformat()
     assert saved()["scan"] == result["scan"] and all(row["from_scan"] for row in saved()["kept"])
+
+
+def test_scan_niche_names_that_differ_only_by_case(public, tmp_path):
+    path = scan(tmp_path, ("DIY", "diy"))
+    assert command.run(["setup", "creator-stories", "--from-scan", str(path), "--scan-niche", "diy", "--no-brief"]) == 0
+    assert saved()["scan"]["niche"] == "diy"
+    with pytest.raises(registry.ChannelError, match="choose a niche with --scan-niche: DIY [|] diy"):
+        setup._scan(path, "Diy")
