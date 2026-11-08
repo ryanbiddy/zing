@@ -24,7 +24,8 @@ def list_channel(handle: str) -> list[dict]:
                        f"https://www.youtube.com/{channel}/shorts"], timeout=240)
     if result.returncode:
         raise ValueError(f"channel listing failed (exit {result.returncode})")
-    return [json.loads(line.rstrip("\r")) for line in result.stdout.split("\n") if line.strip()]
+    rows = [json.loads(line.rstrip("\r")) for line in result.stdout.split("\n") if line.strip()]
+    return [row for row in rows if isinstance(row, dict)]
 
 
 def select(rows: list[dict], *, skip_newest=10, k=5, now=None) -> dict:

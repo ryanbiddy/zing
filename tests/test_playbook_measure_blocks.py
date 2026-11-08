@@ -220,7 +220,7 @@ def test_retry_only_failures_preserves_measured_files(tmp_path, monkeypatch):
     def study(source, **kwargs):
         calls.append(source)
         ident = "download" if source == urls[1] else "local"
-        assert not records[ident].exists()
+        assert records[ident].exists()              # kept until the retry succeeds
         return breakdown()
     monkeypatch.setattr(measure.study_api, "study", study)
     result = measure.measure(tmp_path, download=True, media_dir=media, retry_failed=True)
@@ -240,7 +240,7 @@ def test_retry_local_without_download_and_keep_unattempted_failures(tmp_path, mo
     missing = failed(tmp_path, "missing")
     before = missing.read_bytes(), missing.stat().st_mtime_ns
     def study(value, **kwargs):
-        assert value == source and not record.exists()
+        assert value == source and record.exists()
         return breakdown()
     monkeypatch.setattr(measure.study_api, "study", study)
     result = measure.measure(tmp_path, media_dir=media, retry_failed=True)
@@ -253,7 +253,7 @@ def test_retry_block_replaces_attempted_record_only(tmp_path, monkeypatch):
     first, second = failed(tmp_path, "v0"), failed(tmp_path, "v1")
     before = second.read_bytes(), second.stat().st_mtime_ns
     def study(source, **kwargs):
-        assert source == urls[0] and not first.exists()
+        assert source == urls[0] and first.exists()
         raise MediaError("Too many requests")
     monkeypatch.setattr(measure.study_api, "study", study)
     result = measure.measure(tmp_path, download=True, retry_failed=True, max_blocks=1)
