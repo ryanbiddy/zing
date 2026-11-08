@@ -18,7 +18,7 @@ from myzing.render.pipeline import filter_script_args
 from . import MemeError
 from .framing import FITS, fill_origin
 from .photo import load_photo
-from .render import (ASPECT_ALIASES, MAX_PIXELS, Rect, _draw_layer, fit_rect, normalized_regions,
+from .render import (ASPECT_ALIASES, BACKGROUND, MAX_PIXELS, Rect, _draw_layer, fit_rect, normalized_regions,
                      layout_boxes, output_size, require_pillow, resolve_font, text_layers)
 from .templates import fetch_blank, get_template
 from .validate import check_texts
@@ -303,11 +303,12 @@ def render_meme_video(texts: list[str], *, video: str = "", image: str = "", tem
         # Stills share the meme decoder: EXIF/HEIF orientation, HEIC through
         # FFmpeg, and large photos reduced to a bounded working copy.
         try:
-            still, _origin = load_photo(source, single_frame=True, ffmpeg=ffmpeg, ffprobe=ffprobe)
+            still, _origin = load_photo(source, mode="RGBA", single_frame=True, ffmpeg=ffmpeg, ffprobe=ffprobe)
         except MemeError as exc:
             if "single-frame" in str(exc):
                 raise MemeError("Animated image supplied as a still; use --video for GIF motion.") from exc
             raise MemeError(f"Could not decode still image: {exc}") from exc
+        still = Image.alpha_composite(Image.new("RGBA", still.size, BACKGROUND), still).convert("RGB")
         source_size = still.size
         info = {"duration": None, "stream": 0, "format": "", "has_audio": False}
     if video:
