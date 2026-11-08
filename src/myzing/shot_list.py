@@ -160,15 +160,15 @@ def import_shot_list(path: str | Path, slug: str) -> dict[str, Any]:
     except storage.SlugError as e:
         return _fail("target_not_found", f"invalid target slug: {e}")
     source = Path(path).expanduser()
-    if not source.is_file():
-        return _fail(
-            "invalid_file",
-            "selected file does not exist or is not a regular file",
-        )
     try:
+        if not source.is_file():
+            return _fail(
+                "invalid_file",
+                "selected file does not exist or is not a regular file",
+            )
         raw = source.read_bytes()
     except OSError as e:
-        return _fail("invalid_file", f"selected file could not be read: {e}")
+        return _fail("invalid_file", f"selected file could not be read ({type(e).__name__})")
 
     front, defect = parse_document(raw)
     if defect == "unsupported_version":
@@ -210,7 +210,7 @@ def import_shot_list(path: str | Path, slug: str) -> dict[str, Any]:
     except OSError as e:
         return _fail(
             "storage_unavailable",
-            f"could not persist the imported copy: {e}",
+            f"could not persist the imported copy ({type(e).__name__})",
             retryable=True,
         )
 
