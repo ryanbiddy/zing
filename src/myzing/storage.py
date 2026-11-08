@@ -322,6 +322,26 @@ def _replace(source, target):
             time.sleep(0.002)
 
 
+def _write_atomic(path: Path, data: str | bytes) -> None:
+    import tempfile
+    mode, encoding = ("wb", None) if isinstance(data, bytes) else ("w", "utf-8")
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode=mode, encoding=encoding, dir=path.parent,
+                                         suffix=".part", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(data)
+        _replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def _copy_backup(source: Path, backup: Path) -> None:
+    backup.unlink(missing_ok=True)  # a symlinked backup is replaced, never written through
+    shutil.copyfile(source, backup)
+
+
 def write_status_at(d: Path, **fields: Any) -> Path:
     """Merge fields into ``d/status.json`` (created if absent) — the
     generic on-disk job state used by study AND render jobs (S4).
@@ -425,26 +445,17 @@ def save_breakdown(
                     b.judgment = prior["judgment"]
             except (OSError, ValueError):
                 pass  # corrupt prior file: nothing to preserve
-        shutil.copyfile(json_path, d / "breakdown.json.bak")
+        _copy_backup(json_path, d / "breakdown.json.bak")
 
     _write_breakdown_json(d, b)
     if markdown is not None:
-        (d / "breakdown.md").write_text(markdown, encoding="utf-8")
+        _write_atomic(d / "breakdown.md", markdown)
     return d
 
 
 def _write_breakdown_json(d: Path, b: Breakdown) -> None:
     """The one place breakdown.json is serialized — format can't drift."""
-    import tempfile
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=d, suffix=".part", delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(b.to_json(indent=2) + "\n")
-        _replace(temporary, d / "breakdown.json")
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+    _write_atomic(d / "breakdown.json", b.to_json(indent=2) + "\n")
 
 
 def load_breakdown(slug: str) -> Breakdown:
@@ -542,22 +553,12 @@ def save_profile(p: StyleProfile) -> Path:
     """Write a StyleProfile; returns its directory. An existing
     profile.json is kept as profile.json.bak (rebuilds are expected as
     the source set grows — never silently destroy the prior aggregate)."""
-    import tempfile
-
     d = profile_dir(p.name)
     d.mkdir(parents=True, exist_ok=True)
     json_path = d / "profile.json"
     if json_path.exists():
-        shutil.copyfile(json_path, d / "profile.json.bak")
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=d, suffix=".part", delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(p.to_json(indent=2) + "\n")
-        _replace(temporary, json_path)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+        _copy_backup(json_path, d / "profile.json.bak")
+    _write_atomic(json_path, p.to_json(indent=2) + "\n")
     return d
 
 

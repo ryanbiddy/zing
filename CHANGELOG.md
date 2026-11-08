@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Bypass proxies for local Uoink calls, reject malformed or oversized peer replies,
+  write breakdown Markdown atomically, and never write through a symlinked breakdown.md
+  or JSON backup.
 - Mark NC, ND and NASA third-party visuals as unknown, require modification rights
   in Openverse searches, preserve licenses in shortened attribution credits and
   keep ranking when a candidate has non-numeric dimensions.
