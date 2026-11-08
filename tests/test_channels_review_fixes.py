@@ -9,14 +9,20 @@ import shutil
 import socket
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from itertools import permutations
 from pathlib import Path
+from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 from myzing import uoink_bridge
 from myzing.channels import bandit, digest, gate, kit, outcomes, publish, queue, registry, tick, watch, youtube
 from myzing.factory import judge, pipeline, plan, postcopy, render, source
-from myzing.playbook import feeds
+from myzing.playbook import feeds, sources, watch as playbook_watch
+from myzing.playbook.common import append_jsonl
+
+from test_channels_publish import Response, Transport, reply, session, token
 
 NOW = datetime(2026, 11, 5, 18, tzinfo=timezone.utc)
 CHANNEL = "UC" + "a" * 22
@@ -627,3 +633,269 @@ def test_gate_blocks_local_paths_in_post_copy(channel, text, blocked):
     pipeline._write(project / "clip01" / "post.json", {**post, "first_comment": text})
     blockers = gate.check(project, "clip01", channel, now=NOW)["blockers"]
     assert ("Post copy contains a local file path." in blockers) is blocked
+
+
+@pytest.mark.parametrize("ending", ["\n", "\r\n"])
+def test_jsonl_readers_preserve_unicode_separators(channel, ending):
+    project, row = ready(channel)
+    slug, root = channel["slug"], registry.directory(channel["slug"])
+    title = "A\u2028story\u2029with\u0085breaks"
+    row["title"] = title
+    queue.write(slug, [row])
+    entries = [{"id": row["id"], "state": "uploading", "metadata": {"snippet": {"title": title}}}]
+    publish._save_outbox(slug, entries)
+    results = [{"id": row["id"], "title": title, "views_24h": 10}]
+    outcomes.write(slug, results)
+    watched = [{"id": VIDEO, "title": title}]
+    watch._write(root / "sources" / "show.jsonl", watched)
+    ledger = project / "answers" / "_usage.jsonl"
+    append_jsonl(ledger, [{"task": "clip01-copy", "title": title, "cost_usd": .25}])
+    show = pipeline._show_file("Stories")
+    history = [{"clip": "clip01", "hook": title, "v": "post"}]
+    append_jsonl(show, history)
+    append_jsonl(root / "snapshots.jsonl", [{"id": VIDEO, "channel": slug, "channel_id": CHANNEL, "title": title,
+                 "published": (NOW - timedelta(hours=1)).isoformat(), "at": NOW.isoformat(), "views": 10, "short": True}])
+    for path in (root / "queue.jsonl", root / "outbox.jsonl", root / "outcomes.jsonl", root / "sources" / "show.jsonl",
+                 ledger, show, root / "snapshots.jsonl"):
+        text = path.read_text(encoding="utf-8")
+        assert title in text
+        path.write_bytes((ending + text.replace("\n", ending) + ending).encode("utf-8"))
+    assert queue.read(slug) == [row]
+    assert publish._outbox(slug) == entries
+    assert outcomes.read(slug) == results
+    assert watch.read(root / "sources" / "show.jsonl") == watched
+    assert judge.Judge(project).usage() == {"calls": 1, "cost_usd": .25}
+    assert pipeline.taste(project, {"show": "Stories"}) == history
+    assert playbook_watch.velocity(root)["videos"][0]["views"]["1h"] == 10
+
+
+@pytest.mark.parametrize("ending", ["\n", "\r\n"])
+def test_ytdlp_jsonl_preserves_unicode_separators(monkeypatch, ending):
+    title = "A\u2028story\u2029with\u0085breaks"
+    row = {"id": VIDEO, "title": title, "timestamp": (NOW - timedelta(days=1)).timestamp(), "view_count": 10}
+    output = SimpleNamespace(returncode=0, stdout=ending + json.dumps(row, ensure_ascii=False) + ending)
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append(argv)
+        return output
+
+    monkeypatch.setattr(feeds.doctor, "resolve_ytdlp_argv", lambda: ["yt-dlp"])
+    rows = feeds.listing(CHANNEL, runner=run, now=NOW)
+    assert len(calls) == 3
+    assert [v["title"] for v in rows] == [title, title]
+    assert {v["short"] for v in rows} == {False, True}
+    monkeypatch.setattr(sources.proc, "run", run)
+    assert sources.list_channel(CHANNEL) == [row]
+
+
+@pytest.mark.parametrize("status", [400, 500])
+def test_failed_session_refunds_daily_slot_before_a_later_success(channel, status):
+    ready(channel)
+    slug = channel["slug"]
+    channel["youtube_daily_cap"] = 1
+    registry.save(channel)
+    youtube.save_token(slug, token())
+    failed = Transport(*[Response(status) for _ in range(4 if status == 500 else 1)])
+    result = publish.upload(slug, opener=failed, now=NOW, sleep=lambda _: None)
+    assert str(status) in result["stopped"] and result["uploaded"] == 0
+    assert publish._outbox(slug) == []
+    assert pipeline._read(registry.directory(slug) / "youtube-quota.json")["uploads"] == 0
+    assert pipeline._read(registry.home() / "youtube-quota.json")["projects"]["fixture-project"]["uploads"] == 0
+    succeeded = Transport(session(), reply("video"))
+    assert publish.upload(slug, opener=succeeded, now=NOW)["uploaded"] == 1
+    assert [r.get_method() for r in succeeded.requests] == ["POST", "PUT"]
+    assert pipeline._read(registry.directory(slug) / "youtube-quota.json")["uploads"] == 1
+    assert pipeline._read(registry.home() / "youtube-quota.json")["projects"]["fixture-project"]["uploads"] == 1
+
+
+def test_saved_session_keeps_daily_slot_after_transfer_failure(channel):
+    ready(channel)
+    slug = channel["slug"]
+    channel["youtube_daily_cap"] = 1
+    registry.save(channel)
+    youtube.save_token(slug, token())
+    failed = Transport(session(), *[Response(500) for _ in range(4)])
+    result = publish.upload(slug, opener=failed, now=NOW, sleep=lambda _: None)
+    assert result["uploaded"] == 0 and "500" in result["stopped"]
+    assert publish._outbox(slug)[0]["state"] == "uploading"
+    resumed = Transport(reply("video"))
+    assert publish.upload(slug, opener=resumed, now=NOW)["uploaded"] == 1
+    assert [r.get_method() for r in resumed.requests] == ["PUT"]
+    assert pipeline._read(registry.directory(slug) / "youtube-quota.json")["uploads"] == 1
+    assert pipeline._read(registry.home() / "youtube-quota.json")["projects"]["fixture-project"]["uploads"] == 1
+
+
+@pytest.mark.parametrize("reason", ["quotaExceeded", "uploadLimitExceeded"])
+def test_refund_preserves_quota_reason_block(channel, monkeypatch, reason):
+    ready(channel)
+    client(monkeypatch, youtube.Error(403, reason))
+    slug = channel["slug"]
+    assert reason in publish.upload(slug, now=NOW)["stopped"]
+    local = pipeline._read(registry.directory(slug) / "youtube-quota.json")
+    shared = pipeline._read(registry.home() / "youtube-quota.json")["projects"]["fixture-project"]
+    assert local == {"day": publish._day(NOW), "uploads": 0, "blocked": reason}
+    assert shared["uploads"] == 0
+    assert shared.get("blocked") == (reason if reason == "quotaExceeded" else None)
+
+
+@pytest.mark.parametrize("failure", ["session", "outbox"])
+def test_unsaved_session_refunds_daily_slot(channel, monkeypatch, failure):
+    ready(channel)
+    slug = channel["slug"]
+    youtube.save_token(slug, token())
+
+    def fail_save(*args):
+        raise OSError("outbox write failed")
+
+    if failure == "outbox":
+        monkeypatch.setattr(publish, "_save_outbox", fail_save)
+    with pytest.raises(OSError if failure == "outbox" else registry.ChannelError):
+        publish.upload(slug, opener=Transport(session() if failure == "outbox" else Response()), now=NOW)
+    assert publish._outbox(slug) == []
+    assert pipeline._read(registry.directory(slug) / "youtube-quota.json")["uploads"] == 0
+    assert pipeline._read(registry.home() / "youtube-quota.json")["projects"]["fixture-project"]["uploads"] == 0
+
+
+@pytest.mark.parametrize("mode", ["scheduled", "private"])
+@pytest.mark.parametrize("slot,now,expected", [
+    ("2026-11-05T17:00:00+00:00", NOW.replace(second=17), "2026-11-05T18:16:00Z"),
+    ("2026-11-05T18:05:00+00:00", NOW.replace(microsecond=1), "2026-11-05T18:16:00Z"),
+    ("2026-11-05T18:15:00+00:00", NOW, "2026-11-05T18:15:00Z"),
+    ("2026-11-05T12:00:00-08:00", NOW, "2026-11-05T20:00:00Z"),
+    ("2026-11-05T20:00:01+00:00", NOW, "2026-11-05T20:01:00Z"),
+])
+def test_scheduled_metadata_always_has_a_future_whole_minute(channel, mode, slot, now, expected):
+    _, row = ready(channel)
+    row["slot"] = slot
+    channel["publish"]["youtube"] = mode
+    status = publish._metadata(row, channel, now)["status"]
+    assert status["privacyStatus"] == "private"
+    if mode == "scheduled":
+        assert status["publishAt"] == expected
+    else:
+        assert "publishAt" not in status
+    assert row["slot"] == slot
+
+
+@pytest.mark.parametrize("at,end", [("2026-11-05T23:30:00+00:00", "2026-11-05"),
+                                   ("2026-11-06T01:30:00+00:00", "2026-11-05")])
+@pytest.mark.parametrize("posted", [True, False])
+def test_analytics_uses_pacific_dates_for_both_ends(channel, monkeypatch, at, end, posted):
+    _, row = ready(channel)
+    row.update(status="posted", video_id=VIDEO, slot="2026-11-04T01:30:00+00:00")
+    if posted:
+        row.update(posted_at="2026-11-03T01:30:00+00:00")
+    queue.write(channel["slug"], [row])
+    calls = client(monkeypatch, {})
+    publish.analytics(channel["slug"], now=datetime.fromisoformat(at))
+    query = parse_qs(urlsplit(calls[0][1]).query)
+    assert query["endDate"] == [end]
+    assert query["startDate"] == ["2026-11-02" if posted else "2026-11-03"]
+
+
+@pytest.mark.parametrize("complete,minutes,due", [(False, 59, False), (False, 60, True), (False, 61, True),
+                                                (True, 60, False), (True, 61, False), (True, 1440, True)])
+def test_incomplete_analytics_retries_after_an_hour(channel, complete, minutes, due):
+    slug = channel["slug"]
+    pipeline._write(registry.directory(slug) / "youtube-analytics.json", {"last_run": NOW.isoformat(), "complete": complete})
+    assert publish.analytics_due(slug, NOW + timedelta(minutes=minutes)) is due
+
+
+@pytest.mark.parametrize("failed", [False, True])
+def test_tick_tracks_manual_posts_before_upload(channel, monkeypatch, failed):
+    _, row = ready(channel)
+    channel["handles"]["youtube"] = "@stories"
+    registry.save(channel)
+    calls = []
+    monkeypatch.setattr(tick.brief, "due", lambda *a: False)
+    monkeypatch.setattr(tick, "_advance", lambda *a: None)
+    monkeypatch.setattr(queue, "build", lambda *a, **kw: {"added": 0, "blocked": {}})
+    monkeypatch.setattr(kit, "kit", lambda *a, **kw: calls.append("kit") or {"made": 0, "blocked": {}})
+    monkeypatch.setattr(publish, "analytics_due", lambda *a: True)
+    monkeypatch.setattr(publish, "analytics", lambda *a, **kw: calls.append("analytics") or {"matched": 1})
+
+    def track(slug, **kwargs):
+        calls.append("track")
+        if failed:
+            raise registry.ChannelError("tracking failed")
+        row.update(status="posted", video_id=VIDEO)
+        queue.write(slug, [row])
+        return {"matched": 1}
+
+    def upload(slug, **kwargs):
+        calls.append("upload")
+        assert queue.read(slug)[0]["status"] == "posted"
+        return {"uploaded": 0, "blocked": {}, "stopped": None}
+
+    monkeypatch.setattr(outcomes, "track", track)
+    monkeypatch.setattr(publish, "upload", upload)
+    result = tick.run([channel["slug"]], watch_fn=lambda *a, **kw: {"found": 0, "started": 0}, now=NOW)
+    saved = result["channels"][channel["slug"]]
+    assert calls == (["kit", "track"] if failed else ["kit", "track", "upload", "analytics"])
+    assert saved["errors"] == (["tracking failed"] if failed else [])
+    if not failed:
+        assert (saved["tracked"], saved["uploaded"], saved["analytics"]) == (1, 0, 1)
+
+
+def test_queue_build_writes_all_rows_without_appending(channel, monkeypatch):
+    episode(channel, n=2)
+    write, opened, calls = queue.write, Path.open, []
+
+    def save(slug, rows):
+        calls.append([r["id"] for r in rows])
+        write(slug, rows)
+
+    def open_file(path, mode="r", *args, **kwargs):
+        assert path.name != "queue.jsonl" or "a" not in mode
+        return opened(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(queue, "write", save)
+    monkeypatch.setattr(Path, "open", open_file)
+    assert queue.build(channel["slug"], NOW)["added"] == 2
+    assert calls == [["episode/clip01", "episode/clip02"]]
+    assert [r["id"] for r in queue.read(channel["slug"])] == calls[0]
+
+
+def test_failed_queue_build_write_keeps_the_old_queue(channel, monkeypatch):
+    _, old = ready(channel)
+    episode(channel, name="another")
+    root = registry.directory(channel["slug"])
+    before = (root / "queue.jsonl").read_bytes()
+    write = Path.write_text
+
+    def fail_write(path, text, *args, **kwargs):
+        if path.name.startswith(".queue-"):
+            write(path, text[:10], *args, **kwargs)
+            raise OSError("disk full")
+        return write(path, text, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", fail_write)
+    with pytest.raises(OSError, match="disk full"):
+        queue.build(channel["slug"], NOW)
+    assert (root / "queue.jsonl").read_bytes() == before
+    assert queue.read(channel["slug"]) == [old]
+    assert not list(root.glob(".queue-*.tmp"))
+
+
+@pytest.mark.parametrize("order", list(permutations(range(3))))
+@pytest.mark.parametrize("status", ["kit", "posted"])
+def test_duplicate_feed_ids_match_once_and_prefer_exact_shorts(order, status):
+    row = {"id": "episode/clip01", "status": status, "title": "A story"}
+    if status == "posted":
+        row["video_id"] = VIDEO
+    video = {"id": VIDEO, "title": "A story"}
+    videos = [{**video, "approximate": True, "short": True, "published": "2026-11-04T00:00:00+00:00"},
+              {**video, "approximate": False, "short": False, "published": "2026-11-05T17:00:00+00:00"},
+              {**video, "short": True, "published": NOW.isoformat()}]
+    assert outcomes._match([row], [videos[i] for i in order]) == 1
+    assert row["status"] == "posted" and row["video_id"] == VIDEO
+    assert row["url"] == "https://www.youtube.com/shorts/" + VIDEO
+    assert row["posted_at"] == NOW.isoformat()
+
+
+def test_exact_feed_entry_wins_over_an_approximate_short():
+    row = {"id": "episode/clip01", "status": "kit", "title": "A story"}
+    video = {"id": VIDEO, "title": "A story", "published": NOW.isoformat()}
+    assert outcomes._match([row], [{**video, "short": False}, {**video, "short": True, "approximate": True}]) == 1
+    assert row["url"] == "https://www.youtube.com/watch?v=" + VIDEO

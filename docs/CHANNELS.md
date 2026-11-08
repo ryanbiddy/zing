@@ -258,11 +258,12 @@ zing channels digest --all --out digest.md
 ```
 
 A tick checks pause files, watches sources, makes a daily brief when due,
-advances at most one unfinished episode per channel, queues clips and builds kits. It uploads only when
-`publish.youtube` is enabled. Connected channels fetch owner analytics once
-per Pacific day, including when publishing is off. `youtube-analytics.json`
-records the last attempt and whether it completed. Public tracking runs last
-when a YouTube handle is set.
+advances at most one unfinished episode per channel, queues clips and builds kits.
+Public tracking runs next when a YouTube handle is set. It links manual posts
+before uploads run. Uploads run only when `publish.youtube` is enabled.
+Connected channels fetch owner analytics once per Pacific day, including when
+publishing is off. Incomplete runs can retry after an hour. `youtube-analytics.json`
+records the last attempt and whether it completed.
 Host-judge channels stop at pending prompts until an agent answers them with
 `zing factory answer` or the existing factory MCP tools. Later ticks resume them.
 Projects with unknown or expired source rights do not advance.
@@ -379,8 +380,8 @@ Edit `channel.json` to choose a publish policy.
 
 - `off` sends no uploads, including unfinished sessions.
 - `private` uploads privately. You make the video public yourself.
-- `scheduled` uploads privately with `publishAt` set to the queue slot when
-  it is at least 15 minutes ahead. Nearer slots stay private.
+- `scheduled` uploads privately with `publishAt` set to the queue slot or
+  15 minutes from now, whichever is later, rounded up to a whole minute.
 
 YouTube locks uploads from unaudited Cloud projects private until the project
 passes Google's API audit. Setting `scheduled` does not remove that limit.
@@ -413,8 +414,9 @@ repairs the queue if the process stopped while saving. Finished rows become
 Zing starts at most 80 uploads per Cloud project per Pacific day across channels
 in the same channels home. Each channel also has `youtube_daily_cap`, default 6.
 The channel and home each keep `youtube-quota.json`. Starting a session reserves
-a count even if it fails; resuming it does not reserve another. Google may impose
-lower limits. A quota or upload-limit response stops the run and is recorded
+a count. Failures before the session is saved return that count. Saved sessions
+keep their count, and resuming does not reserve another. Google may impose lower
+limits. A quota or upload-limit response stops the run and is recorded
 until the next Pacific day. Server errors retry after 1, 4 and 16 seconds, then
 leave the session for a later run.
 
@@ -426,8 +428,9 @@ videos and upload history.
 Analytics merges views, engaged views, average view percentage, average view
 duration and subscribers gained into `outcomes.jsonl`. Missing metrics stay null.
 Total views use the `views` field; counts at 1h, 24h and 7d stay separate.
-Analytics data lags 48 to 72 hours. Connected ticks request it once per day;
-the `analytics` command can retry a failed request sooner.
+Report dates use Pacific time. Analytics data lags 48 to 72 hours. Connected ticks
+request it once per Pacific day and retry incomplete runs after an hour.
+The `analytics` command can retry a failed request sooner.
 
 ## Daily brief and recorded takes
 

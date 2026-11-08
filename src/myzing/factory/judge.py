@@ -172,5 +172,5 @@ class Judge:
 
     def usage(self) -> dict:
         path = self.project / "answers" / "_usage.jsonl"
-        rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()] if path.is_file() else []
+        rows = [json.loads(ln.rstrip("\r")) for ln in path.read_text(encoding="utf-8").split("\n") if ln.strip()] if path.is_file() else []
         return {"calls": len(rows), "cost_usd": round(sum(r.get("cost_usd") or 0 for r in rows), 4)}

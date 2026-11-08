@@ -40,9 +40,12 @@ def _ledgers(slug, project, now):
     return path, channel, shared, projects, ledger
 
 
-def _quota(channel, project, now, *, reserve=False, reason=None):
+def _quota(channel, project, now, *, reserve=False, refund=False, reason=None):
     path, local, shared, projects, ledger = _ledgers(channel["slug"], project, now)
-    if reason:
+    if refund:
+        local["uploads"] = max(0, local["uploads"] - 1)
+        ledger["uploads"] = max(0, ledger["uploads"] - 1)
+    elif reason:
         local["blocked"] = reason
         if reason == "quotaExceeded":
             ledger["blocked"] = reason
@@ -57,7 +60,7 @@ def _quota(channel, project, now, *, reserve=False, reason=None):
                 return "YouTube daily project cap reached."
             local["uploads"] += 1
             ledger["uploads"] += 1
-    if reserve or reason:
+    if reserve or refund or reason:
         _write(shared, projects)
         _write(path, local)
     return None
@@ -66,7 +69,7 @@ def _quota(channel, project, now, *, reserve=False, reason=None):
 def _outbox(slug):
     path = registry.directory(slug) / "outbox.jsonl"
     try:
-        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.exists() else []
+        rows = [json.loads(line.rstrip("\r")) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()] if path.exists() else []
         if len({r["id"] for r in rows}) != len(rows) or any(r["state"] not in ("uploading", "done") for r in rows):
             raise ValueError
         return rows
@@ -102,8 +105,11 @@ def _metadata(row, channel, now):
     generated = any(_generated(_read(p, {})) for p in (d / "plan.json", d / "post.json", folder / "post.json"))
     status = {"privacyStatus": "private", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": generated}
     slot = datetime.fromisoformat(row["slot"])
-    if channel["publish"]["youtube"] == "scheduled" and slot >= now + timedelta(minutes=15):
-        status["publishAt"] = slot.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    if channel["publish"]["youtube"] == "scheduled":
+        slot = max(slot, now + timedelta(minutes=15)).astimezone(timezone.utc)
+        if slot.second or slot.microsecond:
+            slot = slot.replace(second=0, microsecond=0) + timedelta(minutes=1)
+        status["publishAt"] = slot.isoformat(timespec="seconds").replace("+00:00", "Z")
     return {"snippet": {"title": title, "description": description, "categoryId": channel["youtube_category"]}, "status": status}
 
 
@@ -247,6 +253,7 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                     break
                 if entry and entry.get("channel_id", channel["youtube"]["channel_id"]) != channel["youtube"]["channel_id"]:
                     raise registry.ChannelError("Reconnect the YouTube channel that started this upload.")
+                reserved = False
                 try:
                     if entry:
                         try:
@@ -267,6 +274,7 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                         result["stopped"] = _quota(channel, project, now, reserve=True)
                         if result["stopped"]:
                             break
+                        reserved = True
                         response = client.request("POST", UPLOAD, json.dumps(metadata).encode("utf-8"), {
                             "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Length": str(stat.st_size),
                             "X-Upload-Content-Type": "video/mp4"})
@@ -277,6 +285,7 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                                  "channel_id": channel["youtube"]["channel_id"], "started_at": now.isoformat(timespec="seconds")}
                         entries.append(entry)
                         _save_outbox(slug, entries)
+                        reserved = False
                         video = _transfer(client, entry, resume=False)
                     result["posted"].append(_finish(slug, rows, row, entries, entry, queue._now(clock), video))
                 except youtube.Error as exc:
@@ -284,6 +293,9 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
                         _quota(channel, project, now, reason=exc.reason)
                     result["stopped"] = str(exc)
                     break
+                finally:
+                    if reserved:
+                        _quota(channel, project, now, refund=True)
             if len(result["uploads"] if dry_run else result["posted"]) >= limit:
                 break
     result["uploaded"] = len(result["posted"])
@@ -291,8 +303,11 @@ def upload(slug, *, dry_run=False, limit=3, opener=None, now=None, sleep=None, s
 
 
 def analytics_due(slug, now=None):
-    last = _read(registry.directory(slug) / "youtube-analytics.json", {}).get("last_run")
-    return not last or _day(datetime.fromisoformat(last)) != _day(queue._now(now))
+    state = _read(registry.directory(slug) / "youtube-analytics.json", {})
+    if not state.get("last_run"):
+        return True
+    last, now = datetime.fromisoformat(state["last_run"]), queue._now(now)
+    return _day(last) != _day(now) or not state.get("complete") and now - last >= timedelta(hours=1)
 
 
 def analytics(slug, *, opener=None, now=None, sleep=None, stop=None) -> dict:
@@ -312,11 +327,11 @@ def analytics(slug, *, opener=None, now=None, sleep=None, stop=None) -> dict:
             client = youtube.Client(slug, opener=opener, now=now, sleep=sleep, stop=stop)
             if client.token.get("channel_id", channel["youtube"]["channel_id"]) != channel["youtube"]["channel_id"]:
                 raise registry.ChannelError(youtube.RECONNECT)
-            start = min(datetime.fromisoformat(r.get("posted_at") or r["slot"]).date() for r in posted)
+            start = min(_day(datetime.fromisoformat(r.get("posted_at") or r["slot"])) for r in posted)
             for offset in range(0, len(ids), 200):
                 batch = ids[offset:offset + 200]
                 query = {"ids": "channel==MINE", "dimensions": "video", "filters": "video==" + ",".join(batch),
-                         "metrics": ",".join(METRICS), "startDate": start.isoformat(), "endDate": now.date().isoformat()}
+                         "metrics": ",".join(METRICS), "startDate": start, "endDate": _day(now)}
                 data = youtube.checked(client.request("GET", REPORTS + "?" + urlencode(query)))
                 headers = [h.get("name") for h in data.get("columnHeaders", [])]
                 for values in data.get("rows", []):

@@ -19,7 +19,7 @@ from . import bandit, queue, registry, youtube
 
 def read(slug: str) -> list[dict]:
     path = registry.directory(slug) / "outcomes.jsonl"
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.is_file() else []
+    return [json.loads(line.rstrip("\r")) for line in path.read_text(encoding="utf-8").split("\n") if line.strip()] if path.is_file() else []
 
 
 def write(slug: str, rows: list[dict]) -> None:
@@ -57,7 +57,7 @@ def _match(rows: list[dict], videos: list[dict], entries=()) -> int:
     matched, used = set(), {r.get("video_id") or video_id(r.get("url")) for r in rows if r["status"] == "posted"}
     saved = {r["id"] for r in entries}
     used.update(r["video_id"] for r in entries if r.get("video_id"))
-    by_id = {v["id"]: v for v in videos}
+    by_id = {v["id"]: v for v in sorted(videos, key=lambda v: (not v.get("approximate"), v["short"]))}
 
     def posted(row, video):
         ident = video["id"]
@@ -73,7 +73,7 @@ def _match(rows: list[dict], videos: list[dict], entries=()) -> int:
     waiting = [r for r in rows if r["id"] not in saved and r["status"] in ("kit", "queued") and _title(r.get("title", ""))]
     for row in waiting:
         title = _title(row["title"])
-        matches = [v for v in videos if v["id"] not in used and _title(v["title"]) == title]
+        matches = [v for v in by_id.values() if v["id"] not in used and _title(v["title"]) == title]
         if len(matches) == 1 and sum(_title(r["title"]) == title for r in waiting) == 1:
             posted(row, matches[0])
     return len(matched)

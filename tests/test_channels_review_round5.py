@@ -198,7 +198,7 @@ def test_tick_uses_fresh_stage_times_unless_now_is_explicit(channel, monkeypatch
     result = tick.run([slug], now=start if explicit else None, watch_fn=watched)
     assert not result["channels"][slug]["errors"]
     assert datetime.fromisoformat(queue.read(slug)[0]["slot"]).hour == (12 if explicit else 13)
-    for name, minutes in (("kit", 20), ("upload", 21), ("track", 23)):
+    for name, minutes in (("kit", 20), ("track", 21), ("upload", 22)):
         assert calls[name] == (start if explicit else start + timedelta(minutes=minutes))
     if explicit:
         assert calls["analytics"] == start
@@ -234,7 +234,7 @@ def test_episode_failure_does_not_stop_later_tick_stages(channel, monkeypatch):
     monkeypatch.setattr(outcomes, "track", lambda *a, **kw: called.append("track") or {"matched": 0})
     row = tick.run([slug], now=NOW, runner=fail, watch_fn=lambda *a, **kw: {"found": 0, "started": 0})["channels"][slug]
     assert row["queued"] == row["kits"] == 1
-    assert called == ["upload", "analytics", "track"]
+    assert called == ["track", "upload", "analytics"]
     assert any("a-failed" in e and "transcription failed" in e for e in row["errors"])
 
 
