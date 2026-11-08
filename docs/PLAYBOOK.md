@@ -245,8 +245,9 @@ zing playbook measure zing-workspace\playbook --download --retry-failed
 zing playbook measure zing-workspace\playbook --retry-failed --media-dir path\to\local-shorts
 ```
 
-The failure record is deleted when its retry starts. Failed retries write a new
-record. Entries that cannot start keep their saved failure record. Successful
+The failure record stays until its retry succeeds, so an interrupted retry can
+run again. Failed retries replace the record. Entries that cannot start keep
+their saved failure record. Successful
 measurement files stay unchanged. Entries without a failure record are not
 retried; run again without `--retry-failed` to try entries left unmeasured by a
 pause. `--force` recomputes all entries and cannot be combined with `--retry-failed`.

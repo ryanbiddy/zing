@@ -124,10 +124,13 @@ def measure(root: Path, *, media_dir: Path | None = None, download=False, force=
     model_workspace = storage.workspace_root()
     sleep = sleep or time.sleep
     blocks, attempted = 0, False
+    features = root / "features.json"
+    pending = read_json(features)["entries"] if features.exists() else []
     rows = []
     summary = {"done": 0, "cached": 0, "unmeasured": 0, "failed": 0, "paused": 0}
     for entry in data["entries"]:
         ident = entry["id"]
+        pending = [r for r in pending if r["id"] != ident]
         target = root / "measured" / f"{ident}.json"
         failure = target.with_suffix(".failed.json")
         sidecar = target.with_suffix(".caption-geometry.json")
@@ -142,7 +145,7 @@ def measure(root: Path, *, media_dir: Path | None = None, download=False, force=
                     row["hint"] = DOWNLOAD_HINTS[category]
                 summary["failed"] += 1
                 rows.append(row)
-                write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "entries": rows})
+                write_json(features, {"schema_version": SCHEMA_VERSION, "entries": rows + pending})
                 continue
             if target.exists() and not (force or retry):
                 b = Breakdown.from_dict(read_json(target))
@@ -162,19 +165,18 @@ def measure(root: Path, *, media_dir: Path | None = None, download=False, force=
                     row.update(status="unmeasured", reason=reason)
                     summary["unmeasured"] += 1
                     rows.append(row)
-                    write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "entries": rows})
+                    write_json(features, {"schema_version": SCHEMA_VERSION, "entries": rows + pending})
                     continue
                 if not files:
                     if attempted and gap:
                         sleep(gap)
                     attempted = True
-                if retry:
-                    failure.unlink()
                 b = study_api.study(str(files[0]) if files else entry["url"], workspace=work,
                                     model_workspace=model_workspace, local_models_only=True, caption_geometry=True)
                 write_json(target, b.to_dict())
                 outcome = "done"
-            geometries = sorted(work.rglob("caption-geometry.json")) if work.exists() else []
+            geometries = sorted(work.rglob("caption-geometry.json"),
+                                key=lambda p: p.stat().st_mtime_ns, reverse=True) if work.exists() else []
             if geometries and (force or retry or (not retry_failed and not sidecar.exists())):
                 write_json(sidecar, read_json(geometries[0]))
             elif force or retry:
@@ -195,8 +197,8 @@ def measure(root: Path, *, media_dir: Path | None = None, download=False, force=
             if blocks >= max_blocks and not summary.get("stopped"):
                 summary["stopped"] = category
         rows.append(row)
-        write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "entries": rows})
-    write_json(root / "features.json", {"schema_version": SCHEMA_VERSION, "created_at": utc_now(), "entries": rows})
+        write_json(features, {"schema_version": SCHEMA_VERSION, "entries": rows + pending})
+    write_json(features, {"schema_version": SCHEMA_VERSION, "created_at": utc_now(), "entries": rows})
     summary["entries"] = [{"id": r["id"], "status": r["status"],
                            **{key: r[key] for key in ("reason", "hint") if key in r}} for r in rows]
     return summary
