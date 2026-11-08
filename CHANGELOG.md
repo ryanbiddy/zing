@@ -7,6 +7,11 @@
   sources once. Report malformed packs and timing provenance, reject boolean keeper
   times, keep failed Uoink error-body reads retryable, and reject control characters
   in credentials without echoing their values.
+- Keep measured speech shares when unrelated audio checks fail and escape card names
+  and titles. Handle unreadable music sidecars and map trimmed study words from their
+  source offset. Preserve delayed screen audio, compare video durations, composite
+  animated stills onto the still background, and reject source in-points at or past the end.
+
 - Record local study source hashes, split cuts outside transition legs, keep crops
   within each shot and handle thin contact-sheet frames. Assign overlapping caption
   words once and give silent music excerpts zero energy points.

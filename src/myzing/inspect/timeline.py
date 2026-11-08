@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 
 from myzing import storage
@@ -106,8 +106,10 @@ def _transcript(edl, spans, breakdown, video, duration):
             raise InspectionError(f"Invalid breakdown: {exc}") from exc
         validate_words(b.words, finite(b.meta.duration, "breakdown duration"))
         candidates = set()
+        media = None
         if b.meta.media_path:
-            candidates.add(storage.resolve_relpath(breakdown, b.meta.media_path).resolve())
+            media = storage.resolve_relpath(breakdown, b.meta.media_path).resolve()
+            candidates.add(media)
         if b.meta.platform == "file" and b.meta.source_url and "://" not in b.meta.source_url:
             candidates.add(Path(b.meta.source_url).expanduser().resolve())
         if video in candidates or not spans:
@@ -117,9 +119,20 @@ def _transcript(edl, spans, breakdown, video, duration):
             matches = {Path(span.source) for span in spans} & candidates
             if len(matches) != 1:
                 raise InspectionError("Breakdown media does not identify one EDL source or the rendered video; use its matching breakdown or EDL captions.")
-            words = source_words_to_output(b.words, matches.pop(), spans)
-            origin = f"breakdown:{breakdown}:source-to-output"
-            warnings.append("Source transcript intervals are clipped to kept spans; repeated clips repeat their words.")
+            source, offset = matches.pop(), 0.
+            if "reference_range" in b.provenance and source != media:
+                try:
+                    offset = finite(b.provenance["reference_range"]["start"], "reference range start")
+                    if offset < 0:
+                        raise InspectionError("Reference range start must be nonnegative.")
+                except (InspectionError, KeyError, TypeError):
+                    offset = None
+                    warnings.append("Breakdown reference range start is unreadable; transcript words were not mapped.")
+            if offset is not None:
+                shifted = [replace(w, start=w.start + offset, end=w.end + offset) for w in b.words]
+                words = source_words_to_output(shifted, source, spans)
+                origin = f"breakdown:{breakdown}:source-to-output"
+                warnings.append("Source transcript intervals are clipped to kept spans; repeated clips repeat their words.")
         if edl and edl.captions:
             warnings.append("The explicit breakdown supplies transcript text; EDL captions are not overlaid as a second transcript.")
     elif edl:
@@ -338,6 +351,8 @@ def inspect_timeline(video: str | Path, out: str | Path, *, start: float | None 
         from myzing.project.api import hash_file
         try:
             candidate = json.loads(sidecar.read_text(encoding="utf-8"))
+            if not isinstance(candidate, dict):
+                raise ValueError("Music measurements must be an object.")
             if candidate.get("render_sha256") == hash_file(video):
                 measurements = candidate
             else:
