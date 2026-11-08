@@ -219,6 +219,8 @@ zing channels watch gridiron-lore
 Watch checks each source once. `sources/<source id>.jsonl` keeps one row per
 item with `id`, `title`, `url`, `published`, `found_at` and `state`. Later runs
 update that row without adding the item again. Unknown dates stay empty.
+For `folder`, `own` and `recordings`, set `sources[i].url` to the folder to watch.
+Missing or blank paths are rejected.
 
 - `folder` scans the local folder in `url` for `mp4`, `mov`, `mkv`, `webm` and
   `m4v` files. It does not scan subfolders. `own` works the same way and marks
@@ -637,8 +639,9 @@ summary. The window defaults to 30 channel-local dates, including today.
   It needs three numeric values and a median of at least 0.7. Older items
   without take measurements are ignored.
 - Median views compares the newer half of measured posts with the older half,
-  ordered by posting time. It uses `views_7d`, falling back to numeric
-  `views_24h`. It needs 10 posts, and the newer median must be higher. An odd
+  ordered by posting time. It uses `views_7d` when every measured post has
+  one, and otherwise `views_24h` for every post, so both halves use the same
+  window. It needs 10 posts, and the newer median must be higher. An odd
   extra post goes in the newer half. Details include per-series medians.
 - Flags counts logged flags and outcomes with `masked` set to `true` in the
   window. The default limit is zero. Details give counts by kind.
@@ -646,6 +649,8 @@ summary. The window defaults to 30 channel-local dates, including today.
   at 15 minutes or less and is independent of the date window.
 
 Rows with too little data say `not enough data`. Ready means all displayed rows pass.
+Recorded and Kept check the bar before rounding. Displayed shares are rounded
+to two decimal places. Recording 25 of 42 items displays 0.6 but fails the 0.6 bar.
 Corrupt files and invalid brief folders are skipped and listed in `problems`.
 The digest adds a scorecard count for channels with a brief.
 
@@ -713,10 +718,11 @@ and Subscribers. It reports matched and unmatched rows. Total views go in
 viewed and subscribers go in `avg_view_pct` and `subs`. Later tracking keeps them.
 
 A clip's reward is `log2((views + 50) / (median + 50))`. The median comes from
-the channel's latest 30 clips with a count at that age. Seven-day counts take
-precedence over 24-hour counts. Fewer than five measured clips at the chosen
+the channel's latest 30 unmasked clips with a count at that age. Seven-day counts take
+precedence over 24-hour counts. Fewer than five unmasked clips at the chosen
 age leave the reward empty. Adding 50 softens swings at low view counts.
 A positive reward means above typical views; a negative reward means below.
+Masked clips still get a reward against that clean median when enough data exists.
 
 If the latest five posts all fall below 20% of the preceding 30 posts' median
 24-hour views, `track` reports a reach drop and masks those five. All 35 need

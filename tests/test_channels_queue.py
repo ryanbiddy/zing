@@ -30,7 +30,7 @@ def channel(tmp_path, monkeypatch):
     channel = registry.create("Stories", "Player stories", sources=[
         {"id": "club", "name": "Club", "kind": "podcast", "url": "https://example.org/show",
          "rights": {"status": "permission", "grant": "Email"}},
-        {"id": "mine", "name": "My show", "kind": "own", "url": "",
+        {"id": "mine", "name": "My show", "kind": "own", "url": str(tmp_path),
          "rights": {"status": "own", "grant": "Recorded by me"}}])
     channel["cadence"]["timezone"] = "UTC-08:00"
     return registry.save(channel) or channel

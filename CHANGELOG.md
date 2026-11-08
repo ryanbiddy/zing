@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Exclude masked posts from channel reward medians, check scorecard shares before
+  rounding, compare the median-views halves on one view window and reject missing
+  folder source paths.
 - Block old renders after visual edits and recheck existing kits before phone sync.
   Kit stamps detect replaced video and copy even with older timestamps. Retry takes
   changed during intake, preserve brief items claimed by another project and keep

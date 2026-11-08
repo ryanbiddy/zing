@@ -83,7 +83,8 @@ def rewards(rows: list[dict]) -> list[dict]:
     ordered = sorted(rows, key=lambda r: bandit.when(r, "posted_at"))
     medians, counts = {}, {}
     for basis in ("24h", "7d"):
-        values = [r[f"views_{basis}"] for r in ordered if number(r.get(f"views_{basis}"))][-30:]
+        values = [r[f"views_{basis}"] for r in ordered
+                  if not r.get("masked", False) and number(r.get(f"views_{basis}"))][-30:]
         medians[basis], counts[basis] = median(values) if values else None, len(values)
     for row in rows:
         basis = "7d" if number(row.get("views_7d")) else "24h" if number(row.get("views_24h")) else None

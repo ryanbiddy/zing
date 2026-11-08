@@ -112,6 +112,10 @@ kept script shares, view medians and flags with the channel's bar. It writes a
 page and JSON without network or judge calls. `zing channels flag SLUG --kind
 claim --note "Check the quote"` logs an issue. See [Scorecard](CHANNELS.md#scorecard).
 
+- Masked posts do not set the channel's reward median or count toward its five-post minimum.
+- Recorded and kept shares must meet the scorecard bar before rounding for display.
+- `folder`, `own` and `recordings` sources need `url` set to the folder to watch.
+
 After three matched takes with measured words in the last 30 local dates, new brief scripts use
 recording notes on pace, length and wording. `zing channels brief SLUG --takes`
 prints those notes without making a brief.
