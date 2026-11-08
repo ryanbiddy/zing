@@ -7,6 +7,9 @@
   source offset. Preserve delayed screen audio, compare video durations, composite
   animated stills onto the still background, and reject source in-points at or past the end.
 
+- Reject meme captions that cannot fit and regions that are not a list. Use the
+  still canvas background for transparent images in video memes and handle topics
+  such as `my :` without a traceback.
 - Keep match logs inside their folder, refresh color grades and studio results when
   the reference range changes, and skip generated clip outputs during preflight.
   Validate studio choices, lock screen runs and the run's session saves, and remove only

@@ -381,8 +381,10 @@ def caption_geometry(texts: list[str], size: tuple[int, int], font: str) -> tupl
         fitted = [fit_text(t, font_path, w, width, limit, size_px, 0) for t in shown]
         gap = round(size_px * .1)
         total = sum(f["block_height"] for f in fitted) + gap * max(0, len(fitted) - 1)
-        if total + 2 * margin <= limit or size_px <= 10:
+        if total + 2 * margin <= limit:
             break
+        if size_px <= 10:
+            raise MemeError("Text does not fit its box at a readable size; shorten it or enlarge the region.")
         size_px -= 1
     bar = min(limit, max(round(size_px * 2.2), total + 2 * max(margin, round(size_px * .3))))
     y = (bar - total) / 2
@@ -548,6 +550,8 @@ def render_meme(texts: list[str], *, image: str = "", template: str = "",
                         ("overwrite", overwrite)):
         if not isinstance(value, bool):
             raise MemeError(f"{name} must be boolean")
+    if regions is not None:
+        normalized_regions(regions)
     count = selected["box_count"] if selected else (len(regions) if regions is not None else None)
     validation = check_texts(texts, box_count=count)
     if not validation["valid"]:
