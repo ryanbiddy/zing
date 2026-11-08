@@ -589,8 +589,8 @@ const api = {
   clip: (start, end, hook) => api.post("/api/clip", { start, end, hook }),
   trim: (clip, start, end) => api.post("/api/trim", { clip, start, end }),
   bench: index => api.post("/api/bench", { index }),
-  media: (clip, file) => "/media/" + encodeURIComponent(clip) + "/" +
-    String(file).split(/[\\/]+/).map(encodeURIComponent).join("/")
+  media: (clip, file, rev) => "/media/" + encodeURIComponent(clip) + "/" +
+    String(file).split(/[\\/]+/).map(encodeURIComponent).join("/") + (rev ? "?v=" + encodeURIComponent(rev) : "")
 };
 
 const SHAPES = [
@@ -932,7 +932,7 @@ function clipCard(c) {
 
   const player = el("div", { class: "player", "data-shape": shape });
   const video = el("video", { controls: true, preload: "metadata", playsinline: true,
-    src: api.media(c.clip, file), "aria-label": "Clip " + c.clip + ", " + shape.replace("x", ":") });
+    src: api.media(c.clip, file, c.videos[file]), "aria-label": "Clip " + c.clip + ", " + shape.replace("x", ":") });
   video.addEventListener("error", () => player.classList.add("is-offline"));
   player.append(video, el("div", { class: "offline" },
     el("div", { class: "play", "aria-hidden": "true" }, "▶"),
@@ -954,6 +954,9 @@ function clipCard(c) {
     }));
 
   const notes = el("div", { class: "notes" });
+  (c.stale_videos || []).forEach(name => notes.append(el("div", { class: "note warn" },
+    el("span", { class: "icon", "aria-hidden": "true" }, "!"),
+    el("span", { text: name + " is older than the latest edit" }))));
   const fc = (c.plan && c.plan.fact_check) || [];
   if (!fc.length) notes.append(el("div", { class: "note ok" }, el("span", { class: "icon", "aria-hidden": "true" }, "✓"), "Fact check clean"));
   else fc.forEach(line => notes.append(el("div", { class: "note warn" },
