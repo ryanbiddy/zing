@@ -158,6 +158,17 @@ def build(slug: str, *, now: datetime | None = None, days: int = 30) -> dict:
     add("median", "Median views", newer, earlier, newer > earlier if len(views) >= 10 else None, ", ".join(detail))
     add("flags", "Flags", sum(kinds.values()), bar["flags"], sum(kinds.values()) <= bar["flags"],
         ", ".join(f"{kind} {n}" for kind, n in sorted(kinds.items())) or "No flags")
+    try:
+        setup = pipeline._read(registry.directory(slug) / "setup.json", {})
+        if not isinstance(setup, dict):
+            raise ValueError("setup must be an object")
+        minutes = setup.get("minutes")
+        if minutes is not None:
+            if not number(minutes) or minutes < 0:
+                raise ValueError("minutes must be a nonnegative number")
+            add("setup_minutes", "Niche to first brief", minutes, 15, minutes <= 15, "Minutes from setup to the first brief")
+    except (OSError, ValueError, TypeError) as exc:
+        problems.append(f"setup.json is invalid. {exc}")
     return {"schema_version": 1, "channel": slug, "made_at": now.isoformat(), "days": days, "bar": bar,
             "rows": rows, "met": sum(row["met"] is True for row in rows), "total": len(rows),
             "ready": all(row["met"] is True for row in rows), "problems": problems}

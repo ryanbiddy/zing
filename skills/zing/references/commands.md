@@ -84,6 +84,9 @@ See the [button contract and capture behavior](https://github.com/ryanbiddy/zing
 ## Channels
 
 ```sh
+zing channels setup creators --niche "How creators tell stories" --candidates @one @two @three
+zing channels setup creators --niche "How creators tell stories" --name "Creators" --candidates-file candidates.txt --keep 15 --min-shorts 3 --no-brief
+zing channels setup creators --niche "How creators tell stories" --suggest --judge host
 zing channels new stories --name "Stories" --niche "Player stories" --pack zing --mode context
 zing channels source stories --id club --name "Club" --kind podcast --url https://example.org/show --rights permission --grant "Email from the owner"
 zing factory new --channel stories --source club --media episode.mp4 --transcript episode.vtt
@@ -119,6 +122,31 @@ zing channels pause --all
 zing channels resume --all
 ```
 
+`setup SLUG --niche TEXT` takes `--candidates HANDLE ...`, `--candidates-file FILE`
+or both. Files have one handle, YouTube channel URL or UC ID per line, with
+blank lines and `#` comments ignored. Up to 40 candidates remain after removing
+duplicates without regard to case. `--keep N` keeps 3 through 40 channels by
+median Shorts views, default 15. `--min-shorts N` needs at least 1, default 3.
+Channels also need a Short from the last 60 days. Failed feeds and unresolved
+channels are dropped. At least three survivors are needed before settings change.
+`--name TEXT` defaults to the slug in title case for a new channel. Setup adds
+breakdown, news and clips series with manual approval. Existing channels keep
+their settings except the first breakdown watch list; that series must exist.
+Setup writes `setup.json` and `setup.html`, makes a brief and prints its page
+path and elapsed minutes against a 15 minute target. `--no-brief` leaves the
+brief time unset. Brief failures are recorded and printed with exit code 0;
+setup input and channel errors exit with code 1.
+
+`--suggest` asks the judge for candidate handles. Explicit candidates come
+first, then suggestions, with the same duplicate checks and 40-channel limit.
+It works without `--candidates` or `--candidates-file`. Each suggestion goes
+through the public feed checks and can be dropped with a reason.
+`--judge host|claude` defaults to the existing channel's judge, or `host` for a
+new channel. New channels save that choice. With `host`, setup prints the
+prompt and answer paths and exits with code 0 before changing the channel.
+Write the JSON answer to the printed path and rerun the same command.
+With `claude`, Claude Code's CLI answers the prompt.
+
 `new` also accepts `--network-name`, `--network-line` and `--network-url`.
 `source` adds or replaces a source and accepts optional `--expires YYYY-MM-DD`
 and `--note TEXT`. Known rights need a grant. Expired grants count as unknown.
@@ -144,7 +172,8 @@ sets a positive window of channel-local dates ending today, default 30.
 Each run writes `scorecard.html` and `scorecard.json` in the channel folder.
 `--open` opens the page. `--json` prints the result instead of row summaries.
 Set `bar` in `channel.json` to override days, posts, recorded share, kept share
-or the flag limit. Ready means all six rows pass. No network or judge is used.
+or the flag limit. A timed `setup.json` adds a niche-to-brief row with a fixed
+15 minute target. Ready means all displayed rows pass. No network or judge is used.
 
 `flag SLUG --kind KIND --note TEXT [--clip ID]` appends one row to `flags.jsonl`
 and prints it. Kinds are `claim`, `strike`, `reused` and `other`. Notes must be

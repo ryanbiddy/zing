@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 def run(argv: list[str]) -> int:
-    from . import brief, digest, kit, learn, outcomes, publish, queue, registry, scorecard, tick, watch, youtube
+    from . import brief, digest, kit, learn, outcomes, publish, queue, registry, scorecard, setup, tick, watch, youtube
     parser = argparse.ArgumentParser(prog="zing channels")
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="create a channel")
@@ -21,6 +21,17 @@ def run(argv: list[str]) -> int:
     new.add_argument("--niche", required=True)
     for key in ("network-name", "network-line", "network-url", "pack", "mode"):
         new.add_argument("--" + key)
+    start = commands.add_parser("setup", help="choose a watch list and make the first brief")
+    start.add_argument("slug")
+    start.add_argument("--niche", required=True)
+    start.add_argument("--candidates", nargs="+", default=[], help="YouTube handles, channel URLs or UC IDs")
+    start.add_argument("--name", help="channel name, defaulting to the slug in title case")
+    start.add_argument("--candidates-file", type=Path, help="one candidate per line, with # comments allowed")
+    start.add_argument("--suggest", action="store_true", help="ask the judge for candidate channels and check their public feeds")
+    start.add_argument("--judge", choices=("host", "claude"), help="use the channel's judge by default, or host for a new channel")
+    start.add_argument("--keep", type=int, default=15, help="keep the top 3 to 40 channels by median Shorts views")
+    start.add_argument("--min-shorts", type=int, default=3, help="minimum Shorts per candidate, at least 1")
+    start.add_argument("--no-brief", action="store_true", help="save the channel without making a brief")
     commands.add_parser("list", help="list local channels")
     daily = commands.add_parser("brief", help="make or refill the daily brief")
     daily.add_argument("slug")
@@ -86,6 +97,22 @@ def run(argv: list[str]) -> int:
             network = {k: getattr(args, "network_" + k) for k in ("name", "line", "url") if getattr(args, "network_" + k) is not None}
             factory = {k: getattr(args, k) for k in ("pack", "mode") if getattr(args, k) is not None}
             result = registry.create(args.name, args.niche, args.slug, network=network, factory=factory)
+        elif args.command == "setup":
+            result = setup.run(args.slug, args.niche, args.candidates, name=args.name, candidates_file=args.candidates_file,
+                               keep=args.keep, min_shorts=args.min_shorts, no_brief=args.no_brief, suggest=args.suggest,
+                               judge=args.judge)
+            if result.get("pending"):
+                print(result["pending"])
+                print(f"Write the JSON answer to {result['answer']} and run the same command again.")
+                return 0
+            print(f"kept {len(result['kept'])} of {len(result['kept']) + len(result['dropped'])}")
+            print(result["page"])
+            if result["brief"]:
+                print(result["brief"])
+                print(f"Niche to first brief: {result['minutes']:.1f} min")
+            if result.get("brief_error"):
+                print(f"Brief failed. {result['brief_error']}")
+            return 0
         elif args.command == "list":
             result = [registry.load(p.parent.name) for p in sorted(registry.home().glob("*/channel.json"))]
         elif args.command == "show":
@@ -194,6 +221,9 @@ def run(argv: list[str]) -> int:
             result = {"channel": args.slug, "all": args.all, "paused": registry.paused(args.slug) if args.slug else path.exists()}
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0
+    except registry.ChannelError as exc:
+        print(f"zing channels: {exc}", file=sys.stderr)
+        return 1 if args.command == "setup" else 2
     except subprocess.SubprocessError as exc:
         detail = getattr(exc, "stderr", None) or str(exc)
         if isinstance(detail, bytes):
