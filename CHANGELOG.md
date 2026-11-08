@@ -4,6 +4,8 @@
 
 - The learning report says which series beat, matched or trailed the channel's
   typical views.
+- Report safe download errors in `playbook measure`, pause after repeated YouTube
+  blocks, space attempts with `--gap`, and retry saved failures with `--retry-failed`.
 - Add read-only, destructive, idempotent and open-world MCP hints for all 44 tools.
   Hosts can use them to approve read-only calls without prompting.
 - Add a portable Hermes Agent plugin for installed Zing, with app detection,
