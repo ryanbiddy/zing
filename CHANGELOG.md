@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The review dashboard closes stalled connections, waits for active requests before
+  idle shutdown, and returns JSON errors for deeply nested bodies and failed actions.
 - Preserve Unicode text in JSONL and save channel queues atomically. Refund failed
   upload sessions, keep scheduled uploads scheduled and link manual posts before
   uploading. Analytics uses Pacific dates and retries incomplete runs after an hour.
