@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The learning report says which series beat, matched or trailed the channel's
+  typical views.
 - Add `zing connect CLIENT` with configs or setup guides for 48 apps, OS-specific
   locations, JSON output and Cursor and VS Code install links. Nothing is written.
 - Keep YouTube counts exact during RSS outages with an owner-set `YOUTUBE_API_KEY`.

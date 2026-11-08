@@ -370,3 +370,18 @@ def test_takes_credit_the_discussed_link_in_the_first_comment():
         "About this: https://www.youtube.com/shorts/MvApOELNmUU"
     sourced = postcopy.finalize(answer, words, {"url": "https://example.org/episode"}, news=news)["first_comment"]
     assert sourced.startswith("Source: https://example.org/episode")
+
+
+def test_learn_says_which_series_beat_the_channel(monkeypatch, tmp_path):
+    # PRODUCT bar: the learning report shows which series beat the channel median
+    monkeypatch.setenv("ZING_CHANNELS_HOME", str(tmp_path))
+    rows = [{"id": f"p{i}", "reward": reward, "arms": {"series": series}}
+            for i, (series, reward) in enumerate([("blew-up", 1), ("blew-up", 2), ("news", -1), ("news", -1), ("clips", 0)])]
+    monkeypatch.setattr(learn.registry, "load", lambda slug: {"slug": slug, "factory": {}, "prior": None})
+    monkeypatch.setattr(learn.bandit, "prior", lambda channel: {})
+    monkeypatch.setattr(learn.outcomes, "read", lambda slug: rows)
+    monkeypatch.setattr(learn, "_write", lambda path, data: None)
+    summary = learn.learn("demo")["summary"]
+    assert "Series blew-up beat the channel's typical views, about 2.8x over 2 posts." in summary
+    assert "Series news trailed the channel's typical views, about 0.5x over 2 posts." in summary
+    assert "Series clips matched the channel's typical views, about 1.0x over 1 post." in summary
