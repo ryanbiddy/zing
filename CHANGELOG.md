@@ -7,6 +7,8 @@
   Validate studio choices, lock screen runs and the run's session saves, and remove only
   project locks left by this run's dead worker on this machine.
 
+- Preserve previous videos when a render fails in a kept work folder or a receipt
+  cannot be published. Keep OTIO audio gaps within the video duration.
 - Check kept reference copies by hash, stage media atomically and stop download
   child processes on timeout or error. Keep caption times aligned on low frame-rate
   videos, handle scattered speech and report failed transition detection as not measured.
