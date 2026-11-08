@@ -148,7 +148,7 @@ def normalize(key, value):
         parse(reference_range=value)
         return value
     if key == "footage_kind":
-        if value not in {"general", "screen"}:
+        if not isinstance(value, str) or value not in {"general", "screen"}:
             raise ValueError("footage_kind: choose general or screen.")
         return value
     if key == "cursor_log":
@@ -199,7 +199,7 @@ def normalize(key, value):
         if not isinstance(value, list) or not value or any(v not in ASPECTS for v in value) or len(set(value)) != len(value):
             raise ValueError("aspects: use 16:9, 1:1, 9:16, all, or a comma-separated selection.")
     elif key == "length_mode":
-        if value not in {"usable", "explicit"}:
+        if not isinstance(value, str) or value not in {"usable", "explicit"}:
             raise ValueError("length_mode: choose usable (after trimming) or explicit (requested seconds).")
     elif key == "length":
         if isinstance(value, bool):

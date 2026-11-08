@@ -5,6 +5,11 @@
 - Reject meme captions that cannot fit and regions that are not a list. Use the
   still canvas background for transparent images in video memes and handle topics
   such as `my :` without a traceback.
+- Keep match logs inside their folder, refresh color grades and studio results when
+  the reference range changes, and skip generated clip outputs during preflight.
+  Validate studio choices, lock screen runs and the run's session saves, and remove only
+  project locks left by this run's dead worker on this machine.
+
 - Preserve previous videos when a render fails in a kept work folder or a receipt
   cannot be published. Keep OTIO audio gaps within the video duration.
 - Check kept reference copies by hash, stage media atomically and stop download

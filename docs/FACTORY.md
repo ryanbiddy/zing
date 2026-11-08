@@ -771,6 +771,17 @@ frames above ours.
 Everything is measured from pixels. The original font, project and settings stay
 unknown, and the closest bundled font is reported with its similarity.
 
+## Match and studio resumes
+
+- Match keeps step logs inside `logs/`, even when asset IDs contain path separators.
+- Changing the reference range rebuilds match color grades and clears the saved
+  studio result. Unchanged ranges can reuse cached work.
+- Match skips generated files when `--out` is inside `--clips`.
+- Studio screen runs share the production lock. A busy CLI run leaves the active
+  session unchanged. The lock stays held through the final session save.
+- After cancellation or a worker failure, studio removes project locks only for
+  its own dead worker on this machine. Other owners' locks stay in place.
+
 ## Setup
 
 ```bash

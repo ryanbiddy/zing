@@ -481,7 +481,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                                     lambda a=asset.id: _audio(clips_studied[a], caps["audio"]))
             summary["warnings"].extend(audio_maps[asset.id].get("warnings", []))
             if color == "reference" and caps["color"]:
-                colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, "sdr-matrix-v1"],
+                colors[asset.id] = checkpoints.step("color-" + asset.id, [sha, resolved["sha256"], caps, trim, "sdr-matrix-v1"],
                                                     lambda source=source, a=asset.id: _color(ref_study["media"], source, root / "color" / a))
         if color == "reference" and not caps["color"]:
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
