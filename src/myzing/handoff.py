@@ -3,23 +3,28 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import sys
 import webbrowser
 from pathlib import Path
+from urllib.parse import urlsplit
 
 CONTRACT = "ryan.suite.handoff"
 ERRORS = {
     "invalid_ref": "Use uoink://item/<id> or uoink:<id> for one saved item.",
     "uoink_unavailable": "Uoink could not resolve the item. Check that it is running and UOINK_TOKEN is set.",
     "media_unavailable": "The item's kept media is unavailable. Keep the video in Uoink and try again.",
+    "download_needed": "Uoink did not keep this video. Zing can download it from {host}. Run again with --allow-download.",
+    "download_failed": "Zing could not download this video. Check the source link and try again.",
     "project_exists": "That folder already holds another project. Choose a different --project folder.",
     "failed": "Zing could not open the hand-off. Check the arguments and project folder, then try again.",
 }
 
 
 class HandoffError(RuntimeError):
-    def __init__(self, code: str):
+    def __init__(self, code: str, **values):
         self.code = code
-        super().__init__(ERRORS[code])
+        super().__init__(ERRORS[code].format(**values))
 
 
 class Parser(argparse.ArgumentParser):
@@ -27,34 +32,39 @@ class Parser(argparse.ArgumentParser):
         raise HandoffError("failed")
 
 
-def _project(ref: str, folder: Path | None) -> tuple[Path, bool]:
+def _project(ref: str, folder: Path | None, *, allow_download: bool = False, progress=None) -> tuple[Path, bool, bool]:
     from myzing import storage, uoink_bridge
     from myzing.factory import pipeline
     from myzing.project.references import _verified
+    from myzing.study import ingest
+    from myzing.urls import is_http_url
 
     result = uoink_bridge.resolve_kept_media(ref)
-    if not result["ok"]:
-        code = result.get("code")
+    code = result.get("code")
+    if not result["ok"] and code not in {"not_kept", "missing"}:
         raise HandoffError("invalid_ref" if code == "invalid_ref" else "media_unavailable" if code in
-                           {"not_found", "not_kept", "missing", "media_unavailable"} else "uoink_unavailable")
-    data = result["data"]
-    if data["state"] != "available":
+                           {"not_found", "media_unavailable"} else "uoink_unavailable")
+    data = result["data"] if result["ok"] else {}
+    state = data.get("state", code)
+    path = None
+    if state == "available":
+        media = data["media"]
+        if uoink_bridge.redact(media["path"]) != media["path"]:
+            raise HandoffError("failed")
+        path = Path(media["path"])
+        try:
+            _verified(path, media["sha256"], media["byte_length"])
+        except (OSError, ValueError):
+            raise HandoffError("media_unavailable") from None
+    elif state not in {"not_kept", "missing"}:
         raise HandoffError("media_unavailable")
-    media = data["media"]
-    if any(isinstance(value, str) and uoink_bridge.redact(value) != value
-           for value in (media["path"], data.get("source_url"))):
-        raise HandoffError("failed")
-    path = Path(media["path"])
-    try:
-        _verified(path, media["sha256"], media["byte_length"])
-    except (OSError, ValueError):
-        raise HandoffError("media_unavailable") from None
     try:
         item = uoink_bridge.item_metadata(ref)
     except Exception:
         item = {}
     title = item.get("title", "").strip() if item.get("ok") else ""
-    url = data.get("source_url") or (item.get("source_url") if item.get("ok") else None) or ""
+    url = next((value for value in (data.get("source_url"), item.get("source_url") if item.get("ok") else None)
+                if is_http_url(value)), "")
     if any(uoink_bridge.redact(value) != value for value in (title, url)):
         raise HandoffError("failed")
     if folder is None:
@@ -78,11 +88,27 @@ def _project(ref: str, folder: Path | None) -> tuple[Path, bool]:
         except (OSError, ValueError):
             raise HandoffError("project_exists") from None
         if isinstance(settings, dict) and settings.get("uoink_ref") == ref:
-            return folder, True
+            return folder, True, False
         if not folder.is_dir() or any(folder.iterdir()):
             raise HandoffError("project_exists")
+    downloaded = path is None
+    if downloaded:
+        if not url:
+            raise HandoffError("media_unavailable")
+        if not allow_download:
+            raise HandoffError("download_needed", host=urlsplit(url).hostname)
+        created = False
+        try:
+            if not folder.exists():
+                folder.mkdir(parents=True)
+                created = True
+            path = ingest.download(url, folder / "source", timeout=3600, progress=progress)
+        except Exception:
+            if created:
+                shutil.rmtree(folder)
+            raise HandoffError("download_failed") from None
     pipeline.init(folder, path, name=title or None, url=url, uoink_ref=ref)
-    return folder, False
+    return folder, False, downloaded
 
 
 def run(argv: list[str]) -> int:
@@ -92,6 +118,7 @@ def run(argv: list[str]) -> int:
     parser.add_argument("--json", action="store_true", help="print one JSON line when the dashboard is ready")
     parser.add_argument("--no-open", action="store_true", help="leave the browser closed")
     parser.add_argument("--project", type=Path, metavar="DIR", help="the factory project folder")
+    parser.add_argument("--allow-download", action="store_true", help="download the source video if Uoink did not keep it")
     parser.add_argument("--judge", choices=("host", "claude"), default="host", help="who answers the dashboard's prompts")
     parser.add_argument("--idle-minutes", type=int, default=60, help="stop after this many minutes without an HTTP request, at least 1")
     try:
@@ -100,7 +127,7 @@ def run(argv: list[str]) -> int:
             from myzing.cli import _version
             print(json.dumps({"ok": True, "contract": CONTRACT, "version": 1, "service": "zing",
                               "service_version": _version(), "accepts": ["uoink.item/1"],
-                              "needs": ["uoink.media.handoff/1"]}), flush=True)
+                              "needs": ["uoink.media.handoff/1"], "features": ["allow_download"]}), flush=True)
             return 0
         from myzing import uoink_bridge
         from myzing.factory.serve import serve
@@ -113,12 +140,23 @@ def run(argv: list[str]) -> int:
                 raise ValueError
         except ValueError:
             raise HandoffError("invalid_ref") from None
-        project, reused = _project(ref, args.project)
+        reported = set()
+
+        def progress(percent):
+            whole = int(percent)
+            if whole in reported:
+                return
+            reported.add(whole)
+            line = (json.dumps({"contract": CONTRACT, "version": 1, "progress": "download", "percent": percent})
+                    if args.json else f"Downloading {whole}%")
+            print(line, file=sys.stderr, flush=True)
+
+        project, reused, downloaded = _project(ref, args.project, allow_download=args.allow_download, progress=progress)
 
         def ready(page):
             if args.json:
                 print(json.dumps({"ok": True, "contract": CONTRACT, "version": 1, "project": str(project),
-                                  "page": page, "item_ref": ref, "reused": reused}), flush=True)
+                                  "page": page, "item_ref": ref, "reused": reused, "downloaded": downloaded}), flush=True)
             if not args.no_open:
                 try:
                     webbrowser.open(page)
@@ -132,6 +170,7 @@ def run(argv: list[str]) -> int:
         return 0
     except Exception as exc:
         code = exc.code if isinstance(exc, HandoffError) else "failed"
-        result = {"ok": False, "contract": CONTRACT, "version": 1, "error": code, "message": ERRORS[code]}
+        message = str(exc) if isinstance(exc, HandoffError) else ERRORS[code]
+        result = {"ok": False, "contract": CONTRACT, "version": 1, "error": code, "message": message}
         print(json.dumps(result) if "--json" in argv else result["message"], flush=True)
         return 1

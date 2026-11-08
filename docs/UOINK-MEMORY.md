@@ -38,7 +38,7 @@ project. `zing from-uoink --probe --json` prints exactly one JSON object and exi
 0. It makes no network request and does not call Uoink.
 
 ```json
-{"ok":true,"contract":"ryan.suite.handoff","version":1,"service":"zing","service_version":"<installed myzing version>","accepts":["uoink.item/1"],"needs":["uoink.media.handoff/1"]}
+{"ok":true,"contract":"ryan.suite.handoff","version":1,"service":"zing","service_version":"<installed myzing version>","accepts":["uoink.item/1"],"needs":["uoink.media.handoff/1"],"features":["allow_download"]}
 ```
 
 Launch the saved item with its canonical reference or `uoink:<id>` shorthand.
@@ -51,22 +51,48 @@ Zing resolves `uoink.media.handoff/1`, checks the kept file's size and SHA-256,
 and creates a factory project through the same path as `zing factory new`.
 The optional corpus metadata lookup supplies the title. The title and source
 URL go in `source.json`; the canonical `uoink_ref` goes in `factory.json`.
-No source video is downloaded or copied.
+Kept media stays in Uoink.
+
+If Uoink reports `not_kept` or `missing` and a source URL is available, Zing
+returns `download_needed`. The message names only the host and asks you to
+run again with `--allow-download`.
+
+```sh
+zing from-uoink uoink://item/short-123 --allow-download --json --no-open
+```
+
+This flag allows Zing to download the HTTP or HTTPS source into the project's
+`source/` folder. Zing uses the hand-off's source URL, falling back to the
+corpus metadata URL. The download has a one-hour timeout. Rights stay
+`unknown`, so the posting gate still applies. A failed download returns
+`download_failed` and removes the partial project only if this run created
+its folder. Without a source URL, Zing returns `media_unavailable`.
 
 The default folder is `<workspace>/handoff/<title-or-item-slug>-<short-id>`.
 The workspace follows `ZING_HOME`, defaulting to `~/.zing`. The short ID is
 derived from the item reference. `--project DIR` chooses another folder.
-A project from the same item is reused with its edits intact. A different
-project in that folder is refused.
+A project from the same item is reused with its edits intact, without another
+download or download consent. A different project in that folder is refused.
 
-After binding an ephemeral port on `127.0.0.1`, Zing flushes this first stdout
-line. Paths, port and dashboard token below are placeholders.
+The first stdout line arrives only after the download finishes and Zing binds
+an ephemeral port on `127.0.0.1`. Paths, port and dashboard token below are
+placeholders. `downloaded` is `true` only when this run downloaded the source.
+It is `false` for kept media and reused projects.
 
 ```json
-{"ok":true,"contract":"ryan.suite.handoff","version":1,"project":"<absolute project path>","page":"http://127.0.0.1:<port>/?t=<dashboard-token>","item_ref":"uoink://item/short-123","reused":false}
+{"ok":true,"contract":"ryan.suite.handoff","version":1,"project":"<absolute project path>","page":"http://127.0.0.1:<port>/?t=<dashboard-token>","item_ref":"uoink://item/short-123","reused":false,"downloaded":false}
 ```
 
-Uoink can read this line and detach while Zing keeps serving in the same
+During a download, `--json` writes and flushes progress on stderr. It emits at
+most one line per whole percent. stdout still holds exactly one JSON line.
+
+```json
+{"contract":"ryan.suite.handoff","version":1,"progress":"download","percent":42.0}
+```
+
+Plain mode writes `Downloading 42%` lines to stderr.
+
+Uoink can read the readiness line and detach while Zing keeps serving in the same
 process. The page opens in the browser unless `--no-open` is set. Without
 `--json`, Zing prints the usual `Open ...` line. Press Run on the page to start
 the factory. `--judge host` is the default and leaves prompts for the user's
@@ -88,7 +114,9 @@ credential are never printed.
 |---|---|
 | `invalid_ref` | The reference does not identify one Uoink item. |
 | `uoink_unavailable` | Discovery, authentication or kept-media resolution failed. |
-| `media_unavailable` | The item or kept file is missing, not kept, or fails verification. |
+| `media_unavailable` | The item is missing, the kept file fails verification, or no source URL is available. |
+| `download_needed` | Uoink did not keep the video. Run again with `--allow-download` to fetch its source. |
+| `download_failed` | The source download failed. The message contains no downloader output. |
 | `project_exists` | The chosen folder holds another project or other files. |
 | `failed` | Invalid arguments or another startup error stopped the hand-off. |
 

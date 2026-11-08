@@ -62,13 +62,23 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 ```sh
 zing from-uoink --probe --json
 zing from-uoink uoink:short-123 --json --no-open
+zing from-uoink uoink:short-123 --allow-download --json --no-open
 zing from-uoink uoink://item/short-123 --project ./episode --judge claude --idle-minutes 30
 ```
 
-`--probe` prints the supported contract and installed version without network
-access. `REF` accepts either Uoink item form. `--json` prints one readiness
-envelope with the absolute project path, dashboard URL, item reference and
-reuse flag. Errors print a JSON envelope and exit 1.
+`--probe` prints the supported contract, installed version and
+`features: ["allow_download"]` without network access. `REF` accepts either
+Uoink item form. `--json` prints one readiness envelope with the absolute
+project path, dashboard URL, item reference and
+the `reused` and `downloaded` flags. Errors print a JSON envelope and exit 1.
+
+`--allow-download` permits a source download when Uoink did not keep the
+video. Without it, a known source URL returns `error="download_needed"`. Downloads
+go in `<project>/source/` and time out after one hour. Failures return
+`error="download_failed"`. Rights stay `unknown`, so the posting gate still applies.
+Progress goes to stderr as JSON lines with `--json`, or `Downloading 42%`
+in plain mode. The first stdout line arrives after the download. Kept media
+and reused projects report `downloaded` as `false`.
 
 `--project DIR` chooses the project folder. By default it goes under
 `<ZING_HOME or ~/.zing>/handoff/`, with a safe title slug and a short item hash.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `zing from-uoink --allow-download` to fetch videos Uoink did not keep,
+  with download progress on stderr and rights left unknown.
 - Add `zing from-uoink` for Uoink's saved-item button and optional source capture
   through `study_video` when Uoink advertises `uoink.capture/1`.
 - Add `zing channels setup --suggest` to propose channels and check their public

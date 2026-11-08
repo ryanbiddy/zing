@@ -32,6 +32,8 @@ import subprocess
 import math
 import shutil
 import statistics
+import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -362,9 +364,11 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
     if existing is not None:
         warnings.append(f"reusing already-downloaded media: {existing.name}")
         return existing
-    # S5 gate defect D-11 (routed Lane B; Lane A please re-review): run
-    # EXACTLY what doctor probes — the literal "yt-dlp" binary here made
-    # module-only envs pass doctor and then fail every fetch.
+    return download(url, dest)
+
+
+def download(url: str, dest: Path, *, timeout: float = 600, progress: Callable[[float], None] | None = None) -> Path:
+    dest = Path(dest)
     ytdlp = doctor.resolve_ytdlp_argv()
     if ytdlp is None:
         raise MediaError(
@@ -393,19 +397,63 @@ def _fetch(url: str, slug: str, dest: Path, warnings: list[str]) -> Path:
         require_public_host(url)
     except ValueError as exc:
         raise MediaError(str(exc)) from None
-    res = proc.run(cmd, timeout=600)
+    dest.mkdir(parents=True, exist_ok=True)
+    if progress is None:
+        res = proc.run(cmd, timeout=timeout)
+    else:
+        cmd[-1:-1] = ["--newline", "--progress-template", "download:%(progress._percent_str)s"]
+        res = _download_progress(cmd, timeout, progress)
     if res.returncode != 0:
         raise MediaError(
             f"yt-dlp could not fetch {url} (exit {res.returncode}):\n"
             f"{proc.tail(res.stderr)}"
         )
-    media = storage.find_media(slug)
+    media = next((p for p in sorted(dest.iterdir())
+                  if p.is_file() and p.stem == "media" and p.suffix.lower() in storage._MEDIA_EXTS), None)
     if media is None:
         raise MediaError(
             f"yt-dlp exited 0 but no media file landed in {dest} - "
             "cannot measure a video we do not have"
         )
     return media
+
+
+def _download_progress(cmd: list[str], timeout: float, progress) -> subprocess.CompletedProcess:
+    try:
+        process = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   text=True, encoding="utf-8", errors="replace", bufsize=1)
+    except FileNotFoundError as exc:
+        raise proc.ToolMissing(cmd[0]) from exc
+    expired = threading.Event()
+
+    def stop():
+        expired.set()
+        process.kill()
+
+    timer = threading.Timer(timeout, stop)
+    timer.daemon = True
+    timer.start()
+    last = ""
+    try:
+        for line in process.stdout:
+            last = line.strip() or last
+            if line.startswith("download:"):
+                try:
+                    percent = float(line.removeprefix("download:").strip().rstrip("%").strip())
+                except ValueError:
+                    continue
+                if math.isfinite(percent) and 0 <= percent <= 100:
+                    progress(percent)
+        process.wait()
+        if expired.is_set():
+            raise proc.Timeout(cmd, timeout)
+        return subprocess.CompletedProcess(cmd, process.returncode, "", last)
+    finally:
+        timer.cancel()
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        process.stdout.close()
 
 
 def _stage_local(path_str: str, slug: str) -> Path:

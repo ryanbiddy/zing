@@ -18,6 +18,7 @@ import pytest
 from conftest import FakeHTTPResponse
 from myzing import cli, handoff, mcp_server, storage, suite_peer, uoink_bridge, urls
 from myzing.factory import judge, pipeline, serve
+from myzing.study import ingest
 from test_mcp_handlers import fake_engine, live_job, wait_done
 from test_suite_peer import make_manifest
 
@@ -38,6 +39,7 @@ def offline(monkeypatch, zing_workspace, isolated_uoink_transport):
     monkeypatch.setattr(judge.subprocess, "run", refuse)
     monkeypatch.setattr(uoink_bridge, "resolve_kept_media", refuse)
     monkeypatch.setattr(uoink_bridge, "item_metadata", refuse)
+    monkeypatch.setattr(ingest, "download", refuse)
     monkeypatch.setattr(handoff.webbrowser, "open", refuse)
 
 
@@ -94,7 +96,7 @@ def test_probe_is_one_exact_object_without_network(monkeypatch, capsys):
     assert cli.main(["from-uoink", "--probe", "--json"]) == 0
     assert output(capsys) == {"ok": True, "contract": "ryan.suite.handoff", "version": 1, "service": "zing",
                               "service_version": cli._version(), "accepts": ["uoink.item/1"],
-                              "needs": ["uoink.media.handoff/1"]}
+                              "needs": ["uoink.media.handoff/1"], "features": ["allow_download"]}
 
 
 def test_handoff_creates_project_prints_page_and_exits_when_idle(kept, dashboard, zing_workspace, capsys, monkeypatch):
@@ -110,7 +112,7 @@ def test_handoff_creates_project_prints_page_and_exits_when_idle(kept, dashboard
     assert cli.main(["from-uoink", "uoink:short-123", "--json", "--no-open"]) == 0
     assert time.monotonic() - start >= .02
     body = output(capsys)
-    assert set(body) == {"ok", "contract", "version", "project", "page", "item_ref", "reused"}
+    assert set(body) == {"ok", "contract", "version", "project", "page", "item_ref", "reused", "downloaded"}
     assert body.items() >= {"ok": True, "contract": "ryan.suite.handoff", "version": 1,
                             "item_ref": REF, "reused": False}.items()
     root = Path(body["project"])
@@ -199,7 +201,8 @@ def test_unavailable_media_stops_before_creating_project(kept, dashboard, zing_w
     else:
         kept.data.update(state=state, media=None)
     assert cli.main(["from-uoink", REF, "--json", "--no-open"]) == 1
-    assert output(capsys)["error"] == "media_unavailable"
+    # a not-kept item with a source URL now asks for consent to download it
+    assert output(capsys)["error"] == ("download_needed" if state in ("not_kept", "missing") else "media_unavailable")
     assert not (zing_workspace / "handoff").exists() and not dashboard
 
 
@@ -249,6 +252,153 @@ def test_unexpected_failure_is_private_in_plain_output(monkeypatch, capsys):
     monkeypatch.setattr(uoink_bridge, "resolve_kept_media", fail)
     assert cli.main(["from-uoink", REF, "--no-open"]) == 1
     assert capsys.readouterr().out == handoff.ERRORS["failed"] + "\n"
+
+
+def test_probe_advertises_download(capsys):
+    assert cli.main(["from-uoink", "--probe", "--json"]) == 0
+    assert output(capsys)["features"] == ["allow_download"]
+
+
+def test_kept_media_is_not_a_download(kept, dashboard, capsys):
+    assert cli.main(["from-uoink", REF, "--allow-download", "--json", "--no-open"]) == 0
+    assert output(capsys)["downloaded"] is False
+
+
+@pytest.mark.parametrize("state", ["not_kept", "missing"])
+@pytest.mark.parametrize("json_output", [False, True])
+def test_download_needs_consent_and_names_only_host(kept, zing_workspace, capsys, state, json_output):
+    kept.data.update(state=state, media=None, source_url=URL + "?key=private-query")
+    args = ["--json"] if json_output else []
+    assert cli.main(["from-uoink", REF, "--no-open", *args]) == 1
+    message = "Uoink did not keep this video. Zing can download it from example.test. Run again with --allow-download."
+    if json_output:
+        assert output(capsys) == {"ok": False, "contract": handoff.CONTRACT, "version": 1,
+                                  "error": "download_needed", "message": message}
+    else:
+        captured = capsys.readouterr()
+        assert captured.out == message + "\n" and not captured.err
+    assert not (zing_workspace / "handoff").exists()
+
+
+@pytest.mark.parametrize("state", ["not_kept", "missing"])
+@pytest.mark.parametrize("fallback", [False, True])
+def test_download_creates_project_with_metadata_and_unknown_rights(kept, dashboard, capsys, monkeypatch, state, fallback):
+    kept.data.update(state=state, media=None, source_url=None if fallback else URL)
+    kept.item["source_url"] = "https://metadata.test/episode"
+    expected = kept.item["source_url"] if fallback else URL
+    calls = []
+
+    def download(url, dest, *, timeout, progress):
+        assert capsys.readouterr().out == ""
+        calls.append((url, dest, timeout, callable(progress)))
+        dest.mkdir(parents=True)
+        path = dest / "media.mp4"
+        path.write_bytes(b"downloaded episode")
+        return path
+
+    monkeypatch.setattr(ingest, "download", download)
+    assert cli.main(["from-uoink", REF, "--allow-download", "--json", "--no-open"]) == 0
+    body = output(capsys)
+    root = Path(body["project"])
+    assert body["downloaded"] is True and body["reused"] is False
+    assert calls == [(expected, root / "source", 3600, True)]
+    assert pipeline._read(root / "source.json").items() >= {
+        "media": str(root / "source" / "media.mp4"), "name": kept.item["title"], "url": expected}.items()
+    assert pipeline._read(root / "factory.json").items() >= {"uoink_ref": REF, "rights": "unknown"}.items()
+
+
+@pytest.mark.parametrize("code", ["not_kept", "missing"])
+def test_resolve_absence_uses_metadata_source(kept, capsys, monkeypatch, code):
+    monkeypatch.setattr(uoink_bridge, "resolve_kept_media", lambda ref: {"ok": False, "code": code})
+    assert cli.main(["from-uoink", REF, "--json", "--no-open"]) == 1
+    assert output(capsys)["error"] == "download_needed"
+    assert kept.calls == [("metadata", REF)]
+
+
+@pytest.mark.parametrize("code", ["not_kept", "missing"])
+def test_resolve_absence_can_download(kept, dashboard, capsys, monkeypatch, code):
+    monkeypatch.setattr(uoink_bridge, "resolve_kept_media", lambda ref: {"ok": False, "code": code})
+
+    def download(url, dest, **kwargs):
+        assert url == kept.item["source_url"]
+        dest.mkdir(parents=True)
+        path = dest / "media.mp4"
+        path.write_bytes(b"episode")
+        return path
+
+    monkeypatch.setattr(ingest, "download", download)
+    assert cli.main(["from-uoink", REF, "--allow-download", "--json", "--no-open"]) == 0
+    assert output(capsys)["downloaded"] is True
+
+
+@pytest.mark.parametrize("defect", ["deleted", "changed"])
+def test_download_consent_does_not_bypass_kept_media_verification(kept, capsys, defect):
+    if defect == "deleted":
+        kept.path.unlink()
+    else:
+        kept.path.write_bytes(b"changed episode")
+    assert cli.main(["from-uoink", REF, "--allow-download", "--json", "--no-open"]) == 1
+    assert output(capsys)["error"] == "media_unavailable"
+
+
+@pytest.mark.parametrize("url", [None, "", "file:///private/video.mp4", "ftp://example.test/video", "https://"])
+@pytest.mark.parametrize("allow", [False, True])
+def test_download_without_source_keeps_media_unavailable(kept, capsys, zing_workspace, url, allow):
+    kept.data.update(state="not_kept", media=None, source_url=url)
+    kept.item["source_url"] = url
+    assert cli.main(["from-uoink", REF, "--json", "--no-open", *(["--allow-download"] if allow else [])]) == 1
+    assert output(capsys)["error"] == "media_unavailable"
+    assert not (zing_workspace / "handoff").exists()
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_download_failure_removes_only_new_project(kept, capsys, tmp_path, monkeypatch, existing):
+    kept.data.update(state="not_kept", media=None)
+    root = tmp_path / "chosen"
+    if existing:
+        root.mkdir()
+    monkeypatch.setenv("UOINK_TOKEN", TOKEN)
+
+    def fail(url, dest, **kwargs):
+        dest.mkdir(parents=True)
+        (dest / "media.mp4.part").write_bytes(b"partial")
+        raise ingest.MediaError(f"private path {tmp_path}\nURL {url}?key=secret\n{TOKEN}")
+
+    monkeypatch.setattr(ingest, "download", fail)
+    assert cli.main(["from-uoink", REF, "--project", str(root), "--allow-download", "--json", "--no-open"]) == 1
+    assert output(capsys) == {"ok": False, "contract": handoff.CONTRACT, "version": 1,
+                              "error": "download_failed", "message": handoff.ERRORS["download_failed"]}
+    assert root.exists() is existing
+    if existing:
+        assert (root / "source" / "media.mp4.part").read_bytes() == b"partial"
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_downloaded_project_reuse_needs_no_download_or_consent(kept, dashboard, capsys, tmp_path, monkeypatch, explicit):
+    kept.data.update(state="not_kept", media=None)
+
+    def download(url, dest, **kwargs):
+        dest.mkdir(parents=True)
+        path = dest / "media.mp4"
+        path.write_bytes(b"episode")
+        return path
+
+    monkeypatch.setattr(ingest, "download", download)
+    args = ["from-uoink", REF, "--json", "--no-open"]
+    if explicit:
+        args += ["--project", str(tmp_path / "chosen")]
+    assert cli.main([*args, "--allow-download"]) == 0
+    first = output(capsys)
+    root = Path(first["project"])
+    cfg = pipeline._read(root / "factory.json")
+    pipeline._write(root / "factory.json", {**cfg, "focus": "Keep my edits"})
+    before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    kept.item["title"] = "New title"
+    monkeypatch.setattr(ingest, "download", refuse)
+    assert cli.main(args) == 0
+    second = output(capsys)
+    assert second["project"] == first["project"] and second["reused"] is True and second["downloaded"] is False
+    assert {p: p.read_bytes() for p in root.rglob("*") if p.is_file()} == before
 
 
 def capture_body(status="saved", **changes):
