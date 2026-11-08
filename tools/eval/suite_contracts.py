@@ -40,6 +40,8 @@ _SERVICE_SPECS = {
             "uoink.engagement.ingest/1",
             "uoink.media.handoff/1",
         ),
+        # Uoink #418: capture ships after 3.15.x; Zing calls it only when advertised.
+        "optional_capabilities": ("uoink.capture/1",),
         "checks": ("core", "index", "corpus_paths"),
         "mcp_name": "uoink",
     },
@@ -286,6 +288,7 @@ def _capability_issues(
     issues: list[dict[str, Any]],
     *,
     expected: Sequence[str] | None = None,
+    optional: Sequence[str] = (),
     allow_empty: bool = False,
 ) -> None:
     if not isinstance(value, list) or any(
@@ -300,7 +303,12 @@ def _capability_issues(
     invalid = [item for item in value if not _CAPABILITY_RE.fullmatch(item)]
     if invalid:
         _issue(issues, path, "invalid_capabilities", values=invalid)
-    if expected is not None and value != list(expected):
+    # Every required capability must be present; an optional one (added by a
+    # newer peer release) may be. Anything else is still drift.
+    if expected is not None and (
+        not set(expected) <= set(value)
+        or not set(value) <= set(expected) | set(optional)
+    ):
         _issue(
             issues,
             path,
@@ -435,6 +443,7 @@ def _validate_runtime_lease(
             "$.capabilities",
             issues,
             expected=spec["capabilities"],
+            optional=spec.get("optional_capabilities", ()),
         )
     _ui_issues(lease.get("ui"), "$.ui", issues)
     pid = lease.get("pid")
@@ -549,6 +558,7 @@ def _validate_service(
         "$.service.capabilities",
         issues,
         expected=spec["capabilities"],
+        optional=spec.get("optional_capabilities", ()),
     )
     _ui_issues(service.get("ui"), "$.service.ui", issues)
     mcp = _exact_mapping(
