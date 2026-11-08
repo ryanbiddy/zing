@@ -308,8 +308,9 @@ def _thing_parts(words: list[str]) -> dict:
     else:
         head = content[-1] if content else words[-1]
     head = head.strip(",.!?;:\"'")
-    owner = (_bare(phrase[0]) if phrase and _bare(phrase[0]) in POSSESSIVES and head.split()[-1] in
+    owner = (_bare(phrase[0]) if head and phrase and _bare(phrase[0]) in POSSESSIVES and head.split()[-1] in
              [w.strip(",.!?;:\"'") for w in phrase] else None)
+    head = head or words[-1]
     the = whole or (head if _proper(head) else f"{phrase[0] if owner else 'the'} {head}")
     return {"head": _clip_words(head, 18), "the": _clip_words(the, 24)}
 

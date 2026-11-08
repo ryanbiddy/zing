@@ -5,6 +5,9 @@
 - Record local study source hashes, split cuts outside transition legs, keep crops
   within each shot and handle thin contact-sheet frames. Assign overlapping caption
   words once and give silent music excerpts zero energy points.
+- Reject meme captions that cannot fit and regions that are not a list. Use the
+  still canvas background for transparent images in video memes and handle topics
+  such as `my :` without a traceback.
 - Keep match logs inside their folder, refresh color grades and studio results when
   the reference range changes, and skip generated clip outputs during preflight.
   Validate studio choices, lock screen runs and the run's session saves, and remove only
