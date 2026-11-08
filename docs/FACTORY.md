@@ -131,6 +131,13 @@ These commands fetch no video, thumbnails or audio. Set a channel's `prior` to
 the exported file to guide its titles and scout. See [Pick a niche](PLAYBOOK.md#pick-a-niche)
 for inputs and formulas.
 
+For a saved Shorts library, `zing playbook measure DIR --download` reports safe
+download categories and pauses downloads after three consecutive YouTube blocks.
+`--gap SECONDS` sets the wait between attempts; `--max-blocks N` sets the stop
+threshold. After waiting, use `--retry-failed` to retry saved failures while
+keeping good measurements. Zing never uses browser cookies. See
+[Measure and retry downloads](PLAYBOOK.md#measure-and-retry-downloads).
+
 ## Quick start
 
 ```bash

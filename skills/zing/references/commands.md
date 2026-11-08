@@ -311,6 +311,29 @@ most 0.67. Set a channel's `prior` to this file to guide titles and scouts. See
 [Pick a niche](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md#pick-a-niche)
 for the formula, title heuristics and hourly Windows task example.
 
+## Measure a playbook library
+
+```sh
+zing playbook measure zing-workspace/playbook --media-dir local-shorts
+zing playbook measure zing-workspace/playbook --download --gap 3 --max-blocks 3
+zing playbook measure zing-workspace/playbook --download --retry-failed
+```
+
+Local media takes precedence. Downloads require `--download`; Zing never uses
+browser cookies. `--gap SECONDS` waits between download attempts, defaults to 3
+and accepts 0. The first attempt starts immediately. `--max-blocks N` pauses
+downloads after N consecutive bot-check or rate-limit failures. It defaults to 3
+and requires at least 1. Local media and cached measurements still process.
+Paused entries get no new failure record and can be tried on a normal rerun.
+
+Failures show download_bot_check, download_rate_limited,
+download_unavailable or ytdlp_missing when recognized, with a fixed hint.
+Raw stderr and exception text stay out of failure records. Wait after blocks,
+then use `--retry-failed` to retry only saved failures. It also works with
+`--media-dir DIR`. Successful measurement files stay unchanged. `--force`
+recomputes all entries and cannot be combined with `--retry-failed`. See
+[Measure and retry downloads](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md#measure-and-retry-downloads).
+
 ## Factory rights and campaign briefs
 
 ```sh
