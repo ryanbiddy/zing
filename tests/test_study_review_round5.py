@@ -104,13 +104,15 @@ def test_study_timeout_stops_descendants_and_raises_media_error(tmp_path):
     from myzing.project.locking import _pid_alive
 
     marker, pid_file = tmp_path / "late-write", tmp_path / "child.pid"
-    child = f"import time; from pathlib import Path; time.sleep(1); Path({str(marker)!r}).touch()"
+    # Slow CI runners can take most of a second to start Python; the timeout
+    # must leave the parent time to record its child's pid.
+    child = f"import time; from pathlib import Path; time.sleep(4); Path({str(marker)!r}).touch()"
     parent = (f"import subprocess, sys, time; from pathlib import Path; "
               f"p = subprocess.Popen([sys.executable, '-c', {child!r}]); "
               f"Path({str(pid_file)!r}).write_text(str(p.pid)); time.sleep(10)")
     try:
         with pytest.raises(Exception) as caught:
-            proc.run([sys.executable, "-c", parent], timeout=.5)
+            proc.run([sys.executable, "-c", parent], timeout=2)
         assert pid_file.exists()
         pid = int(pid_file.read_text())
         deadline = time.monotonic() + 2
@@ -369,7 +371,7 @@ def stub_stills(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "inventory", lambda path: ([photo], []))
     monkeypatch.setattr(api, "_offline", lambda *args: [(photo, {"texts": ["one fix"], "provider": "offline"})])
     monkeypatch.setattr(api, "safe_geometry", lambda *a, **kw: True)
-    monkeypatch.setattr(api, "open_photo", lambda path: nullcontext(SimpleNamespace(
+    monkeypatch.setattr(api, "open_photo", lambda path, **kwargs: nullcontext(SimpleNamespace(
         size=(640, 480), save=lambda target: Path(target).write_bytes(b"photo"))))
     rendered = []
 

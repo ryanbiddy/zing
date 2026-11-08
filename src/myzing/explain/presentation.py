@@ -5,6 +5,8 @@ with plain lines, a confidence note and a single "not knowable" sentence.
 Every measurement, sample and itemized limitation stays in card.json.
 """
 
+import html
+import re
 from pathlib import Path
 
 from .plain import aspect_name
@@ -24,9 +26,13 @@ def command_label(command):
     return None
 
 
+def _markdown_text(text):
+    return html.escape(re.sub(r"([\\`*_{}\[\]()#+.!|~-])", r"\\\1", " ".join(text.splitlines())))
+
+
 def markdown(card):
     framing = card.sections["framing"].facts
-    lines = [f"# Style card: {Path(card.source).name}", "",
+    lines = [f"# Style card: {_markdown_text(Path(card.source).name)}", "",
              f"{card.duration_seconds:.1f}s, {framing['width']} x {framing['height']}. Measured from the exported video; "
              "the original project settings are unknown.", "",
              "## What a viewer notices", "", *[f"- {line}" for line in card.summary], ""]
@@ -38,7 +44,7 @@ def markdown(card):
               "Replace `./my-clips`, `./my-edit` and `clip1.mp4` with your own folder, project and clip. "
               f"The reusable StyleRecipe is `{card.recipe_path}`. Drafts approximate the look; they do not copy the original edit."]
     for key, section in card.sections.items():
-        lines += ["", f"## {section.title}", "", *(section.lines or ["No supported measurement."])]
+        lines += ["", f"## {_markdown_text(section.title)}", "", *(section.lines or ["No supported measurement."])]
         if key == "pacing":
             facts = section.facts
             pairs = facts.get("beat_alignment")

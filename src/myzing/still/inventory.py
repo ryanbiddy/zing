@@ -39,12 +39,12 @@ def local_path(value: str | Path) -> Path:
     return path
 
 
-def open_photo(path: Path):
-    """The oriented RGB working copy (see myzing.memes.photo)."""
-    return read_photo(path)[0]
+def open_photo(path: Path, mode: str = "RGB"):
+    """The oriented working copy, RGB unless asked (see myzing.memes.photo)."""
+    return read_photo(path, mode)[0]
 
 
-def read_photo(path: Path):
+def read_photo(path: Path, mode: str = "RGB"):
     """(working copy, PhotoSource): EXIF/HEIF orientation, large photos reduced."""
     require_pillow()
     if path.suffix.lower() not in EXTENSIONS:
@@ -52,7 +52,7 @@ def read_photo(path: Path):
     if not path.is_file() or not 0 < path.stat().st_size <= MAX_BYTES:
         raise MemeError(f"Photo is missing, empty, or over {MAX_BYTES // 2 ** 20} MiB: {path}")
     try:
-        return load_photo(path, formats=FORMATS, single_frame=True)
+        return load_photo(path, mode=mode, formats=FORMATS, single_frame=True)
     except MemeError as exc:
         message = str(exc)
         raise MemeError(message if message.startswith(("Cannot read photo", "Use a single-frame"))

@@ -461,6 +461,8 @@ class Composition(Record):
                 raise ValueError(f"{item.id}: unknown asset_id {item.asset_id}")
             if item.src not in [asset.path, *asset.aliases]:
                 raise ValueError(f"{item.id}: src must match the asset path or a recorded alias")
+            if asset.duration is not None and item.src_in >= asset.duration:
+                raise ValueError(f"{item.id} source in-point must be before the asset duration")
             if asset.duration is not None and item.src_out is not None and item.src_out > asset.duration + 0.05:
                 context = "".join(f"; transition {t.id} ({t.outgoing_clip} -> {t.incoming_clip})" for t in self.transitions
                                   if item.id in (t.outgoing_clip, t.incoming_clip))
