@@ -69,7 +69,7 @@ def load_pack(name: str) -> dict[str, Any] | None:
     if path is None:
         return None
     data = json.loads(path.read_text(encoding="utf-8"))
-    refs = data.get("references")
+    refs = data.get("references") if isinstance(data, dict) else None
     if not isinstance(refs, list) or not refs or not all(
         isinstance(r, dict) and r.get("url") for r in refs
     ):

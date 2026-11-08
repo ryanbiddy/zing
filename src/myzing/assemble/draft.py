@@ -400,9 +400,11 @@ def _clamped(word: Word, src_in: float, src_out: float) -> Word:
 
 def _span_of(keeper: dict[str, Any], index: int) -> tuple[float, float]:
     try:
-        start = float(keeper["start"])
-        end = float(keeper["end"])
-    except (KeyError, TypeError, ValueError) as exc:
+        start, end = keeper["start"], keeper["end"]
+        if any(isinstance(value, bool) or not isinstance(value, (int, float)) for value in (start, end)):
+            raise ValueError("non-numeric time")
+        start, end = float(start), float(end)
+    except (KeyError, TypeError, ValueError, OverflowError) as exc:
         raise AssembleError(
             f"direction keeper {index} lacks numeric start/end"
         ) from exc
@@ -491,5 +493,5 @@ def draft_for_slug(slug: str, direction: dict[str, Any], *,
     # relative path: render interprets every relative src from the EDL.
     for clip in result.edl.clips:
         clip.src = media.relative_to(target.parent).as_posix()
-    target.write_text(result.edl.to_json(indent=2) + "\n", encoding="utf-8")
+    storage._write_atomic(target, result.edl.to_json(indent=2) + "\n")
     return result

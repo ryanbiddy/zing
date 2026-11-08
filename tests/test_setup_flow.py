@@ -55,7 +55,7 @@ def engines(monkeypatch):
 
     profile_api = types.ModuleType("myzing.profile.api")
 
-    def build_profile(name, slugs, workspace=None, genre="", platform=""):
+    def build_profile(name, slugs, workspace=None, genre="", platform="", *, save=True):
         return StyleProfile(
             name=name, source_slugs=list(slugs), genre=genre, platform=platform,
             duration=StatSummary(median=30.0, n=len(slugs)),

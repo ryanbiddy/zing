@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Keep saved briefs when `--short-side` is invalid, replace draft EDLs atomically,
+  and preserve the previous profile backup on pack rebuilds. Count repeated profile
+  sources once. Report malformed packs and timing provenance, reject boolean keeper
+  times, keep failed Uoink error-body reads retryable, and reject control characters
+  in credentials without echoing their values.
 - Keep measured speech shares when unrelated audio checks fail and escape card names
   and titles. Handle unreadable music sidecars and map trimmed study words from their
   source offset. Preserve delayed screen audio, compare video durations, composite

@@ -70,6 +70,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise PackError(f"unreadable pack manifest: {path} ({exc})") from exc
+    if not isinstance(manifest, dict):
+        raise PackError(f"pack manifest at {path} must be a JSON object")
     for key in MANIFEST_REQUIRED:
         if key not in manifest:
             raise PackError(f"pack manifest missing '{key}': {path}")
@@ -78,6 +80,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
         raise PackError(f"pack manifest has no references: {path}")
     seen_ids: set[str] = set()
     for index, reference in enumerate(references):
+        if not isinstance(reference, dict):
+            raise PackError(f"reference {index} must be a JSON object")
         for key in REFERENCE_REQUIRED:
             if not reference.get(key):
                 raise PackError(
@@ -166,6 +170,7 @@ def build_pack(
             workspace=workspace,
             genre=manifest["genre"],
             platform=manifest["platform"],
+            save=False,
         )
         profile.warnings.extend(
             f"pack reference {ref_id} excluded: {reason}"
