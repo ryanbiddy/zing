@@ -69,7 +69,7 @@ def _publish(out, payloads, report, protected):
 
 
 def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, seed: int = 0, repair_asr: bool = True,
-                studio_options: dict | None = None) -> dict:
+                studio_options: dict | None = None, excluded_assets=()) -> dict:
     if type(seed) is not int:
         raise ValueError("seed must be an integer")
     if studio_options is not None:
@@ -98,6 +98,11 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
             shortage("study_required", "No project clip has a usable study.",
                      f'Run zing study <clip> --raw --workspace "{root}" for each needed clip.')
         keep, forbidden = constraints(brief, manifest, clips)
+        if any(keep.get(key) for key in excluded_assets):
+            raise ValueError("An excluded clip has a must_keep span. Keep that clip in the search.")
+        if excluded_assets:
+            report["excluded_assets"] = list(excluded_assets)
+            clips = [c for c in clips if c.asset_id not in excluded_assets]
         if studio_options and studio_options.get("target_length_mode") == "usable":
             from dataclasses import replace
             from .selection import usable_length
