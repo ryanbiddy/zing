@@ -17,6 +17,11 @@ the creative judgment through the CLI or **44 MCP tools**. No Zing API key neede
 
 ## Start here: zing studio
 
+Run `zing studio` and pick "Turn a long episode into Shorts" for a podcast episode.
+Pick a reference match for your own clips.
+The episode path opens a review page. Press Run to make captioned vertical clips.
+Nothing is posted.
+
 ## Get started
 
 Zing is pre-alpha and is not on PyPI yet. Use the [source checkout steps](docs/INSTALL.md#source-checkout-available-now)
@@ -44,7 +49,7 @@ Run `uv sync --all-extras` once in this checkout, put FFmpeg on PATH, then:
 uv run --frozen zing studio
 ```
 
-Start with “What are we making?” Choose a reference edit, an edit from your
+Start with “What are we making?” Choose an episode for Shorts, a reference edit, an edit from your
 clips, a photo meme, a style breakdown, music advice, or another delivery shape.
 Studio reads a local reference for up to eight seconds, then recommends length,
 pacing, captions, audio and shape from what it measured. A local reference edit

@@ -32,12 +32,9 @@ class Parser(argparse.ArgumentParser):
         raise HandoffError("failed")
 
 
-def _project(ref: str, folder: Path | None, *, allow_download: bool = False, progress=None) -> tuple[Path, bool, bool]:
-    from myzing import storage, uoink_bridge
-    from myzing.factory import pipeline
+def _kept_media(ref: str) -> tuple[Path | None, dict]:
+    from myzing import uoink_bridge
     from myzing.project.references import _verified
-    from myzing.study import ingest
-    from myzing.urls import is_http_url
 
     result = uoink_bridge.resolve_kept_media(ref)
     code = result.get("code")
@@ -58,6 +55,16 @@ def _project(ref: str, folder: Path | None, *, allow_download: bool = False, pro
             raise HandoffError("media_unavailable") from None
     elif state not in {"not_kept", "missing"}:
         raise HandoffError("media_unavailable")
+    return path, data
+
+
+def _project(ref: str, folder: Path | None, *, allow_download: bool = False, progress=None) -> tuple[Path, bool, bool]:
+    from myzing import storage, uoink_bridge
+    from myzing.factory import pipeline
+    from myzing.study import ingest
+    from myzing.urls import is_http_url
+
+    path, data = _kept_media(ref)
     try:
         item = uoink_bridge.item_metadata(ref)
     except Exception:

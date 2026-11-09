@@ -32,6 +32,16 @@ def show_question(q, out):
 
 
 def show_plan(plan, out):
+    if plan["path"] == "g":
+        print("\n" + plan["title"], file=out)
+        d = round(plan["duration"])
+        length = f"{d // 3600}:{d % 3600 // 60:02d}:{d % 60:02d}" if d >= 3600 else f"{d // 60}:{d % 60:02d}"
+        for label, value in (("Episode", plan["episode"]), ("Length", length),
+                             ("Transcript", plan["transcript"]), ("Clips", plan["clips"]),
+                             ("Shapes", ", ".join(plan["shapes"])), ("Judge", plan["judge"]), ("Project", plan["project"])):
+            print(f"{label}  {value}", file=out)
+        print("The review page starts after confirmation. Press Run to begin.", file=out)
+        return
     print(f"\nPlan: {plan['title']}", file=out)
     if plan["aspects"]:
         print("Shapes: " + ", ".join(plan["aspects"]), file=out)
@@ -47,6 +57,14 @@ def show_plan(plan, out):
 
 
 def show_result(result, out):
+    if result.get("path") == "g":
+        print("\nProject " + result["project"], file=out)
+        if result.get("page"):
+            print("Review " + result["page"], file=out)
+            print("Press Run to begin.", file=out)
+        for action in result["next_actions"]:
+            print(action, file=out)
+        return
     print("\nStudio: " + result.get("status", "failed"), file=out)
     if result.get("speech_setup"):
         setup = result["speech_setup"]
@@ -151,6 +169,7 @@ def run(argv):
     parser.add_argument("--answers", metavar="JSON_FILE", help="question IDs and answers; paths resolve from the current directory")
     parser.add_argument("--yes", action="store_true", help="confirm the displayed plan; does not grant download consent")
     parser.add_argument("--json", action="store_true", help="JSON Lines events: question, plan, progress, result")
+    parser.add_argument("--no-open", action="store_true", help="print the episode review URL without opening a browser")
     args = parser.parse_args(argv)
     session = Session()
     lease = ExitStack()  # the production lock, held from persist('running') to the end
@@ -245,7 +264,7 @@ def run(argv):
                 raw_answers = read_json(args.answers)
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{args.answers} is not valid JSON ({exc}); write one object keyed by question IDs.") from None
-            supplied = flow.normalize_answers(raw_answers)
+            supplied = flow.normalize_answers(raw_answers, path=session.answers.get("path"))
             if "length" in supplied and "length_mode" not in supplied:
                 session.answers.pop("length_mode", None)
             if "speech_model" in supplied and supplied["speech_model"] != session.answers.get("speech_model"):
@@ -263,6 +282,8 @@ def run(argv):
             for key in supplied:
                 session.automatic_answers.pop(key, None)
             session.result = {}
+        if args.no_open:
+            session.answers["no_open"] = True
         trim = range_options(args)
         if trim:
             previous = {k: session.answers[k] for k in ("ref_start", "ref_end", "reference_range") if k in session.answers}
@@ -350,7 +371,7 @@ def run(argv):
                     value = _answer(q, raw)
                     if q["id"] == "speech_download":
                         value = value if type(value) is bool else str(value).lower() in {"yes", "y"}
-                    session.answers[q["id"]] = flow.normalize(q["id"], value)
+                    session.answers[q["id"]] = flow.normalize(q["id"], value, path=session.answers.get("path"))
                     session.automatic_answers.pop(q["id"], None)
                     if q["id"] == "length" and session.answers.get("path") == "a":
                         session.answers["length_mode"] = "usable" if raw == "" else "explicit"
@@ -426,7 +447,7 @@ def run(argv):
         beat = threading.Thread(target=heartbeat, daemon=True)
         beat.start()
         try:
-            if session.answers["path"] == "a":
+            if session.answers["path"] in "ag":
                 from .execute import run_confirmed
                 result = run_confirmed(session.answers, progress=progress, locked=True)
             else:
@@ -440,6 +461,30 @@ def run(argv):
                 print("Studio run cancelled", flush=True)
             return pause()  # Ctrl+C reached the match worker; say how to continue.
         persist(result["status"])
+        if session.answers["path"] == "g" and result.get("ok"):
+            import webbrowser
+            from myzing.factory.serve import serve
+            lease.close()
+
+            def ready(page):
+                result["page"] = page
+                session.result = result
+                from .models import write_json
+                write_json(pathlib.Path(result["project"]) / "studio-result.json", result)
+                persist("ready")
+                emit("result", {**result, "questions_asked": session.questions_asked})
+                if not args.json:
+                    show_result(result, sys.stdout)
+                    sys.stdout.flush()
+                if not session.answers.get("no_open", False):
+                    try:
+                        webbrowser.open(page)
+                    except (OSError, webbrowser.Error):
+                        pass
+
+            serve(pathlib.Path(result["project"]), port=0, judge=session.answers["judge"], ready=ready,
+                  idle_seconds=3600, say=lambda line: None)
+            return 0
         emit("result", {**result, "questions_asked": session.questions_asked})
         if not args.json:
             show_result(result, sys.stdout)

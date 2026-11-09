@@ -15,7 +15,7 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | Tools | Purpose |
 |---|---|
 | `zing_studio` | Stateless front door: path and answers so far to the next evidence-backed question or a plan. |
-| `zing_studio_run` | Confirmed b/d/f plans; start with answers and confirmed=true, then poll by project; cancel=true stops an owned job. |
+| `zing_studio_run` | Confirmed a/b/d/f plans start a job to poll by project; cancel=true stops an owned job. Path g creates a factory project and returns calls to factory_run and factory_status. It starts no browser server. |
 | `zing_explain` | Write a style card and reusable recipe; optional draft comparison. Paths/metadata only, local models; offline=false requires explicit URL download consent. |
 | `zing_status` | Doctor summary, stored breakdowns and study job status. |
 | `study_video` | Start a background study of a local file or authorized URL. |
@@ -57,6 +57,13 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `still_render` | Indexed concept ID and output folder to a full-size PNG, optionally MP4/GIF; records alt text and selection. |
 | `push_to_uoink` | Explicit library write; not part of default local editing. |
 | `import_shot_list` | Attach a local Writer-exported Markdown shot list to a studied slug. |
+
+For episode Shorts, call `zing_studio(path="g", answers=...)`. Its answers use
+`episode` (a local file or `uoink:<id>`), `transcript` (a local path or `none`),
+`clips` (1–12), `shapes` (any of `9x16`, `1x1`, `4x5`, `16x9`), `judge` and
+`project`. Confirm the plan with `zing_studio_run`, then call `factory_run`
+and poll `factory_status` using the returned project. Pending prompts use
+`factory_prompt` and `factory_answer`.
 
 `study_video(..., save_source_to_uoink=True)` asks Uoink to save an HTTP or
 HTTPS source before the study starts. The flag defaults to `False` and has
