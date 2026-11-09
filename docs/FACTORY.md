@@ -509,6 +509,10 @@ resume. Use `--no-auto-moment` to choose it yourself, or find another with
 `zing moments clip.mp4 --project ./project --json`.
 See [long interviews](MATCH.md#long-interviews) for changing the saved brief.
 
+Automatic 9:16 match drafts can punch in toward a measured reference face size.
+The plan and report state the size reached within source-resolution limits.
+See [framing](FRAMING.md) for the crop limits and unchanged explicit choices.
+
 ## Steer which moments become clips
 
 - `--focus "the pricing argument"` (or "funny moments", "anything about hiring") tells

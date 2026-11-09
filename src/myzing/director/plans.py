@@ -270,6 +270,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
     subject_evidence = subject_evidence or {}
     picture_evidence = picture_evidence or {}
     from myzing.layout.picture import select_picture_framing
+    from myzing.layout.face_size import match_face_framing
+    from myzing.style_recipe import reference_face_share
+    face_target = reference_face_share(recipe.measured) if brief.framing == "auto" else None
     for clip in clips:
         probe = next(a.probe for a in manifest.assets if a.id == clip.asset_id)
         if probe is None or not probe.width or not probe.height:
@@ -321,6 +324,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
                                                   part, subject_evidence.get(clip.asset_id, ([], []))[0],
                                                   max_upscale=brief.framing_max_upscale,
                                                   picture=picture_evidence.get(clip.asset_id), policy=brief.picture_crop)
+                    if face_target is not None:
+                        part.framing = match_face_framing(part.framing, part,
+                            subject_evidence.get(clip.asset_id, ([], []))[0], width, height, face_target)
                     from myzing.layout.text_safety import protect_text
                     part.framing = protect_text(part.framing, part, lookup[clip.asset_id].text_geometry,
                                                 brief.framing, width, height)
@@ -503,7 +509,9 @@ def make_plan(label, sequence, studies, recipe, recipe_dir, style, brief, manife
         "recipe_facts": [f.to_dict() for f in recipe.measured],
         "unmatched_recipe_facts": [f.name for f in recipe.measured if f.name not in
                                    {"shot_durations", "average_shot_duration", "cuts_per_10s"}
-                                   and not f.name.startswith("captions[")],
+                                   and not f.name.startswith("captions[")
+                                   and not (f.name == "framing.face_height_share"
+                                            and any(c.framing and c.framing.face_match for c in clips))],
         "source_output_mappings": [{"clip_id": c.id, "asset_id": c.asset_id, "src_in": c.src_in,
                                     "src_out": c.src_out, "output_start": c.timeline_start,
                                     "output_end": c.timeline_end} for c in clips],

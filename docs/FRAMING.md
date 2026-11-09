@@ -54,7 +54,7 @@ diarization. Lighting changes and long occlusions can still require review.
 
 Fit retains the entire picture with black padding. Fill crops around a stated
 center. Reframe follows local subject evidence with bounded crop motion.
-Zoomfill crops to an intermediate width around the subject, keeps every source
+Zoomfill crops to an intermediate width around the subject, normally keeps every source
 row, scales that sharp picture to the output width, and fills the remaining
 height with blur. Its crop can move horizontally; its size stays fixed per shot.
 Blurfill fits the sharp picture and fills the surroundings with a blurred,
@@ -144,6 +144,20 @@ Each clip's `assessments` records the rejected crop and final choice: sharp
 height/area share, enlargement, retained source area, face/head time coverage,
 headroom result, evidence gaps and rejection reasons. Warnings explain the
 decision. Missing detections are not proof that a crop contains every subject.
+
+For automatic 9:16 plans, a measured recipe `framing.face_height_share` can tighten
+a face-tracked reframe or zoomfill crop. This uses a source-height floor of
+`max(640, ceil(0.55 * source_height))` in place of the context area and height
+floors above. The enlargement ceiling, headroom, subject checks and speaker holds
+still apply. Zoomfill keeps its sharp-picture share while cropping fewer source
+rows. Caption placement and source-text guards run after the adjustment.
+
+The crop's `face_match` records the reference share, reached share and limits.
+These are planned sizes from source tracks. At 1080x1920, the default 2.5x ceiling
+requires at least 768 source rows even when the height floor is 640. No measured
+reference size, no face track, other output aspects or explicit brief framing
+leave the existing crop unchanged. Sources already below the floor keep their
+crop and report the face size reached.
 
 `subject_coverage` is the number of fully contained face/head observations
 divided by the number of observed face/head samples. The planner samples at

@@ -158,6 +158,24 @@ class StyleRecipe(Record):
     color_mode: Literal["source", "reference"] = "source"
 
 
+def add_face_framing(recipe, geometry):
+    from statistics import median
+    frames = [f for f in geometry.get("frames", []) if f.get("face_boxes") is not None]
+    heights = [box[3] - box[1] for f in frames for box in f["face_boxes"]]
+    if heights:
+        recipe.measured.append(MeasuredFact(
+            "framing.face_height_share", median(heights), "fraction of frame height",
+            Coverage(len(heights), None, "sampled face boxes; temporal gaps unknown"), None,
+            ObservationProvenance(recipe.reference.reference, recipe.reference.sha256,
+                                  sample_timestamps=[f["t"] for f in frames], detector="yunet",
+                                  timestamp_basis="sampled source seconds")))
+
+
+def reference_face_share(measured):
+    return next((f.value for f in measured if f.name == "framing.face_height_share"
+                 and f.coverage.samples > 0 and type(f.value) in (int, float) and 0 < f.value <= 1), None)
+
+
 def build_style_recipe(
     breakdown: Breakdown, *, reference_sha256: str | None = None,
     color: ColorRecipe | None = None, audio: AudioMap | None = None,

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tighten automatic 9:16 match crops toward measured reference face size within
+  source-resolution limits. Record the reached size in plans and match reports.
 - Let moment suggestions cross sentence pauses under two seconds. Match and
   Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
   to choose by hand and `moments --project DIR` to find a match project's studies.

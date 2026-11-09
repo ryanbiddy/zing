@@ -59,6 +59,22 @@ class CropKeyframe(Record):
 
 
 @dataclass
+class FaceSizeMatch(Record):
+    reference_share: float
+    reached_share: float
+    source_height_floor: int
+    limited_by: list[str] = field(default_factory=list)
+    version: int = 1
+
+    def __post_init__(self):
+        super().__post_init__()
+        bounded(self.reference_share, 0, 1, "reference face share")
+        bounded(self.reached_share, 0, 1, "reached face share")
+        if self.source_height_floor < 640:
+            raise ValueError("face size matching needs at least 640 source rows")
+
+
+@dataclass
 class Framing(Record):
     mode: Literal["fit", "fill", "reframe", "zoomfill", "blurfill"]
     source_width: int
@@ -82,6 +98,7 @@ class Framing(Record):
     # centers it; caption planning raises it to open a lower caption band.
     foreground_top: float | None = field(default=None, metadata={"omit_default": True})
     version: int = 1
+    face_match: FaceSizeMatch | None = field(default=None, metadata={"omit_default": True})
 
     def __post_init__(self):
         super().__post_init__()
