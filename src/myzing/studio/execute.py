@@ -118,6 +118,11 @@ def run_confirmed(answers, *, progress=None, locked=False):
     if response["status"] != "plan":
         raise ValueError("Complete the studio questions and confirm the plan before running.")
     a, plan = response["answers"], response["plan"]
+    if a["path"] == "g":
+        from .episode import create
+        from .jobs import busy_lock
+        with nullcontext() if locked else busy_lock(Path(a["project"])):
+            return create(a, plan)
     from myzing.study.speech_models import prepare
     speech_setup = prepare(a, progress=progress)
     root, path = Path(a["project"]), a["path"]

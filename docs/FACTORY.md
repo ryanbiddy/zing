@@ -5,6 +5,8 @@ short social clips. Each clip is cut on sentence boundaries with the pauses remo
 framed on the speaker, and given on-screen visuals and graphics that draw what is
 being said. It also gets post copy and a local review page. Nothing is posted.
 
+For a guided start, run `zing studio` and choose [Turn a long episode into Shorts](STUDIO.md#turn-a-long-episode-into-shorts).
+
 ## Playbook cohorts
 
 Use `zing playbook list --scope "Developer channel Shorts"` to label a comparison

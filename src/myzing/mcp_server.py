@@ -2220,13 +2220,13 @@ def build_server():
     tool(name="zing_explain", description="Explain a local video or uoink:<id> as card.json, card.md, card.png and StyleRecipe. Optional against compares a draft. Returns paths and a short summary, never media bytes. Models stay local. URLs require explicit download consent via offline=false; default offline=true.")(h_zing_explain)
     tool(
         name="zing_studio",
-        description="Start here. Stateless guided creative session: pass path a-f and answers so far; returns the next question with recommendation/reason/evidence, or a plan to confirm. Local probes and a bounded offline reference preview; saved-reference search only with a configured reachable peer. No production or downloads.",
+        description="Start here. Stateless guided creative session. Pass path a-g and answers so far for the next question or a plan to confirm. Path g turns a local episode or kept uoink item into Shorts. Local probes and a bounded offline reference preview; Uoink reads only for requested saved items or searches. No production or downloads.",
     )(h_zing_studio)
     h_zing_studio_run.__annotations__["confirmed"] = StrictBool
     h_zing_studio_run.__annotations__["cancel"] = StrictBool
     tool(
         name="zing_studio_run",
-        description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. For c/e reuse still_concepts/still_render and music_check. Speech downloads require an explicit speech_setup download choice or speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
+        description="Start a confirmed studio plan for a/b (clip edits), d (style breakdown) or f (re-delivery). Returns a job project; poll with project, optionally cancel=true. Path g creates a factory project; call factory_run and poll factory_status. No browser server starts. For c/e reuse still_concepts/still_render and music_check. Speech downloads require an explicit speech_setup download choice or speech_model and boolean speech_download=true; confirmed must be a real boolean. Paths and metadata out.",
     )(h_zing_studio_run)
     tool(
         name="brief_questions",

@@ -5,6 +5,9 @@
 - Check supplied captions against three cached speech samples before scouting,
   save any time shift, and stop clips whose heard words do not match. Use
   `--offset` for a known shift or `--no-sync-check` to skip the initial check.
+- Add a long episode path to `zing studio` with transcript suggestions,
+  factory review, resume and an MCP hand-off. Give Uoink connection failures
+  a startup hint instead of a contract update hint.
 
 ## 1.0.0rc1
 

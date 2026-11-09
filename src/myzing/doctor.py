@@ -652,6 +652,7 @@ def check_uoink() -> Check:
             fix=(
                 "check UOINK_TOKEN" if err["code"] == "authentication_failed"
                 else "check UOINK_URL" if err["code"] == "invalid_configuration"
+                else f"start Uoink, or check UOINK_URL (currently {url})" if err["code"] in {"unavailable", "timeout"}
                 else "update uoink (or zing) so both speak "
                 "INTEGRATION-CONTRACT v1"
             ),
