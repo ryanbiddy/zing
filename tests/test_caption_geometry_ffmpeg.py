@@ -14,6 +14,7 @@ from statistics import median
 
 import pytest
 
+from conftest import drawtext_fontfile
 from myzing.study import caption_geometry as cg, caption_models
 
 pytestmark = [pytest.mark.ffmpeg, pytest.mark.real_model(env="ZING_REQUIRE_OCR")]
@@ -42,7 +43,7 @@ def reader(runtime, monkeypatch):
 
 def draw(text="CAPTION TEST", *, font="Anton-Regular.ttf", size=40, x="120", y="220",
          fill="0xF0CA40", outline="0x181818", stroke=3, enable=None, plate=False):
-    path = (FONT_ROOT / font).as_posix().replace(":", r"\:")
+    path = drawtext_fontfile(FONT_ROOT / font)
     value = (f"drawtext=fontfile='{path}':text='{text}':fontsize={size}:"
              f"fontcolor={fill}:borderw={stroke}:bordercolor={outline}:x='{x}':y='{y}'")
     if enable:

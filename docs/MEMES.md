@@ -37,6 +37,11 @@ photo's mean luma (`brightness`, 0 to 1). The writer prompt passes the same
 result says so: an agent or LLM given the meme-writer prompt writes better
 ones.
 
+Sign captions use reads with at least four letters in total and no one-character
+words. Numbers such as `24` are allowed. Each OCR line must score at least 0.9,
+with its box at least 1% inside every image edge. Other reads leave the sign
+formula out and keep the other photo formulas.
+
 The output folder must be new or empty. It receives full-size candidate
 PNGs, `contact-sheet.png`, `index.json`, and `meme-writer.md`. The index records
 photo hashes and measurements, every candidate's text, layout, regions,
@@ -251,8 +256,13 @@ explaining how it works". Other topics are treated as a thing; tasks and "how
 to ..." become gerunds with standard spelling ("fix the flaky test" reads
 "fixing the flaky test", "commit" "committing", "be on call" "being on call").
 Each idea carries a `note` that it is a template-based offline line.
-Topics longer than 40 characters are shortened at a clause break or a word,
-never mid-word and never with an ellipsis. `zing doctor` reports the optional `pillow`
+Ideas keep the full topic in formulas that fit the 70-character line cap.
+Formulas that run over the cap are dropped or reduced to a shorter form.
+Only a topic that fits no formula is shortened at a clause break or a word,
+never mid-word and never with an ellipsis. The result warns with the shortened
+topic. Multi-panel templates share a 110-character budget and allow 30 characters
+for the topic. They also warn when they shorten it. A word that cannot fit is
+rejected with a request for a shorter topic. `zing doctor` reports the optional `pillow`
 dependency. Templates, ideas, and checks work without Pillow.
 
 ```sh

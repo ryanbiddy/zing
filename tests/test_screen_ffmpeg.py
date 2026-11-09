@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import drawtext_fontfile
 from myzing.screen.api import plan_screen,save_plan
 from myzing.screen.render import render_screen,expression
 from myzing.screen.planner import camera,output_time,crop_window
@@ -17,11 +18,11 @@ def generate(folder):
     folder.mkdir(parents=True,exist_ok=True)
     source=folder/"screen.mp4"
     graph=("[0:v]drawbox=x=20:y=55:w=600:h=275:color=0x182838:t=fill,"
-           "drawtext=text='LOCAL BUILD CONSOLE':x=25:y=18:fontsize=22:fontcolor=white,"
+           f"drawtext=fontfile='{drawtext_fontfile()}':text='LOCAL BUILD CONSOLE':x=25:y=18:fontsize=22:fontcolor=white,"
            "drawbox=x=110:y=110:w=110:h=60:color=red:t=fill:enable='between(t,0.8,3)',"
-           "drawtext=text='READY':x=120:y=125:fontsize=22:fontcolor=white:enable='between(t,0.8,3)',"
+           f"drawtext=fontfile='{drawtext_fontfile()}':text='READY':x=120:y=125:fontsize=22:fontcolor=white:enable='between(t,0.8,3)',"
            "drawbox=x=400:y=170:w=110:h=60:color=blue:t=fill:enable='gte(t,4)',"
-           "drawtext=text='PASS':x=415:y=185:fontsize=22:fontcolor=white:enable='gte(t,4)'[ui];"
+           f"drawtext=fontfile='{drawtext_fontfile()}':text='PASS':x=415:y=185:fontsize=22:fontcolor=white:enable='gte(t,4)'[ui];"
            "[ui][1:v]overlay=x='if(lt(t,2.5),165,if(lt(t,3.5),165+(t-2.5)*290,455))':"
            "y='if(lt(t,2.5),140,if(lt(t,3.5),140+(t-2.5)*60,200))':shortest=1[v]")
     p=subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","color=c=0x0c1018:s=640x360:r=30:d=9",
@@ -142,9 +143,9 @@ def edge_fixture(tmp_path_factory):
     root=tmp_path_factory.mktemp("screen-edges")
     video=root/"edges.mp4"
     filters=("drawbox=x=2:y=12:w=180:h=336:color=red:t=fill,"
-             "drawtext=text='LEFT COMPLETE':x=8:y=60:fontsize=18:fontcolor=white,"
+             f"drawtext=fontfile='{drawtext_fontfile()}':text='LEFT COMPLETE':x=8:y=60:fontsize=18:fontcolor=white,"
              "drawbox=x=450:y=16:w=188:h=330:color=blue:t=fill,"
-             "drawtext=text='RIGHT COMPLETE':x=455:y=70:fontsize=18:fontcolor=white")
+             f"drawtext=fontfile='{drawtext_fontfile()}':text='RIGHT COMPLETE':x=455:y=70:fontsize=18:fontcolor=white")
     subprocess.run(["ffmpeg","-v","error","-y","-f","lavfi","-i","color=0x101820:s=640x360:r=30:d=6",
                     "-vf",filters,"-c:v","libx264","-threads","1","-pix_fmt","yuv420p",str(video)],check=True)
     rows=[{"type":"start","version":1,"t":0}]
@@ -212,7 +213,7 @@ def test_old_screen_plan_measures_bounds_before_render(tmp_path,screen_fixture):
 def test_generated_focus_phone_floor_and_no_midword_crop(tmp_path,side):
     """Independent drawtext masks check actual ink, not detector-owned boxes."""
     from myzing.screen.regions import contains,intersects
-    font=(Path(__file__).resolve().parents[1]/"src/myzing/_data/fonts/Anton-Regular.ttf").as_posix().replace(":",r"\:")
+    font=drawtext_fontfile(Path(__file__).resolve().parents[1]/"src/myzing/_data/fonts/Anton-Regular.ttf")
     bx=4 if side=="left" else 448
     text_x=bx+14
     words=[("READY",text_x,173),("COMPLETE",text_x,108),
@@ -274,7 +275,7 @@ def test_generated_focus_phone_floor_and_no_midword_crop(tmp_path,side):
 def test_tall_rendered_text_guards_portrait_crop(tmp_path):
     """Large glyph ink must survive region detection and protect every frame."""
     from myzing.screen.regions import contains,intersects,geometry
-    font=(Path(__file__).resolve().parents[1]/"src/myzing/_data/fonts/Anton-Regular.ttf").as_posix().replace(":",r"\:")
+    font=drawtext_fontfile(Path(__file__).resolve().parents[1]/"src/myzing/_data/fonts/Anton-Regular.ttf")
     text=f"drawtext=fontfile='{font}':text='MMMM':x=40:y=192:fontsize=34:fontcolor=white"
     raw=subprocess.run(["ffmpeg","-v","error","-f","lavfi","-i","color=black:s=640x360",
         "-vf",text,"-frames:v","1","-f","rawvideo","-pix_fmt","rgb24","pipe:1"],

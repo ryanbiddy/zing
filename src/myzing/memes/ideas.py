@@ -16,10 +16,10 @@ import re
 from . import MemeError
 from .score import idea_score
 from .templates import get_template
-from .validate import check_texts
+from .validate import LINE_HARD_CAP, check_texts
 
 
-TOPIC_LIMIT = 40  # the longest formula adds 30 characters: 40 + 30 = the 70 cap
+TOPIC_LIMIT = 40  # fallback room for distinct formulas when the full topic fits none
 # "when ..." prefixes always mean a situation; the subject after them is kept
 # ("when you commit" stays "you commit").
 WHEN = re.compile(r"^(?:me\s+when|that\s+feeling\s+when|the\s+moment\s+when|when)\s+", re.I)
@@ -163,7 +163,7 @@ def _clip(text: str, limit: int) -> str:
             clause = prefix
     if clause:
         return clause
-    words = text[:limit + 1].split(" ")[:-1] or [text[:limit]]
+    words = text[:limit + 1].split(" ")[:-1]
     while len(words) > 1 and words[-1].casefold() in DANGLING_END:
         words.pop()
     return " ".join(words)
@@ -196,10 +196,10 @@ def _topic(value: str) -> tuple[str, str]:
         text, shape = " ".join(words), "thing"
     elif shape is None:
         shape = "situation" if _clause_like(words) else "thing"
-    return shape, _clip(text, TOPIC_LIMIT)
+    return shape, text
 
 
-def _short(value: str, limit: int = TOPIC_LIMIT) -> str:
+def _short(value: str, limit: int = LINE_HARD_CAP) -> str:
     return _clip(_topic(value)[1], limit)
 
 
@@ -273,7 +273,7 @@ def _noun_phrase(words: list[str]) -> str:
 
 
 def _clip_words(text: str, limit: int) -> str:
-    return _clip(text, limit) if len(text) > limit else text
+    return _clip(text, limit) or text
 
 
 def _thing_parts(words: list[str]) -> dict:
@@ -433,6 +433,9 @@ def photo_facts(photo) -> dict:
     text = get("text")
     if text:
         text = _clip(" ".join(text.split()).strip(",.;:!?"), 24) or None
+        if text and (sum(c.isalpha() for c in text) < 4
+                     or any(len(word) < 2 for word in re.findall(r"[^\W_]+", text))):
+            text = None
     return {"faces": faces, "text": text or None,
             "color": color_name(colors[0]) if colors else None,
             "light": None if brightness is None else "dark" if brightness < .3 else "bright" if brightness > .72 else None,
@@ -561,16 +564,17 @@ def _formulas(shape: str, short: str, parts: dict, asked: str) -> list[tuple]:
     ]
 
 def _fit(texts: list[str], parts: dict, short: str) -> list[str]:
-    """Keep 70/110 budgets: a long topic in a later line becomes its short
-    name; if that is not enough, the idea keeps its first line only."""
+    """Keep 70/110 budgets and the topic; [] when no version fits."""
     def fits(lines):
-        return all(len(t) <= 70 for t in lines) and sum(map(len, lines)) <= 110
+        return all(len(t) <= LINE_HARD_CAP for t in lines) and sum(map(len, lines)) <= 110
 
     if fits(texts):
         return texts
     short_form = parts.get("the") or parts.get("np") or short
     fitted = [texts[0]] + [t.replace(short, short_form) for t in texts[1:]]
-    return fitted if fits(fitted) else texts[:1]
+    if fits(fitted) and any(short in t for t in fitted):
+        return fitted
+    return texts[:1] if fits(texts[:1]) and short in texts[0] else []
 
 def generate_ideas(topic: str, template: str = "", n: int = 6,
                    tone: str = "dry", audience: str = "", *, seed: str = "",
@@ -586,35 +590,45 @@ def generate_ideas(topic: str, template: str = "", n: int = 6,
     if not isinstance(seed, str):
         raise MemeError("seed must be a string")
     selected = get_template(template) if template else None
-    shape, short = _topic(topic)
+    shape, full = _topic(topic)
+    full = full or "looking productive"
     # Multi-panel templates share the 110-character budget across up to six boxes.
-    short = (_clip(short, 30) if selected else short) or "looking productive"
+    panels = selected and selected["box_count"] >= 2
+    short = _clip(full, 30) if panels else full
     crowd = _clip(" ".join(audience.split()), 18)
-    asked = f"{crowd}: how's {short} going" if crowd else f"how's {short} going"
-    if len(asked) > 70:
-        asked = f"how's {short} going"
-    words = short.split()
-    parts = (_wh_parts(words) if shape == "wh" else _situation_parts(words) if shape == "situation"
-             else _thing_parts(words))
-    formulas = _formulas(shape, short, parts, asked)
-    if selected and selected["box_count"] >= 2:
-        # Multi-box templates need a setup and a payoff in every idea.
-        formulas = [f for f in formulas if len(f[0]) >= 2]
-    evidence = _evidence_formulas(shape, short, parts, photo_facts(photo)) if photo is not None and not selected else []
+    measured = photo_facts(photo) if photo is not None and not selected else None
     # A fixed hash avoids Python's per-process hash salt and RNG-version drift.
     seed_text = f"{topic.strip()}\0{tone}\0{audience}\0{selected['id'] if selected else ''}"
     if seed:
         seed_text += f"\0{seed}"
     seed = hashlib.sha256(seed_text.encode("utf-8")).hexdigest()
-    offset = int(seed[:8], 16) % len(formulas)
-    # Photo-evidence formulas lead; topic formulas follow from the seeded offset.
-    ordered = [(texts, name, why, facts, regions) for texts, name, why, facts, regions in evidence]
-    ordered += [(*formulas[(offset + i) % len(formulas)], [], None) for i in range(len(formulas))]
+    while short:
+        asked = f"{crowd}: how's {short} going" if crowd else f"how's {short} going"
+        if len(asked) > LINE_HARD_CAP:
+            asked = f"how's {short} going"
+        words = short.split()
+        parts = (_wh_parts(words) if shape == "wh" else _situation_parts(words) if shape == "situation"
+                 else _thing_parts(words))
+        formulas = _formulas(shape, short, parts, asked)
+        if panels:
+            formulas = [f for f in formulas if len(f[0]) >= 2]
+        evidence = _evidence_formulas(shape, short, parts, measured) if measured is not None else []
+        offset = int(seed[:8], 16) % len(formulas)
+        ordered = evidence + [(*formulas[(offset + i) % len(formulas)], [], None) for i in range(len(formulas))]
+        if not panels:
+            ordered = [(_fit(texts, parts, short), *rest) for texts, *rest in ordered]
+            ordered = [f for f in ordered if f[0]]
+        if ordered:
+            break
+        short = _clip(short, min(TOPIC_LIMIT, len(short) - 1))
+    else:
+        raise MemeError("No whole topic word fits. Use a shorter topic.")
+    warnings = [f"Your topic was shortened to fit: {short}"] if short != full else []
     ideas = []
     for index in range(n):
         pair, formula, why, facts, regions = ordered[index % len(ordered)]
         texts = (_template_texts(selected["id"], selected["box_count"], short, index, pair) if selected
-                 else _fit(pair, parts, short))
+                 else pair)
         for brief in (parts.get("the") or parts.get("np"), parts.get("head")):
             if selected and brief and sum(map(len, texts)) > 110:
                 # Multi-panel progressions: later boxes name the topic briefly.
@@ -630,6 +644,8 @@ def generate_ideas(topic: str, template: str = "", n: int = 6,
             "score": idea_score(texts, tone), "score_kind": "compression_heuristic",
             "validation": validation, "provider": "offline_formulas",
         }
+        if warnings:
+            idea["warnings"] = list(warnings)
         if not selected:
             idea["evidence"] = ["topic words"] + facts
             idea["note"] = HONESTY

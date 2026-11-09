@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import functools
 import os
+import re
 import stat
 from pathlib import Path, PureWindowsPath
 
 from myzing.layout.detector import LayoutError, YuNetDetector
 from myzing.memes import MemeError
 from myzing.memes.framing import saliency_box
+from myzing.memes.ideas import _clip
 from myzing.memes.photo import HEIF_EXTENSIONS, load_photo
 from myzing.memes.render import require_pillow
 from myzing.memes.subject import describe_detections, describe_estimate, estimate_subject
@@ -70,6 +72,9 @@ def _ocr_engine():
         return None
 
 
+SIGN_CONFIDENCE = .9  # a meme quotes photo text word for word; a hidden or partial sign reads lower
+
+
 def read_text(image) -> str | None:
     """Confident text lines on the photo in reading order, '' when none,
     None when local OCR is unavailable. Evidence for lines, not a caption."""
@@ -85,9 +90,18 @@ def read_text(image) -> str | None:
         lines = _ocr(engine, np.asarray(sample)[:, :, ::-1].copy())
     except Exception:  # noqa: BLE001 - optional OCR must never fail an inventory
         return None
-    words = [line.text for line in sorted(lines, key=lambda l: (round(l.y_center, 2), l.x_center))
-             if sum(c.isalpha() for c in line.text) >= 2]
-    return " ".join(" ".join(words).split())[:120]
+    words = []
+    for line in sorted(lines, key=lambda l: (round(l.y_center, 2), l.x_center)):
+        tokens = re.findall(r"[^\W_]+", line.text)
+        if (not tokens or any(len(word) < 2 for word in tokens)
+                or not line.score >= SIGN_CONFIDENCE or line.box is None):
+            continue
+        x, y, w, h = line.box
+        left, top, right, bottom = (round(v, 9) for v in (x, y, x + w, y + h))
+        if .01 <= left < right <= .99 and .01 <= top < bottom <= .99:
+            words.append(line.text)
+    text = _clip(" ".join(" ".join(words).split()), 120)
+    return text if sum(c.isalpha() for c in text) >= 4 else ""
 
 
 def detect_faces(image, detector) -> list[dict]:
