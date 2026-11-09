@@ -89,6 +89,7 @@ dt{{color:var(--muted);text-transform:capitalize}} dd{{margin:0;white-space:pre-
 </style></head><body><main>
 <h1>Clip pack: {e(src.get('name', ep.name))}</h1>
 <p class="sub">Rights · {e(RIGHTS.get(cfg.get('rights'), RIGHTS['unknown']))}</p>
+{f'<p class="sub">Transcript shifted {cfg["transcript_offset"]:+g} s</p>' if cfg.get('transcript_offset') else ''}
 <details class="sub" id="network-details"><summary><span id="network"></span><span>Details</span></summary><p id="network-hosts"></p></details>
 <p class="sub">Made by zing factory: scout, cut, plan, find visuals, vision pick, fact check, render, copy. Local review only; nothing is posted.</p>
 {''.join(cards)}
