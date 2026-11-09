@@ -1,5 +1,17 @@
 # Motion graphics
 
+## Factory captions and lists
+
+The [factory scene](FACTORY.md#what-the-screen-shows) groups captions into short phrases,
+with breaks at punctuation and pauses of 0.3 seconds. The default limit is four words
+and 18 characters. Packs can set their own limits.
+The Zing pack uses 78px white capitals with a dark outline and a yellow active word.
+At 1080×1920, default captions, name tags and hooks stay within x 90–990 and y 150–1440.
+Solo captions sit near y 1340. Explicit caption positions and headline panels keep
+their pack's placement. Lists center the full block and reveal each item in place.
+
+## Composition graphics
+
 A Composition v2 plan can carry templated motion graphics: a title card, a lower
 third, a callout and a progress bar. Each one is a `graphics` record with a
 template, an output-time interval, a normalized box, text lines, a pinned font

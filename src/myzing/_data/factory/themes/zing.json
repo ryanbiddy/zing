@@ -1,4 +1,6 @@
 {"name": "Zing", "bg": "#050C24", "glow": "#13296E", "ink": "#F4F6FB", "muted": "rgba(244,246,251,.72)", "accent": "#FFD23F", "accent_ink": "#081233",
- "cap_bg": "#07070B", "cap_ink": "#F4F6FB", "cap_on": "#FFD23F", "cap_upper": true, "cap_radius": 12,
+ "cap_bg": "none", "cap_ink": "#FFFFFF", "cap_on": "#FFD23F", "cap_upper": true, "cap_radius": 0,
+ "cap_font": "ZingCaption", "cap_weight": 900, "cap_size": 78, "cap_stroke": "#050C24", "cap_stroke_w": 7,
+ "cap_shadow": "0 6px 18px rgba(0,0,0,.55)", "cap_scale": 1.06,
  "panel_edge": "none", "tag_bg": "rgba(5,12,36,.55)", "tag_ink": "rgba(255,255,255,.88)",
  "funnel": ["#3D6BFF", "#2D50C8", "#22399A", "#1B2F80"], "funnel_ink": "#FFFFFF"}
