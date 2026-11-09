@@ -55,6 +55,7 @@ request to fetch it. Preset/taste setup can study reference URLs too. Do not
 describe these older entry points as having an extra confirmation prompt.
 The remote service sees an ordinary download request, including your IP address.
 Local source clips are not uploaded to match a reference.
+Factory page captures block known ad and analytics hosts before DNS lookup and omit those requests from the network ledger.
 
 ## Uoink peer
 

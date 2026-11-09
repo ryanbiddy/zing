@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep review headers compact with expandable network details, report edited plan hooks in status, and block known analytics hosts during page captures.
+
 ## 1.0.0rc1
 
 Release candidate for Zing v1. These notes cover merged PRs #401 through #557
