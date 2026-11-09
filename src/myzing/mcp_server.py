@@ -1863,7 +1863,7 @@ def h_get_prompt(name: str = "study") -> dict[str, Any]:
 _FACTORY_JOBS: dict[str, threading.Thread] = {}
 
 
-def h_factory_new(project: str, media: str, transcript: str | None = None, offset: float = 0.0,
+def h_factory_new(project: str, media: str, transcript: str | None = None, offset: float | None = None,
                   name: str | None = None, url: str = "", date: str = "", tag: str = "", moments: int = 8,
                   mode: Literal["context", "fun", "documentary", "launch"] = "context", shapes: list[str] | None = None,
                   pack: str | None = None, public: bool = False, brand_name: str | None = None,
@@ -1872,7 +1872,7 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                   news_peg: str | None = None, news_links: list[str] | None = None,
                   uhd: bool = False, offline: bool = False, visuals: str | None = None,
                   rights: Literal["own", "licensed", "permission", "unknown"] = "unknown",
-                  brief: str | None = None) -> dict[str, Any]:
+                  brief: str | None = None, no_sync_check: bool = False) -> dict[str, Any]:
     """Create a factory project from a local episode file and an optional caption file.
 
     mode "launch" assembles launch films from a long demo or interview (landscape first, the launch pack); brand_name,
@@ -1885,6 +1885,8 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
     uhd doubles every shape's output width and height for 4K sources.
     offline fetches nothing. visuals names a folder of your images and videos for the pick step.
     rights labels the source and never blocks a clip. brief is a JSON campaign file checked before render.
+    Supplied transcripts are checked against three speech probes before scouting. offset supplies the shift in
+    seconds and skips that check, including offset=0. no_sync_check skips it without shifting the transcript.
     """
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
@@ -1894,7 +1896,7 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
         result = pipeline.init(Path(project).expanduser(), Path(media).expanduser(),
                                transcript=Path(transcript).expanduser() if transcript else None, offset=offset,
                                name=name, url=url, date=date, tag=tag, mode=mode, public=public, cutout=cutout, uhd=uhd,
-                               offline=offline, visuals=visuals, rights=rights,
+                               offline=offline, visuals=visuals, rights=rights, no_sync_check=no_sync_check,
                                brief=Path(brief).expanduser() if brief is not None else None,
                                **{k: v for k, v in {"moments": moments if moments != 8 or mode != "launch" else None,
                                                     "shapes": shapes, "pack": pack, "brand": brand, "focus": focus,

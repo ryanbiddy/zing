@@ -260,3 +260,14 @@ class FakeHTTPResponse(__import__("io").BytesIO):
 
     def __exit__(self, *args):
         return False
+
+
+@pytest.fixture(autouse=True)
+def _transcript_sync_without_local_models(request, monkeypatch):
+    """Factory tests must not depend on speech models cached on the developer's machine.
+
+    The transcript sync check runs whenever a model is cached; only its own tests exercise it.
+    """
+    if request.node.path.name != "test_factory_transcript_sync.py":
+        from myzing.factory import transcript_sync
+        monkeypatch.setattr(transcript_sync, "model", lambda: None)

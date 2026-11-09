@@ -7,12 +7,13 @@ then context after the plan is final).
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import campaign, context, cut, network, pick, plan, postcopy, render, review, scout, source, visuals
+from . import campaign, context, cut, network, pick, plan, postcopy, render, review, scout, source, transcript_sync, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
@@ -20,7 +21,7 @@ MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "zing", "public": False, "parallax": True,
             "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
             "news": None, "offline": False, "visuals": None, "rights": "unknown", "channel": None, "source": None,
-            "uoink_ref": None}
+            "uoink_ref": None, "no_sync_check": False}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -55,7 +56,7 @@ def _stage(path: Path):
         return None
 
 
-def init(project: Path, media: Path, *, transcript: Path | None = None, offset: float = 0.0, name: str | None = None,
+def init(project: Path, media: Path, *, transcript: Path | None = None, offset: float | None = None, name: str | None = None,
          url: str = "", date: str = "", tag: str = "", rights: str = "unknown", brief: Path | dict | None = None, **settings) -> dict:
     """Create a factory project. The media stays where it is; nothing is downloaded or uploaded."""
     project, media = Path(project).resolve(), Path(media).resolve()
@@ -72,6 +73,10 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
         raise FactoryError(f"unknown settings: {', '.join(sorted(unknown))}")
     if not isinstance(settings.get("offline", False), bool):
         raise FactoryError("offline must be true or false")
+    if not isinstance(settings.get("no_sync_check", False), bool):
+        raise FactoryError("no_sync_check must be true or false")
+    if offset is not None and (not isinstance(offset, (int, float)) or isinstance(offset, bool) or not math.isfinite(offset)):
+        raise FactoryError("offset must be a finite number of seconds")
     if settings.get("visuals") is not None:
         folder = Path(settings["visuals"]).expanduser().resolve()
         if not folder.is_dir():
@@ -111,7 +116,11 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
             raise FactoryError(f"unknown shape {shape}")
     render.theme(settings.get("pack", SETTINGS["pack"]))
     if transcript:
-        segments, words = source.load_transcript(Path(transcript), offset)
+        segments, words = source.load_transcript(Path(transcript), offset or 0.0)
+        settings["transcript_offset"] = offset or 0.0
+        settings["transcript_sync"] = ({"status": "skipped", "method": "offset"} if offset is not None else
+                                       {"status": "skipped", "method": "disabled"} if settings.get("no_sync_check") else
+                                       {"status": "pending"})
     project.mkdir(parents=True, exist_ok=True)
     src = {"media": str(media), "name": name or media.stem, "url": url, "date": date, "tag": tag}
     _write(project / "source.json", src)
@@ -139,6 +148,29 @@ def _transcript(project: Path, media: Path, say, vocab: list[str] | None = None)
     return segments
 
 
+def _sync_transcript(project: Path, media: Path, cfg: dict, segments: list[dict], say) -> list[dict]:
+    saved = cfg.get("transcript_sync", {})
+    if saved.get("status") == "pending":
+        words = _read(project / "words.json")
+        saved = transcript_sync.check(media, segments, words, cfg.get("vocab"))
+        offset = saved.get("offset", 0.0)
+        if offset:
+            segments = transcript_sync.shift(segments, offset)
+            _write(project / "transcript.json", segments)
+            if words:
+                _write(project / "words.json", transcript_sync.shift(words, offset))
+            direction = "behind" if offset > 0 else "ahead of"
+            say(f"The transcript was {transcript_sync.stamp(offset)} {direction} the video, "
+                "so Zing shifted it (checked at 3 points).")
+        elif saved.get("method") == "no_cached_model":
+            say("Zing skipped the transcript sync check because no speech model is cached.")
+        cfg.update(transcript_offset=offset, transcript_sync=saved)
+        _write(project / "factory.json", cfg)
+    if saved.get("status") == "failed":
+        raise FactoryError(transcript_sync.MISMATCH)
+    return segments
+
+
 def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None) -> list[dict]:
     path = project / "moments.json"
     brief = campaign.read(project)
@@ -147,6 +179,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None
     moments = data.get("moments", [])
     if not data.get("scouted"):
         segments = _transcript(project, media, say, cfg.get("vocab"))     # also what clips are picked from by hand
+        segments = _sync_transcript(project, media, cfg, segments, say)
     if not data.get("scouted") and cfg["moments"]:
         _checkpoint(stop)
         n = cfg["moments"]
@@ -175,6 +208,12 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
         words = sorted(fresh + [w for w in words if not any(a <= w["s"] <= b for a, b in span)], key=lambda w: w["s"])
         _write(project / "words.json", words)
+    if words:
+        transcript = _read(project / "transcript.json", [])
+        for m in todo:
+            error = transcript_sync.guard(transcript, words, scout.parts(m))
+            if error:
+                m["timing_error"] = error
     moments = [m if m.get("snapped") else {**scout.snap(m, words, brief, mode), "snapped": True} for m in moments]
     _write(path, {**data, "moments": moments})
     return moments
@@ -294,7 +333,7 @@ def trim(project: Path, clip: str, start, end) -> str:
     if m.get("spans"):
         raise FactoryError(f"{clip} is a film made of several parts; trim it with redo scout instead")
     a, b = check_range(project, start, end)
-    data["moments"][i - 1] = {**{k: v for k, v in m.items() if k not in ("snapped", "scout_start", "scout_end")},
+    data["moments"][i - 1] = {**{k: v for k, v in m.items() if k not in ("snapped", "scout_start", "scout_end", "timing_error")},
                               "start": a, "end": b}
     _write(project / "moments.json", data)
     judge = Judge(project)
@@ -357,6 +396,8 @@ def _arms(d: Path, moment: dict, cfg: dict, post: dict) -> dict:
 
 def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, words: list[dict], say, stop=None) -> list[str]:
     """Advance one clip as far as it can go; returns the tasks it is waiting on."""
+    if m.get("timing_error"):
+        raise FactoryError(m["timing_error"])
     d = project / f"clip{i:02d}"
     task = f"clip{i:02d}"
     if _stage(d / "cams.json") is None:

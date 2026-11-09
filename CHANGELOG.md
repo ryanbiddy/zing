@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Check supplied captions against three cached speech samples before scouting,
+  save any time shift, and stop clips whose heard words do not match. Use
+  `--offset` for a known shift or `--no-sync-check` to skip the initial check.
+
 ## 1.0.0rc1
 
 Release candidate for Zing v1. These notes cover merged PRs #401 through #557

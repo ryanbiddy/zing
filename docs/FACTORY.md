@@ -196,12 +196,36 @@ zing factory status talk           # review page: talk/index.html
 Without `--transcript`, Zing reads the whole episode with a small speech model already
 on disk (`small` or `base`; an hour in about 5 minutes on a CPU) only to find the
 moments, then transcribes the chosen moments with your configured model for word
-timing. With a caption file, or when no small model is on disk, it works as before.
+timing. When no small model is on disk, it uses your configured speech model.
 
 Speech models mishear names and terms. The plan lists clear mishearings it is sure of
 ("Buddy Shaw" for "Buddy Shah", "Middle least" for "Middle East"); Zing corrects the
 captions, graphics, hook and copy, logs each fix, and keeps what was heard in
 `words-heard.json`. Numbers and meaning are never changed.
+
+## Captions from another version
+
+Supplied captions may start after a pre-show or use a different edit. Before the
+scout runs, Zing checks three 20-second speech samples near 20%, 50% and 80% of
+the caption span. It prefers the small model already on disk and never downloads
+one for this check. With no cached model, it prints a note and skips the check.
+
+If two samples match at least 45% of their words and agree within 1.5 seconds,
+Zing shifts the captions by the measured offset. Shifts under 0.75 seconds are
+left alone. For a 5-minute, 23-second pre-show, it adds 323 seconds to caption
+times before scouting. `factory.json` saves `transcript_offset` and the check
+result so reruns do not repeat it. Status and the review header show the shift.
+
+If the samples disagree or match poorly, the run stops before scouting. Use
+captions for this file, create a project with `--offset 323` if you know the
+shift, or omit `--transcript` to transcribe the episode. An explicit `--offset`,
+including `--offset 0`, skips the check and records that choice.
+`new --no-sync-check` skips it without shifting the captions. Both flags also
+work with `factory batch`.
+
+Word timing still checks each chosen span. If fewer than 40% of its transcript
+words are heard in order, that clip fails before cutting or rendering. The
+other clips continue. This guard also runs with `--offset` or `--no-sync-check`.
 
 ## Rights and campaign briefs
 

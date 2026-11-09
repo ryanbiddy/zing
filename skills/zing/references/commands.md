@@ -381,6 +381,16 @@ then use `--retry-failed` to retry only saved failures. It also works with
 recomputes all entries and cannot be combined with `--retry-failed`. See
 [Measure and retry downloads](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md#measure-and-retry-downloads).
 
+## Factory transcript sync
+
+`factory new --transcript FILE` checks three speech samples before scouting.
+It uses a cached model and saves the result and any shift in `factory.json`.
+No cached model means the check is skipped with a note.
+`--offset SECONDS` supplies a known shift and skips the check, even when zero.
+`--no-sync-check` skips it without shifting captions. Both flags also work with
+`factory batch`. Word timing still stops clips whose heard words do not match.
+See [Captions from another version](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md#captions-from-another-version).
+
 ## Factory rights and campaign briefs
 
 ```sh

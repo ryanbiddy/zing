@@ -74,6 +74,13 @@ Hook, visual and word edits re-render the project's shapes and pack. Hook and
 word edits refresh fact and context checks. If context is pending, read it with
 `factory_prompt`, answer with `factory_answer`, then call `factory_run`.
 
+`factory_new(..., transcript="episode.srt")` checks three cached speech samples
+before scouting and saves the result and any shift in `factory.json`.
+`offset=SECONDS` supplies a known shift and skips the check, including `offset=0`.
+`no_sync_check=True` skips it without shifting captions. Both default to no
+override. With no cached speech model, Zing skips the check and records why.
+Word timing still stops clips whose heard words do not match the transcript.
+
 `factory_new(..., rights="permission", brief="./campaign.json")` labels source
 rights and copies a JSON campaign brief into the project. `rights` accepts `own`,
 `licensed`, `permission` or `unknown` (the default) and never blocks a clip.
