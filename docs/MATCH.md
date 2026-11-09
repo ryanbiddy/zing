@@ -85,6 +85,8 @@ its existing probe cache. Ctrl+C terminates the worker and its children (Windows
 Job Object or POSIX process group); completed checkpoints remain resumable.
 Each output folder admits one supervised job at a time.
 
+You can move or copy a project folder; resume works from the new place.
+
 Install the existing optional extras with `uv sync --all-extras` in a checkout.
 Color/audio need NumPy; inspection needs Pillow. Face planning needs the layout
 extra and the verified model from `zing layout fetch-model`. When available,

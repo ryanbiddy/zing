@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import tempfile
 import time
 from copy import deepcopy
@@ -13,7 +14,7 @@ from myzing.brief.api import load_brief, save_brief
 from myzing.brief.models import Brief
 from myzing.composition import Composition
 from myzing.project import api as projects
-from myzing.project.paths import resolve_path
+from myzing.project.paths import map_paths, portable, previous_roots, relocate, resolve_path
 from myzing.project.references import resolve_reference
 from myzing.schemas import Breakdown
 from myzing.study.api import study
@@ -173,6 +174,7 @@ def _audio(studied, enabled):
     # The study tagged this same media file; reuse its windows instead of a second CED pass.
     mapped = analyze(studied["media"], breakdown=b, tags=b.provenance.get("audio_tags"))
     path = Path(studied["path"]).parent / "audio-map.json"
+    mapped.source = projects.stored_path(Path(mapped.source), path.parent)
     write(path, mapped.to_dict())
     return {"outputs": [str(path)], "path": str(path), "warnings": mapped.warnings}
 
@@ -275,15 +277,37 @@ def _recipe(studied, audio, colors, path, *, color_mode="source"):
     recipe.warnings += audio.get("warnings", [])
     if not candidates:
         recipe.warnings.append("No pinned font candidate available; reference captions use a disclosed bundled substitute.")
-    write(path, recipe.to_dict())
+    write(path, map_paths(recipe.to_dict(), lambda p: portable(p, path.parent)))
     return {"path": str(path), "outputs": [str(path)], "warnings": recipe.warnings}
+
+
+def _load_plan(path, root):
+    path = Path(path)
+    roots = previous_roots(root)
+    plan = Composition.from_dict(map_paths(read(path), lambda p: relocate(p, root, roots)))
+    paths = [(a, "path") for a in plan.assets]
+    paths += [(c.color, "lut_path") for c in plan.clips if c.color]
+    paths += [(c.font, "path") for c in [*plan.captions, *plan.graphics] if c.font]
+    for item, field in paths:
+        setattr(item, field, str((path.parent / getattr(item, field)).resolve()))
+    assets = {a.id: a.path for a in plan.assets}
+    for item in [*plan.clips, *plan.audio]:
+        item.src = assets[item.asset_id]
+    return plan
+
+
+def _save_plan(path, plan, root):
+    def relative(value):
+        return Path(os.path.relpath(value, path.parent)).as_posix() if portable(value, root) != value else value
+    write(path, map_paths(plan.to_dict(), relative))
 
 
 def _prepare_plan(source, destination, colors, recipe, caps):
     from myzing.composition.models import ColorTransform
     from myzing.color.models import Recipe as ColorRecipe
     from myzing.render.composition import unsupported_features
-    plan = Composition.from_dict(read(source))
+    root = destination.parent.parent
+    plan = _load_plan(source, root)
     for clip in plan.clips:
         clip.color = ColorTransform.from_recipe(ColorRecipe.from_dict(read(colors[clip.asset_id]["path"]))) if clip.asset_id in colors else None
     unsupported = unsupported_features(plan)
@@ -320,7 +344,7 @@ def _prepare_plan(source, destination, colors, recipe, caps):
         layout_record.update(events=[c.layout.to_dict() for c in plan.captions if c.layout],
                              accepted_unsafe_layouts=plan.accepted_unsafe_layouts)
         write(layout_path, layout_record)
-    write(destination, plan.to_dict())
+    _save_plan(destination, plan, root)
     sidecar = destination.parent / destination.stem / "layout.json"
     return {"path": str(destination), "outputs": [str(destination), *([str(sidecar)] if sidecar.is_file() else [])],
             "warnings": evidence.user_warnings(plan.warnings)}
@@ -392,7 +416,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         raise ValueError("Output contains artifacts not owned by match; use a new --out folder.")
     checkpoints = Checkpoints(root, resume, progress)
     checkpoints.data["run_id"] = run_id
-    write(checkpoints.path, checkpoints.data)
+    checkpoints.save()
     summary = {"version": 1, "project": str(root), "requested": drafts, "ready": 0, "drafts": {},
                "shortages": [], "failures": [], "warnings": [], "status": "failed", "run_id": run_id, "color_mode": color}
     try:
@@ -495,7 +519,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                                      lambda: _audio(ref_study, caps["audio"]))
         recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, color, "clip-quality-r1", "reference-face-size-v1"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json", color_mode=color))
-        recipe = StyleRecipe.from_dict(read(recipe_result["path"]))
+        roots = previous_roots(root)
+        recipe = StyleRecipe.from_dict(map_paths(read(recipe_result["path"]), lambda p: relocate(p, root, roots)))
         summary["recipe"] = recipe_result["path"]
         summary["reference_text_roles"] = next((f.value for f in recipe.measured if f.name == "text_roles"), None)
         from myzing.director.api import plan_drafts
@@ -503,6 +528,8 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed, repair_asr=repair_asr,
                                  **({"excluded_assets": automatic.data["excluded"]} if automatic and automatic.data["excluded"] else {}),
                                  **({"studio_options": studio_options} if studio_options is not None else {}))
+            for path in result["plans"].values():
+                _save_plan(Path(path), _load_plan(path, root), root)
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
         from .moments import AutoMoments
         automatic = (AutoMoments(checkpoints, clips_studied, [recipe.to_dict(), audio_maps, seed, repair_asr, studio_options,
@@ -554,7 +581,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                 if not shared:
                     sources, rate = {}, 30.0
                     for path in planned["plans"].values():
-                        draft = Composition.from_dict(read(path))
+                        draft = _load_plan(path, root)
                         rate = draft.fps.numerator / draft.fps.denominator
                         located = {a.id: _path(a.path, Path(path).parent, f"asset {a.id}") for a in draft.assets}
                         for clip in draft.clips:
@@ -566,14 +593,14 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             for label, plan_path in planned["plans"].items():
                 def adapt(source=plan_path, label=label):
                     directory = root / "aspect-plans" / label
-                    adapted, analysis = delivery_plans(Composition.from_dict(read(source)), delivery_aspects,
+                    adapted, analysis = delivery_plans(_load_plan(source, root), delivery_aspects,
                                                        directory, base_dir=Path(source).parent,
                                                        measured=measurements(), continue_on_error=True)
                     outputs = {}
                     for aspect, plan in adapted.items():
                         name = label + "." + aspect.replace(":", "x")
                         path = directory / f"plan-{name}.json"
-                        write(path, plan.to_dict())
+                        _save_plan(path, plan, root)
                         outputs[name] = str(path)
                     evidence_path = directory / "analysis.json"
                     write(evidence_path, analysis)
@@ -598,7 +625,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
                     lambda p=plan_path, label=label: _prepare_plan(p, root / "drafts" / f"plan-{label}.json", colors, recipe, caps))
                 summary["warnings"].extend(prepared["warnings"])
                 row["plan"] = prepared["path"]
-                plan = Composition.from_dict(read(prepared["path"]))
+                plan = _load_plan(prepared["path"], root)
                 video = root / "drafts" / f"draft-{label}.mp4"
                 def render():
                     from myzing.render.composition import render_composition

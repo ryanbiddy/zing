@@ -9,6 +9,7 @@ from myzing import storage
 from myzing.audio.models import AudioMap
 from myzing.contracts import json_value
 from myzing.project.api import hash_file, load_project, project_status, resolve_path
+from myzing.project.paths import previous_roots, relocate
 from myzing.schemas import Breakdown
 from myzing.timing import interval_problem
 from myzing.study.source_map import planning_shots
@@ -39,8 +40,9 @@ def _intervals(items, duration, label):
 
 
 def _study_files(project: Path):
-    roots = {project / "breakdowns", storage.resolve_workspace() / "breakdowns"}
-    return sorted({p.resolve() for root in roots for p in root.glob("*/breakdown.json")}, key=str)
+    local = {p.parent.name: p.resolve() for p in (project / "breakdowns").glob("*/breakdown.json")}
+    cached = {p.parent.name: p.resolve() for p in (storage.resolve_workspace() / "breakdowns").glob("*/breakdown.json")}
+    return sorted({**cached, **local}.values(), key=str)
 
 
 def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[ClipStudy], list[str]]:
@@ -51,6 +53,7 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
     checksums are not confused with original-source checksums after normalization.
     """
     root = Path(project).expanduser().resolve()
+    roots = previous_roots(root)
     manifest = load_project(root)
     live = {a["id"]: a for a in project_status(root)["assets"]}
     studies, notes = [], []
@@ -94,15 +97,16 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
                  [asset.path, asset.original_path, *asset.previous_paths]}
         exact, by_hash = [], []
         for path, b, status in studies:
-            measured_path = Path(b.meta.media_path)
+            measured_path = Path(relocate(b.meta.media_path, root, roots))
             if not measured_path.is_absolute():
                 measured_path = path.parent / measured_path
             source_hash = b.provenance.get("source_sha256")
-            if b.meta.source_url in paths or str(measured_path.resolve()) in paths:
+            if relocate(b.meta.source_url, root, roots) in paths or str(measured_path.resolve()) in paths:
                 exact.append((path, b, status))
             elif source_hash == asset.sha256:
                 by_hash.append((path, b, status))
-        matches = exact or by_hash
+        local = lambda rows: [row for row in rows if row[0].is_relative_to(root)]
+        matches = local(exact) or local(by_hash) or exact or by_hash
         if len(matches) != 1:
             why = "no matching study" if not matches else "multiple matching studies; keep one authoritative study"
             item.warnings.append(f'{asset.id}: {why}. Run zing study "{source}" --raw --workspace "{root}".')
@@ -163,10 +167,11 @@ def inventory(project: str | Path, *, repair_asr: bool = True) -> tuple[list[Cli
             audio_path = path.parent / "audio-map.json"
             if audio_path.is_file():
                 audio = AudioMap.from_dict(json.loads(audio_path.read_text(encoding="utf-8-sig")))
-                audio_source = Path(audio.source)
+                audio_source = Path(relocate(audio.source, root, roots))
                 if not audio_source.is_absolute():
                     audio_source = audio_path.parent / audio_source
-                if (str(audio_source.resolve()) not in paths | {str((path.parent / b.meta.media_path).resolve())}
+                media = Path(relocate(b.meta.media_path, root, roots))
+                if (str(audio_source.resolve()) not in paths | {str((path.parent / media).resolve())}
                         or audio.truncated):
                     raise ValueError("audio-map source does not match this study or its analysis is truncated")
                 item.warnings.extend(audio_duration_notes(audio.duration_seconds, item.duration))

@@ -7,6 +7,10 @@ being said. It also gets post copy and a local review page. Nothing is posted.
 
 For a guided start, run `zing studio` and choose [Turn a long episode into Shorts](STUDIO.md#turn-a-long-episode-into-shorts).
 
+Studio's reference-match projects can be moved or copied. Resume from the new
+folder to reuse finished match steps. External source files still need their
+original paths. See [Match](MATCH.md).
+
 For photos, choose the meme or still path in `zing studio`. Its ideas keep the
 full topic when a formula fits and warn when it must be shortened. Sign captions
 require a confident OCR read clear of the image edges. See [Stills and animated
