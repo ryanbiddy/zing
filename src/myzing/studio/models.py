@@ -13,6 +13,7 @@ from typing import Any
 from myzing.contracts import Record
 from myzing.project.locking import project_lock
 from myzing.project.models import ProjectError
+from myzing.project.paths import local_paths, map_paths, portable, previous_roots
 
 SESSION_NAME = "studio-session.json"
 
@@ -106,11 +107,23 @@ def save_session(project, session):
                 Session.from_dict(read_json(target))
             except (ValueError, OSError) as exc:
                 raise ValueError(f"Existing {target} is not a studio session; use another project.") from exc
-        write_json(target, session.to_dict())
+        write_json(target, map_paths(session.to_dict(), lambda p: portable(p, root)))
     finally:
         lock.__exit__(None, None, None)
     return target
 
 
 def load_session(project):
-    return Session.from_dict(read_json(Path(project).expanduser().resolve() / SESSION_NAME))
+    root = Path(project).expanduser().resolve()
+    data = read_json(root / SESSION_NAME)
+    roots = previous_roots(root)
+    fields = {"project", "clips", "photos", "source", "reference", "context", "music", "tracks",
+              "episode", "transcript", "cursor_log"}
+    for key in ("answers", "automatic_answers"):
+        data[key] = local_paths(data.get(key, {}), root, roots, fields=fields, literals={"none", "auto", "original"})
+    from myzing.match.state import PATH_FIELDS
+    fields = PATH_FIELDS | {"project", "index_path", "contact_sheet", "prompt_path", "card_json",
+                            "card_md", "card_png", "decode", "receipt_path"}
+    data["result"] = local_paths(data.get("result", {}), root, roots, fields=fields,
+                                 mappings={"output_sha256"}, values={"plans"}, literals=set("abcdefg"))
+    return Session.from_dict(data)

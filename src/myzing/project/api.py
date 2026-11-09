@@ -15,18 +15,10 @@ from myzing.study.proc import MediaError, ToolMissing
 from myzing.urls import is_http_url
 from .locking import LOCK_NAME, lock_description, project_lock
 from .models import Asset, ProjectError, ProjectManifest, Reference, SourceRecord
-from .paths import resolve_path
+from .paths import map_paths, portable, previous_roots, relocate, resolve_path, stored_path
 from .probe import probe_file, unsupported_extension
 
 MANIFEST_NAME = "project.json"
-
-
-def stored_path(path: Path, project: Path) -> str:
-    resolved = path.expanduser().resolve()
-    try:
-        return resolved.relative_to(project).as_posix()
-    except ValueError:
-        return str(resolved)
 
 
 def hash_file(path: Path) -> str:
@@ -40,7 +32,10 @@ def hash_file(path: Path) -> str:
 def load_project(project: str | Path) -> ProjectManifest:
     path = Path(project).expanduser().resolve() / MANIFEST_NAME
     try:
-        return ProjectManifest.from_dict(json.loads(path.read_text(encoding="utf-8")), path.parent)
+        data = json.loads(path.read_text(encoding="utf-8"))
+        roots = previous_roots(path.parent)
+        data = map_paths(data, lambda p: portable(relocate(p, path.parent, roots), path.parent))
+        return ProjectManifest.from_dict(data, path.parent)
     except FileNotFoundError as exc:
         raise ProjectError(f"No manifest at {path}. Run 'zing project init' first.") from exc
     except (ValueError, TypeError) as exc:
@@ -51,7 +46,8 @@ def _save(root: Path, manifest: ProjectManifest) -> None:
     target = root / MANIFEST_NAME
     if target.is_symlink():
         raise ProjectError(f"Refusing to replace symlink {target}; use a regular project.json.")
-    payload = json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False, allow_nan=False) + "\n"
+    data = map_paths(manifest.to_dict(), lambda p: portable(p, root))
+    payload = json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
     # A no-op scan also preserves the manifest's mtime.
     if target.exists() and target.read_text(encoding="utf-8") == payload:
         return

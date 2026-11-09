@@ -179,7 +179,7 @@ def test_auto_moment_is_top_pick_disclosed_and_reused(project, monkeypatch, save
     assert f'zing moments "{project.study}"' in pick["disclosure"]
     assert pick["disclosure"] in (project.root / "comparison.md").read_text(encoding="utf-8")
     state = read(project.root / "match-state.json")
-    assert state["auto_moments"]["picks"] == [pick]
+    assert state["auto_moments"]["picks"] == [{**pick, "study_path": project.study.relative_to(project.root).as_posix()}]
     for path in (project.root / "director").glob("plan-?.json"):
         assert any(c["asset_id"] == "take-0" and c["src_in"] <= top["start"] and c["src_out"] >= top["end"]
                    for c in read(path)["clips"])
@@ -301,7 +301,7 @@ def test_interrupted_replan_reuses_saved_pick(project, monkeypatch):
     monkeypatch.setattr("myzing.director.moments.suggest_moments", lambda *a, **k: pytest.fail("Saved pick must survive a failed replan"))
     resumed = match(project, answers=project.answers, resume=True, auto_moment=True)
     assert resumed["status"] == "ready", resumed
-    assert resumed["auto_moments"] == saved
+    assert resumed["auto_moments"] == [{**p, "study_path": str(project.root / p["study_path"])} for p in saved]
 
 
 def test_edited_brief_replaces_auto_pick(project):
