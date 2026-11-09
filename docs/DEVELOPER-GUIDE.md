@@ -82,6 +82,8 @@ uv run pytest
 
 All tests are located in the [tests](../tests) directory.
 
+Windows FFmpeg builds without a fontconfig config crash on bare `drawtext`. Tests pass a bundled `fontfile`.
+
 ---
 
 ## 4. Codebase Architecture

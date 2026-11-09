@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import drawtext_fontfile
 from myzing.fonts import library
 from myzing.study import caption_geometry as cg, caption_pixels, caption_models
 from myzing.study import font_match as fm
@@ -34,7 +35,7 @@ def font_workspace(tmp_path_factory):
 
 
 def draw(font, text, size, *, stroke=0, plate=False, fill="white"):
-    escaped = Path(font).as_posix().replace(":", r"\:")
+    escaped = drawtext_fontfile(font)
     value = (f"drawtext=fontfile='{escaped}':text='{text}':fontsize={size}:"
              f"x=30:y=100:fontcolor={fill}:borderw={stroke}:bordercolor=0x151515")
     if plate:
