@@ -29,6 +29,8 @@ def run(argv):
     parser.add_argument("--color", choices=("source", "reference"), default="source",
                         help="keep source color (default), or opt into fitting the reference grade")
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--no-auto-moment", dest="auto_moment", action="store_false",
+                        help="stop for a moment choice when a long clip exceeds the search limit")
     parser.add_argument("--no-repair-asr", dest="repair_asr", action="store_false",
                         help="disable bounded ASR repair; exclude clips with invalid word timings")
     parser.add_argument("--allow-download", action="store_true", help="explicit consent to acquire the reference URL via study; never downloads models")
@@ -73,6 +75,10 @@ def run(argv):
         print(json.dumps(result, indent=2, ensure_ascii=False, allow_nan=False))
     else:
         print(result.get("summary", result.get("error", "Match failed")))
+        for pick in result.get("auto_moments", []):
+            print(pick["disclosure"])
+        if result.get("moment_scope"):
+            print(result["moment_scope"])
         if result.get("comparison"):
             print(result["comparison"])
         for item in result.get("failures", []):

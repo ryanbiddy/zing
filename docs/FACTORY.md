@@ -500,6 +500,15 @@ the project. The existing number and quote fact checks still run.
   after the last word. An end card starts at most three seconds after the last word
   and holds for three seconds.
 
+## Match a long talking clip
+
+For reference matching, `zing match` and Studio can pick an Estimated moment
+when a clip exceeds the search limit. Sentence pauses under two seconds are
+allowed. The pick and its study path appear in `comparison.md` and survive
+resume. Use `--no-auto-moment` to choose it yourself, or find another with
+`zing moments clip.mp4 --project ./project --json`.
+See [long interviews](MATCH.md#long-interviews) for changing the saved brief.
+
 ## Steer which moments become clips
 
 - `--focus "the pricing argument"` (or "funny moments", "anything about hiring") tells

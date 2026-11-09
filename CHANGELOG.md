@@ -4,6 +4,9 @@
 
 - `zing factory serve` names an unavailable port and suggests `--port 0` instead of a raw
   socket error.
+- Let moment suggestions cross sentence pauses under two seconds. Match and
+  Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
+  to choose by hand and `moments --project DIR` to find a match project's studies.
 - Check supplied captions against three cached speech samples before scouting,
   save any time shift, and stop clips whose heard words do not match. Use
   `--offset` for a known shift or `--no-sync-check` to skip the initial check.

@@ -257,18 +257,34 @@ test, not evidence of human speech recognition or subjective style quality.
 
 ## Long interviews
 
-For a 30-90 minute interview, let match study it once. Its
-`long_source_needs_moment` shortage preserves those checkpoints:
+When a clip exceeds the planner's candidate limit, `zing match` and Studio's
+reference-match path pick its top Estimated moment and retry planning. The pick
+uses complete sentences near the requested length. The terminal and
+`comparison.md` name the clip, source times, first sentence and study path.
+The pick is saved in `brief.json` and `match-state.json` for resume.
+
+To review other moments, search the match project with `--project`.
 
 ```sh
 zing match reference.mp4 --clips ./clips --out ./project --answers '{"target_length_seconds":22}'
-zing moments ./clips/interview.mp4 --workspace ./project --target 22 --top 3 --json
+zing moments ./clips/interview.mp4 --project ./project --target 22 --top 3 --json
 ```
 
-Review the suggestions, copy one `must_keep` array into `project/brief.json`,
+Review the suggestions, replace the `must_keep` array in `project/brief.json`,
 then rerun the same match command with `--resume` instead of `--answers`.
 `zing moments` also accepts a study slug or `breakdown.json` from an earlier
 `zing study <clip> --raw` run. It never transcribes or calls a model.
+`--project DIR` searches that project's `breakdowns/` folder as well as the
+current workspace. `--workspace DIR` still selects a study workspace.
+
+Use `zing match --no-auto-moment` to stop for a choice. The Python match API
+defaults to `auto_moment=False`. Set it to `True` to allow the same automatic
+choice. MCP `match_start` and direct planning keep moment choice with the caller.
+If another long clip's top suggestion cannot fit alongside a required moment,
+automatic matching leaves that clip out and says so. Replace `must_keep` to
+switch clips. Changed briefs or study evidence invalidate saved automatic picks.
+If there are no suggestions, match asks you to trim the clip or add a
+`must_keep` span. Its remedy includes the actual `breakdown.json` path.
 
 Suggestions include start/end, text, first and last sentences, score and reasons,
 labeled **Estimated**. Windows last 65-100% of the target and stop before questions;
@@ -276,10 +292,15 @@ an answer shorter than that minimum is dropped. Question detection uses terminal
 `?` punctuation. Filler and back-reference openings are excluded. `So`, `And`, and
 `But` may open an answer only immediately after a question. Scores weight speech
 density (30%), length fit (25%), a substantive first statement with a predicate
-(30%), number/contrast cues (5%), keeper coverage (5%) and shot coverage (5%).
+(30%), number/contrast cues (5%), keeper coverage (5%), shot coverage (3%) and
+less inter-sentence pause time (2%). The pause term is one minus total admitted
+sentence-gap time divided by the target. Only gaps of at least 600 ms count
+toward that term. Windows without those pauses keep their previous scores.
 `Actually` does not count as contrast. These are English surface heuristics.
-Measured dead air,
-word gaps of at least 600 ms, incomplete clauses and repaired timings are excluded.
+Pauses shorter than two seconds can join one sentence's last word to the next
+sentence's first word. Gaps of at least 600 ms inside a sentence still block a
+window. Measured dead air, gaps of two seconds or more, incomplete sentences,
+repaired or quarantined timings and forbidden spans also block it.
 Every window must be fully covered by observed shots; even sub-second shot gaps
 are excluded, while abutting shots can form one window. Clips without transcript
 words, including silent title slates, have no suggestions. In a project, copied
@@ -304,7 +325,7 @@ must-keep moments, including the time between them." If snapping reaches both
 clip edges, it instead says "Search window spans the full clip (...) to include
 ...; snapping did not narrow the search." A window that still exceeds 2,400
 candidates returns `planner_capacity`: move or drop a must-keep, or split the job
-into separate briefs. No moment is automatically selected. A planned span with
+into separate briefs. A planned span with
 no transcribed speech and one observed shot carries a warning to review for a
 possible static title slate.
 

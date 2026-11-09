@@ -104,7 +104,7 @@ class Checkpoints:
     def failures(self):
         return [{"step": name, "error": self.data["steps"][name]["error"],
                  "log": self.data["steps"][name]["log"]}
-                for name in self.used if self.data["steps"][name]["status"] in {"failed", "cancelled"}]
+                for name in dict.fromkeys(self.used) if self.data["steps"][name]["status"] in {"failed", "cancelled"}]
 
     def finish(self, status):
         self.data.update(status=status, finished_at=time.time(), reused_steps=self.reused)

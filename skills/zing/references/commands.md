@@ -783,4 +783,11 @@ sidecar output is silent. Cloud ElevenLabs is outside this local workflow.
 
 Screen demos: `zing record-cursor --out session.jsonl` records local cursor/click and anonymous key-press timestamps (no contents). Use `zing plan screen demo.mp4 --cursor session.jsonl --out screen.json`, then `zing render screen.json --aspect all`. Without a log, UI activity supplies lower-confidence targets. `zing match screen --clips <folder> --out <folder>` and Studio screen-footage answers use this continuous zoom/pan path.
 
-For long interviews, `zing moments <clip-or-study> --target 22 --top 3 --json` ranks cached transcript windows. Copy a chosen must-keep array into the brief before resuming match.
+For long clips, `zing moments <clip-or-study> --target 22 --top 3 --json` ranks cached
+transcript windows. Add `--project DIR` to also search a match project's
+`breakdowns/` folder. An explicit `breakdown.json` path works too.
+
+`zing match` picks the top Estimated moment when a long clip exceeds the search
+limit. It names the pick in the terminal and `comparison.md` and saves it for
+resume. Add `--no-auto-moment` to stop for a choice. To change a pick, replace
+`brief.must_keep` in the project's `brief.json`, then use `--resume` without `--answers`.
