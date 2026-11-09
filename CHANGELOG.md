@@ -4,6 +4,9 @@
 
 - Keep factory captions clear of faces. Limit extra webcam zoom to keep 300 source
   pixels of height.
+- Let moment suggestions cross sentence pauses under two seconds. Match and
+  Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
+  to choose by hand and `moments --project DIR` to find a match project's studies.
 - Check supplied captions against three cached speech samples before scouting,
   save any time shift, and stop clips whose heard words do not match. Use
   `--offset` for a known shift or `--no-sync-check` to skip the initial check.

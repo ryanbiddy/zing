@@ -1,10 +1,13 @@
 """Deterministic transcript suggestions. Scores are editorial estimates, not facts.
 
 For each answer sentence start, keep the closest complete-sentence ending in
-0.65..1.0 times target. Require full observed-shot coverage. Reject measured dead air, >=600 ms word gaps,
+0.65..1.0 times target. Require full observed-shot coverage. Reject measured dead air,
+>=600 ms gaps within sentences, >=2 s gaps between sentences, repaired timings,
 quarantine and forbidden spans. Rank by 30% timed speech density, 25% length
 fit, 30% complete-opening cues, 5% number/contrast cues, 5% keeper coverage
-and 5% measured shot coverage.
+and 3% measured shot coverage, plus 2% for less inter-sentence pause time.
+The pause term is 1 minus total admitted >=600 ms sentence gaps / target.
+Windows without these pauses keep their previous scores.
 Opening cues are a numeric token and contrast wording; each contributes half
 of the cue score. Question, filler, back-reference and additive openings are
 excluded. A window ends only where the next sentence starts fresh, never on a
@@ -118,6 +121,10 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
     if clip.status != "ready":
         raise ValueError("A complete usable study is required; run zing study <clip> --raw first")
     speech = sentences(clip.words)
+    edges = {(a.end, b.start) for a, b in zip(speech, speech[1:])}
+    pauses = [(a.end, b.start) for a, b in zip(clip.words, clip.words[1:])
+              if PAUSE_SECONDS <= b.start - a.end < 2. - 1e-8 and (a.end, b.start) in edges]
+    admitted = set(pauses)
     starts = [w.start for w in clip.words]
     ends = [w.end for w in clip.words]
     cumulative = [0.]
@@ -127,7 +134,7 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
                *((q["start"], q["end"]) for q in clip.asr_repair.get("quarantined", [])),
                *((r["start"], r["end"]) for r in clip.asr_repair.get("repairs", [])),
                *((a.end, b.start) for a, b in zip(clip.words, clip.words[1:])
-                 if b.start - a.end >= PAUSE_SECONDS)]
+                 if b.start - a.end >= PAUSE_SECONDS and (a.end, b.start) not in admitted)]
     keepers = merge([(k["start"], k["end"]) for k in clip.keepers])
     shots = merge([(s.start, s.end) for s in clip.shots])
     ranked = []
@@ -158,8 +165,12 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         duration = end - start
         left, right = bisect_left(starts, start), bisect_right(ends, end)
         density = min(1., (cumulative[right] - cumulative[left]) / duration)
+        pause = sum(b - a for a, b in pauses if start <= a and b <= end)
         reasons = [f"Complete sentences; {duration:.3f}s window for {target:g}s target",
                    f"Timed speech density {density:.1%}; no measured dead air or word gap >=0.6s inside"]
+        if pause:
+            reasons[-1] = f"Timed speech density {density:.1%}; no measured dead air or word gap >=0.6s within a sentence"
+            reasons.append(f"Inter-sentence pauses total {pause:.3f}s; each is shorter than 2s")
         cues = []
         if re.search(r"\b\d+(?:[.,]\d+)?\b", first.text):
             cues.append("number in first clause")
@@ -175,7 +186,7 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
         if opening:
             reasons.append("Opening heuristic: substantive first statement with a predicate")
         score = (.3 * density + .25 * duration / target + .3 * opening
-                 + .05 * len(cues) / 2 + .05 * keeper + .05 * shot)
+                 + .05 * len(cues) / 2 + .05 * keeper + .03 * shot + .02 * (1 - pause / target))
         ranked.append({"start": start, "end": end, "text": " ".join(w.text for w in clip.words[left:right]),
                        "first_sentence": first.text, "last_sentence": last.text,
                        "score": round(score, 6), "label": "Estimated", "reasons": reasons,
@@ -189,7 +200,7 @@ def suggest_moments(clip: ClipStudy, *, target=22., top=3, forbidden=()):
     return chosen
 
 
-def load_clip(source: str) -> ClipStudy:
+def load_clip(source: str, *, project=None) -> ClipStudy:
     """Load an explicit study or find one exact cached local-source match."""
     from .asr_repair import repair_words
     from .inventory import _intervals, audio_duration_notes, clip_dead_air
@@ -200,7 +211,11 @@ def load_clip(source: str) -> ClipStudy:
         matches = [explicit]
     else:
         matches = []
-        for candidate in sorted(storage.breakdowns_root().glob("*/breakdown.json")):
+        folders = [storage.breakdowns_root()]
+        if project is not None:
+            folders.append(Path(project).expanduser().resolve() / "breakdowns")
+        candidates = sorted({p.resolve() for folder in folders for p in folder.glob("*/breakdown.json")})
+        for candidate in candidates:
             try:
                 b = Breakdown.from_json(candidate.read_text(encoding="utf-8-sig"))
                 media = (candidate.parent / b.meta.media_path).resolve()
@@ -210,7 +225,8 @@ def load_clip(source: str) -> ClipStudy:
                 continue
     if len(matches) != 1:
         raise ValueError(f"Expected one cached study for {source!r}, found {len(matches)}. "
-                         "Run zing study <clip> --raw, use --workspace, or pass its breakdown.json path.")
+                         "Run zing study <clip> --raw, use --project DIR for a match project or --workspace DIR, "
+                         "or pass its breakdown.json path.")
     study = matches[0]
     status = storage.read_status_at(study.parent)
     if status and status.get("state") != "done":
@@ -227,6 +243,8 @@ def load_clip(source: str) -> ClipStudy:
     # an in-project or external clips folder. Standalone studies keep the path.
     from myzing.project.api import load_project, resolve_path
     roots = [storage.workspace_root().resolve(), *study.parents]
+    if project is not None:
+        roots.insert(0, Path(project).expanduser().resolve())
     root = next((r for r in roots if (r / "project.json").is_file()), None)
     asset_id = selector
     if root is not None:
@@ -262,8 +280,8 @@ def load_clip(source: str) -> ClipStudy:
     return clip
 
 
-def moments(source: str, *, target=22., top=3):
-    clip = load_clip(source)
+def moments(source: str, *, target=22., top=3, project=None):
+    clip = load_clip(source, project=project)
     return {"version": 1, "source": clip.path, "study_path": clip.study_path,
             "target": target, "suggestions": suggest_moments(clip, target=target, top=top),
             "warnings": clip.warnings,
@@ -276,11 +294,12 @@ def run(argv):
     parser.add_argument("--target", type=float, default=22.)
     parser.add_argument("--top", type=int, default=3)
     parser.add_argument("--workspace", type=Path)
+    parser.add_argument("--project", type=Path, help="also search this match project's breakdowns folder")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     try:
         with storage.use_workspace(args.workspace or storage.workspace_root()):
-            result = {"ok": True, **moments(args.source, target=args.target, top=args.top)}
+            result = {"ok": True, **moments(args.source, target=args.target, top=args.top, project=args.project)}
     except (OSError, ValueError, TypeError, KeyError) as exc:
         result = {"ok": False, "error": str(exc)}
     if args.json:

@@ -223,6 +223,7 @@ def markdown(summary):
         except ValueError:
             return Path(path).as_posix()
     lines = [f"# Match comparison", "", summary["summary"], "",
+             *[pick["disclosure"] + "\n" for pick in summary.get("auto_moments", [])],
              f"Color mode: {summary.get('color_mode', 'reference')}.", "",
              *[w + "\n" for w in summary.get("warnings", []) if w.startswith("Forced reframe retained")],
              "Render complete means fully decoded, inspected, and reported. Style match is separate; approximate dimensions remain unverified.", "",

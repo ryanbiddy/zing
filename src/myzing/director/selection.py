@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from statistics import median
 
 from myzing.brief.models import Brief
@@ -262,11 +263,17 @@ def candidates(studies, keep, forbidden, style, target, *, expand_timing=True, s
             from .models import PlanningShortage, Shortage
             suggestions = suggest_moments(clip, target=target, top=3,
                                           forbidden=forbidden.get(clip.asset_id, []))
+            command = f'zing moments "{clip.study_path}" --target {target:g} --json' if clip.study_path else None
+            remedy = ("Review these Estimated suggestions" + (f" or run {command}" if command else "") +
+                      "; copy a suggestion's must_keep into brief.json and rerun match. No moment was selected automatically."
+                      if suggestions else
+                      f"No complete-sentence moment near {target:g} s was found in {Path(clip.path).name}. "
+                      "Trim the clip to the part you want, or add a must_keep span to brief.json." +
+                      (f" To check the study, run {command}." if command else ""))
             raise PlanningShortage(Shortage(
                 "long_source_needs_moment",
                 f"{clip.asset_id} exceeds {MAX_CANDIDATES} candidates; choose a moment before matching.",
-                "Review these Estimated suggestions or run zing moments <clip-or-study> --json; "
-                "copy a suggestion's must_keep into your brief and rerun match. No moment was selected automatically.",
+                remedy,
                 [clip.asset_id], suggestions=suggestions)) from None
 
 
