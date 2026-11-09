@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import shutil
 import subprocess
 import tempfile
@@ -164,11 +165,19 @@ def apply_video(lut: Path | str, source: Path | str, output: Path | str) -> dict
         ], cwd=work, timeout=3600)
         # Confirm a decodable output before publishing; source is never rewritten.
         run_media(["ffmpeg", "-v", "error", "-nostdin", "-i", str(staged), "-f", "null", "-"], timeout=3600)
-        dest = output.open("xb")
+        fd, name = tempfile.mkstemp(prefix=f".{output.name}.", suffix=".tmp", dir=output.parent)
+        tmp = Path(name)
         try:
-            with dest, staged.open("rb") as src:
+            with os.fdopen(fd, "wb") as dest, staged.open("rb") as src:
                 shutil.copyfileobj(src, dest)
-        except BaseException:
-            output.unlink(missing_ok=True)  # only the file this call just created
-            raise
+            try:
+                os.link(tmp, output)  # complete file, published only if the name is still free
+            except FileExistsError:
+                raise ColorError(f"Output already exists or equals the input: {output}. Choose a new output path.") from None
+            except OSError:  # no hard links on this volume
+                if output.exists():
+                    raise ColorError(f"Output already exists or equals the input: {output}. Choose a new output path.") from None
+                os.replace(tmp, output)
+        finally:
+            tmp.unlink(missing_ok=True)
     return {"output_path": str(output), "sha256": sha256(output), "lut_sha256": sha256(lut), "warnings": warnings}

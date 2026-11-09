@@ -457,6 +457,10 @@ the project. The existing number and quote fact checks still run.
   inside the project folder. Directive lines in the transcript stay as text.
 - Visual downloads and page captures refuse local and private network addresses.
   HTTP download redirects receive the same check.
+- Page captures reject missing navigation responses and HTTP status 400 or higher.
+  Failed HTTP pages do not become screenshots or scroll videos.
+- Scene captures time out after 300 seconds plus 3 seconds per captured frame.
+  Sample captures count only the requested frames.
 - Plans drop shots with negative or nonfinite times, or times more than three seconds
   after the last word. An end card starts at most three seconds after the last word
   and holds for three seconds.

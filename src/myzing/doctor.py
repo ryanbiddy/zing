@@ -727,7 +727,12 @@ def check_layout() -> Check:
     from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
     from myzing.layout.vision_models import inventory
 
-    vision = inventory()
+    try:
+        vision = inventory()
+    except OSError as exc:
+        return Check("layout", OPTIONAL, False, f"vision model cache could not be read; {exc}",
+                     fix="Check read permissions for the vision model cache.",
+                     data={"vision_models": [], "network_used": False})
     model_data = {"vision_models": vision, "network_used": False}
 
     if not _has_module("cv2"):
