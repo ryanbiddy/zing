@@ -4,6 +4,9 @@
 
 - Group factory captions by phrase and pause. Give Zing larger outlined type, keep
   default portrait captions above phone controls, and center list reveals.
+- Add a long episode path to `zing studio` with transcript suggestions,
+  factory review, resume and an MCP hand-off. Give Uoink connection failures
+  a startup hint instead of a contract update hint.
 
 ## 1.0.0rc1
 

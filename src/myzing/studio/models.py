@@ -83,7 +83,7 @@ def save_session(project, session):
     root = Path(project).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     target = root / SESSION_NAME
-    for key in ("source", "reference", "context", "music", "tracks"):
+    for key in ("source", "reference", "context", "music", "tracks", "episode", "transcript"):
         values = session.answers.get(key, [])
         for value in values if isinstance(values, list) else [values]:
             if isinstance(value, str) and "://" not in value and Path(value).expanduser().resolve() == target:

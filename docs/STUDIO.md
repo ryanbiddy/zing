@@ -1,5 +1,35 @@
 # Start with `zing studio`
 
+## Turn a long episode into Shorts
+
+Run `zing studio` and choose **7**, "Turn a long episode into Shorts" (path `g`).
+Give it a local video file at least 60 seconds long, or `uoink:<id>`
+for a kept episode. Uoink files get the same hash check as `zing from-uoink`.
+URLs are refused. Use `zing from-uoink` for a saved item, or download the file first.
+Audio-only files are refused for now; the clip factory needs a video stream.
+
+Studio recommends a sibling transcript with the same stem, checking `.srt`,
+`.vtt`, then `.json`. Enter accepts it. Type `none` to let the factory
+transcribe when you press Run. The first run recommends 3 moments and `9x16`.
+Choose 1–12 moments and any of `9x16`, `1x1`, `4x5` and `16x9`.
+
+The judge defaults to `claude` when Claude Code is on PATH. Otherwise it uses
+`host`, where you or your agent answer prompts on the review page or with
+`zing factory answer`. The plan lists the episode, measured duration,
+transcript, clip count, shapes, judge and project folder. The folder defaults
+to `ZING_HOME/studio[-N]`. Use `o` on the plan screen to change it.
+
+Confirming creates a factory project and starts its review page. Press Run to
+begin. The source name is the episode file stem and rights stay `unknown`.
+Nothing is posted. `zing studio --no-open` leaves the browser closed and prints
+the link. Answers files also accept `"no_open": true`.
+
+Resume with `zing studio --resume <project>`. Confirm to reopen the dashboard;
+the existing factory settings and edits stay. `zing factory status <project>`
+reports progress. With `--json`, the final `result` event includes `project`
+and `page` as soon as the dashboard is ready. Keep the terminal running while
+using the page. Ctrl+C or 60 idle minutes stops the server.
+
 ## Your first draft in 10 minutes
 
 Try this after [installation](INSTALL.md) and a successful FFmpeg check in
@@ -168,10 +198,11 @@ Choose what you want to make:
 4. Break down a video's style.
 5. Check music for an edit.
 6. Re-deliver a video or plan in landscape, square or portrait.
+7. Turn a long episode into Shorts.
 
 Recommendations include their reason and evidence. Enter accepts a recommendation;
 required paths and topics ask plainly and repeat on an empty answer. `?` explains,
-`b` goes back and `q` saves. Menus use numbers. At the opening menu a and c-f
+`b` goes back and `q` saves. Menus use numbers. At the opening menu a and c-g
 also pick their rows, but `b` always means back, so type 2 for clips without a
 reference. Dragged paths may keep the quotes Windows Explorer, Windows Terminal
 or GNOME Terminal add, or macOS Terminal's backslash-escaped spaces.
@@ -235,7 +266,8 @@ See [doctor and setup](DOCTOR.md) for the same download outside Studio.
 
 This is the terminal output of an October 23, 2026 run on Windows, unedited
 except that answers are shown after `>` (an empty `>` is Enter) and the output
-folder is shortened to `<cwd>`. The three photos are frames from SHA-verified V1
+folder is shortened to `<cwd>`. The opening menu now also lists option 7 (added
+2026-11-09); the rest is the original run. The three photos are frames from SHA-verified V1
 clips (Korky Paul, Tears of Steel and NASA), with no downloads.
 
 ```text
@@ -246,6 +278,7 @@ What are we making?
   4. Break down a video's style
   5. Check music for an edit
   6. Re-deliver an existing edit or plan
+  7. Turn a long episode into Shorts (podcast, talk or stream)
 Recommended: 1 (Edit my clips to look like a reference video)
 Choose a reference match if you have a video to aim for; your intent is still unknown.
 Enter accepts | ? explains | q saves and quits
@@ -389,6 +422,7 @@ accepted in JSON:
 | d | `source` (local video) |
 | e | `tracks` (array), `context` (composition plan JSON or `none`); with `none`, also `length` and boolean `speech` |
 | f | `source` (video, v1 EDL or v2 composition JSON), `platform`, `aspects` |
+| g | `episode`, `transcript` (path or `none`), `clips` (1–12), `shapes`, `judge` (`host` or `claude`); optional `no_open` |
 
 A URL containing a username or password is refused with a credential-specific
 message. Download it yourself or remove the credentials.
@@ -462,7 +496,12 @@ boolean: strings and numbers are refused. Model downloads also need the explicit
 The worker delegates reference edits to the existing match API.
 Paths c/e reuse `still_concepts` / `still_render` and `music_check`.
 
-Poll with `zing_studio_run(project=...)`; `cancel=true` stops an owned job. The
+Path g uses `zing_studio_run(answers=..., confirmed=true)` to create the factory
+project. It returns `project` and the next calls, `factory_run` then
+`factory_status`. It starts no browser server. Answer pending tasks through
+`factory_prompt` and `factory_answer`, then call `factory_run` again.
+
+For paths a/b/d/f, poll with `zing_studio_run(project=...)`; `cancel=true` stops an owned job. The
 runner uses the existing process-tree supervisor. Both studio tools return paths
 and metadata, never media bytes.
 
