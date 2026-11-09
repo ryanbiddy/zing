@@ -6,7 +6,7 @@ from pathlib import Path
 from myzing.brief.api import load_brief, save_brief
 from myzing.brief.models import Brief
 
-from .state import fingerprint, read, write
+from .state import read
 
 
 def disclosure(pick):
@@ -25,9 +25,14 @@ class AutoMoments:
         current = load_brief(checkpoints.root / "brief.json").to_dict()
         old = checkpoints.data.get("auto_moments", {})
         base = old["brief"] if current == old.get("applied_brief") else current
-        key = fingerprint([base, studies, inputs, "sentence-pauses-v1"])
-        self.data = (deepcopy(old) if checkpoints.resume and old.get("key") == key else
+        inputs = [base, studies, inputs, "sentence-pauses-v1"]
+        key = checkpoints.key(inputs)
+        self.data = (deepcopy(old) if checkpoints.resume and checkpoints.matches(old, inputs) else
                      {"key": key, "brief": base, "picks": [], "excluded": []})
+        self.data["key"] = key
+        self.data.pop("legacy_root", None)
+        for pick in self.data["picks"]:
+            pick["disclosure"] = disclosure(pick)
         self.save()
 
     def save(self):
@@ -35,7 +40,7 @@ class AutoMoments:
         brief["must_keep"].extend(m for pick in self.data["picks"] for m in pick["must_keep"])
         self.data["applied_brief"] = brief
         self.checkpoints.data["auto_moments"] = self.data
-        write(self.checkpoints.path, self.checkpoints.data)
+        self.checkpoints.save()
         save_brief(self.checkpoints.root, Brief.from_dict(brief))
 
     def pick(self, planned, manifest):

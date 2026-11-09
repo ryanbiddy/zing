@@ -9,7 +9,7 @@ from myzing import storage, uoink_bridge
 from .api import _save, hash_file, load_project, stored_path
 from .locking import project_lock
 from .models import ProjectError, ReferenceResolution
-from .paths import resolve_path
+from .paths import map_paths, portable, resolve_path
 
 
 def item_ref(value: str) -> str:
@@ -73,7 +73,8 @@ def resolve_reference(project: str | Path, *, file: str | Path | None = None) ->
                 raise ProjectError("This reference is a URL. Supply --file, or explicitly download it with 'zing study <url>'.")
         except (ProjectError, OSError, ValueError) as exc:
             resolution = ReferenceResolution("unresolved", reason=uoink_bridge.redact(str(exc)))
-        if ref.resolution != resolution:
+        previous = ref.resolution.to_dict() if ref.resolution else None
+        if previous != map_paths(resolution.to_dict(), lambda p: portable(p, root)):
             ref.study = None
         ref.resolution, ref.state = resolution, resolution.state
         _save(root, manifest)

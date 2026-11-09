@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep match projects resumable after a move or copy. Reuse finished steps and
+  read studies from the current project, including projects saved with absolute paths.
 - `zing factory serve` names an unavailable port and suggests `--port 0` instead of a raw
   socket error.
 - Let moment suggestions cross sentence pauses under two seconds. Match and
