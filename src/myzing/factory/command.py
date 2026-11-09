@@ -29,7 +29,8 @@ def _new_settings(new: argparse.ArgumentParser) -> None:
     new.add_argument("--transcript", type=Path, help="SRT, VTT or word JSON; without one the episode is transcribed")
     new.add_argument("--vocab", action="append", default=[], metavar="TERM,TERM",
                      help="names and terms to spell exactly; repeat or separate with commas")
-    new.add_argument("--offset", type=float, default=0.0, help="seconds to add to the transcript's times")
+    new.add_argument("--offset", type=float, help="seconds to add to the transcript's times; skips the sync check")
+    new.add_argument("--no-sync-check", action="store_true", help="skip the transcript sync check before scouting")
     new.add_argument("--name", help="source credit, e.g. the show and episode")
     new.add_argument("--url", default="", help="the source link used in first comments")
     new.add_argument("--date", default="", help="the source's date; copy never calls older news 'new'")
@@ -66,7 +67,8 @@ def _new_settings(new: argparse.ArgumentParser) -> None:
 
 
 def _settings(args: argparse.Namespace) -> dict:
-    return dict(transcript=args.transcript, offset=args.offset, name=args.name, url=args.url, date=args.date, tag=args.tag,
+    return dict(transcript=args.transcript, offset=args.offset, no_sync_check=args.no_sync_check,
+                name=args.name, url=args.url, date=args.date, tag=args.tag,
                 rights=args.rights or "unknown", brief=args.brief,
                 vocab=[term for group in (args.vocab or []) for term in group.split(",")],
                 mode=args.mode or "context", public=args.public, parallax=args.parallax, cutout=args.cutout,

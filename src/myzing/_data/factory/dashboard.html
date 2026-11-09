@@ -854,7 +854,8 @@ function render() {
     packName ? el("span", {}, "Pack ", el("strong", { text: packName })) : null,
     s.shapes ? el("span", {}, "Shapes ", el("strong", { text: s.shapes.map(x => x.replace("x", ":")).join(", ") })) : null,
     s.focus ? el("span", {}, "Focus ", el("strong", { text: s.focus })) : null,
-    s.show ? el("span", {}, "Show ", el("strong", { text: s.show })) : null
+    s.show ? el("span", {}, "Show ", el("strong", { text: s.show })) : null,
+    s.transcript_offset ? el("span", { text: "Transcript shifted " + (s.transcript_offset > 0 ? "+" : "") + s.transcript_offset + " s" }) : null
   ].filter(Boolean));
 
   const pending = p.pending || [];
