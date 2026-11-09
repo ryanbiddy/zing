@@ -125,6 +125,8 @@ def run(argv: list[str]) -> int:
         for note in sorted(notes):
             print()
             print(f"{note} Run: zing prompt meme-writer")
+        for warning in sorted({w for idea in result["ideas"] for w in idea.get("warnings", [])}):
+            print(warning)
     elif args.command == "check":
         print(f"{'valid' if result['valid'] else 'invalid'}: {result['beats']} beats, {result['characters']} characters")
         for problem in result["problems"]:

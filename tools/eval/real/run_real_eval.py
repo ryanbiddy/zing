@@ -20,6 +20,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 HERE = Path(__file__).resolve().parent
 
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(REPO))
+
+from tools.eval.fonts import drawtext_fontfile
+
 
 def read_json(path):
     return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -497,7 +502,7 @@ def review_evidence(manifest, labels, root, runner):
                 end = min(start + 79, last - 1)
                 filters = (
                     f"select='between(n,{start},{end})',scale=144:-1,"
-                    "drawtext=fontfile=src/myzing/_data/fonts/Anton-Regular.ttf:"
+                    f"drawtext=fontfile='{drawtext_fontfile()}':"
                     "text='%{pts\\:flt}':x=2:y=2:fontsize=12:fontcolor=yellow:box=1:boxcolor=black,tile=8x10"
                 )
                 runner.command(

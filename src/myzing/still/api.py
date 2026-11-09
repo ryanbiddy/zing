@@ -216,6 +216,8 @@ def _concept(topic: str, photo: Photo, idea: dict, aspect: str, requested: str,
     layout, regions, notes = place(photo, texts, aspect, requested, regions, fit=fit, protect=protect)
     fit, focus, framing_notes = frame(photo, aspect, layout, fit, texts=texts)
     notes += framing_notes
+    if idea["provider"] == "offline_formulas":
+        notes += idea.get("warnings", [])
     shown = [text.upper() if layout == "classic" else text for text in texts if text]
     alt = photo.description + " Caption text: " + " / ".join(json.dumps(t, ensure_ascii=False) for t in shown) + "."
     return Concept(_concept_id(topic, photo.sha256, texts, aspect, layout, regions, fit, focus),

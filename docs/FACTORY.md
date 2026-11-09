@@ -7,6 +7,11 @@ being said. It also gets post copy and a local review page. Nothing is posted.
 
 For a guided start, run `zing studio` and choose [Turn a long episode into Shorts](STUDIO.md#turn-a-long-episode-into-shorts).
 
+For photos, choose the meme or still path in `zing studio`. Its ideas keep the
+full topic when a formula fits and warn when it must be shortened. Sign captions
+require a confident OCR read clear of the image edges. See [Stills and animated
+memes](MEMES.md) for the text limits and sign checks.
+
 ## Playbook cohorts
 
 Use `zing playbook list --scope "Developer channel Shorts"` to label a comparison
