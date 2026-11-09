@@ -17,6 +17,7 @@ const MAX_SCROLL = 2400;
 // private addresses, which a public page has no business reaching.
 const AD = /(^|\.)(doubleclick\.net|googlesyndication\.com|googleadservices\.com|googletagservices\.com|adservice\.google\.[a-z.]+|imasdk\.googleapis\.com|amazon-adsystem\.com|adnxs\.com|taboola\.com|outbrain\.com|criteo\.(com|net)|pubmatic\.com|rubiconproject\.com|openx\.net|adsrvr\.org|moatads\.com|teads\.tv|sharethrough\.com|3lift\.com|triplelift\.com|indexww\.com|casalemedia\.com|smartadserver\.com|adform\.net|media\.net|yieldmo\.com|zemanta\.com|revcontent\.com|mgid\.com|bidswitch\.net|lijit\.com|sovrn\.com|33across\.com|gumgum\.com|connatix\.com|primis\.tech|springserve\.com|spotxchange\.com|innovid\.com|adsafeprotected\.com|doubleverify\.com|adroll\.com|nativo\.com|kargo\.com|seedtag\.com|ezoic\.net|ezojs\.com|mediavine\.com|adthrive\.com|freestar\.com|vdo\.ai|aniview\.com|minutemedia-prebid\.com|ads-twitter\.com)$/i;
 const PRIVATE = /^(localhost|.*\.localhost|127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0|\[?::1?\]?|\[?f[cd][0-9a-f]*:.*|\[?fe80:.*)$/i;
+const TRACKER = /(^|\.)(google-analytics\.com|googletagmanager\.com|parsely\.com|facebook\.net|hotjar\.com|segment\.(io|com)|scorecardresearch\.com|dap\.digitalgov\.gov)$/i;
 
 function isPrivate(address) {
   const ip = address.replace(/^\[|\]$/g, "");
@@ -68,8 +69,8 @@ async function main() {
     await ctx.routeWebSocket(/.*/, ws => ws.close());
     await ctx.route("**/*", async (route) => {
       let host = "";
-      try { host = new URL(route.request().url()).hostname.replace(/^\[|\]$/g, ""); } catch (_) {}
-      if (AD.test(host) || PRIVATE.test(host)) return route.abort();
+      try { host = new URL(route.request().url()).hostname.replace(/^\[|\]$/g, "").replace(/\.$/, ""); } catch (_) {}
+      if (AD.test(host) || TRACKER.test(host) || PRIVATE.test(host)) return route.abort();
       if (host) {
         if (isIP(host)) {
           if (isPrivate(host)) return route.abort();
