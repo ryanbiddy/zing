@@ -5,6 +5,8 @@
 @font-face{font-family:Inter;font-weight:700;src:url(../fonts/ZingCaption-700.ttf)}
 @font-face{font-family:Inter;font-weight:800;src:url(../fonts/ZingCaption-800.ttf)}
 @font-face{font-family:Inter;font-weight:900;src:url(../fonts/ZingCaption-800.ttf)}
+@font-face{font-family:ZingCaption;font-weight:700;src:url(../fonts/ZingCaption-700.ttf)}
+@font-face{font-family:ZingCaption;font-weight:800 900;src:url(../fonts/ZingCaption-800.ttf)}
 @font-face{font-family:Anton;src:url(../fonts/Anton-Regular.ttf)}
 @font-face{font-family:'IBM Plex Sans';font-weight:100 900;src:url(../fonts/IBMPlexSans.ttf)}
 @font-face{font-family:'Instrument Serif';src:url(../fonts/InstrumentSerif-Regular.ttf)}
@@ -37,7 +39,8 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #pill b{font-weight:inherit;color:var(--pill-on,inherit);font-style:var(--pill-em,normal)}
 #cap{position:absolute;left:0;right:0;text-align:center;white-space:nowrap}
 #cap .box{display:inline-block;background:var(--cap-bg);color:var(--cap-ink);padding:var(--cap-pad,10px 22px 12px);border-radius:var(--cap-radius);font-family:var(--cap-font,Inter);font-weight:var(--cap-weight,900);font-size:var(--cap-size,54px);line-height:1.15;letter-spacing:.01em;text-transform:var(--cap-case,uppercase);-webkit-text-stroke:var(--cap-stroke,0 transparent);paint-order:stroke fill;text-shadow:var(--cap-shadow,none)}
-#cap .on{color:var(--cap-on)}
+#cap .box>span{display:inline-block}
+#cap .on{color:var(--cap-on);transform:scale(var(--cap-scale,1))}
 #cap .em{color:var(--cap-em,var(--cap-on))}
 /* kinetic captions (documentary): words build in place, the key word of each line set large in italic */
 #cap.kin{left:60px;right:60px;white-space:normal}
@@ -88,6 +91,11 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #panel .brand:before,#panel .brand:after{content:"";flex:1;height:2px;background:currentColor;opacity:.7}
 #panel .head{width:100%;text-align:center;color:var(--panel-ink,#fff);font-family:var(--panel-font,Anton),Inter,sans-serif;font-weight:var(--panel-weight,400);line-height:1.04;text-transform:var(--panel-case,uppercase)}
 #panel .head b{font-weight:inherit;color:var(--panel-on,var(--yel))}
+html[data-aspect="9x16"] #hook{left:90px;right:90px}
+html[data-aspect="9x16"] #pill,html[data-aspect="9x16"] #cap{left:90px;right:90px}
+html[data-aspect="9x16"] #pill span{max-width:97%;overflow-wrap:anywhere}
+html[data-aspect="9x16"] #label{max-width:900px}
+html[data-aspect="9x16"] #label .n,html[data-aspect="9x16"] #label .r{white-space:normal;overflow-wrap:anywhere}
 </style></head>
 <body>
 <div class="layer" id="top"><img id="topBlur"><div id="topWin"><img id="topImg"></div></div>
@@ -111,26 +119,31 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 <img id="logo">
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
+const TH0 = D.theme || {}, CAP_DEFAULT = TH0.cap_bg == null;
+const CAP_SIZE = TH0.cap_size || CAP_DEFAULT
+  ? Math.round((TH0.cap_size || 78) * (TH0.learned ? (D.H || 1920)/1920 : (D.W || 1080)/1080)) : 54;
+const CAP_SCALE = TH0.cap_scale ?? (CAP_DEFAULT ? 1.06 : 1);
 window.packFonts = (D.fonts || []).map(f => {
   const face = new FontFace(f.family, `url(${JSON.stringify(f.src)})`, {weight: String(f.weight), style: f.style});
   document.fonts.add(face); return face;
 });
 window.exportLayer = layer => document.documentElement.dataset.layer = layer;
 window.exportLayer(D.overlay ? 'overlay' : D.speakerLayer ? 'speaker' : '');
-if (D.theme) { const T = D.theme, st = document.documentElement.style;
+{ const T = TH0, st = document.documentElement.style;
   const set = (k, v) => v != null && st.setProperty(k, v);
   set('--navy', T.bg); set('--glow', T.glow); set('--ink', T.ink); set('--muted', T.muted); set('--yel', T.accent);
   set('--accent-ink', T.accent_ink); set('--cap-bg', T.cap_bg); set('--cap-ink', T.cap_ink); set('--cap-on', T.cap_on);
   set('--cap-radius', (T.cap_radius ?? 12) + 'px'); set('--tag-bg', T.tag_bg); set('--tag-ink', T.tag_ink);
   set('--edge', T.panel_edge && T.panel_edge !== 'none' ? T.panel_edge : 'transparent');
   if (T.cap_upper === false) st.setProperty('--cap-case', 'none');
-  // learned or hand-made caption styles; every field is optional and the defaults are the Zing look
-  if (T.cap_font) set('--cap-font', `${JSON.stringify(T.cap_font)}, Inter, sans-serif`);
+  // packs with their own caption background keep their type defaults
+  set('--cap-font', `${JSON.stringify(T.cap_font || (CAP_DEFAULT ? 'ZingCaption' : 'Inter'))}, Inter, sans-serif`);
   if (T.cap_weight) set('--cap-weight', T.cap_weight);
-  if (T.cap_size) set('--cap-size', Math.round(T.cap_size * (T.learned ? (D.H || 1920) / 1920 : (D.W || 1080) / 1080)) + 'px');
-  if (T.cap_bg === 'none') { set('--cap-bg', 'transparent'); set('--cap-pad', '0 8px'); }
-  if (T.cap_stroke) set('--cap-stroke', `${T.cap_stroke_w || 6}px ${T.cap_stroke}`);
-  if (T.cap_shadow) set('--cap-shadow', T.cap_shadow);
+  set('--cap-size', CAP_SIZE + 'px'); set('--cap-scale', CAP_SCALE);
+  if (T.cap_bg === 'none' || CAP_DEFAULT) { set('--cap-bg', 'transparent'); set('--cap-pad', '0 8px'); }
+  if (CAP_DEFAULT) set('--cap-ink', T.cap_ink || '#FFFFFF');
+  if (T.cap_stroke || CAP_DEFAULT) set('--cap-stroke', `${T.cap_stroke_w ?? (CAP_DEFAULT ? 7 : 6)}px ${T.cap_stroke || '#050C24'}`);
+  if (T.cap_shadow || CAP_DEFAULT) set('--cap-shadow', T.cap_shadow || '0 6px 18px rgba(0,0,0,.55)');
   if (T.cap_emphasis) set('--cap-em', T.cap_emphasis);
   if (T.quote_font) set('--q-font', JSON.stringify(T.quote_font));
   set('--q-weight', T.quote_weight); set('--q-lh', T.quote_lh); set('--q-track', T.quote_track);
@@ -142,15 +155,16 @@ if (D.theme) { const T = D.theme, st = document.documentElement.style;
   if (T.pill_font || T.hook_font) set('--pill-font', `${JSON.stringify(T.pill_font || T.hook_font)}, Inter, sans-serif`);
   if (T.hook_size) set('--pill-size', T.hook_size + 'px'); if (T.hook_em) set('--pill-em', T.hook_em); set('--pill-shadow', T.hook_shadow); }
 // film look: a grade on footage and photos, grain, a vignette, soft-focus cuts; graphics stay clean
-const TH0 = D.theme || {}, LOOK = {grade: TH0.grade || '', grain: TH0.grain || 0, vignette: !!TH0.vignette, transition: TH0.transition || null};
+const LOOK = {grade: TH0.grade || '', grain: TH0.grain || 0, vignette: !!TH0.vignette, transition: TH0.transition || null};
 const KIN = TH0.cap_style === 'kinetic', CIRCLE = TH0.quote_mark === 'circle';
 const FULLCUT = TH0.cutaway === 'full';   // in 9x16 too, visuals and graphics take the whole frame
 // the quote face is hidden until its moment, so ask for it now: the capture waits for fonts before the first frame
 if ((D.quotes || []).length) document.fonts.load(`${TH0.quote_weight || 400} 40px ${JSON.stringify(TH0.quote_font || 'Anton')}`);
 if (KIN) { document.fonts.load(`40px ${JSON.stringify(TH0.cap_font)}`); document.fonts.load(`italic 40px ${JSON.stringify(TH0.cap_font)}`); }
 if (TH0.pill_font || TH0.hook_font) document.fonts.load(`italic ${TH0.hook_weight || 400} 40px ${JSON.stringify(TH0.pill_font || TH0.hook_font)}`);
+document.fonts.load(`${TH0.cap_weight || 900} 40px ${JSON.stringify(TH0.cap_font || (CAP_DEFAULT ? 'ZingCaption' : 'Inter'))}`);
 // caption timing and position; y (center as a fraction of the height) applies where the speaker fills the frame
-const CAP = {words: 3, chars: 16, pop_ms: 120, pop_from: .88, overshoot: true, y: null};
+const CAP = {words: 4, chars: 18, pop_ms: 120, pop_from: .88, overshoot: true, y: null};
 for (const [k, f] of Object.entries({words: 'cap_words', chars: 'cap_chars', pop_ms: 'cap_pop_ms', pop_from: 'cap_pop_from',
                                      overshoot: 'cap_pop_overshoot', y: 'cap_y'}))
   if (D.theme && D.theme[f] != null) CAP[k] = D.theme[f];
@@ -169,12 +183,32 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':
 const norm = w => w.toLowerCase().replace(/[^a-z0-9']/g, '');
 const EMPH = D.theme && D.theme.cap_emphasis ? new Set([...(D.hookHtml || '').matchAll(/<b>([^<]+)<\/b>/g)]
   .flatMap(m => m[1].split(/\s+/).map(norm)).filter(Boolean)) : null;
-// caption groups: <=CAP.words words, break after punctuation or CAP.chars characters
 const inQuote = j => (D.quotes || []).some(q => j >= q.a && j <= q.b);   // the quote already showed these words
-const groups = []; { let g = [];
-  W.forEach((w,i) => { g.push(i); const len = g.map(j=>W[j].w).join(' ').length;
-    if (g.length>=CAP.words || /[.,?!;:]$/.test(w.w) || len>CAP.chars) { groups.push(g); g=[]; } });
-  if (g.length) groups.push(g); }
+function captionGroups(words, limits) {
+  const norm = w => w.toLowerCase().replace(/[^a-z0-9']/g, '');
+  const link = new Set('to of in on at for with from by about into and or but so because if that'.split(' '));
+  const weak = new Set([...link, ...'a an the my your our their his her its this these those some any every each no very just is are was were be been will would can could do does did have has had i we you they he she it'.split(' ')]);
+  const n = words.length, end = words.map((w, i) => i === n-1 || /[.,?!;:]["'”’)]*$/.test(w.w) || words[i+1].os - w.oe >= .3 - 1e-6);
+  const cost = Array(n+1).fill(Infinity), next = Array(n); cost[n] = 0;
+  for (let a=n-1; a>=0; a--) {
+    let chars = 0;
+    for (let b=a; b<n && b<a+Math.max(1, limits.words); b++) {
+      chars += words[b].w.length + (b>a ? 1 : 0);
+      if (b>a && chars>limits.chars) break;
+      const count = b-a+1, word = norm(words[b].w), isolated = (a===0 || end[a-1]) && end[b];
+      let score = cost[b+1] + 10 + Math.abs(3-count);
+      if (!end[b] && weak.has(word)) score += 10000;   // explicit limits can force a split inside a phrase
+      if (count === 1 && !isolated) score += word.length >= 7 || /\d/.test(word) ? 12 : 100;
+      if (!end[b] && !link.has(norm(words[b+1].w))) score += 3;
+      if (score < cost[a]) { cost[a] = score; next[a] = b+1; }
+      if (end[b]) break;
+    }
+  }
+  const groups = [];
+  for (let a=0; a<n; a=next[a]) groups.push(Array.from({length:next[a]-a}, (_, i) => a+i));
+  return groups;
+}
+const groups = captionGroups(W, CAP), capSizes = new Map();
 // kinetic captions set one word of each line large: a number, or the longest word that carries weight
 const STOP = new Set('about after again against because before being between could doesn every their there these those through under until where which while would should really things thing going people'.split(' '));
 const keyOf = grp => { let best = -1, len = 4;
@@ -209,14 +243,18 @@ function contain(img, iw, ih, bw, bh) {
 }
 
 // ---- graphics ----
+function listLayout(n) {
+  const step = Math.min(160, 476/Math.max(1,n-1)), h = 96 + 88 + Math.max(0,n-1)*step, top = (960-h)/2;
+  return {title: top, items: Array.from({length:n}, (_, i) => top+96+i*step)};
+}
 function drawGraphic(g, t, el) {
   const k = g.kind;
   if (el.dataset.id !== g.id) {
     el.dataset.id = g.id;
     if (k === 'counter') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div><div class="g-num" style="top:300px"></div><div class="g-lab" style="top:560px">${esc(g.label||'')}</div>`;
     if (k === 'list') { const n = g.items.length, longest = Math.max(...g.items.map(it => it.text.length));
-      const fs = Math.min(66, n >= 4 ? 56 : 66, Math.floor(1500 / Math.max(14, longest)));
-      el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${230+i*(600/Math.max(3,n))}px;font-size:${fs}px;white-space:nowrap"><i>${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
+      const fs = Math.min(64, Math.floor(1500 / Math.max(14, longest))), pos = listLayout(n);
+      el.innerHTML = `<div class="g-title" style="top:${pos.title}px">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${pos.items[i]}px;right:90px;font-size:${fs}px;white-space:nowrap"><i>${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
     if (k === 'title') { const m = String(g.text||'').match(/^(.*?)\*([^*]+)\*(.*)$/), name = m ? m[2] : String(g.text||''), intro = m ? (m[1]+m[3]).trim() : '';
       el.innerHTML = `<div class="g-intro">${esc(intro)}</div><div class="g-name" style="font-size:${Math.min(190, Math.floor(1900/Math.max(6, name.length)))}px">${esc(name)}</div>`; }
     if (k === 'endcard') el.innerHTML = (D.logo ? `<img class="g-logo" src="${esc(D.logo.src)}" style="top:${260-Math.min(D.logo.h,200)}px;height:${Math.min(D.logo.h,200)}px">` : '')
@@ -244,7 +282,7 @@ function drawGraphic(g, t, el) {
     e.style.opacity = x; e.style.transform = `translateY(${(1-x)*22}px)`; });
   if (k === 'list') el.querySelectorAll('.g-item').forEach((it,i) => {
     const p = easeOut(lin(t, g.items[i].at ?? (t0+i*.6), (g.items[i].at ?? (t0+i*.6))+.4));
-    it.style.opacity = p; it.style.transform = `translateX(${(1-p)*60}px)`;
+    it.style.opacity = p;
   });
   if (k === 'funnel') {
     const nums = g.rows.map(r => r.value), scale = Math.min(...nums) > 0 ? Math.log : v => v;
@@ -267,6 +305,7 @@ function drawGraphic(g, t, el) {
 // Geometry per delivery shape. 9x16 keeps the split (visual or graphic on top, speaker below);
 // 1x1 and 16x9 cut away: the visual or graphic takes the whole frame while the speaker keeps talking.
 const SW = D.W || 1080, SH9 = D.H || 1920, ASPECT = D.aspect || '9x16';
+document.documentElement.dataset.aspect = ASPECT;
 document.documentElement.style.width = document.body.style.width = SW + 'px';
 document.documentElement.style.height = document.body.style.height = SH9 + 'px';
 // headline panel: a solid strip (bottom) holding a brand row and the hook as a standing headline; the clip plays above
@@ -291,6 +330,16 @@ function fitQuote(el, w, h) {    // the largest size at which the whole quote fi
   do { el.style.fontSize = size + 'px'; size -= 3; }
   while ((el.offsetHeight > h || [...el.querySelectorAll('.qw,.mkg')].some(q => q.offsetWidth > w)) && size > 30);
 }
+function fitCaption(box, gi) {
+  if (!capSizes.has(gi)) {
+    const stroke = TH0.cap_stroke_w ?? (CAP_DEFAULT ? 7 : 0);
+    const room = (SW*5/6 - stroke*2) / (Math.max(1, CAP_SCALE) * (CAP.overshoot ? 1.03 : 1) * Math.max(1, CAP.pop_from));
+    let size = CAP_SIZE; box.style.fontSize = size + 'px';
+    while (box.offsetWidth > room && size > 1) { size--; box.style.fontSize = size + 'px'; }
+    capSizes.set(gi, size);
+  }
+  box.style.fontSize = capSizes.get(gi) + 'px';
+}
 function geometry(layout) {
   if (layout === 'quote') return {spk: {x:0, y:0, w:SW, h:STAGE_H}, hook: PANEL ? 'panel' : 'none'};   // the speaker, full stage
   if (layout === 'front') {    // the picture fills the stage; the speaker, cut out, stands in front: rising from the
@@ -302,7 +351,7 @@ function geometry(layout) {
     return {...S, top: box, win, spk, front: true, hook: S.hook === 'panel' ? 'panel' : 'pill', pill: S.pill};
   }
   if (PANEL) {                 // the clip plays above the panel, cutting to full-width visuals and graphics
-    const stage = {x:0, y:0, w:SW, h:STAGE_H}, cap = CAP.y ? Math.round(CAP.y*SH9) : STAGE_H - 150;
+    const stage = {x:0, y:0, w:SW, h:STAGE_H}, cap = CAP.y != null ? Math.round(CAP.y*SH9) : STAGE_H - 150;
     return layout === 'solo' ? {spk: stage, cap, hook:'panel', pill:56} : {[layout==='split'?'top':'gfx']: stage, cap, hook:'panel', pill:56};
   }
   const full = {x:0, y:0, w:SW, h:SH9};
@@ -310,14 +359,14 @@ function geometry(layout) {
     // pack layout: which half the speaker takes in a split, where the seam sits, a full-bleed solo speaker,
     // and whether the hook stays up as a header (defaults are the Zing look)
     const L = D.theme || {}, seam = Math.round((L.seam || .5) * SH9), hook = L.hook_header === false || L.solo_fill ? 'pill' : 'header';  // a full-bleed speaker leaves no room for a header
-    if (FULLCUT && layout !== 'solo') return {[layout==='split'?'top':'gfx']: full, cap: CAP.y ? Math.round(CAP.y*SH9) : 1610, hook, pill:790};
-    if (layout === 'solo') return {spk: L.solo_fill ? full : {x:0,y:400,w:1080,h:1180},
-                                   cap: CAP.y ? Math.round(CAP.y*SH9) : 1610, hook, pill:790};
+    const cap = CAP.y != null ? Math.round(CAP.y*SH9) : 1340;
+    if (FULLCUT && layout !== 'solo') return {[layout==='split'?'top':'gfx']: full, cap, hook, pill:790};
+    if (layout === 'solo') return {spk: L.solo_fill ? full : {x:0,y:400,w:SW,h:SH9-400}, cap, hook, pill:790};
     const upper = {x:0,y:0,w:1080,h:seam}, lower = {x:0,y:seam,w:1080,h:SH9-seam}, vis = layout==='split'?'top':'gfx';
-    return L.split === 'speaker-top' ? {spk:upper, [vis]:lower, cap:seam-36, hook:'pill', pill:790}
-                                     : {spk:lower, [vis]:upper, cap:seam-36, hook:'pill', pill:790};
+    return L.split === 'speaker-top' ? {spk:upper, [vis]:lower, cap:seam, hook:'pill', pill:790}
+                                     : {spk:lower, [vis]:upper, cap:seam, hook:'pill', pill:790};
   }
-  const cap = CAP.y ? Math.round(CAP.y*SH9) : SH9 - 180, pill = 56;
+  const cap = CAP.y != null ? Math.round(CAP.y*SH9) : SH9 - 180, pill = 56;
   if (layout === 'solo') return {spk:full, cap, hook:'pill', pill};
   return {[layout==='split'?'top':'gfx']:full, cap, hook:'pill', pill};
 }
@@ -459,10 +508,14 @@ window.seek = async function(t) {
   const hook = $('hook'), pill = $('pill');
   if (PANEL && !panelFit) fitPanel();
   if (G.hook === 'panel' || G.hook === 'none') { hook.style.opacity = 0; pill.style.opacity = 0; }
-  else if (G.hook === 'header') { hook.style.top = '130px'; hook.innerHTML = `<div>${D.hookHtml}</div>`; hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
+  else if (G.hook === 'header') { hook.style.top = '150px'; hook.innerHTML = `<div>${D.hookHtml}</div>`;
+    let size = 74; hook.style.fontSize = size + 'px';
+    while ((hook.scrollHeight > 240 || hook.scrollWidth > 900) && size > 1) hook.style.fontSize = --size + 'px';
+    hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
   else { hook.style.opacity = 0; pill.firstChild.innerHTML = D.hookHtml; pill.style.opacity = hookOn ? hp : 0;
          let py = G.pill; const h = pill.offsetHeight;
          if (cbox && py + h > cbox.y0 && py < cbox.y1) py = cbox.y0 - h - 32 >= 100 ? Math.round(cbox.y0 - h - 32) : Math.round(cbox.y1 + 32);
+         if (ASPECT === '9x16') py = clamp(py, 150 + h*.02, 1440 - h*1.02);
          pill.style.top = py+'px';
          pill.style.transform = `scale(${mix(.85,1,back(lin(t,0,.35)))})`; }
 
@@ -470,7 +523,7 @@ window.seek = async function(t) {
   const qel = $('quote'), dim = $('dim');
   if (Q) {
     const S = G.spk, tall = ASPECT === '9x16' && !PANEL;
-    const w = Math.min(SW*.85, S.h*1.25), h = S.h*(tall ? .4 : .58);
+    const w = Math.min(SW*(ASPECT === '9x16' ? 5/6 : .85), S.h*1.25), h = S.h*(tall ? .4 : .58);
     if (qel.dataset.q !== String(Q.a)) {
       qel.dataset.q = Q.a; qel.style.display = 'block'; qel.style.width = w + 'px';
       const word = (x, k, cls) => `<span class="qw${cls}">${esc(Q.a+k === Q.b ? x.w.replace(/[,;:]$/, '') : x.w)}</span>`;
@@ -488,7 +541,10 @@ window.seek = async function(t) {
     }
     const out = lin(t, Q.to-.3, Q.to);
     place(dim, S); dim.style.opacity = easeOut(lin(t, Q.from, Q.from+.3)) * (1-out);
-    qel.style.display = 'block'; qel.style.left = (SW-w)/2 + 'px'; qel.style.top = (S.y + S.h*(tall ? .64 : .54)) + 'px';
+    qel.style.display = 'block'; qel.style.left = (SW-w)/2 + 'px';
+    let qy = S.y + S.h*(tall ? .64 : .54);
+    if (ASPECT === '9x16') qy = clamp(qy, 174 + qel.offsetHeight/2, 1440 - qel.offsetHeight/2);
+    qel.style.top = qy + 'px';
     qel.style.opacity = 1-out; qel.style.transform = `translateY(-50%) translateY(${-out*24}px) scale(${1-.04*out})`;
     qel.firstChild.style.transform = `scale(${back(lin(t, Q.from, Q.from+.35))})`;
     qel.querySelectorAll('.qw').forEach((el, k) => {
@@ -507,8 +563,9 @@ window.seek = async function(t) {
   if (LB && LB.name && tin < 3.4 && !Q) { const x = easeOut(lin(tin, .15, .5)) * (1 - lin(tin, 3.0, 3.4));
     lab.style.display = 'block'; lab.querySelector('.n').textContent = LB.name; lab.querySelector('.r').textContent = LB.role || '';
     lab.querySelector('.r').style.display = LB.role ? '' : 'none';
-    lab.style.left = (ASPECT === '16x9' ? 90 : 60) + 'px'; lab.style.top = (G.cap - (ASPECT === '9x16' ? 230 : 190)) + 'px';
-    lab.style.opacity = x; lab.style.transform = `translateX(${(1-x)*-30}px)`; }
+    lab.style.left = (ASPECT === '1x1' || ASPECT === '4x5' ? 60 : 90) + 'px';
+    lab.style.top = (ASPECT === '9x16' ? clamp(G.cap-230, 150, 1416-lab.offsetHeight) : G.cap-190) + 'px';
+    lab.style.opacity = x; lab.style.transform = ASPECT === '9x16' ? `translateY(${(1-x)*24}px)` : `translateX(${(1-x)*-30}px)`; }
   else lab.style.display = 'none';
 
   // captions
@@ -522,10 +579,14 @@ window.seek = async function(t) {
     box.innerHTML = grp.map(j => { const w = W[j], on = w.os <= t+.02 && t < (W[j+1]?.os ?? w.oe+.3);
       const em = !on && EMPH && (EMPH.has(norm(w.w)) || /\d/.test(w.w));
       return `<span class="${on?'on':em?'em':''}">${esc(w.w.replace(/[,;:]$/,''))}</span>`; }).join(' ');
-    const centered = CAP.y && (layout === 'solo' || ASPECT !== '9x16' || PANEL || FULLCUT);
+    if (CAP_SCALE > 1) { const fs = parseFloat(box.style.fontSize) || CAP_SIZE;   // room for the active word's scale, so it never eats a space
+      for (const s of box.children || []) s.style.margin = `0 ${((CAP_SCALE - 1) / 2 * (s.offsetWidth || 0) / fs).toFixed(3)}em`; }
+    if (CAP_DEFAULT || TH0.cap_font === 'ZingCaption') fitCaption(box, gi);
+    const centered = ASPECT === '9x16' || CAP.y != null;
     let cy = G.cap;
     if (cbox) { const h = cap.offsetHeight, top = centered ? cy - h/2 : cy;
       if (top + h > cbox.y0 - 16 && top < cbox.y1 + 16) cy = Math.min(SH9 - 90 - (centered ? h/2 : h), Math.round(cbox.y1 + 36 + (centered ? h/2 : 0))); }
+    if (ASPECT === '9x16' && CAP.y == null) cy = clamp(cy, 150 + cap.offsetHeight*.55, 1440 - cap.offsetHeight*.55);
     cap.style.top = cy + 'px';
     cap.style.opacity = visible ? 1 : 0;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);

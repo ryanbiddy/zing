@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Group factory captions by phrase and pause. Give Zing larger outlined type, keep
+  default portrait captions above phone controls, and center list reveals.
+
 ## 1.0.0rc1
 
 Release candidate for Zing v1. These notes cover merged PRs #401 through #557
