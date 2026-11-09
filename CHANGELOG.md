@@ -4,6 +4,8 @@
 
 - Lead `zing explain --against` with measured differences and editing actions in
   the terminal, Markdown and phone card. Keep the same rows in JSON.
+- Keep factory captions clear of faces. Limit extra webcam zoom to keep 300 source
+  pixels of height.
 - `zing factory serve` names an unavailable port and suggests `--port 0` instead of a raw
   socket error.
 - Let moment suggestions cross sentence pauses under two seconds. Match and
