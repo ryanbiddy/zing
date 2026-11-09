@@ -398,8 +398,8 @@ window.seek = async function(t) {
       const want = BH / (cam.fh*ih*3.2), base = Math.max(BW/iw, BH/ih);
       const z = clamp(want/base, 1, cam.wide ? 1.4 : 2.2) * (1 + .05*easeInOut(lin(t, cam.from, cam.to))) * lean;
       cover(body, iw, ih, BW, BH, z, cam.cx, clamp(cam.cy+.06,0,1), D.burnTop);
-    } else if (cam.mode === 'wide' && cam.faces > 1) contain(body, iw, ih, BW, BH);   // a real group shot: show everyone
-    else cover(body, iw, ih, BW, BH, lean, .5, .38, D.burnTop);                       // no face found: crop the middle, never letterbox
+    } else if (cam.text || (cam.mode === 'wide' && cam.faces > 1)) contain(body, iw, ih, BW, BH);   // keep the whole card or group
+    else cover(body, iw, ih, BW, BH, lean, .5, .38, D.burnTop);
     if (G.front) {             // the frame, kept only where its matte says the speaker is
       if (body.width !== iw) { body.width = iw; body.height = ih; }
       const c = body.getContext('2d');

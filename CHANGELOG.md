@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Keep review headers compact with expandable network details, report edited plan hooks in status, and block known analytics hosts during page captures.
+- Keep text cards and slides whole in factory shots without faces when local OCR
+  finds text the crop would cut.
 - Add a long episode path to `zing studio` with transcript suggestions,
   factory review, resume and an MCP hand-off. Give Uoink connection failures
   a startup hint instead of a contract update hint.
