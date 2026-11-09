@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Lead `zing explain --against` with measured differences and editing actions in
+  the terminal, Markdown and phone card. Keep the same rows in JSON.
 - Let moment suggestions cross sentence pauses under two seconds. Match and
   Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
   to choose by hand and `moments --project DIR` to find a match project's studies.

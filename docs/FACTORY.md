@@ -848,6 +848,10 @@ frames above ours.
 Everything is measured from pixels. The original font, project and settings stay
 unknown, and the closest bundled font is reported with its similarity.
 
+Use `zing explain reference.mp4 --against draft.mp4 --out card` to compare a draft.
+The terminal and both readable cards start with the measured differences and an
+action for each section. See [Compare a draft](EXPLAIN.md#compare-a-draft).
+
 ## Briefs, drafts and reference profiles
 
 - `zing brief new` checks `--short-side` before saving. A rejected value leaves
