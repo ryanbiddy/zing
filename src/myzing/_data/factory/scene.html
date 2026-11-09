@@ -121,7 +121,7 @@ html[data-aspect="9x16"] #label .n,html[data-aspect="9x16"] #label .r{white-spac
 const D = window.DATA, FPS = D.fps, W = D.words;
 const TH0 = D.theme || {}, CAP_DEFAULT = TH0.cap_bg == null;
 const CAP_SIZE = TH0.cap_size || CAP_DEFAULT
-  ? Math.round((TH0.cap_size || 78) * (TH0.learned ? (D.H || 1920)/1920 : (D.W || 1080)/1080)) : 54;
+  ? Math.round((TH0.cap_size || 78) * (TH0.learned ? (D.H || 1920)/1920 : Math.min(D.W || 1080, D.H || 1920)/1080)) : 54;   // the short side: 16x9 is not 1.8x bigger
 const CAP_SCALE = TH0.cap_scale ?? (CAP_DEFAULT ? 1.06 : 1);
 window.packFonts = (D.fonts || []).map(f => {
   const face = new FontFace(f.family, `url(${JSON.stringify(f.src)})`, {weight: String(f.weight), style: f.style});
@@ -250,7 +250,7 @@ function faceCrop(cam, b, t, lean=1) {
   let z = clamp(want/base, 1, limit);
   const r = at(z);
   const move = (1 + .05*easeInOut(lin(t, cam.from, cam.to))) * lean;
-  if (center(r) > b.h*.5) {
+  if ((D.aspect || '9x16') === '9x16' && center(r) > b.h*.5) {   // landscape and square frames already show the room
     const cap = Math.max(1, Math.min(limit, b.h/(300*base)));   // keep webcam crops sharp
     let lo = Math.min(z, cap), hi = cap;
     for (let i=0; i<20; i++) { const mid = (lo+hi)/2;
@@ -406,6 +406,7 @@ function captionBase(G, cbox, h, centered) {
   return ASPECT === '9x16' && CAP.y == null ? clamp(cy, 150+h*.55, 1440-h*.55) : cy;
 }
 function captionY(gi, cy, cap, box, centered) {
+  if (ASPECT !== '9x16' && CAP.y == null) return cy;   // wider shapes keep default subtitles at the bottom, over the chest
   if (capPositions.has(gi)) return capPositions.get(gi);
   const a = Math.max(0, W[groups[gi][0]].os-.02), b = Math.min(D.duration,
     gi+1 < groups.length ? W[groups[gi+1][0]].os-.02 : W[W.length-1].oe+.3);
