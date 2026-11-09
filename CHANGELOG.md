@@ -4,6 +4,7 @@
 
 - Group factory captions by phrase and pause. Give Zing larger outlined type, keep
   default portrait captions above phone controls, and center list reveals.
+- Keep review headers compact with expandable network details, report edited plan hooks in status, and block known analytics hosts during page captures.
 - Keep text cards and slides whole in factory shots without faces when local OCR
   finds text the crop would cut.
 - Add a long episode path to `zing studio` with transcript suggestions,
