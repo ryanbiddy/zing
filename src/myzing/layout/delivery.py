@@ -9,7 +9,17 @@ from .framing import place_captions, select_framing
 
 def adapt_plan(composition, width, height, source_dimensions, subjects, *, requested="auto",
                max_upscale=2.5, cuts=None, pictures=None):
+    import json
+    from myzing.director.plans import REPORT_PREFIX
+    from myzing.layout.face_size import FACE_SIZE_NOTES, match_face_framing
+    from myzing.style_recipe import MeasuredFact, reference_face_share
     plan = deepcopy(composition)
+    evidence = next((json.loads(w[len(REPORT_PREFIX):]) for w in plan.warnings
+                     if w.startswith(REPORT_PREFIX)), {})
+    face_target = (reference_face_share(MeasuredFact.from_dict(f) for f in evidence.get("recipe_facts", []))
+                   if requested == "auto" else None)
+    if any(c.framing and c.framing.face_match for c in plan.clips):
+        plan.warnings = [w for w in plan.warnings if not w.startswith(FACE_SIZE_NOTES)]
     old_short = min(plan.width, plan.height)
     plan.width, plan.height = width, height
     plan.accepted_unsafe_layouts = []  # Acceptance of the old geometry cannot transfer.
@@ -49,6 +59,9 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
                                           part, subjects.get(clip.asset_id, []), max_upscale=max_upscale, fps=rate,
                                           speech_words=plan.speech_words, picture=(pictures or {}).get(clip.asset_id),
                                           policy=plan.brief.picture_crop if plan.brief else "auto")
+            if face_target is not None and part.framing is not None:
+                part.framing = match_face_framing(part.framing, part, subjects.get(clip.asset_id, []),
+                    width, height, face_target, fps=rate, speech_words=plan.speech_words)
             safety = (clip.framing.picture if clip.framing else {}).get("text_safety", {})
             if safety.get("samples"):
                 from .text_safety import protect_text
@@ -56,6 +69,8 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
                 part.framing = protect_text(part.framing, part, geometry, requested, width, height)
             clips.append(part)
     plan.clips = clips
+    plan.warnings.extend(w for c in clips if c.framing for w in c.framing.warnings
+                         if w.startswith(FACE_SIZE_NOTES))
     preset = next((c.preset for c in plan.captions if c.preset), None)
     if preset:
         from myzing.captions.presets import apply_preset
@@ -68,10 +83,6 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
         place_captions(plan, subjects, source_dimensions)
     # Delivery rebuilds reference geometry and can change the crop even when
     # the requested aspect matches the director. Recheck CLIPQ2 evidence here.
-    import json
-    from myzing.director.plans import REPORT_PREFIX
-    evidence = next((json.loads(w[len(REPORT_PREFIX):]) for w in plan.warnings
-                     if w.startswith(REPORT_PREFIX)), {})
     if "vertical_quality" in evidence or "caption_band" in evidence:
         from myzing.captions.bands import place as place_bands
         from myzing.director.vertical_quality import VerticalQuality

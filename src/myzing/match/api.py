@@ -248,6 +248,8 @@ def _recipe(studied, audio, colors, path, *, color_mode="source"):
         b, reference_sha256=b.provenance["source_sha256"], font_candidates=candidates, text_roles=roles,
         audio=AudioMap.from_dict(read(audio["path"])) if audio.get("path") else None, color=color,
     )
+    from myzing.style_recipe import add_face_framing
+    add_face_framing(recipe, geometry)
     # Clip-fitted corrections are not a reusable LUT for arbitrary footage.
     recipe.approximations.looks = []
     recipe.color_mode = color_mode
@@ -515,7 +517,7 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             summary["warnings"].append('Color extra unavailable; footage is ungraded and color is unmeasured. Install "myzing[color]".')
         ref_audio = checkpoints.step("reference-audio", [resolved["sha256"], projects.hash_file(Path(ref_study["path"])), caps, "audio-2.5-longform"],
                                      lambda: _audio(ref_study, caps["audio"]))
-        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, color, "clip-quality-r1"],
+        recipe_result = checkpoints.step("style-recipe", [ref_study, ref_audio, colors, caps, color, "clip-quality-r1", "reference-face-size-v1"],
                                           lambda: _recipe(ref_study, ref_audio, colors, root / "recipe.json", color_mode=color))
         roots = previous_roots(root)
         recipe = StyleRecipe.from_dict(map_paths(read(recipe_result["path"]), lambda p: relocate(p, root, roots)))

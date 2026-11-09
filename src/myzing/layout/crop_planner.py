@@ -264,7 +264,7 @@ def track_framing(framing, clip, tracks, speech_words=(), *, fps=30, follow_spea
                    warnings=warnings, speaker_turns=turns)
 
 
-def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
+def _assess(candidate, width, height, clip, tracks, fps, evidence=None, *, face_match=False):
     """Coverage = fully contained face/head track-time / observed track-time.
 
     Sample at output fps, interpolate boxes in source time, and count each
@@ -324,10 +324,12 @@ def _assess(candidate, width, height, clip, tracks, fps, evidence=None):
     if scale > candidate.max_upscale + 1e-9:
         reasons.append(f"crop enlargement {scale:.3f}x exceeds {candidate.max_upscale:g}x")
     if not full_picture:
-        if area < .30:
+        if not face_match and area < .30:
             reasons.append(f"retained area {area:.1%} is below 30%")
-        if candidate.height / sh < .60:
+        if not face_match and candidate.height / sh < .60:
             reasons.append(f"retained source height {candidate.height / sh:.1%} is below 60%")
+        if face_match and candidate.height < max(640, math.ceil(.55 * sh)):
+            reasons.append("reference face crop is below the source height floor")
         if observed and coverage < .98:
             reasons.append(f"tracked-subject coverage {coverage:.1%} is below 98% (subject outside crop)")
         if fallback_coverage < .98:

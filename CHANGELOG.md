@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Tighten automatic 9:16 match crops toward measured reference face size within
+  source-resolution limits. Record the reached size in plans and match reports.
 - Keep match projects resumable after a move or copy. Reuse finished steps and
   read studies from the current project, including projects saved with absolute paths.
 - Lead `zing explain --against` with measured differences and editing actions in

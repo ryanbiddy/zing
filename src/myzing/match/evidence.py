@@ -201,6 +201,10 @@ def report(recipe, rendered, geometry, color, verification, plan, audio_measurem
                 (audio_measurements or {}).get("music_integrated", {}).get("integrated_lufs"), 3,
                 "Isolated music stem before final peak limiting; music-led planning target -16 LUFS.")
     return {"version": 1, "color_mode": recipe.color_mode, "scope": "Rendered measurements and mapped source-study cuts; no release certification.",
+            **({"face_size": {"basis": "Planned visible face height from source tracks, not a rendered measurement.",
+                              "clips": [{"clip_id": c.id, **c.framing.face_match.to_dict()} for c in plan.clips
+                                        if c.framing and c.framing.face_match]}}
+               if any(c.framing and c.framing.face_match for c in plan.clips) else {}),
             "music": planning.get("music"), "audio_measurements": audio_measurements,
             "search_windows": planning.get("search_windows", {}),
             "vertical_quality": planning.get("vertical_quality", {}),

@@ -170,8 +170,9 @@ def plan_drafts(project: str | Path, recipe: str | Path, out: str | Path, *, see
                 stream = next((s for s in probe.streams if s.get("codec_type") == "video"), {})
                 sizes[asset.id] = display_dimensions({"width": probe.width, "height": probe.height,
                                                      "tags": {"rotate": probe.rotation}, **stream})
+        from myzing.style_recipe import reference_face_share
         vertical = VerticalQuality(clips, subject_evidence, sizes, brief,
-                                   pool + initial_pool, required)
+                                   pool + initial_pool, required, reference_face_share(style_recipe.measured))
         pool, wide_exclusions = vertical.filter(pool, clips, required)
         initial_pool, _ = vertical.filter(initial_pool, clips, initial_required)
         for key, spans in wide_exclusions.items():

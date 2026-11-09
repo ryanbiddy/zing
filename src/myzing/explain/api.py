@@ -196,6 +196,8 @@ def _measure(source, out, *, transitions, allow_download=False, **trim):
                     [f"Sampled similarity {candidate['score']:.3f}; substitute, original font unknown."],
                     FontAsset(asset["path"], asset["sha256"], asset["license"])))
     recipe = build_style_recipe(b, reference_sha256=sha, audio=audio, text_roles=roles, font_candidates=font_choices)
+    from myzing.style_recipe import add_face_framing
+    add_face_framing(recipe, geometry)
     stats = sections["captions"].facts.get("caption_geometry_summary")
     if stats:
         recipe.measured.append(MeasuredFact("caption_geometry.summary", stats, "normalized frame edges",

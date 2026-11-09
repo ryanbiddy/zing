@@ -1,71 +1,20 @@
 """Vertical editorial gates from existing face tracks, never a new detector."""
 
 from dataclasses import replace
-from math import ceil
 from functools import lru_cache
 
 from myzing.composition import CompositionClip
 from myzing.composition.aspects import dimensions
 from myzing.layout.caption_safety import is_face
-from myzing.layout.crop_planner import _hold_turn, _primary_faces, select_framing
-from myzing.layout.framing import visible_content
-from myzing.layout.types import box_at
+from myzing.layout.crop_planner import select_framing
+from myzing.layout.face_size import face_share, match_face_framing, measurements
 
 from .selection import EPS, merge, overlaps, subtract
 from .visual_quality import filter_candidates
 
 
-def face_share(box, framing, time, width, height):
-    """Visible face height without the caption-safety mapper's 2 px padding."""
-    content = visible_content(framing, width, height)
-    if framing.mode in ('fit', 'blurfill'):
-        if not framing.picture:
-            return box.height * content.height
-        crop = framing.bounds
-        x, y, cw, ch = crop.x, crop.y, crop.width, crop.height
-    else:
-        cx, cy = framing.center_at(time)
-        cw, ch = framing.width, framing.height
-        x, y = cx-cw/2, cy-ch/2
-    if min(x+cw,box.right*framing.source_width) <= max(x,box.x*framing.source_width):
-        return 0.
-    visible = max(0., min(y+ch,box.bottom*framing.source_height)-max(y,box.y*framing.source_height))
-    return visible/ch*content.height
-
-
-def measurements(clip, framing, tracks, width, height):
-    """30 Hz interpolation of existing geometry; identity is never inferred here.
-
-    Honor a speaker-held track, otherwise use the crop planner's dominant-face
-    rule. Equal competitors must all qualify; an offscreen face counts as zero.
-    The scale test is the enlargement *needed for* 10% height, not delivery scale.
-    """
-    faces = [t for t in tracks if is_face(t)]
-    rows = []
-    for i in range(ceil(clip.duration * 30)):
-        local = i / 30
-        source = clip.source_at(clip.timeline_start + local)
-        active = [t for t in faces if t.keyframes[0].time - EPS <= source <= t.keyframes[-1].time + EPS]
-        turn = _hold_turn(framing.speaker_turns, local)
-        if turn and turn.face_track_id:
-            selected = [t for t in active if t.id == turn.face_track_id]
-        else:
-            selected = _primary_faces(active, source)
-        shares, scales = [], []
-        for track in selected:
-            box = box_at(track.keyframes, source)
-            shares.append(face_share(box, framing, local, width, height))
-            scales.append(.10 * height / (box.height * framing.source_height))
-        share, scale = min(shares, default=0.), max(scales, default=0.)
-        rows.append({"start": source, "end": clip.source_at(clip.timeline_start + min(clip.duration, local + 1/30)),
-                     "face_height_share": share, "required_enlargement": scale if selected else None,
-                     "bad": not selected or share < .10 - EPS or scale > framing.max_upscale + EPS,
-                     "close": bool(selected) and share >= .15 - EPS and scale * 1.5 <= framing.max_upscale + EPS})
-    return rows
-
-
 class VerticalQuality:
-    def __init__(self, studies, subjects, sizes, brief, pool, required):
+    def __init__(self, studies, subjects, sizes, brief, pool, required, reference_share=None):
         self.rows, self.actions, self.warnings = {}, [], []
         self.required = required
         self.protected_required = list(required)
@@ -88,6 +37,8 @@ class VerticalQuality:
                     clip = CompositionClip(study.path, start, end, 0, id='quality', asset_id=study.asset_id)
                     framing = select_framing(brief.framing, *sizes[study.asset_id], width, height,
                                              clip, tracks, max_upscale=brief.framing_max_upscale)
+                    if brief.framing == "auto" and reference_share is not None:
+                        framing = match_face_framing(framing, clip, tracks, width, height, reference_share)
                     rows.extend(measurements(clip, framing, tracks, width, height))
             self.rows[study.asset_id] = rows
 

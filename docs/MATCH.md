@@ -57,6 +57,12 @@ measures audio, saves the brief, and asks the existing director for A/B/C.
 It renders with the public v2 API, fully decodes each output, studies the rendered
 file again, and writes a timeline PNG and match report.
 
+Automatic 9:16 drafts use measured reference face size to tighten face-tracked
+crops. Added zoom keeps at least 640 source rows or 55% of source height, whichever
+is larger, and stays within `framing_max_upscale`. Plans and match reports give
+the reached face size and any limit. Missing measurements, other aspects and
+explicit framing choices keep their existing behavior. See [framing](FRAMING.md).
+
 Outputs in the project folder:
 
 - `recipe.json`, `brief.json`, `project.json` and `match-state.json`.

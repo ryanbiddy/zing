@@ -416,6 +416,37 @@
       ],
       "type": "object"
     },
+    "myzing_composition_framing_FaceSizeMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "limited_by": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reached_share": {
+          "type": "number"
+        },
+        "reference_share": {
+          "type": "number"
+        },
+        "source_height_floor": {
+          "type": "integer"
+        },
+        "version": {
+          "const": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reference_share",
+        "reached_share",
+        "source_height_floor",
+        "version"
+      ],
+      "type": "object"
+    },
     "myzing_composition_framing_Framing": {
       "additionalProperties": false,
       "properties": {
@@ -440,6 +471,16 @@
           "maximum": 1,
           "minimum": 0,
           "type": "number"
+        },
+        "face_match": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/myzing_composition_framing_FaceSizeMatch"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "foreground_top": {
           "anyOf": [
