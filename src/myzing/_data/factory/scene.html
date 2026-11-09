@@ -418,6 +418,8 @@ function captionY(gi, cy, cap, box, centered) {
   for (const shot of D.shots) {
     if (shot.from >= b || shot.to <= a) continue;
     const G = geometry(shot.layout), S = G.spk;
+    // a graphic card above the speaker: the caption may sit at the seam but never over the card
+    if (ASPECT === '9x16' && G.gfx && S) low = Math.max(low, G.gfx.y + G.gfx.h - 36 - h/2);
     if (!S) continue;
     if (G.hook === 'header') low = Math.max(low, 390);
     for (const cam of D.cams) {

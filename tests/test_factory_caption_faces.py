@@ -205,3 +205,11 @@ def test_quote_moments_keep_their_placement():
         """))
     assert positions[0] == positions[1]
     assert positions[0]["opacity"] == 0
+
+
+def test_caption_never_climbs_onto_a_graphic_card():
+    value = data(src=(1920, 1080), cam={"cy": .2, "fh": .2})
+    value["shots"] = [{**value["shots"][0], "layout": layout, "from": a, "to": b}
+                      for layout, a, b in [("solo", 0, .6), ("graphic", .6, 4)]]
+    for state in frames(value, [.1, .9]):
+        assert state["caption"]["y0"] >= 960 - 36 - (state["caption"]["y1"] - state["caption"]["y0"]) / 2 - 1
