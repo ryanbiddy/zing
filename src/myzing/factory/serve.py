@@ -418,7 +418,11 @@ def serve(project: Path, port: int = 8765, judge: str = "host", say=print, *, re
           idle_seconds: float | None = None) -> None:
     studio = Studio(project, judge)
     token = secrets.token_urlsafe(24)
-    server = ThreadingHTTPServer(("127.0.0.1", port), BaseHTTPRequestHandler)
+    try:
+        server = ThreadingHTTPServer(("127.0.0.1", port), BaseHTTPRequestHandler)
+    except OSError as exc:  # in use, or a port Windows reserves (WinError 10013)
+        raise FactoryError(f"Port {port} is not available on this computer ({exc.strerror or exc}). "
+                           "Pick another with --port, or use --port 0 for any free port.") from None
     server.RequestHandlerClass = handler(studio, server.server_port, token)
     try:
         page = f"http://127.0.0.1:{server.server_port}/?t={token}"
