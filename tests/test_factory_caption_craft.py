@@ -120,7 +120,7 @@ def test_other_packs_keep_caption_styles(pack, size, font, bg, ink, shape):
     width, height = render.SHAPES[shape]
     got = javascript("scene.html", "console.log(JSON.stringify(document.documentElement.style));",
                      {"words": [], "fps": 30, "W": width, "H": height, "theme": theme})
-    assert got["--cap-size"] == f"{round(size * width / 1080) if 'cap_size' in theme else size}px"
+    assert got["--cap-size"] == f"{round(size * min(width, height) / 1080) if 'cap_size' in theme else size}px"
     assert got["--cap-font"] == f'"{font}", Inter, sans-serif'
     assert got["--cap-bg"] == bg and got["--cap-ink"] == ink
     assert got["--cap-scale"] == 1 and "--cap-stroke" not in got
@@ -159,12 +159,12 @@ def test_explicit_full_cut_position_and_launch_seam_stay_put():
 
 
 @pytest.mark.parametrize("shape", ["1x1", "4x5", "16x9"])
-def test_other_shapes_keep_placement_and_scale_type_by_width(shape):
+def test_other_shapes_keep_placement_and_scale_type_by_short_side(shape):
     width, height = render.SHAPES[shape]
     assert geometry("solo", shape)["cap"] == height - 180
     got = javascript("scene.html", "console.log(JSON.stringify(document.documentElement.style));",
                      {"words": [], "fps": 30, "W": width, "H": height, "theme": render.theme("zing")})
-    assert got["--cap-size"] == f"{round(78 * width / 1080)}px"
+    assert got["--cap-size"] == f"{round(78 * min(width, height) / 1080)}px"  # 16x9 is not 1.8x bigger
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 4, 5, 6])

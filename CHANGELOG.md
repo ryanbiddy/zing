@@ -4,6 +4,8 @@
 
 - Tighten automatic 9:16 match crops toward measured reference face size within
   source-resolution limits. Record the reached size in plans and match reports.
+- Keep factory captions clear of faces. Limit extra webcam zoom to keep 300 source
+  pixels of height.
 - `zing factory serve` names an unavailable port and suggests `--port 0` instead of a raw
   socket error.
 - Let moment suggestions cross sentence pauses under two seconds. Match and
