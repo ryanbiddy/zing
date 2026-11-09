@@ -1,6 +1,7 @@
 """Compare measurements with explicit tolerances; missing evidence stays unknown."""
 
 from myzing.match.evidence import _metric
+from .against import comparison_summary
 
 
 def compare_cards(reference, other):
@@ -65,4 +66,6 @@ def compare_cards(reference, other):
             result[section].update(status="close", reason="no transition signatures detected in either video.")
         elif not states:
             result[section]["reason"] = "a required measurement is missing."
-    return {"against": other.source, "against_sha256": other.source_sha256, "sections": result}
+    comparison = {"against": other.source, "against_sha256": other.source_sha256, "sections": result}
+    comparison["summary"] = comparison_summary(comparison)
+    return comparison

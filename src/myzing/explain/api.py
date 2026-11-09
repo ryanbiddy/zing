@@ -350,9 +350,12 @@ def _publish(card, media, out):
         png = None
     _write(out / "card.json", card.to_dict())
     (out / "card.md").write_text(markdown(card), encoding="utf-8")
-    return {"ok": True, "card_json": str(out / "card.json"), "card_md": str(out / "card.md"),
+    result = {"ok": True, "card_json": str(out / "card.json"), "card_md": str(out / "card.md"),
             "card_png": str(png) if png else None, "summary": card.summary,
             "hook": card.sections["hook"].lines if "hook" in card.sections else []}
+    if card.comparison:
+        result["comparison"] = card.comparison
+    return result
 
 
 def explain_video(source, out_dir, *, transitions=True, offline=True, ref_start=None, ref_end=None, reference_range=None) -> dict:

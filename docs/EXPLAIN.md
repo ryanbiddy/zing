@@ -9,8 +9,9 @@ zing explain ./clips/reference.mp4 --against ./project/draft-A.mp4 --out ./compa
 
 Open `card.md` for the explanation and commands, `card.png` for a single
 phone-readable page, or `card.json` for the measured values and coverage.
-Both readable forms lead with **What a viewer notices**: three to five lines in
-editor language ("One continuous vertical 9:16 talking-head shot, 19.0s with no
+Without `--against`, both readable forms lead with **What a viewer notices**.
+It gives three to five lines in editor language ("One continuous vertical 9:16
+talking-head shot, 19.0s with no
 cuts, full frame"), each built only from measured facts, with weak evidence kept
 hedged. **Get this look** follows with the real commands and this card's paths:
 `zing match` for up to three drafts from your clips, `zing plan drafts --recipe
@@ -148,6 +149,13 @@ hook measurements but does not assign a hook comparison verdict.
 `close`, `differs` or `unknown` comparison in the reference card. Each metric
 retains target, observation, tolerance and basis. Close describes only the listed
 numbers; it does not certify the edit or establish an original font/LUT match.
+
+The terminal, `card.md` and `card.png` lead with **Your draft vs the reference**.
+Up to six rows show the key numbers with units and one action per section.
+Differences come first, unknowns next and close measurements last. Actions use
+only measured values. Missing measurements stay unknown. Both `card.json` and
+`--json` keep these rows in `comparison.summary`. The per-section details remain
+below the summary.
 
 Pacing reuses the match report's 10% median-shot envelope. Caption placement
 reuses median sampled boxes and an IoU threshold of 0.8. Color reuses the maximum

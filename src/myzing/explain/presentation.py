@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 from .plain import aspect_name
+from .against import summary_text
 
 CAPTION_ROLES = ("caption", "title", "credit", "persistent overlay")
 
@@ -34,8 +35,11 @@ def markdown(card):
     framing = card.sections["framing"].facts
     lines = [f"# Style card: {_markdown_text(Path(card.source).name)}", "",
              f"{card.duration_seconds:.1f}s, {framing['width']} x {framing['height']}. Measured from the exported video; "
-             "the original project settings are unknown.", "",
-             "## What a viewer notices", "", *[f"- {line}" for line in card.summary], ""]
+             "the original project settings are unknown.", ""]
+    rows = card.comparison.get("summary", [])
+    if rows:
+        lines += ["## Your draft vs the reference", "", *[f"- {summary_text(row)}" for row in rows], ""]
+    lines += ["## What a viewer notices", "", *[f"- {line}" for line in card.summary], ""]
     lines += ["## Get this look", "", "```sh"]
     for command in card.commands:
         label = command_label(command)
@@ -173,6 +177,18 @@ def render_png(card, media, path):
     text(f"{card.duration_seconds:.1f}s / {framing['width']} x {framing['height']} {aspect_name(framing['width'], framing['height'])}"
          " / measured from the export", small, muted)
     y += 10
+    rows = card.comparison.get("summary", [])
+    if rows:
+        text("Your draft vs the reference", heading)
+        colors = {"differs": "#b14b2d", "close": "#247c75", "unknown": muted}
+        for row in rows:
+            label = row["section"].capitalize() + " "
+            draw.text((36, y), label, font=font, fill=ink)
+            text(row["verdict"], color=colors[row["verdict"]], indent=round(draw.textlength(label, font=font)))
+            text(row["numbers"], small, muted)
+            text(row["action"])
+            y += 8
+        rule()
     # Key frames keep the displayed aspect; the outline marks the frame edge so
     # bars inside the picture are visible and none are added around it.
     th = min(300, round(232 / aspect))
@@ -253,7 +269,8 @@ def render_png(card, media, path):
             text("Not knowable: " + section.not_knowable, small, accent)
         comparison = card.comparison.get("sections", {}).get(key)
         if comparison:
-            text("Against the draft: " + comparison["status"] + " (numbers in card.md)", small, muted)
+            location = "see the top of this card" if card.comparison.get("summary") else "numbers in card.md"
+            text("Against the draft: " + comparison["status"] + f" ({location})", small, muted)
     rule()
     text("Get this look", heading)
     for command in card.commands:
