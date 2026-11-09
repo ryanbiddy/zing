@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.0.0rc1
+
+Release candidate for Zing v1. These notes cover merged PRs #401 through #557
+on main, newest first.
+
+### Changes since #452
+
 - Check free queue slots through the existing schedule and honor legacy news IDs in
   brief history. Remove failed report temp files and use the planning duration probe
   for screen renders. Restore receipts when video publication fails and keep caption
@@ -138,7 +145,7 @@
   view snapshots, `velocity` compares views by age, and `prior` exports title
   guidance. Reports omit competitor titles. No video, thumbnails or audio are fetched.
 
-## Clip factory
+### Clip factory
 
 - Review edits read current files in the queue. MCP refuses edits during active
   factory runs. Manual word fixes update on-screen text and copy, repeated fixes
@@ -264,7 +271,7 @@
   demo or interview, landscape first, with an "Introducing" title card, an end card from
   `--brand-name`, `--brand-url` and `--cta`, name tags, launch post copy and a `launch` pack.
 
-## Motion graphics
+### Motion graphics
 
 - Composition v2 plans accept `graphics`: `title-card`, `lower-third`,
   `callout` and `progress-bar` templates with a normalized box, one or two
@@ -278,7 +285,7 @@
   read and its Linux `ldd` check of the configured browser, so renders complete
   on Linux and macOS. Other commands and arguments stay blocked.
 
-## Clip quality
+### Clip quality
 
 - Match keeps source color by default. CLI `--color reference` and MCP
   `color="reference"` opt into grading; recipes and reports record the mode.
@@ -299,12 +306,12 @@
 - Match recipe, director, caption-fit and skin-report checkpoints are invalidated
   for the new quality policy.
 
-## 1.0.0rc1
+### Highlights from #401 to #452
 
-Release candidate for Zing v1. These highlights cover merged PRs #401 through
+These highlights cover merged PRs #401 through
 #452 on main.
 
-### Long interviews
+#### Long interviews
 
 `zing moments` and the `zing_moments` MCP tool suggest complete transcript windows
 with Estimated scores, reasons and ready-to-use `must_keep` JSON. Oversized
@@ -313,7 +320,7 @@ Measured in plans and reports. Audio/video duration drift up to 250 ms is accept
 with a warning; uncovered tails remain unmeasured. Match skips optional audio maps
 beyond the analyzer's ten-minute limit. The MCP registry now has 37 tools.
 
-### Studio
+#### Studio
 
 `zing studio` is the guided starting point. Choose a reference match, an edit
 from clips, a photo meme, a style breakdown, music advice or new delivery
@@ -323,7 +330,7 @@ over 60 s, and skips still images in a clip folder with a note. New sessions
 start in the Zing workspace, never the current folder. (#429, #432, #445,
 #446, #451)
 
-### Explain
+#### Explain
 
 `zing explain` makes a style card from a video: cuts, transitions, captions,
 color, framing and music. Use `--against` to compare with another video.
@@ -333,14 +340,14 @@ flash-forward cold open; anything not measured says unknown. Long references
 take `--ref-start`/`--ref-end`, and analysis is capped at 60 s. (#424, #445,
 #452)
 
-### Screen demos
+#### Screen demos
 
 `zing plan screen` and `zing match screen` edit screen recordings with
 cursor-aware auto-zoom, idle speed-up and action-timed cuts. Portrait framing
 zooms until UI text is readable on a phone, without clipping the focus or
 cutting text mid-word. (#443)
 
-### Match and honest checks
+#### Match and honest checks
 
 Match takes a reference and your clips through planning, rendering and checks.
 The director respects measured timing ranges, keeps source-cut mappings and
@@ -351,7 +358,7 @@ three distinct drafts is labeled a variety limit, and short silent clips can
 reach the target length by trimming the final shot, which is disclosed.
 (#411, #417, #418, #431, #435, #437, #445, #451)
 
-### Caption presets
+#### Caption presets
 
 Choose punch, box or clean captions. Word groups fit the available width,
 baselines use font metrics, and highlight boxes can follow spoken words while
@@ -361,7 +368,7 @@ lower-thirds, numbers such as "$3,000" stay one unit with one plate per line,
 and plate tops follow real glyph tops. (#404, #407, #408, #409, #412, #413,
 #434, #438, #445, #450)
 
-### Framing and aspects
+#### Framing and aspects
 
 Deliver 16:9, 1:1 and 9:16 from one edit. Framing options include zoomfill,
 speaker-aware crops, headroom and picture-in-frame layouts. Delivery size
@@ -370,14 +377,14 @@ picture instead of the show graphics, a single talking head fills a 9:16
 frame, and small background faces are disclosed as bystanders instead of
 widening the shot. (#419, #423, #425, #434, #445, #450)
 
-### Music
+#### Music
 
 Place music around the edit, duck it under dialogue and inspect track advice.
 Later mixing fixes reduce pumping and even out dialogue. Optional local audio
 tagging separates vocals and instruments; speech timing repair stays bounded
 by measured voice activity. (#405, #422, #427, #436)
 
-### Memes and stills
+#### Memes and stills
 
 Turn photos and a topic into concepts, contact sheets and exported stills.
 Offline ideas, face-aware framing and subject-safe text support larger photos
@@ -385,7 +392,7 @@ and HEIC inputs where the decoder is available. Person and object detectors
 also help protect pets from text placement. Animated meme rendering is
 available for video inputs. (#402, #407, #409, #420, #425, #439)
 
-### Setup and onboarding
+#### Setup and onboarding
 
 Studio, doctor and setup explain missing speech models and ask before fetching
 them. Downloads require HTTPS and verified hashes. Portable asset paths and
@@ -395,14 +402,14 @@ missing FFmpeg capability and prints the install command for your system;
 troubleshooting and privacy guides cover Windows, macOS and Linux. (#401,
 #403, #432, #440)
 
-### Uoink
+#### Uoink
 
 Use saved references, verified kept media and local search through Uoink's
 existing service. Zing records choices and receipts, preserves real item
 titles, and keeps a local workflow when the peer is absent. (#408, #415,
 #421, #425)
 
-### Agents and MCP
+#### Agents and MCP
 
 The agent skill, brief interview and composition tools expose local editing
 workflows. The server uses the official MCP SDK 2.3 and offers 37 tools,
@@ -411,14 +418,14 @@ workflow prepare the listing for publication. The listing copy, registry line
 and PyPI summary match across the README, MCP instructions, bundle manifest
 and skill. (#407, #416, #424, #426, #429, #433, #442)
 
-### Safety and privacy
+#### Safety and privacy
 
 Private handoff material is outside the public tree. Evaluation records retain
 rights information, and unlicensed creator text and frames are not
 redistributed. Model downloads require an explicit request; local editing does
 not automatically publish media. (#414, #430, #432)
 
-### Packaging and release
+#### Packaging and release
 
 The release candidate includes runtime data and license notices in the wheel.
 Fresh-install checks install common extras and all extras, list all 37 MCP
