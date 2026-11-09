@@ -164,6 +164,14 @@ def job(answers=None, *, confirmed=False, project=None, cancel=False):
     if step["status"] != "plan":
         raise ValueError("Studio answers are incomplete; call zing_studio for the next question.")
     a = step["answers"]
+    if a["path"] == "g":
+        from .episode import create
+        from .models import Session, save_session
+        root = Path(a["project"])
+        with busy_lock(root):
+            result = create(a, step["plan"])
+            save_session(root, Session(answers=a, status="ready", result=result))
+        return result
     if a["path"] not in "abdf":
         raise ValueError("Reuse the existing match_start, still_concepts/still_render or music_check tools listed in this plan.")
     root = Path(a["project"])

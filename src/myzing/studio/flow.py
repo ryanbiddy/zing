@@ -18,6 +18,7 @@ PATHS = {
     "d": "Break down a video's style",
     "e": "Check music for an edit",
     "f": "Re-deliver an existing edit or plan",
+    "g": "Turn a long episode into Shorts (podcast, talk or stream)",
 }
 KEYS = {"path", "project", "reference_kind", "reference", "reference_query", "allow_download",
         "clips", "photos", "topic", "platform", "aspects", "length", "tone", "captions",
@@ -27,6 +28,7 @@ KEYS |= DELIVERY_KEYS | {"ref_start", "ref_end", "reference_range"}
 KEYS |= {"footage_kind", "cursor_log"}
 KEYS |= {"reference_download", "speech_setup"}
 KEYS.add("length_mode")
+KEYS |= {"episode", "transcript", "shapes", "judge", "no_open"}
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -119,7 +121,10 @@ def _path(value, key, *, folder=False, exists=True):
     return str(path)
 
 
-def normalize(key, value):
+def normalize(key, value, *, path=None):
+    if key in {"episode", "transcript", "shapes", "judge", "no_open"} or (key == "clips" and path == "g"):
+        from .episode import normalize as normalize_episode
+        return normalize_episode(key, value)
     if key == "speech_setup":
         from myzing.study import speech_models
         if not isinstance(value, str):
@@ -159,9 +164,9 @@ def normalize(key, value):
         return value
     if key == "path":
         value = str(value).lower().strip()
-        value = dict(zip("123456", PATHS)).get(value, value)
+        value = dict(zip("1234567", PATHS)).get(value, value)
         if value not in PATHS:
-            raise ValueError("Choose 1-6 or a-f.")
+            raise ValueError("Choose 1-7 or a-g.")
     elif key in {"project", "clips", "photos"}:
         value = _path(value, key, folder=True, exists=key != "project")
     elif key in {"source", "context"}:
@@ -229,11 +234,12 @@ def normalize(key, value):
     return value
 
 
-def normalize_answers(answers):
+def normalize_answers(answers, *, path=None):
     if not isinstance(answers, dict) or set(answers) - KEYS:
         raise ValueError("answers must be an object using studio question IDs; unknown keys: " +
                          str(sorted(set(answers) - KEYS) if isinstance(answers, dict) else "not an object"))
-    result = {key: normalize(key, value) for key, value in answers.items()}
+    path = normalize("path", answers["path"]) if "path" in answers else path
+    result = {key: normalize(key, value, path=path) for key, value in answers.items()}
     if ":" in result.get("platform", ""):
         result.setdefault("aspects", result["platform"].split(","))
         result["platform"] = "custom"
@@ -277,9 +283,15 @@ def next_step(answers=None, *, cache=None):
         a.setdefault("footage_kind", "general")
     empty = {"measured": [], "unknowns": ["Creative intent is unknown until you choose."], "warnings": []}
     if "path" not in a:
-        q = question("path", "What are we making?", "a", "Choose a reference match if you have a video to aim for; your intent is still unknown.", empty, PATHS)
+        only_episode = "episode" in a and not any(k in a for k in ("reference", "reference_kind", "reference_query", "clips", "photos", "source", "tracks", "topic"))
+        q = question("path", "What are we making?", "g" if only_episode else "a",
+                     "You supplied an episode. Start with a few Shorts." if only_episode else
+                     "Choose a reference match if you have a video to aim for; your intent is still unknown.", empty, PATHS)
         return {"status": "question", "question": q.to_dict(), "answers": a}
     path = a["path"]
+    if path == "g":
+        from .episode import next_step as episode_step
+        return episode_step(a, cache)
     a.setdefault("project", default_project())
     root = Path(a["project"])
     reserved = {root / name for name in ("studio-session.json", "studio-result.json", "studio-job.json", "studio-recipe.json")}

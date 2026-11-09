@@ -5,6 +5,9 @@
 - Let moment suggestions cross sentence pauses under two seconds. Match and
   Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
   to choose by hand and `moments --project DIR` to find a match project's studies.
+- Add a long episode path to `zing studio` with transcript suggestions,
+  factory review, resume and an MCP hand-off. Give Uoink connection failures
+  a startup hint instead of a contract update hint.
 
 ## 1.0.0rc1
 
