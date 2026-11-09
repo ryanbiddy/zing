@@ -4,6 +4,7 @@ import argparse
 import json
 
 from .api import _explain
+from .against import summary_text
 
 
 def run(argv):
@@ -22,6 +23,10 @@ def run(argv):
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     elif result["ok"]:
+        rows = result.get("comparison", {}).get("summary", [])
+        if rows:
+            print("Your draft vs the reference:")
+            print("\n".join("- " + summary_text(row) for row in rows))
         print("What a viewer notices:")
         print("\n".join("- " + line for line in result["summary"]))
         if result.get("hook"):
