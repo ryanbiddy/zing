@@ -5,6 +5,8 @@
 - Let moment suggestions cross sentence pauses under two seconds. Match and
   Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
   to choose by hand and `moments --project DIR` to find a match project's studies.
+- Keep text cards and slides whole in factory shots without faces when local OCR
+  finds text the crop would cut.
 - Add a long episode path to `zing studio` with transcript suggestions,
   factory review, resume and an MCP hand-off. Give Uoink connection failures
   a startup hint instead of a contract update hint.
