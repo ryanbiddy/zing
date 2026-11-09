@@ -59,7 +59,7 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
                                           part, subjects.get(clip.asset_id, []), max_upscale=max_upscale, fps=rate,
                                           speech_words=plan.speech_words, picture=(pictures or {}).get(clip.asset_id),
                                           policy=plan.brief.picture_crop if plan.brief else "auto")
-            if face_target is not None:
+            if face_target is not None and part.framing is not None:
                 part.framing = match_face_framing(part.framing, part, subjects.get(clip.asset_id, []),
                     width, height, face_target, fps=rate, speech_words=plan.speech_words)
             safety = (clip.framing.picture if clip.framing else {}).get("text_safety", {})
@@ -69,7 +69,7 @@ def adapt_plan(composition, width, height, source_dimensions, subjects, *, reque
                 part.framing = protect_text(part.framing, part, geometry, requested, width, height)
             clips.append(part)
     plan.clips = clips
-    plan.warnings.extend(w for c in clips for w in c.framing.warnings
+    plan.warnings.extend(w for c in clips if c.framing for w in c.framing.warnings
                          if w.startswith(FACE_SIZE_NOTES))
     preset = next((c.preset for c in plan.captions if c.preset), None)
     if preset:
