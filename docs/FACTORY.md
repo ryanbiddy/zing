@@ -517,6 +517,7 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
 - Default **9:16** captions sit near y 1340 in solo shots and full-frame cutaways.
   Captions, name tags and hooks stay within x 90–990 and y 150–1440 at 1080×1920.
   Explicit `cap_y` values and headline panels keep their pack's placement.
+  Speaker captions move clear of faces and hold their position for the whole phrase, including with `cap_y`.
 - Lists center the title and all items as one block. Items fade in at fixed positions.
 - A quote is the clip's one most quotable line, and the captions take over for it: the
   speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
@@ -635,7 +636,7 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 
 `--pack zing | newsdesk | swiss | headline | documentary | launch` sets colors, caption treatment and source tag
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
-`zing` uses 78px heavy white capitals at 1080px width, a dark outline and a soft shadow.
+`zing` uses 78px heavy white capitals per 1080px of the frame's short side, a dark outline and a soft shadow.
 The active word turns yellow and grows slightly in place. There is no caption box.
 Long groups shrink to fit 900px. Type scales with frame width.
 `headline` plays the clip above a solid panel that holds your source credit and the hook

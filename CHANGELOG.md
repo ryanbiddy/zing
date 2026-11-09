@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep factory captions clear of faces. Limit extra webcam zoom to keep 300 source
+  pixels of height.
 - Group factory captions by phrase and pause. Give Zing larger outlined type, keep
   default portrait captions above phone controls, and center list reveals.
 - Keep full meme and still topics when formulas fit, warn when shortening is
