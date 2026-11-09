@@ -5,6 +5,8 @@
 - Check supplied captions against three cached speech samples before scouting,
   save any time shift, and stop clips whose heard words do not match. Use
   `--offset` for a known shift or `--no-sync-check` to skip the initial check.
+- Keep text cards and slides whole in factory shots without faces when local OCR
+  finds text the crop would cut.
 - Add a long episode path to `zing studio` with transcript suggestions,
   factory review, resume and an MCP hand-off. Give Uoink connection failures
   a startup hint instead of a contract update hint.

@@ -534,6 +534,7 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
 - Speaker framing uses the pinned YuNet face model (`zing layout fetch-model`).
   Close-ups teach the frame what the main speaker wears; in wide shots it follows them.
   Captions already burned into the source are cropped out.
+  With local OCR available, text cards without faces stay whole over a blurred background if the crop would cut text.
 - Photos move through their own depth: near things slide and grow against the
   background, as if a camera drifted past (Depth Anything V2 Small on the CPU, about
   0.5 s per photo plus a few seconds to encode the move). The move only shifts and
