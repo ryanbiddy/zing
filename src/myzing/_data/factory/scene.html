@@ -208,7 +208,7 @@ function captionGroups(words, limits) {
   for (let a=0; a<n; a=next[a]) groups.push(Array.from({length:next[a]-a}, (_, i) => a+i));
   return groups;
 }
-const groups = captionGroups(W, CAP), capSizes = new Map();
+const groups = captionGroups(W, CAP), capSizes = new Map(), capPositions = new Map();
 // kinetic captions set one word of each line large: a number, or the longest word that carries weight
 const STOP = new Set('about after again against because before being between could doesn every their there these those through under until where which while would should really things thing going people'.split(' '));
 const keyOf = grp => { let best = -1, len = 4;
@@ -226,15 +226,38 @@ const camAt = t => D.cams.find(c => t >= c.from && t < c.to) || D.cams[D.cams.le
 async function setImg(img, src) { if (img.dataset.src !== src) { img.src = src; delete img.dataset.src; await img.decode(); img.dataset.src = src; } }
 
 // cover-fit an image of (iw,ih) into box (bw,bh) around focus (fx,fy) at zoom z
-function cover(img, iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
+function crop(iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
   // maxFrac: keep everything below this fraction of the source height out of frame (burned-in captions)
   if (maxFrac) z = Math.max(z, bh / (maxFrac*ih*Math.max(bw/iw, bh/ih)));
   const s = Math.max(bw/iw, bh/ih) * z, vw = iw*s, vh = ih*s;
   const tx = clamp(-(fx*vw - bw/2), bw-vw, 0);
   let ty = clamp(-(fy*vh - bh/2), bh-vh, 0);
   if (maxFrac) ty = Math.max(ty, bh - maxFrac*ih*s);
+  return {tx, ty, s};
+}
+function applyCrop(img, iw, ih, {tx, ty, s}) {
   img.style.width = iw+'px'; img.style.height = ih+'px';
   img.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+}
+function cover(img, iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
+  applyCrop(img, iw, ih, crop(iw, ih, bw, bh, z, fx, fy, maxFrac));
+}
+function faceCrop(cam, b, t, lean=1) {
+  const [iw, ih] = D.srcSize, base = Math.max(b.w/iw, b.h/ih), limit = cam.wide ? 1.4 : 2.2;
+  const at = z => crop(iw, ih, b.w, b.h, z, cam.cx, clamp(cam.cy+.06), D.burnTop);
+  const center = r => cam.cy*ih*r.s + r.ty;
+  const want = b.h / (cam.fh*ih*3.2);
+  let z = clamp(want/base, 1, limit);
+  const r = at(z);
+  const move = (1 + .05*easeInOut(lin(t, cam.from, cam.to))) * lean;
+  if (center(r) > b.h*.5) {
+    const cap = Math.max(1, Math.min(limit, b.h/(300*base)));   // keep webcam crops sharp
+    let lo = Math.min(z, cap), hi = cap;
+    for (let i=0; i<20; i++) { const mid = (lo+hi)/2;
+      if (center(at(mid)) > b.h*.42) lo = mid; else hi = mid; }
+    z = Math.min(hi*move, cap);
+  } else z *= move;
+  return at(z);
 }
 function contain(img, iw, ih, bw, bh) {
   const s = Math.min(bw/iw, bh/ih), vw = iw*s, vh = ih*s;
@@ -370,6 +393,60 @@ function geometry(layout) {
   if (layout === 'solo') return {spk:full, cap, hook:'pill', pill};
   return {[layout==='split'?'top':'gfx']:full, cap, hook:'pill', pill};
 }
+function visualBox(G, shot) {
+  const v = G.top && D.visuals[shot.visual];
+  if (!v || v.fit !== 'contain' || ASPECT !== '9x16') return null;
+  const W = G.win || G.top, s = Math.min(W.w/v.w, W.h/v.h), y0 = G.top.y + (W.h-v.h*s)/2;
+  return {y0, y1:y0+v.h*s};
+}
+function captionBase(G, cbox, h, centered) {
+  let cy = G.cap;
+  if (cbox) { const top = centered ? cy-h/2 : cy;
+    if (top+h > cbox.y0-16 && top < cbox.y1+16) cy = Math.min(SH9-90-(centered ? h/2 : h), Math.round(cbox.y1+36+(centered ? h/2 : 0))); }
+  return ASPECT === '9x16' && CAP.y == null ? clamp(cy, 150+h*.55, 1440-h*.55) : cy;
+}
+function captionY(gi, cy, cap, box, centered) {
+  if (capPositions.has(gi)) return capPositions.get(gi);
+  const a = Math.max(0, W[groups[gi][0]].os-.02), b = Math.min(D.duration,
+    gi+1 < groups.length ? W[groups[gi+1][0]].os-.02 : W[W.length-1].oe+.3);
+  const [iw, ih] = D.srcSize, faces = [], stroke = TH0.cap_stroke_w ?? (CAP_DEFAULT ? 7 : 0);
+  const scale = Math.max(1, CAP_SCALE) * Math.max(1, CAP.pop_from) * (CAP.overshoot ? 1.03 : 1);
+  const h = (cap.offsetHeight + stroke*2)*scale, w = (box.offsetWidth + stroke*2)*scale;
+  const offset = centered ? 0 : cap.offsetHeight/2, gap = 12*SW/1080;
+  let low = ASPECT === '9x16' ? 150 : 0, high = ASPECT === '9x16' ? 1440 : SH9;
+  for (const shot of D.shots) {
+    if (shot.from >= b || shot.to <= a) continue;
+    const G = geometry(shot.layout), S = G.spk;
+    if (!S) continue;
+    if (G.hook === 'header') low = Math.max(low, 390);
+    for (const cam of D.cams) {
+      const from = Math.max(a, shot.from, cam.from), to = Math.min(b, shot.to, cam.to);
+      if (cam.mode !== 'face' || from >= to) continue;
+      const bounds = [from, to].map(t => {
+        const r = faceCrop(cam, S, t), fh = cam.fh*ih*r.s, pad = S.h*.04;
+        const x = S.x + cam.cx*iw*r.s + r.tx, y = S.y + cam.cy*ih*r.s + r.ty;
+        return {x0:x-fh*.425-pad, x1:x+fh*.425+pad, y0:y-fh/2-pad, y1:y+fh/2+pad, hair:y-fh*.85-pad};   // the detector's box stops at the brows
+      });
+      const face = {x0:Math.min(...bounds.map(r => r.x0)), x1:Math.max(...bounds.map(r => r.x1)),
+                    y0:Math.min(...bounds.map(r => r.y0)), y1:Math.max(...bounds.map(r => r.y1)),
+                    hair:Math.min(...bounds.map(r => r.hair))};
+      if (face.x1 > (SW-w)/2 && face.x0 < (SW+w)/2) faces.push(face);
+    }
+  }
+  if (!faces.length) return cy;
+  const first = shotAt(a), G = geometry(first.layout);
+  let y = captionBase(G, visualBox(G, first), cap.offsetHeight, centered) + offset;
+  const top = r => CAP.y == null ? r.hair : r.y0;   // a pack's own caption height only moves off the face itself
+  if (faces.some(r => y+h/2 > top(r) && y-h/2 < r.y1)) {
+    // below the chin, then above the hair, then at least clear of brows to chin
+    const below = Math.max(low, Math.max(...faces.map(r => r.y1)) + gap) + h/2;
+    const clear = Math.min(high, Math.min(...faces.map(r => r.hair)) - gap) - h/2;
+    const above = Math.min(high, Math.min(...faces.map(r => r.y0)) - gap) - h/2;
+    y = below+h/2 <= high ? below : clear-h/2 >= low ? clear : above-h/2 >= low ? above : clamp(below, low+h/2, high-h/2);
+  }
+  capPositions.set(gi, y-offset);
+  return y-offset;
+}
 function place(el, b) { if (!b) { el.style.display='none'; return; }
   el.style.display='block'; el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; }
 
@@ -444,9 +521,7 @@ window.seek = async function(t) {
     // a quote moment leans in on the speaker, holds, and eases back as the quote steps away
     const lean = Q ? 1 + .06*easeOut(lin(t, Q.from, Q.from+1.2))*(1 - easeInOut(lin(t, Q.to-.35, Q.to))) : 1;
     if (cam.mode === 'face') {
-      const want = BH / (cam.fh*ih*3.2), base = Math.max(BW/iw, BH/ih);
-      const z = clamp(want/base, 1, cam.wide ? 1.4 : 2.2) * (1 + .05*easeInOut(lin(t, cam.from, cam.to))) * lean;
-      cover(body, iw, ih, BW, BH, z, cam.cx, clamp(cam.cy+.06,0,1), D.burnTop);
+      applyCrop(body, iw, ih, faceCrop(cam, G.spk, t, lean));
     } else if (cam.mode === 'wide' && cam.faces > 1) contain(body, iw, ih, BW, BH);   // a real group shot: show everyone
     else cover(body, iw, ih, BW, BH, lean, .5, .38, D.burnTop);                       // no face found: crop the middle, never letterbox
     if (G.front) {             // the frame, kept only where its matte says the speaker is
@@ -498,9 +573,7 @@ window.seek = async function(t) {
   if (LOOK.grain) { gr.style.opacity = LOOK.grain; gr.style.backgroundPosition = `${(fr*37)%240}px ${(fr*91)%240}px`; }
 
   // a page shown whole sits mid-frame in 9x16: the hook goes above it and the captions below it, never over it
-  const cv = G.top && D.visuals[shot.visual], cbox = cv && cv.fit === 'contain' && ASPECT === '9x16' ? (() => {
-    const W = G.win || G.top, s = Math.min(W.w/cv.w, W.h/cv.h), y0 = G.top.y + (W.h - cv.h*s)/2;
-    return {y0, y1: y0 + cv.h*s}; })() : null;
+  const cbox = visualBox(G, shot);
 
   // hook: a header over solo in 9x16, otherwise a pill for the first seconds
   const hookOn = t < D.hookUntil;
@@ -583,10 +656,8 @@ window.seek = async function(t) {
       for (const s of box.children || []) s.style.margin = `0 ${((CAP_SCALE - 1) / 2 * (s.offsetWidth || 0) / fs).toFixed(3)}em`; }
     if (CAP_DEFAULT || TH0.cap_font === 'ZingCaption') fitCaption(box, gi);
     const centered = ASPECT === '9x16' || CAP.y != null;
-    let cy = G.cap;
-    if (cbox) { const h = cap.offsetHeight, top = centered ? cy - h/2 : cy;
-      if (top + h > cbox.y0 - 16 && top < cbox.y1 + 16) cy = Math.min(SH9 - 90 - (centered ? h/2 : h), Math.round(cbox.y1 + 36 + (centered ? h/2 : 0))); }
-    if (ASPECT === '9x16' && CAP.y == null) cy = clamp(cy, 150 + cap.offsetHeight*.55, 1440 - cap.offsetHeight*.55);
+    let cy = captionBase(G, cbox, cap.offsetHeight, centered);
+    if (!KIN) cy = captionY(gi, cy, cap, box, centered);
     cap.style.top = cy + 'px';
     cap.style.opacity = visible ? 1 : 0;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);

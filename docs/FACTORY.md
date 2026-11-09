@@ -508,6 +508,7 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
 - Default **9:16** captions sit near y 1340 in solo shots and full-frame cutaways.
   Captions, name tags and hooks stay within x 90–990 and y 150–1440 at 1080×1920.
   Explicit `cap_y` values and headline panels keep their pack's placement.
+  Speaker captions move clear of faces and hold their position for the whole phrase, including with `cap_y`.
 - Lists center the title and all items as one block. Items fade in at fixed positions.
 - A quote is the clip's one most quotable line, and the captions take over for it: the
   speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
