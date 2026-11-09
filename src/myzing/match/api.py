@@ -26,7 +26,9 @@ from . import evidence
 from .state import Checkpoints, StepFailed, read, write
 
 
-def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, studio_options=None, ref_start=None, ref_end=None, reference_range=None, color="source", **_):
+def validate(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0, resume=False, allow_download=False, studio_options=None, ref_start=None, ref_end=None, reference_range=None, color="source", auto_moment=False, **_):
+    if type(auto_moment) is not bool:
+        raise ValueError("auto_moment must be a boolean")
     if color not in ("source", "reference"):
         raise ValueError("color must be source or reference")
     if studio_options is not None:
@@ -370,10 +372,12 @@ def _layout(plan, folder, recipe):
 
 
 def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
-          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None, ref_start=None, ref_end=None, reference_range=None, color="source"):
+          resume=False, allow_download=False, progress=None, run_id=None, repair_asr=True, studio_options=None, ref_start=None, ref_end=None, reference_range=None, color="source", auto_moment=False):
     """Synchronous worker API. CLI/MCP run this inside an owned process tree."""
     if type(repair_asr) is not bool:
         raise ValueError("repair_asr must be a boolean")
+    if type(auto_moment) is not bool:
+        raise ValueError("auto_moment must be a boolean")
     if color not in ("source", "reference"):
         raise ValueError("color must be source or reference")
     from myzing.reference_range import parse
@@ -495,12 +499,28 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
         from myzing.director.api import plan_drafts
         def direct():
             result = plan_drafts(root, root / "recipe.json", root / "director", seed=seed, repair_asr=repair_asr,
+                                 **({"excluded_assets": automatic.data["excluded"]} if automatic and automatic.data["excluded"] else {}),
                                  **({"studio_options": studio_options} if studio_options is not None else {}))
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
-        planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
+        from .moments import AutoMoments
+        automatic = (AutoMoments(checkpoints, clips_studied, [recipe.to_dict(), audio_maps, seed, repair_asr, studio_options,
+                                                           [a.to_dict() for a in manifest.assets]])
+                     if auto_moment or resume and checkpoints.data.get("auto_moments") else None)
+        if automatic is not None:
+            summary["auto_moments"] = automatic.data["picks"]
+        while True:
+            planned = checkpoints.step("director", [projects.hash_file(root / "recipe.json"), projects.hash_file(root / "brief.json"),
                                                  clips_studied, audio_maps, seed, [a.to_dict() for a in manifest.assets],
                                                  "clip-quality-r3", color, repair_asr, "aspect-stage-common-measurements-v17-caption-faces", caps["layout"],
-                                                 "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", "capref-r1", *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
+                                                 "music1-review-v3", "reference-timing-constraints-v4", "in-band-before-distinctness-v2", "capref-r1", "sentence-pauses-v1",
+                                                 automatic.data["excluded"] if automatic else [], *([studio_options, "studio-phone-groups-v1"] if studio_options is not None else [])], direct)
+            if automatic is None or not auto_moment or not automatic.pick(planned, manifest):
+                break
+        if automatic and automatic.data["excluded"]:
+            names = ", ".join(Path(a.path).name for a in manifest.assets if a.id in automatic.data["excluded"])
+            summary["moment_scope"] = (f"Left {names} out of this edit. The suggested moments cannot fit alongside the required moment. "
+                                       "To use another clip, replace must_keep in brief.json and resume.")
+            summary["warnings"].append(summary["moment_scope"])
         summary["shortages"] = planned["summary"]["shortages"]
         if planned["summary"].get("target_length"):
             summary["target_length"] = planned["summary"]["target_length"]

@@ -48,6 +48,10 @@ def show_plan(plan, out):
 
 def show_result(result, out):
     print("\nStudio: " + result.get("status", "failed"), file=out)
+    for pick in result.get("result", {}).get("auto_moments", []):
+        print(pick["disclosure"], file=out)
+    if result.get("result", {}).get("moment_scope"):
+        print(result["result"]["moment_scope"], file=out)
     if result.get("speech_setup"):
         setup = result["speech_setup"]
         print(setup.get("note") or f"Speech model: {setup['model']}; downloaded {setup['downloaded_bytes'] / 1e6:.1f} MB; "

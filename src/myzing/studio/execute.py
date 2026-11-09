@@ -137,6 +137,7 @@ def run_confirmed(answers, *, progress=None, locked=False):
             result = execute({"reference": a["reference"], "clips": a["clips"], "out": str(root),
                               "answers": brief_answers(a), "resume": (root / "match-state.json").is_file(),
                               "allow_download": a.get("allow_download", False),
+                              "auto_moment": True,
                               **{k: a[k] for k in ("ref_start", "ref_end", "reference_range") if k in a},
                               "studio_options": {"captions": a["captions"], "music": a["music"],
                                                  **({"target_length_mode": "usable"} if a.get("length_mode") == "usable" else {}),

@@ -29,3 +29,16 @@ missing raw-mode data degrades into STATED limitations inside the
 direction, never silent pretending. The direction contract itself lives
 in `prompts/direct.md` (v1.0.0) — required keys, severity vocabulary,
 the plain-language rule for shot prompts.
+
+## Find a moment in a studied clip
+
+Run `zing moments recording.mp4 --project ./project --target 22 --json` to search
+a match project's studies too. You can also pass the study's `breakdown.json`
+path directly. Suggestions keep complete sentences and allow pauses under two
+seconds between them. A pause of at least 600 ms within a sentence, measured
+dead air or an excluded span still blocks the window.
+
+`zing match` and Studio can pick the top Estimated moment when a long clip
+exceeds the search limit. Use `zing match --no-auto-moment` to choose it yourself.
+Replace `must_keep` in the saved brief to change a pick, then resume.
+See [long interviews](MATCH.md#long-interviews) for scoring and resume details.

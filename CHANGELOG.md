@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Let moment suggestions cross sentence pauses under two seconds. Match and
+  Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
+  to choose by hand and `moments --project DIR` to find a match project's studies.
+
 ## 1.0.0rc1
 
 Release candidate for Zing v1. These notes cover merged PRs #401 through #557
