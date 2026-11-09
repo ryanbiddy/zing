@@ -6,10 +6,16 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any, Sequence
 
 from myzing.render.pipeline import filter_script_args
+
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from tools.eval.fonts import drawtext_fontfile
 
 
 HERE = Path(__file__).resolve().parent
@@ -191,7 +197,7 @@ def _graph_for(case: dict[str, Any]) -> str:
     caption = case["caption"]
     video_legs.append(
         f"{video_inputs}concat=n={len(colors)}:v=1:a=0,"
-        "drawtext=font=Sans:"
+        f"drawtext=fontfile='{drawtext_fontfile()}':"
         f"text='{_drawtext_value(caption['text'])}':"
         "fontcolor=white:fontsize=36:borderw=2:bordercolor=black:"
         "x=(w-text_w)/2:y=(h-text_h)/2:"

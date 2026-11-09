@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import drawtext_fontfile
 from myzing.composition import AssetRef, CaptionStyle, Composition, CompositionClip, LoudnessTarget
 from myzing.layout.types import Box, EventLayout, Keyframe, OverlapCheck, box_at
 from myzing.project.models import Rational
@@ -145,7 +146,7 @@ def drawtext_mask(tmp_path, text, font, size):
     # Stage the exact original face, using simple filter-local paths on Windows.
     (tmp_path / "original.ttf").write_bytes(Path(font.path).read_bytes())
     raw = ffmpeg("-f", "lavfi", "-i", "color=black:s=640x360:r=1:d=1", "-vf",
-                  f"drawtext=fontfile='original.ttf':textfile='literal.txt':expansion=none:fontsize={size}:fontcolor=white:x=10:y=10",
+                  f"drawtext=fontfile='{drawtext_fontfile('original.ttf')}':textfile='literal.txt':expansion=none:fontsize={size}:fontcolor=white:x=10:y=10",
                   "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "pipe:1", cwd=tmp_path)
     return np.frombuffer(raw, dtype=np.uint8).reshape(360, 640, 3).min(axis=2) > 150
 

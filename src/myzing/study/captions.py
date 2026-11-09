@@ -69,6 +69,7 @@ class Line:
     score: float
     y_center: float               # 0..1, normalized to frame height
     x_center: float = 0.0         # 0..1, normalized to frame width
+    box: tuple[float, float, float, float] | None = None  # normalized x, y, width, height
 
 ROW_BAND = 0.05                   # boxes within ~5% of frame height = one row
 
@@ -515,6 +516,8 @@ def _ocr(engine, frame) -> list[Line]:
                 score=score,
                 y_center=(min(ys) + max(ys)) / 2 / height,
                 x_center=(min(xs) + max(xs)) / 2 / width,
+                box=(min(xs) / width, min(ys) / height,
+                     (max(xs) - min(xs)) / width, (max(ys) - min(ys)) / height),
             )
         )
     return lines

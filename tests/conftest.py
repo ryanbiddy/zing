@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from myzing import storage
+from tools.eval.fonts import drawtext_fontfile
 
 
 def _guard_live_uoink(event, args):
