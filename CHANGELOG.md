@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a long episode path to `zing studio` with transcript suggestions,
+  factory review, resume and an MCP hand-off. Give Uoink connection failures
+  a startup hint instead of a contract update hint.
+
 ## 1.0.0rc1
 
 Release candidate for Zing v1. These notes cover merged PRs #401 through #557

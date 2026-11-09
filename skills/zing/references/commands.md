@@ -57,6 +57,19 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing from-uoink` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
 | `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
 
+## Episode Shorts in studio
+
+Run `zing studio` and choose 7 (path `g`) for a local episode or `uoink:<id>`.
+The file must be at least 60 seconds long. The plan recommends 3 moments,
+`9x16`, and `claude` if its CLI is on PATH, otherwise `host`.
+An optional transcript can be SRT, VTT or word JSON. Enter skips it.
+Confirm to create the factory project, then press Run on its review page.
+
+`zing studio --no-open` prints the dashboard link and leaves the browser
+closed. The same choice is available as `"no_open": true` in `--answers` JSON.
+`--json` emits `project` and `page` in the final result when the server is ready.
+Use `zing studio --resume <project>` to reopen it with its settings and edits.
+
 ## Hand-off with Uoink
 
 ```sh
