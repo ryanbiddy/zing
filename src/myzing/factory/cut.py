@@ -128,6 +128,23 @@ def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float
     return info
 
 
+def _text_cut(img, reader) -> bool:
+    import cv2
+    from myzing.study.caption_geometry import parse_ocr
+    from myzing.study.captions import CONF_THRESHOLD
+    H, Wd = img.shape[:2]
+    s = min(1, 960 / max(H, Wd))
+    small = cv2.resize(img, (max(1, round(Wd * s)), max(1, round(H * s))), interpolation=cv2.INTER_AREA)
+    boxes = [d.box for d in parse_ocr(reader(small), small)
+             if d.text and d.confidence is not None and d.confidence >= CONF_THRESHOLD]
+    if sum((r - l) * (b - t) for l, t, r, b in boxes) < .03:
+        return False
+    s = max(1080 / Wd, 960 / H)                  # the default 9:16 speaker panel in scene.html
+    w, h = 1080 / (Wd * s), 960 / (H * s)
+    x, y = max(0, min(1 - w, .5 - w / 2)), max(0, min(1 - h, .38 - h / 2))
+    return any(l < x or r > x + w or t < y or b > y + h for l, t, r, b in boxes)
+
+
 def cams(d: Path) -> dict:
     """Camera shots, and in each the face to frame. Close-ups teach what the main speaker wears; in wide shots the
     frame follows them, leaving only when someone else clearly out-talks them for a while."""
@@ -182,12 +199,26 @@ def cams(d: Path) -> dict:
                 if th is not None:
                     ident.append((b - a, th))
             continue
-        wides.append((a, b, cam, H, Wd))
+        wides.append((a, b, cam, H, Wd, best))
     identity = sum(wt * h for wt, h in ident) / sum(wt for wt, _ in ident) if ident else None
-    for a, b, cam, H, Wd in wides:
+    ocr = None
+    for a, b, cam, H, Wd, best in wides:
         img = frame((a + b) / 2)
         faces = faces_in(img, .04)
         cam["faces"] = len(faces)
+        if not faces and not best:
+            if ocr is None:
+                try:
+                    from myzing.study.caption_models import engine
+                    ocr, _ = engine()
+                except Exception:
+                    ocr = False
+            if ocr:
+                try:
+                    if _text_cut(img, ocr):
+                        cam["text"] = True
+                except Exception:
+                    pass
         if len(faces) < 2 or b - a < 1.0:
             out.append(cam)
             continue

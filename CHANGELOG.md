@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep text cards and slides whole in factory shots without faces when local OCR
+  finds text the crop would cut.
+
 ## 1.0.0rc1
 
 Release candidate for Zing v1. These notes cover merged PRs #401 through #557
