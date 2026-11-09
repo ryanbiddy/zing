@@ -507,8 +507,17 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
 ## What the screen shows
 
 - **9:16** keeps the speaker in the bottom half under a visual or graphic, with the
-  caption box on the seam. **4:5** (the LinkedIn and Instagram feed shape), **1:1** and
+  captions on the seam. Solo shots fill the frame from the header to the bottom.
+  **4:5** (the LinkedIn and Instagram feed shape), **1:1** and
   **16:9** cut to full-screen visuals.
+- Captions target 2–4 words and at most 18 characters. Punctuation and pauses of
+  0.3 seconds start a new group. Articles and connecting words stay with the words
+  that follow when the limits allow. Short dangling words join a neighboring group.
+  A pack's `cap_words` and `cap_chars` override the limits.
+- Default **9:16** captions sit near y 1340 in solo shots and full-frame cutaways.
+  Captions, name tags and hooks stay within x 90–990 and y 150–1440 at 1080×1920.
+  Explicit `cap_y` values and headline panels keep their pack's placement.
+- Lists center the title and all items as one block. Items fade in at fixed positions.
 - A quote is the clip's one most quotable line, and the captions take over for it: the
   speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
   face with its key words highlighted, then steps away and normal captions carry on.
@@ -626,6 +635,9 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 
 `--pack zing | newsdesk | swiss | headline | documentary | launch` sets colors, caption treatment and source tag
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
+`zing` uses 78px heavy white capitals at 1080px width, a dark outline and a soft shadow.
+The active word turns yellow and grows slightly in place. There is no caption box.
+Long groups shrink to fit 900px. Type scales with frame width.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.
 

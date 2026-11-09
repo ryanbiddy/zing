@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Group factory captions by phrase and pause. Give Zing larger outlined type, keep
+  default portrait captions above phone controls, and center list reveals.
 - Keep full meme and still topics when formulas fit, warn when shortening is
   needed, and leave clipped or low-confidence sign text out of concepts.
 - Keep review headers compact with expandable network details, report edited plan hooks in status, and block known analytics hosts during page captures.
