@@ -286,9 +286,11 @@ headers or prompt text. Python downloads count response bytes read. Subprocess
 calls use `null` when the byte count is unavailable. Claude calls use the host
 `claude CLI (Anthropic)` and the task name. Cached work adds no requests.
 Browser resource requests and FFmpeg range requests or redirects are included.
+Page captures block known ad and analytics hosts before DNS lookup and leave those requests out of the ledger.
 The ledger records factory activity; it is not a system-wide packet capture.
 
-Status and the review header show counts by host and purpose. They show
+Status keeps counts by host and purpose. Review pages show a short request and
+host count, with the full list under **Details**. They show
 `offline: nothing fetched` only for an offline project with an empty ledger.
 Model fetch commands accept `--project launch` to apply that project's policy
 and ledger. Without it, the download is not tied to a project and is not recorded.
@@ -367,6 +369,8 @@ Choose one action per call. Ratings are `post`, `edits` or `no`. Copy fields are
 trimmed to 120 characters; copy to 2200. Status lists visual requests, candidate
 counts, candidate details and current picks. Candidate and word indices start
 at 0. Words are listed in the clip's `words.json`.
+Status uses the current plan's hook and includes `scout_hook` when the scout's
+original differs, so agents can confirm hook edits.
 
 For MCP, `word` also accepts `at`, `old` and `new`. `at` is seconds in the edited
 clip, within the word's timing; `old` must match its current text. Caption fixes
@@ -702,6 +706,9 @@ swap a visual for another candidate, fix a hook or the copy, and re-render in an
 style pack. Swaps and hook edits re-run the fact check and re-render in the background.
 Ratings save to `ratings.json`. `--judge claude` lets the page's Run button answer
 judgments with Claude Code; otherwise they wait for your agent.
+
+The header keeps Run and the decision count at the top. Network **Details** open
+below the header. On screens up to 700 pixels wide, the header scrolls with the page.
 
 The player reloads a video after a re-render. Variants older than `plan.json` or
 `words.json` are labeled "older than the latest edit". They stay available to

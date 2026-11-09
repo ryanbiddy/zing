@@ -63,7 +63,10 @@ def build(project: Path, pack: str | None = None) -> Path:
 </article>""")
         except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
             cards.append(f'<article><p class="tag warn">Clip {i} could not be reviewed: {e(str(exc))}</p></article>')
-    network_text = json.dumps(summary(ep)["summary"]).replace("<", "\\u003c")
+    net = summary(ep)
+    network_line = (f'{net["requests"]} network requests to {len(net["hosts"])} hosts'
+                    if net["requests"] else net["summary"])
+    network_text = json.dumps(net["summary"]).replace("<", "\\u003c")
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Clip Pack</title>
 <style>
@@ -72,6 +75,7 @@ def build(project: Path, pack: str | None = None) -> Path:
 body{{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}}
 main{{max-width:1180px;margin:0 auto;padding:28px 16px 80px}}
 h1{{font-size:28px;margin:0 0 4px}} .sub{{color:var(--muted);margin:0 0 24px}}
+#network-details{{overflow-wrap:anywhere}} #network-details summary{{cursor:pointer}} #network-details summary span + span{{margin-left:12px}}
 article{{display:grid;grid-template-columns:auto 1fr;gap:24px;padding:22px 0;border-top:1px solid var(--line)}}
 .vids{{display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}}
 video{{background:#000;border-radius:14px}} .s9x16{{width:240px;aspect-ratio:9/16}} .s4x5{{width:280px;aspect-ratio:4/5}} .s1x1{{width:300px;aspect-ratio:1}} .s16x9{{width:420px;aspect-ratio:16/9}}
@@ -85,13 +89,14 @@ dt{{color:var(--muted);text-transform:capitalize}} dd{{margin:0;white-space:pre-
 </style></head><body><main>
 <h1>Clip pack: {e(src.get('name', ep.name))}</h1>
 <p class="sub">Rights · {e(RIGHTS.get(cfg.get('rights'), RIGHTS['unknown']))}</p>
-<p class="sub" id="network"></p>
+<details class="sub" id="network-details"><summary><span id="network"></span><span>Details</span></summary><p id="network-hosts"></p></details>
 <p class="sub">Made by zing factory: scout, cut, plan, find visuals, vision pick, fact check, render, copy. Local review only; nothing is posted.</p>
 {''.join(cards)}
 <div id="bar"><span id="count"></span><button id="copy">Copy my ratings</button></div>
 </main>
 <script>
-document.getElementById('network').textContent = {network_text};
+document.getElementById('network').textContent = {json.dumps(network_line)};
+document.getElementById('network-hosts').textContent = {network_text};
 const KEY = 'zing-ratings-' + location.pathname;
 let R = {{}}; try {{ R = JSON.parse(localStorage.getItem(KEY) || '{{}}'); }} catch (e) {{}}
 function save() {{ try {{ localStorage.setItem(KEY, JSON.stringify(R)); }} catch (e) {{}} paint(); }}

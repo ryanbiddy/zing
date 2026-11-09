@@ -4,6 +4,7 @@
 
 - Keep full meme and still topics when formulas fit, warn when shortening is
   needed, and leave clipped or low-confidence sign text out of concepts.
+- Keep review headers compact with expandable network details, report edited plan hooks in status, and block known analytics hosts during page captures.
 - Keep text cards and slides whole in factory shots without faces when local OCR
   finds text the crop would cut.
 - Add a long episode path to `zing studio` with transcript suggestions,
