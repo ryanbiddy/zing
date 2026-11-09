@@ -570,7 +570,9 @@ def status(project: Path, judge: Judge | None = None) -> dict:
         vis = d / "visuals"
         requests = _read(vis / "requests.json") or _read(d / "plan-raw.json", {}).get("visual_requests", [])
         manifest, picks = _read(vis / "manifest.json", {}), _read(vis / "picks.json", {}).get("picks", {})
-        clips.append({"clip": f"clip{i:02d}", "hook": m["hook"].replace("*", ""), "start": m["start"], "end": m["end"],
+        hook = (_read(d / "plan.json") or {}).get("hook") or m["hook"]
+        clips.append({"clip": f"clip{i:02d}", "hook": hook.replace("*", ""), "start": m["start"], "end": m["end"],
+                      **({"scout_hook": m["hook"]} if hook != m["hook"] else {}),
                       "added": (_read(d / "receipt.json") or {}).get("share"),
                       "context_flags": len((_read(d / "context.json") or {}).get("flags", [])),
                       "brief_flags": len((_read(d / "brief_check.json") or {}).get("flags", [])),

@@ -277,6 +277,9 @@
   .waiting { font-size: 13px; color: var(--text-2); text-align: right; }
   .waiting strong { color: var(--text); }
   .waiting.has strong { color: var(--rust-bright); }
+  .network-row { grid-column: 1 / -1; margin-top: 0; flex-wrap: nowrap; }
+  #network { white-space: nowrap; }
+  #network-details { margin-top: 12px; overflow-wrap: anywhere; }
 
   .sample-note {
     margin: 16px 0 0; display: inline-flex; gap: 8px; align-items: center;
@@ -481,11 +484,17 @@
     .detail-body { grid-template-columns: minmax(0, 1fr); }
     .detail-col + .detail-col { border-left: 0; border-top: 1px solid var(--line); }
   }
-  @media (max-width: 640px) {
-    .wrap { padding: 0 16px 48px; }
-    .top-inner { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; }
+  @media (max-width: 700px), (max-height: 500px) {
+    header.top { position: static; }
+  }
+  @media (max-width: 700px) {
+    .top-inner { grid-template-columns: minmax(0, 1fr); padding: 12px 16px; gap: 8px; }
     .top-actions { justify-self: stretch; justify-content: space-between; }
     .waiting { text-align: left; }
+    .network-row { gap: 8px; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px 48px; }
     .progress { width: 80px; }
     .grid { grid-template-columns: minmax(0, 1fr); }
     .player[data-shape="9x16"] { width: min(100%, 260px); }
@@ -502,25 +511,27 @@
 <body>
 <header class="top">
   <div class="top-inner">
-    <div>
-      <div class="brand">
-        <span class="mark" aria-hidden="true">Z</span>
-        <h1 id="project-name">Loading project</h1>
-        <span id="state-pill" class="pill"></span>
-      </div>
-      <div class="meta" id="meta"></div>
-      <div class="meta" id="source"></div>
-      <div class="meta" id="rights"></div>
-      <div class="meta" id="network"></div>
+    <div class="brand">
+      <span class="mark" aria-hidden="true">Z</span>
+      <h1 id="project-name">Loading project</h1>
+      <span id="state-pill" class="pill"></span>
     </div>
     <div class="top-actions">
       <div class="waiting" id="waiting" aria-live="polite"></div>
       <button class="button primary" id="run-btn" type="button">Run</button>
     </div>
+    <div class="meta network-row">
+      <span id="network"></span>
+      <button class="button small ghost" id="network-toggle" type="button" aria-controls="network-details" aria-expanded="false" hidden>Details</button>
+    </div>
   </div>
 </header>
 
 <main class="wrap">
+  <div id="network-details" class="note" hidden></div>
+  <div class="meta" id="meta"></div>
+  <div class="meta" id="source"></div>
+  <div class="meta" id="rights"></div>
   <div id="sample-note" class="sample-note" hidden>
     Showing sample data. Open this page from <code>zing factory serve</code> to see the live project.
   </div>
@@ -814,7 +825,15 @@ function render() {
   const rights = {own: "you own this source", licensed: "licensed", permission: "you have permission",
     unknown: "unknown. Check before posting."};
   $("#rights").textContent = "Rights · " + (rights[p.rights] || rights.unknown);
-  $("#network").textContent = p.network ? p.network.summary : "";
+  $("#network").textContent = p.network ? (p.network.requests
+    ? plural(p.network.requests, "network request", "network requests") + " to " +
+      plural(Object.keys(p.network.hosts).length, "host", "hosts") : p.network.summary) : "";
+  $("#network-details").textContent = p.network ? p.network.summary : "";
+  $("#network-toggle").hidden = !p.network || !p.network.requests;
+  if ($("#network-toggle").hidden) {
+    $("#network-details").hidden = true;
+    $("#network-toggle").setAttribute("aria-expanded", "false");
+  }
   const [stateText, stateTone] = STATE_LABEL[p.state] || [p.state || "Unknown", ""];
   const pill = $("#state-pill");
   pill.className = "pill " + stateTone;
@@ -1330,6 +1349,11 @@ async function copyText(text, label) {
 }
 
 $("#run-btn").addEventListener("click", e => act(e.currentTarget, api.run, "Run started. Your agent is on it."));
+$("#network-toggle").addEventListener("click", e => {
+  const panel = $("#network-details");
+  panel.hidden = !panel.hidden;
+  e.currentTarget.setAttribute("aria-expanded", String(!panel.hidden));
+});
 
 const theme = new URLSearchParams(location.search).get("theme");
 if (theme === "dark" || theme === "light") document.documentElement.dataset.theme = theme;
