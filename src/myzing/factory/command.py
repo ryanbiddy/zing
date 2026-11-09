@@ -183,7 +183,7 @@ def run(argv: list[str]) -> int:
     learn.add_argument("--base", default="zing", help="pack to start from for anything not learned")
     serve = commands.add_parser("serve", help="open the local review dashboard for a project (127.0.0.1 only)")
     serve.add_argument("project", type=Path)
-    serve.add_argument("--port", type=int, default=8765)
+    serve.add_argument("--port", type=int, default=8765, help="local port (default 8765; 0 picks any free port)")
     serve.add_argument("--judge", choices=("host", "claude"), default="host", help="who answers when Run needs judgments")
     packs = commands.add_parser("packs", help="list or check style packs")
     packs.add_argument("--check", metavar="NAME", help="check pack files and font families; exit 1 on errors")

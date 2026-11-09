@@ -732,7 +732,7 @@ and a null PSNR.
 
 ## Review dashboard
 
-Run `zing factory serve <project>` and open the printed link. It includes a token
+Run `zing factory serve <project>` and open the printed link. It uses port 8765; pass `--port N`, or `--port 0` for any free port, when that one is taken or reserved. It includes a token
 for this server session, such as `http://127.0.0.1:8765/?t=TOKEN`. The page saves it
 in an HttpOnly session cookie and removes it from the address bar. Open the new
 printed link after restarting the server. Requests without the cookie are refused.

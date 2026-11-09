@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `zing factory serve` names an unavailable port and suggests `--port 0` instead of a raw
+  socket error.
 - Check supplied captions against three cached speech samples before scouting,
   save any time shift, and stop clips whose heard words do not match. Use
   `--offset` for a known shift or `--no-sync-check` to skip the initial check.
