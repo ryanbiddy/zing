@@ -248,8 +248,11 @@ def distill(root: Path, *, version="v0", thresholds: Thresholds | None = None, s
     write_json(root / f"playbook-{version}.json", result)
     path = root / f"WHATS-WORKING-{version}.md"
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(report(result), encoding="utf-8")
-    temporary.replace(path)
+    try:
+        temporary.write_text(report(result), encoding="utf-8")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return result
 
 

@@ -117,6 +117,7 @@ def graph(plan, cam, width, height, has_audio, caption_filter=""):
 
 def render_screen(plan, output, *, aspect="16:9", short_side=720, ffmpeg="ffmpeg", ffprobe="ffprobe", work_dir=None):
     from myzing.project.api import hash_file
+    from myzing.project.probe import probe_file
     from myzing.render.pipeline import probe_media, filter_script_args, _publish_output
     from myzing.render.framing import probe_dimensions
     plan = ScreenPlan.from_dict(plan.to_dict())
@@ -126,8 +127,8 @@ def render_screen(plan, output, *, aspect="16:9", short_side=720, ffmpeg="ffmpeg
         raise ValueError("Screen render output would replace an input; choose another path.")
     if hash_file(source) != plan.sha256:
         raise ValueError("Screen source changed after planning; run zing plan screen again.")
-    info = probe_media(source, ffprobe)
-    duration = getattr(info, "video_duration", None) or info.duration  # video stream, as plan_screen measured
+    info = probe_file(source)
+    duration = info.duration
     if probe_dimensions(source,ffprobe) != (plan.width,plan.height) or abs(duration-plan.duration) > .1:
         raise ValueError("Screen plan dimensions/duration differ from the source; replan.")
     if any(z.box is None for z in plan.zooms):

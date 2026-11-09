@@ -1,6 +1,7 @@
 """Daily picks, scripts and a page to record from."""
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import math
@@ -223,6 +224,9 @@ def _make(channel, *, now=None, fetch=None, judge=None, stop=None, collectors=No
                     try:
                         registry.web_url(facts["url"], "candidate.url")
                     except registry.ChannelError:   # one bad link drops that candidate, not the series
+                        continue
+                    legacy = "news-" + hashlib.sha256(facts["url"].encode()).hexdigest()[:16]
+                    if legacy in picked:
                         continue
                     item = {"n": len(data["items"]) + 1, "id": facts["id"], "series": series["id"], "series_name": series["name"],
                             "kind": series["kind"], "facts": facts, "receipt": _receipt(facts), "hook": None, "script": None,

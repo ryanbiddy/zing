@@ -189,7 +189,8 @@ def _build(channel, now, rng, stop):
             break
         slot = next(slots(channel, rows, cursor))
         candidates = [r for r in pending if _episode_ok(r["project"], slot, rows)]
-        if not candidates and all(datetime.fromisoformat(r["slot"]).timestamp() < slot.timestamp() for r in rows):
+        past_end = all(datetime.fromisoformat(r["slot"]).timestamp() < slot.timestamp() for r in rows)
+        if not candidates and past_end:
             break
         candidates = [r for r in candidates if not r["own"] or _seed_ok(slot, rows, channel)]
         chosen = None
@@ -217,7 +218,7 @@ def _build(channel, now, rng, stop):
             blocked.pop(chosen["id"], None)
             added += 1
             idle = 0
-        else:
+        elif past_end:
             idle += 1
         cursor = datetime.fromtimestamp(slot.timestamp() + 1, timezone.utc)
     if added:

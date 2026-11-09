@@ -405,11 +405,33 @@ def _render_in_directory(
         from myzing.project.api import hash_file
         measurements.update(render_sha256=hash_file(staged_output), music_plan=music_metadata)
         (directory / "music-measurements.json").write_text(json.dumps(measurements, indent=2, allow_nan=False), encoding="utf-8")
+    receipts, previous = [], []
     if delivery_receipt is not None:
-        _publish_output(directory / "delivery-encoding.json", output_path.with_suffix(".encoding.json"))
+        receipts.append((directory / "delivery-encoding.json", output_path.with_suffix(".encoding.json")))
     if measurements is not None:
-        _publish_output(directory / "music-measurements.json", output_path.with_suffix(".music.json"))
-    _publish_output(staged_output, output_path)
+        receipts.append((directory / "music-measurements.json", output_path.with_suffix(".music.json")))
+    try:
+        for staged, path in receipts:
+            try:
+                data = path.read_bytes()
+            except FileNotFoundError:
+                data = None
+            _publish_output(staged, path)
+            previous.append((path, data))
+        _publish_output(staged_output, output_path)
+    except BaseException as exc:
+        for path, data in previous:
+            try:
+                if data is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    with tempfile.TemporaryDirectory(prefix=".render-", dir=path.parent) as temporary:
+                        staged = Path(temporary) / path.name
+                        staged.write_bytes(data)
+                        _publish_output(staged, path)
+            except (OSError, RenderError) as restore:
+                exc.add_note(f"Could not restore {path.name}. {restore}")
+        raise
     return RenderResult(
         output_path=output_path,
         duration=validated.duration,

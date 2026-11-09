@@ -289,13 +289,14 @@ def apply_preset(plan, name, *, vad=True, base_dir=None):
                     highlight_box_radius=min(64, style.highlight_box_radius*factor))
     if factor < 1:
         notes.append(f"Whole draft caption size reduced to {target:.2f}px for its widest word; phone floor preserved.")
-    remaining = [w for c in original for w in c.words]
+    owned = {c.id: [] for c in plan.clips}
+    for w in (w for c in original for w in c.words):
+        candidates = [c for c in plan.clips if c.timeline_start <= w.start < c.timeline_end]
+        if candidates:
+            clip = max(candidates, key=lambda c: (min(w.end, c.timeline_end) - w.start, -c.timeline_start))
+            owned[clip.id].append(w)
     for clip in plan.clips:
-        # Group on shot boundaries; no caption can hold into the next shot. During
-        # an overlap, a word belongs to the first clip that contains its start.
-        words = [w for w in remaining if clip.timeline_start <= w.start < clip.timeline_end]
-        remaining = [w for w in remaining if not clip.timeline_start <= w.start < clip.timeline_end]
-        words = sorted({(w.start, w.end, w.text): w for w in words}.values(), key=lambda w: w.start)
+        words = sorted({(w.start, w.end, w.text): w for w in owned[clip.id]}.values(), key=lambda w: w.start)
         words = [transform_word(w, w.start, min(w.end, clip.timeline_end), "caption_shot_clamp", corrected=True)
                  if w.end > clip.timeline_end else w for w in words]
         if not words:
