@@ -27,7 +27,8 @@ from myzing.storage import resolve_workspace
 from .hyperframes_publish import reserve_output, publish_pair
 
 HYPERFRAMES_VERSION = "0.8.144"
-SETUP_HINT = "See docs/HYPERFRAMES-SIDECAR.md for local setup."
+SETUP_HINT = ("HyperFrames needs a source checkout for now. See "
+              "https://github.com/ryanbiddy/zing/blob/main/docs/HYPERFRAMES-SIDECAR.md for setup.")
 
 
 class HyperframesError(RuntimeError):
@@ -292,7 +293,9 @@ def check_install(*, sidecar: Path | None = None, browser: Path | None = None,
         ):
             raise ValueError(installed)
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise HyperframesError(f"Missing pinned HyperFrames sidecar; run npm ci --ignore-scripts --no-audit --no-fund in {sidecar}. Set ZING_HYPERFRAMES_SIDECAR if installed elsewhere.") from exc
+        raise HyperframesError("Missing pinned HyperFrames sidecar. HyperFrames needs a source checkout for now. "
+                               "In that checkout, run npm ci --ignore-scripts --no-audit --no-fund --prefix tools/hyperframes-sidecar. "
+                               "Set ZING_HYPERFRAMES_SIDECAR to that folder when using an installed wheel.") from exc
     browser = browser or Path(os.environ.get("HYPERFRAMES_BROWSER_PATH", ""))
     if not browser.is_file():
         raise HyperframesError(f"Missing browser; set HYPERFRAMES_BROWSER_PATH to the local chrome-headless-shell executable. {SETUP_HINT}")

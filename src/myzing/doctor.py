@@ -102,6 +102,21 @@ def _which(binary: str) -> str | None:
     return shutil.which(binary)
 
 
+def _install_command(package: str, *, upgrade: bool = False) -> str:
+    from myzing import __version__
+
+    prefix = sys.prefix.replace("\\", "/").lower()
+    pipx = "/pipx/venvs/" in prefix
+    uv = "/uv/tools/" in prefix
+    if package == "myzing" or package.startswith("myzing["):
+        installer = "pipx install --force" if pipx else "uv tool install --force" if uv else "python -m pip install"
+        return f'{installer} "{package}=={__version__}"'
+    installer = "pipx runpip myzing install" if pipx else (
+        f'uv pip install --python "{sys.executable}"' if uv else "python -m pip install")
+    requirement = package if re.fullmatch(r"[\w-]+", package) else f'"{package}"'
+    return f"{installer}{' -U' if upgrade else ''} {requirement}"
+
+
 def _run_version(cmd: list[str]) -> str:
     """First line of a --version style call, "" on any failure."""
     try:
@@ -274,7 +289,7 @@ def _youtube_js_advice(
             "; EJS solver scripts missing - YouTube challenge solving "
             "fails even with a JS runtime"
         )
-        solver_fix = 'python -m pip install "yt-dlp[default]"'
+        solver_fix = _install_command("yt-dlp[default]")
         fix = f"{solver_fix}; {fix}" if fix else (
             solver_fix + "   (guide: " + _troubleshooting_ref() + ")"
         )
@@ -299,7 +314,7 @@ def check_ytdlp(today: date | None = None) -> Check:
             tier=RECOMMENDED,
             ok=False,
             detail="yt-dlp not found (binary or module)",
-            fix='python -m pip install "myzing[study]"   (or: pip install yt-dlp)',
+            fix=_install_command("myzing[study]"),
             degraded_mode="zing study works on local files only - no URL fetch",
         )
     version = _run_version_cached(argv + ["--version"])
@@ -313,7 +328,7 @@ def check_ytdlp(today: date | None = None) -> Check:
             f"version {version} is ~{age} days old - platform extractors "
             f"rot fast; TikTok/Instagram fetches may fail until updated"
         )
-        fix = 'python -m pip install -U "yt-dlp[default]"' + (
+        fix = _install_command("yt-dlp[default]", upgrade=True) + (
             f"   then: {js_fix}" if js_fix else ""
         )
     else:
@@ -374,7 +389,7 @@ def check_whisper() -> Check:
     detail = ("package installed" if installed else "faster_whisper not importable")
     detail += "; cached speech models: " + (", ".join(cached) or "none")
     local = Path(model)
-    fix = 'python -m pip install "myzing[study]"' if not installed else ""
+    fix = _install_command("myzing[study]") if not installed else ""
     ok = installed
     if local.is_dir() or local.is_absolute():
         missing = [n for n in ("model.bin", "config.json", "tokenizer.json")
@@ -443,7 +458,7 @@ def check_ocr() -> Check:
         tier=RECOMMENDED,
         ok=False,
         detail=detail,
-        fix='python -m pip install "myzing[study]"   (installs rapidocr)',
+        fix=_install_command("myzing[study]") + "   (installs rapidocr)",
         degraded_mode=(
             "caption OCR is skipped: empty captions list + a warning in the "
             "breakdown (caption style can't be measured)"
@@ -459,7 +474,7 @@ def check_caption_geometry() -> Check:
     if missing:
         return Check("caption_geometry", OPTIONAL, False,
                      f"caption geometry runtime missing: {', '.join(missing)}",
-                     fix='python -m pip install "myzing[study]"', data={"network_used": False})
+                     fix=_install_command("myzing[study]"), data={"network_used": False})
     try:
         caption_models.model_paths()
     except (OSError, RuntimeError, ValueError) as exc:
@@ -474,7 +489,7 @@ def check_fonts() -> Check:
     missing = [name for name in ("PIL", "cv2", "numpy") if not _has_module(name)]
     if missing:
         return Check("fonts", OPTIONAL, False, f"font comparison runtime missing: {', '.join(missing)}",
-                     fix=library.INSTALL_HINT, data={"network_used": False})
+                     fix=_install_command("myzing[fonts]"), data={"network_used": False})
     try:
         rows = library.inventory()
     except (OSError, ValueError) as exc:
@@ -499,7 +514,7 @@ def check_scenedetect() -> Check:
         tier=RECOMMENDED,
         ok=False,
         detail="scenedetect not importable - Zing cannot detect shots without it",
-        fix='python -m pip install "myzing[study]"',
+        fix=_install_command("myzing[study]"),
         degraded_mode=(
             "shot detection is skipped: zero shots + a warning in the "
             "breakdown (cut rhythm, keyframes, and the eval cut score "
@@ -521,7 +536,7 @@ def check_tts() -> Check:
             tier=OPTIONAL,
             ok=False,
             detail="TTS surface not importable (render extras missing)",
-            fix='python -m pip install "myzing[render]"',
+            fix=_install_command("myzing[render]"),
         )
     selected = status["selected"]
     provider = status["providers"].get(selected, {})
@@ -558,7 +573,7 @@ def check_tts() -> Check:
             # and therefore could never make kokoro importable — a fix
             # that cannot work, written while fixing a fix that could
             # not work.
-            "python -m pip install kokoro-onnx   (deliberately outside "
+            _install_command("kokoro-onnx") + "   (deliberately outside "
             "the extras: its runtime pulls espeakng-loader; needs Python "
             "3.10-3.13) - or set ELEVENLABS_API_KEY to use the optional "
             "cloud provider instead"
@@ -693,7 +708,7 @@ def check_pillow() -> Check:
     return Check(
         name="pillow", tier=OPTIONAL, ok=present,
         detail="Pillow available for still memes and timeline inspection" if present else "Pillow is not installed",
-        fix='' if present else 'python -m pip install "myzing[memes]"',
+        fix='' if present else _install_command("myzing[memes]"),
         degraded_mode="" if present else "meme rendering and timeline inspection are unavailable; ideas, templates, and text checks still work",
     )
 
@@ -719,13 +734,13 @@ def check_screen() -> Check:
     ready = sys.platform == "win32" or (sys.platform == "darwin" and _has_module("Quartz"))
     return Check("screen-cursor", OPTIONAL, ready,
                  "Local cursor recorder available" if ready else "Linux cursor capture is unsupported; pixel-activity planning works" if not supported else "macOS Quartz cursor capture is missing",
-                 fix='pip install "myzing[screen]"' if supported and not ready else "",
+                 fix=_install_command("myzing[screen]") if supported and not ready else "",
                  degraded_mode="Plan existing screen recordings from frame-difference activity without telemetry." if not ready else "")
 
 
 def check_layout() -> Check:
     """Offline metadata/cache probe; never import native runtimes in MCP status."""
-    from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
+    from myzing.layout.detector import model_path, verified_model
     from myzing.layout.vision_models import inventory
 
     try:
@@ -737,7 +752,7 @@ def check_layout() -> Check:
     model_data = {"vision_models": vision, "network_used": False}
 
     if not _has_module("cv2"):
-        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed; vision inference unavailable", fix=INSTALL_HINT,
+        return Check("layout", OPTIONAL, False, "OpenCV headless is not installed; vision inference unavailable", fix=_install_command("myzing[layout]"),
                      data=model_data)
     try:
         version = metadata.version("opencv-python-headless")
@@ -756,7 +771,7 @@ def check_layout() -> Check:
         path = model_path()
         valid = verified_model(path)
     except (metadata.PackageNotFoundError, OSError) as exc:
-        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT, data=model_data)
+        return Check("layout", OPTIONAL, False, str(exc), fix=_install_command("myzing[layout]"), data=model_data)
     return Check("layout", OPTIONAL, valid,
                  f"OpenCV headless package {version}; YuNet model {'verified' if valid else 'missing or corrupt'}; "
                  + "; ".join(f"{r['name']}: {'verified' if r['verified'] else 'missing/corrupt (HOG/saliency fallback)'}" for r in vision)
@@ -772,7 +787,7 @@ def check_color() -> Check:
     return Check(
         name="color", tier=OPTIONAL, ok=present,
         detail="numpy installed (local SDR color matching)" if present else "numpy is not importable",
-        fix="" if present else 'python -m pip install "myzing[color]"',
+        fix="" if present else _install_command("myzing[color]"),
         degraded_mode="" if present else "color match/apply unavailable; other commands are unaffected",
     )
 
@@ -802,13 +817,13 @@ def check_audio() -> Check:
     return Check(
         name="audio", tier=OPTIONAL, ok=present,
         detail="NumPy available for audio analysis" if present else "NumPy is not installed",
-        fix='' if present else 'python -m pip install "myzing[audio]"',
+        fix='' if present else _install_command("myzing[audio]"),
         degraded_mode="" if present else "beat, onset, and audio-role analysis is unavailable",
     )
 
 
 def check_audio_ml() -> Check:
-    from .audio.tag_models import model_paths, runtime_supported, runtime_version, INSTALL_HINT, FETCH_HINT, REVISION
+    from .audio.tag_models import model_paths, runtime_supported, runtime_version, FETCH_HINT, REVISION
     present = _has_module("sherpa_onnx")
     version = runtime_version() if present else None
     supported = present and runtime_supported(version)
@@ -821,7 +836,7 @@ def check_audio_ml() -> Check:
                f"sherpa-onnx {version or 'of unknown version'} predates 2.0 (1.x links GPL espeak-ng); " if present else
                "sherpa-onnx absent; ")
     return Check("audio-ml", OPTIONAL, supported and valid, runtime + detail,
-                 fix="" if supported and valid else f"{INSTALL_HINT}; {FETCH_HINT}",
+                 fix="" if supported and valid else f"{_install_command('myzing[audio-ml]')}; {FETCH_HINT}",
                  degraded_mode="" if supported and valid else "vocal/music heuristics remain active; learned tags unavailable",
                  data={"paths": {k: str(v) for k, v in paths.items()}, "revision": REVISION, "runtime_version": version,
                        "model_verified": valid, "network_used": False, "runtime_probe": "package-metadata-only"})
