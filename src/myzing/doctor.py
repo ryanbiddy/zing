@@ -862,7 +862,7 @@ def check_audio_ml() -> Check:
                f"sherpa-onnx {version or 'of unknown version'} predates 2.0 (1.x links GPL espeak-ng); " if present else
                "sherpa-onnx absent; ")
     return Check("audio-ml", OPTIONAL, supported and valid, runtime + detail,
-                 fix="" if supported and valid else f"{_install_command('myzing[audio-ml]')}; {FETCH_HINT}",
+                 fix="; ".join(([] if supported else [_install_command("myzing[audio-ml]")]) + ([] if valid else [FETCH_HINT])),
                  degraded_mode="" if supported and valid else "vocal/music heuristics remain active; learned tags unavailable",
                  data={"paths": {k: str(v) for k, v in paths.items()}, "revision": REVISION, "runtime_version": version,
                        "model_verified": valid, "network_used": False, "runtime_probe": "package-metadata-only"})
