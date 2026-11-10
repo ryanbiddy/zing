@@ -149,17 +149,21 @@ runtime. It installs the dependencies recorded in its included lockfile.
 zing serve-mcp --print-config
 ```
 
-Prerequisites: Zing is not on PyPI in this release-preparation checkout.
-For the current candidate, run `uv build` and install the resulting wheel
-with the MCP extra:
+Zing 1.0.0rc1 is a release candidate. Install it with
+`pipx install "myzing[all]==1.0.0rc1"` or
+`uv tool install "myzing[all]==1.0.0rc1"`. Both include MCP support.
+For an MCP-only install, replace `[all]` with `[mcp]` and keep the version pin.
+
+To build from a source checkout, run `uv build` and install the wheel with
+the MCP extra.
 
 ```
 python -m pip install "./dist/myzing-1.0.0rc1-py3-none-any.whl[mcp]"
 ```
 
 The [public v0.1.0 pre-release](https://github.com/ryanbiddy/zing/releases/tag/v0.1.0)
-is an older build. See [the release guide](RELEASING.md) for the candidate's
-publication and one-command PyPI install instructions. Or install from source:
+is an older build. See [the install guide](INSTALL.md) for setup on each OS.
+Or install an editable source checkout.
 
 ```
 git clone https://github.com/ryanbiddy/zing && cd zing
@@ -319,8 +323,8 @@ optional setting — the Zing workspace directory (default `~/.zing`).
 **What is verified** (2026-10-22, Windows): MCPB CLI 2.1.2 validates and
 packs the manifest 0.4 bundle. Its exact launch command (`uv run --frozen
 --directory <bundle> --extra mcp python -m myzing.cli serve-mcp`) boots
-from the extracted archive with a fresh environment. Both legacy and
-`2026-07-28` stdio serve all thirty-two tools and all five prompt-pack prompts,
+from the extracted archive with a fresh environment. That check covered both
+legacy and `2026-07-28` stdio, the SDK 1 tool set and all five prompt-pack prompts,
 including `meme-writer`. Schemas, prompt bodies and representative results
 match the recorded SDK 1 baseline. **What still needs a
 human:** the Claude Desktop double-click dialog itself (GUI). If it

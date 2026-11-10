@@ -66,9 +66,9 @@ def test_studio_entry_point_and_mcp_counts():
     tools = next(ast.literal_eval(n.value) for n in module.body
                  if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "EXPECTED_TOOLS" for t in n.targets))
     assert {"zing_studio", "zing_studio_run"} <= tools
-    for file in ("README.md", "docs/CONNECT.md", "skills/zing/references/mcp.md"):
+    for file in ("README.md", "docs/CONNECT.md", "skills/zing/SKILL.md", "skills/zing/references/mcp.md"):
         text = (ROOT / file).read_text(encoding="utf-8")
-        counts = re.findall(r"\b(\d+) (?:MCP )?tools\b", text)
+        counts = re.findall(r"\b(\d+)(?: (?:MCP )?tools\b|-tool\b)", text)
         assert counts and all(int(n) == len(tools) for n in counts), (file, counts)
     assert _usage().splitlines()[0] == "Match your clips to a reference video and make memes from local images."
     assert "Start here: zing studio" in _usage()

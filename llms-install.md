@@ -1,18 +1,25 @@
-# Install Zing from source with an AI agent
+# Install Zing with an AI agent
 
-Zing is pre-alpha. Use the source checkout today. The Python distribution is
-named `myzing`, its command is `zing`, and it has not been published to PyPI.
-The repository's `server.json` describes a future PyPI release, not an install
-that is available now.
+Zing 1.0.0rc1 is a release candidate. The Python distribution is named `myzing`
+and its command is `zing`. Install the pinned package or use a source checkout.
 
-Run these steps on the machine that holds the person's media. You need Git, uv
-and Python 3.11 or newer. For video work, put FFmpeg and ffprobe on PATH, using
+Run these steps on the machine that holds the person's media. You need Python
+3.11 or newer and pipx or uv. For video work, put FFmpeg and ffprobe on PATH, using
 an FFmpeg build with libx264 and libass. Python extras do not install those
 binaries. See [developer setup](docs/DEVELOPER-GUIDE.md).
 
 ## Install and check
 
-Clone into a new folder, or use the person's existing Zing checkout:
+Install the release candidate with its media and MCP extras.
+
+```sh
+pipx install "myzing[all]==1.0.0rc1"
+```
+
+Or use `uv tool install "myzing[all]==1.0.0rc1"`. For an MCP-only install,
+replace `[all]` with `[mcp]` and keep the version pin.
+
+For a source install, use Git and uv in a new folder or an existing checkout.
 
 ```sh
 git clone https://github.com/ryanbiddy/zing.git
@@ -27,23 +34,29 @@ The [README extras table](README.md#optional-dependencies) explains `study`,
 HyperFrames sidecar need separate installs. Installing all extras does not fetch
 model weights.
 
+Factory rendering needs Node.js 20 or later and Chrome or Edge. Run
+`zing factory setup` to install the bundled Node sidecar, then
+`zing factory doctor` to check it. See [factory setup](docs/FACTORY.md#setup).
+For a source install, prefix these commands and the checks below with
+`uv run --frozen`.
+
 Set an isolated workspace and keep Uoink disconnected for the first check.
-In PowerShell:
+In PowerShell, run the following commands.
 
 ```powershell
 $env:ZING_HOME = Join-Path $PWD 'zing-workspace/agent'
 $env:UOINK_URL = 'http://127.0.0.1:1'
-uv run --frozen zing doctor
-uv run --frozen zing serve-mcp --print-config
+zing doctor
+zing serve-mcp --print-config
 ```
 
-In a POSIX shell:
+In a POSIX shell, use the following commands.
 
 ```sh
 export ZING_HOME="$PWD/zing-workspace/agent"
 export UOINK_URL=http://127.0.0.1:1
-uv run --frozen zing doctor
-uv run --frozen zing serve-mcp --print-config
+zing doctor
+zing serve-mcp --print-config
 ```
 
 `zing doctor` reports feature gaps and returns 1 if a required dependency is
@@ -67,8 +80,9 @@ problems. Merge only Zing's entry into the client's existing settings, preserve
 other servers, and give that entry the `ZING_HOME` and `UOINK_URL` values above.
 Use the resolved absolute workspace path, not a shell expression in JSON.
 
-If configuring a launcher directly, use the absolute path to `.venv/bin/zing`
-on POSIX or `.venv/Scripts/zing.exe` on Windows, with arguments `["serve-mcp"]`.
+If configuring a launcher directly, use the absolute path to the installed
+`zing` executable with arguments `["serve-mcp"]`. In a source checkout, it is
+`.venv/bin/zing` on POSIX or `.venv/Scripts/zing.exe` on Windows.
 There is no HTTP endpoint to configure. Restart the client's MCP connection,
 confirm initialization and tool discovery, then call `zing_status` and
 `get_prompt`. See [connection details](docs/CONNECT.md).

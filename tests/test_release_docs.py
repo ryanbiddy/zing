@@ -11,8 +11,9 @@ VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["
 
 
 def test_install_examples_pin_release():
-    docs = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md")),
-            *sorted((ROOT / "skills").rglob("*.md"))]
+    docs = [ROOT / "README.md", *sorted(ROOT.glob("llms*.md")),
+            *sorted((ROOT / "docs").glob("*.md")), *sorted((ROOT / "skills").rglob("*.md")),
+            *sorted((ROOT / "plugins").rglob("README.md"))]
     found, stale = [], []
     for doc in docs:
         text = doc.read_text(encoding="utf-8").replace("\\\n", " ")
