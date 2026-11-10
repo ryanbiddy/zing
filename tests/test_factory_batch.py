@@ -5,6 +5,7 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +19,7 @@ def offline(monkeypatch):
     monkeypatch.setattr(judge.subprocess, "run", refuse)
     monkeypatch.setattr(visuals.urllib.request, "urlopen", refuse)
     monkeypatch.setattr(source, "transcribe_episode", refuse)
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda media: SimpleNamespace(duration=3600.0))
     monkeypatch.setattr(source, "transcribe_moments", lambda media, pieces: [])
     monkeypatch.setattr(batch.time, "sleep", lambda seconds: None)
 

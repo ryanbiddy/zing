@@ -128,7 +128,7 @@ def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float
     return info
 
 
-def _text_cut(img, reader) -> bool:
+def _text_cut(img, reader) -> dict:
     import cv2
     from myzing.study.caption_geometry import parse_ocr
     from myzing.study.captions import CONF_THRESHOLD
@@ -138,11 +138,15 @@ def _text_cut(img, reader) -> bool:
     boxes = [d.box for d in parse_ocr(reader(small), small)
              if d.text and d.confidence is not None and d.confidence >= CONF_THRESHOLD]
     if sum((r - l) * (b - t) for l, t, r, b in boxes) < .03:
-        return False
-    s = max(1080 / Wd, 960 / H)                  # the default 9:16 speaker panel in scene.html
+        return {}
+    box = [min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes)]
+    out = {"text_box": [round(v, 3) for v in box]}
+    s = max(1080 / Wd, 960 / H)                  # keep the old split-panel flag for saved projects
     w, h = 1080 / (Wd * s), 960 / (H * s)
     x, y = max(0, min(1 - w, .5 - w / 2)), max(0, min(1 - h, .38 - h / 2))
-    return any(l < x or r > x + w or t < y or b > y + h for l, t, r, b in boxes)
+    if any(l < x or r > x + w or t < y or b > y + h for l, t, r, b in boxes):
+        out["text"] = True
+    return out
 
 
 def cams(d: Path) -> dict:
@@ -215,8 +219,7 @@ def cams(d: Path) -> dict:
                     ocr = False
             if ocr:
                 try:
-                    if _text_cut(img, ocr):
-                        cam["text"] = True
+                    cam.update(_text_cut(img, ocr))
                 except Exception:
                     pass
         if len(faces) < 2 or b - a < 1.0:

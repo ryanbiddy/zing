@@ -120,8 +120,10 @@ html[data-aspect="9x16"] #label .n,html[data-aspect="9x16"] #label .r{white-spac
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
 const TH0 = D.theme || {}, CAP_DEFAULT = TH0.cap_bg == null;
+const CAP_SHORT = CAP_DEFAULT || TH0.cap_side === 'short';   // size by the short side, so 16x9 is not 1.8x bigger
 const CAP_SIZE = TH0.cap_size || CAP_DEFAULT
-  ? Math.round((TH0.cap_size || 78) * (TH0.learned ? (D.H || 1920)/1920 : Math.min(D.W || 1080, D.H || 1920)/1080)) : 54;   // the short side: 16x9 is not 1.8x bigger
+  ? Math.round((TH0.cap_size || 78) * (TH0.learned ? (D.H || 1920)/1920
+    : (CAP_SHORT ? Math.min(D.W || 1080, D.H || 1920) : D.W || 1080)/1080)) : 54;
 const CAP_SCALE = TH0.cap_scale ?? (CAP_DEFAULT ? 1.06 : 1);
 window.packFonts = (D.fonts || []).map(f => {
   const face = new FontFace(f.family, `url(${JSON.stringify(f.src)})`, {weight: String(f.weight), style: f.style});
@@ -264,11 +266,17 @@ function contain(img, iw, ih, bw, bh) {
   img.style.width = iw+'px'; img.style.height = ih+'px';
   img.style.transform = `translate(${(bw-vw)/2}px,${(bh-vh)/2}px) scale(${s})`;
 }
+function textCut(cam, iw, ih, bw, bh, z) {
+  if (!cam.text_box) return cam.text;
+  const [l, t, r, b] = cam.text_box, {tx, ty, s} = crop(iw, ih, bw, bh, z, .5, .38, D.burnTop);
+  return l < -tx/(iw*s) || r > (bw-tx)/(iw*s) || t < -ty/(ih*s) || b > (bh-ty)/(ih*s);
+}
 
 // ---- graphics ----
 function listLayout(n) {
-  const step = Math.min(160, 476/Math.max(1,n-1)), h = 96 + 88 + Math.max(0,n-1)*step, top = (960-h)/2;
-  return {title: top, items: Array.from({length:n}, (_, i) => top+96+i*step)};
+  const step = Math.min(160, 476/Math.max(1,n-1)), badge = Math.min(88, step),
+    h = 96 + badge + Math.max(0,n-1)*step, top = (960-h)/2;
+  return {title: top, badge, items: Array.from({length:n}, (_, i) => top+96+i*step)};
 }
 function drawGraphic(g, t, el) {
   const k = g.kind;
@@ -276,8 +284,8 @@ function drawGraphic(g, t, el) {
     el.dataset.id = g.id;
     if (k === 'counter') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div><div class="g-num" style="top:300px"></div><div class="g-lab" style="top:560px">${esc(g.label||'')}</div>`;
     if (k === 'list') { const n = g.items.length, longest = Math.max(...g.items.map(it => it.text.length));
-      const fs = Math.min(64, Math.floor(1500 / Math.max(14, longest))), pos = listLayout(n);
-      el.innerHTML = `<div class="g-title" style="top:${pos.title}px">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${pos.items[i]}px;right:90px;font-size:${fs}px;white-space:nowrap"><i>${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
+      const pos = listLayout(n), fs = Math.min(64*pos.badge/88, Math.floor(1500 / Math.max(14, longest)));
+      el.innerHTML = `<div class="g-title" style="top:${pos.title}px">${esc(g.title||'')}</div>` + g.items.map((it,i)=>`<div class="g-item" style="top:${pos.items[i]}px;right:90px;font-size:${fs}px;white-space:nowrap"><i style="width:${pos.badge}px;height:${pos.badge}px;font-size:${40*pos.badge/88}px;border-radius:${pos.badge/4}px">${i+1}</i><span>${esc(it.text)}</span></div>`).join(''); }
     if (k === 'title') { const m = String(g.text||'').match(/^(.*?)\*([^*]+)\*(.*)$/), name = m ? m[2] : String(g.text||''), intro = m ? (m[1]+m[3]).trim() : '';
       el.innerHTML = `<div class="g-intro">${esc(intro)}</div><div class="g-name" style="font-size:${Math.min(190, Math.floor(1900/Math.max(6, name.length)))}px">${esc(name)}</div>`; }
     if (k === 'endcard') el.innerHTML = (D.logo ? `<img class="g-logo" src="${esc(D.logo.src)}" style="top:${260-Math.min(D.logo.h,200)}px;height:${Math.min(D.logo.h,200)}px">` : '')
@@ -418,8 +426,10 @@ function captionY(gi, cy, cap, box, centered) {
   for (const shot of D.shots) {
     if (shot.from >= b || shot.to <= a) continue;
     const G = geometry(shot.layout), S = G.spk;
-    // a graphic card above the speaker: the caption may sit at the seam but never over the card
-    if (ASPECT === '9x16' && G.gfx && S) low = Math.max(low, G.gfx.y + G.gfx.h - 36 - h/2);
+    if (ASPECT === '9x16' && G.gfx && S) {
+      if (G.gfx.y > S.y) high = Math.min(high, G.gfx.y + 36 + h/2);
+      else low = Math.max(low, G.gfx.y + G.gfx.h - 36 - h/2);
+    }
     if (!S) continue;
     if (G.hook === 'header') low = Math.max(low, 390);
     for (const cam of D.cams) {
@@ -436,7 +446,7 @@ function captionY(gi, cy, cap, box, centered) {
       if (face.x1 > (SW-w)/2 && face.x0 < (SW+w)/2) faces.push(face);
     }
   }
-  if (!faces.length) return cy;
+  if (!faces.length) return clamp(cy+offset, low+h/2, high-h/2)-offset;
   const first = shotAt(a), G = geometry(first.layout);
   let y = captionBase(G, visualBox(G, first), cap.offsetHeight, centered) + offset;
   const top = r => CAP.y == null ? r.hair : r.y0;   // a pack's own caption height only moves off the face itself
@@ -447,6 +457,7 @@ function captionY(gi, cy, cap, box, centered) {
     const above = Math.min(high, Math.min(...faces.map(r => r.y0)) - gap) - h/2;
     y = below+h/2 <= high ? below : clear-h/2 >= low ? clear : above-h/2 >= low ? above : clamp(below, low+h/2, high-h/2);
   }
+  y = clamp(y, low+h/2, high-h/2);
   capPositions.set(gi, y-offset);
   return y-offset;
 }
@@ -525,7 +536,7 @@ window.seek = async function(t) {
     const lean = Q ? 1 + .06*easeOut(lin(t, Q.from, Q.from+1.2))*(1 - easeInOut(lin(t, Q.to-.35, Q.to))) : 1;
     if (cam.mode === 'face') {
       applyCrop(body, iw, ih, faceCrop(cam, G.spk, t, lean));
-    } else if (cam.text || (cam.mode === 'wide' && cam.faces > 1)) contain(body, iw, ih, BW, BH);   // keep the whole card or group
+    } else if (textCut(cam, iw, ih, BW, BH, lean) || (cam.mode === 'wide' && cam.faces > 1)) contain(body, iw, ih, BW, BH);   // keep the whole card or group
     else cover(body, iw, ih, BW, BH, lean, .5, .38, D.burnTop);
     if (G.front) {             // the frame, kept only where its matte says the speaker is
       if (body.width !== iw) { body.width = iw; body.height = ih; }

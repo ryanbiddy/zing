@@ -43,11 +43,11 @@ def normalize(key, value):
     elif key == "judge":
         if value not in ("claude", "host"):
             raise ValueError("Choose claude or host for the judge.")
-    elif key == "no_open":
+    elif key in {"no_open", "no_sync_check"}:
         if isinstance(value, str) and value.lower() in {"yes", "no", "true", "false"}:
             value = value.lower() in {"yes", "true"}
         if type(value) is not bool:
-            raise ValueError("no_open must be yes or no.")
+            raise ValueError(f"{key} must be yes or no.")
     return value
 
 
@@ -108,8 +108,15 @@ def next_step(a, cache):
     for q in queue:
         if q.id not in a:
             return {"status": "question", "question": q.to_dict(), "answers": a}
+    cfg = read_json(root / "factory.json") if (root / "factory.json").is_file() else {}
+    failed = cfg.get("transcript_sync", {}).get("status") == "failed"
+    if failed and "no_sync_check" not in a:
+        q = question("no_sync_check", "Have you confirmed this transcript matches? Skip the failed sync check?", True,
+                     "Yes keeps your transcript and skips the check. No lets Zing transcribe the episode instead.", facts)
+        return {"status": "question", "question": q.to_dict(), "answers": a}
     plan = {"version": 1, "path": "g", "title": PATHS["g"], "episode": str(media), "duration": duration,
-            "transcript": a["transcript"], "clips": a["clips"], "shapes": a["shapes"], "judge": a["judge"],
+            "transcript": "none" if failed and a.get("no_sync_check") is False else a["transcript"],
+            "clips": a["clips"], "shapes": a["shapes"], "judge": a["judge"],
             "project": str(root), "output_folder": str(root), "aspects": a["shapes"],
             "steps": ["Create the factory project", "Open the review page", "Press Run to scout and render clips"],
             "estimate": {"seconds": None, "basis": "Rendering starts when you press Run.", "source_seconds": duration},
@@ -130,6 +137,22 @@ def create(a, plan):
             raise ValueError("This project has no saved episode. Choose a different project folder.")
         if Path(saved.get("media", "")).resolve() != media:
             raise ValueError("This project holds another episode. Choose a different project folder.")
+        cfg = read_json(root / "factory.json")
+        if cfg.get("transcript_sync", {}).get("status") == "failed":
+            if type(a.get("no_sync_check")) is not bool:
+                raise ValueError("Confirm the transcript or choose to transcribe the episode.")
+            if pipeline.load_moments(root).get("scouted"):
+                raise ValueError("Transcript sync cannot change after moments have already been scouted.")
+            if a["no_sync_check"]:
+                pipeline.configure_sync(root, no_sync_check=True)
+            else:
+                for name in ("transcript.json", "words.json", "transcript.unsynced.json", "words.unsynced.json"):
+                    (root / name).unlink(missing_ok=True)
+                cfg.pop("transcript_sync", None)
+                cfg.pop("transcript_offset", None)
+                cfg["no_sync_check"] = False
+                pipeline.Judge(root).forget("scout")
+                pipeline._write(root / "factory.json", cfg)
     else:
         allowed = {"studio-session.json", "studio-result.json", "match-job"}
         if root.exists() and any(p.name not in allowed for p in root.iterdir()):

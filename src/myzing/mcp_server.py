@@ -1885,7 +1885,7 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
     uhd doubles every shape's output width and height for 4K sources.
     offline fetches nothing. visuals names a folder of your images and videos for the pick step.
     rights labels the source and never blocks a clip. brief is a JSON campaign file checked before render.
-    Supplied transcripts are checked against three speech probes before scouting. offset supplies the shift in
+    Supplied transcripts are checked with up to five speech probes before scouting. offset supplies the shift in
     seconds and skips that check, including offset=0. no_sync_check skips it without shifting the transcript.
     """
     from myzing.factory import pipeline
@@ -1922,14 +1922,25 @@ def _run_factory(root: Path) -> None:
             _FACTORY_JOBS.pop(str(root), None)
 
 
-def h_factory_run(project: str) -> dict[str, Any]:
-    """Advance the project in the background until it finishes or needs answers."""
+def h_factory_run(project: str, no_sync_check: bool = False, offset: float | None = None) -> dict[str, Any]:
+    """Advance the project in the background until it finishes or needs answers.
+
+    Before scouting, no_sync_check skips transcript checks and offset sets a known shift in seconds.
+    """
+    from myzing.factory import pipeline
+    from myzing.factory.tools import FactoryError
     root = Path(project).expanduser().resolve()
     if not (root / "factory.json").is_file():
         return _err(f"{root} is not a factory project; create one with factory_new")
     with _JOBS_LOCK:
         if str(root) in _FACTORY_JOBS:
+            if no_sync_check or offset is not None:
+                return _err("Wait for the factory run to finish before changing transcript sync.")
             return _ok(project=str(root), status="already_running", hint="Poll factory_status(project).")
+        try:
+            pipeline.configure_sync(root, no_sync_check=no_sync_check, offset=offset)
+        except (FactoryError, ValueError, OSError) as exc:
+            return _err(str(exc))
         thread = threading.Thread(target=_run_factory, args=(root,), name=f"zing-factory-{root.name}", daemon=True)
         _FACTORY_JOBS[str(root)] = thread
         thread.start()
