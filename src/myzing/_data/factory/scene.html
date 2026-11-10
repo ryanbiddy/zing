@@ -285,6 +285,12 @@ function listLayout(n) {
     h = 96 + badge + Math.max(0,n-1)*step, top = (960-h)/2;
   return {title: top, badge, items: Array.from({length:n}, (_, i) => top+96+i*step)};
 }
+function funnelLayout(n) {
+  const step = Math.min(220, 600/Math.max(1,n)), bar = Math.min(132, step*.6),
+    label = Math.min(30, step*.25), gap = Math.min(6, step*.05),
+    h = Math.max(0,n-1)*step + bar + gap + label, top = (960-h)/2;
+  return {bar, label, gap, title: Math.min(120, top-96), rows: Array.from({length:n}, (_, i) => top+i*step)};
+}
 function drawGraphic(g, t, el) {
   const k = g.kind;
   if (el.dataset.id !== g.id) {
@@ -298,7 +304,8 @@ function drawGraphic(g, t, el) {
     if (k === 'endcard') el.innerHTML = (D.logo ? `<img class="g-logo" src="${esc(D.logo.src)}" style="top:${260-Math.min(D.logo.h,200)}px;height:${Math.min(D.logo.h,200)}px">` : '')
       + `<div class="g-name" style="top:300px;font-size:${Math.min(170, Math.floor(1800/Math.max(6, String(g.name||'').length)))}px">${esc(g.name||'')}</div>`
       + `<div class="g-url">${esc(g.url||'')}</div><div class="g-line">${esc(g.line||'')}</div>`;
-    if (k === 'funnel') el.innerHTML = `<div class="g-title">${esc(g.title||'')}</div>` + g.rows.map((r,i)=>`<div class="row" style="top:${200+i*(640/g.rows.length)}px"><div class="bar"></div><div class="num"></div><div class="lab">${esc(r.label)}</div></div>`).join('');
+    if (k === 'funnel') { const pos = funnelLayout(g.rows.length);
+      el.innerHTML = `<div class="g-title" style="top:${pos.title}px">${esc(g.title||'')}</div>` + g.rows.map((r,i)=>`<div class="row" style="top:${pos.rows[i]}px;height:${pos.bar+pos.gap+pos.label}px"><div class="bar" style="height:${pos.bar}px"></div><div class="num" style="height:${pos.bar}px;line-height:${pos.bar}px;font-size:${Math.min(56,pos.bar*.7)}px"></div><div class="lab" style="top:${pos.bar+pos.gap}px;font-size:${27*pos.label/30}px;line-height:${pos.label}px">${esc(r.label)}</div></div>`).join(''); }
   }
   const t0 = g.from;
   if (k === 'counter') {
@@ -328,14 +335,16 @@ function drawGraphic(g, t, el) {
     el.querySelectorAll('.row').forEach((row,i) => {
       const r = g.rows[i], at = r.at ?? (t0+i*.5), p = easeOut(lin(t, at, at+.45));
       const w = 220 + 740*(hi===lo?1:(scale(r.value)-lo)/(hi-lo));
-      row.style.opacity = p; row.style.transform = `translateY(${(1-p)*24}px)`;
-      const bar = row.children[0], bw = w*mix(.9,1,back(lin(t,at,at+.5)));
+      row.style.opacity = mix(.28,1,p);
+      const bar = row.children[0], bw = t <= at ? w : w*mix(.9,1,back(lin(t,at,at+.5)));
       bar.style.width = bw+'px'; bar.style.marginLeft = -bw/2+'px';
-      const last = i === g.rows.length-1;
+      const last = i === g.rows.length-1 && t >= at;  // the closing row turns yellow only once it is said
       const TH = D.theme || {};
-      bar.style.background = last ? 'var(--yel)' : (TH.funnel || ['#3D6BFF','#2D50C8','#22399A','#1B2F80'])[i%4];
+      const pal = TH.funnel?.length ? TH.funnel : ['#3D6BFF','#2D50C8','#22399A','#1B2F80'];
+      bar.style.background = last ? 'var(--yel)' : pal[i%pal.length];
       row.children[1].style.color = last ? 'var(--accent-ink)' : (TH.funnel_ink || '#fff');
-      row.children[1].textContent = r.text ?? fmt(r.value*easeOut(lin(t,at,at+.7)));
+      row.children[1].style.opacity = p;
+      row.children[1].textContent = t < at ? '' : r.text ?? fmt(r.value*easeOut(lin(t,at,at+.7)));
     });
   }
 }
@@ -579,8 +588,9 @@ window.seek = async function(t) {
   }
   if (G.gfx) {
     const half = ASPECT==='9x16' && G.gfx.h < SH9*.75, s = Math.min(G.gfx.w/1080, (G.gfx.h - (half ? 0 : 150))/960);
-    const inner = $('gfxIn');
-    inner.style.transform = `translate(${(G.gfx.w-1080*s)/2}px,${half ? 0 : Math.max(0,(G.gfx.h-150-960*s)/2)}px) scale(${s})`;
+    const inner = $('gfxIn'), y = shot.graphic?.kind === 'funnel' ? (G.gfx.h-960*s)/2
+      : half ? 0 : Math.max(0,(G.gfx.h-150-960*s)/2);
+    inner.style.transform = `translate(${(G.gfx.w-1080*s)/2}px,${y}px) scale(${s})`;
     drawGraphic({...shot.graphic, id: 'g'+shot.idx, from: shot.from}, t, inner);
     if (D.logo && shot.graphic.kind === 'endcard') await inner.querySelector('.g-logo').decode().catch(() => {});
   }

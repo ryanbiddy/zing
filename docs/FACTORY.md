@@ -601,6 +601,9 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Badges and text shrink when seven or more items need closer rows.
 - Counters start when the card appears and reach the final number by its `at`
   time. Years and small numbers appear whole.
+- Funnels show dim bars at their final widths, with dim labels, from the start of the shot.
+  Each row lights up and reveals its number at its `at` time. The stack stays
+  centered below its title. Fewer rows get heavier bars.
 - A quote is the clip's one most quotable line, and the captions take over for it: the
   speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
   face with its key words highlighted, then steps away and normal captions carry on.
