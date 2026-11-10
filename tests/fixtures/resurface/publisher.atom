@@ -1,0 +1,9 @@
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Science Desk</title>
+  <entry>
+    <title>M. Stone explains the lab design</title>
+    <link rel="self" href="https://science.example.org/api/lab"/>
+    <link rel="alternate" href="https://science.example.org/lab-design"/>
+    <updated>2026-11-09T11:50:00Z</updated>
+  </entry>
+</feed>

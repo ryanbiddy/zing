@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:ht="https://trends.google.com/trending/rss">
+  <channel>
+    <title>Daily Search Trends</title>
+    <item>
+      <title>Maya Stone</title>
+      <ht:approx_traffic>20,000+</ht:approx_traffic>
+      <pubDate>Mon, 09 Nov 2026 11:30:00 GMT</pubDate>
+      <ht:picture>https://images.example.org/ignored.jpg</ht:picture>
+      <ht:news_item>
+        <ht:news_item_title>Maya Stone announces a lunar lab</ht:news_item_title>
+        <ht:news_item_url>https://space.example.org/lab</ht:news_item_url>
+        <ht:news_item_source>Space Desk</ht:news_item_source>
+        <ht:news_item_picture>https://images.example.org/also-ignored.jpg</ht:news_item_picture>
+        <ht:extra>Ignored</ht:extra>
+      </ht:news_item>
+      <ht:news_item>
+        <ht:news_item_title><![CDATA[Maya Stone &amp; the lunar lab]]></ht:news_item_title>
+        <ht:news_item_url>https://science.example.org/lab</ht:news_item_url>
+      </ht:news_item>
+    </item>
+    <item>
+      <title>Orion mission</title>
+      <ht:approx_traffic>2M+</ht:approx_traffic>
+      <pubDate>Mon, 09 Nov 2026 11:45:00 GMT</pubDate>
+      <ht:news_item>
+        <ht:news_item_title>Orion mission sets a launch date</ht:news_item_title>
+        <ht:news_item_url>https://space.example.org/orion</ht:news_item_url>
+        <ht:news_item_source>Space Desk</ht:news_item_source>
+      </ht:news_item>
+    </item>
+    <item>
+      <title>Annabelle</title>
+      <ht:approx_traffic>500K+</ht:approx_traffic>
+      <pubDate>Mon, 09 Nov 2026 11:00:00 GMT</pubDate>
+      <ht:news_item>
+        <ht:news_item_title>Annabelle presents a study</ht:news_item_title>
+        <ht:news_item_url>https://science.example.org/annabelle</ht:news_item_url>
+        <ht:news_item_source>Science Desk</ht:news_item_source>
+      </ht:news_item>
+    </item>
+    <item><title>Quiet topic</title><ht:news_item><ht:news_item_source>Empty story</ht:news_item_source></ht:news_item></item>
+    <item><ht:approx_traffic>500K+</ht:approx_traffic></item>
+  </channel>
+</rss>
