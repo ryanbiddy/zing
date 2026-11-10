@@ -15,9 +15,11 @@
 - Let moment suggestions cross sentence pauses under two seconds. Match and
   Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
   to choose by hand and `moments --project DIR` to find a match project's studies.
-- Check supplied captions against three cached speech samples before scouting,
-  save any time shift, and stop clips whose heard words do not match. Use
-  `--offset` for a known shift or `--no-sync-check` to skip the initial check.
+- Check supplied captions with up to five samples inside the media and stop when
+  two agree. Skip when speech is off, unavailable or too sparse. Keep shifted cues
+  inside the media and preserve originals for interrupted runs. Recover before
+  scouting with `factory run --no-sync-check` or `--offset`. Studio offers to skip
+  a failed check or transcribe instead. Only matched supplied transcripts get the clip guard.
 - Group factory captions by phrase and pause. Give Zing larger outlined type, keep
   default portrait captions above phone controls, and center list reveals.
 - Keep full meme and still topics when formulas fit, warn when shortening is
