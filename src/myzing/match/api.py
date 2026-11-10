@@ -531,10 +531,13 @@ def match(reference, clips, out, *, brief=None, answers=None, drafts=3, seed=0,
             for path in result["plans"].values():
                 _save_plan(Path(path), _load_plan(path, root), root)
             return {**result, "outputs": [result["comparison_path"], *result["plans"].values()]}
-        from .moments import AutoMoments
+        from .moments import AutoMoments, clear_auto_moments
+        if not auto_moment:
+            supplied = answers is not None or brief is not None and Path(brief).expanduser().resolve() != root / "brief.json"
+            clear_auto_moments(checkpoints, supplied=supplied)
         automatic = (AutoMoments(checkpoints, clips_studied, [recipe.to_dict(), audio_maps, seed, repair_asr, studio_options,
                                                            [a.to_dict() for a in manifest.assets]])
-                     if auto_moment or resume and checkpoints.data.get("auto_moments") else None)
+                     if auto_moment else None)
         if automatic is not None:
             summary["auto_moments"] = automatic.data["picks"]
         while True:

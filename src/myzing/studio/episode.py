@@ -65,6 +65,7 @@ def _media(value, cache):
 
 
 def next_step(a, cache):
+    from myzing.factory.source import sibling_transcript
     from .flow import PATHS, default_project, question
 
     root = Path(a.get("project") or default_project())
@@ -82,7 +83,7 @@ def next_step(a, cache):
         if duration < 60:
             raise ValueError("The episode must be at least 60 seconds long.")
         facts["measured"].append(f"Episode duration is {duration:g} seconds.")
-        sibling = next((p for ext in (".srt", ".vtt", ".json") if (p := media.with_suffix(ext)).is_file()), None)
+        sibling = sibling_transcript(media)
     reserved = {root / name for name in ("studio-session.json", "studio-result.json", "studio-job.json",
                                         "source.json", "factory.json", "transcript.json", "words.json", "network.jsonl")}
     for value in (media, a.get("transcript")):

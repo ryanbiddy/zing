@@ -11,6 +11,7 @@ from pathlib import Path, PureWindowsPath
 
 from . import pipeline
 from .judge import Judge
+from .source import sibling_transcript
 from .tools import FactoryError
 
 MEDIA = {".mp4", ".mov", ".mkv", ".webm", ".m4v"}
@@ -49,7 +50,7 @@ def _settings(media: Path, settings: dict) -> dict:
     date = settings.get("date")
     if date is None:
         date = datetime.strptime(info["upload_date"], "%Y%m%d").date().isoformat() if info.get("upload_date") else ""
-    transcript = next((p for ext in (".srt", ".vtt", ".json") if (p := media.with_suffix(ext)).is_file()), None)
+    transcript = sibling_transcript(media)
     defaults = {"name": info.get("title"), "url": info.get("webpage_url") or "", "date": date,
                 "tag": info.get("uploader") or info.get("channel") or "", "transcript": transcript}
     return {**defaults, **{k: v for k, v in settings.items() if v is not None}}

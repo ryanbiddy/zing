@@ -80,7 +80,8 @@ def match_face_framing(framing, clip, tracks, width, height, reference_share, *,
     minimum = max(floor, wanted, framing.height * width / (framing.width * framing.max_upscale))
     start = ceil(minimum / unit) * unit
     evidence = Evidence(clip, tracks, fps, framing.source_width, framing.source_height)
-    for ch in range(start, framing.height, unit):
+
+    def attempt(ch):
         cw = ch * width // height if framing.mode == "reframe" else ceil(framing.width * ch / framing.height)
         candidate = replace(framing, width=cw, height=ch, max_velocity=min(framing.max_velocity, min(cw, ch) * .5),
                             keyframes=[CropKeyframe(0, framing.center_x, framing.center_y)])
@@ -88,10 +89,10 @@ def match_face_framing(framing, clip, tracks, width, height, reference_share, *,
                                   follow_speakers=not framing.speaker_turns or any(t.face_track_id for t in framing.speaker_turns))
         assessment = _assess(candidate, width, height, clip, tracks, fps, evidence, face_match=True)
         if assessment.reasons or assessment.evidence_gaps or candidate.speaker_turns != framing.speaker_turns:
-            continue
+            return None
         reached = median(r["face_height_share"] for r in sampled(candidate))
         if reached <= before + EPS:
-            continue
+            return None
         limits = []
         if reached < reference_share - .005:
             if minimum > wanted + EPS:
@@ -106,6 +107,21 @@ def match_face_framing(framing, clip, tracks, width, height, reference_share, *,
                        face_match=FaceSizeMatch(reference_share, reached, floor, limits),
                        warnings=list(dict.fromkeys([*[w for w in framing.warnings if not w.startswith("Sharp picture:")],
                                                     *candidate.warnings, note])))
+    step = max(16, unit)
+    heights = list(range(start, framing.height, step))
+    last = (ceil(framing.height / unit) - 1) * unit
+    if heights and heights[-1] != last:
+        heights.append(last)
+    previous = start - unit
+    for ch in heights:
+        candidate = attempt(ch)
+        if candidate is not None:
+            for finer in range(previous + unit, ch, unit):
+                refined = attempt(finer)
+                if refined is not None:
+                    return refined
+            return candidate
+        previous = ch
     limits = (["source resolution" if minimum > wanted + EPS else "crop precision"]
               if start >= framing.height else ["subject safety or crop motion"])
     note = (f"Reference face size limited. About {before:.0%} of the height (reference {reference_share:.0%}). "

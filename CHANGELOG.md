@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Reject invalid review ports and unreadable JSON transcripts. Measure the largest
+  reference face per frame and shorten crop searches. Keep review tokens out of
+  Studio files. Remove saved automatic moments when disabled and leave unchanged
+  briefs alone.
 - Tighten automatic 9:16 match crops toward measured reference face size within
   source-resolution limits. Record the reached size in plans and match reports.
 - Keep match projects resumable after a move or copy. Reuse finished steps and
