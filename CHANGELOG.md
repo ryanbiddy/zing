@@ -4,13 +4,15 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #583
+Release candidate for Zing v1. These notes cover merged PRs #401 through #584
 on main, newest first.
 
 ### Changes since #452
 
 - Show funnel graphics whole from the start, with dim rows that light up as each
   number is said, and make the doctor's audio-ml fix name only the missing piece.
+  The release gate reads code scanning from the per-language CodeQL jobs that
+  GitHub runs on main.
 - Open the README with the clipping factory (long episode in, Shorts out, a
   receipt on each), matching myzing.app, and pin every GitHub Action to a commit SHA.
 - Fix the round 2 release-check findings. Pin PyAV below 19 so fresh installs on

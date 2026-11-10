@@ -9,8 +9,13 @@ CODEQL = "repos/owner/zing/commits/abc123/check-runs?filter=all&per_page=100"
 
 
 def codeql(**fields):
-    return {"id": 20, "name": "CodeQL", "head_sha": "abc123", "status": "completed", "conclusion": "success",
-            "app": {"slug": "github-code-scanning"}, **fields}
+    return {"id": 20, "name": "Analyze (python)", "head_sha": "abc123", "status": "completed", "conclusion": "success",
+            "app": {"slug": "github-actions"}, **fields}
+
+
+def check(name, app="github-actions", **fields):
+    return {"id": 30, "name": name, "head_sha": "abc123", "status": "completed", "conclusion": "success",
+            "app": {"slug": app}, **fields}
 
 
 @pytest.mark.parametrize("runs", [[], [ci_run(head_sha="other")], [ci_run(conclusion="failure")],
@@ -26,8 +31,11 @@ def test_release_requires_suite_smoke(gate, runs):
 
 @pytest.mark.parametrize("checks", [[], [codeql(head_sha="other")], [codeql(conclusion="failure")],
                                     [codeql(status="in_progress", conclusion=None)], [codeql(conclusion="neutral")],
-                                    [codeql(app={"slug": "github-actions"})], [codeql(name="unrelated")],
-                                    [codeql(id=10), codeql(id=20, conclusion="failure")]])
+                                    [codeql(app={"slug": "other-app"})], [codeql(name="unrelated")],
+                                    [codeql(id=10), codeql(id=20, conclusion="failure")],
+                                    [check("CodeQL", app="github-code-scanning")],
+                                    [codeql(name="Analyze (actions)")],
+                                    [codeql(), codeql(id=21, name="Analyze (actions)", conclusion="failure")]])
 def test_release_requires_latest_code_scanning_success(gate, checks):
     module, replies, _ = gate
     for key in (CI, SUITE):
@@ -44,3 +52,13 @@ def test_release_accepts_all_required_results_on_exact_commit(gate):
     replies[CODEQL] = [{"check_runs": [codeql()]}]
     module.check_ci("owner/zing", "abc123")
     assert calls == [CI, SUITE, CODEQL]
+
+
+def test_release_accepts_code_scanning_as_it_reports_on_main(gate):
+    module, replies, _ = gate
+    for key in (CI, SUITE):
+        replies[key] = [{"workflow_runs": [ci_run()]}]
+    replies[CODEQL] = [{"check_runs": [check("test (ubuntu-latest, 3.13)", id=1), check("deterministic family gate", id=2),
+                                       codeql(id=3, name="Analyze (actions)"), codeql(id=4),
+                                       codeql(id=5, name="Analyze (javascript-typescript)")]}]
+    module.check_ci("owner/zing", "abc123")

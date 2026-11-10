@@ -106,4 +106,4 @@ def test_rc1_includes_round_two_release_fixes():
                  "suite-smoke", "CodeQL", "counter timing", "panel fill",
                  "hook banner", "credit contrast", "smaller files"):
         assert term in bullet, term
-    assert "PRs #401 through #583" in section
+    assert "PRs #401 through #584" in section
