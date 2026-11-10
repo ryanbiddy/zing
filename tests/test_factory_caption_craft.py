@@ -120,7 +120,7 @@ def test_other_packs_keep_caption_styles(pack, size, font, bg, ink, shape):
     width, height = render.SHAPES[shape]
     got = javascript("scene.html", "console.log(JSON.stringify(document.documentElement.style));",
                      {"words": [], "fps": 30, "W": width, "H": height, "theme": theme})
-    assert got["--cap-size"] == f"{round(size * min(width, height) / 1080) if 'cap_size' in theme else size}px"
+    assert got["--cap-size"] == f"{round(size * width / 1080) if 'cap_size' in theme else size}px"
     assert got["--cap-font"] == f'"{font}", Inter, sans-serif'
     assert got["--cap-bg"] == bg and got["--cap-ink"] == ink
     assert got["--cap-scale"] == 1 and "--cap-stroke" not in got

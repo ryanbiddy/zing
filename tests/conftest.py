@@ -269,6 +269,6 @@ def _transcript_sync_without_local_models(request, monkeypatch):
 
     The transcript sync check runs whenever a model is cached; only its own tests exercise it.
     """
-    if request.node.path.name != "test_factory_transcript_sync.py":
+    if request.node.path.name not in {"test_factory_transcript_sync.py", "test_factory_sync_fixes.py"}:
         from myzing.factory import transcript_sync
         monkeypatch.setattr(transcript_sync, "model", lambda: None)
