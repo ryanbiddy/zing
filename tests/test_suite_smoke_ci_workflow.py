@@ -21,7 +21,7 @@ def test_ci_workflows_use_node24_action_runtimes() -> None:
     for workflow in (ROOT / ".github" / "workflows").glob("*.yml"):
         text = workflow.read_text(encoding="utf-8")
         for action, major_text in re.findall(
-            r"uses:\s+(actions/(?:checkout|setup-python|upload-artifact))@v(\d+)",
+            r"uses:\s+(actions/(?:checkout|setup-python|upload-artifact))@[0-9a-f]{40}\s+#\s*v(\d+)",  # SHA pins keep the tag in a comment
             text,
         ):
             seen.add(action)
@@ -30,6 +30,13 @@ def test_ci_workflows_use_node24_action_runtimes() -> None:
             )
 
     assert seen == set(NODE24_ACTION_MAJORS)
+
+
+def test_every_external_action_is_pinned_to_a_commit() -> None:
+    files = [*(ROOT / ".github" / "workflows").glob("*.yml"), *(ROOT / ".github" / "actions").rglob("action.yml")]
+    for path in files:
+        for ref in re.findall(r"uses:\s+([^.\s][^\s]*)", path.read_text(encoding="utf-8")):
+            assert re.fullmatch(r"[\w./-]+@[0-9a-f]{40}", ref), f"{path.name} uses {ref} by tag"
 
 
 def test_ci_jobs_and_package_installs_have_explicit_timeouts() -> None:
@@ -84,7 +91,7 @@ def test_suite_smoke_workflow_runs_the_safe_family_gate() -> None:
         "python -m tools.eval.suite_smoke",
         "suite-smoke.json",
         "suite-smoke-eval.json",
-        "actions/upload-artifact@v6",
+        "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6",
         "if: always()",
         "if-no-files-found: error",
         "retention-days:",
