@@ -67,7 +67,8 @@ def clip(tmp_path, monkeypatch, zing_workspace):
 
 def test_wide_text_is_marked_and_saved(clip):
     info = cut.cams(clip.path)
-    assert info == {"cams": [{"from": 0, "to": 2, "mode": "wide", "faces": 0, "text": True}],
+    assert info == {"cams": [{"from": 0, "to": 2, "mode": "wide", "faces": 0, "text": True,
+                            "text_box": [.05, .4, .95, .48]}],
                     "size": [1920, 1080], "frames": 60, "burn_top": None}
     assert json.loads((clip.path / "cams.json").read_text(encoding="utf-8")) == info
     assert clip.calls == [(31, (540, 960, 3))]
@@ -77,7 +78,8 @@ def test_wide_text_is_marked_and_saved(clip):
 @pytest.mark.parametrize("boxes", [[(.4, .3, .6, .6)], [(.05, .1, .1, .13)], []])
 def test_centered_text_small_marks_and_empty_frames_keep_the_crop(clip, boxes):
     clip.boxes = boxes
-    assert cut.cams(clip.path)["cams"] == [{"from": 0, "to": 2, "mode": "wide", "faces": 0}]
+    text = {"text_box": [.4, .3, .6, .6]} if boxes == [(.4, .3, .6, .6)] else {}
+    assert cut.cams(clip.path)["cams"] == [{"from": 0, "to": 2, "mode": "wide", "faces": 0, **text}]
     assert len(clip.calls) == 1
 
 
@@ -139,7 +141,7 @@ def test_one_small_middle_frame_per_shot_and_one_reader(clip):
 
 def test_scene_contains_text_shots_over_the_existing_blur():
     scene = data_path("scene.html").read_text(encoding="utf-8")
-    assert re.search(r"else if \(cam\.text \|\| \(cam\.mode === 'wide' && cam\.faces > 1\)\)\s*"
+    assert re.search(r"else if \(textCut\(cam, iw, ih, BW, BH, lean\) \|\| \(cam\.mode === 'wide' && cam\.faces > 1\)\)\s*"
                      r"contain\(body, iw, ih, BW, BH\)", scene)
     assert "cover($('spkBlur'), iw, ih, BW, BH, 1.1)" in scene
     assert "else cover(body, iw, ih, BW, BH, lean, .5, .38, D.burnTop)" in scene
