@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from myzing import model_fetch
+from myzing.doctor import _install_command
 from myzing.storage import workspace_root
 
 MODEL = "ced-mini"
@@ -22,7 +23,7 @@ ASSETS = {
     "model.int8.onnx": ("ff29f39f9fbe637f72535160e9d006d61d872fdab0fce838672265b9b38cf946", 10_451_715),
     "class_labels_indices.csv": ("cdd1049833c4b86127c2773ac0d14a2754b6a6d0d1798002ed5c66e699708429", 14_675),
 }
-INSTALL_HINT = 'python -m pip install "myzing[audio-ml]"'
+INSTALL_HINT = _install_command("myzing[audio-ml]")
 FETCH_HINT = ("zing doctor --audio-model ced-mini (or zing audio fetch-model --consent; "
               "Apache-2.0 weights, about 10.5 MB)")
 CHOICE = ("CED-mini audio tags (Apache-2.0, about 10.5 MB): tells singing from instruments, "

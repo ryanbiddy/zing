@@ -768,6 +768,7 @@ source = { editable = "." }
 
 [package.optional-dependencies]
 all = [
+    { name = "av" },
     { name = "faster-whisper" },
     { name = "mcp" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -801,6 +802,7 @@ dev = [
     { name = "pytest" },
 ]
 factory = [
+    { name = "av" },
     { name = "faster-whisper" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
@@ -831,6 +833,7 @@ screen = [
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
 ]
 study = [
+    { name = "av" },
     { name = "faster-whisper" },
     { name = "onnxruntime" },
     { name = "rapidocr" },
@@ -840,6 +843,9 @@ study = [
 
 [package.metadata]
 requires-dist = [
+    { name = "av", marker = "extra == 'all'", specifier = ">=11,<19" },
+    { name = "av", marker = "extra == 'factory'", specifier = ">=11,<19" },
+    { name = "av", marker = "extra == 'study'", specifier = ">=11,<19" },
     { name = "faster-whisper", marker = "extra == 'study'", specifier = ">=1.1" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=2.3,<3" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.3,<3" },

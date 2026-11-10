@@ -239,6 +239,7 @@ def test_caption_fixes_preserve_unrelated_words_and_corrected_names(clip):
 
 
 def test_many_silences_use_a_filter_script(tmp_path, monkeypatch):
+    monkeypatch.setattr("myzing.layout.detector.require_model", lambda: tmp_path / "model")
     graphs = []
 
     def run(*args, **kwargs):

@@ -152,8 +152,9 @@ def analyze_picture(path, ranges, size, *, ffmpeg="ffmpeg"):
     try:
         import numpy as np
     except ImportError:
+        from myzing.doctor import _install_command
         return {"version": 1, "confident": False, "confidence": 0.,
-                "reason": 'picture detection needs NumPy; install it with pip install "myzing[color]"'}
+                "reason": "picture detection needs NumPy. Run " + _install_command("myzing[color]")}
     # Area averaging confines each chrome/picture boundary to one sample row
     # or column; never upsample a small source.
     width = max(16, min(320, size[0] // 2 * 2))

@@ -20,9 +20,16 @@ def runs(repo, workflow, sha, event):
 
 
 def check_ci(repo, sha):
-    latest = max(runs(repo, "ci.yml", sha, "push"), key=lambda run: run["id"], default={})
+    for workflow, name in (("ci.yml", "CI"), ("suite-smoke.yml", "suite-smoke")):
+        latest = max(runs(repo, workflow, sha, "push"), key=lambda run: run["id"], default={})
+        if latest.get("status") != "completed" or latest.get("conclusion") != "success":
+            raise RuntimeError(f"{name} has not succeeded for commit {sha}. Run {workflow} on this exact commit before publishing.")
+    checks = rows(f"repos/{repo}/commits/{sha}/check-runs?filter=all&per_page=100", "check_runs")
+    latest = max((check for check in checks if check["head_sha"] == sha and check["name"] == "CodeQL"
+                  and check.get("app", {}).get("slug") == "github-code-scanning"),
+                 key=lambda check: check["id"], default={})
     if latest.get("status") != "completed" or latest.get("conclusion") != "success":
-        raise RuntimeError(f"CI has not succeeded for commit {sha}. Run ci.yml on this exact commit before publishing.")
+        raise RuntimeError(f"CodeQL has not succeeded for commit {sha}. Run code scanning on this exact commit before publishing.")
 
 
 def testpypi_published(repo, sha, current_run):
@@ -50,7 +57,7 @@ def main():
         return 1
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
         output.write(f"testpypi_published={str(published).lower()}\n")
-    print(f"CI passed for commit {sha}.")
+    print(f"CI, suite-smoke and CodeQL passed for commit {sha}.")
     return 0
 
 

@@ -48,9 +48,10 @@ def detect_shots(media_path: Path, duration: float, fps: float, *, min_scene_len
     try:
         spans, version = _run_detector(str(media_path), min_scene_len_frames)
     except ImportError:
+        from myzing.doctor import _install_command
         result.warnings.append(
-            "shot detection skipped: scenedetect not installed "
-            "(pip install myzing[study])"
+            "shot detection skipped. scenedetect not installed. "
+            f"Run {_install_command('myzing[study]')}"
         )
         return result
     except Exception as e:  # decode failure etc. — honest skip, never a guess

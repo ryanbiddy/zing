@@ -18,7 +18,7 @@ emits the same result machine-readably; the MCP ``zing_status`` tool is
 built on ``run_checks()`` so humans and AIs read one source of truth.
 
 Core install is stdlib-only by design: doctor must run before anything
-else is installed. Heavy deps are detected, never imported.
+else is installed. Speech decoding is probed without loading a model.
 """
 
 from __future__ import annotations
@@ -385,6 +385,14 @@ def check_whisper() -> Check:
     row = next(r for r in rows if r["model"] == model)
     installed = _has_module("faster_whisper")
     data = {**row, "models": rows, "network_used": False}
+    if installed:
+        from .study.transcribe import decode_smoke
+        try:
+            decode_smoke()
+        except Exception as exc:
+            return Check("faster-whisper", RECOMMENDED, False, f"Speech audio decode failed. {exc}",
+                         fix=_install_command("myzing[study]"),
+                         degraded_mode="Transcription and spoken captions are unavailable.", data=data)
     cached = [r["model"] for r in rows if r["cached"]]
     detail = ("package installed" if installed else "faster_whisper not importable")
     detail += "; cached speech models: " + (", ".join(cached) or "none")

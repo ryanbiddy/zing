@@ -70,6 +70,7 @@ def test_core_failure_is_still_fatal(checks, capsys):
 
 
 def test_missing_speech_model_summary_uses_real_check(checks, monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr("myzing.study.transcribe.decode_smoke", lambda: None)
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "empty-hub"))
     monkeypatch.setenv("ZING_WHISPER_MODEL", "small.en")
     monkeypatch.setattr(doctor, "_has_module", lambda _: True)

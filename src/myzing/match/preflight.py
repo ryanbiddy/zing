@@ -8,6 +8,7 @@ import subprocess
 
 from myzing.brief.api import load_brief
 from myzing.brief.models import Brief
+from myzing.doctor import _install_command
 from myzing.project.probe import MEDIA_EXTENSIONS, MEDIA_DEMUXERS, parse_probe
 from myzing.study import proc, speech_models
 from myzing.urls import is_http_url
@@ -60,7 +61,7 @@ def check(reference, clips, out, *, brief=None, answers=None, studio_options=Non
         problems.append("Missing " + ", ".join(missing) + "; install FFmpeg and put ffmpeg/ffprobe on PATH (zing doctor).")
     if selected and selected.framing == "reframe":
         if importlib.util.find_spec("cv2") is None:
-            problems.append('Framing=reframe needs OpenCV; run python -m pip install "myzing[layout]", or choose framing=fit.')
+            problems.append(f"Framing=reframe needs OpenCV. Run {_install_command('myzing[layout]')}, or choose framing=fit.")
         from myzing.layout.detector import model_path, verified_model
         if not verified_model(model_path()):
             warnings.append(f"Optional capability unavailable for reframe: YuNet face model missing or corrupt at {model_path()}; run zing layout fetch-model. Body/center fallback has no verified face coverage.")

@@ -100,7 +100,7 @@ def test_probe_errors_skip_once(tmp_path, episode, monkeypatch, error):
     assert result["state"] == "waiting" and saved["status"] == "skipped" and saved["method"] == "probe_error"
     assert 0 < len(saved["error"]) <= 300 and "\n" not in saved["error"]
     assert len(calls) == 5
-    assert said == ["Zing skipped the transcript sync check because the speech probes could not run."]
+    assert said == ["Zing skipped the transcript sync check because the speech probes could not run.", saved["error"]]
 
 
 def test_past_end_probes_are_inconclusive(tmp_path, episode, monkeypatch):

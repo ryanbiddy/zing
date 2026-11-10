@@ -213,6 +213,8 @@ def _sync_transcript(project: Path, media: Path, cfg: dict, segments: list[dict]
             why = {"no_cached_model": "no speech model is cached", "speech_off": "speech is turned off",
                    "too_little_speech": "too little speech was heard", "probe_error": "the speech probes could not run"}
             say(f"Zing skipped the transcript sync check because {why[saved['method']]}.")
+            if saved.get("error"):
+                say(saved["error"])
         cfg.update(transcript_offset=offset, transcript_sync=saved)
         _write(project / "factory.json", cfg)
     if saved.get("status") == "failed":
@@ -556,6 +558,7 @@ def run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print,
 
 
 def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print, stop=None) -> dict:
+    from myzing.layout.detector import MissingModelError
     project = Path(project).resolve()
     if isinstance(judge, Judge):
         judge.validate = lambda task, value: _check_answer(project, task, value) \
@@ -584,6 +587,8 @@ def _run(project: Path, judge: Judge, *, only: set[int] | None = None, say=print
                 _clip(project, i, m, judge, media, cfg, words, say, **({"stop": stop} if stop else {}))
             except _Stopped:
                 raise
+            except MissingModelError as exc:
+                raise FactoryError(str(exc)) from exc
             except Exception as exc:                  # one bad clip never sinks the episode
                 failed[f"clip{i:02d}"] = str(exc)[:300]
                 say(f"clip{i:02d}: failed: {exc}")
@@ -616,6 +621,7 @@ def run_error(result: dict) -> str:
 
 
 def status(project: Path, judge: Judge | None = None) -> dict:
+    """Assemble the full report for ``zing factory status``. ``status.json`` is a lock-step marker only."""
     project = Path(project).resolve()
     judge = judge or Judge(project)
     cfg = _read(project / "factory.json", {})

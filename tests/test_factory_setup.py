@@ -115,12 +115,14 @@ def test_factory_setup_errors(npm, monkeypatch, capsys, failure):
 
 
 def test_factory_doctor_names_setup(npm, monkeypatch):
+    monkeypatch.setattr(tools, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, "v24.0.0", ""))
     with pytest.raises(tools.FactoryError, match="zing factory setup"):
         tools.node_sidecar()
     assert "zing factory setup" in tools.check()["sidecar"]["fix"]
 
 
 def test_factory_doctor_needs_no_render_extras(npm, monkeypatch, capsys):
+    monkeypatch.setattr(tools, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, "v24.0.0", ""))
     original = builtins.__import__
 
     def load(name, globals=None, locals=None, fromlist=(), level=0):
@@ -128,7 +130,7 @@ def test_factory_doctor_needs_no_render_extras(npm, monkeypatch, capsys):
             raise ModuleNotFoundError("No module named 'PIL'")
         return original(name, globals, locals, fromlist, level)
     monkeypatch.setattr(builtins, "__import__", load)
-    assert command.run(["doctor"]) == 0
+    assert command.run(["doctor"]) == 1
     result = json.loads(capsys.readouterr().out)
     assert result["sidecar"]["fix"] == "The factory sidecar is not installed. Run 'zing factory setup'."
     assert not result["stock_keys"]["ok"] and "myzing[factory]==" in result["stock_keys"]["fix"]

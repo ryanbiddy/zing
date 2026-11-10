@@ -158,9 +158,10 @@ def _speech_segments(
     try:
         return _run_vad(media_path)
     except ImportError:
+        from myzing.doctor import _install_command
         warnings.append(
-            "speech ratio skipped: faster-whisper not installed "
-            "(pip install myzing[study])"
+            "speech ratio skipped. faster-whisper not installed. "
+            f"Run {_install_command('myzing[study]')}"
         )
         return None
     except Exception as e:

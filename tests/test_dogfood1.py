@@ -89,7 +89,8 @@ def test_picture_detector_rejects_static_or_unframed_motion(monkeypatch):
     from myzing.layout.picture import analyze_picture, select_picture_framing
     monkeypatch.setitem(sys.modules, "numpy", None)
     missing = analyze_picture("unused.mp4", [(0, 3)], (640, 360))
-    assert 'pip install "myzing[color]"' in missing["reason"]
+    from myzing.doctor import _install_command
+    assert _install_command("myzing[color]") in missing["reason"]
     with pytest.raises(ValueError, match="needs NumPy"):
         select_picture_framing("auto", 640, 360, 360, 640, None, [], picture=missing, policy="on")
 

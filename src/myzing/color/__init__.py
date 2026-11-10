@@ -15,7 +15,8 @@ def require_numpy():
     try:
         import numpy
     except ImportError as exc:
+        from myzing.doctor import _install_command
         raise ColorError(
-            'Color matching requires numpy. Install: python -m pip install "myzing[color]"'
+            f"Color matching requires numpy. Run {_install_command('myzing[color]')}"
         ) from exc
     return numpy
