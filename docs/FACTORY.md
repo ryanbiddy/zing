@@ -360,9 +360,11 @@ If two files map to the same project name, the second reports an error.
 `--limit N` caps new episode attempts per pass. Resumed projects do not use the limit.
 There is no limit by default. `--limit 0` only resumes existing projects.
 
-All settings from `factory new` also work here. A matching `.srt`, `.vtt` or word
-`.json` supplies the transcript, in that order. A matching `<stem>.info.json`
-supplies the title, `webpage_url`, `upload_date` and uploader or channel as the
+All settings from `factory new` also work here. A matching `.srt`, `.vtt` or
+`.json` supplies the transcript, in that order. JSON must contain readable words
+or segments. Batch and Studio skip metadata JSON beside an episode.
+A matching `<stem>.info.json` supplies the title, `webpage_url`, `upload_date`
+and uploader or channel as the
 source name, link, date and tag. Dates become `YYYY-MM-DD`. Explicit flags override
 these files. Settings apply when a project is first created.
 
@@ -528,7 +530,8 @@ the project. The existing number and quote fact checks still run.
 For reference matching, `zing match` and Studio can pick an Estimated moment
 when a clip exceeds the search limit. Sentence pauses under two seconds are
 allowed. The pick and its study path appear in `comparison.md` and survive
-resume. Use `--no-auto-moment` to choose it yourself, or find another with
+resume. Use `--no-auto-moment` to remove earlier automatic picks and choose it
+yourself. Spans you wrote stay in the brief. Find another with
 `zing moments clip.mp4 --project ./project --json`.
 See [long interviews](MATCH.md#long-interviews) for changing the saved brief.
 
@@ -775,10 +778,14 @@ and a null PSNR.
 
 ## Review dashboard
 
-Run `zing factory serve <project>` and open the printed link. It uses port 8765; pass `--port N`, or `--port 0` for any free port, when that one is taken or reserved. It includes a token
-for this server session, such as `http://127.0.0.1:8765/?t=TOKEN`. The page saves it
+Run `zing factory serve <project>` and open the printed link. It uses port 8765.
+Pass `--port N` to choose a port from 0 to 65535. Use `--port 0` for any free port.
+The link includes a token for this server session, such as
+`http://127.0.0.1:8765/?t=TOKEN`. The page saves it
 in an HttpOnly session cookie and removes it from the address bar. Open the new
 printed link after restarting the server. Requests without the cookie are refused.
+Studio prints the full link but saves the URL without its token in
+`studio-result.json` and `studio-session.json`.
 
 Watch each clip in every shape, rate it Post / Post with edits / No,
 swap a visual for another candidate, fix a hook or the copy, and re-render in another

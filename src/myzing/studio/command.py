@@ -471,14 +471,15 @@ def run(argv):
             lease.close()
 
             def ready(page):
-                result["page"] = page
+                result["page"] = page.split("?", 1)[0]
                 session.result = result
                 from .models import write_json
                 write_json(pathlib.Path(result["project"]) / "studio-result.json", result)
                 persist("ready")
-                emit("result", {**result, "questions_asked": session.questions_asked})
+                shown = {**result, "page": page}
+                emit("result", {**shown, "questions_asked": session.questions_asked})
                 if not args.json:
-                    show_result(result, sys.stdout)
+                    show_result(shown, sys.stdout)
                     sys.stdout.flush()
                 if not session.answers.get("no_open", False):
                     try:

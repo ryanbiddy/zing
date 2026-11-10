@@ -5,6 +5,10 @@
 - Keep original files when a copied match project omits them. Ignore broad roots
   and roots inferred from workspace studies. Keep linked folders from blocking
   resume and read path metadata once per load.
+- Reject invalid review ports and unreadable JSON transcripts. Measure the largest
+  reference face per frame and shorten crop searches. Keep review tokens out of
+  Studio files. Remove saved automatic moments when disabled and leave unchanged
+  briefs alone.
 - Fit factory text cards to each shot and output shape. Restore landscape caption
   sizes for the launch, headline and documentary packs. Keep speaker-top captions
   above graphic cards and shrink crowded list rows to prevent overlap.

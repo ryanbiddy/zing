@@ -100,7 +100,7 @@ def test_transcript_siblings_have_priority_and_enter_accepts(inputs, suffix):
     inputs.transcript.unlink()
     extensions = (".srt", ".vtt", ".json")
     for ext in extensions[extensions.index(suffix):] if suffix else ():
-        inputs.media.with_suffix(ext).write_text("[]", encoding="utf-8")
+        inputs.media.with_suffix(ext).write_text('[{"w":"Hello.","s":0,"e":1}]' if ext == ".json" else "[]", encoding="utf-8")
     q = flow.next_step({"path": "g", "episode": str(inputs.media)})["question"]
     assert q["recommended"] == (str(inputs.media.with_suffix(suffix)) if suffix else "none")
     assert command._answer(q, "") == q["recommended"]

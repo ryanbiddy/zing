@@ -58,8 +58,10 @@ It renders with the public v2 API, fully decodes each output, studies the render
 file again, and writes a timeline PNG and match report.
 
 Automatic 9:16 drafts use measured reference face size to tighten face-tracked
-crops. Added zoom keeps at least 640 source rows or 55% of source height, whichever
-is larger, and stays within `framing_max_upscale`. Plans and match reports give
+crops. The reference size is the median of the largest face height in each
+sampled frame with faces. Added zoom keeps at least 640 source rows or 55% of
+source height, whichever is larger, and stays within `framing_max_upscale`.
+Plans and match reports give
 the reached face size and any limit. Missing measurements, other aspects and
 explicit framing choices keep their existing behavior. See [framing](FRAMING.md).
 
@@ -293,7 +295,10 @@ then rerun the same match command with `--resume` instead of `--answers`.
 `--project DIR` searches that project's `breakdowns/` folder as well as the
 current workspace. `--workspace DIR` still selects a study workspace.
 
-Use `zing match --no-auto-moment` to stop for a choice. The Python match API
+Use `zing match --no-auto-moment` to stop for a choice. It removes earlier
+automatic spans from `brief.json` on fresh runs and resumes. Spans you wrote
+stay in the brief. Automatic picks are tracked in `match-state.json`.
+Automatic moment selection leaves an unchanged brief alone. The Python match API
 defaults to `auto_moment=False`. Set it to `True` to allow the same automatic
 choice. MCP `match_start` and direct planning keep moment choice with the caller.
 If another long clip's top suggestion cannot fit alongside a required moment,
