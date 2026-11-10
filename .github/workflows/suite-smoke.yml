@@ -45,7 +45,7 @@ jobs:
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
     steps:
       - name: Check out Zing
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
           path: zing
           persist-credentials: false
@@ -57,7 +57,7 @@ jobs:
       # these can never resolve to the empty string. A ref that does not exist
       # fails the checkout step loudly instead of falling back.
       - name: Check out Uoink (${{ github.event.inputs.uoink_ref || 'main' }})
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
           repository: ryanbiddy/uoink
           ref: ${{ github.event.inputs.uoink_ref || 'main' }}
@@ -65,7 +65,7 @@ jobs:
           persist-credentials: false
 
       - name: Check out Writer (${{ github.event.inputs.writer_ref || 'main' }})
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
         with:
           repository: ryanbiddy/writer
           ref: ${{ github.event.inputs.writer_ref || 'main' }}
@@ -103,7 +103,7 @@ jobs:
             echo "| zing | \`$zing_ref\` | \`$zing_sha\` |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.11"
           cache: pip
@@ -255,7 +255,7 @@ jobs:
 
       - name: Upload the path-free family record
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: suite-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/suite-smoke/suite-smoke*.json

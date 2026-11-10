@@ -11,7 +11,7 @@ runs:
       shell: bash
       run: echo "key=apt-${ImageOS:-unknown}-${ImageVersion:-unknown}-$(echo '${{ inputs.packages }}' | tr ' ' '-')" >> "$GITHUB_OUTPUT"
     - id: restore
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
       with:
         path: ~/apt-debs
         key: ${{ steps.image.outputs.key }}
@@ -23,7 +23,7 @@ runs:
         $apt install -y --no-install-recommends ${{ inputs.packages }}
         mkdir -p "$HOME/apt-debs" && cp /var/cache/apt/archives/*.deb "$HOME/apt-debs/"
     - if: steps.restore.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
       with:
         path: ~/apt-debs
         key: ${{ steps.image.outputs.key }}

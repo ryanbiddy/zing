@@ -22,8 +22,8 @@ jobs:
     env:
       ZING_REQUIRE_OTIO: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e .[dev,color,audio,memes] "OpenTimelineIO>=0.18,<0.19"
@@ -45,8 +45,8 @@ jobs:
       ZING_REQUIRE_OCR: "1"
       ZING_TEST_FETCH_FONTS: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
@@ -83,7 +83,7 @@ jobs:
         run: pytest -q -m ffmpeg --expected-ffmpeg-tests 463
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: eval-report-ubuntu
           path: tools/eval/eval-report.json
@@ -101,8 +101,8 @@ jobs:
       ZING_REQUIRE_OCR: "1"
       ZING_TEST_FETCH_FONTS: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
@@ -139,7 +139,7 @@ jobs:
         run: pytest -q -m ffmpeg --expected-ffmpeg-tests 463
       - name: Keep eval report as artifact on failure (C#9)
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: eval-report-ubuntu-latest
           path: tools/eval/eval-report.json
@@ -156,8 +156,8 @@ jobs:
       ZING_REQUIRE_OCR: "1"
       ZING_TEST_FETCH_FONTS: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (chocolatey)
@@ -197,8 +197,8 @@ jobs:
       ZING_REQUIRE_FFMPEG: "1"
       ZING_REQUIRE_OCR: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (Homebrew bottle with libass)
@@ -234,8 +234,8 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: "3.11"
       - name: Install ffmpeg (apt)
@@ -262,7 +262,7 @@ jobs:
         run: python packaging/clean_host_check.py --require-study --report clean-host-${{ matrix.os }}.json
       - name: Upload gate record
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: clean-host-${{ matrix.os }}
           path: |
