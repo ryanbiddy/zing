@@ -580,6 +580,13 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   captions on the seam. Solo shots fill the frame from the header to the bottom.
   **4:5** (the LinkedIn and Instagram feed shape), **1:1** and
   **16:9** cut to full-screen visuals.
+- The solo hook shrinks to a small header after `hook_until`. Packs with
+  `hook_header` set to false hide the hook when that time ends. A `hook_until`
+  of zero hides it from the start.
+- Pictures and video fill their panel. Black padding baked into an asset is
+  cropped when matching borders are detected across sampled frames.
+  Visuals marked `fit: contain` stay whole over a blurred copy of the picture.
+  Picture credits keep their small type on a dark translucent background.
 - Captions target 2–4 words and at most 18 characters. Punctuation and pauses of
   0.3 seconds start a new group. Articles and connecting words stay with the words
   that follow when the limits allow. Short dangling words join a neighboring group.
@@ -592,6 +599,8 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Graphic cards bound caption placement in either split order.
 - Lists center the title and all items as one block. Items fade in at fixed positions.
   Badges and text shrink when seven or more items need closer rows.
+- Counters start when the card appears and reach the final number by its `at`
+  time. Years and small numbers appear whole.
 - A quote is the clip's one most quotable line, and the captions take over for it: the
   speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
   face with its key words highlighted, then steps away and normal captions carry on.
@@ -604,6 +613,11 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Captions already burned into the source are cropped out.
   With local OCR available, text cards without faces stay whole over a blurred background if the crop would cut text.
   Each shot checks its actual panel and output shape, including solo shots that fill the frame.
+  A closing group shot under half a second with no tracked face holds the previous
+  tracked frame through the final tail. Longer group shots and text cards stay whole.
+- Standard MP4 renders use H.264 CRF 20 with the slow preset, a 12 Mbps peak rate
+  and a 24 Mb buffer. File size depends on the footage. UHD keeps its existing
+  CRF 20, medium preset and 40 Mbps peak rate.
 - Photos move through their own depth: near things slide and grow against the
   background, as if a camera drifted past (Depth Anything V2 Small on the CPU, about
   0.5 s per photo plus a few seconds to encode the move). The move only shifts and

@@ -212,6 +212,26 @@ def timeline(plan: dict, words: dict) -> tuple[float, list[dict], list[dict]]:
     return duration, shots, quotes(shots, words.get("words", []))
 
 
+def picture_crop(files: list[Path]) -> list[int] | None:
+    from PIL import Image
+    boxes = []
+    for i in sorted({round(j * (len(files) - 1) / 4) for j in range(5)}):
+        with Image.open(files[i]) as img:
+            w, h = img.size
+            box = img.convert("L").point(lambda p: 255 if p > 16 else 0).getbbox()
+            if box:
+                boxes.append(box)
+    if not boxes:
+        return None
+    l, t = min(b[0] for b in boxes), min(b[1] for b in boxes)
+    r, b = max(b[2] for b in boxes), max(b[3] for b in boxes)
+    if not (w*.01 <= min(l, w-r) <= max(l, w-r) <= w*.25 and abs(l-(w-r)) <= max(2, w*.01)):
+        l, r = 0, w
+    if not (h*.01 <= min(t, h-b) <= max(t, h-b) <= h*.25 and abs(t-(h-b)) <= max(2, h*.01)):
+        t, b = 0, h
+    return [l, t, r-l, b-t] if (l, t, r, b) != (0, 0, w, h) else None
+
+
 def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False, parallax: bool | None = None,
                front: bool | None = None, sharpen: bool | None = None) -> dict:
     """Everything the scene needs. parallax: move photos through their depth (None: when the depth model is installed).
@@ -231,6 +251,14 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     words = json.loads((d / "words.json").read_text(encoding="utf-8"))
     cam = json.loads((d / "cams.json").read_text(encoding="utf-8"))
     duration, shots, moments = timeline(plan, words)
+    cams = cam["cams"]
+    if len(cams) > 1:
+        tail = cams[-1]
+        if (tail["mode"] == "wide" and tail.get("faces", 0) > 1 and cams[-2]["mode"] == "face"
+                and not tail.get("text") and not tail.get("text_box")
+                and 0 < tail["to"] - tail["from"] < .5 and 0 < duration - tail["from"] < 1):
+            cam["frames"] = min(cam["frames"], max(1, round(tail["from"] * 30)))   # hold before a brief untracked closing cut
+            cam["cams"] = [*cams[:-2], {**cams[-2], "to": max(duration, cams[-2]["to"])}]
     brief = campaign.read(d.parent)
     overlay = campaign.disclosure(brief)
     check_brief(d, {"duration": duration, "disclosure": overlay})
@@ -270,9 +298,13 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             w, h = Image.open(fd / "00001.jpg").size
             visuals[vid] = {"dir": fd.resolve().as_uri(), "frames": len(list(fd.glob("*.jpg"))), "w": w, "h": h,
                             "credit": credit, "fit": v.get("fit"), **({"move": True} if moved else {})}
+            box = picture_crop(sorted(fd.glob("*.jpg")))
         else:
             w, h = Image.open(p).size
             visuals[vid] = {"src": p.resolve().as_uri(), "w": w, "h": h, "credit": credit, "fit": v.get("fit")}
+            box = picture_crop([p])
+        if box:
+            visuals[vid]["crop"] = box
     hook = plan["hook"].replace("&", "&amp;").replace("<", "&lt;")
     source = d.parent / "source.json"
     W, H = SHAPES[shape]
@@ -375,9 +407,9 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     try:
         run(ffmpeg(), "-v", "error", "-y", "-framerate", 30, "-i", frames / "%05d.jpg", "-i", d / "cut.mp4",
             "-map", "0:v", "-map", "1:a", "-af", f"apad,afade=t=out:st={duration - 0.3:.2f}:d=0.3", "-t", duration,
-            "-c:v", "libx264", "-crf", 20 if uhd else 18, "-preset", "medium",
+            "-c:v", "libx264", "-crf", 20, "-preset", "medium" if uhd else "slow",
             *(["-profile:v", "high", "-level:v", "5.1", "-maxrate", "40M", "-bufsize", "80M",
-               "-vf", "scale=in_range=pc:out_range=tv", "-color_range", "tv"] if uhd else []),
+               "-vf", "scale=in_range=pc:out_range=tv", "-color_range", "tv"] if uhd else ["-maxrate", "12M", "-bufsize", "24M"]),
             "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
             "-movflags", "+faststart", part)
         part.replace(out)
