@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a local back-catalog archive and news-angle moment matcher with original
+  dates, incremental indexing, a JSON search fallback and checked judge answers.
 - Tighten automatic 9:16 match crops toward measured reference face size within
   source-resolution limits. Record the reached size in plans and match reports.
 - Keep match projects resumable after a move or copy. Reuse finished steps and

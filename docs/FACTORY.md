@@ -53,6 +53,44 @@ is 1 minute. The same item reuses its project and keeps edits. Uoink's button
 uses `--probe --json` to check support and `--json` to read the dashboard URL.
 See the [hand-off contract](UOINK-MEMORY.md#hand-off-with-uoink).
 
+## Back-catalog archive
+
+Use the resurface archive and matcher from Python. Put `manifest.json` or
+`manifest.csv` in a folder named for the show. JSON is a list of episode objects.
+CSV has one header row and one row per episode.
+
+Each episode needs `id`, `title`, `date` and `transcript`. The date is the original
+publish date in `YYYY-MM-DD`. Transcript paths stay inside the archive and use
+SRT, VTT or the word and segment JSON formats accepted by the factory.
+Optional fields are `url`, `description`, `guests`, `media` and `duration` in
+seconds. Guests can be a JSON list or names separated by semicolons.
+Media paths and URLs are saved without fetching them.
+
+```python
+from myzing.channels import resurface_corpus, resurface_match
+
+index = resurface_corpus.build("Test Show")
+status = resurface_corpus.status("Test Show")
+moments = resurface_match.candidates(index, "Ada Example", aliases=["A. Example"],
+                                    headline="Ada Example announces a new engine")
+```
+
+The index lives in `.zing/index.sqlite` with per-episode JSON cues beside it.
+Search uses SQLite FTS5 when available and scans the JSON cues otherwise.
+`build(..., force_fallback=True)` selects the JSON path. Builds check transcript
+size, modification time and SHA-256. Unchanged transcripts reuse their cues.
+`index.report` lists bad rows and build counts. `status` reports dates, cue counts
+and incomplete episodes. A transcript is complete when it has timed cues covering
+at least 80% of a supplied duration, or has timed cues with no stated duration.
+
+Candidates label metadata matches as `appearance` and speech-only matches as
+`mention`. They contain 30 to 90 seconds of whole cues, the exact normalized
+quote and about 90 seconds of context on each side. `rank(moments, entity,
+headline, judge, n=5)` uses the factory's host or Claude `Judge`. The host writes
+a pending prompt and raises `NeedsAnswer`. Save its answer with `Judge.save`,
+then call `rank` again. Picks include a reason, an original-month context line
+and a risk note. Zero picks is valid. Uoink timed-cue access is not available yet.
+
 ## Hermes Agent
 
 The [Hermes Agent plugin](../plugins/hermes-zing/README.md) uses the installed
