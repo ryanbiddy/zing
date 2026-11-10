@@ -9,6 +9,10 @@ on main, newest first.
 
 ### Changes since #452
 
+- Pin every documented install to the release version, ship the factory's Node
+  sidecar files in the package with `zing factory setup` to install them, make
+  the README read correctly on PyPI, add project links and classifiers, and print
+  doctor fixes that match pipx, uv tool or pip installs.
 - Fold pending notes into the release, require CI on the released commit and a
   successful TestPyPI upload before PyPI, pin build tools and check installs on
   Python 3.11–3.14. Report missing optional models and render tools in doctor,
