@@ -28,7 +28,7 @@ KEYS |= DELIVERY_KEYS | {"ref_start", "ref_end", "reference_range"}
 KEYS |= {"footage_kind", "cursor_log"}
 KEYS |= {"reference_download", "speech_setup"}
 KEYS.add("length_mode")
-KEYS |= {"episode", "transcript", "shapes", "judge", "no_open"}
+KEYS |= {"episode", "transcript", "shapes", "judge", "no_open", "no_sync_check"}
 ASPECTS = ["16:9", "1:1", "9:16"]
 
 
@@ -122,7 +122,7 @@ def _path(value, key, *, folder=False, exists=True):
 
 
 def normalize(key, value, *, path=None):
-    if key in {"episode", "transcript", "shapes", "judge", "no_open"} or (key == "clips" and path == "g"):
+    if key in {"episode", "transcript", "shapes", "judge", "no_open", "no_sync_check"} or (key == "clips" and path == "g"):
         from .episode import normalize as normalize_episode
         return normalize_episode(key, value)
     if key == "speech_setup":

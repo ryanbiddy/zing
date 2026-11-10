@@ -124,6 +124,8 @@ def run(argv: list[str]) -> int:
                     help="host: write prompts for you or your agent to answer; claude: ask Claude Code's CLI")
     go.add_argument("--model", default=None, help="model for --judge claude")
     go.add_argument("--clips", type=_clips, help="only these clip numbers, e.g. 1,3")
+    go.add_argument("--no-sync-check", action="store_true", help="skip the transcript sync check before scouting")
+    go.add_argument("--offset", type=float, help="set the transcript shift in seconds before scouting and skip the sync check")
     commands.add_parser("status", help="progress, pending prompts, model cost and network requests").add_argument("project", type=Path)
     ans = commands.add_parser("answer", help="answer a pending prompt with JSON from a file or '-' for stdin")
     ans.add_argument("project", type=Path)
@@ -212,6 +214,7 @@ def run(argv: list[str]) -> int:
             if args.watch:
                 return 0
         elif args.command == "run":
+            pipeline.configure_sync(args.project, no_sync_check=args.no_sync_check, offset=args.offset)
             judge = Judge(args.project, args.judge, **({"model": args.model} if args.model else {}))
             result = pipeline.run(args.project, judge, only=args.clips, say=lambda m: print(m, file=sys.stderr, flush=True))
         elif args.command == "status":

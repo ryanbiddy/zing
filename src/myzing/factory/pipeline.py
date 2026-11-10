@@ -116,7 +116,7 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
             raise FactoryError(f"unknown shape {shape}")
     render.theme(settings.get("pack", SETTINGS["pack"]))
     if transcript:
-        segments, words = source.load_transcript(Path(transcript), offset or 0.0)
+        segments, words = source.load_transcript(Path(transcript))
         settings["transcript_offset"] = offset or 0.0
         settings["transcript_sync"] = ({"status": "skipped", "method": "offset"} if offset is not None else
                                        {"status": "skipped", "method": "disabled"} if settings.get("no_sync_check") else
@@ -126,12 +126,14 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     _write(project / "source.json", src)
     if rules is not None:
         _write(project / "brief.json", rules)
-    _write(project / "factory.json", {**SETTINGS, **settings, "created": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     (project / "network.jsonl").touch(exist_ok=True)
     if transcript:
         _write(project / "transcript.json", segments)
         if words:
             _write(project / "words.json", words)
+        if offset is not None:
+            _shift_transcript(project, media, offset)
+    _write(project / "factory.json", {**SETTINGS, **settings, "created": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     return status(project)
 
 
@@ -148,26 +150,73 @@ def _transcript(project: Path, media: Path, say, vocab: list[str] | None = None)
     return segments
 
 
+def _shift_transcript(project: Path, media: Path, offset: float) -> list[dict]:
+    duration = transcript_sync.duration(media)
+    originals = {}
+    for name in ("transcript", "words"):
+        path = project / f"{name}.unsynced.json"
+        rows = _read(path) if path.is_file() else _read(project / f"{name}.json")
+        if rows is not None:
+            if not path.is_file():
+                _write(path, rows)
+            originals[name] = rows
+    for name, rows in originals.items():
+        _write(project / f"{name}.json", transcript_sync.shift(rows, offset, duration))
+    return _read(project / "transcript.json", [])
+
+
+def _restore_transcript(project: Path) -> None:
+    for name in ("transcript", "words"):
+        path = project / f"{name}.unsynced.json"
+        if path.is_file():
+            _write(project / f"{name}.json", _read(path))
+
+
+def configure_sync(project: Path, *, no_sync_check: bool = False, offset: float | None = None) -> None:
+    if not isinstance(no_sync_check, bool):
+        raise FactoryError("no_sync_check must be true or false")
+    if offset is not None and (not isinstance(offset, (int, float)) or isinstance(offset, bool) or not math.isfinite(offset)):
+        raise FactoryError("offset must be a finite number of seconds")
+    if not no_sync_check and offset is None:
+        return
+    project = Path(project).resolve()
+    cfg = _read(project / "factory.json", {})
+    if load_moments(project).get("scouted"):
+        raise FactoryError("Transcript sync cannot change after moments have already been scouted.")
+    if not cfg.get("transcript_sync"):
+        raise FactoryError("This project has no supplied transcript.")
+    if offset is not None:
+        _shift_transcript(project, Path(_read(project / "source.json")["media"]), offset)
+        cfg["transcript_offset"] = offset
+        Judge(project).forget("scout")
+    elif cfg["transcript_sync"].get("status") == "pending":
+        _restore_transcript(project)
+    cfg.update(no_sync_check=no_sync_check,
+               transcript_sync={"status": "skipped", "method": "offset" if offset is not None else "disabled"})
+    _write(project / "factory.json", cfg)
+
+
 def _sync_transcript(project: Path, media: Path, cfg: dict, segments: list[dict], say) -> list[dict]:
     saved = cfg.get("transcript_sync", {})
     if saved.get("status") == "pending":
+        _restore_transcript(project)
+        segments = _read(project / "transcript.json", segments)
         words = _read(project / "words.json")
         saved = transcript_sync.check(media, segments, words, cfg.get("vocab"))
         offset = saved.get("offset", 0.0)
         if offset:
-            segments = transcript_sync.shift(segments, offset)
-            _write(project / "transcript.json", segments)
-            if words:
-                _write(project / "words.json", transcript_sync.shift(words, offset))
+            segments = _shift_transcript(project, media, offset)
             direction = "behind" if offset > 0 else "ahead of"
             say(f"The transcript was {transcript_sync.stamp(offset)} {direction} the video, "
-                "so Zing shifted it (checked at 3 points).")
-        elif saved.get("method") == "no_cached_model":
-            say("Zing skipped the transcript sync check because no speech model is cached.")
+                f"so Zing shifted it (checked at {len(saved['probes'])} points).")
+        elif saved.get("status") == "skipped":
+            why = {"no_cached_model": "no speech model is cached", "speech_off": "speech is turned off",
+                   "too_little_speech": "too little speech was heard", "probe_error": "the speech probes could not run"}
+            say(f"Zing skipped the transcript sync check because {why[saved['method']]}.")
         cfg.update(transcript_offset=offset, transcript_sync=saved)
         _write(project / "factory.json", cfg)
     if saved.get("status") == "failed":
-        raise FactoryError(transcript_sync.MISMATCH)
+        raise FactoryError(transcript_sync.MISMATCH.format(project=project))
     return segments
 
 
@@ -208,7 +257,7 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None
         span = [(p["start"] - source.MARGIN, p["end"] + source.MARGIN) for p in pieces]
         words = sorted(fresh + [w for w in words if not any(a <= w["s"] <= b for a, b in span)], key=lambda w: w["s"])
         _write(project / "words.json", words)
-    if words:
+    if words and cfg.get("transcript_sync", {}).get("status") == "matched":
         transcript = _read(project / "transcript.json", [])
         for m in todo:
             error = transcript_sync.guard(transcript, words, scout.parts(m))

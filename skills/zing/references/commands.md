@@ -396,12 +396,18 @@ recomputes all entries and cannot be combined with `--retry-failed`. See
 
 ## Factory transcript sync
 
-`factory new --transcript FILE` checks three speech samples before scouting.
+`factory new --transcript FILE` tries up to five speech samples inside the media
+before scouting and stops when two agree.
 It uses a cached model and saves the result and any shift in `factory.json`.
-No cached model means the check is skipped with a note.
+Speech turned off, no cached model, failed probes or too little speech skip
+the check with a note. Shifts keep cues inside the media and preserve originals
+so an interrupted run cannot apply the offset twice.
 `--offset SECONDS` supplies a known shift and skips the check, even when zero.
 `--no-sync-check` skips it without shifting captions. Both flags also work with
-`factory batch`. Word timing still stops clips whose heard words do not match.
+`factory batch` for new projects. Use `factory run "PROJECT" --no-sync-check`
+or `factory run "PROJECT" --offset SECONDS` to recover an existing project
+before moments have been scouted. Studio offers to skip a failed check or
+transcribe instead. Only matched supplied transcripts get the per-clip word check.
 See [Captions from another version](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md#captions-from-another-version).
 
 ## Factory rights and campaign briefs
