@@ -577,6 +577,11 @@ jobs and preserves checkpoints. Missing layout/model support uses disclosed
 position defaults; missing color support leaves ungraded footage. The current
 director emits cuts with warnings about unreconstructed reference effects.
 
+Moved projects prefer files in the new folder. Legacy absolute paths keep an
+existing original when its copy is missing. Saved match or Studio state must
+identify the old project root. Linked folders outside the new project do not
+block checkpoint loading. docs/MATCH.md in the repo has the details.
+
 ## Individual study and assembly
 
 ```sh

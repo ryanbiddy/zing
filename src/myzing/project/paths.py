@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path, PureWindowsPath
 
 from .models import ProjectError
@@ -24,42 +25,66 @@ def map_paths(value, change):
     return change(value) if isinstance(value, str) else value
 
 
-def previous_roots(project: Path) -> list[Path]:
+def _state_roots(data, name):
     roots = []
-    for name in ("match-state.json", "studio-session.json", "project.json"):
+    if name == "match-state.json":
+        roots.extend(Path(p) for p in data.get("previous_roots", []))
+        for step in data.get("steps", {}).values():
+            if step.get("legacy_root"):
+                roots.append(Path(step["legacy_root"]))
+            log = Path(step.get("log", ""))
+            if log.is_absolute() and log.parent.name == "logs":
+                roots.append(log.parent.parent)
+    else:
+        roots.append(Path(data.get("answers", {}).get("project", "")))
+    return tuple(roots)
+
+
+@lru_cache(maxsize=128)
+def _file_roots(path, mtime_ns, size):
+    try:
+        return _state_roots(json.loads(path.read_text(encoding="utf-8-sig")), path.name)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return ()
+
+
+def previous_roots(project: Path, *, state=None, session=None) -> list[Path]:
+    roots = []
+    for name, data in (("match-state.json", state), ("studio-session.json", session)):
         try:
-            data = json.loads((project / name).read_text(encoding="utf-8-sig"))
-            if name == "match-state.json":
-                roots.extend(Path(p) for p in data.get("previous_roots", []))
-                for step in data.get("steps", {}).values():
-                    if step.get("legacy_root"):
-                        roots.append(Path(step["legacy_root"]))
-                    log = Path(step.get("log", ""))
-                    if log.is_absolute() and log.parent.name == "logs":
-                        roots.append(log.parent.parent)
-            elif name == "studio-session.json":
-                roots.append(Path(data.get("answers", {}).get("project", "")))
+            if data is not None:
+                roots.extend(_state_roots(data, name))
             else:
-                path = Path((data.get("reference", {}).get("study") or {}).get("breakdown_path", ""))
-                if path.is_absolute():
-                    for parent in path.parents:
-                        if parent.name == "breakdowns":
-                            old = parent.parent.parent if parent.parent.name == "reference" else parent.parent
-                            if (project / path.relative_to(old)).is_file():
-                                roots.append(old)
-                            break
+                path = project / name
+                info = path.stat()
+                roots.extend(_file_roots(path, info.st_mtime_ns, info.st_size))
         except (OSError, ValueError, TypeError, AttributeError):
             continue
-    return list(dict.fromkeys(p for p in roots if p.is_absolute() and p != project))
+    result = []
+    for path in dict.fromkeys(roots):
+        if not path.is_absolute():
+            continue
+        try:
+            resolved = path.resolve()
+            if (resolved.parent != resolved and resolved != Path.home().resolve()
+                    and not project.resolve().is_relative_to(resolved)):
+                result.append(path)
+        except (OSError, ValueError, RuntimeError):
+            continue
+    return result
 
 
 def relocate(value: str, project: Path, roots) -> str:
-    path = Path(value)
-    if path.is_absolute() and not path.is_relative_to(project):
-        for old in roots:
-            if path.is_relative_to(old):
-                relative = path.relative_to(old)
-                return str(resolve_path(relative.as_posix(), project))
+    try:
+        path = Path(value)
+        if path.is_absolute() and not path.is_relative_to(project):
+            for old in roots:
+                if path.is_relative_to(old):
+                    relative = path.relative_to(old)
+                    moved = resolve_path(relative.as_posix(), project)
+                    return str(moved) if moved.exists() or not path.exists() else value
+    except (ProjectError, OSError, RuntimeError):
+        pass
     return value
 
 
@@ -72,7 +97,7 @@ def portable(value: str, project: Path) -> str:
 
 def local_paths(value, project, roots=(), *, fields=(), mappings=(), values=(), literals=(), key=""):
     def path(text):
-        return str(resolve_path(relocate(text, project, roots), project))
+        return str(resolve_path(text, project, roots=roots))
 
     if isinstance(value, dict):
         return {path(k) if key in mappings else k: v if k in {"legacy_root", "previous_roots"} else
@@ -88,7 +113,7 @@ def local_paths(value, project, roots=(), *, fields=(), mappings=(), values=(), 
     return value
 
 
-def resolve_path(value: str, project: Path | None, *, entry: str = "path") -> Path:
+def resolve_path(value: str, project: Path | None, *, entry: str = "path", roots=None) -> Path:
     if not isinstance(value, str) or not value or "\0" in value:
         raise ProjectError(f"Invalid {entry}: expected a nonempty path without NUL characters.")
     path = Path(value)
@@ -98,9 +123,7 @@ def resolve_path(value: str, project: Path | None, *, entry: str = "path") -> Pa
                            "Use a project-relative path or a fully absolute path.")
     if path.is_absolute():
         if project is not None and not path.is_relative_to(project):
-            moved = Path(relocate(value, project, previous_roots(project)))
-            if moved != path and moved.exists():
-                return moved
+            return Path(relocate(value, project, previous_roots(project) if roots is None else roots))
         return path
     if project is None:
         raise ProjectError(f"Invalid {entry} {value!r}: supply the project folder to validate relative paths.")

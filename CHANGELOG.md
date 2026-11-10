@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep original files when a copied match project omits them. Ignore broad roots
+  and roots inferred from workspace studies. Keep linked folders from blocking
+  resume and read path metadata once per load.
 - Reject invalid review ports and unreadable JSON transcripts. Measure the largest
   reference face per frame and shorten crop searches. Keep review tokens out of
   Studio files. Remove saved automatic moments when disabled and leave unchanged
