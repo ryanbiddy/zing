@@ -62,13 +62,20 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 Run `zing studio` and choose 7 (path `g`) for a local episode or `uoink:<id>`.
 The file must be at least 60 seconds long. The plan recommends 3 moments,
 `9x16`, and `claude` if its CLI is on PATH, otherwise `host`.
-An optional transcript can be SRT, VTT or word JSON. Enter skips it.
+An optional transcript can be SRT, VTT or JSON words or segments. Studio suggests
+a matching transcript beside the episode and skips unreadable JSON. Enter accepts
+the suggestion. Type `none` to let Zing transcribe.
 Confirm to create the factory project, then press Run on its review page.
 
 `zing studio --no-open` prints the dashboard link and leaves the browser
 closed. The same choice is available as `"no_open": true` in `--answers` JSON.
 `--json` emits `project` and `page` in the final result when the server is ready.
+Studio saves the review URL without its token in its result and session files.
+The terminal link includes the token for the current server session.
 Use `zing studio --resume <project>` to reopen it with its settings and edits.
+
+`zing factory serve <project> --port N` accepts ports from 0 to 65535.
+The default is 8765. Use `--port 0` for any free port.
 
 ## Hand-off with Uoink
 
@@ -478,7 +485,8 @@ attempts per pass, with no limit by default. Resumes do not count toward it.
 Use `--limit 0` to resume only.
 
 All `factory new` settings apply to newly created projects. Matching `.srt`,
-`.vtt` or word `.json` files supply captions, in that order. `<stem>.info.json`
+`.vtt` or `.json` files supply captions, in that order. JSON must contain readable
+words or segments. Metadata JSON is skipped. `<stem>.info.json`
 supplies the title, source URL, upload date and uploader or channel tag.
 Explicit flags override these defaults. Existing project settings are kept.
 
@@ -806,5 +814,10 @@ transcript windows. Add `--project DIR` to also search a match project's
 
 `zing match` picks the top Estimated moment when a long clip exceeds the search
 limit. It names the pick in the terminal and `comparison.md` and saves it for
-resume. Add `--no-auto-moment` to stop for a choice. To change a pick, replace
+resume. Add `--no-auto-moment` to remove earlier automatic picks and stop for a
+choice, on fresh runs or resumes. Spans you wrote stay in the brief. To change a
+pick, replace
 `brief.must_keep` in the project's `brief.json`, then use `--resume` without `--answers`.
+
+Automatic 9:16 match crops use the median of the largest face height in each
+sampled reference frame with faces.

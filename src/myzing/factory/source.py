@@ -63,17 +63,37 @@ def load_transcript(path: Path, offset: float = 0.0) -> tuple[list[dict], list[d
     path = Path(path)
     text = path.read_text(encoding="utf-8-sig")
     if path.suffix.lower() == ".json":
-        data = json.loads(text)
-        data = data.get("words", data) if isinstance(data, dict) else data
-        if data and ("w" in data[0] or "start" in data[0]):     # {w,s,e} words or Zing Words {text,start,end}
-            words = [{"w": str(x.get("w", x.get("text"))).strip(), "s": round(float(x.get("s", x.get("start"))) + offset, 3),
-                      "e": round(float(x.get("e", x.get("end"))) + offset, 3)} for x in data]
-            return segments_from_words(words), words
-        return [{"s": float(x["s"]) + offset, "e": float(x["e"]) + offset, "text": x["text"]} for x in data], None
+        try:
+            data = json.loads(text)
+            data = data.get("words") if isinstance(data, dict) else data
+            if not isinstance(data, list) or not data or any(not isinstance(x, dict) for x in data):
+                raise ValueError
+            if "w" in data[0] or "start" in data[0]:     # {w,s,e} words or Zing Words {text,start,end}
+                words = [{"w": str(x["w"] if "w" in x else x["text"]).strip(),
+                          "s": round(float(x["s"] if "s" in x else x["start"]) + offset, 3),
+                          "e": round(float(x["e"] if "e" in x else x["end"]) + offset, 3)} for x in data]
+                return segments_from_words(words), words
+            return [{"s": float(x["s"]) + offset, "e": float(x["e"]) + offset, "text": x["text"]} for x in data], None
+        except (ValueError, TypeError, KeyError, OverflowError):
+            raise ValueError(f"{path.name} is not a transcript Zing can read. Use .srt, .vtt, or JSON words or segments.") from None
     segments = parse_captions(text, offset)
     if not segments:
         raise ValueError(f"no caption cues found in {path.name}")
     return segments, None
+
+
+def sibling_transcript(media: Path) -> Path | None:
+    for ext in (".srt", ".vtt", ".json"):
+        path = media.with_suffix(ext)
+        if not path.is_file():
+            continue
+        if ext == ".json":
+            try:
+                load_transcript(path)
+            except (OSError, ValueError):
+                continue
+        return path
+    return None
 
 
 def scout_model() -> str | None:

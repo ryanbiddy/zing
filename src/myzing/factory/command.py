@@ -16,6 +16,13 @@ def _clips(value: str) -> set[int]:
     return {int(x) for x in value.split(",") if x.strip()}
 
 
+def _port(value: str) -> int:
+    port = int(value)
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError("Port must be between 0 and 65535. Use 0 for any free port.")
+    return port
+
+
 def _time(value: str) -> float:
     """Seconds, or m:ss / h:mm:ss."""
     parts = value.strip().split(":")
@@ -185,7 +192,7 @@ def run(argv: list[str]) -> int:
     learn.add_argument("--base", default="zing", help="pack to start from for anything not learned")
     serve = commands.add_parser("serve", help="open the local review dashboard for a project (127.0.0.1 only)")
     serve.add_argument("project", type=Path)
-    serve.add_argument("--port", type=int, default=8765, help="local port (default 8765; 0 picks any free port)")
+    serve.add_argument("--port", type=_port, default=8765, help="local port from 0 to 65535 (default 8765; 0 picks any free port)")
     serve.add_argument("--judge", choices=("host", "claude"), default="host", help="who answers when Run needs judgments")
     packs = commands.add_parser("packs", help="list or check style packs")
     packs.add_argument("--check", metavar="NAME", help="check pack files and font families; exit 1 on errors")

@@ -19,12 +19,34 @@ def disclosure(pick):
             "and replace its must_keep in brief.json.")
 
 
+def _without_picks(current, old):
+    brief = deepcopy(current)
+    original = old.get("brief", {}).get("must_keep", [])
+    for pick in old.get("picks", []):
+        for moment in pick["must_keep"]:
+            if brief["must_keep"].count(moment) > original.count(moment):
+                brief["must_keep"].remove(moment)
+    return brief
+
+
+def clear_auto_moments(checkpoints, *, supplied=False):
+    old = checkpoints.data.get("auto_moments")
+    if not old:
+        return
+    current = load_brief(checkpoints.root / "brief.json").to_dict()
+    brief = current if supplied else _without_picks(current, old)
+    if brief != current:
+        save_brief(checkpoints.root, Brief.from_dict(brief))
+    del checkpoints.data["auto_moments"]
+    checkpoints.save()
+
+
 class AutoMoments:
     def __init__(self, checkpoints, studies, inputs):
         self.checkpoints, self.studies = checkpoints, studies
         current = load_brief(checkpoints.root / "brief.json").to_dict()
         old = checkpoints.data.get("auto_moments", {})
-        base = old["brief"] if current == old.get("applied_brief") else current
+        base = _without_picks(current, old)
         inputs = [base, studies, inputs, "sentence-pauses-v1"]
         key = checkpoints.key(inputs)
         self.data = (deepcopy(old) if checkpoints.resume and checkpoints.matches(old, inputs) else
@@ -39,9 +61,11 @@ class AutoMoments:
         brief = deepcopy(self.data["brief"])
         brief["must_keep"].extend(m for pick in self.data["picks"] for m in pick["must_keep"])
         self.data["applied_brief"] = brief
-        self.checkpoints.data["auto_moments"] = self.data
-        self.checkpoints.save()
-        save_brief(self.checkpoints.root, Brief.from_dict(brief))
+        if self.checkpoints.data.get("auto_moments") != self.data:
+            self.checkpoints.data["auto_moments"] = deepcopy(self.data)
+            self.checkpoints.save()
+        if load_brief(self.checkpoints.root / "brief.json").to_dict() != brief:
+            save_brief(self.checkpoints.root, Brief.from_dict(brief))
 
     def pick(self, planned, manifest):
         shortage = next((s for s in planned["summary"]["shortages"]
