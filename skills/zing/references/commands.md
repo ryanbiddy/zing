@@ -555,7 +555,7 @@ director emits cuts with warnings about unreconstructed reference effects.
 Moved projects prefer files in the new folder. Legacy absolute paths keep an
 existing original when its copy is missing. Saved match or Studio state must
 identify the old project root. Linked folders outside the new project do not
-block checkpoint loading. See [Match](../../../docs/MATCH.md).
+block checkpoint loading. docs/MATCH.md in the repo has the details.
 
 ## Individual study and assembly
 
