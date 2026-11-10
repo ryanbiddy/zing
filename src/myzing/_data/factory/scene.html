@@ -53,6 +53,7 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000}
 #prog{position:absolute;left:0;top:0;height:6px;background:var(--yel)}
 #srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
+#srctag.required{z-index:21;max-width:calc(100% - 44px);font:700 26px/1.25 Inter,sans-serif;color:#fff;background:rgba(5,12,36,.88);overflow-wrap:anywhere}
 #disclosure{position:absolute;display:none;z-index:20;text-align:center;pointer-events:none}
 #disclosure span{display:inline-block;padding:16px 24px;border-radius:14px;background:#111;color:#fff;font:700 36px/1.25 Inter,sans-serif;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
 
@@ -119,6 +120,7 @@ html[data-aspect="9x16"] #label .n,html[data-aspect="9x16"] #label .r{white-spac
 <img id="logo">
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
+const SOURCE_CONTEXT = D.onScreenContext || '';
 const TH0 = D.theme || {}, CAP_DEFAULT = TH0.cap_bg == null;
 const CAP_SIZE = TH0.cap_size || CAP_DEFAULT
   ? Math.round((TH0.cap_size || 78) * (TH0.learned ? (D.H || 1920)/1920 : Math.min(D.W || 1080, D.H || 1920)/1080)) : 54;   // the short side: 16x9 is not 1.8x bigger
@@ -338,7 +340,7 @@ if (PANEL) { const st = document.documentElement.style, set = (k, v) => v != nul
   if (PANEL.font) set('--panel-font', JSON.stringify(PANEL.font)); if (PANEL.weight) set('--panel-weight', PANEL.weight);
   if (PANEL.upper === false) set('--panel-case', 'none');
   const el = $('panel'); el.style.display = 'flex'; el.style.top = STAGE_H + 'px';
-  const brand = PANEL.brand === false ? '' : (PANEL.brand_text || D.sourceTag || '');
+  const brand = PANEL.brand === false ? '' : (PANEL.brand_text || (!SOURCE_CONTEXT && D.sourceTag) || '');
   el.querySelector('.brand').textContent = brand; el.querySelector('.brand').style.display = brand ? '' : 'none';
   el.querySelector('.head').innerHTML = D.hookHtml; }
 let panelFit = false;
@@ -406,7 +408,7 @@ function captionBase(G, cbox, h, centered) {
   return ASPECT === '9x16' && CAP.y == null ? clamp(cy, 150+h*.55, 1440-h*.55) : cy;
 }
 function captionY(gi, cy, cap, box, centered) {
-  if (ASPECT !== '9x16' && CAP.y == null) return cy;   // wider shapes keep default subtitles at the bottom, over the chest
+  if (ASPECT !== '9x16' && CAP.y == null && !SOURCE_CONTEXT) return cy;   // wider shapes keep default subtitles at the bottom, over the chest
   if (capPositions.has(gi)) return capPositions.get(gi);
   const a = Math.max(0, W[groups[gi][0]].os-.02), b = Math.min(D.duration,
     gi+1 < groups.length ? W[groups[gi+1][0]].os-.02 : W[W.length-1].oe+.3);
@@ -415,6 +417,7 @@ function captionY(gi, cy, cap, box, centered) {
   const h = (cap.offsetHeight + stroke*2)*scale, w = (box.offsetWidth + stroke*2)*scale;
   const offset = centered ? 0 : cap.offsetHeight/2, gap = 12*SW/1080;
   let low = ASPECT === '9x16' ? 150 : 0, high = ASPECT === '9x16' ? 1440 : SH9;
+  if (SOURCE_CONTEXT) low = Math.max(low, parseFloat($('srctag').style.top) + $('srctag').offsetHeight + gap);
   for (const shot of D.shots) {
     if (shot.from >= b || shot.to <= a) continue;
     const G = geometry(shot.layout), S = G.spk;
@@ -436,7 +439,7 @@ function captionY(gi, cy, cap, box, centered) {
       if (face.x1 > (SW-w)/2 && face.x0 < (SW+w)/2) faces.push(face);
     }
   }
-  if (!faces.length) return cy;
+  if (!faces.length && !SOURCE_CONTEXT) return cy;
   const first = shotAt(a), G = geometry(first.layout);
   let y = captionBase(G, visualBox(G, first), cap.offsetHeight, centered) + offset;
   const top = r => CAP.y == null ? r.hair : r.y0;   // a pack's own caption height only moves off the face itself
@@ -447,6 +450,7 @@ function captionY(gi, cy, cap, box, centered) {
     const above = Math.min(high, Math.min(...faces.map(r => r.y0)) - gap) - h/2;
     y = below+h/2 <= high ? below : clear-h/2 >= low ? clear : above-h/2 >= low ? above : clamp(below, low+h/2, high-h/2);
   }
+  if (SOURCE_CONTEXT) y = clamp(y, low+h/2, high-h/2);
   capPositions.set(gi, y-offset);
   return y-offset;
 }
@@ -575,6 +579,14 @@ window.seek = async function(t) {
   const gr = $('grain'), fr = Math.floor(t*FPS); gr.style.display = LOOK.grain ? 'block' : 'none';
   if (LOOK.grain) { gr.style.opacity = LOOK.grain; gr.style.backgroundPosition = `${(fr*37)%240}px ${(fr*91)%240}px`; }
 
+  const tag = $('srctag');
+  const credit = D.sourceTag || '';
+  tag.textContent = SOURCE_CONTEXT ? credit.includes(SOURCE_CONTEXT) ? credit : SOURCE_CONTEXT.includes(credit)
+    ? SOURCE_CONTEXT : `${credit} · ${SOURCE_CONTEXT}` : PANEL && PANEL.brand !== false ? '' : credit;
+  tag.classList.toggle('required', !!SOURCE_CONTEXT);
+  tag.style.display = tag.textContent ? '' : 'none';
+  tag.style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';
+
   // a page shown whole sits mid-frame in 9x16: the hook goes above it and the captions below it, never over it
   const cbox = visualBox(G, shot);
 
@@ -620,6 +632,7 @@ window.seek = async function(t) {
     qel.style.display = 'block'; qel.style.left = (SW-w)/2 + 'px';
     let qy = S.y + S.h*(tall ? .64 : .54);
     if (ASPECT === '9x16') qy = clamp(qy, 174 + qel.offsetHeight/2, 1440 - qel.offsetHeight/2);
+    if (SOURCE_CONTEXT) qy = Math.max(qy, parseFloat(tag.style.top) + tag.offsetHeight + 24 + qel.offsetHeight/2);
     qel.style.top = qy + 'px';
     qel.style.opacity = 1-out; qel.style.transform = `translateY(-50%) translateY(${-out*24}px) scale(${1-.04*out})`;
     qel.firstChild.style.transform = `scale(${back(lin(t, Q.from, Q.from+.35))})`;
@@ -660,7 +673,7 @@ window.seek = async function(t) {
     if (CAP_DEFAULT || TH0.cap_font === 'ZingCaption') fitCaption(box, gi);
     const centered = ASPECT === '9x16' || CAP.y != null;
     let cy = captionBase(G, cbox, cap.offsetHeight, centered);
-    if (!KIN) cy = captionY(gi, cy, cap, box, centered);
+    if (!KIN || SOURCE_CONTEXT) cy = captionY(gi, cy, cap, box, centered);
     cap.style.top = cy + 'px';
     cap.style.opacity = visible ? 1 : 0;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);
@@ -668,9 +681,6 @@ window.seek = async function(t) {
   } else cap.style.opacity = 0;
   $('prog').style.width = (100*clamp(t/D.duration))+'%';
   $('prog').style.display = TH0.progress === false ? 'none' : '';
-  $('srctag').textContent = PANEL && PANEL.brand !== false ? '' : D.sourceTag || '';
-  $('srctag').style.display = $('srctag').textContent ? '' : 'none';
-  $('srctag').style.top = (ASPECT === '9x16' ? 20 : 18) + 'px';
   const disclosure = $('disclosure'), notice = D.disclosure;
   disclosure.style.display = notice && t >= notice.from && t < notice.to ? 'block' : 'none';
   if (notice) {

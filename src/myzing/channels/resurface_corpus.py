@@ -210,6 +210,11 @@ def build(archive, *, force_fallback: bool = False) -> Index:
     folder = root / ".zing"
     folder.mkdir(parents=True, exist_ok=True)
     seen, report = set(), {"indexed": 0, "unchanged": 0, "removed": 0, "errors": []}
+    try:
+        settings = json.loads((root / "archive.json").read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        settings = {}
+    show = str(settings.get("show") or root.name) if isinstance(settings, dict) else root.name   # the name viewers see on screen
     with closing(sqlite3.connect(folder / "index.sqlite")) as db:
         db.execute("CREATE TABLE IF NOT EXISTS episodes (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
         db.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
@@ -225,7 +230,7 @@ def build(archive, *, force_fallback: bool = False) -> Index:
         for number, row in enumerate(chain([first], rows) if first is not missing else rows, 1):
             ident = row.get("id", "") if isinstance(row, dict) else ""
             try:
-                episode = _episode(row, root.name)
+                episode = _episode(row, str(row.get("show") or show) if isinstance(row, dict) else show)
                 ident = episode["id"]
                 if ident in seen:
                     raise ValueError("duplicate id")

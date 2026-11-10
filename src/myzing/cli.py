@@ -15,6 +15,7 @@ _COMMANDS: dict[str, tuple[str, str]] = {
     "from-uoink": ("myzing.handoff", "open a saved Uoink item in the clip factory"),
     "factory": ("myzing.factory.command", "turn a long episode into social clips with visuals, graphics and copy"),
     "channels": ("myzing.channels.command", "run niche channels: sources, rights, queue and post kits"),
+    "resurface": ("myzing.channels.resurface_command", "turn news and an archive into reviewed clip picks"),
     "playbook": ("myzing.playbook.command", "compare worked and under-performing Shorts; local measurements and blind notes"),
     "moments": ("myzing.director.moments", "suggest interview moments from a cached study; no model calls"),
     "record-cursor": ("myzing.screen.recorder", "record local cursor/click and anonymous key-press times for a screen demo"),

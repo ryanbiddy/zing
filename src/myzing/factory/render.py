@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path, PureWindowsPath
 
-from . import campaign, cutout, depth, tools, upscale
+from . import campaign, cutout, depth, provenance, tools, upscale
 from .tools import FactoryError, data_path, ffmpeg, ffprobe, node_sidecar, run, sidecar_env
 
 SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
@@ -284,7 +284,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,
             **({"disclosure": overlay} if overlay else {}),
             "sourceTag": json.loads(source.read_text(encoding="utf-8")).get("tag", "") if source.is_file() else "",
-            "W": W, "H": H, "aspect": shape, "theme": theme, **assets}
+            "W": W, "H": H, "aspect": shape, "theme": theme, **assets, **provenance.scene(d.parent)}
 
 
 def check_brief(d: Path, data: dict | None = None, *, stop: bool = True) -> dict | None:

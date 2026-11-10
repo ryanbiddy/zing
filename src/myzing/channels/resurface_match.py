@@ -126,11 +126,21 @@ def _labels(candidate: dict, entity: str) -> list[str]:
                               for name in speakers))
 
 
+PROMPT_CANDIDATES = 8  # the judge reads every cue; more candidates cost more than they find
+
+
+def _shown(candidate: dict, entity: str) -> dict:
+    keep = ("id", "episode_id", "title", "date", "show", "guests", "kind", "start", "end", "quote", "score")
+    return {**{key: candidate[key] for key in keep},   # start/end/quote is a suggestion; any span of these cues may be picked
+            "cues": [[cue["s"], cue["e"], cue["text"]] for cue in candidate["context"]["cues"]],
+            "context_labels": _labels(candidate, entity)}
+
+
 def prompt(candidates: list[dict], entity: str, headline: str, n: int) -> str:
     text = data_path("prompts", "resurface.md").read_text(encoding="utf-8")
     value = {"entity": entity, "headline": headline, "limit": n,
-             "candidates": [{**candidate, "context_labels": _labels(candidate, entity)} for candidate in candidates]}
-    return text.replace("{INPUT}", json.dumps(value, ensure_ascii=False, indent=1))
+             "candidates": [_shown(candidate, entity) for candidate in candidates]}
+    return text.replace("{INPUT}", json.dumps(value, ensure_ascii=False, separators=(",", ":")))
 
 
 def check(answer: dict, candidates: list[dict], entity: str, n: int) -> list[dict]:
@@ -151,9 +161,10 @@ def check(answer: dict, candidates: list[dict], entity: str, n: int) -> list[dic
         if any(type(pick[key]) not in (int, float) or not math.isfinite(pick[key]) for key in ("start", "end")):
             raise ValueError("pick times must be finite numbers")
         start, end = pick["start"], pick["end"]
-        if not candidate["start"] <= start < end <= candidate["end"] or not 30 <= end - start <= 90:
-            raise ValueError("pick must stay inside its candidate and last 30 to 90 seconds")
-        cues = [cue for cue in candidate["cues"] if cue["s"] < end and cue["e"] > start]
+        around = candidate["context"]
+        if not around["start"] <= start < end <= around["end"] or not 30 <= end - start <= 90:
+            raise ValueError("pick must stay inside its candidate's cues and last 30 to 90 seconds")
+        cues = [cue for cue in around["cues"] if cue["s"] < end and cue["e"] > start]
         if (not cues or cues[0]["s"] != start or max(cue["e"] for cue in cues) != end
                 or any(cue["s"] < start or cue["e"] > end for cue in cues)):
             raise ValueError("pick times must use whole cue edges")
@@ -179,6 +190,7 @@ def rank(candidates: list[dict], entity: str, headline: str, judge: Judge, n: in
         raise ValueError("entity and headline must be non-empty text")
     if not candidates or not n:
         return []
+    candidates = sorted(candidates, key=lambda row: -row["score"])[:PROMPT_CANDIDATES]
     text = prompt(candidates, entity, headline, n)
     task = "resurface-" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:20]
     if not isinstance(judge, Judge):

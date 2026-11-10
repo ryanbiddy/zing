@@ -5,6 +5,7 @@ import html
 import json
 from pathlib import Path
 
+from . import provenance
 from .campaign import RIGHTS
 from .postcopy import FIELDS
 from .render import SHAPES, suffix
@@ -18,6 +19,7 @@ def _load(path: Path) -> dict:
 def build(project: Path, pack: str | None = None) -> Path:
     ep = Path(project)
     cfg = _load(ep / "factory.json")
+    rights = {**RIGHTS, **provenance.RIGHTS}
     pack = pack or cfg.get("pack", "zing")
     src = _load(ep / "source.json")
     moments = _load(ep / "moments.json").get("moments", [])
@@ -88,7 +90,8 @@ dt{{color:var(--muted);text-transform:capitalize}} dd{{margin:0;white-space:pre-
 @media (max-width:900px){{article{{grid-template-columns:1fr}} video{{width:100%!important;max-width:340px}}}}
 </style></head><body><main>
 <h1>Clip pack: {e(src.get('name', ep.name))}</h1>
-<p class="sub">Rights · {e(RIGHTS.get(cfg.get('rights'), RIGHTS['unknown']))}</p>
+<p class="sub">Rights · {e(rights.get(cfg.get('rights'), rights['unknown']))}</p>
+{provenance.review(ep)}
 {f'<p class="sub">Transcript shifted {cfg["transcript_offset"]:+g} s</p>' if cfg.get('transcript_offset') else ''}
 <details class="sub" id="network-details"><summary><span id="network"></span><span>Details</span></summary><p id="network-hosts"></p></details>
 <p class="sub">Made by zing factory: scout, cut, plan, find visuals, vision pick, fact check, render, copy. Local review only; nothing is posted.</p>

@@ -16,6 +16,60 @@ full topic when a formula fits and warn when it must be shortened. Sign captions
 require a confident OCR read clear of the image edges. See [Stills and animated
 memes](MEMES.md) for the text limits and sign checks.
 
+## Resurface
+
+`zing resurface` finds past interview moments that fit a headline. Review the
+brief, then choose a pick to start a factory project. Nothing is posted.
+
+Keep each show in an archive folder with a `manifest.json` list or a
+`manifest.csv` table. Each row needs `id`, `title`, the original `date` as
+`YYYY-MM-DD`, and a `transcript` path inside the archive. Transcripts can be SRT,
+VTT or timed JSON. Optional fields are `guests`, `description`, `url`, `media`
+and `duration` in seconds. JSON guests are a list. CSV guests use semicolons.
+Local media paths are relative to the archive. The folder name is the show name.
+
+```json
+[{"id":"ep1","title":"Engine tests","date":"2020-04-03","guests":["Lee Sample"],"transcript":"ep1.srt","media":"ep1.mp4"}]
+```
+
+Build the index, review a supplied headline, then make one pick.
+
+```bash
+zing resurface build "Test Show"
+zing resurface replay "Test Show" --entity "Lee Sample" --headline "Lee Sample tests a smaller engine" --date 2025-06-07
+zing resurface make "Test Show/.zing/briefs/2025-06-07-lee-sample" --pick 1 --out "engine-short" --shapes 9x16,16x9
+```
+
+`status ARCHIVE` lists counts, bad rows and incomplete episodes.
+`watch ARCHIVE --feeds feeds.txt --geo US --judge host --n 5 --json` checks
+Google Trends and optional publisher RSS feeds. The feed file has one URL per
+line and allows `#` comments. Every manifest guest is watched. An optional
+`aliases.json` adds names and aliases, such as `{"Lee Sample":["Sample"]}`.
+Real feed requests use the channels network checks and `.zing/network.jsonl`.
+
+Briefs live under `.zing/briefs/` with `brief.json` and `brief.html`. Empty
+results still get a brief. Repeated events reuse their brief. Different events
+for the same name and day get a suffix. The host judge saves a pending prompt
+and prints a `zing factory answer` command. Answer it, then rerun the same
+resurface command. Watch also accepts `--judge claude`.
+
+`make` uses the manifest's local media or `--media PATH`. It never downloads a
+media URL. Download it yourself only if you have the rights, then pass the local
+file. The project keeps the original publish date, selected span and news peg.
+Run the printed `zing factory run` command to finish the Short.
+
+The speaker, show and original month stay on screen for the whole clip, including
+quote moments. Captions avoid the label. Packs cannot hide it. The receipt and
+review page keep the same context. A mention stays a mention and does not make
+the person discussed the speaker.
+
+Rights stay `unknown` unless the manifest row or root `archive.json` says
+`"rights":"public-domain"`, `"rights":"owned"`, or names an existing written
+local grant file. Use `"rights":"grants/episode.txt"` or
+`"grant":"grants/episode.txt"` for a grant. It is recorded as `permission`.
+An episode's rights take precedence over the archive default. The brief and
+project record the status. This does not change the channels posting gate.
+
 ## Playbook cohorts
 
 Use `zing playbook list --scope "Developer channel Shorts"` to label a comparison

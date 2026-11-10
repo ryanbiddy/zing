@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `zing resurface` to build an archive, review trends or supplied headlines,
+  and make a chosen Short with persistent dated context and recorded rights.
 - Add a local back-catalog archive and news-angle moment matcher with original
   dates, incremental indexing, a JSON search fallback and checked judge answers.
 - Add resurface trend signals from Google Trends with publisher RSS fallback,

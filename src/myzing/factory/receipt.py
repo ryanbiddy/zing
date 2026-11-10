@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from . import provenance
 from .render import timeline
 
 KINDS = ("picture", "graphic", "quote", "name tag", "title")
@@ -83,4 +84,5 @@ def added(clipdir: Path) -> dict:
     items.sort(key=lambda s: (s["from"], s["to"], s["kind"]))
     total = _seconds(items)
     return {"duration": duration, "added": total, "share": round(total / duration, 2) if duration else 0,
-            "by_kind": {k: _seconds([s for s in items if s["kind"] == k]) for k in KINDS}, "items": items}
+            "by_kind": {k: _seconds([s for s in items if s["kind"] == k]) for k in KINDS}, "items": items,
+            **provenance.receipt(d.parent, duration)}

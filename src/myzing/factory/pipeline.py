@@ -13,7 +13,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import campaign, context, cut, network, pick, plan, postcopy, render, review, scout, source, transcript_sync, visuals
+from . import campaign, context, cut, network, pick, plan, postcopy, provenance, render, review, scout, source, transcript_sync, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
@@ -62,8 +62,8 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     project, media = Path(project).resolve(), Path(media).resolve()
     if not media.is_file():
         raise FactoryError(f"media not found: {media}")
-    if not isinstance(rights, str) or rights not in campaign.RIGHTS:
-        raise FactoryError(f"rights must be one of {', '.join(campaign.RIGHTS)}")
+    if not isinstance(rights, str) or rights not in {**campaign.RIGHTS, **provenance.RIGHTS}:
+        raise FactoryError(f"rights must be one of {', '.join({**campaign.RIGHTS, **provenance.RIGHTS})}")
     rules = None
     if brief is not None:
         rules = campaign.validate(dict(brief)) if isinstance(brief, dict) else campaign.load(Path(brief).expanduser())

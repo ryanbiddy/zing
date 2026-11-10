@@ -55,6 +55,12 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 | `zing still` | Photo folder + topic to concepts, contact sheet and JSON index; `pick` exports an indexed selection. No model calls or uploads. |
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 | `zing from-uoink` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
+| `zing resurface` | Review archive moments against news, then make a chosen Short. docs/FACTORY.md in the repo has the details. |
+| `zing resurface build ARCHIVE` | Index local archive metadata and timed transcripts. Print counts, bad rows and incomplete episodes. |
+| `zing resurface status ARCHIVE` | Show the saved archive's counts and transcript coverage. |
+| `zing resurface watch ARCHIVE` | Check guest trends and write review briefs. Optional `--feeds FILE`, `--geo US`, `--judge host\|claude`, `--n 5` and `--json`. |
+| `zing resurface replay ARCHIVE --entity NAME --headline TEXT` | Review a supplied headline with the host judge. Optional `--url URL` and `--date YYYY-MM-DD`. Answer the pending prompt, then rerun. |
+| `zing resurface make BRIEF --pick N` | Start a factory project with the original date, selected span and news peg. Optional `--media PATH`, `--out PROJECT` and `--shapes 9x16,16x9`. Local media only. The dated context stays on screen and in the receipt and review. |
 | `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
 
 ## Episode Shorts in studio
