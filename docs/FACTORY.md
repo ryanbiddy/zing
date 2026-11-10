@@ -309,26 +309,45 @@ captions, graphics, hook and copy, logs each fix, and keeps what was heard in
 ## Captions from another version
 
 Supplied captions may start after a pre-show or use a different edit. Before the
-scout runs, Zing checks three 20-second speech samples near 20%, 50% and 80% of
-the caption span. It prefers the small model already on disk and never downloads
-one for this check. With no cached model, it prints a note and skips the check.
+scout runs, Zing tries up to five 20-second speech samples near 10%, 30%, 50%,
+70% and 90% of the media. Each window stays inside the media, so a full-episode
+transcript can match a shorter excerpt. It prefers the small model already on
+disk and never downloads one for this check.
 
 If two samples match at least 45% of their words and agree within 1.5 seconds,
-Zing shifts the captions by the measured offset. Shifts under 0.75 seconds are
+Zing stops probing and shifts the captions by the measured offset. Shifts under 0.75 seconds are
 left alone. For a 5-minute, 23-second pre-show, it adds 323 seconds to caption
 times before scouting. `factory.json` saves `transcript_offset` and the check
-result so reruns do not repeat it. Status and the review header show the shift.
+result so reruns do not repeat it. Shifted cues outside the media are dropped,
+and cues that cross an edge are clipped to it. This applies to segments and words.
+The first shift keeps `transcript.unsynced.json` and, when present,
+`words.unsynced.json`. Every shift starts from those originals, so an interrupted
+run cannot apply it twice. Status and the review header show the shift.
 
-If the samples disagree or match poorly, the run stops before scouting. Use
-captions for this file, create a project with `--offset 323` if you know the
-shift, or omit `--transcript` to transcribe the episode. An explicit `--offset`,
-including `--offset 0`, skips the check and records that choice.
-`new --no-sync-check` skips it without shifting the captions. Both flags also
-work with `factory batch`.
+Silent samples are inconclusive. If fewer than two samples hear speech, Zing
+skips the check and prints a note. It also skips with a note when speech is
+turned off, no model is cached, or no speech probe can run. If at least two
+samples hear speech but no two agree, the run stops before scouting.
 
-Word timing still checks each chosen span. If fewer than 40% of its transcript
+If you have confirmed the transcript, resume the same project with either command.
+
+```bash
+zing factory run "talk" --no-sync-check
+zing factory run "talk" --offset 323
+```
+
+`--offset` sets the shift from the original transcript and skips the check,
+including `--offset 0`. `--no-sync-check` skips it without shifting captions.
+Both flags work with `new`, `run` and `batch`. On `run`, they are refused once
+moments have been scouted. On `batch`, they apply to new projects. Studio asks
+whether to skip a saved failed check or transcribe the episode instead. Enter
+accepts skipping after you confirm the transcript matches.
+
+For supplied transcripts that passed the sync check, word timing checks each
+chosen span. If fewer than 40% of its transcript
 words are heard in order, that clip fails before cutting or rendering. The
-other clips continue. This guard also runs with `--offset` or `--no-sync-check`.
+other clips continue. This guard is skipped with `--offset`, `--no-sync-check`,
+any skipped sync check, and transcripts Zing made itself.
 
 ## Rights and campaign briefs
 
@@ -649,9 +668,12 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   A pack's `cap_words` and `cap_chars` override the limits.
 - Default **9:16** captions sit near y 1340 in solo shots and full-frame cutaways.
   Captions, name tags and hooks stay within x 90–990 and y 150–1440 at 1080×1920.
-  Explicit `cap_y` values and headline panels keep their pack's placement.
+  Explicit `cap_y` values set the preferred position within the safe bounds.
+  Headline panels keep their pack's placement.
   Speaker captions move clear of faces and hold their position for the whole phrase, including with `cap_y`.
+  Graphic cards bound caption placement in either split order.
 - Lists center the title and all items as one block. Items fade in at fixed positions.
+  Badges and text shrink when seven or more items need closer rows.
 - A quote is the clip's one most quotable line, and the captions take over for it: the
   speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
   face with its key words highlighted, then steps away and normal captions carry on.
@@ -663,6 +685,7 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Close-ups teach the frame what the main speaker wears; in wide shots it follows them.
   Captions already burned into the source are cropped out.
   With local OCR available, text cards without faces stay whole over a blurred background if the crop would cut text.
+  Each shot checks its actual panel and output shape, including solo shots that fill the frame.
 - Photos move through their own depth: near things slide and grow against the
   background, as if a camera drifted past (Depth Anything V2 Small on the CPU, about
   0.5 s per photo plus a few seconds to encode the move). The move only shifts and
@@ -771,7 +794,9 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
 `zing` uses 78px heavy white capitals per 1080px of the frame's short side, a dark outline and a soft shadow.
 The active word turns yellow and grows slightly in place. There is no caption box.
-Long groups shrink to fit 900px. Type scales with frame width.
+Long groups shrink to fit 900px. Other built-in packs with an explicit caption size scale it with frame width.
+At 1920×1080, `launch` uses 89px, `headline` 103px and `documentary` 117px.
+Learned packs keep their height-based scaling.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.
 

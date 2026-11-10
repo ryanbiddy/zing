@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from types import SimpleNamespace
 
 import pytest
 
@@ -19,6 +20,7 @@ def offline(monkeypatch, zing_workspace):
     monkeypatch.setattr(judge.subprocess, "run", refuse)
     monkeypatch.setattr(source, "_speech", refuse)
     monkeypatch.setattr(source, "transcribe_moments", refuse)
+    monkeypatch.setattr("myzing.project.probe.probe_file", lambda media: SimpleNamespace(duration=3600.0))
     monkeypatch.setattr(speech_models, "resolve_name", lambda name=None, require_cached=False: "large-v2")
     monkeypatch.setattr(speech_models, "local_path", lambda name: "/models/small" if name == "small" else None)
 
@@ -118,21 +120,21 @@ def test_constant_shift_reaches_scout_cuts_status_and_review(tmp_path, episode, 
     assert result["state"] == "done" and result["failed"] == {} and rendered == ["clip01"]
     assert result["settings"]["transcript_offset"] == 323
     saved = pipeline._read(root / "factory.json")["transcript_sync"]
-    assert saved["status"] == "matched" and saved["method"] == "probes" and len(saved["probes"]) == 3
+    assert saved["status"] == "matched" and saved["method"] == "probes" and len(saved["probes"]) == 2
     assert all(p["match"] >= .6 and p["offset"] == 323 for p in saved["probes"])
     assert "[2323.0-2333.0] word2000" in ask.prompts["scout"]
     assert pipeline.load_moments(root)["moments"][0]["scout_start"] == 2323
-    assert "The transcript was 5:23 behind the video, so Zing shifted it (checked at 3 points)." in said
+    assert "The transcript was 5:23 behind the video, so Zing shifted it (checked at 2 points)." in said
     assert all(end - start == 20 and model == "small" and options == {"vocab": ["Station"]}
                for start, end, model, options in calls)
-    assert [c[0] for c in calls] == [710, 1790, 2870]
+    assert [c[0] for c in calls] == [350, 1070]
     assert "Transcript shifted +323 s" in (root / "index.html").read_text(encoding="utf-8")
     assert result["network"]["requests"] == 0
     pipeline.run(root, ask, say=said.append)
-    assert len(calls) == 3 and said.count("The transcript was 5:23 behind the video, so Zing shifted it (checked at 3 points).") == 1
+    assert len(calls) == 2 and said.count("The transcript was 5:23 behind the video, so Zing shifted it (checked at 2 points).") == 1
     pipeline.redo(root, "scout")
     pipeline.run(root, ask, say=said.append)
-    assert len(calls) == 3 and "[2323.0-2333.0] word2000" in ask.prompts["scout"]
+    assert len(calls) == 2 and "[2323.0-2333.0] word2000" in ask.prompts["scout"]
 
 
 @pytest.mark.parametrize("offset", [0, .7, -.7])
@@ -144,7 +146,7 @@ def test_aligned_transcript_is_unchanged_and_silent(tmp_path, episode, monkeypat
     for _ in range(2):
         result = pipeline.run(root, judge.Judge(root), say=said.append)
         assert result["state"] == "waiting" and result["settings"]["transcript_offset"] == 0
-    assert said == [] and len(calls) == 3
+    assert said == [] and len(calls) == 2
     assert (root / "transcript.json").read_bytes() == before
 
 
@@ -158,13 +160,15 @@ def test_word_json_is_shifted_with_its_segments(tmp_path, episode, monkeypatch, 
     probes(monkeypatch, words, (offset,) * 3)
     said = []
     pipeline.run(root, judge.Judge(root), say=said.append)
-    assert pipeline._read(root / "words.json")[0]["s"] == offset
-    assert pipeline._read(root / "transcript.json")[0]["s"] == offset
+    assert pipeline._read(root / "words.json")[0]["s"] == max(0, offset)
+    assert pipeline._read(root / "words.json")[0]["w"] == ("word77" if offset == -77 else "word0")
+    assert pipeline._read(root / "transcript.json")[0]["s"] == max(0, offset)
     assert pipeline.status(root)["settings"]["transcript_offset"] == offset
     assert len(said) == 1 and ("ahead of" if offset < 0 else "behind") in said[0]
 
 
-@pytest.mark.parametrize("offsets,wrong", [((323, 323, 323), (0, 1, 2)), ((10, 30, 50), ()), ((0, 1.6, 3.2), ())])
+@pytest.mark.parametrize("offsets,wrong", [((323,) * 5, (0, 1, 2, 3, 4)), ((10, 30, 50, 70, 90), ()),
+                                          ((0, 1.6, 3.2, 4.8, 6.4), ())])
 def test_bad_or_disagreeing_probes_stop_before_scout_and_stay_failed(tmp_path, episode, monkeypatch, offsets, wrong):
     root = project(tmp_path, episode)
     calls = probes(monkeypatch, episode[2], offsets, wrong)
@@ -173,8 +177,8 @@ def test_bad_or_disagreeing_probes_stop_before_scout_and_stay_failed(tmp_path, e
     for _ in range(2):
         with pytest.raises(FactoryError) as error:
             pipeline.run(root, ask, say=lambda m: None)
-        assert str(error.value) == transcript_sync.MISMATCH
-    assert not ask.prompts and len(calls) == 3
+        assert str(error.value) == transcript_sync.MISMATCH.format(project=root)
+    assert not ask.prompts and len(calls) == 5
     assert pipeline.status(root)["state"] == "failed"
     assert pipeline._read(root / "factory.json")["transcript_sync"]["status"] == "failed"
     assert (root / "transcript.json").read_bytes() == before
@@ -212,7 +216,7 @@ def test_mcp_keeps_automatic_check_and_explicit_overrides(tmp_path, episode, mon
     assert mcp_server.h_factory_new(str(root), str(media), transcript=str(captions), **settings)["ok"]
     result = pipeline.run(root, judge.Judge(root), say=lambda m: None)
     assert result["settings"]["transcript_sync"]["method"] == method
-    assert len(calls) == (3 if method == "probes" else 0)
+    assert len(calls) == (2 if method == "probes" else 0)
 
 
 def test_no_cached_model_skips_once_with_a_note(tmp_path, episode, monkeypatch):
@@ -247,16 +251,19 @@ def test_word_guard_fails_only_the_mismatched_clip_and_survives_resume(tmp_path,
     for _ in range(2):
         result = pipeline.run(root, ask, say=lambda m: None)
         assert result["state"] == "done"
-        assert result["failed"] == {"clip01": "The words heard at 33:20 do not match the transcript. "
-                                   "The transcript may be offset from the video."}
-    assert rendered == ["clip02"] and not (root / "clip01").exists()
-    assert "clip01-plan" not in ask.prompts and "clip02-plan" in ask.prompts
+        assert result["failed"] == ({} if settings else {
+            "clip01": "The words heard at 33:20 do not match the transcript. The transcript may be offset from the video."})
+    assert rendered == (["clip01", "clip02"] if settings else ["clip02"])
+    assert (root / "clip01").exists() == bool(settings)
+    assert ("clip01-plan" in ask.prompts) == bool(settings) and "clip02-plan" in ask.prompts
     pipeline.trim(root, "clip01", 2100, 2130)
     assert "timing_error" not in pipeline.load_moments(root)["moments"][0]
 
 
-def test_guard_checks_cached_word_timing_before_a_cut(tmp_path, episode):
-    root = project(tmp_path, episode, offset=0)
+def test_guard_checks_cached_word_timing_before_a_cut(tmp_path, episode, monkeypatch):
+    root = project(tmp_path, episode)
+    probes(monkeypatch, episode[2], (0, 0, 0))
+    pipeline.run(root, judge.Judge(root), say=lambda m: None)
     pipeline._write(root / "words.json", [{"w": "different", "s": i, "e": i + 1} for i in range(2000, 2030)])
     result = pipeline.run(root, Answers(), say=lambda m: None)
     assert "clip01" in result["failed"] and "do not match the transcript" in result["failed"]["clip01"]

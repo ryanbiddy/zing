@@ -8,6 +8,9 @@
   dates, incremental indexing, a JSON search fallback and checked judge answers.
 - Add resurface trend signals from Google Trends with publisher RSS fallback,
   repeat suppression and optional Wikimedia pageview checks. Command wiring comes later.
+- Fit factory text cards to each shot and output shape. Restore landscape caption
+  sizes for the launch, headline and documentary packs. Keep speaker-top captions
+  above graphic cards and shrink crowded list rows to prevent overlap.
 - Tighten automatic 9:16 match crops toward measured reference face size within
   source-resolution limits. Record the reached size in plans and match reports.
 - Keep match projects resumable after a move or copy. Reuse finished steps and
@@ -21,9 +24,11 @@
 - Let moment suggestions cross sentence pauses under two seconds. Match and
   Studio can save an Estimated pick and resume it. Use `match --no-auto-moment`
   to choose by hand and `moments --project DIR` to find a match project's studies.
-- Check supplied captions against three cached speech samples before scouting,
-  save any time shift, and stop clips whose heard words do not match. Use
-  `--offset` for a known shift or `--no-sync-check` to skip the initial check.
+- Check supplied captions with up to five samples inside the media and stop when
+  two agree. Skip when speech is off, unavailable or too sparse. Keep shifted cues
+  inside the media and preserve originals for interrupted runs. Recover before
+  scouting with `factory run --no-sync-check` or `--offset`. Studio offers to skip
+  a failed check or transcribe instead. Only matched supplied transcripts get the clip guard.
 - Group factory captions by phrase and pause. Give Zing larger outlined type, keep
   default portrait captions above phone controls, and center list reveals.
 - Keep full meme and still topics when formulas fit, warn when shortening is
