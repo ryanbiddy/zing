@@ -45,8 +45,8 @@ def test_ci_accepts_exact_commit_success(gate):
     replies["repos/owner/zing/actions/workflows/ci.yml/runs?head_sha=abc123&event=push&per_page=100"] = [{"workflow_runs": [ci_run()]}]
     replies["repos/owner/zing/actions/workflows/suite-smoke.yml/runs?head_sha=abc123&event=push&per_page=100"] = [{"workflow_runs": [ci_run()]}]
     replies["repos/owner/zing/commits/abc123/check-runs?filter=all&per_page=100"] = [{"check_runs": [
-        {"id": 20, "head_sha": "abc123", "name": "CodeQL", "status": "completed", "conclusion": "success",
-         "app": {"slug": "github-code-scanning"}}]}]
+        {"id": 20, "head_sha": "abc123", "name": "Analyze (python)", "status": "completed", "conclusion": "success",
+         "app": {"slug": "github-actions"}}]}]
     module.check_ci("owner/zing", "abc123")
 
 

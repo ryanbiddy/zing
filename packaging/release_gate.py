@@ -24,11 +24,14 @@ def check_ci(repo, sha):
         latest = max(runs(repo, workflow, sha, "push"), key=lambda run: run["id"], default={})
         if latest.get("status") != "completed" or latest.get("conclusion") != "success":
             raise RuntimeError(f"{name} has not succeeded for commit {sha}. Run {workflow} on this exact commit before publishing.")
-    checks = rows(f"repos/{repo}/commits/{sha}/check-runs?filter=all&per_page=100", "check_runs")
-    latest = max((check for check in checks if check["head_sha"] == sha and check["name"] == "CodeQL"
-                  and check.get("app", {}).get("slug") == "github-code-scanning"),
-                 key=lambda check: check["id"], default={})
-    if latest.get("status") != "completed" or latest.get("conclusion") != "success":
+    latest = {}  # code scanning's default setup reports one "Analyze (language)" job per language on main
+    for check in rows(f"repos/{repo}/commits/{sha}/check-runs?filter=all&per_page=100", "check_runs"):
+        if (check["head_sha"] == sha and check["name"].startswith("Analyze (")
+                and check.get("app", {}).get("slug") == "github-actions"
+                and check["id"] > latest.get(check["name"], {}).get("id", -1)):
+            latest[check["name"]] = check
+    if "Analyze (python)" not in latest or any(
+            check.get("status") != "completed" or check.get("conclusion") != "success" for check in latest.values()):
         raise RuntimeError(f"CodeQL has not succeeded for commit {sha}. Run code scanning on this exact commit before publishing.")
 
 
