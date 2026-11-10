@@ -9,6 +9,8 @@ on main, newest first.
 
 ### Changes since #452
 
+- Open the README with the clipping factory (long episode in, Shorts out, a
+  receipt on each), matching myzing.app, and pin every GitHub Action to a commit SHA.
 - Pin every documented install to the release version, ship the factory's Node
   sidecar files in the package with `zing factory setup` to install them, make
   the README read correctly on PyPI, add project links and classifiers, and print

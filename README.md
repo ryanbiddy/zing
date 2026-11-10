@@ -2,18 +2,20 @@
 
 <!-- mcp-name: io.github.ryanbiddy/zing -->
 
-**“Make my clips look like that video.”**
+**Give it a long episode. Get back a pack of Shorts, each with a receipt.**
 
-A free, local creative studio for short videos and memes that runs in your
-terminal and that AI agents can drive. It studies a video you like,
-cuts your clips into up to three captioned drafts in that style, and tells you which
-style checks each one passed. Simple footage can yield fewer distinct edits,
-with a **VARIETY** warning instead of duplicate drafts. Needs Python, uv and FFmpeg.
+Zing is a free, local clipping factory that runs in your terminal and that AI
+agents can drive. Point it at a podcast, a talk or an interview. It finds the
+moments that stand on their own, cuts them on sentence ends, frames the speaker,
+and adds captions a phone can read plus graphics planned from what's said. Each
+clip carries a receipt that lists what it adds (pictures, graphics, quotes, name
+tags) with sources and licenses, and a separate context check says whether a cut
+changed the meaning. Zing opens a review page on your machine. Nothing is posted.
 
-Under the hood, Zing gives your agent the tools to study a reference, choose a cut, match its
-color, plan captions, render a draft and inspect the result. It also makes memes
-from local images. Measurement and rendering run on your machine; your AI supplies
-the creative judgment through the CLI or **44 MCP tools**. No Zing API key needed.
+It can also match your clips to a reference video's style and make memes from
+your photos. Measurement and rendering run on your machine; your AI supplies the
+judgment through the CLI or **44 MCP tools**. No Zing API key needed. Needs
+Python, FFmpeg and, for the factory, Node.js 20+.
 
 ## Start here: zing studio
 
