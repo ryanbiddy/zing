@@ -576,9 +576,12 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   A pack's `cap_words` and `cap_chars` override the limits.
 - Default **9:16** captions sit near y 1340 in solo shots and full-frame cutaways.
   Captions, name tags and hooks stay within x 90–990 and y 150–1440 at 1080×1920.
-  Explicit `cap_y` values and headline panels keep their pack's placement.
+  Explicit `cap_y` values set the preferred position within the safe bounds.
+  Headline panels keep their pack's placement.
   Speaker captions move clear of faces and hold their position for the whole phrase, including with `cap_y`.
+  Graphic cards bound caption placement in either split order.
 - Lists center the title and all items as one block. Items fade in at fixed positions.
+  Badges and text shrink when seven or more items need closer rows.
 - A quote is the clip's one most quotable line, and the captions take over for it: the
   speaker stays on screen, dimmed, and the line builds word by word in the pack's quote
   face with its key words highlighted, then steps away and normal captions carry on.
@@ -590,6 +593,7 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Close-ups teach the frame what the main speaker wears; in wide shots it follows them.
   Captions already burned into the source are cropped out.
   With local OCR available, text cards without faces stay whole over a blurred background if the crop would cut text.
+  Each shot checks its actual panel and output shape, including solo shots that fill the frame.
 - Photos move through their own depth: near things slide and grow against the
   background, as if a camera drifted past (Depth Anything V2 Small on the CPU, about
   0.5 s per photo plus a few seconds to encode the move). The move only shifts and
@@ -698,7 +702,9 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
 `zing` uses 78px heavy white capitals per 1080px of the frame's short side, a dark outline and a soft shadow.
 The active word turns yellow and grows slightly in place. There is no caption box.
-Long groups shrink to fit 900px. Type scales with frame width.
+Long groups shrink to fit 900px. Other built-in packs with an explicit caption size scale it with frame width.
+At 1920×1080, `launch` uses 89px, `headline` 103px and `documentary` 117px.
+Learned packs keep their height-based scaling.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.
 

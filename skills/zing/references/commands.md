@@ -394,6 +394,17 @@ then use `--retry-failed` to retry only saved failures. It also works with
 recomputes all entries and cannot be combined with `--retry-failed`. See
 [Measure and retry downloads](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md#measure-and-retry-downloads).
 
+## Factory framing and captions
+
+Factory renders check detected text against each shot's actual crop and output
+shape. Cards stay whole when the crop would cut text, including in solo shots.
+Speaker-top packs keep captions above the graphic card when avoiding a low face.
+Lists with seven or more items shrink their badges and text to fit the rows.
+
+At 1920×1080, `--pack launch` uses 89px captions, `headline` 103px and
+`documentary` 117px. The default `zing` look stays at 78px. Portrait sizes and
+learned packs keep their existing scaling.
+
 ## Factory transcript sync
 
 `factory new --transcript FILE` tries up to five speech samples inside the media

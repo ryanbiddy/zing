@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Fit factory text cards to each shot and output shape. Restore landscape caption
+  sizes for the launch, headline and documentary packs. Keep speaker-top captions
+  above graphic cards and shrink crowded list rows to prevent overlap.
 - Tighten automatic 9:16 match crops toward measured reference face size within
   source-resolution limits. Record the reached size in plans and match reports.
 - Keep match projects resumable after a move or copy. Reuse finished steps and
