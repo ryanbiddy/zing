@@ -406,8 +406,8 @@ def check_whisper() -> Check:
                 fix += " Free space, move ZING_HOME, or choose a smaller model."
     return Check(name="faster-whisper", tier=RECOMMENDED, ok=ok, detail=detail, fix=fix,
                  degraded_mode="" if installed and row["cached"] else
-                 ("transcription is skipped" if not installed else "transcription may be unavailable") +
-                 ": empty transcript + warning; spoken captions and continuity unavailable",
+                 ("transcription is skipped; spoken captions and continuity are unavailable" if not installed else
+                  "no speech model. Transcription and spoken captions are off"),
                  data=data)
 
 
@@ -728,16 +728,19 @@ def check_layout() -> Check:
     from myzing.layout.detector import INSTALL_HINT, model_path, verified_model
     from myzing.layout.vision_models import inventory
 
+    degraded = "factory framing and face-aware captions are off"
     try:
         vision = inventory()
     except OSError as exc:
         return Check("layout", OPTIONAL, False, f"vision model cache could not be read; {exc}",
                      fix="Check read permissions for the vision model cache.",
+                     degraded_mode=degraded,
                      data={"vision_models": [], "network_used": False})
     model_data = {"vision_models": vision, "network_used": False}
 
     if not _has_module("cv2"):
         return Check("layout", OPTIONAL, False, "OpenCV headless is not installed; vision inference unavailable", fix=INSTALL_HINT,
+                     degraded_mode=degraded,
                      data=model_data)
     try:
         version = metadata.version("opencv-python-headless")
@@ -751,18 +754,20 @@ def check_layout() -> Check:
         if version != "4.13.0.92" or conflicts:
             return Check("layout", OPTIONAL, False,
                          f"OpenCV headless package {version}; conflicting wheels: {conflicts}",
+                         degraded_mode=degraded,
                          fix="Remove GUI/contrib OpenCV wheels, then reinstall opencv-python-headless==4.13.0.92; "
                              "checkout: uv sync --all-extras --reinstall-package opencv-python-headless", data=model_data)
         path = model_path()
         valid = verified_model(path)
     except (metadata.PackageNotFoundError, OSError) as exc:
-        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT, data=model_data)
+        return Check("layout", OPTIONAL, False, str(exc), fix=INSTALL_HINT, data=model_data, degraded_mode=degraded)
     return Check("layout", OPTIONAL, valid,
                  f"OpenCV headless package {version}; YuNet model {'verified' if valid else 'missing or corrupt'}; "
                  + "; ".join(f"{r['name']}: {'verified' if r['verified'] else 'missing/corrupt (HOG/saliency fallback)'}" for r in vision)
                  + "; native inference not probed",
                  fix=("" if valid else "zing layout fetch-model; ") +
                      ("" if all(r["verified"] for r in vision) else "zing layout fetch-model --vision"),
+                 degraded_mode="" if valid else degraded,
                  data={**model_data, "model": str(path), "model_verified": valid,
                        "runtime_probe": "package-metadata-only"})
 
@@ -807,6 +812,19 @@ def check_audio() -> Check:
     )
 
 
+def check_factory() -> Check:
+    from .factory.tools import FactoryError, browser, node_sidecar
+
+    try:
+        node, sidecar = node_sidecar()
+        executable = browser()
+    except (FactoryError, OSError) as exc:
+        return Check("factory", OPTIONAL, False, "factory renderer is unavailable",
+                     fix=str(exc), degraded_mode="factory rendering is off")
+    return Check("factory", OPTIONAL, True, "local factory prerequisites found; rendering not probed",
+                 data={"node": node, "sidecar": str(sidecar), "browser": executable, "network_used": False})
+
+
 def check_audio_ml() -> Check:
     from .audio.tag_models import model_paths, runtime_supported, runtime_version, INSTALL_HINT, FETCH_HINT, REVISION
     present = _has_module("sherpa_onnx")
@@ -844,6 +862,7 @@ def run_checks(today: date | None = None) -> list[Check]:
         check_screen(),
         check_color(),
         check_hyperframes(),
+        check_factory(),
         check_audio(),
         check_audio_ml(),
         check_uoink(),
@@ -881,11 +900,11 @@ def _verdict_line(checks: list[Check]) -> str:
     if degraded:
         return (
             f"Verdict: ready for local-file study; {len(degraded)} feature(s) "
-            f"degraded ({', '.join(degraded)}) - details below"
+            f"degraded ({', '.join(degraded)}) - core checks passed; details below"
         )
     if any(c.mark in ("warning", "degraded") for c in checks):
-        return "Verdict: ready, with warnings (details below)"
-    return "Verdict: fully ready"
+        return "Verdict: ready, with warnings (core checks passed; details below)"
+    return "Verdict: core ready"
 
 
 def _next_step() -> str:
@@ -935,7 +954,7 @@ def _print_human(checks: list[Check]) -> None:
             status = c.mark
         print(f"  [{status:>7}] {c.name} ({c.tier})")
         print(f"           {c.detail}")
-        if c.degraded_mode and not c.ok:
+        if c.degraded_mode:
             print(f"           without it: {c.degraded_mode}")
         if c.fix:  # a fix line only exists when something is worth fixing
             print(f"           fix: {c.fix}")
@@ -952,7 +971,7 @@ def _print_human(checks: list[Check]) -> None:
             f"tool(s): {names} (fixes above)."
         )
     else:
-        print("\nReady.")
+        print("\nCore checks passed. Ready.")
     if not missing:
         step = _next_step()
         if step:

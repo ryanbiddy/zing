@@ -163,7 +163,7 @@ def test_json_output_is_parseable_and_complete(full_machine, capsys):
     names = {c["name"] for c in payload["checks"]}
     assert names == {
         "ffmpeg", "yt-dlp", "scenedetect", "faster-whisper", "ocr",
-        "tts", "uoink", "pillow", "heic", "layout", "screen-cursor", "color", "hyperframes", "audio", "audio-ml", "libass", "caption_geometry", "fonts",
+        "tts", "uoink", "pillow", "heic", "layout", "screen-cursor", "color", "hyperframes", "factory", "audio", "audio-ml", "libass", "caption_geometry", "fonts",
     }
     tiers = {c["name"]: c["tier"] for c in payload["checks"]}
     assert tiers["ffmpeg"] == "required"
@@ -413,11 +413,10 @@ def test_verdict_line_degraded(bare_machine, monkeypatch, capsys):
     assert "degraded" in verdict
 
 
-def test_verdict_line_fully_ready(full_machine, monkeypatch, capsys):
-    # full_machine leaves tts/uoink optional-absent; verdict ignores optional
+def test_verdict_line_core_ready(full_machine, monkeypatch, capsys):
     doctor.run([])
     verdict = capsys.readouterr().out.splitlines()[2]
-    assert verdict == "Verdict: fully ready"
+    assert verdict == "Verdict: core ready"
 
 
 # -- SW-3 (Lane A sweep finding): node-on-PATH is a false comfort -------------

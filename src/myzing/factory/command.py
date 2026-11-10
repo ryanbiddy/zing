@@ -313,6 +313,9 @@ def run(argv: list[str]) -> int:
             from .tools import check
             result = check()
         print(json.dumps(result, indent=2, ensure_ascii=False))
+        if args.command == "run" and (error := pipeline.run_error(result)):
+            print(error, file=sys.stderr)
+            return 1
         return 0
     except subprocess.SubprocessError as exc:
         detail = getattr(exc, "stderr", None) or str(exc)

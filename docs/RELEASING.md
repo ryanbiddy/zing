@@ -1,99 +1,79 @@
 # Releasing Zing
 
-This checkout prepares `1.0.0rc1`. It does not publish anything. Every outward
-step below is **Ryan only**. Once setup is complete, the release workflow
-handles building, checking and uploading; Ryan starts the run and approves its
-publish job. There is no stored PyPI token.
+This checkout prepares `1.0.0rc1`. Ryan starts and approves every publication.
+The release workflow builds and checks the files before either upload. It uses
+Trusted Publishing with GitHub OIDC. No PyPI token is stored.
 
-After this version is published on PyPI, a user with Python 3.11+ can install
-the common features with one command:
+## Set up approvals and publishers first
 
-```console
-python -m pip install "myzing[mcp,render,memes]==1.0.0rc1"
-```
-
-Then run `zing studio`. For all optional Python features, use
-`python -m pip install "myzing[all]==1.0.0rc1"`. FFmpeg is a separate system
-requirement for video work. Models are separate, consented downloads. The
-photo-meme path works without either. See [the README](../README.md) for prerequisites.
-
-## One-time setup: Ryan only
-
-1. **Ryan only:** In `ryanbiddy/zing` Settings > Environments, create `testpypi`
-   and `pypi`. Give each a required reviewer of `ryanbiddy`, restrict deployments
-   to `main`, and disable administrator bypass. Leave prevention of self-review
-   off if Ryan both starts and approves runs. Confirm required-reviewer
-   protection is available for the repository's plan. An environment name in
-   YAML alone does not enforce approval. Do not run publication until these
-   protections exist.
-2. **Ryan only:** Sign in separately to TestPyPI and PyPI. If `myzing` already
-   belongs to Ryan, open its Manage > Publishing page. Otherwise add a pending
-   publisher under account Publishing. A pending publisher does not reserve
-   the name. Use these exact values on each service:
+1. In [GitHub Environments](https://github.com/ryanbiddy/zing/settings/environments),
+   create `testpypi` and `pypi`. Set `ryanbiddy` as the required reviewer, restrict
+   deployments to `main`, and turn administrator bypass off. Leave prevention
+   of self-review off so Ryan can start and approve a run. Confirm these
+   protections are available and enabled before publishing.
+2. On [test.pypi.org](https://test.pypi.org/manage/account/publishing/), add a
+   pending publisher for `myzing`. On [pypi.org](https://pypi.org/manage/project/myzing/settings/publishing/),
+   add a publisher to the existing `myzing` project. Its `0.0.1` release is a
+   placeholder. A pending publisher does not reserve a name.
 
    | Field | TestPyPI | PyPI |
    | --- | --- | --- |
-   | Project name | `myzing` | `myzing` |
+   | Project | `myzing` | `myzing` |
    | GitHub owner | `ryanbiddy` | `ryanbiddy` |
    | Repository | `zing` | `zing` |
    | Workflow filename | `release.yml` | `release.yml` |
    | Environment | `testpypi` | `pypi` |
 
-   Use only the filename, without `.github/workflows/`. Save each publisher.
-   Do not add a password or API-token secret. PyPI verifies GitHub's temporary
-   OIDC identity. See the official [existing-project setup](https://docs.pypi.org/trusted-publishers/adding-a-publisher/)
-   and [pending-project setup](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
+   Use the filename without `.github/workflows/`. See the official
+   [existing-project guide](https://docs.pypi.org/trusted-publishers/adding-a-publisher/)
+   and [pending-publisher guide](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
 
-## Local release checks
+## Prepare the commit
 
-Keep `UOINK_URL=http://127.0.0.1:1` set for every command. On PowerShell:
+1. Fold every `Unreleased` bullet into `1.0.0rc1`, preserve the groups, remove
+   duplicates and extend the PR range through the last included PR. Leave
+   `## Unreleased` empty. The notes check rejects unfolded bullets and short
+   PR ranges.
+2. Keep the version in `pyproject.toml`, `src/myzing/__init__.py`, `uv.lock`,
+   `server.json`, the MCPB manifest and each prompt's `release_version` equal.
+   Update pinned install examples and run `uv lock` after a version bump.
+   Prompt `version` fields describe their contracts and stay independent.
+3. Run the local checks with `UOINK_URL=http://127.0.0.1:1` set.
 
-```powershell
-$env:UOINK_URL='http://127.0.0.1:1'
-uv sync --all-extras
-uv build
-uv run --frozen python packaging/audit_dist.py
-uv run --frozen python packaging/release_notes.py --output zing-workspace/release-notes.md
-uv venv zing-workspace/twine
-uv pip install --python zing-workspace/twine/Scripts/python.exe twine
-zing-workspace/twine/Scripts/python.exe -m twine check --strict dist/*
-uv run --frozen python packaging/fresh_install_check.py --report zing-workspace/fresh-install.json
-uv run --frozen pytest -ra
-```
+   ```powershell
+   $env:UOINK_URL='http://127.0.0.1:1'
+   uv sync --all-extras
+   uv build
+   uv run --frozen python packaging/audit_dist.py
+   uv run --frozen python packaging/release_notes.py --output zing-workspace/release-notes.md
+   uv venv zing-workspace/twine
+   uv pip install --python zing-workspace/twine/Scripts/python.exe twine==7.0.0
+   zing-workspace/twine/Scripts/python.exe -m twine check --strict dist/*
+   uv run --frozen python packaging/fresh_install_check.py --report zing-workspace/fresh-install.json
+   uv run --frozen pytest -ra
+   ```
 
-The fresh-install script creates two new venvs, installs the built wheel with
-`mcp,render,memes` and `all`, and runs outside the source checkout. It checks
-help, doctor, prompts, presets, the 37-tool MCP exchange and a generated-image
-studio run. Product processes have networking blocked and empty model caches.
-Dependency installation still needs the package index. Use `--work-dir` with a
-new folder to retain both venvs, logs and images for review.
+   Fresh installs check `mcp,render,memes` and `all` outside the checkout,
+   with empty model caches and product networking blocked. They exercise
+   help, doctor, prompts, presets, an image studio run and an MCP exchange
+   that lists 44 MCP tools and calls `zing_status`. The
+   [stdio check's tool list](../packaging/mcp_stdio_smoke.py) defines that count.
+   Dependency installation still needs a package index. Reports retain
+   commands, errors and tracebacks. Review any
+   `passed_with_platform_limitations` result before approving. It does not
+   prove that `[all]` installs on that platform.
+4. Merge the reviewed changes. Check that `ci.yml` is green on the exact commit
+   to release on `main`. An older green commit does not count. The workflow
+   checks the latest push CI run for its SHA with a read-only GitHub token.
 
-The JSON report saves each command, exit code, stderr tail and validation
-failure as it happens. Exceptions include a full traceback. If pip explicitly
-reports an unavailable optional dependency for `[all]`, the check tries each
-optional extra in a separate venv and records the affected extras and pip
-errors as `platform_limitations`. Available extras still run the full smoke
-check. Core install or runtime failures, network failures and dependency
-conflicts remain fatal. A report with `passed_with_platform_limitations` does
-not prove that `[all]` installs on that platform. **Ryan only:** Review those
-limitations before approving publication.
+## Upload to TestPyPI, then PyPI
 
-Release versions live in `pyproject.toml`, `src/myzing/__init__.py`, `uv.lock`,
-`server.json`, the MCPB manifest and each prompt's `release_version`. Prompt
-`version` fields track their individual contracts and stay independent. Update
-the pinned installation examples and add a matching changelog heading. Run
-`uv lock` after a version bump. The parity test catches mismatches. Historical
-release links and recorded fixture versions are not current release pins.
-
-## TestPyPI first: Ryan only
-
-1. **Ryan only:** After review and merge, open Actions > Release > Run workflow.
-   Select `main`, choose `testpypi`, leave `draft_release` off, and start the run.
-2. **Ryan only:** Review the distribution artifacts, metadata check and all
-   three fresh-install reports. Once they pass, approve the waiting `testpypi`
-   deployment. This is the final manual approval that uploads the package.
-3. **Ryan only:** Open the TestPyPI release page and check its files and
-   description. Download the wheel from that release and test it in a new venv:
+1. Open Actions > Release > Run workflow on `main`. Choose `testpypi` and
+   leave `draft_release` off. Review the distributions, extracted notes and
+   all 12 fresh-install reports across three OSes and Python 3.11–3.14.
+   Approve the `testpypi` deployment when they pass.
+2. Check the TestPyPI files and description. Download that release's wheel
+   and test it in a new venv with the safe `UOINK_URL` setting.
 
    ```console
    python -m pip install "./myzing-1.0.0rc1-py3-none-any.whl[mcp,render,memes]"
@@ -101,48 +81,48 @@ release links and recorded fixture versions are not current release pins.
    zing studio
    ```
 
-   This installs the wheel file you downloaded from TestPyPI; its
-   dependencies come from regular PyPI, so TestPyPI need not contain them. Keep the safe
-   UOINK_URL setting during verification.
+   Dependencies come from regular PyPI. TestPyPI uploads are single-use per
+   version. If the uploaded rc1 fails verification, fix it and bump to the
+   next rc or a `.devN` version before uploading again. Deleting a release
+   does not allow reuse. A failure before any upload can be retried.
+3. With the same reviewed commit still at `main`, run Release with `target=pypi`.
+   Optionally enable `draft_release`. The workflow accepts an earlier successful
+   TestPyPI upload only for this exact commit, which also fixes the version.
+   Otherwise it requires a successful `testpypi` job first. It never repeats
+   a verified upload. Review the new reports and approve `pypi`. The publish
+   job uploads the artifacts tested in that run without rebuilding them.
+4. Verify the PyPI page and install in a clean venv.
 
-## PyPI and GitHub: Ryan only
+   ```console
+   python -m pip install "myzing[mcp,render,memes]==1.0.0rc1"
+   zing studio
+   ```
 
-1. **Ryan only:** With the same reviewed commit still at `main`, start Release
-   again with `target=pypi`. Optionally enable `draft_release`.
-2. **Ryan only:** Check the run's commit, artifacts and three OS reports, then
-   approve the `pypi` environment. The publish job downloads exactly the
-   artifacts tested in that run. It cannot rebuild or replace them.
-3. **Ryan only:** Verify the PyPI page and try the one-command install above in
-   a clean venv. `1.0.0rc1` is a prerelease, so keep the explicit version pin.
-4. **Ryan only:** If requested, the separate draft job attaches the wheel and
-   sdist to `v1.0.0rc1` and uses only this version's changelog section. Open the
-   draft in GitHub Releases, review the target commit and notes, keep the
-   prerelease checkbox selected, then click Publish release when ready.
-   If draft creation failed after PyPI succeeded, rerun only that failed job.
-   Do not rerun a successful upload to reuse the same filenames.
-5. **Ryan only:** If the optional job was left off, create a draft through
-   GitHub Releases, choose tag `v1.0.0rc1` at the published commit, attach that
-   run's distribution artifacts and paste its `release-notes` artifact. Review
-   and publish it as a prerelease.
+   For all optional Python features, use `myzing[all]==1.0.0rc1`. FFmpeg,
+   models and Node sidecars need separate setup. Keep the version pin or use
+   `--pre` for a release candidate. After rc1 is verified on PyPI, Ryan can
+   yank the `0.0.1` placeholder so plain installs stop resolving to it.
+5. Review the optional GitHub draft at `v1.0.0rc1`, its target commit, attached
+   files and extracted notes. Keep it marked as a prerelease, then publish
+   when ready. If draft creation failed after the upload, rerun only that
+   failed job. If no draft was requested, create one from that run's
+   distributions and `release-notes` artifact.
 
-The workflow only accepts manual dispatch on `main`. Pushes and tags do not
-publish. The RC workflow always creates GitHub drafts with the prerelease flag;
-review that flag when preparing the final `1.0.0` release.
+The workflow accepts only manual dispatch on `main`. Pushes and tags do not
+publish. Review the prerelease flag again for the final `1.0.0` release.
 
-## MCP registry: Ryan only
+## Publish the MCP listing
 
-**Ryan only:** After verifying PyPI, run the existing Actions > MCP Registry
-workflow (`mcp-registry.yml`) on the published commit. Enter
-`io.github.ryanbiddy/zing` as confirmation. It checks `server.json`, requires the
-matching usable PyPI version and README verification marker, then publishes the
-listing with GitHub OIDC. This is a separate outward action; Release does not
-invoke it. See [the listing notes](DIRECTORY-SUBMISSIONS.md).
+After verifying PyPI, Ryan can run Actions > MCP Registry (`mcp-registry.yml`)
+on the published commit. Enter `io.github.ryanbiddy/zing` as confirmation.
+It checks the listing, usable PyPI version and README verification marker,
+then publishes with GitHub OIDC. Release does not invoke it. See
+[the listing notes](DIRECTORY-SUBMISSIONS.md).
 
-## Rollback: Ryan only
+## Correct a bad release
 
-**Ryan only:** For a bad release, open the affected version in PyPI's project
-management page and yank it with a clear reason. Do the same on TestPyPI if
-needed. Do not delete and reupload the same version. Publish a corrected version
-through the checks above, and update the GitHub release notes to direct users
-to it. Yanking leaves the files available and exact version pins may still
-install them; it does not remove an installed copy. See [PyPI's yanking guide](https://docs.pypi.org/project-management/yanking/).
+Ryan can yank the affected version on PyPI or TestPyPI with a clear reason,
+then publish a corrected version through these checks. Do not delete and
+reupload the same version. Update GitHub's notes to point to the correction.
+Yanking leaves files available to exact version pins and does not remove
+installed copies. See [PyPI's yanking guide](https://docs.pypi.org/project-management/yanking/).

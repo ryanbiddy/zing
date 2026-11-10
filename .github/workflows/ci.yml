@@ -252,8 +252,9 @@ jobs:
         run: brew install ffmpeg
       - name: Build release artifacts
         run: |
-          python -m pip install uv
+          python -m pip install uv==0.13.4 twine==7.0.0
           uv build
+          python -m twine check --strict dist/*
           python packaging/audit_dist.py
       - name: Fresh wheel with common and all extras
         run: python packaging/fresh_install_check.py --report fresh-install-${{ matrix.os }}.json

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 1.0.0rc1
+
+Release candidate for Zing v1. These notes cover merged PRs #401 through #575
+on main, newest first.
+
+### Changes since #452
+
+- Fold pending notes into the release, require CI on the released commit and a
+  successful TestPyPI upload before PyPI, pin build tools and check installs on
+  Python 3.11–3.14. Report missing optional models and render tools in doctor,
+  and fail factory runs that render no clips when at least one clip failed.
 - Keep original files when a copied match project omits them. Ignore broad roots
   and roots inferred from workspace studies. Keep linked folders from blocking
   resume and read path metadata once per load.
@@ -40,13 +51,6 @@
 - Add a long episode path to `zing studio` with transcript suggestions,
   factory review, resume and an MCP hand-off. Give Uoink connection failures
   a startup hint instead of a contract update hint.
-
-## 1.0.0rc1
-
-Release candidate for Zing v1. These notes cover merged PRs #401 through #557
-on main, newest first.
-
-### Changes since #452
 
 - Check free queue slots through the existing schedule and honor legacy news IDs in
   brief history. Remove failed report temp files and use the planning duration probe

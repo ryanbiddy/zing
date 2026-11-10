@@ -27,7 +27,7 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 |---|---|
 | `zing record-cursor` | Local 60 Hz cursor/click and anonymous key-press timestamps; never key contents. |
 | `zing studio` | Guided creative session; recommendations, confirmation, saved answers and resume. |
-| `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
+| `zing doctor` | Core readiness, caches and optional local Uoink health. Missing optional models and render tools name what is off and how to fix it. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
@@ -411,6 +411,11 @@ Lists with seven or more items shrink their badges and text to fit the rows.
 At 1920×1080, `--pack launch` uses 89px captions, `headline` 103px and
 `documentary` 117px. The default `zing` look stays at 78px. Portrait sizes and
 learned packs keep their existing scaling.
+
+`factory run` exits 1 if it finishes with no rendered clips and at least one
+failed clip. The reason goes to stderr and stdout keeps the same JSON.
+Waiting for answers, an empty run or some rendered clips still means exit 0.
+The MCP `factory_status` result reports `ok: false` for that completed failure.
 
 ## Factory transcript sync
 

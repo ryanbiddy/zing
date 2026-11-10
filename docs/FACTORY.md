@@ -204,6 +204,13 @@ zing factory run talk --judge claude
 zing factory status talk           # review page: talk/index.html
 ```
 
+`zing doctor` reports core readiness and names missing optional models and render
+tools with their limits and fixes. `zing factory run` exits 1 when it finishes
+with no rendered clips and at least one failed clip. It prints a reason on stderr
+and keeps the same JSON on stdout. Runs waiting for answers, empty runs and runs
+with some rendered clips still exit 0. The MCP `factory_status` result reports
+`ok: false` for the same completed failure.
+
 Without `--transcript`, Zing reads the whole episode with a small speech model already
 on disk (`small` or `base`; an hour in about 5 minutes on a CPU) only to find the
 moments, then transcribes the chosen moments with your configured model for word
