@@ -86,6 +86,14 @@ Job Object or POSIX process group); completed checkpoints remain resumable.
 Each output folder admits one supervised job at a time.
 
 You can move or copy a project folder; resume works from the new place.
+For older projects with absolute paths, saved match or Studio state identifies
+the old project root. Filesystem roots, your home folder and ancestors of the
+current project are ignored. A workspace study path alone does not identify an old root.
+Zing prefers files in the new folder. If a copy is missing but the original still
+exists, it keeps the original path. If both are missing, it uses the new path.
+Old absolute paths that would follow a symlink outside the new project stay
+unchanged, so checkpoint loading can continue. Relative paths that escape the
+project are still refused.
 
 Install the existing optional extras with `uv sync --all-extras` in a checkout.
 Color/audio need NumPy; inspection needs Pillow. Face planning needs the layout

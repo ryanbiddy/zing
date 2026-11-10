@@ -13,15 +13,16 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from myzing.project.api import hash_file
-from myzing.project.paths import local_paths, map_paths, portable, previous_roots, relocate, resolve_path
+from myzing.project.paths import local_paths, map_paths, portable, previous_roots, resolve_path
 
 VERSION = 1
 PATH_FIELDS = {"log", "path", "media", "geometry", "outputs", "comparison_path", "study_path",
                "video", "plan", "timeline", "report", "recipe", "comparison", "plans"}
 
 
-def resolve_data(data, root):
-    return local_paths(data, root, previous_roots(root), fields=PATH_FIELDS, mappings={"artifacts"}, values={"plans"})
+def resolve_data(data, root, *, roots=None):
+    return local_paths(data, root, previous_roots(root) if roots is None else roots,
+                       fields=PATH_FIELDS, mappings={"artifacts"}, values={"plans"})
 
 
 def read(path):
@@ -56,17 +57,18 @@ class Checkpoints:
         self.data = read(self.path) if self.path.exists() else {"version": VERSION, "steps": {}}
         if self.data.get("version") != VERSION:
             raise ValueError("Unsupported match checkpoint version; use a new --out folder.")
+        previous = previous_roots(self.root, state=self.data)
         if not self.data.get("relative_paths"):
             roots = []
             for entry in self.data["steps"].values():
                 log = Path(entry.get("log", ""))
-                if log.is_absolute():
+                if log.is_absolute() and log.parent.name == "logs":
                     entry["legacy_root"] = str(log.parent.parent)  # Retain the old hash basis until reuse.
                     roots.append(entry["legacy_root"])
             self.data["previous_roots"] = list(dict.fromkeys(roots))
             if roots and self.data.get("auto_moments"):
                 self.data["auto_moments"]["legacy_root"] = roots[0]
-        self.data = resolve_data(self.data, self.root)
+        self.data = resolve_data(self.data, self.root, roots=previous)
         self.data["relative_paths"] = True
         self.used = []
         self.reused = []
@@ -165,11 +167,14 @@ def interrupted(root, reason="cancelled"):
     if not path.exists():
         return
     data = read(path)
-    roots = previous_roots(root)
+    roots = previous_roots(root, state=data)
     for name, entry in data.get("steps", {}).items():
         if entry.get("status") == "running":
             entry.update(status=reason, error=f"{name}: worker {reason}; rerun with --resume")
-            log = resolve_path(relocate(entry["log"], root, roots), root)
+            log = Path(entry["log"])
+            if log.is_absolute() and log.parent.name == "logs" and log.parent.parent in roots:
+                log = Path("logs") / log.name
+            log = resolve_path(str(log), root, roots=roots)
             log.parent.mkdir(parents=True, exist_ok=True)
             entry["log"] = portable(str(log), root)
             with log.open("a", encoding="utf-8") as stream:

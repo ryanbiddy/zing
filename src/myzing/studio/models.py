@@ -116,7 +116,7 @@ def save_session(project, session):
 def load_session(project):
     root = Path(project).expanduser().resolve()
     data = read_json(root / SESSION_NAME)
-    roots = previous_roots(root)
+    roots = previous_roots(root, session=data)
     fields = {"project", "clips", "photos", "source", "reference", "context", "music", "tracks",
               "episode", "transcript", "cursor_log"}
     for key in ("answers", "automatic_answers"):

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep original files when a copied match project omits them. Ignore broad roots
+  and roots inferred from workspace studies. Keep linked folders from blocking
+  resume and read path metadata once per load.
 - Tighten automatic 9:16 match crops toward measured reference face size within
   source-resolution limits. Record the reached size in plans and match reports.
 - Keep match projects resumable after a move or copy. Reuse finished steps and
