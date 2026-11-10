@@ -13,8 +13,8 @@ so their installed dependencies match the audited lockfile. This uv runtime
 requires a host with MCPB 0.4 support; see the
 [official manifest specification](https://github.com/modelcontextprotocol/mcpb/blob/main/MANIFEST.md#uv-runtime-v04).
 
-The pre-port [wire fixture](../tests/fixtures/mcp_wire/README.md) records all
-32 tool names, descriptions, input/output schemas, five prompt declarations
+The pre-port [wire fixture](../tests/fixtures/mcp_wire/README.md) records the
+original tool names, descriptions, input/output schemas, five prompt declarations
 and bodies, empty resource lists, and five representative tool calls.
 SDK 2 matches those normalized payloads, including embedded JSON text,
 `structuredContent`, and `{ok: false, error: ...}` domain errors with

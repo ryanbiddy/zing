@@ -32,7 +32,8 @@ def test_zing_connect_names_the_public_prerelease_and_mcp_extra() -> None:
 
     assert "PyPI publication happens at launch" not in text
     assert "At launch this becomes" not in text
-    assert "Zing is not on PyPI" in text
+    assert "release candidate" in text
+    assert 'pipx install "myzing[all]==1.0.0rc1"' in text
     assert (
         "https://github.com/ryanbiddy/zing/releases/tag/v0.1.0"
         in text

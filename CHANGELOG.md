@@ -4,13 +4,21 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #575
+Release candidate for Zing v1. These notes cover merged PRs #401 through #578
 on main, newest first.
 
 ### Changes since #452
 
 - Open the README with the clipping factory (long episode in, Shorts out, a
   receipt on each), matching myzing.app, and pin every GitHub Action to a commit SHA.
+- Fix the round 2 release-check findings. Pin PyAV below 19 so fresh installs on
+  Python 3.12+ can transcribe. Add a decode smoke to doctor and the fresh-install
+  check. Report sync probe errors instead of silence. Make `zing factory doctor`
+  exit nonzero when not ready. Add a manual placement path for the face model.
+  Match install hints to the install method. Require suite-smoke and CodeQL at
+  the release gate. Polish factory renders. Counters finish on the spoken number,
+  b-roll fills the top panel, the hook banner shrinks after the opening, picture
+  credits stay readable and files are about half the size.
 - Pin every documented install to the release version, ship the factory's Node
   sidecar files in the package with `zing factory setup` to install them, make
   the README read correctly on PyPI, add project links and classifiers, and print

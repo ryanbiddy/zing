@@ -15,8 +15,11 @@ not exercised: this run used installed tools and a hash-verified cached YuNet.
 ## Install and choose a workspace
 
 Have Python 3.11+, uv, and FFmpeg/ffprobe (including libx264 and libass) on PATH.
-Use the current source checkout for these features. Zing is not on PyPI; an older
-release wheel may have fewer commands. See [installation](DEVELOPER-GUIDE.md).
+Zing 1.0.0rc1 is a release candidate. Install it with
+`pipx install "myzing[all]==1.0.0rc1"` or `uv tool install "myzing[all]==1.0.0rc1"`,
+or use a source checkout. The blocks below use the source checkout and uv.
+For a package install, skip `uv sync` and replace `uv run --frozen zing` with
+`zing`. See [installation](INSTALL.md).
 The sync command can download Python packages. Agents should get consent before
 installing packages or fetching assets that the user has not already authorized.
 

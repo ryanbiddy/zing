@@ -1,9 +1,9 @@
 # Zing directory submission kit
 
-Prepared for review. Every destination below is **NOT SUBMITTED**. Zing is
-pre-alpha, and `myzing` is not yet published to PyPI. These files do not publish,
-register or submit anything. Recheck each directory's current requirements
-before a future submission; form fields and acceptance rules are unverified.
+Prepared for review. Every destination below is **NOT SUBMITTED**. Zing
+1.0.0rc1 is a release candidate. These files do not publish, register or submit
+anything. Recheck each directory's current requirements before submission.
+Form fields and acceptance rules are unverified.
 
 Uoink is listed in most of the same places. Each Zing listing carries one
 "Works with Uoink" line in its long description, and Uoink's listings point
@@ -12,7 +12,7 @@ ryanbiddy/uoink.
 
 | Where | Status | First step |
 |---|---|---|
-| [Official MCP registry](#official-mcp-registry) | **Blocked** on a PyPI release | Ryan approves publishing `myzing` |
+| [Official MCP registry](#official-mcp-registry) | Ready after a package install check | Verify the pinned release install |
 | [GitHub MCP Registry](#github-mcp-registry) | **Blocked** on the official registry entry | Ask in the onboarding discussion |
 | [Hermes plugin catalog](#hermes-plugin-catalog) | Ready, deadline for the hackathon Tue Nov 11, 5 PM ET | Ryan opens the catalog PR |
 | [Glama](#glama) | Ready | Ryan runs the build form |
@@ -21,7 +21,7 @@ ryanbiddy/uoink.
 | [Cursor Directory](#cursor-directory), [LobeHub](#lobehub), [MCP Market](#mcp-market), [Smithery](#smithery) | Ready | Web forms or CLI |
 | [PulseMCP](#pulsemcp) | Follows the official registry | Nothing to submit |
 | [awesome-mcp-servers](#awesome-mcp-servers) | **Blocked** on a Glama score | PR after Glama |
-| [Claude directory and Goose](#claude-directory-and-goose) | **Blocked** on a PyPI release | One portable launch command |
+| [Claude directory and Goose](#claude-directory-and-goose) | Ready after a package install check | Verify the pinned release install |
 
 Not for Zing: Raycast, Homebrew, winget, Flow Launcher, Edge Add-ons, Alfred and
 Obsidian. Uoink is listed there because it ships an app or extension for each.
@@ -33,26 +33,30 @@ Zing is a Python package with no app to list.
 |---|---|
 | Name | Zing |
 | Repository | https://github.com/ryanbiddy/zing |
-| Website | https://myzing.app (only once it is live; today it is a placeholder) |
-| Short description | Free, local video and meme studio your AI agents can drive. Pre-alpha. |
-| Tags | video-editing, ffmpeg, captions, memes, video-analysis, local-first, python, pre-alpha |
+| Website | https://myzing.app |
+| Short description | Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools. Release candidate. |
+| Tags | video-editing, ffmpeg, captions, shorts, local-first, python, release-candidate |
 | Logo | The 400x400 PNG from the Charge Z brand handoff (not in this repository yet) |
-| Install line | From the source checkout: `uv sync --extra mcp`, then `uv run --frozen zing serve-mcp`. |
+| Install line | `pipx install "myzing[all]==1.0.0rc1"` or `uv tool install "myzing[all]==1.0.0rc1"`, then `zing serve-mcp`. |
 | Install guide | https://github.com/ryanbiddy/zing/blob/main/llms-install.md |
 | Transport | Local stdio |
 | Connect line | `zing connect <client>` prints the config for 48 agent apps. |
 | License | MIT for Zing code and docs; bundled assets retain their own notices. |
 
-Long description:
+Long description
 
-> Zing studies a video you choose and cuts your clips into drafts in that style,
-> with captions, in 16:9, square and 9:16, on your machine. Every style check says
-> measured, estimated or unknown. It also makes memes from local photos.
-> Pre-alpha; needs Python 3.11+, uv and FFmpeg.
+> Zing turns a long episode into a pack of Shorts on your machine. Each clip has
+> a receipt listing what the clip adds, with sources and licenses. A separate
+> context check asks whether the cut changes the meaning. A review page brings
+> the clips and checks together. Nothing is posted.
 >
-> Works with Uoink: Zing can study a video you already saved in Uoink, open a
-> saved item in its clip factory with `zing from-uoink`, and save its breakdown back
-> as a note. Uoink is optional.
+> Zing 1.0.0rc1 is a release candidate with 44 MCP tools. Install with
+> `pipx install "myzing[all]==1.0.0rc1"` or `uv tool install "myzing[all]==1.0.0rc1"`.
+> Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge. Run
+> `zing factory setup` to install the Node sidecar.
+>
+> Works with Uoink to reuse saved media through `zing from-uoink` and save
+> breakdowns as notes. Uoink is optional.
 
 Name Uoink only in long fields, as above, and always say it is optional. Never
 name it in the short description, the PyPI summary, `zing --help`, titles or the
@@ -65,17 +69,16 @@ Status: **NOT SUBMITTED**
 - Registry name: `io.github.ryanbiddy/zing`
 - Manifest: [server.json](../server.json)
 - Schema: `2025-12-11`, matching the Uoink release reference.
-- Future package: PyPI `myzing`, version taken from `pyproject.toml`.
+- Package: PyPI `myzing`, version taken from `pyproject.toml`.
 - Required extra: `mcp`; executable: `zing`; arguments: `serve-mcp`.
 - Ownership marker: `mcp-name: io.github.ryanbiddy/zing` in README.md. Setuptools
   uses that file as the PyPI long description through `project.readme`.
 
-The package entry describes future distribution metadata. It deliberately has
-no inferred `uvx myzing` launcher: the executable is named `zing`, and the MCP
-dependency is optional. Clients must install the `mcp` extra and use the launch
-command above. Once the matching version exists on PyPI, the explicit uv command
-will be `uvx --from "myzing[mcp]==1.0.0rc1" zing serve-mcp`. That command does not
-work from PyPI today. Reconcile its version with `pyproject.toml` before release.
+The package entry describes the release candidate. The executable is named
+`zing`, and the MCP dependency is optional. Clients must install the `mcp`
+extra or `[all]` and use the launch command above. For an MCP-only connection,
+use `uvx --from "myzing[mcp]==1.0.0rc1" zing serve-mcp`. Keep its version aligned
+with `pyproject.toml`.
 
 Run `python scripts/check_registry_server_json.py` with Python 3.11+ before
 review. It checks local metadata and README markers without network access; it
@@ -151,7 +154,7 @@ Status: **NOT SUBMITTED**
 Destination: https://smithery.ai/new
 
 Repository: `https://github.com/ryanbiddy/zing`. Use the shared descriptions and
-source install guide. Specify local stdio and `zing serve-mcp` with the `mcp`
+install guide. Specify local stdio and `zing serve-mcp` with the `mcp`
 extra. No hosted endpoint or Smithery-specific deployment is supplied here.
 Smithery announced that its hosted proxy shuts down on October 31, 2026, so
 recheck what a listing there offers before submitting.
@@ -169,21 +172,22 @@ Status: **NOT SUBMITTED**
 
 Destination: https://cursor.directory
 
-Short description:
+Short description
 
-> Pre-alpha. Match your clips to a reference video and make memes, on your
-> machine. Needs Python, uv and FFmpeg.
+> Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools.
+> Release candidate.
 
-Long description:
+Long description
 
-> Zing gives your agent local tools to study a reference video, plan an edit,
-> render captioned drafts in 16:9, square and 9:16, and make memes from local
-> photos. Each draft comes with a report of which style checks it passed or
-> failed; style matches are approximations and need your review. Pre-alpha:
-> install from source with Python 3.11+, uv and FFmpeg. A local Uoink library can
-> supply references, but Uoink is optional.
+> Zing turns a long episode into a pack of Shorts locally. Each receipt lists
+> what the clip adds with sources and licenses. A separate context check asks
+> whether the cut changes the meaning. Review the clips and checks on a review
+> page. Nothing is posted. Version 1.0.0rc1 is a release candidate with 44 MCP tools.
+> Install with `pipx install "myzing[all]==1.0.0rc1"`, then run `zing factory setup`.
+> Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge.
+> Works with Uoink to reuse saved media. Uoink is optional.
 
-Use the shared name, repository, website and tags. Link the source
+Use the shared name, repository, website and tags. Link the
 install guide. The client command is the installed `zing` executable with
 `serve-mcp`; use its absolute path or the interpreter config printed by
 `zing serve-mcp --print-config`.
@@ -194,12 +198,24 @@ Status: **NOT SUBMITTED**
 
 Destination: https://lobehub.com/mcp
 
-Repository: `https://github.com/ryanbiddy/zing`. Short description:
+Repository: `https://github.com/ryanbiddy/zing`.
 
-> Pre-alpha. Match clips to a reference video, render captioned drafts and make
-> memes locally. Needs Python and FFmpeg.
+Short description
 
-Use the shared tags and install guide. Label the server pre-alpha, local and
+> Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools.
+> Release candidate.
+
+Long description
+
+> Zing turns a long episode into a pack of Shorts on your machine. Each receipt
+> lists what the clip adds with sources and licenses. A separate context check
+> asks whether the cut changes the meaning. The review page shows the clips
+> and checks. Nothing is posted. Version 1.0.0rc1 is a release candidate with
+> 44 MCP tools. Install with `pipx install "myzing[all]==1.0.0rc1"`, then run
+> `zing factory setup`. Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge.
+> Works with Uoink to reuse saved media. Uoink is optional.
+
+Use the shared tags and install guide. Label the server a release candidate, local and
 stdio; media capabilities require the dependencies listed in the guide. LobeHub
 publishes through its market CLI from a signed-in account; the owner signs in.
 
@@ -209,11 +225,15 @@ Status: **NOT SUBMITTED**
 
 Destination: https://mcpmarket.com/submit
 
-Description:
+Description
 
-> Pre-alpha local video tools for agents: study a reference video, cut captioned
-> drafts from your clips in 16:9, square and 9:16, and make memes from local
-> photos. Your media stays on your machine. Needs Python, uv and FFmpeg.
+> Zing turns a long episode into a pack of Shorts locally. Each receipt lists
+> what the clip adds with sources and licenses. A separate context check asks
+> whether the cut changes the meaning. Inspect the clips on a review page.
+> Nothing is posted. Version 1.0.0rc1 is a release candidate with 44 MCP tools.
+> Install with `pipx install "myzing[all]==1.0.0rc1"`, then run `zing factory setup`.
+> Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge.
+> Works with Uoink to reuse saved media. Uoink is optional.
 
 Use the repository URL. An owner must supply any contact email
 and choose any submission tier. No email, payment or queue selection is included
@@ -225,9 +245,9 @@ Status: **NOT SUBMITTED**
 
 Destination: https://github.com/cline/mcp-marketplace
 
-Suggested issue title: `Add Zing: local video editing and memes over MCP`
+Suggested issue title is `Add Zing local clipping factory over MCP`.
 
-Paste-ready body:
+Paste-ready body
 
 > Name: Zing
 >
@@ -237,15 +257,16 @@ Paste-ready body:
 >
 > Install guide: https://github.com/ryanbiddy/zing/blob/main/llms-install.md
 >
-> Give Cline local captioned drafts that follow a reference video, plus memes
-> from local photos, each with a style check report. Pre-alpha; needs Python and
-> FFmpeg.
+> Give Cline a long episode and get a pack of Shorts on your machine. Each
+> receipt lists what the clip adds with sources and licenses. A separate context
+> check asks whether the cut changes the meaning. Inspect the clips and checks
+> on a review page. Nothing is posted. Zing 1.0.0rc1 is a release candidate with
+> 44 MCP tools.
 >
-> It installs from source with `uv sync --extra mcp`; start it with
-> `uv run --frozen zing serve-mcp`. Video work also needs FFmpeg and feature
-> extras. Uoink can supply saved local references but is optional. See the
-> install guide for the tools that work without FFmpeg and for download
-> boundaries.
+> Install with `pipx install "myzing[all]==1.0.0rc1"` and start `zing serve-mcp`.
+> Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge. Run
+> `zing factory setup` to install the Node sidecar. Works with Uoink to reuse
+> saved media. Uoink is optional. See the install guide for download boundaries.
 
 The current issue form asks the submitter to confirm they tested Cline
 installing the server from the README or `llms-install.md`. Run that test before
@@ -261,11 +282,16 @@ registry. After `io.github.ryanbiddy/zing` is published there, ask in
 [discussion #1257](https://github.com/github/github-mcp-server/discussions/1257):
 
 > Hi! Could `io.github.ryanbiddy/zing` be onboarded to the GitHub MCP Registry?
-> It's published in the official MCP Registry. Zing is a free, MIT, local video
-> studio: its stdio MCP server lets agents turn a long episode into captioned
-> short clips, study a reference video and render drafts on the user's machine.
-> It pairs with Uoink (`io.github.ryanbiddy/uoink`). Repo:
-> https://github.com/ryanbiddy/zing. Thanks!
+> It's published in the official MCP Registry. Zing 1.0.0rc1 is a release candidate
+> with 44 MCP tools. Its local clipping factory turns a long episode into a pack
+> of Shorts. Each receipt lists what the clip adds with sources and licenses.
+> A separate context check asks whether the cut changes the meaning. The clips
+> come with a review page. Nothing is posted.
+>
+> Install with `pipx install "myzing[all]==1.0.0rc1"`, then run `zing factory setup`.
+> Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge.
+> Works with Uoink (`io.github.ryanbiddy/uoink`) to reuse saved media. Uoink is
+> optional. The repository is https://github.com/ryanbiddy/zing.
 
 ## mcp.so
 
@@ -275,10 +301,10 @@ Destination: https://mcp.so (web form; find its submit page). Paste:
 
 - **Name:** Zing
 - **URL:** https://github.com/ryanbiddy/zing
-- **Short description:** Free, local video and meme studio your AI agents can drive. Pre-alpha.
+- **Short description:** Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools. Release candidate.
 - **Description:** Use the long description above.
 - **Transport:** stdio
-- **Tags:** video-editing, ffmpeg, captions, memes, local-first, python, pre-alpha
+- **Tags:** video-editing, ffmpeg, captions, shorts, local-first, python, release-candidate
 
 ## Hermes plugin catalog
 
@@ -298,10 +324,10 @@ chance in the hackathon.
 
 Status: **NOT SUBMITTED**
 
-Both list one launch command that must work on every machine. Zing's is
-`zing serve-mcp` once `myzing` installs from PyPI with the `mcp` extra. Until then
-a user needs a source checkout, which these directories do not accept. Submit
-after the PyPI release, using `command: "zing", args: ["serve-mcp"]`.
+Both list one launch command that must work on every machine. Install the release
+candidate with `pipx install "myzing[all]==1.0.0rc1"` or
+`uv tool install "myzing[all]==1.0.0rc1"`, then use `zing serve-mcp`.
+Verify the install before submitting with `command: "zing", args: ["serve-mcp"]`.
 
 ## awesome-mcp-servers
 
@@ -312,7 +338,7 @@ Destination: https://github.com/punkpeye/awesome-mcp-servers
 Category: Multimedia Process. Proposed entry:
 
 ```markdown
-- [ryanbiddy/zing](https://github.com/ryanbiddy/zing) 🐍 🏠 - Pre-alpha. Study a reference video and cut your clips in that style, with captions, in 16:9, square and 9:16, on your machine. Also makes memes from local photos. Needs Python and FFmpeg.
+- [ryanbiddy/zing](https://github.com/ryanbiddy/zing) 🐍 🏠 - Release candidate with 44 MCP tools. A long episode becomes a pack of Shorts locally. Each receipt lists what the clip adds with sources and licenses. A separate context check tests whether the cut changes meaning. Includes a review page. Nothing is posted. Install `pipx install "myzing[all]==1.0.0rc1"` and run `zing factory setup`. Needs Python, FFmpeg, Node.js 20+ and Chrome or Edge.
 ```
 
 Add OS emoji only for platforms tested on release day. The maintainer asked

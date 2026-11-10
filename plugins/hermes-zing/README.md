@@ -11,25 +11,25 @@ It pairs with the Uoink plugin for saved references and local breakdown notes.
 ## Install
 
 Use Hermes 0.23.0 or later. Install Zing first with Python 3.11 or later and uv.
-`myzing` is not on PyPI. This command installs from the source repository with
-the media extras, including MCP support.
+Zing 1.0.0rc1 is a release candidate. This command installs the pinned package
+with the media extras, including MCP support.
 
 ```sh
-uv tool install --from "git+https://github.com/ryanbiddy/zing" "myzing[all]"
+uv tool install "myzing[all]==1.0.0rc1"
 uv tool update-shell
 ```
 
-For only the MCP connection, replace `myzing[all]` with `myzing[mcp]`. That does
-not install the media extras. See the [source install guide](https://github.com/ryanbiddy/zing/blob/main/llms-install.md).
+Or use `pipx install "myzing[all]==1.0.0rc1"`. For only the MCP connection,
+replace `[all]` with `[mcp]` and keep the version pin. That does not install
+the media extras. The [install guide](https://github.com/ryanbiddy/zing/blob/main/llms-install.md) also covers source checkouts.
 
 Install FFmpeg and ffprobe 6.0 or later with libx264 and libass, and put both on
 PATH. The [OS install guide](https://github.com/ryanbiddy/zing/blob/main/docs/INSTALL.md) gives the commands. Reopen
 your terminal and run `zing doctor` to see which features are ready.
 
-Factory rendering also needs Node.js 20 or later, Chrome or Edge, and the
-[factory sidecar](https://github.com/ryanbiddy/zing/blob/main/tools/factory-sidecar/README.md). Keep a Zing source
-checkout, run `npm ci` in its `tools/factory-sidecar` folder once, and set
-`ZING_FACTORY_SIDECAR` to that folder's absolute path before starting Hermes.
+Factory rendering also needs Node.js 20 or later and Chrome or Edge. Run
+`zing factory setup` to install the bundled Node sidecar, then run
+`zing factory doctor`. See [factory setup](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md#setup).
 Set `ZING_BROWSER_PATH` if browser detection needs help. Model downloads need
 separate consent; installing the package does not fetch model weights.
 
