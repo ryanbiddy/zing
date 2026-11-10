@@ -1,6 +1,6 @@
 """Find the external programs the factory runs: FFmpeg, Node, the factory sidecar and a local Chrome or Edge.
 
-Read-only discovery: nothing here installs, downloads or signs in.
+Discovery is read-only. Only setup installs the sidecar.
 """
 from __future__ import annotations
 
@@ -14,6 +14,8 @@ from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from importlib import resources
 from pathlib import Path
+
+from myzing.storage import resolve_workspace
 
 DATA = resources.files("myzing") / "_data" / "factory"
 _processes = ContextVar("factory_processes", default=None)
@@ -83,7 +85,39 @@ def ffprobe() -> str:
 
 def sidecar_directory() -> Path:
     configured = os.environ.get("ZING_FACTORY_SIDECAR")
-    return Path(configured).resolve() if configured else Path(__file__).resolve().parents[3] / "tools" / "factory-sidecar"
+    if configured:
+        return Path(configured).expanduser().resolve()
+    checkout = Path(__file__).resolve().parents[3] / "tools" / "factory-sidecar"
+    return checkout if checkout.is_dir() else resolve_workspace() / "factory-sidecar"
+
+
+def setup(*, say=print) -> Path:
+    node = shutil.which("node")
+    if not node:
+        raise FactoryError("Node is missing. Install Node.js 20 or newer and put node on PATH.")
+    try:
+        version = run(node, "--version", capture_output=True, text=True, timeout=10).stdout.strip()
+        if int(version.lstrip("v").split(".")[0]) < 20:
+            raise ValueError(version)
+    except (ValueError, OSError, subprocess.SubprocessError) as exc:
+        raise FactoryError("Node.js 20 or newer is required. Install it and retry.") from exc
+    sidecar = sidecar_directory()
+    lock = sidecar / "package-lock.json"
+    packaged = DATA / "sidecar"
+    ready = (lock.is_file() and lock.read_bytes() == (packaged / lock.name).read_bytes()
+             and (sidecar / "node_modules/playwright-core/package.json").is_file())
+    npm = shutil.which("npm")
+    if not ready and not npm:
+        raise FactoryError("npm is missing. Install Node.js 20 or newer with npm and put npm on PATH.")
+    sidecar.mkdir(parents=True, exist_ok=True)
+    for name in ("package.json", "package-lock.json", "shot.cjs"):
+        (sidecar / name).write_bytes((packaged / name).read_bytes())
+    if not ready:
+        say(str(sidecar))
+        say("npm ci")
+        run(npm, "ci", cwd=sidecar)
+    say(f"Factory sidecar is ready in {sidecar}.")
+    return sidecar
 
 
 BROWSER_CANDIDATES = {
@@ -117,7 +151,7 @@ def node_sidecar() -> tuple[str, Path]:
         raise FactoryError("Node is missing; install Node.js 20 or newer and put node on PATH.")
     sidecar = sidecar_directory()
     if not (sidecar / "node_modules" / "playwright-core" / "package.json").is_file():
-        raise FactoryError(f"The factory sidecar is not installed; run 'npm ci' in {sidecar}.")
+        raise FactoryError("The factory sidecar is not installed. Run 'zing factory setup'.")
     return node, sidecar
 
 
@@ -207,6 +241,10 @@ def check() -> dict:
                                                     {"fix": f"Optional: --cutout stands the speaker in front of pictures after {cutout.FETCH_HINT}."})
     out["upscaler"] = {"ok": upscale.ready()} | ({} if upscale.ready() else
                                                  {"fix": f"Optional: small photos render sharp after {upscale.FETCH_HINT}."})
-    from .visuals import KEY_NAMES, get_key
-    out["stock_keys"] = {name: ("present" if get_key(name) else "absent") for name in KEY_NAMES}
+    try:
+        from .visuals import KEY_NAMES, get_key
+        out["stock_keys"] = {name: ("present" if get_key(name) else "absent") for name in KEY_NAMES}
+    except ImportError:
+        from myzing.doctor import _install_command
+        out["stock_keys"] = {"ok": False, "fix": _install_command("myzing[factory]")}
     return out

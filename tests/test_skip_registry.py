@@ -180,8 +180,9 @@ REGISTERED_SKIPS = {
 }
 
 # importorskip() names an optional MODULE rather than a constraint; the
-# module name IS the reason, and each is a declared optional extra.
+# module name IS the reason. These are optional runtimes or the build backend.
 REGISTERED_IMPORTORSKIP = {
+    "setuptools",  # pyproject declares >=77; offline wheel tests need the build backend
     "numpy", "cv2", "scenedetect", "faster_whisper", "mcp", "rapidocr", "onnxruntime",
     # Optional myzing[memes] and myzing[fonts]; doctor.check_pillow,
     # doctor.check_fonts and the command install hints expose the same gap.

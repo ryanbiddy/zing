@@ -929,17 +929,31 @@ action for each section. See [Compare a draft](EXPLAIN.md#compare-a-draft).
 ## Setup
 
 ```bash
-python -m pip install "myzing[factory]"
+python -m pip install "myzing[factory]==1.0.0rc1"
 zing layout fetch-model
 zing factory fetch-depth --yes          # optional: photos move through their depth
 zing factory fetch-cutout --yes         # optional: --cutout stands the speaker in front of pictures
 zing factory fetch-upscale --yes        # optional: small photos render sharp
-cd tools/factory-sidecar && npm ci     # pinned playwright-core; uses your Chrome or Edge
+zing factory setup                    # pinned playwright-core; uses your Chrome or Edge
 ```
+
+Install Node.js 20+ with npm first. `zing factory setup` prints the folder and
+`npm ci` before running it. It downloads the pinned Node dependency, not a browser.
+Run it again after upgrading Zing. It skips npm when the lockfile matches and
+Playwright is installed, and refreshes the shipped scripts.
+
+The sidecar uses `ZING_FACTORY_SIDECAR` when set, otherwise
+`tools/factory-sidecar` in a checkout, otherwise `factory-sidecar` under
+`ZING_HOME` (default `~/.zing`). The wheel includes the setup files.
+`tools/factory-sidecar` is the source of truth. Tests check that its packaged
+copies are identical.
 
 The renderer captures a deterministic `seek(t)` page frame by frame in a local Chrome
 or Edge (`ZING_BROWSER_PATH` overrides the lookup), then FFmpeg encodes it with the
-cut's audio. Set `ZING_FACTORY_SIDECAR` when the sidecar lives outside a checkout.
+cut's audio.
+
+The separate HyperFrames renderer needs a source checkout for now. See
+[HyperFrames setup](HYPERFRAMES-SIDECAR.md).
 
 ## Project layout
 
