@@ -4,7 +4,7 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #578
+Release candidate for Zing v1. These notes cover merged PRs #401 through #581
 on main, newest first.
 
 ### Changes since #452
@@ -16,9 +16,8 @@ on main, newest first.
   check. Report sync probe errors instead of silence. Make `zing factory doctor`
   exit nonzero when not ready. Add a manual placement path for the face model.
   Match install hints to the install method. Require suite-smoke and CodeQL at
-  the release gate. Polish factory renders. Counters finish on the spoken number,
-  b-roll fills the top panel, the hook banner shrinks after the opening, picture
-  credits stay readable and files are about half the size.
+  the release gate. Polish factory renders (counter timing, panel fill, hook banner,
+  credit contrast and smaller files).
 - Pin every documented install to the release version, ship the factory's Node
   sidecar files in the package with `zing factory setup` to install them, make
   the README read correctly on PyPI, add project links and classifiers, and print
