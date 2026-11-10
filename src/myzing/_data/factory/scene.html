@@ -50,7 +50,8 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 .ovl{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;display:none}
 #vig{background:radial-gradient(ellipse at 50% 45%,transparent 48%,rgba(0,0,0,.62) 100%),linear-gradient(to bottom,rgba(0,0,0,.22),rgba(0,0,0,.12) 30%,rgba(0,0,0,.2) 48%,rgba(0,0,0,.55) 72%,rgba(0,0,0,.62))}   /* film edges, and a scrim the type can sit on */
 #grain{mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-#credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.75);text-shadow:0 1px 3px #000}
+#credit{position:absolute;right:18px;font:600 18px Inter;color:rgba(255,255,255,.88);background:rgba(5,12,36,.65);padding:5px 12px;border-radius:8px;text-shadow:0 1px 3px #000}
+#credit:empty{display:none}
 #prog{position:absolute;left:0;top:0;height:6px;background:var(--yel)}
 #srctag{position:absolute;left:22px;top:20px;font:700 22px Inter;color:var(--tag-ink);background:var(--tag-bg);padding:5px 12px;border-radius:8px}
 #disclosure{position:absolute;display:none;z-index:20;text-align:center;pointer-events:none}
@@ -266,6 +267,12 @@ function contain(img, iw, ih, bw, bh) {
   img.style.width = iw+'px'; img.style.height = ih+'px';
   img.style.transform = `translate(${(bw-vw)/2}px,${(bh-vh)/2}px) scale(${s})`;
 }
+function fitVisual(img, v, bw, bh, z, fx=.5, fy=.5, whole=false) {
+  const [x, y, w, h] = v.crop || [0, 0, v.w, v.h], s = Math.min(bw/w, bh/h);
+  const r = whole ? {tx:(bw-w*s)/2, ty:(bh-h*s)/2, s} : crop(w, h, bw, bh, z, fx, fy);
+  applyCrop(img, v.w, v.h, {tx:r.tx-x*r.s, ty:r.ty-y*r.s, s:r.s});
+  img.style.clipPath = v.crop ? `inset(${y}px ${v.w-x-w}px ${v.h-y-h}px ${x}px)` : '';
+}
 function textCut(cam, iw, ih, bw, bh, z) {
   if (!cam.text_box) return cam.text;
   const [l, t, r, b] = cam.text_box, {tx, ty, s} = crop(iw, ih, bw, bh, z, .5, .38, D.burnTop);
@@ -295,15 +302,15 @@ function drawGraphic(g, t, el) {
   }
   const t0 = g.from;
   if (k === 'counter') {
-    const c = lin(t, g.at ?? t0, (g.at ?? t0)+.9);
+    const end = Math.min(g.at ?? t0+.9, t0+.9), c = end > t0 ? lin(t, t0, end) : 1;
     // a year pops in whole: counting up to 1886 reads as a quantity, and "1,886" is wrong
     const year = g.format === 'year' || (Number.isInteger(g.value) && g.value >= 1000 && g.value <= 2100 && !g.prefix && !g.suffix
       && /\b(year|years|until|since|in|by|ended|began|founded|century|back)\b/i.test(`${g.title||''} ${g.label||''}`));
     const v = g.value >= 20 && !year ? g.value * easeOut(c) : g.value;
     const dec = g.decimals ?? (String(g.value).split('.')[1] || '').length;
     el.querySelector('.g-num').textContent = (g.prefix||'') + (year ? String(g.value) : dec ? v.toFixed(dec) : fmt(v)) + (g.suffix||'');
-    el.querySelector('.g-num').style.transform = `scale(${mix(.7,1,back(lin(t,g.at??t0,(g.at??t0)+.4)))})`;
-    el.querySelector('.g-lab').style.opacity = easeOut(lin(t,(g.at??t0)+.3,(g.at??t0)+.7));
+    el.querySelector('.g-num').style.transform = `scale(${mix(.7,1,back(end > t0 ? lin(t,t0,Math.min(end,t0+.4)) : 1))})`;
+    el.querySelector('.g-lab').style.opacity = easeOut(c);
   }
   if (k === 'title') { const a = easeOut(lin(t, t0, t0+.3)), b = lin(t, t0+.12, t0+.6);
     el.querySelector('.g-intro').style.opacity = a; el.querySelector('.g-intro').style.transform = `translateY(${(1-a)*16}px)`;
@@ -404,8 +411,9 @@ function geometry(layout) {
 function visualBox(G, shot) {
   const v = G.top && D.visuals[shot.visual];
   if (!v || v.fit !== 'contain' || ASPECT !== '9x16') return null;
-  const W = G.win || G.top, s = Math.min(W.w/v.w, W.h/v.h), y0 = G.top.y + (W.h-v.h*s)/2;
-  return {y0, y1:y0+v.h*s};
+  const W = G.win || G.top, [x, y, w, h] = v.crop || [0, 0, v.w, v.h];
+  const s = Math.min(W.w/w, W.h/h), y0 = G.top.y + (W.h-h*s)/2;
+  return {y0, y1:y0+h*s};
 }
 function captionBase(G, cbox, h, centered) {
   let cy = G.cap;
@@ -551,19 +559,19 @@ window.seek = async function(t) {
   if (G.top) {
     const v = D.visuals[shot.visual], W = G.win || G.top, BW = W.w, BH = W.h, tw = $('topWin');
     tw.style.width = BW + 'px'; tw.style.height = BH + 'px'; tw.classList.toggle('cut', !!G.win);
-    let vsrc = v.src, vw = v.w, vh = v.h;
+    let vsrc = v.src;
     const d = shot.to-shot.from;
     // a depth move plays once across the shot; stock video loops
     if (v.frames) { const k = (v.move ? Math.min(v.frames-1, Math.floor(lin(tin, 0, Math.min(d, D.duration-shot.from))*(v.frames-1)))
                                       : Math.floor(tin*FPS) % v.frames) + 1;
                     vsrc = `${v.dir}/${String(k).padStart(5,'0')}.jpg`; }
     await Promise.all([setImg($('topImg'), vsrc), setImg($('topBlur'), vsrc)]);
-    cover($('topBlur'), vw, vh, G.top.w, G.top.h, 1.1);
+    fitVisual($('topBlur'), v, G.top.w, G.top.h, 1.1);
     const pop = mix(1.06, 1, easeOut(lin(tin, 0, .25)));
-    if (v.fit === 'contain') contain($('topImg'), vw, vh, BW, BH);
-    else if (v.move) cover($('topImg'), vw, vh, BW, BH, pop, .5, .45);   // the camera already moves through the photo
+    if (v.fit === 'contain') fitVisual($('topImg'), v, BW, BH, 1, .5, .5, true);
+    else if (v.move) fitVisual($('topImg'), v, BW, BH, pop, .5, .45);   // the camera already moves through the photo
     else { const dir = (shot.idx % 2) ? 1 : -1;
-      cover($('topImg'), vw, vh, BW, BH, pop*(1.02 + (v.frames ? .02 : .07)*lin(tin, 0, d)), .5 + dir*.06*lin(tin,0,d), .45); }
+      fitVisual($('topImg'), v, BW, BH, pop*(1.02 + (v.frames ? .02 : .07)*lin(tin, 0, d)), .5 + dir*.06*lin(tin,0,d), .45); }
     $('credit').textContent = v.credit || '';
     // a visual on the top half credits at its top edge: its bottom edge is the caption seam
     const seamed = G.front || (ASPECT === '9x16' && G.top.y === 0 && G.top.h < SH9*.75);   // in front, the speaker has the foot
@@ -596,9 +604,9 @@ window.seek = async function(t) {
   if (PANEL && !panelFit) fitPanel();
   if (G.hook === 'panel' || G.hook === 'none') { hook.style.opacity = 0; pill.style.opacity = 0; }
   else if (G.hook === 'header') { hook.style.top = '150px'; hook.innerHTML = `<div>${D.hookHtml}</div>`;
-    let size = 74; hook.style.fontSize = size + 'px';
+    let size = mix(74,44,easeOut(lin(t,D.hookUntil,D.hookUntil+.25))); hook.style.fontSize = size + 'px';
     while ((hook.scrollHeight > 240 || hook.scrollWidth > 900) && size > 1) hook.style.fontSize = --size + 'px';
-    hook.style.opacity = easeOut(lin(t, 0, .35)); pill.style.opacity = 0; }
+    hook.style.opacity = D.hookUntil > 0 ? easeOut(lin(t, 0, .35)) : 0; pill.style.opacity = 0; }
   else { hook.style.opacity = 0; pill.firstChild.innerHTML = D.hookHtml; pill.style.opacity = hookOn ? hp : 0;
          let py = G.pill; const h = pill.offsetHeight;
          if (cbox && py + h > cbox.y0 && py < cbox.y1) py = cbox.y0 - h - 32 >= 100 ? Math.round(cbox.y0 - h - 32) : Math.round(cbox.y1 + 32);

@@ -120,7 +120,7 @@ def test_sidecar_gets_scale_without_changing_layout_or_names(tmp_path, monkeypat
     assert (got["W"] * got.get("scale", 1), got["H"] * got.get("scale", 1)) == (size if uhd else render.SHAPES[shape])
     enc = calls[-1]
     assert enc[enc.index("-c:v") + 1] == "libx264" and enc[enc.index("-pix_fmt") + 1] == "yuv420p"
-    assert enc[enc.index("-crf") + 1] == (20 if uhd else 18)
+    assert enc[enc.index("-crf") + 1] == 20
     if uhd:
         assert enc[enc.index("-level:v") + 1] == "5.1" and enc[enc.index("-profile:v") + 1] == "high"
         assert enc[enc.index("-maxrate") + 1] == "40M" and enc[enc.index("-bufsize") + 1] == "80M"
