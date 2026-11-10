@@ -53,6 +53,7 @@ def _hermetic_modules(monkeypatch):
     present). Tests that care about absence monkeypatch _has_module
     themselves and override this."""
     monkeypatch.setattr(doctor, "_has_module", lambda name: True)
+    monkeypatch.setattr("myzing.study.transcribe.decode_smoke", lambda: None)
 
 
 @pytest.fixture(autouse=True)

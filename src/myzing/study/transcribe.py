@@ -48,6 +48,21 @@ class TranscribeResult:
     warnings: list[str] = field(default_factory=list)
 
 
+def decode_smoke() -> None:
+    """Decode one second of PCM audio without loading or downloading a model."""
+    import io
+    import wave
+    from faster_whisper import decode_audio
+
+    audio = io.BytesIO()
+    with wave.open(audio, "wb") as wav:
+        wav.setparams((1, 2, 16000, 0, "NONE", "not compressed"))
+        wav.writeframes(b"\0\0" * 16000)
+    audio.seek(0)
+    if len(decode_audio(audio, sampling_rate=16000)) != 16000:
+        raise RuntimeError("Speech audio decode returned the wrong number of samples.")
+
+
 def transcribe(
     media_path: Path,
     model_name: str | None = None,
@@ -69,9 +84,10 @@ def transcribe(
             _load_model(name, local_files_only=True) if local_files_only else _load_model(name)
         )
     except ImportError:
+        from myzing.doctor import _install_command
         result.warnings.append(
-            "transcription skipped: faster-whisper not installed "
-            "(pip install myzing[study])"
+            "transcription skipped. faster-whisper not installed. "
+            f"Run {_install_command('myzing[study]')}"
         )
         return result
     except Exception as e:  # model download/load failure — skip, don't guess

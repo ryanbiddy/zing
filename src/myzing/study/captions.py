@@ -113,9 +113,10 @@ def read_captions(media_path: Path, duration: float, *, local_models_only: bool 
         else:
             engine, version = _engine()
     except ImportError:
+        from myzing.doctor import _install_command
         result.warnings = [
-            "caption OCR skipped: rapidocr/onnxruntime not installed "
-            "(pip install myzing[study])"
+            "caption OCR skipped. rapidocr/onnxruntime not installed. "
+            f"Run {_install_command('myzing[study]')}"
         ]
         return result
     except Exception as e:

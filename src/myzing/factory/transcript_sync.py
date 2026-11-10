@@ -110,9 +110,9 @@ def check(media: Path, segments: list[dict], words: list[dict] | None = None, vo
             probes.append({"start": start, **match(heard, transcript)})
         except (RuntimeError, OSError, subprocess.SubprocessError, ImportError) as exc:
             error = " ".join(str(exc).split())[:300] or type(exc).__name__
-            if "speech transcription produced no words" in error:
+            if str(exc) in {"speech transcription produced no words", "speech transcription produced no words: no detail"}:
                 probes.append({"start": start, "note": "No speech heard."})
-            elif "past the end" in error:
+            elif str(exc) == "The probe window is past the end of the media.":
                 probes.append({"start": start, "note": "Past the media end."})
             else:
                 probes.append({"start": start, "error": error})

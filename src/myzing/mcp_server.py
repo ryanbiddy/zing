@@ -403,7 +403,7 @@ def _record_engagement_if_earned(breakdown: Any, slug: str) -> None:
 
 ENGINE_MISSING = (
     "the study engine needs the study extras, which are not installed in "
-    'this Python: python -m pip install "myzing[study]" (they carry '
+    f"this Python. Run {doctor._install_command('myzing[study]')} (they carry "
     "scenedetect, faster-whisper and the OCR backend; the one-click .mcpb "
     "bundle installs only the MCP server, so this is the expected first "
     "step there). `zing doctor` names any tool still missing afterwards."
@@ -411,7 +411,7 @@ ENGINE_MISSING = (
 
 PROFILE_ENGINE_MISSING = (
     "the profile builder needs the study extras, which are not installed "
-    'in this Python: python -m pip install "myzing[study]"'
+    f"in this Python. Run {doctor._install_command('myzing[study]')}"
 )
 
 
@@ -1531,8 +1531,8 @@ def h_export_otio(edl_path: str, output_path: str = "") -> dict[str, Any]:
         from myzing.render.otio_export import OTIOExportError, export_otio
     except ImportError:
         return _err(
-            "OTIO export needs the render extras: "
-            'python -m pip install "myzing[render]"'
+            "OTIO export needs the render extras. Run "
+            + doctor._install_command("myzing[render]")
         )
     src = Path(edl_path).expanduser().resolve()
     out = (
@@ -2085,8 +2085,8 @@ def mcp_sdk_defect() -> str | None:
     except ImportError:
         return (
             "the MCP SDK is not installed in this Python - run "
-            'python -m pip install "myzing[mcp]" '
-            '(from a source checkout: pip install -e ".[mcp]")'
+            f"{doctor._install_command('myzing[mcp]')} "
+            '(or pip install -e ".[mcp]" in a source checkout)'
         )
     try:
         from mcp.server.mcpserver import MCPServer  # noqa: F401

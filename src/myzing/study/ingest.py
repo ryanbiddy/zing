@@ -386,7 +386,7 @@ def download(url: str, dest: Path, *, timeout: float = 600, progress: Callable[[
     if ytdlp is None:
         raise MediaError(
             "yt-dlp is not installed (no binary on PATH, module not "
-            'importable) - python -m pip install "myzing[study]"'
+            f"importable). Run {doctor._install_command('myzing[study]')}"
         )
     if len(ytdlp) >= 3 and ytdlp[-2:] == ["-m", "yt_dlp"]:
         ytdlp = [*ytdlp[:-1], "myzing.study.downloader"]

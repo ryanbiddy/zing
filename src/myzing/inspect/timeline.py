@@ -63,7 +63,8 @@ def _pillow():
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError as exc:
-        raise InspectionError('Timeline images need Pillow; install with pip install "myzing[memes]".') from exc
+        from myzing.doctor import _install_command
+        raise InspectionError(f"Timeline images need Pillow. Run {_install_command('myzing[memes]')}") from exc
     return Image, ImageDraw, ImageFont
 
 

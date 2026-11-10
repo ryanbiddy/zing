@@ -46,7 +46,8 @@ class MacSampler:
         try:
             import Quartz
         except ImportError as exc:
-            raise RuntimeError('macOS cursor recording needs: pip install "myzing[screen]"') from exc
+            from myzing.doctor import _install_command
+            raise RuntimeError(f"macOS cursor recording needs Quartz. Run {_install_command('myzing[screen]')}") from exc
         self.q = Quartz
         if hasattr(Quartz, "CGPreflightListenEventAccess") and not Quartz.CGPreflightListenEventAccess():
             raise RuntimeError("Allow Input Monitoring for this terminal in macOS System Settings, then retry.")

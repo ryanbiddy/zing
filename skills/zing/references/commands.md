@@ -23,6 +23,8 @@ is `pipx install "myzing[all]==1.0.0rc1"` or `uv tool install "myzing[all]==1.0.
 
 Doctor detects pipx and uv tool environments from the venv path. Extra install
 hints reinstall the pinned release with that tool. Other environments use pip.
+The speech check decodes a one-second WAV without loading a model. A broken
+decoder reports the error and the install command.
 
 For factory rendering, install Node.js 20+ with npm, then run `zing factory setup`.
 It prints the folder and `npm ci` before installing the pinned Node dependency.
@@ -31,6 +33,8 @@ or `factory-sidecar` under `ZING_HOME` (default `~/.zing`), in that order.
 Run it again after upgrading Zing. A matching lockfile and installed Playwright
 skip npm; the shipped scripts are refreshed. Chrome or Edge must already be installed.
 HyperFrames is separate and needs a source checkout for now.
+`zing factory doctor` reports the Node path and version. It exits 1 if FFmpeg,
+Node 20+, the sidecar or a browser is missing or unusable.
 
 ## Choose a command
 
@@ -427,6 +431,8 @@ learned packs keep their existing scaling.
 failed clip. The reason goes to stderr and stdout keeps the same JSON.
 Waiting for answers, an empty run or some rendered clips still means exit 0.
 The MCP `factory_status` result reports `ok: false` for that completed failure.
+`status.json` is a lock-step marker only. Use `zing factory status PROJECT`
+for the full report. A missing face model stops the run before cutting clips.
 
 ## Factory transcript sync
 
@@ -434,7 +440,8 @@ The MCP `factory_status` result reports `ok: false` for that completed failure.
 before scouting and stops when two agree.
 It uses a cached model and saves the result and any shift in `factory.json`.
 Speech turned off, no cached model, failed probes or too little speech skip
-the check with a note. Shifts keep cues inside the media and preserve originals
+the check with a note. Failed probes include the error. Only an empty speech
+result without a warning counts as silence. Shifts keep cues inside the media and preserve originals
 so an interrupted run cannot apply the offset twice.
 `--offset SECONDS` supplies a known shift and skips the check, even when zero.
 `--no-sync-check` skips it without shifting captions. Both flags also work with
@@ -667,6 +674,8 @@ zing layout captions --video draft-01.mp4 --events events.json --platform reels 
 Layout requires the verified cached YuNet model. After download consent only,
 `zing layout fetch-model --workspace /absolute/workspace` fetches it. Set
 `ZING_HOME` consistently or pass the same `--workspace` to captions.
+If the download fails, the error names the file, expected SHA-256, destination
+folder and source page. Save the file there and rerun the command to verify it.
 An events file can be:
 
 ```json

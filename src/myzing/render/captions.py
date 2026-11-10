@@ -80,8 +80,9 @@ def generate_ass(
     try:
         import pysubs2
     except ImportError as exc:
+        from myzing.doctor import _install_command
         raise CaptionDependencyError(
-            'pysubs2 is required for rendering; install with: pip install "myzing[render]"'
+            f"pysubs2 is required for rendering. Run {_install_command('myzing[render]')}"
         ) from exc
 
     subs = pysubs2.SSAFile()

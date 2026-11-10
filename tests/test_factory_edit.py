@@ -439,6 +439,7 @@ def test_repeated_word_fix_keeps_the_original_heard_text(ready):
 
 def test_recut_discards_old_words_and_manual_fixes(ready, monkeypatch):
     d, _, _ = ready
+    monkeypatch.setattr("myzing.layout.detector.require_model", lambda: d / "model")
     edit.word(d.parent, d.name, 3, "ship.")
     monkeypatch.setattr(cut, "ffmpeg", lambda: "ffmpeg")
     monkeypatch.setattr(cut, "run", lambda *a: None)

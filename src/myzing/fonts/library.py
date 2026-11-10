@@ -10,10 +10,11 @@ from pathlib import Path
 from urllib.request import urlopen
 
 from myzing import storage
+from myzing.doctor import _install_command
 
 DATA = Path(__file__).resolve().parents[1] / "_data" / "fonts"
 MANIFEST = DATA / "library.json"
-INSTALL_HINT = 'python -m pip install "myzing[fonts]"'
+INSTALL_HINT = _install_command("myzing[fonts]")
 
 
 def sha256(path: Path) -> str:

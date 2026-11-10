@@ -19,7 +19,8 @@ def numpy():
     try:
         import numpy as np
     except ImportError as exc:
-        raise AudioError('Audio analysis needs NumPy; install: python -m pip install "myzing[audio]"') from exc
+        from myzing.doctor import _install_command
+        raise AudioError(f"Audio analysis needs NumPy. Run {_install_command('myzing[audio]')}") from exc
     return np
 
 

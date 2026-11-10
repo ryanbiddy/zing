@@ -2,7 +2,7 @@
 
 Dependency installation uses the package index. Every product process then
 blocks network connections, uses empty model caches and an isolated ZING_HOME.
-No FFmpeg or downloaded models are required for this still-image acceptance.
+No FFmpeg or downloaded models are required for the image and audio checks.
 """
 from __future__ import annotations
 
@@ -138,6 +138,8 @@ def run_check(wheel: Path, root: Path, extras: str, steps: list, checkpoint) -> 
     call("installed-origin", [python, "-c",
          "import myzing, sys; from pathlib import Path; "
          "assert Path(myzing.__file__).resolve().is_relative_to(Path(sys.prefix).resolve()), myzing.__file__; print(myzing.__version__)"])
+    if {"all", "study", "factory"} & set(extras.split(",")):
+        call("speech-decode", [python, "-c", "from myzing.study.transcribe import decode_smoke; decode_smoke()"])
     call("help", [zing, "--help"], validate=lambda text: require(
         "Start here: zing studio" in text.split("usage:", 1)[0], f"unexpected help opening: {text[:500]!r}"))
     call("doctor", [zing, "doctor"], allowed=(0, 1), validate=lambda text: require(

@@ -216,8 +216,9 @@ def run(argv: list[str]) -> int:
             return 0
         if args.command == "doctor":
             from .tools import check
-            print(json.dumps(check(), indent=2, ensure_ascii=False))
-            return 0
+            result = check()
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+            return 0 if all(result[name]["ok"] for name in ("ffmpeg", "node", "sidecar", "browser")) else 1
         from . import pipeline
         from .judge import Judge
         if args.command == "new":

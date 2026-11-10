@@ -67,6 +67,8 @@ def _duration(path: Path) -> float:
 
 def cut(clipdir: Path, source: Path, words: list[dict], start: float, end: float,
         spans: list[list[float]] | None = None) -> dict:
+    from myzing.layout.detector import require_model
+    require_model()
     d = Path(clipdir)
     d.mkdir(parents=True, exist_ok=True)
     ff = ffmpeg()

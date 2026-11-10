@@ -91,7 +91,7 @@ def sidecar_directory() -> Path:
     return checkout if checkout.is_dir() else resolve_workspace() / "factory-sidecar"
 
 
-def setup(*, say=print) -> Path:
+def node_version() -> tuple[str, str]:
     node = shutil.which("node")
     if not node:
         raise FactoryError("Node is missing. Install Node.js 20 or newer and put node on PATH.")
@@ -101,6 +101,11 @@ def setup(*, say=print) -> Path:
             raise ValueError(version)
     except (ValueError, OSError, subprocess.SubprocessError) as exc:
         raise FactoryError("Node.js 20 or newer is required. Install it and retry.") from exc
+    return node, version
+
+
+def setup(*, say=print) -> Path:
+    node_version()
     sidecar = sidecar_directory()
     lock = sidecar / "package-lock.json"
     packaged = DATA / "sidecar"
@@ -221,6 +226,11 @@ def run(*argv, **kwargs) -> subprocess.CompletedProcess:
 def check() -> dict:
     """Doctor-style report of every prerequisite; never raises."""
     out = {}
+    try:
+        node, version = node_version()
+        out["node"] = {"ok": True, "path": node, "version": version}
+    except FactoryError as exc:
+        out["node"] = {"ok": False, "fix": str(exc)}
     for name, probe in (("ffmpeg", ffmpeg), ("browser", browser), ("sidecar", lambda: str(node_sidecar()[1]))):
         try:
             out[name] = {"ok": True, "path": probe()}
@@ -229,9 +239,9 @@ def check() -> dict:
     out["claude"] = {"ok": bool(shutil.which("claude")),
                      **({} if shutil.which("claude") else {"fix": "Optional: install Claude Code to use --judge claude."})}
     try:
-        from myzing.layout.detector import model_path, verified_model
-        out["face_model"] = {"ok": verified_model(model_path())} | (
-            {} if verified_model(model_path()) else {"fix": "Run 'zing layout fetch-model'."})
+        from myzing.layout.detector import model_path, model_hint, verified_model
+        valid = verified_model(model_path())
+        out["face_model"] = {"ok": valid} | ({} if valid else {"fix": model_hint(model_path())})
     except Exception as exc:
         out["face_model"] = {"ok": False, "fix": f"{exc}"}
     from . import cutout, depth, upscale

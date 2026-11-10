@@ -10,6 +10,7 @@ import urllib.request
 from pathlib import Path
 
 from myzing.storage import workspace_root
+from myzing.doctor import _install_command
 
 from .types import Detection, bounds, number
 
@@ -21,11 +22,15 @@ MODEL_URL = (f"https://media.githubusercontent.com/media/opencv/opencv_zoo/{MODE
 MODEL_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
 MODEL_SIZE = 232589
 MODEL_LICENSE = "MIT"
-INSTALL_HINT = 'Install the optional runtime: python -m pip install "myzing[layout]" (checkout: uv sync --all-extras).'
+INSTALL_HINT = f"Install the optional runtime with {_install_command('myzing[layout]')} (or uv sync --all-extras in a checkout)."
 
 
 class LayoutError(RuntimeError):
     """An actionable layout failure."""
+
+
+class MissingModelError(LayoutError):
+    pass
 
 
 def model_path(workspace: Path | None = None) -> Path:
@@ -37,26 +42,33 @@ def verified_model(path: Path) -> bool:
             hashlib.sha256(path.read_bytes()).hexdigest() == MODEL_SHA256)
 
 
+def model_hint(path: Path) -> str:
+    return (f"Run 'zing layout fetch-model', or save {MODEL_NAME} in {path.parent}. "
+            f"The expected SHA-256 is {MODEL_SHA256}. Get the file from "
+            f"https://github.com/opencv/opencv_zoo/blob/{MODEL_COMMIT}/models/face_detection_yunet/{MODEL_NAME}. "
+            "Run 'zing layout fetch-model' again with the same --workspace to verify the file.")
+
+
 def fetch_model(workspace: Path | None = None) -> Path:
     """Only call from explicit download commands/flags. Atomic cache replacement."""
     target = model_path(workspace)
     if verified_model(target):
         return target
-    target.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
+        target.parent.mkdir(parents=True, exist_ok=True)
         request = urllib.request.Request(MODEL_URL, headers={"User-Agent": "Zing-layout/1"})
         with urllib.request.urlopen(request, timeout=30) as response:
             data = response.read(MODEL_SIZE + 1)
         if len(data) != MODEL_SIZE or hashlib.sha256(data).hexdigest() != MODEL_SHA256:
             raise LayoutError("YuNet download failed size/SHA-256 verification; cache was not changed. "
-                              "Retry 'zing layout fetch-model'.")
+                              + model_hint(target))
         with tempfile.NamedTemporaryFile(dir=target.parent, suffix=".part", delete=False) as stream:
             temporary = Path(stream.name)
             stream.write(data)
         os.replace(temporary, target)
     except (OSError, urllib.error.URLError) as exc:
-        raise LayoutError(f"YuNet download failed: {exc}. Retry 'zing layout fetch-model'.") from exc
+        raise LayoutError(f"YuNet download failed. {exc}. {model_hint(target)}") from exc
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
@@ -66,9 +78,7 @@ def fetch_model(workspace: Path | None = None) -> Path:
 def require_model(workspace: Path | None = None, *, download: bool = False) -> Path:
     path = fetch_model(workspace) if download else model_path(workspace)
     if not verified_model(path):
-        raise LayoutError(f"YuNet model missing or corrupt at {path}. "
-                          "Run 'zing layout fetch-model' with the same --workspace, "
-                          "or explicitly pass --fetch-model to captions.")
+        raise MissingModelError(f"YuNet model missing or corrupt at {path}. {model_hint(path)}")
     return path
 
 
