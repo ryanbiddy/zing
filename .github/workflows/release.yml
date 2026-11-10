@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: Package index (try TestPyPI first)
+        description: Package index (PyPI requires TestPyPI first)
         required: true
         type: choice
         options: [testpypi, pypi]
@@ -23,12 +23,34 @@ env:
   PYTHONIOENCODING: utf-8
 
 concurrency:
-  group: release-${{ inputs.target }}
+  group: release
   cancel-in-progress: false
 
 jobs:
+  check-ci:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      testpypi_published: ${{ steps.history.outputs.testpypi_published }}
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-python@v6.0.0
+        with:
+          python-version: '3.11'
+      - name: Check CI and prior TestPyPI uploads
+        id: history
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: python packaging/release_gate.py
+
   build:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: check-ci
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -38,13 +60,13 @@ jobs:
       - uses: actions/setup-python@v6.0.0
         with:
           python-version: '3.11'
-      - run: python -m pip install uv
+      - run: python -m pip install uv==0.13.4
       - name: Build sdist and wheel from sdist
         run: uv build
       - name: Check metadata in a throwaway venv
         run: |
           uv venv "$RUNNER_TEMP/twine"
-          uv pip install --python "$RUNNER_TEMP/twine/bin/python" twine
+          uv pip install --python "$RUNNER_TEMP/twine/bin/python" twine==7.0.0
           "$RUNNER_TEMP/twine/bin/python" -m twine check --strict dist/*
       - run: python packaging/audit_dist.py
       - name: Check release surfaces and extract notes
@@ -67,32 +89,33 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ['3.11', '3.12', '3.13', '3.14']
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5.0.0
       - uses: actions/setup-python@v6.0.0
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python }}
       - uses: actions/download-artifact@v6.0.0
         with:
           name: distributions
           path: dist
-      - run: python packaging/fresh_install_check.py --report fresh-install-${{ matrix.os }}.json
+      - run: python packaging/fresh_install_check.py --report fresh-install-${{ matrix.os }}-${{ matrix.python }}.json
       - uses: actions/upload-artifact@v6.0.0
         if: always()
         with:
-          name: fresh-install-${{ matrix.os }}
+          name: fresh-install-${{ matrix.os }}-${{ matrix.python }}
           path: fresh-install-*.json
           if-no-files-found: error
 
-  publish:
-    needs: [build, fresh-install]
+  testpypi:
+    if: needs.check-ci.outputs.testpypi_published != 'true'
+    needs: [build, fresh-install, check-ci]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Required reviewer protection must be configured on BOTH environments.
     environment:
-      name: ${{ inputs.target }}
+      name: testpypi
     permissions:
       id-token: write
     steps:
@@ -101,12 +124,29 @@ jobs:
           name: distributions
           path: dist
       - name: Publish to TestPyPI using OIDC
-        if: inputs.target == 'testpypi'
         uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           repository-url: https://test.pypi.org/legacy/
+
+  publish:
+    if: >-
+      always() && !cancelled() && inputs.target == 'pypi' &&
+      needs.build.result == 'success' && needs.fresh-install.result == 'success' &&
+      needs.check-ci.result == 'success' &&
+      (needs.testpypi.result == 'success' || needs.check-ci.outputs.testpypi_published == 'true')
+    needs: [build, fresh-install, check-ci, testpypi]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v6.0.0
+        with:
+          name: distributions
+          path: dist
       - name: Publish to PyPI using OIDC
-        if: inputs.target == 'pypi'
         uses: pypa/gh-action-pypi-publish@v1.14.3
 
   draft-release:

@@ -18,8 +18,19 @@ The v1 guides are [Install](https://github.com/ryanbiddy/zing/blob/main/docs/INS
 [Troubleshooting](https://github.com/ryanbiddy/zing/blob/main/docs/TROUBLESHOOTING.md),
 [Privacy](https://github.com/ryanbiddy/zing/blob/main/docs/PRIVACY.md) and
 [Studio](https://github.com/ryanbiddy/zing/blob/main/docs/STUDIO.md).
-Until the PyPI release, use the source checkout. The planned package command
-is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
+Install release candidate 1.0.0rc1 with its exact version pin. The package command
+is `pipx install "myzing[all]==1.0.0rc1"` or `uv tool install "myzing[all]==1.0.0rc1"`.
+
+Doctor detects pipx and uv tool environments from the venv path. Extra install
+hints reinstall the pinned release with that tool. Other environments use pip.
+
+For factory rendering, install Node.js 20+ with npm, then run `zing factory setup`.
+It prints the folder and `npm ci` before installing the pinned Node dependency.
+It uses `ZING_FACTORY_SIDECAR`, the checkout's `tools/factory-sidecar` if present,
+or `factory-sidecar` under `ZING_HOME` (default `~/.zing`), in that order.
+Run it again after upgrading Zing. A matching lockfile and installed Playwright
+skip npm; the shipped scripts are refreshed. Chrome or Edge must already be installed.
+HyperFrames is separate and needs a source checkout for now.
 
 ## Choose a command
 
@@ -27,11 +38,11 @@ is `pipx install "myzing[all]"` or `uv tool install "myzing[all]"`.
 |---|---|
 | `zing record-cursor` | Local 60 Hz cursor/click and anonymous key-press timestamps; never key contents. |
 | `zing studio` | Guided creative session; recommendations, confirmation, saved answers and resume. |
-| `zing doctor` | Dependencies, caches and optional local Uoink health; ready can coexist with absent extras. |
+| `zing doctor` | Core readiness, caches and optional local Uoink health. Missing optional models and render tools name what is off and how to fix it. |
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
-| `zing factory` | `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (`--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
+| `zing factory` | `setup` (install the pinned Node sidecar), `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (`--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
 | `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. YouTube uploads and owner analytics need a connection. Publishing defaults to off. |
 | `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
@@ -411,6 +422,11 @@ Lists with seven or more items shrink their badges and text to fit the rows.
 At 1920×1080, `--pack launch` uses 89px captions, `headline` 103px and
 `documentary` 117px. The default `zing` look stays at 78px. Portrait sizes and
 learned packs keep their existing scaling.
+
+`factory run` exits 1 if it finishes with no rendered clips and at least one
+failed clip. The reason goes to stderr and stdout keeps the same JSON.
+Waiting for answers, an empty run or some rendered clips still means exit 0.
+The MCP `factory_status` result reports `ok: false` for that completed failure.
 
 ## Factory transcript sync
 

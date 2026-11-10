@@ -44,6 +44,13 @@ def notes(version, text):
     match = re.search(rf"^## {re.escape(version)}(?:[ \t]+[^\n]*)?\n(.*?)(?=^## |\Z)", text, re.M | re.S)
     if not match or not match.group(1).strip():
         raise ValueError(f"Missing changelog section for {version}")
+    unreleased = re.search(r"^## Unreleased\n(.*?)(?=^## |\Z)", text[:match.start()], re.M | re.S)
+    if unreleased and re.search(r"^\s*[-*+] ", unreleased.group(1), re.M):
+        raise ValueError("Fold Unreleased into the release section before publishing.")
+    scope = text[:match.end()]
+    ranges = re.findall(r"PRs #(\d+) through #(\d+)", match.group(1))
+    if ranges and int(ranges[0][1]) < max(map(int, re.findall(r"#(\d+)\b", scope))):
+        raise ValueError("The release PR range ends before the last noted PR.")
     return match.group(1).strip() + "\n"
 
 

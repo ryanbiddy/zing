@@ -204,6 +204,13 @@ zing factory run talk --judge claude
 zing factory status talk           # review page: talk/index.html
 ```
 
+`zing doctor` reports core readiness and names missing optional models and render
+tools with their limits and fixes. `zing factory run` exits 1 when it finishes
+with no rendered clips and at least one failed clip. It prints a reason on stderr
+and keeps the same JSON on stdout. Runs waiting for answers, empty runs and runs
+with some rendered clips still exit 0. The MCP `factory_status` result reports
+`ok: false` for the same completed failure.
+
 Without `--transcript`, Zing reads the whole episode with a small speech model already
 on disk (`small` or `base`; an hour in about 5 minutes on a CPU) only to find the
 moments, then transcribes the chosen moments with your configured model for word
@@ -922,17 +929,31 @@ action for each section. See [Compare a draft](EXPLAIN.md#compare-a-draft).
 ## Setup
 
 ```bash
-python -m pip install "myzing[factory]"
+python -m pip install "myzing[factory]==1.0.0rc1"
 zing layout fetch-model
 zing factory fetch-depth --yes          # optional: photos move through their depth
 zing factory fetch-cutout --yes         # optional: --cutout stands the speaker in front of pictures
 zing factory fetch-upscale --yes        # optional: small photos render sharp
-cd tools/factory-sidecar && npm ci     # pinned playwright-core; uses your Chrome or Edge
+zing factory setup                    # pinned playwright-core; uses your Chrome or Edge
 ```
+
+Install Node.js 20+ with npm first. `zing factory setup` prints the folder and
+`npm ci` before running it. It downloads the pinned Node dependency, not a browser.
+Run it again after upgrading Zing. It skips npm when the lockfile matches and
+Playwright is installed, and refreshes the shipped scripts.
+
+The sidecar uses `ZING_FACTORY_SIDECAR` when set, otherwise
+`tools/factory-sidecar` in a checkout, otherwise `factory-sidecar` under
+`ZING_HOME` (default `~/.zing`). The wheel includes the setup files.
+`tools/factory-sidecar` is the source of truth. Tests check that its packaged
+copies are identical.
 
 The renderer captures a deterministic `seek(t)` page frame by frame in a local Chrome
 or Edge (`ZING_BROWSER_PATH` overrides the lookup), then FFmpeg encodes it with the
-cut's audio. Set `ZING_FACTORY_SIDECAR` when the sidecar lives outside a checkout.
+cut's audio.
+
+The separate HyperFrames renderer needs a source checkout for now. See
+[HyperFrames setup](HYPERFRAMES-SIDECAR.md).
 
 ## Project layout
 

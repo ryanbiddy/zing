@@ -207,8 +207,17 @@ def run(argv: list[str]) -> int:
     for fetch in (depth, cut, up):
         fetch.add_argument("--project", type=Path, help="apply this project's network policy and ledger")
     commands.add_parser("doctor", help="check FFmpeg, Node, the sidecar, a browser and the models")
+    commands.add_parser("setup", help="install the factory sidecar with npm; needs Node.js 20 or newer")
     args = parser.parse_args(argv)
     try:
+        if args.command == "setup":
+            from .tools import setup
+            setup(say=lambda m: print(m, flush=True))
+            return 0
+        if args.command == "doctor":
+            from .tools import check
+            print(json.dumps(check(), indent=2, ensure_ascii=False))
+            return 0
         from . import pipeline
         from .judge import Judge
         if args.command == "new":
@@ -309,10 +318,10 @@ def run(argv: list[str]) -> int:
                 print(json.dumps({args.check: {"ok": not errors, "errors": errors}}, indent=2, ensure_ascii=False))
                 return 1 if errors else 0
             result = {name: theme(name)["name"] for name in themes()}
-        else:
-            from .tools import check
-            result = check()
         print(json.dumps(result, indent=2, ensure_ascii=False))
+        if args.command == "run" and (error := pipeline.run_error(result)):
+            print(error, file=sys.stderr)
+            return 1
         return 0
     except subprocess.SubprocessError as exc:
         detail = getattr(exc, "stderr", None) or str(exc)

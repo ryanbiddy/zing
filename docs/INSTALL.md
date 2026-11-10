@@ -1,12 +1,12 @@
 # Install Zing
 
-Zing is pre-alpha. It runs in a terminal, the window where you paste commands
+Zing 1.0.0rc1 is a release candidate. It runs in a terminal, the window where you paste commands
 and press Enter. No Zing account or API key is needed. Install Python, Zing's
 Python packages and FFmpeg, then let `zing doctor` check them.
 
-**Until the PyPI release, use the source checkout below.** The planned package
-install is `pipx install "myzing[all]"`, or `uv tool install "myzing[all]"`.
-These registry commands are not an available install today.
+Use the pinned release candidate or the source checkout below. The package
+install is `pipx install "myzing[all]==1.0.0rc1"`, or `uv tool install "myzing[all]==1.0.0rc1"`.
+Keep the version pin so the installer selects this release candidate.
 
 ## Windows
 
@@ -31,17 +31,16 @@ These registry commands are not an available install today.
    If winget is missing, install Microsoft's App Installer from the Microsoft
    Store and reopen PowerShell. If you already use Chocolatey, its alternative is
    `choco install ffmpeg-full` in an administrator terminal. You only need one.
-4. Reopen PowerShell so the new commands can be found. Continue with the source
-   checkout below. After the PyPI release, a pipx install will instead be:
+4. Reopen PowerShell so the new commands can be found. Install Zing with pipx.
 
    ```console
    python -m pip install --user pipx
    python -m pipx ensurepath
-   pipx install "myzing[all]"
+   pipx install "myzing[all]==1.0.0rc1"
    ```
 
    Reopen PowerShell after `ensurepath`. With uv, the equivalent package install
-   is `uv tool install "myzing[all]"`. Choose one tool, not both.
+   is `uv tool install "myzing[all]==1.0.0rc1"`. Choose one tool, not both.
 
 ## macOS
 
@@ -59,10 +58,10 @@ These registry commands are not an available install today.
    so installing it does not put its commands first on PATH. Add the export
    line above to your `~/.zprofile` file to keep it for new Terminal windows
    (or your shell's startup file if you do not use zsh).
-3. Continue with the source checkout. After the PyPI release, use
-   `uv tool install "myzing[all]"`, or install pipx through Homebrew with
+3. Install Zing with
+   `uv tool install "myzing[all]==1.0.0rc1"`, or install pipx through Homebrew with
    `brew install pipx`, run `pipx ensurepath`, reopen Terminal, then run
-   `pipx install "myzing[all]"`.
+   `pipx install "myzing[all]==1.0.0rc1"`.
 
 ## Linux
 
@@ -81,10 +80,10 @@ These registry commands are not an available install today.
    Fedora's `ffmpeg-free` may lack libx264. Follow that repository's current
    instructions if packages conflict. Zing does not enable repositories or
    remove conflicting packages for you.
-3. Continue with the source checkout. After the PyPI release, use
-   `uv tool install "myzing[all]"`. For pipx, install your distribution's `pipx`
+3. Install Zing with
+   `uv tool install "myzing[all]==1.0.0rc1"`. For pipx, install your distribution's `pipx`
    package, run `pipx ensurepath`, reopen Terminal, then run
-   `pipx install "myzing[all]"`.
+   `pipx install "myzing[all]==1.0.0rc1"`.
 
 ## Source checkout, available now
 

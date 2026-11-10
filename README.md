@@ -5,7 +5,7 @@
 **“Make my clips look like that video.”**
 
 A free, local creative studio for short videos and memes that runs in your
-terminal and that AI agents can drive. Pre-alpha: it studies a video you like,
+terminal and that AI agents can drive. It studies a video you like,
 cuts your clips into up to three captioned drafts in that style, and tells you which
 style checks each one passed. Simple footage can yield fewer distinct edits,
 with a **VARIETY** warning instead of duplicate drafts. Needs Python, uv and FFmpeg.
@@ -24,26 +24,30 @@ Nothing is posted.
 
 ## Get started
 
-Zing is pre-alpha and is not on PyPI yet. Use the [source checkout steps](docs/INSTALL.md#source-checkout-available-now)
-until release. The planned v1 package install is:
+Zing 1.0.0rc1 is a release candidate. Install the pinned version from PyPI.
 
 ```console
-pipx install "myzing[all]"
+pipx install "myzing[all]==1.0.0rc1"
 ```
 
-Or use `uv tool install "myzing[all]"`. Install FFmpeg with libx264 and libass
+Or use `uv tool install "myzing[all]==1.0.0rc1"`. The [source checkout](https://github.com/ryanbiddy/zing/blob/main/docs/INSTALL.md#source-checkout-available-now)
+is another option. Install FFmpeg with libx264 and libass
 through your OS package manager, then run `zing doctor`, followed by `zing studio`.
 Doctor checks FFmpeg 6+, ffprobe, encoders and filters and names what is missing.
 `zing setup --ffmpeg` shows the install command and requires a typed **yes**.
 
-Follow [Install](docs/INSTALL.md) for Windows, macOS or Linux,
-[Troubleshooting](docs/TROUBLESHOOTING.md) for failed checks,
-[Privacy](docs/PRIVACY.md) for downloads and AI-client boundaries, and
-[Studio](docs/STUDIO.md#your-first-draft-in-10-minutes) for a first draft with
+Follow [Install](https://github.com/ryanbiddy/zing/blob/main/docs/INSTALL.md) for Windows, macOS or Linux,
+[Troubleshooting](https://github.com/ryanbiddy/zing/blob/main/docs/TROUBLESHOOTING.md) for failed checks,
+[Privacy](https://github.com/ryanbiddy/zing/blob/main/docs/PRIVACY.md) for downloads and AI-client boundaries, and
+[Studio](https://github.com/ryanbiddy/zing/blob/main/docs/STUDIO.md#your-first-draft-in-10-minutes) for a first draft with
 generated media. Package setup and model downloads can take longer than the
 walkthrough itself.
 
-Run `uv sync --all-extras` once in this checkout, put FFmpeg on PATH, then:
+For the episode path, install Node.js 20+ and run `zing factory setup` once.
+It installs the pinned sidecar and uses your existing Chrome or Edge.
+
+In a source checkout, run `uv sync --all-extras` once and put FFmpeg on PATH.
+Then start Studio.
 
 ```console
 uv run --frozen zing studio
@@ -70,12 +74,12 @@ speech timing may be excluded. The finish screen reports the model and download.
 
 `zing doctor` and `zing setup` list cached speech models. To prepare one before
 editing, run `zing doctor --speech-model small.en` and confirm the download.
-See [speech setup](docs/DOCTOR.md) for unattended use and cache details.
+See [speech setup](https://github.com/ryanbiddy/zing/blob/main/docs/DOCTOR.md) for unattended use and cache details.
 
-See [Studio](docs/STUDIO.md) for a real transcript, JSON answers and agent use.
+See [Studio](https://github.com/ryanbiddy/zing/blob/main/docs/STUDIO.md) for a real transcript, JSON answers and agent use.
 Downloads are off by default. Missing evidence, failed drafts and blocked
-captions remain visible. Status: pre-alpha. MIT licensed for this project's
-software and documentation; third-party terms are in [NOTICE.md](NOTICE.md).
+captions remain visible. This is release candidate 1.0.0rc1. MIT licensed for this project's
+software and documentation; third-party terms are in [NOTICE.md](https://github.com/ryanbiddy/zing/blob/main/NOTICE.md).
 
 ## Five commands to a first result
 
@@ -93,20 +97,19 @@ uv run --frozen zing meme render --image zing-workspace/readme-demo/frame.png --
 
 Open `zing-workspace/readme-demo/meme.png`. For a generated sample clip → rendered
 draft → color match → face-aware layout plan → cut-review PNG → animated meme,
-follow the [tested PowerShell walkthrough](docs/QUICKSTART.md).
+follow the [tested PowerShell walkthrough](https://github.com/ryanbiddy/zing/blob/main/docs/QUICKSTART.md).
 Run `uv run --frozen zing doctor` to diagnose missing prerequisites.
 
-Use the current source checkout for these features. Zing is not on PyPI; the
-[connection guide](docs/CONNECT.md) also covers the published prerelease wheel.
-See [developer setup](docs/DEVELOPER-GUIDE.md) for environment details.
+The [connection guide](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md) covers agent setup and wheel installs.
+See [developer setup](https://github.com/ryanbiddy/zing/blob/main/docs/DEVELOPER-GUIDE.md) for environment details.
 
-For agent setup, see [install from source](llms-install.md). The
-[directory submission kit](docs/DIRECTORY-SUBMISSIONS.md) is preparation only;
-its future PyPI registry entry is not an available package or a submitted listing.
+For agent setup, see [install from source](https://github.com/ryanbiddy/zing/blob/main/llms-install.md). The
+[directory submission kit](https://github.com/ryanbiddy/zing/blob/main/docs/DIRECTORY-SUBMISSIONS.md) is preparation only;
+its registry listings still need separate submission.
 
 ## Give your agent the skill
 
-Copy the entire [skills/zing](skills/zing/SKILL.md) folder, including `references/`,
+Copy the entire [skills/zing](https://github.com/ryanbiddy/zing/blob/main/skills/zing/SKILL.md) folder, including `references/`,
 into your agent's configured skill directory. For Claude Code, use
 `~/.claude/skills/zing/`; the folder follows the
 [Agent Skills format](https://code.claude.com/docs/en/skills). Codex and other
@@ -129,50 +132,50 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 
 | Task | Current capability and documentation |
 |---|---|
-| Guided creative session | [Studio](docs/STUDIO.md): questions, measured recommendations, confirmation and resume. |
-| First local edit | [Quickstart](docs/QUICKSTART.md): generated clip, explicit EDL, rendered draft and review artifacts. |
-| Explain how a video was made | [Explain](docs/EXPLAIN.md): `zing explain reference.mp4 --out ./style-card`; measured JSON, plain English, phone-readable PNG and a reusable recipe. Add `--against draft.mp4` to compare. |
-| Match a reference with your clips | [Match](docs/MATCH.md): `zing match reference.mp4 --clips ./clips --out ./project --brief brief.json`; resumable A/B/C rendering, full decode, PNGs and measured reports. |
-| Find short cuts inside source clips | [Source map](docs/SOURCE-MAP.md): confirmed extra boundaries for planning, with frame evidence and unchanged public study shots. |
-| Study and direct footage | [Direct flow](docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v6. |
-| Compare worked and under-performing Shorts | [Playbook](docs/PLAYBOOK.md): channel-relative cohorts, local measurements, blind Gemini notes and versioned contrast statistics. |
-| Inventory a project | [Project inventory](docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
-| Reuse saved references and remember a choice | [Uoink memory](docs/UOINK-MEMORY.md): verified local media, optional peer search, and durable draft-choice receipts. |
-| Save creative intent | [Briefs](docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
-| Match a color look | [Color](docs/color.md): SDR LUT approximation, recipe and before/reference/after preview; separate apply step. |
-| Measure a reference's captions | [Caption geometry](docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
-| Choose a caption preset | [Punch, Box and Clean](docs/CAPTION-PRESETS.md): fixed word slots, measured widths, and readable dialogue. |
-| Style captions for delivery | [Captions](docs/CAPTIONS.md): active-word boxes, before/after colors, and minimum phone-readable sizing. |
-| Find the caption font | [Font candidates](docs/FONT-CANDIDATES.md): `zing fonts match` ranks a pinned OFL/Apache library against measured caption glyphs; low scores are labeled substitutes. |
-| Plan captions around faces | [Face-aware layout](docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; attach the resulting layout to a v2 caption for rendering. |
-| Fill portrait and square frames | [Framing](docs/FRAMING.md): fit, static fill, or bounded subject-following crops with captions placed inside the visible picture. |
-| Detect people and pets | [Vision models](docs/VIS1.md): optional OpenCV DNN models, explicit downloads, class evidence and fallback limits. |
-| Understand audio | [Audio](docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
-| Verify a cut in one image | [Timeline inspection](docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
-| Make memes | [Memes](docs/MEMES.md): photo folder + topic to concepts, a contact sheet, and selected stills (`zing still`); template metadata, text checks, and animated memes (`zing meme render-video`). |
-| Turn a long episode into clips | [Clip factory](docs/FACTORY.md): `zing factory` scouts moments, cuts them, finds visuals, draws graphics only from spoken facts, renders 9:16/1:1/16:9 in a style pack and writes post copy; your agent or Claude Code makes the judgment calls. Nothing is posted. |
-| Run a niche channel | [Channels](docs/CHANNELS.md) keeps source grants, factory defaults, approval gates, a local queue and post kits for you to upload. |
-| Add motion graphics | [Motion graphics](docs/MOTION-GRAPHICS.md): title cards, lower thirds, callouts and progress bars in a v2 plan, rendered locally by HyperFrames with a pre-render fit check. |
-| Render richer captions separately | [HyperFrames sidecar](docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; standalone output is silent, and v2 rendering composites its captions with footage and audio. |
-| Render v2 caption overlays | [HyperFrames v2 adapter](docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions, an FFmpeg composite helper and integration with `zing render`. |
-| Describe a full edit as data | [Composition v2](docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe. |
-| Render positioned word captions | [V2 rendering](docs/RENDER-V2.md): verified assets and fonts, ASS positions/paths, word highlights and layout safety acceptance; unsupported v2 effects fail before rendering. V1 rendering stays compatible. |
-| Plan three edits from a project | [Three draft plans](docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans (similar ones or a labeled out-of-timing alternative, never a duplicate, when few fit the reference timing) or a named shortage, with v1 EDL derivatives where supported. |
-| Keep speech complete | [Continuity and ASR repair](docs/CONTINUITY.md): clause boundaries, source order, bounded timing estimates, text roles and separate render/style status. |
-| Improve vertical drafts | [CLIPQ2](docs/CLIPQ2.md): close-shot gates, sampled caption bands, display-only stutter cleanup, and NASA re-plan instructions. |
-| Choose and place music | [Music advice and editing](docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
-| Connect an AI or Uoink | [Connect](docs/CONNECT.md): 44 MCP tools, prompt pack, local stdio and optional suite integration. |
-| Check MCP compatibility | [MCP SDK 2](docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
-| Check installed capabilities | [Doctor](docs/DOCTOR.md): optional runtimes, verified models and remedies. |
-| Install, develop and test | [Developer guide](docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
-| Prepare a release | [Releasing](docs/RELEASING.md): candidate checks, Trusted Publishing and Ryan's approval steps. |
-| Check evaluation thresholds | [Evaluation contracts](docs/EVAL.md): the study performance budget. |
-| Diagnose URL acquisition | [Fetch troubleshooting](docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
-| Check cross-product behavior | [Suite smoke CI](docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
-| Check asset provenance | [Third-party notices](docs/THIRD-PARTY-NOTICES.md): model pins, hashes and licenses. |
+| Guided creative session | [Studio](https://github.com/ryanbiddy/zing/blob/main/docs/STUDIO.md): questions, measured recommendations, confirmation and resume. |
+| First local edit | [Quickstart](https://github.com/ryanbiddy/zing/blob/main/docs/QUICKSTART.md): generated clip, explicit EDL, rendered draft and review artifacts. |
+| Explain how a video was made | [Explain](https://github.com/ryanbiddy/zing/blob/main/docs/EXPLAIN.md): `zing explain reference.mp4 --out ./style-card`; measured JSON, plain English, phone-readable PNG and a reusable recipe. Add `--against draft.mp4` to compare. |
+| Match a reference with your clips | [Match](https://github.com/ryanbiddy/zing/blob/main/docs/MATCH.md): `zing match reference.mp4 --clips ./clips --out ./project --brief brief.json`; resumable A/B/C rendering, full decode, PNGs and measured reports. |
+| Find short cuts inside source clips | [Source map](https://github.com/ryanbiddy/zing/blob/main/docs/SOURCE-MAP.md): confirmed extra boundaries for planning, with frame evidence and unchanged public study shots. |
+| Study and direct footage | [Direct flow](https://github.com/ryanbiddy/zing/blob/main/docs/DIRECT-FLOW.md): measured cuts, words, OCR, raw keeper candidates and agent judgment; `--transitions` opts into transition detector v6. |
+| Compare worked and under-performing Shorts | [Playbook](https://github.com/ryanbiddy/zing/blob/main/docs/PLAYBOOK.md): channel-relative cohorts, local measurements, blind Gemini notes and versioned contrast statistics. |
+| Inventory a project | [Project inventory](https://github.com/ryanbiddy/zing/blob/main/docs/PROJECT-INVENTORY.md): stable asset IDs, hashes, probes, provenance and rescans. |
+| Reuse saved references and remember a choice | [Uoink memory](https://github.com/ryanbiddy/zing/blob/main/docs/UOINK-MEMORY.md): verified local media, optional peer search, and durable draft-choice receipts. |
+| Save creative intent | [Briefs](https://github.com/ryanbiddy/zing/blob/main/docs/BRIEFS.md): terminal interview, saved answers and evidence-based recommendations. |
+| Match a color look | [Color](https://github.com/ryanbiddy/zing/blob/main/docs/color.md): SDR LUT approximation, recipe and before/reference/after preview; separate apply step. |
+| Measure a reference's captions | [Caption geometry](https://github.com/ryanbiddy/zing/blob/main/docs/CAPTION-GEOMETRY.md): `zing study --caption-geometry` saves sampled polygons, text size, colors, motion tracks and coverage. |
+| Choose a caption preset | [Punch, Box and Clean](https://github.com/ryanbiddy/zing/blob/main/docs/CAPTION-PRESETS.md): fixed word slots, measured widths, and readable dialogue. |
+| Style captions for delivery | [Captions](https://github.com/ryanbiddy/zing/blob/main/docs/CAPTIONS.md): active-word boxes, before/after colors, and minimum phone-readable sizing. |
+| Find the caption font | [Font candidates](https://github.com/ryanbiddy/zing/blob/main/docs/FONT-CANDIDATES.md): `zing fonts match` ranks a pinned OFL/Apache library against measured caption glyphs; low scores are labeled substitutes. |
+| Plan captions around faces | [Face-aware layout](https://github.com/ryanbiddy/zing/blob/main/docs/FACE-LAYOUT.md): sampled face tracks, UI masks, JSON geometry and debug sheet; attach the resulting layout to a v2 caption for rendering. |
+| Fill portrait and square frames | [Framing](https://github.com/ryanbiddy/zing/blob/main/docs/FRAMING.md): fit, static fill, or bounded subject-following crops with captions placed inside the visible picture. |
+| Detect people and pets | [Vision models](https://github.com/ryanbiddy/zing/blob/main/docs/VIS1.md): optional OpenCV DNN models, explicit downloads, class evidence and fallback limits. |
+| Understand audio | [Audio](https://github.com/ryanbiddy/zing/blob/main/docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
+| Verify a cut in one image | [Timeline inspection](https://github.com/ryanbiddy/zing/blob/main/docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
+| Make memes | [Memes](https://github.com/ryanbiddy/zing/blob/main/docs/MEMES.md): photo folder + topic to concepts, a contact sheet, and selected stills (`zing still`); template metadata, text checks, and animated memes (`zing meme render-video`). |
+| Turn a long episode into clips | [Clip factory](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md): `zing factory` scouts moments, cuts them, finds visuals, draws graphics only from spoken facts, renders 9:16/1:1/16:9 in a style pack and writes post copy; your agent or Claude Code makes the judgment calls. Nothing is posted. |
+| Run a niche channel | [Channels](https://github.com/ryanbiddy/zing/blob/main/docs/CHANNELS.md) keeps source grants, factory defaults, approval gates, a local queue and post kits for you to upload. |
+| Add motion graphics | [Motion graphics](https://github.com/ryanbiddy/zing/blob/main/docs/MOTION-GRAPHICS.md): title cards, lower thirds, callouts and progress bars in a v2 plan, rendered locally by HyperFrames with a pre-render fit check. |
+| Render richer captions separately | [HyperFrames sidecar](https://github.com/ryanbiddy/zing/blob/main/docs/HYPERFRAMES-SIDECAR.md): local caption proof/adapter; standalone output is silent, and v2 rendering composites its captions with footage and audio. |
+| Render v2 caption overlays | [HyperFrames v2 adapter](https://github.com/ryanbiddy/zing/blob/main/docs/HYPERFRAMES-V2.md): verified fonts, transparent ProRes captions, an FFmpeg composite helper and integration with `zing render`. |
+| Describe a full edit as data | [Composition v2](https://github.com/ryanbiddy/zing/blob/main/docs/COMPOSITION-V2.md): the versioned plan contract (assets, clips, transitions, positioned captions, LUTs, audio roles) and StyleRecipe. |
+| Render positioned word captions | [V2 rendering](https://github.com/ryanbiddy/zing/blob/main/docs/RENDER-V2.md): verified assets and fonts, ASS positions/paths, word highlights and layout safety acceptance; unsupported v2 effects fail before rendering. V1 rendering stays compatible. |
+| Plan three edits from a project | [Three draft plans](https://github.com/ryanbiddy/zing/blob/main/docs/PLAN-DRAFTS.md): `zing plan drafts` uses a recipe, saved brief and clip studies; writes distinct Composition v2 plans (similar ones or a labeled out-of-timing alternative, never a duplicate, when few fit the reference timing) or a named shortage, with v1 EDL derivatives where supported. |
+| Keep speech complete | [Continuity and ASR repair](https://github.com/ryanbiddy/zing/blob/main/docs/CONTINUITY.md): clause boundaries, source order, bounded timing estimates, text roles and separate render/style status. |
+| Improve vertical drafts | [CLIPQ2](https://github.com/ryanbiddy/zing/blob/main/docs/CLIPQ2.md): close-shot gates, sampled caption bands, display-only stutter cleanup, and NASA re-plan instructions. |
+| Choose and place music | [Music advice and editing](https://github.com/ryanbiddy/zing/blob/main/docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
+| Connect an AI or Uoink | [Connect](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md): 44 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Check MCP compatibility | [MCP SDK 2](https://github.com/ryanbiddy/zing/blob/main/docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
+| Check installed capabilities | [Doctor](https://github.com/ryanbiddy/zing/blob/main/docs/DOCTOR.md): optional runtimes, verified models and remedies. |
+| Install, develop and test | [Developer guide](https://github.com/ryanbiddy/zing/blob/main/docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |
+| Prepare a release | [Releasing](https://github.com/ryanbiddy/zing/blob/main/docs/RELEASING.md): candidate checks, Trusted Publishing and Ryan's approval steps. |
+| Check evaluation thresholds | [Evaluation contracts](https://github.com/ryanbiddy/zing/blob/main/docs/EVAL.md): the study performance budget. |
+| Diagnose URL acquisition | [Fetch troubleshooting](https://github.com/ryanbiddy/zing/blob/main/docs/FETCH-TROUBLESHOOTING.md): downloader and platform-access failures. |
+| Check cross-product behavior | [Suite smoke CI](https://github.com/ryanbiddy/zing/blob/main/docs/SUITE-SMOKE-CI.md): deterministic Uoink/Writer/Zing checks and their limits. |
+| Check asset provenance | [Third-party notices](https://github.com/ryanbiddy/zing/blob/main/docs/THIRD-PARTY-NOTICES.md): model pins, hashes and licenses. |
 
 The older profile, assemble, render and thumbnail commands remain available.
-The [skill command reference](skills/zing/references/commands.md) maps the
+The [skill command reference](https://github.com/ryanbiddy/zing/blob/main/skills/zing/references/commands.md) maps the
 top-level commands. Match attaches per-clip LUTs and available face-layout plans
 to v2 compositions; standalone treatment artifacts still need explicit planning.
 
@@ -205,7 +208,7 @@ Use uv for the combined checkout environment: its exclusion avoids installing
 overlapping GUI and headless OpenCV wheels. Plain pip does not honor that setting.
 Kokoro runtime/model assets, OpenTimelineIO, and HyperFrames' Node/browser/font
 installation are separate; `--all-extras` does not supply them. Doctor reports
-feature-specific gaps. The HyperFrames page documents its own pinned setup.
+feature-specific gaps. HyperFrames needs a source checkout for now. Its page documents the pinned setup.
 
 ## Local work and network boundaries
 
@@ -246,7 +249,7 @@ approach. Zing works standalone with local files.
 
 Uoink 3.16.0 and later has a "Make a Short with Zing" button in its reader.
 It shows only when Zing is installed and opens the saved item with
-`zing from-uoink`. See [Hand-off with Uoink](docs/UOINK-MEMORY.md#hand-off-with-uoink).
+`zing from-uoink`. See [Hand-off with Uoink](https://github.com/ryanbiddy/zing/blob/main/docs/UOINK-MEMORY.md#hand-off-with-uoink).
 
 Suite-aware commands may make loopback HTTP calls to a local Uoink helper for
 peer health, retained media, corpus notes and engagement. Zing never puts the
@@ -256,10 +259,10 @@ for download consent before that path. No draft is automatically published.
 
 For inventory only, `zing project init --reference uoink:123 --clips ./clips
 --out ./my-project` records the reference; it does not resolve or study it.
-See [Connect](docs/CONNECT.md) for the actual MCP handoff and explicit credentials.
+See [Connect](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md) for the actual MCP handoff and explicit credentials.
 
 Match reports separate playable output from style fidelity. Current director
 plans use cuts; sparse OCR, font substitutions, sampled face detection and color
 distribution comparisons remain approximations that need review.
 
-Screen recordings: [Screen-demo planning and cursor privacy](docs/SCREEN-DEMO.md).
+Screen recordings: [Screen-demo planning and cursor privacy](https://github.com/ryanbiddy/zing/blob/main/docs/SCREEN-DEMO.md).

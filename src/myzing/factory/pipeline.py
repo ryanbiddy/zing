@@ -606,6 +606,15 @@ def _finish(project: Path, judge: Judge, state: str, failed: dict | None = None)
     return status(project, judge)
 
 
+def run_error(result: dict) -> str:
+    failed = result.get("failed", {})
+    if result.get("state") != "done" or not failed or any(c.get("renders") for c in result.get("clips", [])):
+        return ""
+    reason = " ".join(str(next(iter(failed.values()))).split())
+    noun = "clip" if len(failed) == 1 else "clips"
+    return f"No clips rendered. {len(failed)} {noun} failed. {reason}".strip()
+
+
 def status(project: Path, judge: Judge | None = None) -> dict:
     project = Path(project).resolve()
     judge = judge or Judge(project)

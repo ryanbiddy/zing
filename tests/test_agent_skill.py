@@ -110,7 +110,7 @@ def test_suite_skill_subcommands_exist(command, capsys):
 def test_readme_links_every_top_level_doc():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     for doc in (ROOT / "docs").glob("*.md"):
-        assert f"](docs/{doc.name})" in readme, doc.name
+        assert f"](https://github.com/ryanbiddy/zing/blob/main/docs/{doc.name})" in readme, doc.name
 
 
 def test_readme_quickstart_has_five_commands():

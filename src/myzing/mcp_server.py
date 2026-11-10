@@ -1959,6 +1959,8 @@ def h_factory_status(project: str) -> dict[str, Any]:
         result["state"] = "interrupted"
         result["hint"] = "The run stopped without finishing; factory_run resumes where it left off."
     result["running"] = running
+    if not running and (error := pipeline.run_error(result)):
+        return {**result, **_err(error)}
     return _ok(**result)
 
 

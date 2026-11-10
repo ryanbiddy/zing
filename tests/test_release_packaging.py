@@ -88,8 +88,8 @@ def test_release_workflow_is_manual_gated_and_tokenless():
     assert re.findall(r"^  (\w+):", triggers, re.M) == ["workflow_dispatch"]
     assert "options: [testpypi, pypi]" in triggers
     publish = text.split("\n  publish:", 1)[1].split("\n  draft-release:", 1)[0]
-    assert "needs: [build, fresh-install]" in publish
-    assert "name: ${{ inputs.target }}" in publish
+    assert "needs: [build, fresh-install, check-ci, testpypi]" in publish
+    assert "name: pypi" in publish
     assert "id-token: write" in publish and "secrets." not in publish
     assert "checkout@" not in publish and "run:" not in publish
     assert "--draft --prerelease" in text

@@ -1,5 +1,9 @@
 # HyperFrames sidecar: pass PH
 
+HyperFrames needs a source checkout for now. Its Node files are not in the
+Python wheel. This is separate from `zing factory setup`, which works with a
+wheel install.
+
 P10b connects the [Composition v2 adapter and transparent overlays](HYPERFRAMES-V2.md)
 to `zing render`, with rational FPS and a verified cache in the render work folder.
 The historical PH measurements below describe the original opaque fixture.
@@ -47,8 +51,8 @@ $env:HYPERFRAMES_BROWSER_PATH = 'C:\Tools\hyperframes\.cache\browser\chrome-head
 Node 24 or newer and FFmpeg/ffprobe must be on PATH. PH was exercised with
 Node **24.18.0**, Chrome Headless Shell **152.0.7977.30**, and FFmpeg/ffprobe
 **8.1.2**. `HYPERFRAMES_FFMPEG_PATH` and `HYPERFRAMES_FFPROBE_PATH` can select
-existing binaries explicitly. A source install is expected; a wheel user can
-point `ZING_HYPERFRAMES_SIDECAR` at a separately checked-out sidecar directory.
+existing binaries explicitly. A wheel user must prepare a source checkout and
+point `ZING_HYPERFRAMES_SIDECAR` at its `tools/hyperframes-sidecar` directory.
 `zing doctor` reports this adapter as optional and checks prerequisites without
 launching a render or downloading anything.
 
