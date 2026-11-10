@@ -107,7 +107,7 @@ def test_quote_moments_keep_the_context(shape):
 def test_required_label_has_its_own_readable_style():
     css = render.data_path("scene.html").read_text(encoding="utf-8").split("#srctag.required{", 1)[1].split("}", 1)[0]
     assert "color:#fff" in css and "background:rgba(5,12,36,.88)" in css
-    assert "26px/1.25" in css and "overflow-wrap:anywhere" in css and "z-index:21" in css
+    assert "32px/1.25" in css and "overflow-wrap:anywhere" in css and "z-index:21" in css
 
 
 @pytest.mark.parametrize("tag,want", [("", LABEL), ("Test Show, April 2020", LABEL),

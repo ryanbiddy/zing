@@ -191,6 +191,7 @@ def configure_sync(project: Path, *, no_sync_check: bool = False, offset: float 
         Judge(project).forget("scout")
     elif cfg["transcript_sync"].get("status") == "pending":
         _restore_transcript(project)
+    _rebase_moments(project, offset or 0.0)
     cfg.update(no_sync_check=no_sync_check,
                transcript_sync={"status": "skipped", "method": "offset" if offset is not None else "disabled"})
     _write(project / "factory.json", cfg)
@@ -213,6 +214,7 @@ def _sync_transcript(project: Path, media: Path, cfg: dict, segments: list[dict]
             why = {"no_cached_model": "no speech model is cached", "speech_off": "speech is turned off",
                    "too_little_speech": "too little speech was heard", "probe_error": "the speech probes could not run"}
             say(f"Zing skipped the transcript sync check because {why[saved['method']]}.")
+        _rebase_moments(project, offset)
         cfg.update(transcript_offset=offset, transcript_sync=saved)
         _write(project / "factory.json", cfg)
     if saved.get("status") == "failed":
@@ -229,6 +231,8 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None
     if not data.get("scouted"):
         segments = _transcript(project, media, say, cfg.get("vocab"))     # also what clips are picked from by hand
         segments = _sync_transcript(project, media, cfg, segments, say)
+        data = load_moments(project)                # the sync check may have moved hand picks timed to the transcript
+        moments = data.get("moments", [])
     if not data.get("scouted") and cfg["moments"]:
         _checkpoint(stop)
         n = cfg["moments"]
@@ -349,15 +353,40 @@ def check_range(project: Path, start, end) -> tuple[float, float]:
     return round(a, 2), round(min(b, last + 1) if last is not None else b, 2)
 
 
-def add_clip(project: Path, start, end, hook: str = "") -> str:
-    """Add a clip picked by hand; the next run snaps it to sentences, cuts and plans it. Returns its clip id."""
+def add_clip(project: Path, start, end, hook: str = "", *, basis: str = "video") -> str:
+    """Add a clip picked by hand; the next run snaps it to sentences, cuts and plans it. Returns its clip id.
+
+    basis "transcript" means the times come from the supplied transcript, not the video: they move with the
+    transcript when the sync check (or an explicit offset) shifts it."""
     project = Path(project).resolve()
+    if basis not in ("video", "transcript"):
+        raise FactoryError("basis must be video or transcript")
     a, b = check_range(project, start, end)
+    sync = _read(project / "factory.json", {}).get("transcript_sync") or {}
+    moment = {"hook": str(hook or "").strip()[:120], "why": "picked by hand", "topic": "", "score": "",
+              "start": a, "end": b, "by": "hand"}
+    if basis == "transcript" and sync.get("status") == "pending":
+        moment["basis"] = "transcript"
+    elif basis == "transcript":
+        offset = _read(project / "factory.json", {}).get("transcript_offset") or 0.0
+        moment["start"], moment["end"] = check_range(project, a + offset, b + offset)
     data = {"moments": [], "bench": [], **load_moments(project)}
-    data["moments"] = data.get("moments", []) + [{"hook": str(hook or "").strip()[:120], "why": "picked by hand",
-                                                  "topic": "", "score": "", "start": a, "end": b, "by": "hand"}]
+    data["moments"] = data.get("moments", []) + [moment]
     _write(project / "moments.json", data)
     return f"clip{len(data['moments']):02d}"
+
+
+def _rebase_moments(project: Path, offset: float) -> None:
+    """Hand picks timed against the transcript move by the offset the sync check found (once)."""
+    data = load_moments(project)
+    moved = False
+    for m in data.get("moments", []):
+        if m.get("basis") == "transcript":
+            m["start"], m["end"] = round(m["start"] + offset, 3), round(m["end"] + offset, 3)
+            del m["basis"]
+            moved = True
+    if moved:
+        _write(project / "moments.json", data)
 
 
 def make_bench(project: Path, index: int) -> str:

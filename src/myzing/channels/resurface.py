@@ -261,5 +261,5 @@ def make(brief, *, pick, media=None, out=None, shapes=None):
     src = pipeline._read(project / "source.json")
     pipeline._write(project / "source.json", {**src, "on_screen_context": chosen["on_screen_context"], "rights": status,
                                               "resurface": {"brief": str(path), "pick": pick, "episode_id": episode["id"]}})
-    clip = pipeline.add_clip(project, chosen["start"], chosen["end"])
+    clip = pipeline.add_clip(project, chosen["start"], chosen["end"], basis="transcript")
     return {"project": str(project), "clip": clip, "rights": status, "hint": f'zing factory run "{project}"'}
