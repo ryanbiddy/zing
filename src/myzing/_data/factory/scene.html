@@ -238,34 +238,46 @@ function crop(iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
   if (maxFrac) ty = Math.max(ty, bh - maxFrac*ih*s);
   return {tx, ty, s};
 }
-function applyCrop(img, iw, ih, {tx, ty, s}) {
+function applyCrop(img, iw, ih, {tx, ty, s, clip=null}) {
   img.style.width = iw+'px'; img.style.height = ih+'px';
   img.style.transform = `translate(${tx}px,${ty}px) scale(${s})`;
+  img.style.clipPath = clip ? `inset(${clip[1]}px ${iw-clip[2]}px ${ih-clip[3]}px ${clip[0]}px)` : '';
 }
 function cover(img, iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
   applyCrop(img, iw, ih, crop(iw, ih, bw, bh, z, fx, fy, maxFrac));
 }
 function faceCrop(cam, b, t, lean=1) {
-  const [iw, ih] = D.srcSize, base = Math.max(b.w/iw, b.h/ih), limit = cam.wide ? 1.4 : 2.2;
-  const at = z => crop(iw, ih, b.w, b.h, z, cam.cx, clamp(cam.cy+.06), D.burnTop);
+  const [iw, ih] = D.srcSize, [l, top, right, bottom] = (cam.tile || [0, 0, 1, 1]).map((v, i) => v*(i%2 ? ih : iw));
+  const w = right-l, h = bottom-top, base = Math.max(b.w/w, b.h/h), limit = cam.wide ? 1.4 : 2.2;
+  const cap = Math.min(1.6, b.h*.4/(cam.fh*ih)), hair = Math.max(top, (cam.cy-cam.fh*.85)*ih);
+  const burn = D.burnTop && D.burnTop*ih < bottom ? b.h/Math.max(1, D.burnTop*ih-top) : 0;
+  const at = scale => {
+    const s = Math.max(scale, burn), clip = cam.tile ? [l, top, right, bottom] : null;
+    const tx = w*s < b.w ? (b.w-w*s)/2-l*s : clamp(b.w/2-cam.cx*iw*s, b.w-right*s, -l*s);
+    let ty = h*s < b.h ? (b.h-h*s)*(cam.tile ? .5 : cam.cy)-top*s
+      : clamp(b.h/2-clamp(cam.cy+.06)*ih*s, b.h-bottom*s, -top*s);
+    if (burn) ty = Math.max(ty, b.h-D.burnTop*ih*s);
+    ty = Math.max(ty, -hair*s);   // the face detector stops at the brows
+    return {tx, ty, s, clip};
+  };
+  if (cam.tile && base > cap && !burn) return at(Math.max(Math.min(b.w/w, b.h/h), cap));   // the tile whole, or as much of it as stays sharp
   const center = r => cam.cy*ih*r.s + r.ty;
   const want = b.h / (cam.fh*ih*3.2);
   let z = clamp(want/base, 1, limit);
-  const r = at(z);
+  const r = at(z*base);
   const move = (1 + .05*easeInOut(lin(t, cam.from, cam.to))) * lean;
   if ((D.aspect || '9x16') === '9x16' && center(r) > b.h*.5) {   // landscape and square frames already show the room
-    const cap = Math.max(1, Math.min(limit, b.h/(300*base)));   // keep webcam crops sharp
-    let lo = Math.min(z, cap), hi = cap;
+    const ceiling = Math.min(limit, cap/base);
+    let lo = Math.min(z, ceiling), hi = ceiling;
     for (let i=0; i<20; i++) { const mid = (lo+hi)/2;
-      if (center(at(mid)) > b.h*.42) lo = mid; else hi = mid; }
-    z = Math.min(hi*move, cap);
+      if (center(at(mid*base)) > b.h*.42) lo = mid; else hi = mid; }
+    z = Math.min(hi*move, ceiling);
   } else z *= move;
-  return at(z);
+  return at(Math.max(base*move, Math.min(z*base, cap)));   // the caps limit zoom past filling the panel, never the fill
 }
 function contain(img, iw, ih, bw, bh) {
   const s = Math.min(bw/iw, bh/ih), vw = iw*s, vh = ih*s;
-  img.style.width = iw+'px'; img.style.height = ih+'px';
-  img.style.transform = `translate(${(bw-vw)/2}px,${(bh-vh)/2}px) scale(${s})`;
+  applyCrop(img, iw, ih, {tx:(bw-vw)/2, ty:(bh-vh)/2, s});
 }
 function fitVisual(img, v, bw, bh, z, fx=.5, fy=.5, whole=false) {
   const [x, y, w, h] = v.crop || [0, 0, v.w, v.h], s = Math.min(bw/w, bh/h);

@@ -616,7 +616,10 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   shot of the speaker.
 - Speaker framing uses the pinned YuNet face model (`zing layout fetch-model`).
   Close-ups teach the frame what the main speaker wears; in wide shots it follows them.
-  Captions already burned into the source are cropped out.
+  Face boxes stay within 40% of the speaker panel height, with room above the brows for hair.
+  Source pixels scale up by at most 1.6 times. Cropping out burned-in captions can override these limits.
+  Clear grid borders that agree across sampled frames keep each face inside its own tile.
+  If filling the panel would exceed the limits, the whole tile sits over the blurred background.
   With local OCR available, text cards without faces stay whole over a blurred background if the crop would cut text.
   Each shot checks its actual panel and output shape, including solo shots that fill the frame.
   A closing group shot under half a second with no tracked face holds the previous

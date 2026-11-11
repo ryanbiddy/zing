@@ -420,6 +420,10 @@ recomputes all entries and cannot be combined with `--retry-failed`. See
 
 Factory renders check detected text against each shot's actual crop and output
 shape. Cards stay whole when the crop would cut text, including in solo shots.
+Face crops leave room for hair and limit face height to 40% of the speaker panel.
+Source pixels scale up by at most 1.6 times unless hiding burned-in captions needs more.
+Stable grid borders keep neighboring tiles out. A tile stays whole over the blurred
+background when filling the panel would exceed those limits.
 Speaker-top packs keep captions above the graphic card when avoiding a low face.
 Whole pages also bound caption placement in 9:16 splits. Captions that overlap
 a page use a dark rounded background, including kinetic captions. Packs keep

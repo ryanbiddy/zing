@@ -182,6 +182,74 @@ def _camera_cuts(d: Path, frame, duration: float) -> list[float]:
     return cuts
 
 
+def _grid_tiles(images, faces) -> list[list[float]]:
+    import cv2
+    import numpy as np
+    if len(faces) < 2 or any(img.size == 0 for img in images):
+        return []
+    H, Wd = images[0].shape[:2]
+    scale = min(1, 960 / Wd)
+    boxes = [[v * scale for v in f] for f in faces]
+    samples, grays = [], []
+    for img in images:
+        small = cv2.resize(img, (round(Wd * scale), round(H * scale)), interpolation=cv2.INTER_AREA)
+        h, w = small.shape[:2]
+        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        grays.append(gray)
+        edges = cv2.Canny(gray, 20, 60)
+        thick = cv2.dilate(edges, np.ones((3, 3), dtype=np.uint8))
+        lines = cv2.morphologyEx(thick, cv2.MORPH_CLOSE, np.ones((3, 1), dtype=np.uint8))
+        lines = cv2.morphologyEx(lines, cv2.MORPH_OPEN, np.ones((max(40, round(h*.25)), 1), dtype=np.uint8))
+        contours, _ = cv2.findContours(lines, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        vertical = [(x+(ww-1)/2, y, y+hh-1) for x, y, ww, hh in map(cv2.boundingRect, contours) if ww <= 8]
+        rects = []
+        for x, y, fw, fh in boxes:
+            candidates = []
+            left = [v for v in vertical if v[0] < x and v[1] < y and v[2] > y+fh]
+            right = [v for v in vertical if v[0] > x+fw and v[1] < y and v[2] > y+fh]
+            for l, lt, lb in left:
+                for r, rt, rb in right:
+                    top = min(v[1] for v in vertical if abs(v[1]-min(lt, rt)) < h*.06)
+                    bottom = max(v[2] for v in vertical if abs(v[2]-max(lb, rb)) < h*.06)
+                    if abs(lt-rt) > h*.06 or abs(lb-rb) > h*.06 or r-l > w*.8 or bottom-top > h*.95:
+                        continue
+                    if any(l < xx+ww/2 < r and top < yy+hh/2 < bottom
+                           for xx, yy, ww, hh in boxes if (xx, yy, ww, hh) != (x, y, fw, fh)):
+                        continue
+                    rows = np.flatnonzero((thick[:, int(l)+2:int(r)-1] > 0).mean(axis=1) >= .8)
+                    above = rows[(rows >= top-8) & (rows <= max(lt, rt)+8) & (rows < y)]
+                    below = rows[(rows >= bottom-8) & (rows <= bottom+8) & (rows > y+fh)]
+                    if not len(above) or not len(below):
+                        continue
+                    candidates.append([l+1, int(above.max())+1, r, int(below.min())])
+            rects.append(min(candidates, key=lambda r: (r[2]-r[0])*(r[3]-r[1])) if candidates else None)
+        samples.append(rects)
+    stable = []
+    for rects in zip(*samples):
+        if any(r is None for r in rects):
+            continue
+        if any(max(v)-min(v) > 5 for v in zip(*rects)):
+            continue
+        stable.append([max(r[0] for r in rects), max(r[1] for r in rects),
+                       min(r[2] for r in rects), min(r[3] for r in rects)])
+    tiles = []
+    for l, t, r, b in stable:
+        adjacent = any((min(b, bb)-max(t, tt) > .8*max(b-t, bb-tt) and min(abs(ll-r), abs(l-rr)) < 40) or
+                       (min(r, rr)-max(l, ll) > .8*max(r-l, rr-ll) and min(abs(tt-b), abs(t-bb)) < 40)
+                       for ll, tt, rr, bb in stable if [ll, tt, rr, bb] != [l, t, r, b])
+        flanked = any(x+fw < l and t < y+fh/2 < b for x, y, fw, fh in boxes) and \
+                  any(x > r and t < y+fh/2 < b for x, y, fw, fh in boxes)
+        gutters = flanked and all(np.quantile(side, .9) < 35 and side.std() < 8
+            for g in grays for side in (g[int(t):int(b), max(0, int(l)-3)],
+                                       g[int(t):int(b), min(w-1, int(r)+3)],
+                                       g[max(0, int(t)-3), int(l):int(r)],
+                                       g[min(h-1, int(b)+3), int(l):int(r)]))
+        if adjacent or gutters:
+            tiles.append([round(l/(Wd*scale), 4), round(t/(H*scale), 4),
+                          round(r/(Wd*scale), 4), round(b/(H*scale), 4)])
+    return tiles
+
+
 def cams(d: Path) -> dict:
     """Camera shots, and in each the face to frame. Close-ups teach what the main speaker wears; in wide shots the
     frame follows them, leaving only when someone else clearly out-talks them for a while."""
@@ -219,13 +287,17 @@ def cams(d: Path) -> dict:
 
     out, wides, ident = [], [], []
     for a, b in zip(bounds, bounds[1:]):
-        boxes = [faces_in(frame(a + (b - a) * frac), .08) for frac in (.3, .5, .7)]
+        samples = [frame(a + (b - a) * frac) for frac in (.3, .5, .7)]
+        boxes = [faces_in(img, .08) for img in samples]
         best = max(boxes, key=len)
         H, Wd = frame(a).shape[:2]
         cam = {"from": round(a, 3), "to": round(b, 3), "mode": "wide"}
         if best and (len(best) == 1 or best[0][2] * best[0][3] > 2.2 * best[1][2] * best[1][3]):
             x, y, w, h = best[0]
             cam.update(mode="face", cx=(x + w / 2) / Wd, cy=(y + h / 2) / H, fh=h / H)
+            for tile in _grid_tiles(samples, best):
+                if tile[0] <= x/Wd and tile[1] <= y/H and tile[2] >= (x+w)/Wd and tile[3] >= (y+h)/H:
+                    cam["tile"] = tile
             out.append(cam)
             mid = frame((a + b) / 2)
             fs = faces_in(mid, .08)
@@ -256,6 +328,7 @@ def cams(d: Path) -> dict:
         if len(faces) < 2 or b - a < 1.0:
             out.append(cam)
             continue
+        tiles = _grid_tiles([frame(a + (b-a)*frac) for frac in (.3, .5, .7)], faces)
         windows, t = [], a
         while t < b - 0.2:
             te = min(b, t + 1.5)
@@ -291,8 +364,12 @@ def cams(d: Path) -> dict:
                 merged.append(dict(s))
         for s in merged:
             x, y, w, h = faces[s["face"]]
-            out.append({"from": s["from"], "to": s["to"], "mode": "face", "wide": True,
-                        "cx": (x + w / 2) / Wd, "cy": (y + h / 2) / H, "fh": h / H})
+            cam = {"from": s["from"], "to": s["to"], "mode": "face", "wide": True,
+                   "cx": (x + w / 2) / Wd, "cy": (y + h / 2) / H, "fh": h / H}
+            for tile in tiles:
+                if tile[0] <= x/Wd and tile[1] <= y/H and tile[2] >= (x+w)/Wd and tile[3] >= (y+h)/H:
+                    cam["tile"] = tile
+            out.append(cam)
     out.sort(key=lambda c: c["from"])
     first = frame(0)
     info = {"cams": out, "size": [first.shape[1], first.shape[0]], "frames": n, "burn_top": burned_caption_top(d)}
