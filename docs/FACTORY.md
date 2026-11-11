@@ -334,6 +334,11 @@ chooses a file or none. Selected files are copied into the project and credited
 as `Your file: <name>`. Online projects also search the public sources. Offline
 projects use only your files; without a usable file, the shot stays on the speaker.
 
+Each picture is used once per clip, in request order. A later pick of the same
+picture shows no visual for that moment. An unanswered row uses the next unused
+candidate that passes the content and place checks. If none remain, it shows no
+visual. The pick sheet still shows repeated pictures in every row where they appear.
+
 `network.jsonl` records factory network attempts, including failures. Each row has
 `at`, `host`, `purpose` and `bytes`. It never stores full URLs, query strings,
 headers or prompt text. Python downloads count response bytes read. Subprocess

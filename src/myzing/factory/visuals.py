@@ -1294,6 +1294,8 @@ def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
         path = folder / f"local_{h8(str(src))}{src.suffix.lower()}"
         shutil.copyfile(src, path)
         c["path"] = path
+        if c["media_type"] == "image":
+            c["dhash"] = dhash(path.read_bytes())
         return c
     if c.get("path"):  # captured locally (site screenshot / scroll recording)
         if c["media_type"] == "image":
@@ -1301,6 +1303,7 @@ def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
             if any(bin(dh ^ o).count("1") <= 10 for o in hashes):
                 raise ValueError("near-duplicate of a better-ranked pick")
             hashes.append(dh)
+            c["dhash"] = dh
         return c
     ctx.network.check("visual download")
     urls = resolve_urls(ctx, c)
@@ -1328,7 +1331,7 @@ def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
                 final = folder / f"{c['source']}_{h8(url)}.{ext}"
                 final.write_bytes(data)
                 hashes.append(dh)
-                c.update(width=w, height=h, has_alpha=alpha, path=final, file_url=safe_url(url),
+                c.update(width=w, height=h, has_alpha=alpha, path=final, file_url=safe_url(url), dhash=dh,
                          mime={"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext])
             return c
         except FactoryError:
@@ -1540,6 +1543,8 @@ def finalize(got: list[dict], q: Query, folder: Path, maxc: int) -> list[dict]:
             rec.update(duration_s=c.get("duration_s"), codec=c.get("codec"), mime=c.get("mime") or "video/mp4")
         else:
             rec.update(mime=c.get("mime"), has_alpha=c.get("has_alpha", False))
+        if c.get("dhash") is not None:
+            rec["dhash"] = c["dhash"]
         for k in ("entity", "notes", "bytes", "places_off"):
             if c.get(k):
                 rec[k] = c[k]

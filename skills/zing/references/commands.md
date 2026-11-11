@@ -510,6 +510,11 @@ kind, such as another state or country. If the judge leaves a row unanswered, th
 fallback skips candidates flagged for an unrelated place. If none remain, it shows
 no visual. An explicit pick or rejection still takes precedence.
 
+Each picture is used once per clip, in request order. A later pick of the same
+picture shows no visual for that moment. An unanswered row uses the next unused
+candidate that passes the content and place checks. If none remain, it shows no
+visual. The pick sheet still shows repeated pictures in every row where they appear.
+
 `fetch-depth`, `fetch-cutout` and `fetch-upscale` accept `--project DIR` to use that
 project's network policy and ledger. Without it, the download is not tied to a
 project and is not recorded. Downloads still need `--yes`.
