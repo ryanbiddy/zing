@@ -318,6 +318,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     return {"fps": 30, **({"scale": 2} if uhd else {}),
             "words": words["words"], "frames": cam["frames"], "framesDir": (d / "frames").resolve().as_uri(),
             "srcSize": cam["size"], "cams": cam["cams"], "burnTop": cam.get("burn_top"), "shots": shots, "quotes": moments,
+            **({"overlays": cam["overlays"]} if cam.get("overlays") else {}),
             **({"mattesDir": lifted["dir"].resolve().as_uri()} if lifted else {}),
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,

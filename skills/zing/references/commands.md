@@ -422,6 +422,9 @@ Factory renders check detected text against each shot's actual crop and output
 shape. Cards stay whole when the crop would cut text, including in solo shots.
 Face crops leave room for hair and limit face height to 40% of the speaker panel.
 Source pixels scale up by at most 1.6 times unless hiding burned-in captions needs more.
+Temporary source graphics get timed boxes in `cams.json`. In 9:16 and 1:1, speaker
+crops shift to clear them, then zoom if needed, up to 2.2 times source size. The crop
+changes at the graphic's start and end. If clearance is impossible, it keeps the original framing.
 Stable grid borders keep neighboring tiles out. A tile stays whole over the blurred
 background when filling the panel would exceed those limits.
 Speaker-top packs keep captions above the graphic card when avoiding a low face.

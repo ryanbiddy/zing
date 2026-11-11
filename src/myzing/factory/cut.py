@@ -250,6 +250,112 @@ def _grid_tiles(images, faces) -> list[list[float]]:
     return tiles
 
 
+def _overlays(frame, bounds, cams, burn_top) -> list[dict]:
+    import cv2
+    import numpy as np
+    out = []
+    for a, b in zip(bounds, bounds[1:]):
+        shots = [c for c in cams if c["from"] < b-.001 and c["to"] > a+.001]   # cams store millisecond times
+        if b-a < 2 or any(c.get("tile") for c in shots) or frame(a).size == 0:
+            continue
+        H, Wd = frame(a).shape[:2]
+        w, h = 320, max(1, round(320*H/Wd))
+
+        def small(t):
+            return cv2.resize(frame(t), (w, h), interpolation=cv2.INTER_AREA)
+
+        times = list(np.arange(a, b, 1))
+        images = [small(t) for t in times]
+        typical = np.median(images, axis=0).astype("uint8")
+        faces = [(c["cx"]-c["fh"]*H/Wd*.6, c["cy"]-c["fh"]*.85,
+                  c["cx"]+c["fh"]*H/Wd*.6, c["cy"]+c["fh"]*.65) for c in shots if c["mode"] == "face"]
+        found = []
+        for i, (t, img) in enumerate(zip(times, images)):
+            stable = np.minimum.reduce([cv2.absdiff(img, images[j]).max(axis=2)
+                                        for j in (i-1, i+1) if 0 <= j < len(images)]) < 12
+            mask = ((cv2.absdiff(img, typical).max(axis=2) > 20) & stable).astype("uint8")*255
+            if burn_top:
+                mask[round(burn_top*h):] = 0
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((9, 9), dtype="uint8"))
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), dtype="uint8"))
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            for contour in contours:
+                x, y, ww, hh = cv2.boundingRect(contour)
+                cols = np.flatnonzero((mask[y:y+hh, x:x+ww] > 0).mean(axis=0) > .8)
+                if len(cols) < w*.1:
+                    continue
+                x, ww = int(x+cols[0]), int(cols[-1]-cols[0]+1)
+                rows = np.flatnonzero((mask[y:y+hh, x:x+ww] > 0).mean(axis=1) > .8)
+                if len(rows) < h*.2:
+                    continue
+                y, hh = int(y+rows[0]), int(rows[-1]-rows[0]+1)
+                roi = mask[y:y+hh, x:x+ww] > 0
+                if not .04 <= ww*hh/(w*h) <= .65 or y >= h*.6 or roi.mean() < .9:
+                    continue
+                if min(roi[0].mean(), roi[-1].mean(), roi[:, 0].mean(), roi[:, -1].mean()) < .75:
+                    continue
+                box = [x/w, y/h, (x+ww)/w, (y+hh)/h]
+                if any(l < box[2] and r > box[0] and top < box[3] and bottom > box[1] for l, top, r, bottom in faces):
+                    continue
+                last = next((v for v in found if max(abs(p-q) for p, q in zip(v["box"], box)) < .06), None)
+                if last:
+                    last["boxes"].append(box)
+                    last["samples"].append(i)
+                else:
+                    found.append({"box": box, "boxes": [box], "samples": [i]})
+        for item in found:
+            if len(item["samples"]) < 2:
+                continue
+            boxes = item["boxes"]
+            l, top = min(v[0] for v in boxes), min(v[1] for v in boxes)
+            r, bottom = max(v[2] for v in boxes), max(v[3] for v in boxes)
+            x, y, xx, yy = round(l*w), round(top*h), round(r*w), round(bottom*h)
+
+            def border(img):
+                edges = [max(cv2.absdiff(img[y:yy, j-1], img[y:yy, j+1]).mean()
+                             for j in range(max(1, at-2), min(w-1, at+3))) for at in (x, xx) if 0 < at < w]
+                edges += [max(cv2.absdiff(img[j-1, x:xx], img[j+1, x:xx]).mean()
+                              for j in range(max(1, at-2), min(h-1, at+3))) for at in (y, yy) if 0 < at < h]
+                return sum(edges)/max(1, len(edges))
+
+            reference = min((images[i] for i in item["samples"]), key=border)
+            if border(typical) <= border(reference)*1.5+8:
+                reference = typical     # a long panel can occupy the median; the room lacks its straight borders
+
+            def changed(img):
+                return (cv2.absdiff(img[y:yy, x:xx], reference[y:yy, x:xx]).max(axis=2) > 20).mean() > .15
+
+            def present(t):
+                return changed(small(t))
+
+            def edge(lo, hi, entering):
+                while hi-lo > 1/FPS:
+                    mid = (lo+hi)/2
+                    if present(mid) == entering:
+                        hi = mid
+                    else:
+                        lo = mid
+                return hi
+
+            runs = []
+            for t, img in zip(times, images):
+                if not changed(img):
+                    continue
+                if runs and t-runs[-1][1] <= 1.01:
+                    runs[-1][1] = float(t)
+                else:
+                    runs.append([float(t), float(t)])
+            for start, end in runs:
+                if end-start < 1:
+                    continue
+                start = a if start == a else edge(max(a, start-1), start, True)
+                end = b if end+1 >= b and present(b-1/FPS) else edge(end, min(b-1/FPS, end+1), False)
+                out.append({"from": round(start, 3), "to": round(end, 3),
+                            "box": [round(v, 3) for v in (max(0, l-.004), max(0, top-.004),
+                                                         min(1, r+.004), min(burn_top or 1, bottom+.004))]})
+    return sorted(out, key=lambda v: v["from"])
+
+
 def cams(d: Path) -> dict:
     """Camera shots, and in each the face to frame. Close-ups teach what the main speaker wears; in wide shots the
     frame follows them, leaving only when someone else clearly out-talks them for a while."""
@@ -373,6 +479,9 @@ def cams(d: Path) -> dict:
     out.sort(key=lambda c: c["from"])
     first = frame(0)
     info = {"cams": out, "size": [first.shape[1], first.shape[0]], "frames": n, "burn_top": burned_caption_top(d)}
+    overlays = _overlays(frame, bounds, out, info["burn_top"])
+    if overlays:
+        info["overlays"] = overlays
     _write(d / "cams.json", info)
     return info
 
