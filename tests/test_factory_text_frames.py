@@ -59,7 +59,8 @@ def clip(tmp_path, monkeypatch, zing_workspace):
     monkeypatch.setitem(sys.modules, "cv2", cv2)
     monkeypatch.setattr(detector, "require_model", lambda: tmp_path / "model")
     monkeypatch.setattr(cut, "ffmpeg", lambda: "ffmpeg")
-    monkeypatch.setattr(cut, "run", lambda *a, **kw: SimpleNamespace(stderr=state.cuts))
+    monkeypatch.setattr(cut, "run", lambda *a, **kw: SimpleNamespace(
+        stderr=re.sub(r"(pts_time:[0-9.]+)", r"\1\nlavfi.scene_score=1", state.cuts)))
     monkeypatch.setattr(cut, "burned_caption_top", lambda d: None)
     monkeypatch.setattr(caption_models, "engine", engine)
     return state
