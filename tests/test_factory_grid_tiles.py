@@ -23,7 +23,9 @@ def clip(tmp_path, monkeypatch, zing_workspace):
     monkeypatch.setattr(detector, "require_model", lambda: tmp_path / "model")
     monkeypatch.setattr(cv2, "imread", lambda path: state.images[(int(path[-9:-4])-1)//30].copy())
     monkeypatch.setattr(cv2, "FaceDetectorYN", SimpleNamespace(create=lambda *a: SimpleNamespace(
-        setInputSize=lambda size: None, detect=lambda img: (None, np.array(state.faces, dtype=np.float32)))))
+        setInputSize=lambda size: None, detect=lambda img: (None, np.array([[x, y, w, h, x + .3*w, y + .35*h, x + .7*w, y + .35*h, x + .5*w, y + .55*h,
+                                              x + .3*w, y + .75*h, x + .7*w, y + .75*h, .9]
+                                             for x, y, w, h in state.faces], dtype=np.float32)))))
     return state
 
 
