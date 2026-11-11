@@ -118,6 +118,55 @@ VIDEO_TALKY = {"briefing", "conference", "interview", "update", "panel", "q", "a
 VIDEO_BROLL = {"b-roll", "broll", "footage", "timelapse", "time-lapse", "view", "views", "flyover", "fly", "flight",
                "orbit", "tour", "aerial", "beauty"}
 THIS_YEAR = time.localtime().tm_year
+PLACES = {
+    "state": "alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia/georgian|"
+             "hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|"
+             "minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|"
+             "north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|"
+             "south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming",
+    "country": "afghanistan/afghan|albania/albanian|algeria/algerian|angola/angolan|argentina/argentine/argentinian|"
+               "armenia/armenian|australia/australian|austria/austrian|azerbaijan/azerbaijani|bahamas/bahamian|"
+               "bahrain/bahraini|bangladesh/bangladeshi|belarus/belarusian|belgium/belgian|bolivia/bolivian|"
+               "bosnia/bosnian|botswana/botswanan|brazil/brazilian|bulgaria/bulgarian|cambodia/cambodian|"
+               "cameroon/cameroonian|canada/canadian|chile/chilean|china/chinese|colombia/colombian|"
+               "congo/congolese|costa rica/costa rican|croatia/croatian|cuba/cuban|cyprus/cypriot|"
+               "czechia/czech/czech republic|denmark/danish|dominican republic/dominican|ecuador/ecuadorian|"
+               "egypt/egyptian|el salvador/salvadoran|england/english|estonia/estonian|ethiopia/ethiopian|"
+               "finland/finnish|france/french|germany/german|ghana/ghanaian|greece/greek|guatemala/guatemalan|"
+               "haiti/haitian|honduras/honduran|hungary/hungarian|iceland/icelandic|india/indian|"
+               "indonesia/indonesian|iran/iranian|iraq/iraqi|ireland/irish|israel/israeli|italy/italian|"
+               "ivory coast/ivorian/cote d'ivoire|jamaica/jamaican|japan/japanese|jordanian|"
+               "kazakhstan/kazakh|kenya/kenyan|kuwait/kuwaiti|kyrgyzstan/kyrgyz|laos/lao/laotian|latvia/latvian|"
+               "lebanon/lebanese|libya/libyan|lithuania/lithuanian|luxembourg/luxembourgish|"
+               "madagascar/malagasy|malaysia/malaysian|malta/maltese|mexico/mexican|moldova/moldovan|"
+               "mongolia/mongolian|montenegro/montenegrin|morocco/moroccan|mozambique/mozambican|"
+               "myanmar/burma/burmese|namibia/namibian|nepal/nepali/nepalese|netherlands/dutch|"
+               "new zealand/new zealander|nicaragua/nicaraguan|nigeria/nigerian|north korea/north korean|"
+               "norway/norwegian|oman/omani|pakistan/pakistani|palestine/palestinian|panama/panamanian|"
+               "paraguay/paraguayan|peru/peruvian|philippines/philippine/filipino|poland/polish|"
+               "portugal/portuguese|qatar/qatari|romania/romanian|russia/russian|rwanda/rwandan|"
+               "saudi arabia/saudi|scotland/scottish|senegal/senegalese|serbia/serbian|singapore/singaporean|"
+               "slovakia/slovak|slovenia/slovenian|somalia/somali|south africa/south african|"
+               "south korea/south korean|spain/spanish|sri lanka/sri lankan|sudan/sudanese|sweden/swedish|"
+               "switzerland/swiss|syria/syrian|taiwan/taiwanese|tanzania/tanzanian|thailand/thai|"
+               "tunisia/tunisian|turkiye/turkish|uganda/ugandan|ukraine/ukrainian|"
+               "united arab emirates/uae/emirati|united kingdom/uk/britain/british|"
+               "united states/united states of america/usa/america/american|uruguay/uruguayan|uzbekistan/uzbek|"
+               "venezuela/venezuelan|vietnam/vietnamese|wales/welsh|yemen/yemeni|zambia/zambian|zimbabwe/zimbabwean",
+    "city": "abu dhabi|alameda|alexandria|amsterdam|athens|atlanta|auckland|baghdad|bangkok|barcelona|beijing|"
+            "beirut|berlin|bogota|boston|brasilia|brisbane|brussels|bucharest|budapest|buenos aires|cairo|"
+            "cape town|caracas|chennai|chicago|chongqing|copenhagen|dallas|delhi/new delhi|dhaka|dubai|dublin|"
+            "durban|frankfurt|fukuoka|guangzhou|hanoi|harare|havana|helsinki|ho chi minh city/saigon|houston|"
+            "hyderabad|islamabad|istanbul|jacksonville|jakarta|jerusalem|johannesburg|karachi|kathmandu|"
+            "khartoum|kinshasa|kolkata/calcutta|kuala lumpur|kyiv/kiev|lagos|lahore|las vegas|lima|lisbon|"
+            "london|los angeles|madrid|magdeburg|manila|melbourne|mexico city|miami|milan|minneapolis|"
+            "montreal|moscow|mumbai/bombay|munich|nairobi|nanjing|napa|naples|osaka|oslo|ottawa|paris|perth|"
+            "philadelphia|phoenix|prague|quito|rio de janeiro|riyadh|rome|san diego|san francisco|san jose|"
+            "santiago|sao paulo|seattle|seoul|shanghai|shenzhen|stockholm|sydney|taipei|tehran|tokyo|"
+            "toronto|vancouver|vienna|warsaw|washington dc|wellington|wuhan|yokohama|zurich",
+    "territory": "bermuda|gibraltar|greenland|guam|hong kong|macau/macao|puerto rico",
+    "county": "essex|sussex|middlesex",
+}
 
 
 def stem(t: str) -> str:
@@ -153,16 +202,35 @@ def flat(text: str) -> str:
     return " " + re.sub(r"[^a-z0-9]+", " ", html.unescape(text or "").lower()).strip() + " "
 
 
+@cache
+def _place_names():
+    names = {}
+    for kind, group in PLACES.items():
+        for entry in group.split("|"):
+            aliases = entry.split("/")
+            for name in aliases:
+                names[flat(name).strip()] = (aliases[0], kind)
+    pattern = re.compile(r"\b(?:" + "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True)) + r")\b")
+    return pattern, names
+
+
+def places(text: str) -> dict[str, str]:
+    pattern, names = _place_names()
+    return dict(names[m[0]] for m in pattern.finditer(flat(text)))
+
+
 def _norm_word(w: str) -> str:
     return re.sub(r"[^a-z0-9-]", "", w.lower())
 
 
 class Query:
-    def __init__(self, req: dict, kind: str, mode: str):
+    def __init__(self, req: dict, kind: str, mode: str, *, words: str = ""):
         self.raw, self.kind, self.mode = req["query"].strip(), kind, mode
         self.entity = (req.get("entity") or "").strip()            # the planner's canonical name, when it gave one
         context = req.get("context") or ""
         self.context = context
+        self.places = places(" ".join((self.raw, context, self.entity)))
+        self.clip_places = self.places | places(words)
         words = [w for w in raw_tokens(self.raw) if w not in STOP and w not in KIND_WORDS]
         strong = [w for w in dict.fromkeys(words) if w not in WEAK]
         weak = [w for w in dict.fromkeys(words) if w in WEAK]
@@ -275,6 +343,8 @@ def score(c: dict, q: Query) -> float | None:
     s += shape_bonus(c.get("width"), c.get("height"), q)
     if q.wants_video:
         s += 0.12 if c.get("media_type") == "video" else -0.10
+    if c.get("places_off"):
+        s -= 0.75
     return round(s, 4)
 
 
@@ -1272,10 +1342,11 @@ def fetch_candidate(ctx, c: dict, folder: Path, hashes: list[int]) -> dict:
 class Ctx:
     def __init__(self, outdir: Path, mode: str = "context", public: bool = False, openverse: bool = False,
                  min_video: int = MIN_LONG_SIDE, maxc: int = 5, *, project: Path | None = None,
-                 visuals: Path | None = None):
+                 visuals: Path | None = None, words: str = ""):
         self.network = Network(project or outdir)
         self.http, self.health = Http(project=self.network.project), Health()
         self.visuals = Path(visuals) if visuals else None
+        self.words = words
         self.mode, self.public, self.openverse = mode, public, openverse
         self.min_video, self.maxc = min_video, max(1, min(5, maxc))
         self.tmp = outdir / "_tmp"
@@ -1350,6 +1421,14 @@ def rank(cands: list[dict], q: Query, log: dict) -> list[dict]:
         if nsfw(c):
             log["rejected"].append({"title": c["title"][:80], "source": c["source"], "why": "not safe for work"})
             continue
+        named = places(" ".join(strip_html(c.get(k)) for k in ("title", "desc", "description")))
+        c.pop("places_off", None)
+        off = sorted(named.keys() - q.clip_places.keys())
+        if off:
+            c["places_off"] = off
+        if named.keys().isdisjoint(q.places) and any(named[p] in q.places.values() for p in named):
+            log["rejected"].append({"title": c["title"][:80], "source": c["source"], "why": "names another place"})
+            continue
         s = score(c, q)
         if s is None:
             log["rejected"].append({"title": c["title"][:80], "source": c["source"], "why": "no title match"})
@@ -1407,7 +1486,7 @@ def download_ranked(ctx, ranked: list[dict], q: Query, folder: Path) -> list[dic
 
 def process(ctx, req: dict, folder: Path) -> list[dict]:
     kind = req.get("kind") or "photo"
-    q = Query(req, kind, ctx.mode)
+    q = Query(req, kind, ctx.mode, words=ctx.words)
     ctx.sites = []
     ctx.log = {"query": req["query"], "kind": kind, "mode": ctx.mode, "route": [], "entities": [],
                "rejected": [], "notes": []}
@@ -1417,7 +1496,7 @@ def process(ctx, req: dict, folder: Path) -> list[dict]:
             f.unlink()
     if kind == "screenshot" and not req.get("url"):
         ctx.log["notes"].append("no url given; searched for a photo instead")
-        q = Query(req, "photo", ctx.mode)
+        q = Query(req, "photo", ctx.mode, words=ctx.words)
     found = local_candidates(ctx, q) + gather(ctx, q, [] if kind == "screenshot" else route_for(ctx, q))
     # official site / given url: screenshot + scroll recording + og media (context mode, or an explicit url)
     site = None
@@ -1434,7 +1513,7 @@ def process(ctx, req: dict, folder: Path) -> list[dict]:
     got = download_ranked(ctx, rank(found, q, ctx.log), q, folder)
     if not got and q.wants_video:
         ctx.log["notes"].append("no usable video; fell back to stills")
-        q2 = Query(req, "photo", ctx.mode)
+        q2 = Query(req, "photo", ctx.mode, words=ctx.words)
         got = download_ranked(ctx, rank(local_candidates(ctx, q2) + gather(ctx, q2, route_for(ctx, q2)), q2, ctx.log), q2, folder)
         for c in got:
             c["notes"] = (c.get("notes", "") + "; still fallback for a video request").strip("; ")
@@ -1461,7 +1540,7 @@ def finalize(got: list[dict], q: Query, folder: Path, maxc: int) -> list[dict]:
             rec.update(duration_s=c.get("duration_s"), codec=c.get("codec"), mime=c.get("mime") or "video/mp4")
         else:
             rec.update(mime=c.get("mime"), has_alpha=c.get("has_alpha", False))
-        for k in ("entity", "notes", "bytes"):
+        for k in ("entity", "notes", "bytes", "places_off"):
             if c.get(k):
                 rec[k] = c[k]
         out.append(rec)
@@ -1559,7 +1638,7 @@ def contact_sheet(manifest: dict, outdir: Path, requests: list[dict], mode: str)
 # ----------------------------------------------------------------------------- entry point
 def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: bool = False, openverse: bool = False,
          maxc: int = 5, min_video: int = MIN_LONG_SIDE, sheet: bool = True, say=print,
-         project: Path | None = None, visuals: Path | None = None) -> dict:
+         project: Path | None = None, visuals: Path | None = None, words: str = "") -> dict:
     """Search, download and rank candidates for every request; returns the manifest written to outdir."""
     from .pipeline import _write
     if mode not in ("context", "fun", "documentary"):
@@ -1567,7 +1646,7 @@ def find(requests: list[dict], outdir: Path, mode: str = "context", *, public: b
     outdir = Path(outdir).resolve()
     outdir.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
-    ctx = Ctx(outdir, mode, public, openverse, min_video, maxc, project=project, visuals=visuals)
+    ctx = Ctx(outdir, mode, public, openverse, min_video, maxc, project=project, visuals=visuals, words=words)
     keys = {n: ("present" if v else "absent") for n, v in ctx.keys.items()}
     skipped = [f"{s}: {SOURCE_KEY[s]} absent" for s in ("pexels", "pixabay", "exa") if not ctx.keys[SOURCE_KEY[s]]]
     if not openverse:

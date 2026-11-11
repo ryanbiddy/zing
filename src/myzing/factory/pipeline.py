@@ -495,7 +495,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
             say(f"{task}: finding visuals for {len(reqs)} requests ({mode})")
             _write(visdir / "requests.json", reqs)
             visuals.find(reqs, visdir, "context" if mode == "launch" else mode, public=cfg.get("public", False), say=say,
-                         project=project, visuals=cfg.get("visuals"))
+                         project=project, visuals=cfg.get("visuals"), words=" ".join(x["w"] for x in w["words"]))
         manifest = _read(visdir / "manifest.json", {})
         if any(manifest.values()):
             saved = _read(visdir / "picks.json")
