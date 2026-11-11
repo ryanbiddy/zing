@@ -10,6 +10,8 @@ import tempfile
 import wave
 from pathlib import Path
 
+from myzing.word_joins import joins_previous
+
 from .tools import ffmpeg, run
 
 STAMP = re.compile(r"(?:(\d+):)?(\d{1,2}):(\d{2})[.,](\d{1,3})")
@@ -69,9 +71,16 @@ def load_transcript(path: Path, offset: float = 0.0) -> tuple[list[dict], list[d
             if not isinstance(data, list) or not data or any(not isinstance(x, dict) for x in data):
                 raise ValueError
             if "w" in data[0] or "start" in data[0]:     # {w,s,e} words or Zing Words {text,start,end}
-                words = [{"w": str(x["w"] if "w" in x else x["text"]).strip(),
-                          "s": round(float(x["s"] if "s" in x else x["start"]) + offset, 3),
-                          "e": round(float(x["e"] if "e" in x else x["end"]) + offset, 3)} for x in data]
+                words = []
+                for x in data:
+                    w = {"w": str(x["w"] if "w" in x else x["text"]).strip(),
+                         "s": round(float(x["s"] if "s" in x else x["start"]) + offset, 3),
+                         "e": round(float(x["e"] if "e" in x else x["end"]) + offset, 3)}
+                    if words and joins_previous(w["w"]):
+                        words[-1]["w"] += w["w"]
+                        words[-1]["e"] = w["e"]
+                    else:
+                        words.append(w)
                 return segments_from_words(words), words
             return [{"s": float(x["s"]) + offset, "e": float(x["e"]) + offset, "text": x["text"]} for x in data], None
         except (ValueError, TypeError, KeyError, OverflowError):
