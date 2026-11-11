@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 
 import pytest
 
@@ -116,6 +117,7 @@ def test_picked_pages_are_distinct_from_logos(tmp_path, source, kind, want):
     assert found["v1"].get("page", False) is want
 
 
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="FFmpeg not installed")
 @pytest.mark.parametrize("video", [False, True])
 @pytest.mark.parametrize("saved", [False, True])
 def test_page_flag_reaches_the_scene(tmp_path, monkeypatch, video, saved):
