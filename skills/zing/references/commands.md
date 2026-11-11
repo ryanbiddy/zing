@@ -420,6 +420,10 @@ recomputes all entries and cannot be combined with `--retry-failed`. See
 
 Factory renders check detected text against each shot's actual crop and output
 shape. Cards stay whole when the crop would cut text, including in solo shots.
+Face crops leave room for hair and limit face height to 40% of the speaker panel.
+Source pixels scale up by at most 1.6 times unless hiding burned-in captions needs more.
+Stable grid borders keep neighboring tiles out. A tile stays whole over the blurred
+background when filling the panel would exceed those limits.
 Speaker-top packs keep captions above the graphic card when avoiding a low face.
 Lists with seven or more items shrink their badges and text to fit the rows.
 Funnels start with dim bars at their final widths and dim labels. Each row lights up and

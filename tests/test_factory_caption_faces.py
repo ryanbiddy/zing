@@ -102,11 +102,12 @@ def test_high_face_keeps_the_original_framing_and_default_caption(src, wide):
         assert not intersects(state["caption"], state["face"])
 
 
-def test_low_webcam_zoom_keeps_at_least_300_source_pixels():
+def test_low_webcam_fills_the_panel_without_zooming_past_it():
     for state in frames(data(), [0, .5, 1.3]):
-        assert state["s"] > 1520 / 360 * 1.05
+        p = state["t"] / 4
+        move = 1 + .05 * (4*p**3 if p < .5 else 1 - (-2*p+2)**3 / 2)
+        assert state["s"] == pytest.approx(1520 / 360 * move)   # filling already blows 360 rows up past the 1.6x cap
         assert 1520 / state["s"] >= 300
-        assert (state["center"] - 400) / 1520 == pytest.approx(.472)
 
 
 def test_small_low_webcam_face_still_keeps_300_source_pixels():
@@ -115,17 +116,17 @@ def test_small_low_webcam_face_still_keeps_300_source_pixels():
 
 
 @pytest.mark.parametrize("wide", [False, True])
-def test_low_hd_face_moves_toward_42_percent(wide):
+def test_low_hd_face_stops_short_of_42_percent(wide):
     state = frames(data(src=(1920, 1080), cam={"wide": wide}), [0])[0]
-    assert (state["center"] - 400) / 1520 == pytest.approx(.42, abs=1e-6)
-    assert state["s"] / (1520 / 1080) == pytest.approx(4 / 3, abs=2e-6)
+    assert (state["center"] - 400) / 1520 == pytest.approx(1 - .44*1080*1.6/1520)
+    assert state["s"] == pytest.approx(1.6)
     assert 1520 / state["s"] >= 300
 
 
-@pytest.mark.parametrize("wide,limit", [(False, 2.2), (True, 1.4)])
-def test_low_face_zoom_stops_at_the_existing_cap(wide, limit):
+@pytest.mark.parametrize("wide", [False, True])
+def test_low_face_zoom_stops_at_the_scale_cap(wide):
     for state in frames(data(src=(1920, 1080), cam={"cy": .97, "wide": wide})):
-        assert state["s"] / (1520 / 1080) == pytest.approx(limit)
+        assert state["s"] == pytest.approx(1.6)
         assert 1520 / state["s"] >= 300
 
 
@@ -185,7 +186,7 @@ def test_pack_caption_near_the_top_moves_into_the_safe_area():
 
 
 def test_impossible_fit_uses_the_lower_safe_position():
-    states = frames(data(cam={"fh": 1}))
+    states = frames(data(cam={"fh": 1}, burnTop=.72))
     assert len({s["cy"] for s in states}) == 1
     assert all(1300 < s["cy"] < 1440 and 150 <= s["caption"]["y0"] < s["caption"]["y1"] <= 1440
                for s in states)
