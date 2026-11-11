@@ -19,7 +19,8 @@ pytestmark = pytest.mark.skipif(not shutil.which("ffmpeg"), reason="FFmpeg not i
 def clip(tmp_path, monkeypatch, zing_workspace):
     def detect(img):
         x = 30 if img[50, 50, 0] > 96 else 220
-        return None, np.array([[x, 30, 40, 40]], dtype=np.float32)
+        return None, np.array([[x, 30, 40, 40, x + 10, 44, x + 30, 44, x + 20, 52,
+                               x + 12, 60, x + 28, 60, .9]], dtype=np.float32)
 
     monkeypatch.setattr(detector, "require_model", lambda: tmp_path / "model")
     monkeypatch.setattr(cv2, "FaceDetectorYN", SimpleNamespace(create=lambda *a: SimpleNamespace(

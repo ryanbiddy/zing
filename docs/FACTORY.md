@@ -597,6 +597,9 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Headline panels keep their pack's placement.
   Speaker captions move clear of faces and hold their position for the whole phrase, including with `cap_y`.
   Graphic cards bound caption placement in either split order.
+  Whole pages also bound caption placement in 9:16 splits. Captions that overlap
+  a page use a dark rounded background, including kinetic captions. Packs keep
+  their own caption backgrounds. Photos and logos keep their existing look.
 - Lists center the title and all items as one block. Items fade in at fixed positions.
   Badges and text shrink when seven or more items need closer rows.
 - Counters start when the card appears and reach the final number by its `at`
@@ -613,7 +616,10 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   shot of the speaker.
 - Speaker framing uses the pinned YuNet face model (`zing layout fetch-model`).
   Close-ups teach the frame what the main speaker wears; in wide shots it follows them.
-  Captions already burned into the source are cropped out.
+  Face boxes stay within 40% of the speaker panel height, with room above the brows for hair.
+  Source pixels scale up by at most 1.6 times. Cropping out burned-in captions can override these limits.
+  Clear grid borders that agree across sampled frames keep each face inside its own tile.
+  If filling the panel would exceed the limits, the whole tile sits over the blurred background.
   With local OCR available, text cards without faces stay whole over a blurred background if the crop would cut text.
   Each shot checks its actual panel and output shape, including solo shots that fill the frame.
   A closing group shot under half a second with no tracked face holds the previous
@@ -659,6 +665,8 @@ documentary, with the speaker as the narrator:
   the Internet Archive): period photographs, paintings, documents, letters, maps and
   portraits. No stock, no site captures. The picker keeps a period map or register of
   the exact subject as evidence instead of rejecting it as a scan.
+  It rejects unrelated places, police forces, teams and companies, including names
+  on cars, signs and jerseys. This rule also applies in context and fun modes.
 - The archival image fills the frame in every shape, moving through its depth; the
   speaker comes back on camera for opinions and emotional beats.
 - The `documentary` pack grades footage and photos to warm black and white with grain

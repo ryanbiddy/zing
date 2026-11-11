@@ -4,11 +4,17 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #587
+Release candidate for Zing v1. These notes cover merged PRs #401 through #588
 on main, newest first.
 
 ### Changes since #452
 
+- Frame webcams and grids the way an editor would. A 9:16 punch-in stops before the
+  face fills the panel, the picture blurs or the head is cut off, and a guest in a
+  webcam grid is shown inside their own tile with no slivers of the next one. Captions
+  stay off website pages and get a dark plate when they have to cross one. Pictures
+  whose titles name a place the clip never mentions rank last, the picker reads each
+  picture's title, and hands and chair backs no longer count as faces.
 - Keep nude and sexual pictures out of factory visuals. Picture searches, pick sheets
   and saved picks skip them, and the picker is told to refuse them.
 - Keep words like 20%, salesforce.com and co-founder whole in captions instead of

@@ -420,7 +420,14 @@ recomputes all entries and cannot be combined with `--retry-failed`. See
 
 Factory renders check detected text against each shot's actual crop and output
 shape. Cards stay whole when the crop would cut text, including in solo shots.
+Face crops leave room for hair and limit face height to 40% of the speaker panel.
+Source pixels scale up by at most 1.6 times unless hiding burned-in captions needs more.
+Stable grid borders keep neighboring tiles out. A tile stays whole over the blurred
+background when filling the panel would exceed those limits.
 Speaker-top packs keep captions above the graphic card when avoiding a low face.
+Whole pages also bound caption placement in 9:16 splits. Captions that overlap
+a page use a dark rounded background, including kinetic captions. Packs keep
+their own caption backgrounds. Photos and logos keep their existing look.
 Lists with seven or more items shrink their badges and text to fit the rows.
 Funnels start with dim bars at their final widths and dim labels. Each row lights up and
 shows its number at its `at` time. The stack stays centered below the title,
@@ -491,6 +498,14 @@ purpose. Only an empty offline ledger shows `offline: nothing fetched`.
 Visual searches, sheets and picks skip candidates whose title, description or credit
 names nudity or sexual content. This also applies to saved manifests. A blocked pick
 shows no visual for that moment.
+
+Pick sheets show a short title below each tile. The judge rejects unrelated places,
+police forces, teams and companies, including names on cars, signs and jerseys.
+Search ranking lowers candidates that name a known place absent from the request
+and clip words. A request that names a place rejects a different place of the same
+kind, such as another state or country. If the judge leaves a row unanswered, the
+fallback skips candidates flagged for an unrelated place. If none remain, it shows
+no visual. An explicit pick or rejection still takes precedence.
 
 `fetch-depth`, `fetch-cutout` and `fetch-upscale` accept `--project DIR` to use that
 project's network policy and ledger. Without it, the download is not tied to a

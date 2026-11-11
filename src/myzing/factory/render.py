@@ -276,6 +276,11 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
                             **({"width": None} if uhd else {})) if front and splits else None
     for s in splits if lifted else ():
         s["layout"] = "front"
+    try:
+        requests = json.loads((d / "visuals" / "requests.json").read_text(encoding="utf-8"))
+        pages = {r.get("id") for r in requests if isinstance(r, dict) and r.get("kind") == "screenshot"}
+    except (OSError, ValueError, TypeError):
+        pages = set()
     visuals = {}
     for vid, v in plan.get("visuals", {}).items():
         p, moved, credit = Path(v["path"]), None, v.get("credit", "")
@@ -305,6 +310,8 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             box = picture_crop([p])
         if box:
             visuals[vid]["crop"] = box
+        if v.get("page", vid in pages and v.get("fit") == "contain"):
+            visuals[vid]["page"] = True
     hook = plan["hook"].replace("&", "&amp;").replace("<", "&lt;")
     source = d.parent / "source.json"
     W, H = SHAPES[shape]

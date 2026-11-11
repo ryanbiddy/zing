@@ -39,6 +39,10 @@ def _thumb(path: Path):
     return canvas
 
 
+def title_label(c: dict) -> str:
+    return " ".join((c.get("title") or "").split())[:40]
+
+
 def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
     from PIL import Image, ImageDraw, ImageFont
     rows = [r for r in requests if any(not nsfw(c) for c in (manifest.get(r["id"]) or []))]
@@ -64,6 +68,10 @@ def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
             dr.rectangle([x, y + BAND - 26, x + 110, y + BAND + 2], fill=(255, 210, 63))
             dr.text((x + 8, y + BAND - 25), f"{i + 1}" + ("  VIDEO" if c.get("media_type") == "video" else ""),
                     fill=(8, 18, 51), font=f_small)
+            title = title_label(c)
+            while dr.textbbox((0, 0), title, font=f_small)[2] > TW:
+                title = title[:-1]
+            dr.text((x, y + BAND + TH - 20), title, fill=(230, 233, 240), font=f_small)
         y += TH + BAND + 16
     out = visdir / "pick_sheet.jpg"
     img.save(out, quality=88)
@@ -71,12 +79,14 @@ def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
 
 
 REJECT = """- doesn't show what's being talked about, or shows the wrong subject;
+- names or shows a particular place, police force, team or company the speaker isn't talking about (lettering on a car, a sign or a jersey counts);
 - shows nudity, sexual content, or anything not safe for a general audience;
 - has burned-in text, titles, captions, watermarks or a logo bug that would clash with our captions;
 - is blurry, tiny, a scan of a document, a diagram, a map, or visual clutter;
 - is a dull archival picture when the moment calls for something vivid.
 """
 REJECT_DOC = """- doesn't show what's being talked about, or shows the wrong subject, place or period;
+- names or shows a particular place, police force, team or company the speaker isn't talking about (lettering on a car, a sign or a jersey counts);
 - shows nudity, sexual content, or anything not safe for a general audience;
 - has a watermark or a logo bug;
 - is blurry, tiny or visual clutter. A period map, letter, register or newspaper of the exact subject is evidence:
@@ -90,7 +100,7 @@ def prompt(sheet_path: Path, mode: str, sensitive_reason: str | None) -> str:
                  "related. Restrained, documentary, dignified images only.") if sensitive_reason is not None else ""
     return f"""Read the image at {sheet_path.resolve().as_posix()}. It is a contact sheet for a social video clip cut from a podcast.
 Each row is one moment that needs a visual: the left label is its id, the top line is the search query and what the speaker says there,
-and the numbered tiles (1, 2, 3, ...) are the candidates found. Some tiles are stills from a video and are marked VIDEO.
+and the numbered tiles (1, 2, 3, ...) are the candidates found. Titles appear below the tiles. Some tiles are stills from a video and are marked VIDEO.
 
 {MODE_RULES["context" if sensitive and mode != "documentary" else mode]}
 
@@ -112,7 +122,7 @@ def picks_from(answer: dict) -> dict[str, dict]:
 
 
 def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, dict]) -> dict[str, dict]:
-    """The picked candidate per request (finder's top choice when the judge skipped a row), with credit and fit."""
+    """The picked candidate per request (top unflagged choice when the judge skipped a row), with credit and fit."""
     found = {}
     for rid, cands in manifest.items():
         if rid in picks:
@@ -120,6 +130,8 @@ def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, 
             if k is None or not 0 <= k < len(cands) or nsfw(cands[k]):
                 continue                                 # a flagged pick shows nothing, not a tile nobody vetted
             cands = [cands[k]]
+        else:
+            cands = [c for c in (cands or []) if not c.get("places_off")]
         c = next((c for c in (cands or []) if not nsfw(c)), None)
         if c is None:
             continue
@@ -139,5 +151,6 @@ def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, 
         kind = next((r.get("kind") for r in requests if r.get("id") == rid), "")
         whole = kind == "logo" or c.get("source") in ("screenshot", "scroll", "ogimage")   # never crop a logo or a page
         found[rid] = {"path": str(visdir / c["path"]), "credit": text,
-                      "rights": c.get("rights", "unknown"), **({"fit": "contain"} if whole else {})}
+                      "rights": c.get("rights", "unknown"), **({"fit": "contain"} if whole else {}),
+                      **({"page": True} if whole and kind != "logo" else {})}
     return found

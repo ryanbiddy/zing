@@ -38,7 +38,10 @@ def clip(tmp_path, monkeypatch, zing_workspace):
         return Frame(state.shape, int(Path(path).stem))
 
     def detect(img):
-        return None, state.faces(img) if callable(state.faces) else state.faces
+        faces = state.faces(img) if callable(state.faces) else state.faces
+        return None, None if faces is None else [
+            [x, y, w, h, x + .3*w, y + .35*h, x + .7*w, y + .35*h, x + .5*w, y + .55*h,
+             x + .3*w, y + .75*h, x + .7*w, y + .75*h, .9] for x, y, w, h in faces]
 
     def ocr(img):
         state.calls.append((img.number, img.shape))
