@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from myzing.schemas import Word
+from myzing.word_joins import joins_previous
 
 from . import formats
 
@@ -226,18 +227,24 @@ def _collect_words(segments) -> list[Word]:
     """
     words: list[Word] = []
     for segment in segments:
+        first = len(words)
         for w in segment.words or []:
             text = w.word.strip()
             if not text:
                 continue
-            words.append(
-                Word(
-                    text=text,
-                    start=round(float(w.start), 3),
-                    end=round(float(w.end), 3),
-                    confidence=round(float(w.probability), 3),
-                )
+            word = Word(
+                text=text,
+                start=round(float(w.start), 3),
+                end=round(float(w.end), 3),
+                confidence=round(float(w.probability), 3),
             )
+            if len(words) > first and joins_previous(w.word, raw=True):
+                previous = words[-1]
+                previous.text += word.text
+                previous.end = word.end
+                previous.confidence = min(previous.confidence, word.confidence)
+            else:
+                words.append(word)
     words.sort(key=lambda w: (w.start, w.end))
     return words
 
