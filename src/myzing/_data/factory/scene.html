@@ -417,12 +417,12 @@ function geometry(layout) {
   if (layout === 'solo') return {spk:full, cap, hook:'pill', pill};
   return {[layout==='split'?'top':'gfx']:full, cap, hook:'pill', pill};
 }
-function visualBox(G, shot) {
+function visualBox(G, shot, page=false) {
   const v = G.top && D.visuals[shot.visual];
-  if (!v || v.fit !== 'contain' || ASPECT !== '9x16') return null;
+  if (!v || v.fit !== 'contain' || (page ? !v.page : ASPECT !== '9x16')) return null;
   const W = G.win || G.top, [x, y, w, h] = v.crop || [0, 0, v.w, v.h];
-  const s = Math.min(W.w/w, W.h/h), y0 = G.top.y + (W.h-h*s)/2;
-  return {y0, y1:y0+h*s};
+  const s = Math.min(W.w/w, W.h/h), x0 = G.top.x + (W.w-w*s)/2, y0 = G.top.y + (W.h-h*s)/2;
+  return page ? {x0, x1:x0+w*s, y0, y1:y0+h*s} : {y0, y1:y0+h*s};
 }
 function captionBase(G, cbox, h, centered) {
   let cy = G.cap;
@@ -446,6 +446,11 @@ function captionY(gi, cy, cap, box, centered) {
     if (ASPECT === '9x16' && G.gfx && S) {
       if (G.gfx.y > S.y) high = Math.min(high, G.gfx.y + 36 + h/2);
       else low = Math.max(low, G.gfx.y + G.gfx.h - 36 - h/2);
+    }
+    const page = visualBox(G, shot, true);
+    if (ASPECT === '9x16' && page) {
+      if (S && G.top.y > S.y) high = Math.min(high, page.y0-gap);
+      else if (page.y1+gap+h <= high) low = Math.max(low, page.y1+gap);
     }
     if (!S) continue;
     if (G.hook === 'header') low = Math.max(low, 390);
@@ -477,6 +482,12 @@ function captionY(gi, cy, cap, box, centered) {
   y = clamp(y, low+h/2, high-h/2);
   capPositions.set(gi, y-offset);
   return y-offset;
+}
+function captionPlate(box, on) {
+  const own = TH0.cap_bg && !['none', 'transparent'].includes(TH0.cap_bg);
+  box.style.background = on ? own ? TH0.cap_bg : 'rgba(5,12,36,.75)' : '';
+  box.style.padding = on && !own ? '.18em .45em' : '';
+  box.style.borderRadius = on && !own ? '.18em' : '';
 }
 function place(el, b) { if (!b) { el.style.display='none'; return; }
   el.style.display='block'; el.style.left=b.x+'px'; el.style.top=b.y+'px'; el.style.width=b.w+'px'; el.style.height=b.h+'px'; }
@@ -605,7 +616,7 @@ window.seek = async function(t) {
   if (LOOK.grain) { gr.style.opacity = LOOK.grain; gr.style.backgroundPosition = `${(fr*37)%240}px ${(fr*91)%240}px`; }
 
   // a page shown whole sits mid-frame in 9x16: the hook goes above it and the captions below it, never over it
-  const cbox = visualBox(G, shot);
+  const cbox = visualBox(G, shot), page = visualBox(G, shot, true);
 
   // hook: a header over solo in 9x16, otherwise a pill for the first seconds
   const hookOn = t < D.hookUntil;
@@ -675,6 +686,7 @@ window.seek = async function(t) {
 
   // captions
   const cap = $('cap'), box = cap.firstChild;
+  captionPlate(box, false);
   if (show) {
     const grp = groups[gi];
     if (KIN) { cap.classList.add('kin');
@@ -689,7 +701,19 @@ window.seek = async function(t) {
     if (CAP_DEFAULT || TH0.cap_font === 'ZingCaption') fitCaption(box, gi);
     const centered = ASPECT === '9x16' || CAP.y != null;
     let cy = captionBase(G, cbox, cap.offsetHeight, centered);
-    if (!KIN) cy = captionY(gi, cy, cap, box, centered);
+    if (!KIN || page) cy = captionY(gi, cy, cap, box, centered);
+    if (page) {
+      const scale = Math.max(1, CAP_SCALE) * Math.max(1, CAP.pop_from) * (CAP.overshoot ? 1.03 : 1);
+      const stroke = TH0.cap_stroke_w ?? (CAP_DEFAULT ? 7 : 0);
+      const h = (cap.offsetHeight+stroke*2)*scale, w = (box.offsetWidth+stroke*2)*scale;
+      const y = cy + (centered ? 0 : cap.offsetHeight/2);
+      if (y+h/2 > page.y0 && y-h/2 < page.y1 && (SW+w)/2 > page.x0 && (SW-w)/2 < page.x1) {
+        captionPlate(box, true);
+        if (CAP_DEFAULT || TH0.cap_font === 'ZingCaption') fitCaption(box, gi+':page');
+        const h = (cap.offsetHeight+stroke*2)*scale;
+        cy = Math.min(cy, (ASPECT === '9x16' ? 1440 : SH9) - (centered ? h/2 : h));
+      }
+    }
     cap.style.top = cy + 'px';
     cap.style.opacity = visible ? 1 : 0;
     const pop = lin(t, W[grp[0]].os, W[grp[0]].os + CAP.pop_ms/1000);

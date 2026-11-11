@@ -421,6 +421,9 @@ recomputes all entries and cannot be combined with `--retry-failed`. See
 Factory renders check detected text against each shot's actual crop and output
 shape. Cards stay whole when the crop would cut text, including in solo shots.
 Speaker-top packs keep captions above the graphic card when avoiding a low face.
+Whole pages also bound caption placement in 9:16 splits. Captions that overlap
+a page use a dark rounded background, including kinetic captions. Packs keep
+their own caption backgrounds. Photos and logos keep their existing look.
 Lists with seven or more items shrink their badges and text to fit the rows.
 Funnels start with dim bars at their final widths and dim labels. Each row lights up and
 shows its number at its `at` time. The stack stays centered below the title,

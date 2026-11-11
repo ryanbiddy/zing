@@ -597,6 +597,9 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Headline panels keep their pack's placement.
   Speaker captions move clear of faces and hold their position for the whole phrase, including with `cap_y`.
   Graphic cards bound caption placement in either split order.
+  Whole pages also bound caption placement in 9:16 splits. Captions that overlap
+  a page use a dark rounded background, including kinetic captions. Packs keep
+  their own caption backgrounds. Photos and logos keep their existing look.
 - Lists center the title and all items as one block. Items fade in at fixed positions.
   Badges and text shrink when seven or more items need closer rows.
 - Counters start when the card appears and reach the final number by its `at`

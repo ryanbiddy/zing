@@ -139,5 +139,6 @@ def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, 
         kind = next((r.get("kind") for r in requests if r.get("id") == rid), "")
         whole = kind == "logo" or c.get("source") in ("screenshot", "scroll", "ogimage")   # never crop a logo or a page
         found[rid] = {"path": str(visdir / c["path"]), "credit": text,
-                      "rights": c.get("rights", "unknown"), **({"fit": "contain"} if whole else {})}
+                      "rights": c.get("rights", "unknown"), **({"fit": "contain"} if whole else {}),
+                      **({"page": True} if whole and kind != "logo" else {})}
     return found
