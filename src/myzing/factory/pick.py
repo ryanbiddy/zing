@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 from .tools import data_path, ffmpeg, run
+from .visuals import nsfw
 
 TW, TH, BAND = 360, 240, 64
 VIDEO = (".mp4", ".mov", ".webm", ".gif")
@@ -40,7 +41,7 @@ def _thumb(path: Path):
 
 def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
     from PIL import Image, ImageDraw, ImageFont
-    rows = [r for r in requests if manifest.get(r["id"])]
+    rows = [r for r in requests if any(not nsfw(c) for c in (manifest.get(r["id"]) or []))]
     if not rows:
         return None
     cols = max(len(manifest[r["id"]]) for r in rows)
@@ -53,6 +54,8 @@ def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
         dr.text((12, y + 6), r["id"], fill=(255, 210, 63), font=f_big)
         dr.text((220, y + 4), (r.get("query", "") + "  |  says: " + r.get("context", ""))[:150], fill=(230, 233, 240), font=f_small)
         for i, c in enumerate(manifest[r["id"]]):
+            if nsfw(c):
+                continue
             x = 220 + i * (TW + 12)
             try:
                 img.paste(_thumb(visdir / c["path"]), (x, y + BAND - 26))
@@ -68,11 +71,13 @@ def sheet(visdir: Path, requests: list[dict], manifest: dict) -> Path | None:
 
 
 REJECT = """- doesn't show what's being talked about, or shows the wrong subject;
+- shows nudity, sexual content, or anything not safe for a general audience;
 - has burned-in text, titles, captions, watermarks or a logo bug that would clash with our captions;
 - is blurry, tiny, a scan of a document, a diagram, a map, or visual clutter;
 - is a dull archival picture when the moment calls for something vivid.
 """
 REJECT_DOC = """- doesn't show what's being talked about, or shows the wrong subject, place or period;
+- shows nudity, sexual content, or anything not safe for a general audience;
 - has a watermark or a logo bug;
 - is blurry, tiny or visual clutter. A period map, letter, register or newspaper of the exact subject is evidence:
   keep it, and so is a screenshot of a news article about the story.
@@ -112,10 +117,12 @@ def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, 
     for rid, cands in manifest.items():
         if rid in picks:
             k = picks[rid]["pick"]
-            cands = [cands[k]] if k is not None and 0 <= k < len(cands) else []
-        if not cands:
+            if k is None or not 0 <= k < len(cands) or nsfw(cands[k]):
+                continue                                 # a flagged pick shows nothing, not a tile nobody vetted
+            cands = [cands[k]]
+        c = next((c for c in (cands or []) if not nsfw(c)), None)
+        if c is None:
             continue
-        c = cands[0]
         credit = c.get("attribution") or c.get("creator") or c.get("source") or ""
         lic = c.get("license") or ""
         text = c.get("credit_text") or (f"{credit} · {lic}" if credit and lic else credit or lic)

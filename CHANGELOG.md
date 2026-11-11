@@ -4,11 +4,13 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #586
+Release candidate for Zing v1. These notes cover merged PRs #401 through #587
 on main, newest first.
 
 ### Changes since #452
 
+- Keep nude and sexual pictures out of factory visuals. Picture searches, pick sheets
+  and saved picks skip them, and the picker is told to refuse them.
 - Keep words like 20%, salesforce.com and co-founder whole in captions instead of
   splitting them at the punctuation, and find camera cuts between look-alike angles
   of the same set so a 9:16 crop follows the speaker instead of the empty middle.

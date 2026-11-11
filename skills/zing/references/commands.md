@@ -488,6 +488,10 @@ Online runs also search public sources. Picks containing your files stay with th
 host judge. `status` and the review header summarize `network.jsonl` by host and
 purpose. Only an empty offline ledger shows `offline: nothing fetched`.
 
+Visual searches, sheets and picks skip candidates whose title, description or credit
+names nudity or sexual content. This also applies to saved manifests. A blocked pick
+shows no visual for that moment.
+
 `fetch-depth`, `fetch-cutout` and `fetch-upscale` accept `--project DIR` to use that
 project's network policy and ledger. Without it, the download is not tied to a
 project and is not recorded. Downloads still need `--yes`.

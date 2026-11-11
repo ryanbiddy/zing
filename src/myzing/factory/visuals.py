@@ -747,7 +747,7 @@ def ov_license(r: dict) -> str:
 
 def search_openverse(ctx, q: Query) -> list[dict]:
     d = ctx.http.get_json("https://api.openverse.org/v1/images/?" + urllib.parse.urlencode(
-        {"q": q.core, "license_type": "commercial,modification", "page_size": 10}), timeout=15)
+        {"q": q.core, "license_type": "commercial,modification", "page_size": 10, "mature": "false"}), timeout=15)
     out = []
     for i, r in enumerate(d.get("results") or []):
         w, h = r.get("width"), r.get("height")
@@ -1336,9 +1336,20 @@ def gather(ctx, q: Query, route: list[str]) -> list[dict]:
     return found
 
 
+def nsfw(c: dict) -> bool:
+    text = " ".join(strip_html(c.get(k)) for k in
+                    ("title", "desc", "description", "credit_text", "credit", "attribution", "creator"))
+    return bool(re.search(r"\b(nude|nudes|nudity|naked|topless|nsfw|erotic|erotica|porn|porno|pornography|pornographic|"
+                          r"sex|sexual|sexy|fetish|bdsm|bondage|lingerie|genitals|genitalia|penis|vagina|nipple|nipples|"
+                          r"striptease|stripper|orgy)\b", text, re.I))
+
+
 def rank(cands: list[dict], q: Query, log: dict) -> list[dict]:
     scored = []
     for c in cands:
+        if nsfw(c):
+            log["rejected"].append({"title": c["title"][:80], "source": c["source"], "why": "not safe for work"})
+            continue
         s = score(c, q)
         if s is None:
             log["rejected"].append({"title": c["title"][:80], "source": c["source"], "why": "no title match"})
@@ -1504,9 +1515,11 @@ def contact_sheet(manifest: dict, outdir: Path, requests: list[dict], mode: str)
     sheet = Image.new("RGB", (W, H), (18, 18, 20))
     d = ImageDraw.Draw(sheet)
     f_b, f_s = _font(18), _font(13)
-    d.text((pad, 14), f"find_visuals contact sheet  |  mode: {mode}  |  #1 large, #2-#5 small", fill=(255, 210, 63), font=f_b)
+    d.text((pad, 14), f"find_visuals contact sheet  |  mode: {mode}  |  first shown large, others small", fill=(255, 210, 63), font=f_b)
     byid = {r["_safe"]: r for r in requests}
     for i, (rid, cands) in enumerate(rows):
+        tiles = [(k, c) for k, c in enumerate(cands) if not nsfw(c)]
+        cands = [c for _, c in tiles]
         y = 50 + i * (big[1] + 2 * pad)
         r = byid.get(rid, {})
         lines = [rid, f"{r.get('kind', '')}: {r.get('query', '')}"]
@@ -1525,15 +1538,15 @@ def contact_sheet(manifest: dict, outdir: Path, requests: list[dict], mode: str)
                 d.text((pad, ty), chunk, fill=(240, 240, 240) if j else (255, 210, 63), font=f_b if j == 0 else f_s)
                 ty += 22 if j == 0 else 17
         x0 = label_w + pad
-        for k, c in enumerate(cands[:5]):
-            if k == 0:
+        for n, (k, c) in enumerate(tiles[:5]):
+            if n == 0:
                 box, x, cy = big, x0, y
             else:
                 box = small
-                x = x0 + big[0] + pad + ((k - 1) % 2) * (small[0] + pad)
-                cy = y + ((k - 1) // 2) * (small[1] + pad)
+                x = x0 + big[0] + pad + ((n - 1) % 2) * (small[0] + pad)
+                cy = y + ((n - 1) // 2) * (small[1] + pad)
             sheet.paste(_thumb(outdir / c["path"], c["media_type"], box, c.get("duration_s")), (x, cy))
-            if k == 0:
+            if n == 0:
                 d.rectangle([x - 2, cy - 2, x + box[0] + 1, cy + box[1] + 1], outline=(255, 210, 63), width=2)
             tag = f"#{k + 1} {c['source']}{' VIDEO' if c['media_type'] == 'video' else ''} [{c.get('rights')}]"
             d.rectangle([x, cy + box[1] - 18, x + 8 + 7 * len(tag), cy + box[1]], fill=(0, 0, 0))
