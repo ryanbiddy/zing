@@ -499,6 +499,14 @@ Visual searches, sheets and picks skip candidates whose title, description or cr
 names nudity or sexual content. This also applies to saved manifests. A blocked pick
 shows no visual for that moment.
 
+Pick sheets show a short title below each tile. The judge rejects unrelated places,
+police forces, teams and companies, including names on cars, signs and jerseys.
+Search ranking lowers candidates that name a known place absent from the request
+and clip words. A request that names a place rejects a different place of the same
+kind, such as another state or country. If the judge leaves a row unanswered, the
+fallback skips candidates flagged for an unrelated place. If none remain, it shows
+no visual. An explicit pick or rejection still takes precedence.
+
 `fetch-depth`, `fetch-cutout` and `fetch-upscale` accept `--project DIR` to use that
 project's network policy and ledger. Without it, the download is not tied to a
 project and is not recorded. Downloads still need `--yes`.

@@ -665,6 +665,8 @@ documentary, with the speaker as the narrator:
   the Internet Archive): period photographs, paintings, documents, letters, maps and
   portraits. No stock, no site captures. The picker keeps a period map or register of
   the exact subject as evidence instead of rejecting it as a scan.
+  It rejects unrelated places, police forces, teams and companies, including names
+  on cars, signs and jerseys. This rule also applies in context and fun modes.
 - The archival image fills the frame in every shape, moving through its depth; the
   speaker comes back on camera for opinions and emotional beats.
 - The `documentary` pack grades footage and photos to warm black and white with grain
