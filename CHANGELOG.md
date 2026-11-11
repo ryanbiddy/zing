@@ -4,11 +4,14 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #584
+Release candidate for Zing v1. These notes cover merged PRs #401 through #586
 on main, newest first.
 
 ### Changes since #452
 
+- Keep words like 20%, salesforce.com and co-founder whole in captions instead of
+  splitting them at the punctuation, and find camera cuts between look-alike angles
+  of the same set so a 9:16 crop follows the speaker instead of the empty middle.
 - Show funnel graphics whole from the start, with dim rows that light up as each
   number is said, and make the doctor's audio-ml fix name only the missing piece.
   The release gate reads code scanning from the per-language CodeQL jobs that

@@ -9,6 +9,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
+from statistics import median
 
 from .tools import FactoryError, ffmpeg, ffprobe, run
 
@@ -151,21 +152,49 @@ def _text_cut(img, reader) -> dict:
     return out
 
 
+def _camera_cuts(d: Path, frame, duration: float) -> list[float]:
+    import cv2
+    log = run(ffmpeg(), "-hide_banner", "-i", str(d / "cut.mp4"), "-an", "-vf",
+              "select='gte(scene,0)',metadata=print:key=lavfi.scene_score", "-f", "null", "-",
+              check=False, capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
+    scores = [(float(t), float(s)) for t, s in re.findall(
+        r"pts_time:([0-9.]+)\s*\n[^\n]*lavfi.scene_score=([0-9.]+)", log)]
+    groups = []
+    for t, score in scores:
+        if score < .15 or not 0 < t < duration:
+            continue
+        nearby = [s for at, s in scores if 0 < abs(at - t) <= .5]
+        if score < (2 if score >= .3 else 4) * median(nearby or [0]):   # a strong cut only has to beat busy motion
+            continue
+        if groups and t - groups[-1][-1] < .5:
+            groups[-1].append(t)
+        else:
+            groups.append([t])
+    cuts = []
+    for group in groups:
+        a, b = group[0], group[-1]
+        if len(group) > 1:
+            before = cv2.resize(frame(max(0, a - 1 / FPS)), (64, 36), interpolation=cv2.INTER_AREA)
+            after = cv2.resize(frame(b + 1 / FPS), (64, 36), interpolation=cv2.INTER_AREA)
+            if cv2.absdiff(before, after).mean() < 8:     # a brief occlusion returns to the same view
+                continue
+        cuts.append(b)
+    return cuts
+
+
 def cams(d: Path) -> dict:
     """Camera shots, and in each the face to frame. Close-ups teach what the main speaker wears; in wide shots the
     frame follows them, leaving only when someone else clearly out-talks them for a while."""
     import cv2
     from .pipeline import _write
     from myzing.layout.detector import require_model
-    log = run(ffmpeg(), "-hide_banner", "-i", str(d / "cut.mp4"), "-vf", "select='gt(scene,0.3)',showinfo",
-              "-f", "null", "-", check=False, capture_output=True, text=True, encoding="utf-8", errors="replace").stderr
-    cuts = [float(x) for x in re.findall(r"pts_time:([0-9.]+)", log)]
     n = len(list((d / "frames").glob("*.jpg")))
-    bounds = [0.0] + cuts + [n / FPS]
-    yunet = cv2.FaceDetectorYN.create(str(require_model()), "", (320, 320), 0.6, 0.3, 5000)
 
     def frame(t: float):
         return cv2.imread(str(d / "frames" / f"{min(n, int(t * FPS) + 1):05d}.jpg"))
+
+    bounds = [0.0] + _camera_cuts(d, frame, n / FPS) + [n / FPS]
+    yunet = cv2.FaceDetectorYN.create(str(require_model()), "", (320, 320), 0.6, 0.3, 5000)
 
     def faces_in(img, min_frac):
         h_, w_ = img.shape[:2]
