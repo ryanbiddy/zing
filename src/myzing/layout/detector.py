@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import tempfile
 import urllib.error
@@ -95,6 +96,21 @@ def load_cv2():
     return cv2
 
 
+def face_landmarks(row) -> bool:
+    if len(row) != 15 or not all(math.isfinite(float(v)) for v in row[:14]):
+        return False
+    x, y, w, h, rx, ry, lx, ly, nx, ny, mx, my, mx2, my2 = (float(v) for v in row[:14])
+    if w <= 0 or h <= 0:
+        return False
+    return (x <= rx < lx <= x + w and .15 * w <= lx - rx <= .6 * w
+            and abs(ly - ry) <= .7 * (lx - rx)
+            and y + .2 * h <= min(ry, ly) and max(ry, ly) <= y + .6 * h
+            and rx - .15 * w <= nx <= lx + .15 * w
+            and max(lx, nx) - min(rx, nx) >= .28 * w  # profiles put the nose beyond an eye
+            and max(ry, ly) < ny < min(my, my2) and max(my, my2) <= y + h
+            and x <= mx < mx2 <= x + w)
+
+
 class YuNetDetector:
     def __init__(self, workspace: Path | None = None, *, download: bool = False,
                  score_threshold: float = 0.6) -> None:
@@ -110,7 +126,7 @@ class YuNetDetector:
             raise LayoutError(f"YuNet initialization failed: {exc}. {INSTALL_HINT}") from exc
 
     def detect(self, image) -> list[Detection]:
-        """BGR image in display orientation. Landmarks are discarded immediately."""
+        """BGR image in display orientation. Landmarks are checked then discarded."""
         if image is None or len(image.shape) != 3 or image.shape[2] != 3:
             raise LayoutError("YuNet needs a decoded three-channel BGR frame")
         height, width = image.shape[:2]
@@ -124,6 +140,8 @@ class YuNetDetector:
         detections = []
         if faces is not None:
             for face in faces:
+                if not face_landmarks(face):
+                    continue
                 x, y, w, h = (float(v) for v in face[:4])
                 left, top = max(0, x / width), max(0, y / height)
                 right, bottom = min(1, (x + w) / width), min(1, (y + h) / height)

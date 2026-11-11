@@ -255,7 +255,7 @@ def cams(d: Path) -> dict:
     frame follows them, leaving only when someone else clearly out-talks them for a while."""
     import cv2
     from .pipeline import _write
-    from myzing.layout.detector import require_model
+    from myzing.layout.detector import face_landmarks, require_model
     n = len(list((d / "frames").glob("*.jpg")))
 
     def frame(t: float):
@@ -268,7 +268,7 @@ def cams(d: Path) -> dict:
         h_, w_ = img.shape[:2]
         yunet.setInputSize((w_, h_))
         _, found = yunet.detect(img)
-        boxes = [] if found is None else [tuple(int(v) for v in f[:4]) for f in found]
+        boxes = [] if found is None else [tuple(int(v) for v in f[:4]) for f in found if face_landmarks(f)]
         return sorted([b for b in boxes if b[3] >= min_frac * h_], key=lambda f: -f[2] * f[3])
 
     def torso(img, f):
