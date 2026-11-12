@@ -334,6 +334,11 @@ chooses a file or none. Selected files are copied into the project and credited
 as `Your file: <name>`. Online projects also search the public sources. Offline
 projects use only your files; without a usable file, the shot stays on the speaker.
 
+Each picture is used once per clip, in request order. A later pick of the same
+picture shows no visual for that moment. An unanswered row uses the next unused
+candidate that passes the content and place checks. If none remain, it shows no
+visual. The pick sheet still shows repeated pictures in every row where they appear.
+
 `network.jsonl` records factory network attempts, including failures. Each row has
 `at`, `host`, `purpose` and `bytes`. It never stores full URLs, query strings,
 headers or prompt text. Python downloads count response bytes read. Subprocess
@@ -618,6 +623,9 @@ MCP: `factory_new(..., focus=, show=)` and `factory_clip(project, start=, end=, 
   Close-ups teach the frame what the main speaker wears; in wide shots it follows them.
   Face boxes stay within 40% of the speaker panel height, with room above the brows for hair.
   Source pixels scale up by at most 1.6 times. Cropping out burned-in captions can override these limits.
+  Temporary source panels, papers and picture cards get timed boxes in `cams.json`.
+  In 9:16 and 1:1, speaker crops shift to clear them, then zoom if needed, up to 2.2 times source size.
+  The crop changes at the graphic's start and end. If it cannot clear the box, it keeps the original framing.
   Clear grid borders that agree across sampled frames keep each face inside its own tile.
   If filling the panel would exceed the limits, the whole tile sits over the blurred background.
   With local OCR available, text cards without faces stay whole over a blurred background if the crop would cut text.

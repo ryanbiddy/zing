@@ -101,6 +101,7 @@ def prompt(sheet_path: Path, mode: str, sensitive_reason: str | None) -> str:
     return f"""Read the image at {sheet_path.resolve().as_posix()}. It is a contact sheet for a social video clip cut from a podcast.
 Each row is one moment that needs a visual: the left label is its id, the top line is the search query and what the speaker says there,
 and the numbered tiles (1, 2, 3, ...) are the candidates found. Titles appear below the tiles. Some tiles are stills from a video and are marked VIDEO.
+Never pick the same picture for two rows because the same picture can appear in more than one row.
 
 {MODE_RULES["context" if sensitive and mode != "documentary" else mode]}
 
@@ -121,10 +122,22 @@ def picks_from(answer: dict) -> dict[str, dict]:
     return out
 
 
+def _keys(visdir: Path, c: dict) -> set:
+    keys = {("path", (visdir / c["path"]).resolve())}
+    keys.update((k, str(c[k])) for k in ("sha256", "hash", "phash", "dhash") if c.get(k) not in (None, ""))
+    url = c.get("file_url") or c.get("source_url")
+    if url:
+        keys.add(("url", url))
+    if c.get("source_id") not in (None, ""):
+        keys.add(("source_id", c.get("source"), str(c["source_id"])))
+    return keys
+
+
 def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, dict]) -> dict[str, dict]:
-    """The picked candidate per request (top unflagged choice when the judge skipped a row), with credit and fit."""
-    found = {}
-    for rid, cands in manifest.items():
+    """The picked candidate per request (top unused, unflagged choice when the judge skipped a row), with credit and fit."""
+    found, used = {}, set()
+    for rid in dict.fromkeys([r.get("id") for r in requests] + list(manifest)):
+        cands = manifest.get(rid) or []
         if rid in picks:
             k = picks[rid]["pick"]
             if k is None or not 0 <= k < len(cands) or nsfw(cands[k]):
@@ -132,9 +145,10 @@ def chosen(visdir: Path, requests: list[dict], manifest: dict, picks: dict[str, 
             cands = [cands[k]]
         else:
             cands = [c for c in (cands or []) if not c.get("places_off")]
-        c = next((c for c in (cands or []) if not nsfw(c)), None)
+        c = next((c for c in cands if not nsfw(c) and not used.intersection(_keys(visdir, c))), None)
         if c is None:
             continue
+        used.update(_keys(visdir, c))
         credit = c.get("attribution") or c.get("creator") or c.get("source") or ""
         lic = c.get("license") or ""
         text = c.get("credit_text") or (f"{credit} · {lic}" if credit and lic else credit or lic)

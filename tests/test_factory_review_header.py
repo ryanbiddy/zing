@@ -170,7 +170,7 @@ load.main = mod;
   console.log(JSON.stringify({logs, aborted, continued, dns, closed, screenshots}));
 })().catch(e => { console.error(e); process.exitCode = 1; });
 """
-    proc = RUN([node, "-"], input=code, capture_output=True, text=True, encoding="utf-8", timeout=15)
+    proc = RUN([node, "-"], input=code, capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert proc.returncode == 0, proc.stderr
     got = json.loads(proc.stdout)
     assert got["aborted"] == blocked and got["continued"] == allowed

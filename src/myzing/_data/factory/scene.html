@@ -246,7 +246,48 @@ function applyCrop(img, iw, ih, {tx, ty, s, clip=null}) {
 function cover(img, iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
   applyCrop(img, iw, ih, crop(iw, ih, bw, bh, z, fx, fy, maxFrac));
 }
+const overlaysAt = t => ['9x16', '1x1'].includes(D.aspect || '9x16')
+  ? (D.overlays || []).filter(o => t >= o.from && t < o.to) : [];
+const quoteLean = (q, t) => q ? 1 + .06*easeOut(lin(t, q.from, q.from+1.2))*(1 - easeInOut(lin(t, q.to-.35, q.to))) : 1;
+function overlayCrop(r, b, overlays, cam=null) {
+  if (!overlays.length) return null;
+  const [iw, ih] = D.srcSize, box = [0, 0, iw, (D.burnTop || 1)*ih];
+  if (cam && cam.tile) return null;
+  const hit = (a, c) => a[0] < c[2] && a[2] > c[0] && a[1] < c[3] && a[3] > c[1];
+  const window = [-r.tx/r.s, -r.ty/r.s, (b.w-r.tx)/r.s, (b.h-r.ty)/r.s];
+  const boxes = overlays.map(o => o.box.map((v, i) => v*(i%2 ? ih : iw)));
+  if (!boxes.some(o => hit(window, o))) return null;
+  let free = [box];
+  for (const o of boxes) free = free.flatMap(v => !hit(v, o) ? [v] : [
+    [v[0], v[1], Math.min(v[2], o[0]-1), v[3]], [Math.max(v[0], o[2]+1), v[1], v[2], v[3]],
+    [v[0], v[1], v[2], Math.min(v[3], o[1]-1)], [v[0], Math.max(v[1], o[3]+1), v[2], v[3]]
+  ].filter(c => c[2] > c[0] && c[3] > c[1]));
+  const face = cam && [cam.cx*iw-cam.fh*ih*.6, Math.max(0, (cam.cy-cam.fh*.85)*ih),
+                      cam.cx*iw+cam.fh*ih*.6, Math.min(ih, (cam.cy+cam.fh*.65)*ih)];
+  const cx = (b.w/2-r.tx)/r.s, cy = (b.h/2-r.ty)/r.s, choices = [];
+  for (const [l, top, right, bottom] of free) {
+    const s = Math.max(r.s, b.w/(right-l), b.h/(bottom-top));
+    if (s > Math.max(r.s, 2.2) || (face && (face[0] < l || face[1] < top || face[2] > right || face[3] > bottom))) continue;
+    const w = b.w/s, h = b.h/s;
+    let x = clamp(cx-w/2, l, right-w), y = clamp(cy-h/2, top, bottom-h);
+    if (face) {
+      if (face[2]-face[0] > w || face[3]-face[1] > h) continue;
+      x = clamp(x, Math.max(l, face[2]-w), Math.min(right-w, face[0]));
+      y = clamp(y, Math.max(top, face[3]-h), Math.min(bottom-h, face[1]));
+    }
+    choices.push({tx:-x*s, ty:-y*s, s, distance:Math.hypot(x+w/2-cx, y+h/2-cy)});
+  }
+  choices.sort((a, c) => a.s-c.s || a.distance-c.distance);
+  return choices.length ? {tx:choices[0].tx, ty:choices[0].ty, s:choices[0].s} : null;
+}
 function faceCrop(cam, b, t, lean=1) {
+  const overlays = overlaysAt(t), r = faceFrame(cam, b, t, lean);
+  if (!overlays.length) return r;
+  const at = Math.max(cam.from, shotAt(t).from, ...overlays.map(o => o.from));
+  const q = (D.quotes || []).find(q => at >= q.from && at < q.to);
+  return overlayCrop(faceFrame(cam, b, at, (D.quotes || []).length ? quoteLean(q, at) : lean), b, overlays, cam) || r;
+}
+function faceFrame(cam, b, t, lean=1) {
   const [iw, ih] = D.srcSize, [l, top, right, bottom] = (cam.tile || [0, 0, 1, 1]).map((v, i) => v*(i%2 ? ih : iw));
   const w = right-l, h = bottom-top, base = Math.max(b.w/w, b.h/h), limit = cam.wide ? 1.4 : 2.2;
   const cap = Math.min(1.6, b.h*.4/(cam.fh*ih)), hair = Math.max(top, (cam.cy-cam.fh*.85)*ih);
@@ -469,7 +510,9 @@ function captionY(gi, cy, cap, box, centered) {
     for (const cam of D.cams) {
       const from = Math.max(a, shot.from, cam.from), to = Math.min(b, shot.to, cam.to);
       if (cam.mode !== 'face' || from >= to) continue;
-      const bounds = [from, to].map(t => {
+      const times = [from, to, ...(D.overlays || []).flatMap(o => [o.from-1e-6, o.from, o.to-1e-6, o.to])
+        .filter(t => t > from && t < to)];
+      const bounds = times.map(t => {
         const r = faceCrop(cam, S, t), fh = cam.fh*ih*r.s, pad = S.h*.04;
         const x = S.x + cam.cx*iw*r.s + r.tx, y = S.y + cam.cy*ih*r.s + r.ty;
         return {x0:x-fh*.425-pad, x1:x+fh*.425+pad, y0:y-fh/2-pad, y1:y+fh/2+pad, hair:y-fh*.85-pad};   // the detector's box stops at the brows
@@ -573,10 +616,17 @@ window.seek = async function(t) {
     const BW = G.spk.w, BH = G.spk.h, [iw, ih] = D.srcSize, body = G.front ? $('spkCut') : $('spkImg');
     cover($('spkBlur'), iw, ih, BW, BH, 1.1);
     // a quote moment leans in on the speaker, holds, and eases back as the quote steps away
-    const lean = Q ? 1 + .06*easeOut(lin(t, Q.from, Q.from+1.2))*(1 - easeInOut(lin(t, Q.to-.35, Q.to))) : 1;
+    const lean = quoteLean(Q, t);
     if (cam.mode === 'face') {
       applyCrop(body, iw, ih, faceCrop(cam, G.spk, t, lean));
     } else if (textCut(cam, iw, ih, BW, BH, lean) || (cam.mode === 'wide' && cam.faces > 1)) contain(body, iw, ih, BW, BH);   // keep the whole card or group
+    else if (overlaysAt(t).length) {
+      const r = crop(iw, ih, BW, BH, lean, .5, .38, D.burnTop);
+      const overlays = overlaysAt(t), at = Math.max(cam.from, shot.from, ...overlays.map(o => o.from));
+      const q = (D.quotes || []).find(q => at >= q.from && at < q.to);
+      const fixed = crop(iw, ih, BW, BH, quoteLean(q, at), .5, .38, D.burnTop);
+      applyCrop(body, iw, ih, overlayCrop(fixed, G.spk, overlays) || r);
+    }
     else cover(body, iw, ih, BW, BH, lean, .5, .38, D.burnTop);
     if (G.front) {             // the frame, kept only where its matte says the speaker is
       if (body.width !== iw) { body.width = iw; body.height = ih; }

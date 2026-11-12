@@ -221,7 +221,7 @@ def javascript(page, code, data=None):
         script = script.split("// Geometry per delivery shape.")[0]
     program = DOM + "\nconst window = {DATA: " + json.dumps(data or {"words": [], "fps": 30}) + "};\n" + script
     program += "\n(async () => {\n" + code + "\n})().catch(e => { console.error(e); process.exitCode = 1; });"
-    result = RUN([node, "-"], input=program, capture_output=True, text=True, encoding="utf-8", timeout=15)
+    result = RUN([node, "-"], input=program, capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout)
 

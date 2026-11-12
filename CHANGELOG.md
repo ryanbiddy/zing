@@ -4,11 +4,14 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #588
+Release candidate for Zing v1. These notes cover merged PRs #401 through #589
 on main, newest first.
 
 ### Changes since #452
 
+- Keep 9:16 and 1:1 crops clear of a show's own burned-in graphics. When a source
+  panel, paper or picture card covers part of the frame, the speaker crop shifts or
+  zooms so no cut-off sliver of it shows, and a clip never uses the same picture twice.
 - Frame webcams and grids the way an editor would. A 9:16 punch-in stops before the
   face fills the panel, the picture blurs or the head is cut off, and a guest in a
   webcam grid is shown inside their own tile with no slivers of the next one. Captions

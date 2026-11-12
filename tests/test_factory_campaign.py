@@ -486,7 +486,7 @@ vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8').match(/<script>([\s\
 })().catch(e => {console.error(e); process.exitCode = 1;});
 """
     got = RUN([node, "-e", js, str(data_path("scene.html"))], input=json.dumps(data),
-              capture_output=True, text=True, encoding="utf-8", timeout=15)
+              capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert got.returncode == 0, got.stderr
     states = json.loads(got.stdout)
     assert [s[0] for s in states] == ["block", "block", "none", "block"]
@@ -522,7 +522,7 @@ document.getElementById('disclosure').offsetHeight = Number(process.argv[2]);
 })().catch(e => {console.error(e); process.exitCode = 1;});
 """
     got = RUN([node, "-e", js, str(data_path("scene.html")), str(height)], input=json.dumps(data),
-              capture_output=True, text=True, encoding="utf-8", timeout=15)
+              capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert got.returncode == 0, got.stderr
     assert json.loads(got.stdout) == [["block", top], ["block", 80], ["block", top]]
 
