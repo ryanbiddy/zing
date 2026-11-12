@@ -53,7 +53,7 @@ def _new_settings(new: argparse.ArgumentParser) -> None:
                      help="documentary uses archival photos and documents with the speaker as narrator. Pair with --pack documentary. "
                           "Launch assembles films from several spans of a demo or interview")
     new.add_argument("--shapes", type=_shapes, default=None, help="any of 9x16,4x5,1x1,16x9 (default 9x16,1x1; launch 16x9,1x1,9x16)")
-    new.add_argument("--pack", default=None, help="style pack (see 'zing factory packs'; default zing, launch for launch films)")
+    new.add_argument("--pack", default=None, help="style pack (see 'zing factory packs'; default desk, launch for launch films)")
     new.add_argument("--4k", dest="uhd", action="store_true", help="render every shape at twice its usual width and height")
     new.add_argument("--brand-name", help="the product's name for the title and end card in launch mode")
     new.add_argument("--brand-url", help="the product's url for the end card in launch mode")
@@ -160,14 +160,14 @@ def run(argv: list[str]) -> int:
     action.add_argument("--word", nargs=2, metavar=("INDEX", "NEW"), help="fix a caption word; index starts at 0")
     action.add_argument("--render", metavar="SHAPE", help="re-render 9x16, 4x5, 1x1 or 16x9")
     edit.add_argument("--why", help="reason for --rate")
-    edit.add_argument("--pack", help="style pack for --render (default zing)")
+    edit.add_argument("--pack", help="style pack for --render (default desk)")
     redo = commands.add_parser("redo", help="forget one judgment so the next run asks again")
     redo.add_argument("project", type=Path)
     redo.add_argument("task", help="scout, or clipNN-plan / clipNN-pick / clipNN-copy / clipNN-context")
     ren = commands.add_parser("render", help="re-render one clip in a shape and style pack")
     ren.add_argument("clip", type=Path)
     ren.add_argument("--shape", default="9x16")
-    ren.add_argument("--pack", default="zing")
+    ren.add_argument("--pack", default="desk")
     ren.add_argument("--4k", dest="uhd", action="store_true", help="save 4K output as the project's render setting")
     ren.add_argument("--no-parallax", dest="parallax", action="store_const", const=False, default=None,
                      help="keep photos flat for this render")
@@ -178,7 +178,7 @@ def run(argv: list[str]) -> int:
     exp = commands.add_parser("export", help="export layers and a timeline for Premiere Pro or DaVinci Resolve")
     exp.add_argument("clipdir", type=Path, help="the finished clip folder")
     exp.add_argument("--shape", default="9x16", choices=("9x16", "4x5", "1x1", "16x9"), help="frame shape (default 9x16)")
-    exp.add_argument("--pack", default="zing", help="style pack (default zing)")
+    exp.add_argument("--pack", default="desk", help="style pack (default desk)")
     exp.add_argument("--out", type=Path, help="output folder (default <clipdir>/export-<shape>)")
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
     approval = commands.add_parser("approval", help="write a local guest approval page")
@@ -267,7 +267,7 @@ def run(argv: list[str]) -> int:
             elif args.word is not None:
                 result = edit.word(args.project, args.clip, int(args.word[0]), args.word[1])
             else:
-                result = edit.rerender(args.project, args.clip, args.render, args.pack or "zing")
+                result = edit.rerender(args.project, args.clip, args.render, args.pack or "desk")
         elif args.command == "redo":
             pipeline.redo(args.project, args.task)
             result = {"task": args.task, "forgotten": True}

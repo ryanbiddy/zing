@@ -741,8 +741,9 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 
 ## Style packs
 
-`--pack zing | newsdesk | swiss | headline | documentary | launch` sets colors, caption treatment and source tag
+`--pack desk | editorial | newsroom | zing | newsdesk | swiss | headline | documentary | launch` sets colors, caption treatment and source tag
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
+`desk` is the default for podcast runs. `launch` stays the default for launch films.
 `zing` uses 78px heavy white capitals per 1080px of the frame's short side, a dark outline and a soft shadow.
 The active word turns yellow and grows slightly in place. There is no caption box.
 Long groups shrink to fit 900px. Other built-in packs with an explicit caption size scale it with frame width.
@@ -750,6 +751,33 @@ At 1920×1080, `launch` uses 89px, `headline` 103px and `documentary` 117px.
 Learned packs keep their height-based scaling.
 `headline` plays the clip above a solid panel that holds your source credit and the hook
 as a standing headline in condensed capitals, key words in the accent color.
+
+### Looks: desk, editorial and newsroom
+
+These three packs are built from what podcast clips do well. Pick one with `--pack`, for
+example `zing factory export talk/clip01 --shape 9x16 --pack editorial`. `desk` is the default.
+
+- The camera holds still. Shots change by hard cut only. There is no push-in, quote lean,
+  picture pop or parallax. A shot over 12 seconds gets at most two hard cuts to a 1.12x crop
+  of the same speaker. The usual crop rules for tiles and overlays still apply.
+- Captions sit in one band for the whole clip, below the lowest chin in the clip's face
+  shots. They never move to dodge a face. Whole phrases appear at once in sentence case,
+  with no active-word color. If a face in one shot sits in the band, that shot switches by a hard cut
+  to the black bar under its picture, or to y 1150. Captions hide while a takeaway card is up.
+- The headline comes from the hook as plain text. The source tag ("Show · Date") becomes a
+  kicker. With no tag the kicker is left out. Speaker name tags appear only when the project has
+  the speaker's name and role.
+- Counter and quote graphics become still takeaway cards. They hold at least 1.2 seconds,
+  never start in the first 3 seconds, and there are at most two per clip.
+- Screenshots and low-resolution photos become a flat card with "Source: domain" under it.
+  Sharp photos and footage go full-bleed. Cutaways never start in the first 3 seconds.
+- The clip ends on a 1.8 second end card with the audio faded out.
+
+`desk` has a yellow headline plate and white captions with a black outline on a dark field.
+`editorial` uses a serif headline, left-aligned captions, flat scrims and light film grain.
+`newsroom` puts the whole source frame in a 16:9 strip on a dark field with a yellow rule.
+All three also render at 16:9 with the same band rules. None uses a glow, a gradient field or
+uppercase running captions.
 
 ### Brand kit
 
@@ -792,7 +820,7 @@ All brand fields are optional.
 ## Finish in your editor
 
 ```bash
-zing factory export talk/clip01 --shape 9x16 --pack zing
+zing factory export talk/clip01 --shape 9x16 --pack desk
 ```
 
 Import `talk/clip01/export-9x16/timeline.xml` into Premiere Pro or DaVinci Resolve.

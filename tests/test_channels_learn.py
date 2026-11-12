@@ -145,7 +145,7 @@ def test_pipeline_selects_title_once_and_records_arms(channel, monkeypatch, belo
         assert "title_propensity" not in post
     arms = pipeline._read(d / "arms.json")
     assert arms["archetype"] == "confession" and arms["length"] == "mid" and arms["density"] == "light"
-    assert arms["pack"] == "zing" and arms["hour"] is None
+    assert arms["pack"] == "desk" and arms["hour"] is None
     assert arms["title_propensity"] == post.get("title_propensity") and arms["title_policy"] == post.get("title_policy")
     pipeline._clip(project, 1, moment, ask, project / "media.mp4", cfg, [], lambda m: None)
     assert ask.calls == 1 and pipeline._read(d / "post.json") == post
