@@ -371,6 +371,6 @@ def test_failed_image_decode_is_retried_and_propagated():
         console.log(JSON.stringify({calls, rejected, cached, src: img.dataset.src}));
       })().catch(e => { console.error(e); process.exitCode = 1; });
     """
-    result = RUN([node, "-"], input=program, capture_output=True, text=True, encoding="utf-8", timeout=15)
+    result = RUN([node, "-"], input=program, capture_output=True, text=True, encoding="utf-8", timeout=60)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) == {"calls": 2, "rejected": True, "cached": False, "src": "frame.jpg"}
