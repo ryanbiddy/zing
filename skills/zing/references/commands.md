@@ -608,6 +608,12 @@ overlay. Import an SRT to style new captions.
 
 `--shape` accepts `9x16`, `4x5`, `1x1` or `16x9` and defaults to `9x16`.
 `--pack NAME` defaults to `desk`. `--out DIR` defaults to `<clipdir>/export-<shape>/`.
+The desk, editorial and newsroom looks wrap quotes into large balanced lines and use
+64 px list text on a 1080×1920 frame. Quotes over 12 words are left out, or over 10 in
+editorial. List, funnel and title cards return to the speaker within one second of
+their read time. Flat picture cards clear the desk and editorial headlines by 24 px.
+Long shots reframe a moving speaker by hard cut at least 2 seconds apart and skip
+the punch when sideways movement exceeds 8% of the source width.
 JSON includes three composite comparisons, file sizes in bytes and elapsed seconds.
 This command has no MCP tool.
 

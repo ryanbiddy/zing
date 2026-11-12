@@ -229,7 +229,7 @@ def timeline(plan: dict, words: dict, look: str | None = None, limit: float | No
             if g.get("kind") in ("counter", "quote"):
                 text = str(g.get("text", "")) if g["kind"] == "quote" else f"{g.get('value', '')} {g.get('label', '')}"
                 count = len(text.split())
-                if len(cards) >= 2 or (look == "editorial" and g["kind"] == "quote" and count > 10):
+                if len(cards) >= 2 or (g["kind"] == "quote" and count > (10 if look == "editorial" else 12)):
                     continue
                 s["from"] = max(s["from"], cards[-1]["to"] if cards else 0)
                 hold = max(1.2, .35 * count + .5)
@@ -237,8 +237,15 @@ def timeline(plan: dict, words: dict, look: str | None = None, limit: float | No
                     continue
                 s["to"] = min(last, max(s["to"], s["from"] + hold))
                 cards.append(s)
-            elif s["to"] > s["from"]:
-                kept.append(s)
+            else:
+                if g.get("kind") in ("list", "funnel", "title"):
+                    text = " ".join([str(g.get("title", "")), str(g.get("text", "")),
+                                     *(str(r.get("text", "")) for r in g.get("items", [])),
+                                     *(f"{r.get('text', r.get('value', ''))} {r.get('label', '')}" for r in g.get("rows", []))])
+                    hold = max(1.2, .35 * len(text.split()) + .5)
+                    s["to"] = min(s["to"], s["from"] + hold + 1)
+                if s["to"] > s["from"]:
+                    kept.append(s)
         edges = sorted({0, last, *(v for s in kept + cards for v in (s["from"], s["to"]))})
         shots = []
         for a, b in zip(edges, edges[1:]):

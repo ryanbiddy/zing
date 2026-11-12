@@ -281,7 +281,7 @@ function punchAt(cam, t) {
   if (!punches) {
     punches = [];
     for (const c of D.cams || []) {
-      if (c.mode !== 'face' || c.to-c.from <= 12 || punches.length >= 2) continue;
+      if (c.mode !== 'face' || c.moving || c.to-c.from <= 12 || punches.length >= 2) continue;
       const starts = W.filter((w, i) => i && /[.!?]["'”’)]*$/.test(W[i-1].w)
         && w.os > c.from && w.os < c.to);
       if (!starts.length) continue;
@@ -796,21 +796,42 @@ function balanced(text, size, width, family, weight, italic=false) {
 function svgText(text, x, y, size, family, weight=700, color='#FFFFFF', anchor='start', extra='') {
   return `<text x="${x}" y="${y}" fill="${color}" font-family="${family}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" ${extra}>${esc(text)}</text>`;
 }
+function wrapped(text, size, width, family, weight, italic=false, min=1, max=4) {
+  const words = text.split(/\s+/).filter(Boolean), measure = s => textWidth(s,size,family,weight,italic);
+  for (let n=min; n<=Math.min(max,words.length); n++) {
+    const target = (measure(text)-(n-1)*measure(' '))/n, rows = Array.from({length:n+1}, () => []);
+    rows[0][0] = {cost:0,lines:[]};
+    for (let k=1; k<=n; k++) for (let b=k; b<=words.length; b++) for (let a=k-1; a<b; a++) {
+      const prev = rows[k-1][a], line = words.slice(a,b).join(' '), w = measure(line);
+      if (!prev || w>width) continue;
+      const cost = prev.cost+(w-target)**2;
+      if (!rows[k][b] || cost<rows[k][b].cost) rows[k][b] = {cost,lines:[...prev.lines,line]};
+    }
+    if (rows[n][words.length]) return rows[n][words.length].lines;
+  }
+  return [];
+}
 function svg(lines) { return `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH9}" viewBox="0 0 ${SW} ${SH9}">${lines}</svg>`; }
 function lookScale() { return ASPECT === '16x9' ? SH9/1080 : Math.min(SW/1080, SH9/1920); }
 function headlineUntil() {
   const end = W.find(w => w.oe>=4 && sentenceEnd(w.w));
   return Math.min(5.5, end ? end.oe : 5.5);
 }
-function drawHeadline(t, card, end) {
+function headlineLayout() {
   const news = STYLE === 'newsroom', desk = STYLE === 'desk', wide = ASPECT === '16x9', s = lookScale();
   const family = news ? 'IBM Plex Sans' : desk ? 'ZingCaption' : 'Instrument Serif', weight = desk ? 800 : news ? 700 : 400;
-  const hook = $('hook'), kicker = $('kicker'), x = 72*SW/1080, top = wide ? 64*s : (news || desk ? 300 : 360)*SH9/1920;
-  hook.style.opacity = !card && (news || !end && t<headlineUntil()) ? 1 : 0;
-  hook.style.transform = 'none'; hook.style.left = '0'; hook.style.top = '0'; hook.style.width = SW+'px'; hook.style.height = SH9+'px';
+  const x = 72*SW/1080, top = wide ? 64*s : (news || desk ? 300 : 360)*SH9/1920;
   const text = desk ? headlineText().toUpperCase() : headlineText();
   const lay = balanced(text, (desk ? 60 : news ? 69 : 83)*s, (wide ? SW*.72 : 936*SW/1080)-(desk ? 52*s : 0), family, weight);
-  let ink = '', lead = lay.size*(desk ? 1.1 : news ? .96 : 1.02);
+  const lead = lay.size*(desk ? 1.1 : news ? .96 : 1.02);
+  const bottom = top+(lay.lines.length-1)*lead+(desk ? lay.size*.728+36*s : lay.size*.97);
+  return {news,desk,wide,s,family,weight,x,top,lay,lead,bottom};
+}
+function drawHeadline(t, card, end) {
+  const {news,desk,wide,s,family,weight,x,top,lay,lead} = headlineLayout(), hook = $('hook'), kicker = $('kicker');
+  hook.style.opacity = !card && (news || !end && t<headlineUntil()) ? 1 : 0;
+  hook.style.transform = 'none'; hook.style.left = '0'; hook.style.top = '0'; hook.style.width = SW+'px'; hook.style.height = SH9+'px';
+  let ink = '';
   if (news && wide) ink += `<rect width="${SW}" height="${top+104*s+lay.lines.length*lead}" fill="#000000" fill-opacity=".55"/>`;
   if (desk) {
     const width = Math.max(...lay.lines.map(l => textWidth(l,lay.size,family,weight)))+52*s;
@@ -857,12 +878,40 @@ function drawTakeaway(g, end=false) {
         ink += lay.lines.map((l,i) => svgText(l,128*sx,SH9*820/1920+i*lay.size*1.02,lay.size,family,400,'#0B0B0B')).join('');
       }
     }
+  } else if (['list','funnel','title'].includes(g.kind)) {
+    const family = news ? 'IBM Plex Sans' : 'ZingCaption', size = 64*s, lead = size*1.12, funnel = g.kind === 'funnel';
+    const rows = g.kind === 'list' ? g.items.map(r => r.text) : funnel ? g.rows.map(r => r.label || '') : [String(g.text || '').replace(/\*/g,'')];
+    const left = (g.kind === 'list' ? 168 : 72)*sx, width = SW-72*sx-left;
+    const lines = rows.map(r => wrapped(r,size,width,family,700,false,1,Math.max(1,r.split(/\s+/).length)));
+    const heights = lines.map(ls => ls.length*lead+(funnel ? 108*s : 0)+32*s), title = g.title || '';
+    let y = Math.max(300*sy,(SH9-heights.reduce((a,b) => a+b,0)-(title ? 88*s : 0))/2);
+    if (title) { ink += svgText(title,72*sx,y+44*s,44*s,family,700); y += 88*s; }
+    const nums = (g.rows || []).map(r => r.value), scale = Math.min(...nums)>0 ? Math.log : v => v;
+    const lo = scale(Math.min(...nums)), hi = scale(Math.max(...nums));
+    lines.forEach((ls,i) => {
+      if (funnel) {
+        const row = g.rows[i], last = i === lines.length-1, w = (220+716*(hi===lo ? 1 : (scale(row.value)-lo)/(hi-lo)))*sx;
+        ink += `<rect x="${72*sx}" y="${y}" width="${w}" height="${84*s}" fill="${last ? '#FFD23F' : (TH0.funnel || ['#333333'])[i%(TH0.funnel || [0]).length]}"/>`;
+        ink += svgText(row.text ?? fmt(row.value),96*sx,y+64*s,size,family,700,last ? '#111111' : '#FFFFFF');
+        y += 108*s;
+      }
+      if (g.kind === 'list') ink += svgText(`${i+1}.`,72*sx,y+size*.76,size,family,700,'#FFD23F');
+      ink += ls.map((l,j) => svgText(l,left,y+size*.76+j*lead,size,family,700)).join('');
+      y += ls.length*lead+32*s;
+    });
   } else {
     if (news) { ink += `<rect x="${strip.x}" y="${strip.y}" width="${strip.w}" height="${strip.h}" fill="#FFD23F"/>`; y = strip.y+330*sy; }
     const quote = g.kind === 'quote', value = quote ? String(g.text || '').replace(/\*/g,'')
       : `${g.prefix || ''}${Number.isFinite(g.value) ? g.format === 'year' ? g.value : g.decimals ? g.value.toFixed(g.decimals) : fmt(g.value) : g.text || ''}${g.suffix || ''}`;
-    const size = (quote ? 80 : news ? 287 : desk ? 275 : 264)*s;
-    const lay = balanced(value,size,936*sx,family,weight,quote && !desk && !news);
+    let size = (quote ? 104 : news ? 287 : desk ? 275 : 264)*s;
+    let lay;
+    if (quote) {
+      let lines = [];
+      for (; size>=80*s; size-=s) { lines = wrapped(value,size,(desk || news ? 936 : 912)*sx,family,weight,!desk && !news,2); if (lines.length) break; }
+      lay = {lines,size};
+      const h = size*.76+(lines.length-1)*size*1.05;
+      y = news ? strip.y+(strip.h-h)/2+size*.76 : wide ? (SH9-h)/2+size*.76 : 300*sy+(460*sy-h)/2+size*.76;
+    } else lay = balanced(value,size,936*sx,family,weight);
     if (!desk && !news && quote) ink += `<rect x="${72*sx}" y="${y-90*s}" width="${6*s}" height="${120*s}" fill="#FFD23F"/>`;
     ink += lay.lines.map((l,i) => svgText(l,x+(quote && !desk && !news ? 24*s : 0),y+i*lay.size*1.05,lay.size,family,weight,
       news ? '#111111' : desk ? '#FFD23F' : '#FFFFFF',desk ? 'middle' : 'start',quote && !desk && !news ? 'font-style="italic"' : '')).join('');
@@ -896,7 +945,9 @@ async function seekLook(t) {
   if (shot.layout === 'split' && D.visuals[shot.visual] && t>=3 && !card) {
     const v = D.visuals[shot.visual], flat = !news && v.card;
     let b = G.top;
-    if (flat) { const h = Math.min(900*v.h/v.w, 800)*s; b = {x:90*SW/1080,y:330*SH9/1920,w:900*SW/1080,h}; }
+    if (flat) { const h = Math.min(900*v.h/v.w, 800)*s;
+      const y = Math.max(330*SH9/1920,t<headlineUntil() ? headlineLayout().bottom+24*s : 0);
+      b = {x:90*SW/1080,y,w:900*SW/1080,h}; }
     place(top,b); top.style.border = STYLE === 'editorial' && flat ? `${2*s}px solid #F2F0EB` : '0';
     place($('topWin'),{x:0,y:0,w:b.w,h:b.h});
     const frame = v.frames ? `${v.dir}/${String(Math.floor((t-shot.from)*FPS)%v.frames+1).padStart(5,'0')}.jpg` : v.src;
@@ -914,7 +965,8 @@ async function seekLook(t) {
   if (!news && (card || picture)) { place(dim,G.spk); dim.style.opacity = card && STYLE === 'editorial' ? .65 : .62; }
   if (graphic) {
     place(gfx,{x:0,y:0,w:SW,h:SH9});
-    if (card || end) drawTakeaway(g,end);
+    gfx.style.background = card || end ? 'transparent' : TH0.bg || '#111111';
+    if (card || end || ['list','funnel','title'].includes(g.kind)) drawTakeaway(g,end);
     else { gfx.style.background = TH0.bg || '#111111';
       const inner = $('gfxIn'), scale = Math.min(SW/1080,SH9/960);
       inner.style.width = '1080px'; inner.style.height = '960px'; inner.style.transform = `translate(${(SW-1080*scale)/2}px,${(SH9-960*scale)/2}px) scale(${scale})`;

@@ -4,11 +4,13 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #591
+Release candidate for Zing v1. These notes cover merged PRs #401 through #592
 on main, newest first.
 
 ### Changes since #452
 
+- Make takeaway text larger, wrap short quotes and shorten list holds. Keep picture
+  cards below headlines and reframe moving speakers by hard cut without a punch-in.
 - Add --rank jev. Before the scout reads a transcript, Jev scores every 40-90 second window for
   substance, hook and payoff, and the scout gets the 15 strongest as a shortlist. With JEV_API_KEY set
   an hour of audio scores in a few seconds; without a key the free Simple Jev demo is used, slower.

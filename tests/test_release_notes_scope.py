@@ -35,7 +35,7 @@ def test_current_release_has_no_unfolded_notes():
     "Keep review headers compact",
     "Keep text cards and slides whole",
     "Add a long episode path",
-    "PRs #401 through #591",
+    "PRs #401 through #592",
 ])
 def test_rc1_includes_november_9_changes(item):
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
