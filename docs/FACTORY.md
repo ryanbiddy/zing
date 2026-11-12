@@ -775,7 +775,10 @@ example `zing factory export talk/clip01 --shape 9x16 --pack editorial`. `desk` 
 
 - The camera holds still. Shots change by hard cut only. There is no push-in, quote lean,
   picture pop or parallax. A shot over 12 seconds gets at most two hard cuts to a 1.12x crop
-  of the same speaker. The usual crop rules for tiles and overlays still apply.
+  of the same speaker. Shots longer than 6 seconds sample faces twice a second. A face that
+  leaves the middle half of the portrait crop for half a second triggers a new still frame,
+  at least 2 seconds after the previous cut. Shots with sideways movement over 8% of the
+  source width skip the punch. The usual crop rules for tiles and overlays still apply.
 - Captions sit in one band for the whole clip, below the lowest chin in the clip's face
   shots. They never move to dodge a face. Whole phrases appear at once in sentence case,
   with no active-word color. If a face in one shot sits in the band, that shot switches by a hard cut
@@ -785,8 +788,13 @@ example `zing factory export talk/clip01 --shape 9x16 --pack editorial`. `desk` 
   the speaker's name and role.
 - Counter and quote graphics become still takeaway cards. They hold at least 1.2 seconds,
   never start in the first 3 seconds, and there are at most two per clip.
+  Quotes wrap into 2–4 balanced lines at 80–104 px on a 1080×1920 frame. Quotes over 12 words
+  are left out, or over 10 words in editorial. List, funnel and title cards use 64 px item
+  text with 72 px outer margins. Their hold is capped at one second beyond the read time,
+  which is the greater of 1.2 seconds or 0.35 seconds per word plus 0.5 seconds.
 - Screenshots and low-resolution photos become a flat card with "Source: domain" under it.
   Sharp photos and footage go full-bleed. Cutaways never start in the first 3 seconds.
+  While the desk or editorial headline is visible, flat cards leave 24 px below it.
 - The clip ends on a 1.8 second end card with the audio faded out.
 
 `desk` has a yellow headline plate and white captions with a black outline on a dark field.

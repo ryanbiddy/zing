@@ -478,7 +478,64 @@ def cams(d: Path) -> dict:
             out.append(cam)
     out.sort(key=lambda c: c["from"])
     first = frame(0)
-    info = {"cams": out, "size": [first.shape[1], first.shape[0]], "frames": n, "burn_top": burned_caption_top(d)}
+    H, Wd = first.shape[:2]
+    burn_top = burned_caption_top(d)
+    tracked = []
+    for a, b in zip(bounds, bounds[1:]):
+        shots = [c for c in out if c["from"] < b-.001 and c["to"] > a+.001]
+        moving, segments = False, []
+        for cam in shots:
+            if b-a <= 6 or cam["mode"] != "face":
+                segments.append(cam)
+                continue
+            current, pending, previous = dict(cam), None, (cam["cx"], cam["cy"])
+            samples, t = [], max(a, cam["from"])
+            while t < cam["to"]:
+                faces = faces_in(frame(t), .04)
+                tile = cam.get("tile", [0, 0, 1, 1])
+                faces = [f for f in faces if tile[0] <= (f[0]+f[2]/2)/Wd <= tile[2]
+                         and tile[1] <= (f[1]+f[3]/2)/H <= tile[3]]
+                if faces:
+                    x, y, w, h = min(faces, key=lambda f: ((f[0]+f[2]/2)/Wd-previous[0])**2
+                                                        + ((f[1]+f[3]/2)/H-previous[1])**2)
+                    previous = ((x+w/2)/Wd, (y+h/2)/H)
+                    samples.append((t, *previous, h/H))
+                else:
+                    samples.append((t, None, None, None))
+                t += .5
+            valid = [s for s in samples if s[1] is not None]
+            if valid:
+                current.update(cx=valid[0][1], cy=valid[0][2], fh=valid[0][3])
+                moving |= max(s[1] for s in valid)-min(s[1] for s in valid) > .08
+            for t, cx, cy, fh in samples:
+                if cx is None:
+                    pending = None
+                    continue
+                l, top, r, bottom = cam.get("tile", [0, 0, 1, 1])
+                base = max(1080/((r-l)*Wd), 1920/((bottom-top)*H))
+                cap = min(1.6, 768/(current["fh"]*H))
+                scale = max(min(1080/((r-l)*Wd), 1920/((bottom-top)*H)), cap) if cam.get("tile") and base > cap else base
+                if burn_top and burn_top < bottom:
+                    scale = max(base, 1920/((burn_top-top)*H))
+                width = min(r-l, 1080/(scale*Wd))
+                center = max(l+width/2, min(r-width/2, current["cx"]))
+                if abs(cx-center) <= width/4 or abs(cx-current["cx"]) <= width/4:
+                    pending = None
+                    continue
+                if pending is None:
+                    pending = t
+                if t-pending >= .5 and t-current["from"] >= 2:
+                    at = max(pending, current["from"]+2)
+                    segments.append({**current, "to": round(at, 3)})
+                    current.update({"from": round(at, 3), "cx": cx, "cy": cy, "fh": fh})
+                    pending = None
+            segments.append(current)
+        if moving:
+            for cam in segments:
+                cam["moving"] = True
+        tracked.extend(segments)
+    out = tracked
+    info = {"cams": out, "size": [Wd, H], "frames": n, "burn_top": burn_top}
     overlays = _overlays(frame, bounds, out, info["burn_top"])
     if overlays:
         info["overlays"] = overlays
