@@ -63,6 +63,7 @@ def _new_settings(new: argparse.ArgumentParser) -> None:
                      help="an article about the news peg (repeatable); clips open on its headline")
     new.add_argument("--public", action="store_true", help="only visuals cleared for reuse or with attribution")
     new.add_argument("--offline", action="store_true", help="fetch nothing; use the host judge and local media")
+    new.add_argument("--rank", choices=["jev"], help="score transcript windows with Jev and give the scout a shortlist")
     new.add_argument("--visuals", type=Path, metavar="DIR", help="use images and videos from this folder")
     new.add_argument("--no-parallax", dest="parallax", action="store_false",
                      help="keep photos flat instead of moving through their depth")
@@ -81,7 +82,7 @@ def _settings(args: argparse.Namespace) -> dict:
                 mode=args.mode or "context", public=args.public, parallax=args.parallax, cutout=args.cutout,
                 upscale=args.upscale, uhd=args.uhd, offline=args.offline, visuals=args.visuals,
                 **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack, "moments": args.moments,
-                                     "focus": args.focus, "show": args.show}.items() if v is not None},
+                                     "focus": args.focus, "show": args.show, "rank": args.rank}.items() if v is not None},
                 **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
                                                "cta": args.cta}.items() if v}} if args.brand_name else {}),
                 **({"news": {"peg": args.news_peg, "links": args.news}} if args.news_peg or args.news else {}))
@@ -163,7 +164,7 @@ def run(argv: list[str]) -> int:
     edit.add_argument("--pack", help="style pack for --render (default desk)")
     redo = commands.add_parser("redo", help="forget one judgment so the next run asks again")
     redo.add_argument("project", type=Path)
-    redo.add_argument("task", help="scout, or clipNN-plan / clipNN-pick / clipNN-copy / clipNN-context")
+    redo.add_argument("task", help="scout, jev, or clipNN-plan / clipNN-pick / clipNN-copy / clipNN-context")
     ren = commands.add_parser("render", help="re-render one clip in a shape and style pack")
     ren.add_argument("clip", type=Path)
     ren.add_argument("--shape", default="9x16")

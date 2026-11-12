@@ -8,6 +8,7 @@ import os
 import re
 import socket
 import subprocess
+import threading
 import urllib.request
 from collections import Counter
 from contextlib import contextmanager
@@ -20,6 +21,7 @@ from .tools import FactoryError
 
 _project = ContextVar("factory_project", default=None)
 CLAUDE = "claude CLI (Anthropic)"
+_LEDGER = threading.Lock()                          # appends from parallel requests must not overwrite each other
 
 
 @contextmanager
@@ -56,7 +58,7 @@ class Network:
         self.project.mkdir(parents=True, exist_ok=True)
         body = json.dumps({k: v for k, v in row.items() if k != "bytes"}, ensure_ascii=False)[:-1]
         data = (body + ', "bytes": ' + f'{json.dumps(size):>20}' + '}\n').encode("utf-8")
-        with (self.project / "network.jsonl").open("ab", buffering=0) as f:
+        with _LEDGER, (self.project / "network.jsonl").open("ab", buffering=0) as f:
             f.write(data)
             offset = f.tell() - 22                       # update only the fixed-width byte count
             os.fsync(f.fileno())                         # the attempt is durable before any connection
@@ -64,7 +66,7 @@ class Network:
 
     def _finish(self, row):
         if row["size"] is not None and row.get("offset") is not None:
-            with (self.project / "network.jsonl").open("r+b", buffering=0) as f:
+            with _LEDGER, (self.project / "network.jsonl").open("r+b", buffering=0) as f:
                 f.seek(row["offset"])
                 f.write(f'{row["size"]:>20}'.encode("ascii"))
 

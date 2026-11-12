@@ -4,11 +4,15 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #590
+Release candidate for Zing v1. These notes cover merged PRs #401 through #591
 on main, newest first.
 
 ### Changes since #452
 
+- Add --rank jev. Before the scout reads a transcript, Jev scores every 40-90 second window for
+  substance, hook and payoff, and the scout gets the 15 strongest as a shortlist. With JEV_API_KEY set
+  an hour of audio scores in a few seconds; without a key the free Simple Jev demo is used, slower.
+  The network ledger also keeps every row when requests run in parallel.
 - Add three style packs, desk, editorial and newsroom, and make desk the default. They hold the
   camera still between cuts, keep captions in one band below the chin as whole phrases, show the
   headline only at the start (newsroom keeps it over a 16:9 strip), and use flat cards for numbers

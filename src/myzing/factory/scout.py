@@ -12,7 +12,7 @@ ARCHETYPES = ("confession", "conflict", "counterintuitive", "how_it_works", "fun
 
 def prompt(segments: list[dict], n: int, mode: str = "context", *, focus: str | None = None,
            taste: list[dict] | None = None, news: dict | None = None, brief: dict | None = None,
-           channel: str | None = None) -> str:
+           channel: str | None = None, ranked: str | None = None) -> str:
     lines = "\n".join(f"[{s['s']:.1f}-{s['e']:.1f}] {s['text']}" for s in segments)
     if news:   # the clips are the backstory to today's news
         lines = (f"NEWS PEG: {news['peg']}\nThese clips are posted as \"here's how it happened\" shorts about this news. "
@@ -20,7 +20,7 @@ def prompt(segments: list[dict], n: int, mode: str = "context", *, focus: str | 
                  "and the numbers.\n\n" + lines)
     return (data_path("prompts", "scout-launch.md" if mode == "launch" else "scout.md").read_text(encoding="utf-8")
             .replace("{LENGTH}", length_rule(brief or {}, mode)).replace("{BRIEF}", brief_rules(brief or {}))
-            .replace("{N}", str(n)).replace("{STEER}", steer(focus, taste, channel)).replace("{TRANSCRIPT}", lines))
+            .replace("{N}", str(n)).replace("{STEER}", steer(focus, taste, channel, ranked)).replace("{TRANSCRIPT}", lines))
 
 
 def length_bounds(brief: dict, mode: str) -> dict:
@@ -51,7 +51,7 @@ def brief_rules(brief: dict) -> str:
 CALLS = {"post": "POSTED", "fix": "POSTED AFTER EDITS", "no": "PASSED"}
 
 
-def steer(focus: str | None, taste: list[dict] | None, channel: str | None = None) -> str:
+def steer(focus: str | None, taste: list[dict] | None, channel: str | None = None, ranked: str | None = None) -> str:
     """What the user asked for, and the Post/No calls they made on earlier clips of this show."""
     out = []
     if focus:
@@ -66,6 +66,8 @@ def steer(focus: str | None, taste: list[dict] | None, channel: str | None = Non
     if channel:
         from myzing.channels.learn import steer as learned
         out.append(learned(channel))
+    if ranked:
+        out.append(ranked)
     return "\n\n".join(out) + "\n\n" if out else ""
 
 
