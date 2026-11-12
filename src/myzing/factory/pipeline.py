@@ -13,7 +13,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import campaign, context, cut, network, pick, plan, postcopy, render, review, scout, source, transcript_sync, visuals
+from . import campaign, context, cut, jev, network, pick, plan, postcopy, render, review, scout, source, transcript_sync, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
@@ -21,7 +21,7 @@ MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "desk", "public": False, "parallax": True,
             "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
             "news": None, "offline": False, "visuals": None, "rights": "unknown", "channel": None, "source": None,
-            "uoink_ref": None, "no_sync_check": False}
+            "uoink_ref": None, "no_sync_check": False, "rank": None}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -73,6 +73,8 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
         raise FactoryError(f"unknown settings: {', '.join(sorted(unknown))}")
     if not isinstance(settings.get("offline", False), bool):
         raise FactoryError("offline must be true or false")
+    if settings.get("rank") not in (None, "jev"):
+        raise FactoryError("rank must be jev")
     if not isinstance(settings.get("no_sync_check", False), bool):
         raise FactoryError("no_sync_check must be true or false")
     if offset is not None and (not isinstance(offset, (int, float)) or isinstance(offset, bool) or not math.isfinite(offset)):
@@ -236,7 +238,8 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None
         n = cfg["moments"]
         found = scout.check(judge.ask("scout", scout.prompt(segments, n + min(n, BENCH), mode,
                                                             focus=cfg.get("focus"), taste=taste(project, cfg),
-                                                            news=cfg.get("news"), brief=brief, channel=cfg.get("channel"))),
+                                                            news=cfg.get("news"), brief=brief, channel=cfg.get("channel"),
+                                                            ranked=_ranked(project, cfg, segments, say))),
                             segments[-1]["e"] if segments else None, brief=brief, mode=mode)
         moments = moments + found[:n]                # clips picked by hand before the scout keep their numbers
         data = {**data, "moments": moments, "bench": found[n:], "scouted": True}
@@ -268,6 +271,21 @@ def _moments(project: Path, judge: Judge, media: Path, cfg: dict, say, stop=None
     moments = [m if m.get("snapped") else {**scout.snap(m, words, brief, mode), "snapped": True} for m in moments]
     _write(path, {**data, "moments": moments})
     return moments
+
+
+def _ranked(project: Path, cfg: dict, segments: list[dict], say) -> str | None:
+    """The Jev shortlist for the scout prompt. A failure is recorded and the scout runs as before."""
+    if cfg.get("rank") != "jev":
+        return None
+    try:
+        ranked = jev.shortlist(jev.score(project, segments, say))
+    except Exception as exc:                        # never stops the factory
+        reason = " ".join(str(exc).split())[:300] or type(exc).__name__
+        _write(project / "rank.json", {"rank": "jev", "state": "failed", "reason": reason, "at": _now()})
+        say(f"Jev ranking skipped: {reason}")
+        return None
+    _write(project / "rank.json", {"rank": "jev", "state": "scored", "windows": len(ranked), "at": _now()})
+    return jev.block(ranked)
 
 
 # ----------------------------------------------------------------------------- steering by hand
@@ -653,6 +671,7 @@ def status(project: Path, judge: Judge | None = None) -> dict:
             "source": src, "rights": cfg.get("rights", "unknown"),
             "pending": judge.pending(), "clips": clips, "bench": bench, "usage": judge.usage(),
             "network": network.summary(project),
+            **({"rank": _read(project / "rank.json")} if (project / "rank.json").is_file() else {}),
             "review": str(project / "index.html") if (project / "index.html").is_file() else None}
 
 
@@ -704,6 +723,9 @@ def redo(project: Path, task: str) -> None:
         for folder in ("answers", "pending"):
             for p in (project / folder).glob("clip[0-9][0-9]-*"):
                 p.unlink(missing_ok=True)
+    elif task == "jev":
+        (project / "answers" / "jev.json").unlink(missing_ok=True)
+        (project / "rank.json").unlink(missing_ok=True)
     elif kind == "plan":
         Judge(project).forget(f"{clip}-pick")
         shutil.rmtree(d / "visuals", ignore_errors=True)

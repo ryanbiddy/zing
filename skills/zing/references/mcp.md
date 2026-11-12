@@ -111,6 +111,8 @@ files still use the host judge. `factory_status` includes `network` with request
 counts by host and purpose and a one-line `summary`. It says
 `offline: nothing fetched` only when the offline project's ledger is empty.
 
+`factory_new(..., rank="jev")` scores transcript windows with Simple Jev and gives the scout a shortlist. Transcript text goes to Jev's API (`JEV_API_KEY`), Featherless (`FEATHERLESS_API_KEY`) or the free Featherless demo. `factory_status` shows `rank` with the reason when scoring failed. Offline projects refuse.
+
 Tools return `{ok: true, ...}` or `{ok: false, error: ...}`. Check the envelope:
 a transport success is not a successful study, render or text check.
 

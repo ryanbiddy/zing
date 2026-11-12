@@ -308,6 +308,22 @@ the clip for review. Missing tags are also flagged. Status reports `brief_flags`
 and `brief_errors`; the review page shows the details. Notes guide the scout
 but are not checked automatically.
 
+## Rank moments with Jev
+
+```bash
+zing factory new talk --media talk.mp4 --transcript talk.vtt --rank jev
+```
+
+`--rank jev` scores every 40 to 90 second stretch of the transcript with Simple Jev before the scout runs. Jev rates text on three questions: how strong the moment is, whether the first sentence hooks, and how it ends. The scout then gets the 15 best spans that do not overlap, as a hint. It still reads the whole transcript and still writes the hooks and cut points. Scores are saved in `answers/jev.json`, so a rerun does not score again. `zing factory redo PROJECT jev` forgets them. If scoring fails, `status` shows the reason under `rank` and the scout runs as usual.
+
+The transcript text is sent to Jev's API (`api.typesafe.ai`) or to Featherless. Offline projects refuse. Zing picks the host from your shell.
+
+- `JEV_API_KEY` is the recommended key. Zing sends scoring requests to Jev's API with model `jev-latest`. `TYPESAFE_API_KEY` works too, and `JEV_API_KEY` wins if both are set.
+- `FEATHERLESS_API_KEY` sends them to the Featherless classifier instead.
+- With no key, Zing uses the free Featherless demo. It allows 2 requests a second and 2k tokens per question, so a long episode takes minutes.
+
+Set the key in your own shell. Zing never writes it to a file or the network log. `ZING_JEV_MODEL` overrides the model name. Cost is roughly 1,000 input tokens per question, which is about $0.07 for an hour of audio at Featherless's beta price. Treat that as approximate.
+
 ## Cut from unreleased footage
 
 ```bash

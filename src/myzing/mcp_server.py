@@ -1872,7 +1872,8 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                   news_peg: str | None = None, news_links: list[str] | None = None,
                   uhd: bool = False, offline: bool = False, visuals: str | None = None,
                   rights: Literal["own", "licensed", "permission", "unknown"] = "unknown",
-                  brief: str | None = None, no_sync_check: bool = False) -> dict[str, Any]:
+                  brief: str | None = None, no_sync_check: bool = False,
+                  rank: Literal["jev"] | None = None) -> dict[str, Any]:
     """Create a factory project from a local episode file and an optional caption file.
 
     mode "launch" assembles launch films from a long demo or interview (landscape first, the launch pack); brand_name,
@@ -1883,6 +1884,8 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
     vocab supplies exact spellings for transcription and captions. news_peg (today's news, one line) and
     news_links (articles about it) make each clip the backstory to that news, opening on a headline.
     uhd doubles every shape's output width and height for 4K sources.
+    rank="jev" scores transcript windows with Jev first and gives the scout a shortlist; the transcript text goes to
+    Jev's API or Featherless.
     offline fetches nothing. visuals names a folder of your images and videos for the pick step.
     rights labels the source and never blocks a clip. brief is a JSON campaign file checked before render.
     Supplied transcripts are checked with up to five speech probes before scouting. offset supplies the shift in
@@ -1900,7 +1903,7 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                                brief=Path(brief).expanduser() if brief is not None else None,
                                **{k: v for k, v in {"moments": moments if moments != 8 or mode != "launch" else None,
                                                     "shapes": shapes, "pack": pack, "brand": brand, "focus": focus,
-                                                    "show": show, "vocab": vocab, "news": news}.items() if v is not None})
+                                                    "show": show, "vocab": vocab, "news": news, "rank": rank}.items() if v is not None})
         return _ok(**result, hint="Call factory_run(project), then poll factory_status(project).")
     except (FactoryError, ValueError, OSError) as exc:
         return _err(str(exc))

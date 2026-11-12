@@ -479,6 +479,12 @@ Banned terms and missing tags are review flags. See
 [Rights and campaign briefs](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md#rights-and-campaign-briefs)
 for the JSON fields. Zing does not make a clip legal.
 
+## Factory Jev ranking
+
+`zing factory new PROJECT --media FILE --rank jev` scores 40 to 90 second transcript windows with Simple Jev and gives the scout the best 15 as a shortlist. Scores are cached in `answers/jev.json`; `zing factory redo PROJECT jev` forgets them. A failure shows under `rank` in `status` and the scout runs as usual.
+
+Transcript text goes to Jev's API (`JEV_API_KEY`, recommended; `TYPESAFE_API_KEY` also works), Featherless (`FEATHERLESS_API_KEY`) or the free Featherless demo when no key is set. The demo allows 2 requests a second, so long episodes are slow. Set keys in your own shell. Cost is about $0.07 per hour of audio, approximate. Offline projects refuse. MCP: `factory_new(..., rank="jev")`.
+
 ## Factory offline projects
 
 ```sh
