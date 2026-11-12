@@ -64,7 +64,7 @@ def test_hook_rechecks_facts_context_and_receipt(ready):
     assert any("hook number not spoken" in f and "99" in f for f in got["fact_check"])
     assert got["receipt"] == pipeline._read(d / "receipt.json")
     assert j.cached("clip01-plan")["hook"] == "99 rockets" and len(j.prompts) == 1
-    assert calls == [("9x16", "zing")]
+    assert calls == [("9x16", "desk")]
 
 
 def test_visual_and_status(ready):
@@ -77,7 +77,7 @@ def test_visual_and_status(ready):
     assert request["id"] == "v1" and request["candidate_count"] == 2 and request["pick"] == 1
     assert [c["index"] for c in request["candidates"]] == [0, 1]
     assert [c["path"] for c in request["candidates"]] == ["a.jpg", "b.jpg"]
-    assert calls == [("9x16", "zing")]
+    assert calls == [("9x16", "desk")]
 
 
 def test_render_and_project_shapes(ready):
@@ -104,7 +104,7 @@ def test_word_keeps_timings_and_refreshes_checks(ready, selector):
     assert (got["index"], got["at"], got["old"], got["new"]) == (3, 3, "rocket.", "Rocket!")
     assert '"words": "We built a Rocket!"' in j.prompts[-1]
     assert any("caption fix" in f and "Rocket!" in f for f in got["fact_check"])
-    assert got["receipt"] == pipeline._read(d / "receipt.json") and calls == [("9x16", "zing")]
+    assert got["receipt"] == pipeline._read(d / "receipt.json") and calls == [("9x16", "desk")]
 
 
 def test_word_survives_automatic_fixes_and_later_edits(ready):
@@ -271,14 +271,14 @@ def test_studio_keeps_responses_and_queue_labels(ready):
     assert studio.text({"clip": d.name, "field": "hook", "text": "New"}) == {"queued": "clip01: new hook"}
     # queued edits change files when their job runs, so two edits on one clip never overwrite each other
     assert pipeline._read(d / "visuals" / "picks.json") == before and pipeline._read(d / "plan-raw.json")["hook"] != "New"
-    assert studio.rerender({"clip": d.name, "shape": "1x1"}) == {"queued": "clip01: 1x1 zing"}
+    assert studio.rerender({"clip": d.name, "shape": "1x1"}) == {"queued": "clip01: 1x1 desk"}
     assert studio.word({"clip": d.name, "index": 3, "new": "Rocket!"}) == {"queued": "clip01: new word"}
     assert not calls
     while not studio.jobs.empty():
         studio.jobs.get_nowait()[1]()
     assert pipeline._read(d / "visuals" / "picks.json")["picks"]["v1"] == {"pick": 1, "why": "chosen in the dashboard"}
     assert pipeline._read(d / "plan-raw.json")["hook"] == "New"
-    assert calls == [("9x16", "zing"), ("9x16", "zing"), ("1x1", "zing"), ("9x16", "zing")]
+    assert calls == [("9x16", "desk"), ("9x16", "desk"), ("1x1", "desk"), ("9x16", "desk")]
     assert studio.state()["clips"][0]["words"][3]["w"] == "Rocket!"
 
 
@@ -326,7 +326,7 @@ def test_studio_edits_read_current_files_in_the_worker(ready, order):
     assert final["hook"] == j.cached("clip01-plan")["hook"] == "New hook"
     assert final["visuals"]["v1"]["path"].endswith("b.jpg")
     assert pipeline._read(d / "words.json")["words"][3]["w"] == "ship."
-    assert calls == [("9x16", "zing")] * 3
+    assert calls == [("9x16", "desk")] * 3
 
 
 def test_studio_visual_jobs_keep_other_picks(ready):

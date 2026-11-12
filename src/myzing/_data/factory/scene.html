@@ -58,6 +58,23 @@ body{font-family:Inter,sans-serif;color:var(--ink);position:relative}
 #disclosure span{display:inline-block;padding:16px 24px;border-radius:14px;background:#111;color:#fff;font:700 36px/1.25 Inter,sans-serif;max-width:100%;white-space:pre-wrap;overflow-wrap:anywhere}
 
 #logo{position:absolute;display:none;object-fit:contain;pointer-events:none}
+html[data-look] #spk:not(.front){background:var(--navy)}
+html[data-look] #top,html[data-look] #gfx{background:transparent;border:0}
+html[data-look] #spkBlur{display:none}
+html[data-look] #topBlur{display:none}
+html[data-look] #topWin{box-shadow:none}
+html[data-look] #gfx{z-index:3}
+html[data-look] #top{z-index:2}
+html[data-look] #dim{z-index:1;background:#000}
+html[data-look] #hook,html[data-look] #kicker,html[data-look] #rule{position:absolute;z-index:4;pointer-events:none}
+html[data-look] #cap,html[data-look] #credit,html[data-look] #label,html[data-look] #kicker{z-index:5}
+html[data-look] #grain{z-index:6;pointer-events:none}
+html[data-look] #scrim{z-index:1;pointer-events:none}
+html[data-look] #hook{left:0;right:auto;top:0;height:100%;width:100%;display:block;letter-spacing:0}
+html[data-look] #credit{background:none;padding:0;border-radius:0}
+html[data-look] #cap .box,html[data-captions=band] #cap .box{padding:0;border-radius:0;letter-spacing:0;text-transform:none;line-height:1}
+html[data-look] #srctag,html[data-look] #prog,html[data-look] #pill,html[data-look] #quote{display:none}
+html[data-look] .g-item i,html[data-look] .bar{border-radius:0!important}
 /* graphics */
 .g-num{position:absolute;left:0;right:0;text-align:center;font:900 230px/1 var(--gfx-font,Inter);letter-spacing:-.04em;color:var(--yel);font-variant-numeric:tabular-nums}
 .g-lab{position:absolute;left:60px;right:60px;text-align:center;font:800 46px/1.15 var(--gfx-font,Inter);color:var(--ink)}
@@ -105,7 +122,10 @@ html[data-aspect="9x16"] #label .n,html[data-aspect="9x16"] #label .r{white-spac
 <img id="matte" style="display:none">
 <div class="ovl" id="vig"></div>
 <div class="ovl" id="grain"></div>
+<div class="ovl" id="scrim"></div>
 <div id="dim"></div>
+<div id="rule"></div>
+<div id="kicker"></div>
 <div id="quote"></div>
 <div id="hook"></div>
 <div id="pill"><span></span></div>
@@ -121,6 +141,9 @@ html[data-aspect="9x16"] #label .n,html[data-aspect="9x16"] #label .r{white-spac
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
 const TH0 = D.theme || {}, CAP_DEFAULT = TH0.cap_bg == null;
+const STILL = TH0.motion === 'still', BAND = TH0.captions === 'band', STYLE = TH0.look;
+if (STYLE) document.documentElement.dataset.look = STYLE;
+if (BAND) document.documentElement.dataset.captions = 'band';
 const CAP_SHORT = CAP_DEFAULT || TH0.cap_side === 'short';   // size by the short side, so 16x9 is not 1.8x bigger
 const CAP_SIZE = TH0.cap_size || CAP_DEFAULT
   ? Math.round((TH0.cap_size || 78) * (TH0.learned ? (D.H || 1920)/1920
@@ -166,6 +189,8 @@ if ((D.quotes || []).length) document.fonts.load(`${TH0.quote_weight || 400} 40p
 if (KIN) { document.fonts.load(`40px ${JSON.stringify(TH0.cap_font)}`); document.fonts.load(`italic 40px ${JSON.stringify(TH0.cap_font)}`); }
 if (TH0.pill_font || TH0.hook_font) document.fonts.load(`italic ${TH0.hook_weight || 400} 40px ${JSON.stringify(TH0.pill_font || TH0.hook_font)}`);
 document.fonts.load(`${TH0.cap_weight || 900} 40px ${JSON.stringify(TH0.cap_font || (CAP_DEFAULT ? 'ZingCaption' : 'Inter'))}`);
+if (STYLE) for (const font of ['700 40px ZingCaption','800 40px ZingCaption','700 40px "IBM Plex Sans"',
+  '400 40px "IBM Plex Sans"','400 40px "Instrument Serif"','italic 400 40px "Instrument Serif"']) document.fonts.load(font);
 // caption timing and position; y (center as a fraction of the height) applies where the speaker fills the frame
 const CAP = {words: 4, chars: 18, pop_ms: 120, pop_from: .88, overshoot: true, y: null};
 for (const [k, f] of Object.entries({words: 'cap_words', chars: 'cap_chars', pop_ms: 'cap_pop_ms', pop_from: 'cap_pop_from',
@@ -211,7 +236,8 @@ function captionGroups(words, limits) {
   for (let a=0; a<n; a=next[a]) groups.push(Array.from({length:next[a]-a}, (_, i) => a+i));
   return groups;
 }
-const groups = captionGroups(W, CAP), capSizes = new Map(), capPositions = new Map();
+let groups = captionGroups(W, CAP);
+const capSizes = new Map(), capPositions = new Map();
 // kinetic captions set one word of each line large: a number, or the longest word that carries weight
 const STOP = new Set('about after again against because before being between could doesn every their there these those through under until where which while would should really things thing going people'.split(' '));
 const keyOf = grp => { let best = -1, len = 4;
@@ -248,7 +274,24 @@ function cover(img, iw, ih, bw, bh, z, fx=.5, fy=.5, maxFrac=null) {
 }
 const overlaysAt = t => ['9x16', '1x1'].includes(D.aspect || '9x16')
   ? (D.overlays || []).filter(o => t >= o.from && t < o.to) : [];
-const quoteLean = (q, t) => q ? 1 + .06*easeOut(lin(t, q.from, q.from+1.2))*(1 - easeInOut(lin(t, q.to-.35, q.to))) : 1;
+const quoteLean = (q, t) => q && !STILL ? 1 + .06*easeOut(lin(t, q.from, q.from+1.2))*(1 - easeInOut(lin(t, q.to-.35, q.to))) : 1;
+let punches;
+function punchAt(cam, t) {
+  if (!STILL || STYLE === 'newsroom') return false;
+  if (!punches) {
+    punches = [];
+    for (const c of D.cams || []) {
+      if (c.mode !== 'face' || c.to-c.from <= 12 || punches.length >= 2) continue;
+      const starts = W.filter((w, i) => i && /[.!?]["'”’)]*$/.test(W[i-1].w)
+        && w.os > c.from && w.os < c.to);
+      if (!starts.length) continue;
+      const mid = (c.from+c.to)/2;
+      starts.sort((a,b) => Math.abs(a.os-mid)-Math.abs(b.os-mid));
+      punches.push({cam:c, at:starts[0].os});
+    }
+  }
+  return punches.some(p => p.cam === cam && t >= p.at);
+}
 function overlayCrop(r, b, overlays, cam=null) {
   if (!overlays.length) return null;
   const [iw, ih] = D.srcSize, box = [0, 0, iw, (D.burnTop || 1)*ih];
@@ -281,8 +324,10 @@ function overlayCrop(r, b, overlays, cam=null) {
   return choices.length ? {tx:choices[0].tx, ty:choices[0].ty, s:choices[0].s} : null;
 }
 function faceCrop(cam, b, t, lean=1) {
-  const overlays = overlaysAt(t), r = faceFrame(cam, b, t, lean);
+  const overlays = STILL ? (D.overlays || []).filter(o => o.from < cam.to && o.to > cam.from
+    && ['9x16', '1x1'].includes(D.aspect || '9x16')) : overlaysAt(t), r = faceFrame(cam, b, t, lean);
   if (!overlays.length) return r;
+  if (STILL) return overlayCrop(r, b, overlays, cam) || r;
   const at = Math.max(cam.from, shotAt(t).from, ...overlays.map(o => o.from));
   const q = (D.quotes || []).find(q => at >= q.from && at < q.to);
   return overlayCrop(faceFrame(cam, b, at, (D.quotes || []).length ? quoteLean(q, at) : lean), b, overlays, cam) || r;
@@ -302,6 +347,15 @@ function faceFrame(cam, b, t, lean=1) {
     return {tx, ty, s, clip};
   };
   if (cam.tile && base > cap && !burn) return at(Math.max(Math.min(b.w/w, b.h/h), cap));   // the tile whole, or as much of it as stays sharp
+  if (STILL) {
+    const punched = punchAt(cam, t), r = at(Math.max(base, Math.min(base*(punched ? 1.12 : 1), cap)));
+    if (punched) {
+      r.ty = clamp(b.h*.36-cam.cy*ih*r.s, b.h-bottom*r.s, -top*r.s);
+      if (burn) r.ty = Math.max(r.ty, b.h-D.burnTop*ih*r.s);
+      r.ty = Math.max(r.ty, -hair*r.s);
+    }
+    return r;
+  }
   const center = r => cam.cy*ih*r.s + r.ty;
   const want = b.h / (cam.fh*ih*3.2);
   let z = clamp(want/base, 1, limit);
@@ -345,6 +399,7 @@ function funnelLayout(n) {
   return {bar, label, gap, title: Math.min(120, top-96), rows: Array.from({length:n}, (_, i) => top+i*step)};
 }
 function drawGraphic(g, t, el) {
+  if (STILL) t = Math.max(g.from+1000, ...(g.items || g.rows || []).map(r => (r.at || 0)+1000));
   const k = g.kind;
   if (el.dataset.id !== g.id) {
     el.dataset.id = g.id;
@@ -441,6 +496,12 @@ function fitCaption(box, gi) {
   box.style.fontSize = capSizes.get(gi) + 'px';
 }
 function geometry(layout) {
+  if (STYLE) {
+    const strip = STYLE === 'newsroom' && ASPECT !== '16x9';
+    const box = strip ? {x:0, y:600*SH9/1920, w:SW, h:608*SH9/1920} : {x:0,y:0,w:SW,h:SH9};
+    return {spk:box, ...(layout === 'split' ? {top:box} : layout === 'graphic' ? {gfx:box} : {}),
+      cap:ASPECT === '16x9' ? SH9*975/1080 : SH9*1480/1920, hook:'none'};
+  }
   if (layout === 'quote') return {spk: {x:0, y:0, w:SW, h:STAGE_H}, hook: PANEL ? 'panel' : 'none'};   // the speaker, full stage
   if (layout === 'front') {    // the picture fills the stage; the speaker, cut out, stands in front: rising from the
     const S = geometry('solo'), box = {x:0, y:0, w:SW, h:STAGE_H}, r = Math.round;   // bottom when tall, at the right when wide
@@ -573,17 +634,19 @@ function placeLogo(hookOn, hook) {
 }
 
 function captionState(t) {
+  if (BAND) prepareBand();
   const shot = shotAt(t);
   const Q = (D.quotes || []).find(q => t >= q.from && t < q.to);
   const layout = Q ? 'quote' : shot.layout;   // solo | split | graphic, or a quote moment over whatever shot is up
   const G = geometry(layout);
   let gi = -1; for (let i=0;i<groups.length;i++) if (W[groups[i][0]].os <= t+.02) gi = i;
-  const card = layout === 'graphic' && (shot.graphic || {}).kind === 'endcard';
+  const card = layout === 'graphic' && ((shot.graphic || {}).kind === 'endcard' || (BAND && ['counter','quote'].includes(shot.graphic?.kind)));
   const show = gi >= 0 && !Q && !card && !groups[gi].every(inQuote) && t < W[W.length-1].oe + .3;
   const visible = show && !(t < D.hookUntil && G.hook === 'pill' && ASPECT === '9x16' && layout !== 'solo');
   return {shot, Q, layout, G, gi, show, visible};
 }
 window.captionCues = function() {
+  if (BAND) prepareBand();
   const cues = [], n = Math.round(D.duration * FPS);
   let last = null;
   for (let f=0;f<n;f++) {
@@ -599,7 +662,287 @@ window.captionCues = function() {
   return cues.map(({id, ...cue}) => cue);
 };
 
+let bandReady = false, bandY;
+function textWidth(text, size, family='ZingCaption', weight=700, italic=false) {
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = `${italic ? 'italic ' : ''}${weight} ${size}px ${JSON.stringify(family)}`;
+  return ctx.measureText(text).width;
+}
+function bandSpec() {
+  const wide = ASPECT === '16x9', scale = wide ? SH9/1080 : Math.min(SW/1080, SH9/1920);
+  return {size:(wide ? 103 : TH0.cap_size || 74)*scale,
+    width:wide ? SW*.8 : (TH0.cap_width || 490)*scale, chars:wide ? 26 : Infinity, scale};
+}
+const WEAK_BAND = new Set('a an the of and to if we they i would could that than was my them in on at for with from by about into or but so because your our their his her its is are were be been will can do does did have has had you he she it'.split(' '));
+const sentenceEnd = s => /[.!?]["'”’)]*$/.test(s);
+function bandWord(j) {
+  let s = W[j].w;
+  if (W.every(w => w.w === w.w.toUpperCase())) {
+    s = s.toLowerCase();
+    if (!j || sentenceEnd(W[j-1].w) || /^i(?:['’]|$)/.test(s)) s = s[0].toUpperCase()+s.slice(1);
+  }
+  return s;
+}
+function bandLayout(ids) {
+  const {size, width, chars} = bandSpec(), words = ids.map(bandWord), full = words.join(' ');
+  const measure = s => textWidth(s, size, TH0.cap_font || 'ZingCaption', TH0.cap_weight || 800);
+  const fits = s => s.length <= chars && measure(s) <= width;
+  if (fits(full)) return {lines:[full], size};
+  let best;
+  for (let k=1; k<words.length; k++) {
+    const a = words.slice(0,k).join(' '), b = words.slice(k).join(' ');
+    if (!fits(a) || !fits(b) || (WEAK_BAND.has(norm(words[k-1])) && !sentenceEnd(words[k-1]))) continue;
+    const score = Math.abs(a.length-b.length) - (/[.,?!]["'”’)]*$/.test(words[k-1]) ? 8 : 0) + (a.length>b.length ? 3 : 0);
+    if (!best || score < best.score) best = {lines:[a,b], size, score};
+  }
+  if (best) return best;
+  if (words.length>1 && full.length<=chars && measure(full)<=width/.92
+      && words.slice(0,-1).every(w => WEAK_BAND.has(norm(w))))
+    return {lines:[full], size:size*width/measure(full)};
+  if (words.length === 1) return {lines:[full], size:Math.min(size, size*width/Math.max(1, measure(full)))};
+  return null;
+}
+function prepareBand() {
+  if (bandReady) return;
+  const n = W.length, cost = Array(n+1).fill(Infinity), prev = Array(n+1).fill(0);
+  cost[0] = 0;
+  for (let j=1; j<=n; j++) {
+    for (let i=Math.max(0,j-12); i<j; i++) {
+      if (!Number.isFinite(cost[i])) continue;
+      const ids = Array.from({length:j-i}, (_, k) => i+k), lay = bandLayout(ids);
+      if (!lay) continue;
+      const end = W[j-1].w;
+      if (j<n && WEAK_BAND.has(norm(end)) && !sentenceEnd(end)) continue;
+      const dur = (j<n ? W[j].os : W[j-1].oe+.3)-W[i].os, chars = lay.lines.join('').length;
+      let c = 2 + .5*(lay.lines.length-1) + 10*Math.max(0, Math.max(.83,.3*ids.length)-dur)
+        + .3*Math.max(0, chars/Math.max(dur,.05)-20);
+      c += ids.slice(0,-1).reduce((v,k) => v+(sentenceEnd(W[k].w) ? 6 : /,["'”’)]*$/.test(W[k].w) ? 1.5 : 0), 0);
+      c += sentenceEnd(end) ? -2 : /,["'”’)]*$/.test(end) ? -1 : 0;
+      if (cost[i]+c < cost[j]) { cost[j] = cost[i]+c; prev[j] = i; }
+    }
+    if (!Number.isFinite(cost[j])) { prev[j] = j-1; cost[j] = cost[j-1]+10000; }   // an isolated weak word still gets captioned
+  }
+  groups = [];
+  for (let j=n; j>0; j=prev[j]) groups.unshift(Array.from({length:j-prev[j]}, (_, k) => prev[j]+k));
+  bandReady = true;
+}
+const bandSpans = new Map();
+function faceSpan(cam, box) {   // screen rows of the face and the picture's lower edge, mapped through the shot's real crop
+  if (bandSpans.has(cam)) return bandSpans.get(cam);
+  const [iw, ih] = D.srcSize, got = {top:1e9, chin:-1e9, edge:box.y+box.h};
+  if (cam.fh) for (const t of [cam.from, cam.to-1e-6]) {
+    const whole = cam.mode !== 'face' && (textCut(cam, iw, ih, box.w, box.h, 1) || cam.faces > 1);
+    const s0 = Math.min(box.w/iw, box.h/ih), r = cam.mode === 'face' ? faceCrop(cam, box, t)
+      : whole ? {s:s0, ty:(box.h-ih*s0)/2} : crop(iw, ih, box.w, box.h, 1, .5, .38, D.burnTop);
+    got.top = Math.min(got.top, box.y+(cam.cy-.6*cam.fh)*ih*r.s+r.ty);
+    got.chin = Math.max(got.chin, box.y+(cam.cy+.6*cam.fh)*ih*r.s+r.ty);
+    if (cam.tile || whole) got.edge = Math.min(got.edge, box.y+r.ty+(cam.tile ? cam.tile[3] : 1)*ih*r.s);
+  }
+  bandSpans.set(cam, got);
+  return got;
+}
+function captionBand(t=0) {
+  if (ASPECT === '16x9') return SH9*975/1080;
+  if (STYLE === 'newsroom') return SH9*1258/1920;
+  if (bandY == null) {
+    const box = geometry('solo').spk, size = bandSpec().size, k = SH9/1920;
+    let chin = 1150*k-size*2.1;
+    for (const cam of D.cams || []) chin = Math.max(chin, faceSpan(cam, box).chin);
+    bandY = clamp(chin+size*2.1, 1150*k, 1500*k);
+  }
+  const cam = camAt(t), size = bandSpec().size, k = SH9/1920, span = D.cams && cam ? faceSpan(cam, geometry('solo').spk) : null;
+  const clear = y => span.chin <= y-size*2.1+1 || span.top >= y;
+  if (!span || clear(bandY)) return bandY;   // one band unless this shot's face sits in it
+  const bar = span.edge+size*2.1+20*k;   // the picture's black bar, when it is deep enough
+  const slot = span.edge < 1540*k && bar < SH9-40*k ? bar : 1150*k;
+  return clear(slot) ? slot : bandY;
+}
+function drawBand(t, visible=true) {
+  prepareBand();
+  const cap = $('cap'), box = cap.firstChild, spec = bandSpec();
+  let gi = -1;
+  for (let i=0; i<groups.length; i++) if (W[groups[i][0]].os <= t) gi = i;
+  const grp = groups[gi], last = grp && W[grp[grp.length-1]], next = groups[gi+1];
+  const until = last ? next && W[next[0]].os-last.oe < 1.5 ? W[next[0]].os : last.oe+.5 : 0;
+  cap.style.opacity = visible && gi>=0 && t<until ? 1 : 0;
+  if (!grp) return;
+  const lay = bandLayout(grp), size = lay.size, lead = size*1.3, h = spec.size*2.6;
+  const left = TH0.cap_align === 'left' || ['editorial','newsroom'].includes(STYLE), news = STYLE === 'newsroom' && ASPECT !== '16x9';
+  cap.style.left = (left ? ASPECT === '16x9' ? SW*.1 : (TH0.cap_x || (STYLE === 'editorial' ? 96 : 72))*SW/1080 : (SW-spec.width)/2)+'px';
+  cap.style.right = 'auto'; cap.style.width = spec.width+'px'; cap.style.top = captionBand(t)+'px';
+  cap.style.transform = news ? 'none' : 'translateY(-100%)';
+  box.style.fontSize = size+'px'; box.style.background = 'transparent'; box.style.padding = '0';
+  const x = left ? 0 : spec.width/2, y = news ? size*.76 : h-(lay.lines.length-1)*lead;
+  box.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${spec.width}" height="${h}" style="overflow:visible;display:block">`
+    + lay.lines.map((s,i) => `<text x="${x}" y="${y+i*lead}" text-anchor="${left ? 'start' : 'middle'}" fill="#FFFFFF" font-family="ZingCaption" font-size="${size}" font-weight="${TH0.cap_weight || 800}" style="paint-order:stroke fill;stroke:${TH0.cap_stroke || 'none'};stroke-width:${(TH0.cap_stroke_w || 0)*spec.scale};text-shadow:${TH0.cap_shadow || 'none'}">${esc(s)}</text>`).join('')+'</svg>';
+}
+function headlineText() { return (D.hookHtml || '').replace(/<[^>]*>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/\*/g,''); }
+function balanced(text, size, width, family, weight, italic=false) {
+  const words = text.split(/\s+/).filter(Boolean);
+  for (; size>1; size--) {
+    const measure = s => textWidth(s, size, family, weight, italic);
+    if (measure(text) <= width) return {lines:[text], size};
+    let best;
+    for (let i=1; i<words.length-1; i++) {
+      const a = words.slice(0,i).join(' '), b = words.slice(i).join(' '), aw = measure(a), bw = measure(b);
+      if (Math.max(aw,bw)>width) continue;
+      const score = Math.abs(aw-bw);
+      if (!best || score<best.score) best = {lines:[a,b], size, score};
+    }
+    if (best) return best;
+  }
+  return {lines:[text], size};
+}
+function svgText(text, x, y, size, family, weight=700, color='#FFFFFF', anchor='start', extra='') {
+  return `<text x="${x}" y="${y}" fill="${color}" font-family="${family}" font-size="${size}" font-weight="${weight}" text-anchor="${anchor}" ${extra}>${esc(text)}</text>`;
+}
+function svg(lines) { return `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${SH9}" viewBox="0 0 ${SW} ${SH9}">${lines}</svg>`; }
+function lookScale() { return ASPECT === '16x9' ? SH9/1080 : Math.min(SW/1080, SH9/1920); }
+function headlineUntil() {
+  const end = W.find(w => w.oe>=4 && sentenceEnd(w.w));
+  return Math.min(5.5, end ? end.oe : 5.5);
+}
+function drawHeadline(t, card, end) {
+  const news = STYLE === 'newsroom', desk = STYLE === 'desk', wide = ASPECT === '16x9', s = lookScale();
+  const family = news ? 'IBM Plex Sans' : desk ? 'ZingCaption' : 'Instrument Serif', weight = desk ? 800 : news ? 700 : 400;
+  const hook = $('hook'), kicker = $('kicker'), x = 72*SW/1080, top = wide ? 64*s : (news || desk ? 300 : 360)*SH9/1920;
+  hook.style.opacity = !card && (news || !end && t<headlineUntil()) ? 1 : 0;
+  hook.style.transform = 'none'; hook.style.left = '0'; hook.style.top = '0'; hook.style.width = SW+'px'; hook.style.height = SH9+'px';
+  const text = desk ? headlineText().toUpperCase() : headlineText();
+  const lay = balanced(text, (desk ? 60 : news ? 69 : 83)*s, (wide ? SW*.72 : 936*SW/1080)-(desk ? 52*s : 0), family, weight);
+  let ink = '', lead = lay.size*(desk ? 1.1 : news ? .96 : 1.02);
+  if (news && wide) ink += `<rect width="${SW}" height="${top+104*s+lay.lines.length*lead}" fill="#000000" fill-opacity=".55"/>`;
+  if (desk) {
+    const width = Math.max(...lay.lines.map(l => textWidth(l,lay.size,family,weight)))+52*s;
+    ink += `<rect x="${x}" y="${top}" width="${width}" height="${lay.size*.728+(lay.lines.length-1)*lead+36*s}" fill="#FFD23F"/>`;
+  }
+  lay.lines.forEach((line,i) => {
+    const y = desk ? top+18*s+lay.size*.728+i*lead : news && !wide ? 570*SH9/1920-(lay.lines.length-1-i)*lead
+      : top+(news ? 104*s : lay.size*.72)+i*lead;
+    ink += svgText(line, x+(desk ? 26*s : 0), y, lay.size, family, weight, desk ? '#111111' : '#FFFFFF');
+  });
+  hook.innerHTML = svg(ink);
+  kicker.style.display = !desk && D.sourceTag && !card && (!end || news) ? 'block' : 'none';
+  kicker.style.left = '0'; kicker.style.top = '0';
+  const ky = wide ? top : (news ? 300 : 290)*SH9/1920;
+  kicker.innerHTML = svg(svgText((D.sourceTag || '').toUpperCase(), x, ky+26*s, (news ? 37 : 36)*s,
+    news ? 'IBM Plex Sans' : 'ZingCaption', 700, news ? '#FFD23F' : '#FFFFFF', 'start', `letter-spacing="${3*s}" opacity="${news ? 1 : .75}"`));
+}
+function drawTakeaway(g, end=false) {
+  const news = STYLE === 'newsroom', desk = STYLE === 'desk', wide = ASPECT === '16x9', s = lookScale();
+  const family = news ? 'IBM Plex Sans' : desk ? 'ZingCaption' : 'Instrument Serif', weight = desk ? 800 : news ? 700 : 400;
+  const sx = SW/1080, sy = wide ? SH9/1080 : SH9/1920, strip = geometry('solo').spk;
+  const el = $('gfxIn'); el.style.transform = 'none'; el.style.width = SW+'px'; el.style.height = SH9+'px';
+  let ink = '', y = wide ? 540*sy : 640*sy, x = desk ? SW/2 : 72*sx;
+  if (end) {
+    const show = (D.sourceTag || '').split('·')[0].trim().replace(/\s+podcast$/i,'');
+    if (news) {
+      ink += `<rect x="${strip.x}" y="${strip.y}" width="${strip.w}" height="${strip.h}" fill="#111111"/>`;
+      if (show) ink += svgText('FULL EPISODE',72*sx,strip.y+270*sy,37*s,family,700,'#FFD23F')
+        + svgText(`${show} podcast`,72*sx,strip.y+350*sy,80*s,family,700);
+      else { const lay = balanced(headlineText(),80*s,936*sx,family,700);
+        ink += lay.lines.map((l,i) => svgText(l,72*sx,strip.y+(270+i*90)*sy,lay.size,family,700)).join(''); }
+    } else {
+      ink += `<rect width="${SW}" height="${SH9}" fill="${desk ? '#111111' : '#F2F0EB'}"/>`;
+      if (desk) {
+        const lay = balanced(headlineText().toUpperCase(),71*s,900*sx,family,800), lead = lay.size*1.1;
+        const width = Math.max(...lay.lines.map(l => textWidth(l,lay.size,family,800)))+60*s, top = SH9*.396;
+        ink += `<rect x="${(SW-width)/2}" y="${top}" width="${width}" height="${lay.size*.728+(lay.lines.length-1)*lead+44*s}" fill="#FFD23F"/>`;
+        ink += lay.lines.map((l,i) => svgText(l,(SW-width)/2+30*s,top+22*s+lay.size*.728+i*lead,lay.size,family,800,'#111111')).join('');
+        if (show) ink += svgText(`Full episode: ${show} podcast`,SW/2,SH9*1060/1920,44*s,'ZingCaption',700,'#FFFFFF','middle','opacity=".75"');
+      } else {
+        if (show) ink += svgText(`FULL EPISODE · ${show.toUpperCase()} PODCAST`,96*sx,SH9*700/1920,36*s,'ZingCaption',700,'#0B0B0B','start','opacity=".78"');
+        ink += `<rect x="${96*sx}" y="${SH9*740/1920}" width="${6*s}" height="${120*s}" fill="#FFD23F"/>`;
+        const lay = balanced(headlineText(),108*s,860*sx,family,400);
+        ink += lay.lines.map((l,i) => svgText(l,128*sx,SH9*820/1920+i*lay.size*1.02,lay.size,family,400,'#0B0B0B')).join('');
+      }
+    }
+  } else {
+    if (news) { ink += `<rect x="${strip.x}" y="${strip.y}" width="${strip.w}" height="${strip.h}" fill="#FFD23F"/>`; y = strip.y+330*sy; }
+    const quote = g.kind === 'quote', value = quote ? String(g.text || '').replace(/\*/g,'')
+      : `${g.prefix || ''}${Number.isFinite(g.value) ? g.format === 'year' ? g.value : g.decimals ? g.value.toFixed(g.decimals) : fmt(g.value) : g.text || ''}${g.suffix || ''}`;
+    const size = (quote ? 80 : news ? 287 : desk ? 275 : 264)*s;
+    const lay = balanced(value,size,936*sx,family,weight,quote && !desk && !news);
+    if (!desk && !news && quote) ink += `<rect x="${72*sx}" y="${y-90*s}" width="${6*s}" height="${120*s}" fill="#FFD23F"/>`;
+    ink += lay.lines.map((l,i) => svgText(l,x+(quote && !desk && !news ? 24*s : 0),y+i*lay.size*1.05,lay.size,family,weight,
+      news ? '#111111' : desk ? '#FFD23F' : '#FFFFFF',desk ? 'middle' : 'start',quote && !desk && !news ? 'font-style="italic"' : '')).join('');
+    if (!quote) {
+      if (!desk && !news) ink += `<rect x="${72*sx}" y="${y+36*s}" width="${6*s}" height="${56*s}" fill="#FFD23F"/>`;
+      const label = String(g.label || ''), family = news ? 'IBM Plex Sans' : 'ZingCaption', size = (news ? 57 : 60)*s;
+      const fs = Math.min(size,size*936*sx/Math.max(1,textWidth(label,size,family,700)));
+      ink += svgText(label,desk ? SW/2 : (news ? 72 : 96)*sx, y+(news ? 90 : desk ? 100 : 88)*s,fs,family,700,
+        news ? '#111111' : '#FFFFFF',desk ? 'middle' : 'start');
+    }
+  }
+  el.innerHTML = svg(ink);
+}
+async function seekLook(t) {
+  const shot = shotAt(t), cam = camAt(t), G = geometry(shot.layout), s = lookScale(), wide = ASPECT === '16x9';
+  const news = STYLE === 'newsroom', g = shot.graphic || {}, end = g.kind === 'endcard' && shot.layout === 'graphic';
+  const card = shot.layout === 'graphic' && ['counter','quote'].includes(g.kind), graphic = shot.layout === 'graphic';
+  const spk = $('spk'), top = $('top'), gfx = $('gfx'), dim = $('dim'), scrim = $('scrim');
+  window.exportFront = false;
+  place(spk,G.spk); place(top,null); place(gfx,null); place(dim,null);
+  const f = Math.min(D.frames,Math.max(1,Math.floor(t*FPS)+1)), [iw,ih] = D.srcSize;
+  await setImg($('spkImg'),`${D.framesDir}/${String(f).padStart(5,'0')}.jpg`);
+  if (news || wide) contain($('spkImg'),iw,ih,G.spk.w,G.spk.h);
+  else if (cam.mode === 'face') applyCrop($('spkImg'),iw,ih,faceCrop(cam,G.spk,t));
+  else if (textCut(cam,iw,ih,G.spk.w,G.spk.h,1) || cam.faces>1) contain($('spkImg'),iw,ih,G.spk.w,G.spk.h);
+  else { const r = crop(iw,ih,G.spk.w,G.spk.h,1,.5,.38,D.burnTop);
+    applyCrop($('spkImg'),iw,ih,overlayCrop(r,G.spk,overlaysAt(t)) || r); }
+  spk.style.filter = STYLE === 'editorial' && card ? 'grayscale(1)' : 'none';
+  $('credit').textContent = '';
+  let picture = false;
+  if (shot.layout === 'split' && D.visuals[shot.visual] && t>=3 && !card) {
+    const v = D.visuals[shot.visual], flat = !news && v.card;
+    let b = G.top;
+    if (flat) { const h = Math.min(900*v.h/v.w, 800)*s; b = {x:90*SW/1080,y:330*SH9/1920,w:900*SW/1080,h}; }
+    place(top,b); top.style.border = STYLE === 'editorial' && flat ? `${2*s}px solid #F2F0EB` : '0';
+    place($('topWin'),{x:0,y:0,w:b.w,h:b.h});
+    const frame = v.frames ? `${v.dir}/${String(Math.floor((t-shot.from)*FPS)%v.frames+1).padStart(5,'0')}.jpg` : v.src;
+    await setImg($('topImg'),frame); fitVisual($('topImg'),v,b.w,b.h,1,.5,.5,flat);
+    picture = flat;
+    const credit = $('credit'), domain = v.domain || '';
+    credit.textContent = (flat && domain ? 'Source: ' : '')+(domain || v.credit || '');
+    credit.style.font = `700 ${36*s}px ZingCaption`; credit.style.color = 'rgba(255,255,255,.85)'; credit.style.textShadow = 'none';
+    credit.style.left = b.x+'px'; credit.style.right = 'auto'; credit.style.top = b.y+b.h+46*s-36*s*.76+'px';
+    if (!flat) { credit.style.font = `${news ? 400 : 700} ${29*s}px ${news ? '"IBM Plex Sans"' : 'ZingCaption'}`;
+      credit.style.left = 'auto'; credit.style.right = (SW-b.x-b.w+30*s)+'px'; credit.style.top = (b.y+b.h-48*s)+'px';
+      credit.style.textShadow = '0 3px 6px rgba(0,0,0,.6)'; }
+    if (domain && v.credit && !v.credit.toLowerCase().includes(domain.toLowerCase())) credit.textContent += ` · ${v.credit}`;
+  }
+  if (!news && (card || picture)) { place(dim,G.spk); dim.style.opacity = card && STYLE === 'editorial' ? .65 : .62; }
+  if (graphic) {
+    place(gfx,{x:0,y:0,w:SW,h:SH9});
+    if (card || end) drawTakeaway(g,end);
+    else { gfx.style.background = TH0.bg || '#111111';
+      const inner = $('gfxIn'), scale = Math.min(SW/1080,SH9/960);
+      inner.style.width = '1080px'; inner.style.height = '960px'; inner.style.transform = `translate(${(SW-1080*scale)/2}px,${(SH9-960*scale)/2}px) scale(${scale})`;
+      drawGraphic({...g,id:'g'+shot.idx,from:shot.from},t,inner); }
+  } else gfx.style.background = 'transparent';
+  scrim.style.display = STYLE === 'editorial' && !end ? 'block' : 'none';
+  scrim.style.background = `linear-gradient(to bottom,rgba(0,0,0,.45),transparent ${520*SH9/1920}px,transparent ${980*SH9/1920}px,rgba(0,0,0,.55) ${1560*SH9/1920}px)`;
+  scrim.style.zIndex = shot.layout === 'split' && D.visuals[shot.visual] && t>=3 && !card && !picture ? 3 : '';   // over a full-bleed photo too
+  const rule = $('rule'); place(rule,news && !wide ? {x:0,y:1208*SH9/1920,w:SW,h:4*s} : null); rule.style.background = '#FFD23F';
+  drawHeadline(t,card || graphic && !end,end);
+  drawBand(t,!graphic);
+  const lab = $('label'), name = shot.label;
+  lab.style.display = name?.name && name.role && t-shot.from<3 && !card && !end && t>=headlineUntil() ? 'block' : 'none';
+  if (name?.name && name.role) { lab.querySelector('.n').textContent = name.name; lab.querySelector('.r').textContent = name.role;
+    lab.style.left = 72*SW/1080+'px'; lab.style.top = (news ? G.spk.y+G.spk.h-160*s : 300*SH9/1920)+'px';
+    lab.style.background = news ? 'rgba(17,17,17,.85)' : 'transparent'; lab.style.transform = 'none'; lab.style.opacity = 1; }
+  $('vig').style.display = 'none'; $('prog').style.display = 'none'; $('srctag').style.display = 'none';
+  const grain = $('grain'), fr = Math.floor(t*FPS); grain.style.display = LOOK.grain ? 'block' : 'none';
+  if (LOOK.grain) { grain.style.opacity = LOOK.grain; grain.style.backgroundPosition = `${fr*37%240}px ${fr*91%240}px`; }
+  const notice = D.disclosure, disclosure = $('disclosure');
+  disclosure.style.display = notice && t>=notice.from && t<notice.to ? 'block' : 'none';
+  if (notice) { disclosure.firstChild.textContent = notice.text; disclosure.style.left = '32px'; disclosure.style.width = SW-64+'px'; disclosure.style.top = '80px'; }
+  if (end) $('logo').style.display = 'none'; else placeLogo(t<headlineUntil(),'header');
+  return true;
+}
+
 window.seek = async function(t) {
+  if (STYLE) return seekLook(t);
   const {shot, Q, layout, G, gi, show, visible} = captionState(t), cam = camAt(t);
   window.exportFront = !!G.front;
   const top = $('top'), gfx = $('gfx'), spk = $('spk');
@@ -650,7 +993,8 @@ window.seek = async function(t) {
     await Promise.all([setImg($('topImg'), vsrc), setImg($('topBlur'), vsrc)]);
     fitVisual($('topBlur'), v, G.top.w, G.top.h, 1.1);
     const pop = mix(1.06, 1, easeOut(lin(tin, 0, .25)));
-    if (v.fit === 'contain') fitVisual($('topImg'), v, BW, BH, 1, .5, .5, true);
+    if (STILL) fitVisual($('topImg'), v, BW, BH, 1, .5, .5, v.fit === 'contain');
+    else if (v.fit === 'contain') fitVisual($('topImg'), v, BW, BH, 1, .5, .5, true);
     else if (v.move) fitVisual($('topImg'), v, BW, BH, pop, .5, .45);   // the camera already moves through the photo
     else { const dir = (shot.idx % 2) ? 1 : -1;
       fitVisual($('topImg'), v, BW, BH, pop*(1.02 + (v.frames ? .02 : .07)*lin(tin, 0, d)), .5 + dir*.06*lin(tin,0,d), .45); }
@@ -749,7 +1093,8 @@ window.seek = async function(t) {
   // captions
   const cap = $('cap'), box = cap.firstChild;
   captionPlate(box, false);
-  if (show) {
+  if (BAND) drawBand(t, show && visible);
+  else if (show) {
     const grp = groups[gi];
     if (KIN) { cap.classList.add('kin');
       box.innerHTML = grp.map(j => { const w = W[j], p = easeOut(lin(t, w.os - .04, w.os + .14)), big = j === KEYS[gi];

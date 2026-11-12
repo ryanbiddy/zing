@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .render import timeline
+from .render import theme, timeline
 
 KINDS = ("picture", "graphic", "quote", "name tag", "title")
 
@@ -44,7 +44,10 @@ def added(clipdir: Path) -> dict:
     d = Path(clipdir)
     plan = _read(d / "plan.json", {"shots": []})
     words = _read(d / "words.json", {"words": [], "duration": 0})
-    duration, shots, quotes = timeline(plan, words)
+    cfg = _read(d.parent / "factory.json", {})
+    pack = theme(cfg["pack"]) if cfg.get("pack") else {}
+    brief = _read(d.parent / "brief.json", {})
+    duration, shots, quotes = timeline(plan, words, pack.get("look"), brief.get("max_seconds"))
     visdir = d / "visuals"
     requests = _read(visdir / "requests.json", []) or _read(d / "plan-raw.json", {}).get("visual_requests", [])
     requests = {r["id"]: r for r in requests}
@@ -75,7 +78,7 @@ def added(clipdir: Path) -> dict:
             put(a, b, "picture", what, source, c.get("license") or v.get("license") or "")
         if s.get("layout") == "graphic":
             g = s.get("graphic") or {}
-            kind = "title" if g.get("kind") in ("title", "endcard") else "graphic"
+            kind = "title" if g.get("kind") in ("title", "endcard") else "quote" if g.get("kind") == "quote" else "graphic"
             put(a, b, kind, _graphic(g))
         label = s.get("label") or {}
         if label.get("name"):

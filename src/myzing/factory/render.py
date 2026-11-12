@@ -146,6 +146,10 @@ def pack_data(pack: str | dict) -> tuple[dict, dict, list[str]]:
                 errors.append(f"{key} cannot reference resources; use the pack's fonts and logo")
 
     css(pack)
+    for key, choices in (("motion", ("still",)), ("captions", ("band",)),
+                         ("look", ("desk", "editorial", "newsroom"))):
+        if key in pack and pack[key] not in choices:
+            errors.append(f"{key} must be {' or '.join(choices)}")
     pos, height = pack.get("logo_pos", "top-right"), pack.get("logo_h", 72)
     if pos not in ("top-left", "top-right", "bottom-right"):
         errors.append("logo_pos must be top-left, top-right or bottom-right")
@@ -163,7 +167,7 @@ def check_pack(pack: str | dict) -> list[str]:
 
 
 def suffix(shape: str, pack: str) -> str:
-    return ("" if shape == "9x16" else f"-{shape}") + ("" if pack == "zing" else f"-{pack}")
+    return ("" if shape == "9x16" else f"-{shape}") + ("" if pack in ("zing", "desk") else f"-{pack}")
 
 
 def quotes(shots: list[dict], words: list[dict]) -> list[dict]:
@@ -197,7 +201,7 @@ def quotes(shots: list[dict], words: list[dict]) -> list[dict]:
     return out
 
 
-def timeline(plan: dict, words: dict) -> tuple[float, list[dict], list[dict]]:
+def timeline(plan: dict, words: dict, look: str | None = None, limit: float | None = None) -> tuple[float, list[dict], list[dict]]:
     duration = round(words["words"][-1]["oe"] + 0.45, 3) if words.get("words") else words.get("duration", 0)
     shots = sorted((dict(s) for s in plan["shots"]), key=lambda s: s["from"])
     card = next((s["from"] for s in shots if (s.get("graphic") or {}).get("kind") == "endcard"), None)
@@ -209,6 +213,45 @@ def timeline(plan: dict, words: dict) -> tuple[float, list[dict], list[dict]]:
         s["to"] = shots[i + 1]["from"] if i + 1 < len(shots) else duration + 1
     if shots:
         shots[0]["from"] = 0
+    if look:
+        last = words["words"][-1]["oe"] if words.get("words") else words.get("duration", 0)
+        endcard = limit is None or last + 1.8 <= limit
+        duration = round(last + 1.8, 3) if endcard else duration
+        kept, cards = [], []
+        for s in shots:
+            s = dict(s)
+            g = s.get("graphic") or {}
+            if g.get("kind") == "endcard":
+                continue
+            s["to"] = min(s["to"], last)
+            if s.get("layout") in ("split", "front") or g.get("kind") in ("counter", "quote"):
+                s["from"] = max(3, s["from"])
+            if g.get("kind") in ("counter", "quote"):
+                text = str(g.get("text", "")) if g["kind"] == "quote" else f"{g.get('value', '')} {g.get('label', '')}"
+                count = len(text.split())
+                if len(cards) >= 2 or (look == "editorial" and g["kind"] == "quote" and count > 10):
+                    continue
+                s["from"] = max(s["from"], cards[-1]["to"] if cards else 0)
+                hold = max(1.2, .35 * count + .5)
+                if s["from"] + hold > last:
+                    continue
+                s["to"] = min(last, max(s["to"], s["from"] + hold))
+                cards.append(s)
+            elif s["to"] > s["from"]:
+                kept.append(s)
+        edges = sorted({0, last, *(v for s in kept + cards for v in (s["from"], s["to"]))})
+        shots = []
+        for a, b in zip(edges, edges[1:]):
+            s = next((s for s in reversed(cards + kept) if s["from"] <= a < s["to"]), {"layout": "solo"})
+            s = next((s for s in cards if s["from"] <= a < s["to"]), s)
+            content = {k: v for k, v in s.items() if k not in ("from", "to", "idx")}
+            if shots and {k: v for k, v in shots[-1].items() if k not in ("from", "to", "idx")} == content:
+                shots[-1]["to"] = b
+            else:
+                shots.append({**content, "from": a, "to": b, "idx": len(shots)})
+        shots.append({"from": last, "to": duration, "idx": len(shots), "layout": "graphic" if endcard else "solo",
+                      **({"graphic": {"kind": "endcard", "name": plan.get("hook", "").replace("*", "")}} if endcard else {})})
+        return duration, shots, []
     return duration, shots, quotes(shots, words.get("words", []))
 
 
@@ -250,7 +293,11 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
         plan = {**plan, "shots": [{"from": 0, "layout": "solo"}], "visuals": {}, "hook_until": 0}
     words = json.loads((d / "words.json").read_text(encoding="utf-8"))
     cam = json.loads((d / "cams.json").read_text(encoding="utf-8"))
-    duration, shots, moments = timeline(plan, words)
+    brief = campaign.read(d.parent)
+    if theme.get("look"):
+        check_brief(d)
+    duration, shots, moments = timeline(plan, words, theme.get("look") if not speaker_only else None,
+                                       brief.get("max_seconds") if brief else None)
     cams = cam["cams"]
     if len(cams) > 1:
         tail = cams[-1]
@@ -259,7 +306,6 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
                 and 0 < tail["to"] - tail["from"] < .5 and 0 < duration - tail["from"] < 1):
             cam["frames"] = min(cam["frames"], max(1, round(tail["from"] * 30)))   # hold before a brief untracked closing cut
             cam["cams"] = [*cams[:-2], {**cams[-2], "to": max(duration, cams[-2]["to"])}]
-    brief = campaign.read(d.parent)
     overlay = campaign.disclosure(brief)
     check_brief(d, {"duration": duration, "disclosure": overlay})
     cfg_file = d.parent / "factory.json"
@@ -271,6 +317,8 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
         front = cfg.get("cutout", False) and cutout.ready()
     if sharpen is None:
         sharpen = cfg.get("upscale", True) and upscale.ready()
+    if theme.get("motion") == "still":
+        parallax, front = False, False
     splits = [s for s in shots if s.get("layout") == "split"]
     lifted = cutout.mattes(d, [(s["from"], min(s["to"], duration)) for s in splits],
                             **({"width": None} if uhd else {})) if front and splits else None
@@ -284,6 +332,12 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     visuals = {}
     for vid, v in plan.get("visuals", {}).items():
         p, moved, credit = Path(v["path"]), None, v.get("credit", "")
+        card = False
+        if theme.get("look"):
+            if p.suffix.lower() not in VIDEO:
+                with Image.open(p) as img:
+                    card = max(SHAPES[shape][0] / img.width, SHAPES[shape][1] / img.height) > 1.6
+            card = card or v.get("fit") == "contain" or v.get("page") or vid in pages
         if sharpen and p.suffix.lower() not in VIDEO and v.get("fit") != "contain":   # photos only: never a logo or page
             sharp = upscale.upscale(p, d / "vis" / f"{vid}-upscaled.jpg")
             if sharp:
@@ -312,6 +366,10 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             visuals[vid]["crop"] = box
         if v.get("page", vid in pages and v.get("fit") == "contain"):
             visuals[vid]["page"] = True
+        if theme.get("look"):
+            url = v.get("source_url") or v.get("url") or credit
+            match = re.search(r"(?:https?://)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)", url, re.I)
+            visuals[vid].update(card=bool(card), domain=match[1] if match else "")
     hook = plan["hook"].replace("&", "&amp;").replace("<", "&lt;")
     source = d.parent / "source.json"
     W, H = SHAPES[shape]
@@ -322,6 +380,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             **({"mattesDir": lifted["dir"].resolve().as_uri()} if lifted else {}),
             "visuals": visuals, "hookHtml": re.sub(r"\*([^*]+)\*", r"<b>\1</b>", hook),
             "hookUntil": plan.get("hook_until", 3.0), "duration": duration,
+            **({"audioUntil": shots[-1]["from"]} if theme.get("look") and not speaker_only else {}),
             **({"disclosure": overlay} if overlay else {}),
             "sourceTag": json.loads(source.read_text(encoding="utf-8")).get("tag", "") if source.is_file() else "",
             "W": W, "H": H, "aspect": shape, "theme": theme, **assets}
@@ -390,7 +449,14 @@ def flatten_backdrop(frames: Path):
         Image.fromarray(np.rint(rgba * 255).astype(np.uint8)).save(frames / path.name)
 
 
-def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out: Path | None = None,
+def audio_filter(data: dict) -> str:
+    if "audioUntil" in data:
+        end = data["audioUntil"]
+        return f"atrim=end={end:.3f},afade=t=out:st={max(0, end - .15):.3f}:d=0.15,apad"
+    return f"apad,afade=t=out:st={data['duration'] - .3:.2f}:d=0.3"
+
+
+def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "desk", *, out: Path | None = None,
            speaker_only: bool = False, parallax: bool | None = None, front: bool | None = None,
            sharpen: bool | None = None) -> Path:
     """Render a clip in a shape and pack (a name, or a pack dict being tried out) to clip[-shape][-pack].mp4."""
@@ -414,7 +480,7 @@ def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "zing", *, out
     part = out.with_name(f"_{out.stem}.part{out.suffix}")
     try:
         run(ffmpeg(), "-v", "error", "-y", "-framerate", 30, "-i", frames / "%05d.jpg", "-i", d / "cut.mp4",
-            "-map", "0:v", "-map", "1:a", "-af", f"apad,afade=t=out:st={duration - 0.3:.2f}:d=0.3", "-t", duration,
+            "-map", "0:v", "-map", "1:a", "-af", audio_filter(data), "-t", duration,
             "-c:v", "libx264", "-crf", 20, "-preset", "medium" if uhd else "slow",
             *(["-profile:v", "high", "-level:v", "5.1", "-maxrate", "40M", "-bufsize", "80M",
                "-vf", "scale=in_range=pc:out_range=tv", "-color_range", "tv"] if uhd else ["-maxrate", "12M", "-bufsize", "24M"]),

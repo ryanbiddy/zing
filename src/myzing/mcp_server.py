@@ -2033,7 +2033,7 @@ def h_factory_edit(project: str, clip: str, action: Literal["rate", "hook", "cop
                    verdict: Literal["post", "edits", "no"] | None = None, why: str = "",
                    text: str | None = None, field: str | None = None, request: str | None = None,
                    index: int | None = None, at: float | None = None, old: str | None = None, new: str | None = None,
-                   shape: str = "9x16", pack: str = "zing") -> dict[str, Any]:
+                   shape: str = "9x16", pack: str = "desk") -> dict[str, Any]:
     """Edit clipNN synchronously. Choose one action.
 
     rate needs verdict post|edits|no and optional why. hook needs text (up to 120 characters).
@@ -2041,7 +2041,7 @@ def h_factory_edit(project: str, clip: str, action: Literal["rate", "hook", "cop
     visual needs request and a zero-based index. factory_status lists candidates, counts and picks.
     word needs index and new, or at plus old and new. index is zero-based in clipNN/words.json;
     at is seconds in the edited clip, matched to the current word. Timings stay unchanged.
-    render takes shape 9x16|4x5|1x1|16x9 and pack (defaults 9x16 and zing).
+    render takes shape 9x16|4x5|1x1|16x9 and pack (defaults 9x16 and desk).
     Hook, visual and word edits re-render the project's shapes. Hook and word edits refresh fact and
     context checks. Returns changes, fact_check, context_flags, receipt and pending tasks.
     For pending context, use factory_prompt, factory_answer, then factory_run to finish the check.

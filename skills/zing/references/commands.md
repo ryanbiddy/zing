@@ -46,7 +46,7 @@ Node 20+, the sidecar or a browser is missing or unusable.
 | `zing setup --list` | List curated packs; interactive setup can study/download references. |
 | `zing explain` | Explain a local video as a style card; `--out DIR`, optional `--against VIDEO`. Offline models; URL downloads require explicit `--allow-download`. See [Explain](explain.md). |
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
-| `zing factory` | `setup` (install the pinned Node sidecar), `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (`--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
+| `zing factory` | `setup` (install the pinned Node sidecar), `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (lists `desk` (the default), `editorial` and `newsroom` looks with still cameras and a fixed caption band, plus `zing`, `newsdesk`, `swiss`, `headline`, `documentary` and `launch`; pick one with `--pack`; `--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
 | `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. YouTube uploads and owner analytics need a connection. Publishing defaults to off. |
 | `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
@@ -591,7 +591,7 @@ still render with one warning per run.
 ## Factory export
 
 ```sh
-zing factory export talk/clip01 --shape 9x16 --pack zing --out talk/clip01/editor
+zing factory export talk/clip01 --shape 9x16 --pack desk --out talk/clip01/editor
 ```
 
 `factory export` writes `speaker.mp4`, transparent ProRes 4444 `overlay.mov`,
@@ -601,7 +601,7 @@ overlay on V2 and audio on A1 at 30 fps. Text and graphics are rendered into the
 overlay. Import an SRT to style new captions.
 
 `--shape` accepts `9x16`, `4x5`, `1x1` or `16x9` and defaults to `9x16`.
-`--pack NAME` defaults to `zing`. `--out DIR` defaults to `<clipdir>/export-<shape>/`.
+`--pack NAME` defaults to `desk`. `--out DIR` defaults to `<clipdir>/export-<shape>/`.
 JSON includes three composite comparisons, file sizes in bytes and elapsed seconds.
 This command has no MCP tool.
 
@@ -821,7 +821,7 @@ a field and text. Fields are `"x"`, `"instagram"`, `"tiktok"`, `"youtube_title"`
 `"first_comment"`. `--visual` takes a request ID and candidate index from status.
 `--word` takes an index in the clip's `words.json` and replacement text. Both
 indices start at 0. Word timing stays unchanged. `--render` takes `9x16`, `4x5`,
-`1x1` or `16x9`; `--pack` defaults to `zing` and only applies to `--render`.
+`1x1` or `16x9`; `--pack` defaults to `desk` and only applies to `--render`.
 
 Hook, visual and word edits re-render the project's shapes and pack. Hook and
 word edits refresh fact checks, context and receipts. The command waits for the

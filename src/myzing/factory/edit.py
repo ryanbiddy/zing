@@ -162,7 +162,7 @@ def _check_render(project: Path, clip: str, shape: str, pack: str) -> Path:
     return d
 
 
-def rerender(project: Path, clip: str, shape: str = "9x16", pack: str = "zing") -> dict:
+def rerender(project: Path, clip: str, shape: str = "9x16", pack: str = "desk") -> dict:
     d = _check_render(project, clip, shape, pack)
     return _result(d, shape=shape, pack=pack, rendered=str(render.render(d, shape, pack)))
 
@@ -189,5 +189,5 @@ def apply(project: Path, clip: str, action: str, **values) -> dict:
     if action == "word":
         return word(project, clip, values.get("index"), values.get("new"), at=values.get("at"), old=values.get("old"))
     if action == "render":
-        return rerender(project, clip, values.get("shape", "9x16"), values.get("pack", "zing"))
+        return rerender(project, clip, values.get("shape", "9x16"), values.get("pack", "desk"))
     raise FactoryError("action must be rate, hook, copy, visual, word or render")

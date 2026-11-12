@@ -65,3 +65,4 @@ id_ed25519*
 
 # Internal coordination stays local; never publish it in the product tree.
 handoff/
+/_realcheck/

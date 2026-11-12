@@ -218,7 +218,7 @@ class Studio:
         return self.queue(f"{clip}: new word", job)
 
     def rerender(self, body: dict) -> dict:
-        shape, pack = body.get("shape", "9x16"), body.get("pack", "zing")
+        shape, pack = body.get("shape", "9x16"), body.get("pack", "desk")
         d = edit._check_render(self.project, body.get("clip"), shape, pack)
         return self.queue(f"{d.name}: {shape} {pack}", lambda: edit.rerender(self.project, d.name, shape, pack))
 

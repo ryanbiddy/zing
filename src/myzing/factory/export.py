@@ -103,7 +103,7 @@ def compare(out: Path, reference: Path, samples: list[int], fps: int) -> list[di
     return results
 
 
-def export(clipdir: Path, shape: str = "9x16", pack: str = "zing", *, out: Path | None = None) -> dict:
+def export(clipdir: Path, shape: str = "9x16", pack: str = "desk", *, out: Path | None = None) -> dict:
     if shape not in render.SHAPES:
         raise FactoryError(f"unknown shape {shape!r}; choose from {', '.join(render.SHAPES)}")
     started = time.monotonic()
@@ -127,7 +127,7 @@ def export(clipdir: Path, shape: str = "9x16", pack: str = "zing", *, out: Path 
                 run(ffmpeg(), "-v", "error", "-y", "-framerate", fps, "-i", images / "%05d.png", "-frames:v", frames,
                     "-an", *codec, out / file)
             run(ffmpeg(), "-v", "error", "-y", "-i", d / "cut.mp4", "-map", "0:a:0", "-vn", "-af",
-                f"apad,afade=t=out:st={data['duration'] - .3:.2f}:d=0.3", "-t", duration,
+                render.audio_filter(data), "-t", duration,
                 "-ar", 48000, "-ac", 2, "-c:a", "pcm_s24le", out / "audio.wav")
             reference = work / "reference"
             render.capture(data, work / "reference.json", reference, samples=samples)

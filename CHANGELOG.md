@@ -4,11 +4,15 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #589
+Release candidate for Zing v1. These notes cover merged PRs #401 through #590
 on main, newest first.
 
 ### Changes since #452
 
+- Add three style packs, desk, editorial and newsroom, and make desk the default. They hold the
+  camera still between cuts, keep captions in one band below the chin as whole phrases, show the
+  headline only at the start (newsroom keeps it over a 16:9 strip), and use flat cards for numbers
+  and pictures. Pick one with --pack; zing and the other packs look as before.
 - Keep 9:16 and 1:1 crops clear of a show's own burned-in graphics. When a source
   panel, paper or picture card covers part of the frame, the speaker crop shifts or
   zooms so no cut-off sliver of it shows, and a clip never uses the same picture twice.
