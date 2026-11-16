@@ -48,7 +48,7 @@ Node 20+, the sidecar or a browser is missing or unusable.
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
 | `zing factory` | `setup` (install the pinned Node sidecar), `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (lists `desk` (the default), `editorial` and `newsroom` looks with still cameras and a fixed caption band, plus `zing`, `newsdesk`, `swiss`, `headline`, `documentary` and `launch`; pick one with `--pack`; `--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
 | `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. YouTube uploads and owner analytics need a connection. Publishing defaults to off. |
-| `zing story` | Build a narrated paper-cutout video from a local `story.json`: `check`, `voice`, `heads`, `render`, `build`. No source footage, downloads or publishing. |
+| `zing story` | Start and build a narrated paper-cutout video: `new`, `prompt`, `check`, `voice`, `heads`, `render`, `build`. No source footage or publishing. |
 | `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
@@ -76,10 +76,12 @@ Node 20+, the sidecar or a browser is missing or unusable.
 ## Cutout stories
 
 ```sh
-zing story check ./story
-zing story voice ./story --voice af_heart --speed 1
+zing story new ./story --topic "a paper moon"
+zing story prompt
+zing story check ./story --json
+zing story voice ./story --provider kokoro --voice af_heart --speed 1
 zing story voice ./story --lines-dir ./recorded-lines
-zing story heads ./story
+zing story heads ./story --sheet
 zing story render ./story --stills 1,4,8
 zing story render ./story --out ./story/final.mp4
 zing story build ./story --lines-dir ./recorded-lines
@@ -87,18 +89,35 @@ zing story build ./story --lines-dir ./recorded-lines
 
 `story.json` holds 4 to 14 beats, cast, paper sets, props, cards and source
 links. Each line is at most 22 words; narration totals at most 160 words.
-The writing prompt is bundled at `_data/story/prompts/story.md`. Write,
-check, fix and repeat before generating media. Read the full contract in
+`new` creates a starter and README-STORY.txt. Replace its source placeholder
+before building. `prompt` prints the bundled writing instructions. Write,
+check, fix and repeat before generating media. `check --json` prints a list
+of objects with `path` and `message`. Read the full contract in
 [Cutout stories](https://github.com/ryanbiddy/zing/blob/main/docs/STORY.md).
 
-Kokoro needs `kokoro-onnx` installed separately and local files named by
-`ZING_KOKORO_MODEL` and `ZING_KOKORO_VOICES`. Supplied recordings need no voice
-model: name PCM WAVs `<beat-id>-<line-index>.wav`, starting at zero.
+Voice uses Zing's provider choice by default, or `--provider kokoro`,
+`--provider elevenlabs` or `--provider lines`. `--lines-dir` selects lines.
+Kokoro needs `kokoro-onnx` installed separately and local model files found
+through `ZING_KOKORO_HOME`; `ZING_KOKORO_MODEL` and `ZING_KOKORO_VOICES`
+override those paths. ElevenLabs uses the user's configured key. Supplied
+recordings need no voice model: name PCM WAVs `<beat-id>-<line-index>.wav`,
+starting at zero. `say` changes pronunciation while cards and captions keep
+the line's `text`.
 Rendering uses the factory sidecar, FFmpeg and the existing bundled fonts.
 Every cast photo needs a credit, a cleared or attribution license, and a
 source URL. No NC or ND photos. Missing photos use paper heads with initials.
-`build` writes a receipt; the end card always lists source and photo credits
-and discloses Kokoro narration as an AI voice. These commands are CLI only.
+`heads --sheet` writes heads/sheet.png for cutout review. Captions show small
+groups of words with the current word in yellow; `captions: false` hides them.
+Keep cards and heads clear of the fixed caption band given in the contract.
+Sound effects follow camera slides and card or prop arrivals. Set `sfx: false`
+or pass `--no-sfx` to render or build to disable them. Optional music has a
+local path, credit, license and source_url, under the photo rights rules.
+No music ships with Zing.
+
+`build` writes a receipt; the end card lists source, photo and music credits
+and discloses every synthetic provider as an AI voice. For supplied synthetic
+lines, pass `--synthetic-voice`. MCP mirrors the workflow through `story_new`,
+`story_check`, `story_build` and `story_status`; builds run in the background.
 
 ## Episode Shorts in studio
 

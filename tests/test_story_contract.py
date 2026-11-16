@@ -245,3 +245,30 @@ def test_invalid_timings_are_errors(path, value):
     times = timings()
     put(times, path, value)
     assert check_timings(story(), times)
+
+
+@pytest.mark.parametrize("license", ["CC BY-NC 4.0", "CC BY-ND 4.0", "unknown"])
+def test_music_license_is_refused_by_check(license):
+    value = story()
+    value["music"] = {"path": "tone.wav", "credit": "Test artist", "license": license,
+                      "source_url": "https://example.org/tone"}
+    assert any("music.license: must permit reuse" in e for e in check(value))
+
+
+def test_music_local_path_and_required_metadata():
+    value = story()
+    value["music"] = {"path": "../tone.wav", "credit": "", "license": "CC0", "source_url": "file:///tone"}
+    errors = check(value)
+    assert any(e.startswith("music.path:") for e in errors)
+    assert any(e.startswith("music.credit:") for e in errors)
+    assert any(e.startswith("music.source_url:") for e in errors)
+
+
+def test_many_sources_share_one_wrapped_credit_line():
+    many = story()
+    many["sources"] = [{"title": f"Outlet number {i}", "url": f"https://example.org/{i}"} for i in range(6)]
+    lines = credit_lines(many, {"provider": "lines"})
+    assert lines[0].startswith("sources: Outlet number 0 · Outlet number 1")
+    assert all(len(line) <= 58 for line in lines)
+    assert sum("Outlet number" in line for line in lines) < 6
+    assert all(f"Outlet number {i}" in " ".join(lines) for i in range(6))

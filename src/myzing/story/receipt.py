@@ -24,8 +24,10 @@ def write(directory: Path, output: Path) -> Path:
         for who, member in story.get("cast", {}).items() for photo in member.get("photos", [])
     ]
     result = {"voice": {"provider": timings["provider"], "name": timings.get("voice"),
-                        "synthetic": timings["provider"] == "kokoro" or timings.get("synthetic") is True},
+                        "synthetic": timings["provider"] != "lines" or timings.get("synthetic") is True},
               "photos": photos, "sources": story["sources"], "output": file, "duration": timings["duration"]}
+    if story.get("music"):
+        result["music"] = dict(story["music"])
     path = directory / "story-receipt.json"
     path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return path

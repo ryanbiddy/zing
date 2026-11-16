@@ -3,7 +3,7 @@
 Turn a local episode into short clips, study a reference video, render drafts
 and make memes through Hermes. This portable Agent Plugins v1 package starts
 your installed `zing serve-mcp` command over stdio and adds one skill. It exposes
-Zing's existing 44 tools. It contains JSON, Markdown and a license, with no code
+Zing's existing 48 tools. It contains JSON, Markdown and a license, with no code
 or runtime installer.
 
 It pairs with the Uoink plugin for saved references and local breakdown notes.
@@ -54,8 +54,8 @@ version probe for this executable.
 ## Permissions and long calls
 
 The server is `untrusted` because it writes files and starts jobs. Hermes gates
-calls without `readOnlyHint: true`. All 44 Zing tools now declare hints, with
-14 marked read-only, including `factory_status`, `factory_prompt`, `get_prompt`
+calls without `readOnlyHint: true`. All 48 Zing tools now declare hints, with
+16 marked read-only, including `factory_status`, `factory_prompt`, `get_prompt`
 and the list tools. Those calls can run without an approval prompt under this
 rule. `zing_status`, `get_breakdown`, `get_render` and `match_status` remain gated
 because they can update stale job state. `zing_studio` writes temporary preview
@@ -78,6 +78,10 @@ Check the saved state before retrying a write.
   Internet Archive and Openverse, and can visit the named entity's site. Optional
   Pexels, Pixabay and Exa keys enable those services. Use `offline=true` for a
   factory project that must fetch nothing.
+- Story builds use the configured voice provider. ElevenLabs sends narration
+  text to its service using the user's key. Kokoro and supplied WAV lines stay
+  local. Story photos and music come from local files; the build does not
+  fetch them. Poll `story_status` after `story_build` returns.
 - A named meme template can download its blank image from `api.memegen.link`.
   Ordinary study can fetch missing OCR weights. Explicit speech setup downloads
   models. Ask before these downloads. The MCP tools do not publish or upload

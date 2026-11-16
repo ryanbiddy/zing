@@ -48,7 +48,7 @@ def node_page_script(body: str, tmp_path: Path) -> dict:
     script = tmp_path / "page-test.cjs"
     script.write_text("const fs=require('fs'),vm=require('vm');global.window={};\n"
                       "const html=fs.readFileSync(process.argv[2],'utf8');\n"
-                      "vm.runInThisContext(html.match(/<script>([\\s\\S]*)<\\/script>/)[1]);\n" + body,
+                      "vm.runInThisContext(html.split('<script>')[1].split('</script>')[0]);\n" + body,
                       encoding="utf-8")
     result = subprocess.run([node, str(script), str(data_path("cutout.html"))], check=True,
                             capture_output=True, text=True, encoding="utf-8", timeout=20)

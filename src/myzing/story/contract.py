@@ -17,6 +17,8 @@ ID = re.compile(r"[a-z][a-z0-9_-]{0,59}\Z")
 NUMBER = r"(?:\d+(?:\.\d*)?|\.\d+)"
 CUE_SUFFIX = re.compile(rf"(?::(\d+))?(?::({NUMBER}))?(?::?([+-]{NUMBER}))?\Z")
 COLOR = re.compile(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?\Z")
+CAPTION_BAND = {"x": 0, "y": 1560, "width": 1080, "height": 160}
+PLACEHOLDER_SOURCE_URL = "https://example.invalid/replace-this-source"
 
 
 def finite(value) -> bool:
@@ -131,7 +133,10 @@ def check(story, directory: Path | None = None) -> list[str]:
         if not isinstance(value, str) or value not in choices:
             err(where, f"unknown value {value!r}; choose from {', '.join(choices)}")
 
-    s = obj(story, "story", "schema_version slug topic handle cast beats panels sources outro")
+    s = obj(story, "story", "schema_version slug topic handle cast beats panels sources outro captions sfx music")
+    for flag in ("captions", "sfx"):
+        if flag in s and type(s[flag]) is not bool:
+            err(flag, "must be a boolean")
     if "schema_version" in s and (type(s["schema_version"]) is not int or s["schema_version"] != 1):
         err("schema_version", "must be 1")
     text(s.get("topic"), "topic", 60)
@@ -144,6 +149,30 @@ def check(story, directory: Path | None = None) -> list[str]:
         text(source.get("title"), f"sources[{i}].title", 100)
         if not _url(source.get("url")):
             err(f"sources[{i}].url", "must be an http or https URL")
+        if (source.get("url") == PLACEHOLDER_SOURCE_URL
+                or str(source.get("title", "")).strip().lower() == "replace this source"):
+            err(f"sources[{i}]", "replace this source with a source you have read before building")
+
+    if "music" in s:
+        music = obj(s["music"], "music", "path credit license source_url")
+        for key, limit in (("path", 240), ("credit", 120), ("license", 100)):
+            text(music.get(key), "music." + key, limit)
+        if not _url(music.get("source_url")):
+            err("music.source_url", "must be an http or https URL")
+        if isinstance(music.get("path"), str):
+            try:
+                path = local_photo(directory or Path.cwd(), music["path"])
+                if directory is not None and not path.is_file():
+                    err("music.path", "music file is missing")
+            except StoryError as exc:
+                err("music.path", str(exc).replace("photo", "music"))
+        if isinstance(music.get("license"), str) and music["license"].strip():
+            from .heads import photo_rights
+            try:
+                if photo_rights(music) not in ("cleared", "attribution"):
+                    err("music.license", "must permit reuse and changes; NC, ND and unknown licenses are refused")
+            except StoryError as exc:
+                err("music", str(exc))
 
     cast = s.get("cast", {})
     if not isinstance(cast, dict):
@@ -295,6 +324,10 @@ def check(story, directory: Path | None = None) -> list[str]:
                 num(actor["head_scale"], awhere + ".head_scale", .1, 3)
             if "flip" in actor and type(actor["flip"]) is not bool:
                 err(awhere + ".flip", "must be a boolean")
+            if s.get("captions") is not False and start != "outro":
+                from .layout import head_overlaps_captions
+                if head_overlaps_captions(actor):
+                    err(awhere, "puppet head overlaps the caption band at y=1560..1720; move it up or increase scale")
             member = cast.get(who, {}) if isinstance(who, str) else {}
             photos = member.get("photos", []) if isinstance(member, dict) else []
             count = len(photos) if isinstance(photos, list) else 0
@@ -347,6 +380,10 @@ def check(story, directory: Path | None = None) -> list[str]:
                     cue(row.get("at"), rwhere + ".at")
             elif "rows" in card:
                 err(cwhere + ".rows", "only list cards have rows")
+            if s.get("captions") is not False and start != "outro":
+                from .layout import card_overlaps_captions
+                if card_overlaps_captions(card):
+                    err(cwhere, "card box overlaps the caption band at y=1560..1720; move it above the band")
     if beats and (not starts or starts[0] != 0):
         err("panels", "the first panel must start at the first beat so every beat is covered")
     return errors
@@ -369,9 +406,9 @@ def check_timings(story: dict, timings) -> list[str]:
     errors = []
     if not isinstance(timings, dict):
         return ["timings must be an object; run zing story voice"]
-    if timings.get("provider") not in ("kokoro", "lines"):
-        errors.append("timings.provider must be kokoro or lines; run zing story voice")
-    if timings.get("provider") == "kokoro" and not isinstance(timings.get("voice"), str):
+    if timings.get("provider") not in ("kokoro", "elevenlabs", "lines"):
+        errors.append("timings.provider must be kokoro, elevenlabs or lines; run zing story voice")
+    if timings.get("provider") in ("kokoro", "elevenlabs") and not isinstance(timings.get("voice"), str):
         errors.append("timings.voice must name the synthetic voice")
     duration, outro = timings.get("duration"), timings.get("outro_start")
     if not finite(duration) or not finite(outro) or not 0 < outro < duration:

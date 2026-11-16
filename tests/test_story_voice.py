@@ -9,6 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from myzing import tts_providers
+from myzing.render.tts import DEFAULT_VOICE, SynthesisResult, TTSGenerationError, TTSUnavailableError
 from myzing.story import StoryError, voice
 
 
@@ -41,7 +43,7 @@ def recorded(tmp_path):
 def test_recorded_lines_have_exact_millisecond_timings_and_audio(tmp_path, recorded, monkeypatch):
     story, lines = recorded
     monkeypatch.setitem(sys.modules, "kokoro_onnx", None)
-    monkeypatch.setattr(voice.importlib, "import_module", lambda name: pytest.fail(f"optional import: {name}"))
+    monkeypatch.setattr(voice, "resolve_tts_provider", lambda name: pytest.fail("recordings must not resolve TTS"))
     timings = voice.generate(tmp_path, story, lines_dir=lines)
     assert timings["provider"] == "lines" and timings["voice"] is None
     assert timings["beats"] == [
@@ -112,36 +114,30 @@ def test_invalid_speed_is_refused(tmp_path, recorded, speed):
 
 
 def test_missing_kokoro_import_explains_the_two_files(tmp_path, monkeypatch):
-    monkeypatch.setattr(voice, "sys", SimpleNamespace(version_info=(3, 13, 0)))
     monkeypatch.setitem(sys.modules, "kokoro_onnx", None)
+    monkeypatch.setenv("ZING_KOKORO_HOME", str(tmp_path))
+    monkeypatch.delenv("ZING_KOKORO_MODEL", raising=False)
+    monkeypatch.delenv("ZING_KOKORO_VOICES", raising=False)
+    for filename in ("kokoro-v1.0.onnx", "voices-v1.0.bin"):
+        (tmp_path / filename).touch()
     with pytest.raises(StoryError) as caught:
-        voice.generate(tmp_path, {"beats": []})
+        voice.generate(tmp_path, {"beats": [{"id": "hook", "lines": [{"text": "Hello."}]}]}, provider="kokoro")
     message = str(caught.value)
     assert "kokoro-onnx" in message and "ZING_KOKORO_MODEL" in message and "ZING_KOKORO_VOICES" in message
     assert ".onnx" in message and ".bin" in message
 
 
-def test_unsupported_python_names_recordings_without_trying_import(tmp_path, monkeypatch):
-    monkeypatch.setattr(voice, "sys", SimpleNamespace(version_info=(3, 14, 0)))
-    monkeypatch.setattr(voice.importlib, "import_module", lambda name: pytest.fail(f"optional import: {name}"))
-    with pytest.raises(StoryError, match="Use --lines-dir or Python 3.11-3.13"):
-        voice.generate(tmp_path, {"beats": []})
-
-
 def test_missing_model_files_explain_setup(tmp_path, monkeypatch):
-    monkeypatch.setattr(voice, "sys", SimpleNamespace(version_info=(3, 13, 0)))
-    monkeypatch.setitem(sys.modules, "kokoro_onnx", SimpleNamespace())
+    monkeypatch.setenv("ZING_KOKORO_HOME", str(tmp_path))
     monkeypatch.delenv("ZING_KOKORO_MODEL", raising=False)
     monkeypatch.delenv("ZING_KOKORO_VOICES", raising=False)
-    with pytest.raises(StoryError, match="model files are missing") as caught:
-        voice.generate(tmp_path, {"beats": []})
+    with pytest.raises(StoryError, match="could not narrate hook-0") as caught:
+        voice.generate(tmp_path, {"beats": [{"id": "hook", "lines": [{"text": "Hello."}]}]}, provider="kokoro")
     assert "ZING_KOKORO_MODEL" in str(caught.value) and "ZING_KOKORO_VOICES" in str(caught.value)
+    assert "ZING_KOKORO_HOME" in str(caught.value)
 
 
 def test_kokoro_uses_say_voice_speed_and_records_metadata(tmp_path, monkeypatch):
-    import numpy as np
-
-    monkeypatch.setattr(voice, "sys", SimpleNamespace(version_info=(3, 13, 0)))
     calls = []
 
     class Kokoro:
@@ -150,17 +146,111 @@ def test_kokoro_uses_say_voice_speed_and_records_metadata(tmp_path, monkeypatch)
 
         def create(self, text, **kwargs):
             calls.append((text, kwargs))
-            return np.concatenate([np.zeros(100), np.full(1000, 0.5), np.zeros(100)]), 1000
+            return [0.0] * 100 + [0.5] * 1000 + [0.0] * 100, 1000
 
     for variable, filename in [("ZING_KOKORO_MODEL", "model.onnx"), ("ZING_KOKORO_VOICES", "voices.bin")]:
         (tmp_path / filename).touch()
         monkeypatch.setenv(variable, str(tmp_path / filename))
     monkeypatch.setitem(sys.modules, "kokoro_onnx", SimpleNamespace(Kokoro=Kokoro))
     story = {"beats": [{"id": "hook", "lines": [{"text": "1993", "say": "nineteen ninety three"}]}]}
-    result = voice.generate(tmp_path, story, voice="am_michael", speed=1.06)
+    result = voice.generate(tmp_path, story, provider="kokoro", voice="am_michael", speed=1.06)
     assert calls == [("nineteen ninety three", {"voice": "am_michael", "speed": 1.06, "lang": "en-us"})]
     assert result["provider"] == "kokoro" and result["voice"] == "am_michael"
-    assert result["beats"][0]["lines"][0] == {"text": "1993", "start": 0.35, "end": 1.449}
+    assert result["synthetic"] is True
+    assert result["beats"][0]["lines"][0] == {"text": "1993", "start": 0.35, "end": 1.55}
+
+
+@pytest.mark.parametrize("provider", ["kokoro", "elevenlabs"])
+def test_fake_provider_gets_one_call_per_line_with_say(tmp_path, monkeypatch, provider):
+    calls, resolutions = [], []
+
+    class FakeProvider:
+        name = "kokoro-onnx" if provider == "kokoro" else provider
+
+        def synthesize(self, request, output_path):
+            calls.append((request, output_path.name))
+            write_wav(output_path, 321)
+            return SynthesisResult(output_path, self.name, "test-voice", 1000, .321)
+
+    def resolve(name):
+        resolutions.append(name)
+        return FakeProvider()
+
+    monkeypatch.setattr(voice, "resolve_tts_provider", resolve)
+    story = {"beats": [{"id": "hook", "lines": [{"text": "1993", "say": "nineteen ninety three"},
+                                                       {"text": "One more line."}]}]}
+    result = voice.generate(tmp_path, story, provider=provider, voice="test-voice", speed=1.06)
+    assert resolutions == [provider]
+    assert [(request.text, name) for request, name in calls] == [
+        ("nineteen ninety three", "hook-0.wav"), ("One more line.", "hook-1.wav")]
+    assert all(request.voice == "test-voice" and request.speed == 1.06 for request, _ in calls)
+    assert result["provider"] == provider and result["voice"] == "test-voice"
+    assert result["synthetic"] is True
+    assert result["beats"][0]["lines"][0] == {"text": "1993", "start": .35, "end": .671}
+    assert not list(tmp_path.glob(".story-voice-*"))
+
+
+@pytest.mark.parametrize("requested,environment,expected", [
+    (None, "elevenlabs", "elevenlabs"), (None, "kokoro", "kokoro"),
+    ("kokoro", "elevenlabs", "kokoro"), ("elevenlabs", "kokoro", "elevenlabs"),
+])
+def test_provider_selection_follows_explicit_flag_then_environment(tmp_path, monkeypatch,
+                                                                  requested, environment, expected):
+    selected = []
+
+    class FakeProvider:
+        def __init__(self, name):
+            self.name = name
+
+        def synthesize(self, request, output_path):
+            selected.append(self.name)
+            assert request.voice == DEFAULT_VOICE
+            write_wav(output_path, 100)
+            return SynthesisResult(output_path, self.name, "configured-voice", 1000, .1)
+
+    monkeypatch.setattr(tts_providers, "_REGISTRY", {
+        "kokoro": lambda: FakeProvider("kokoro"), "elevenlabs": lambda: FakeProvider("elevenlabs")})
+    monkeypatch.setenv("ZING_TTS_PROVIDER", environment)
+    result = voice.generate(tmp_path, {"beats": [{"id": "hook", "lines": [{"text": "Hello."}]}]},
+                            provider=requested)
+    assert selected == [expected]
+    assert result["provider"] == expected and result["voice"] == "configured-voice"
+
+
+def test_lines_directory_overrides_environment(tmp_path, recorded, monkeypatch):
+    story, lines = recorded
+    monkeypatch.setenv("ZING_TTS_PROVIDER", "elevenlabs")
+    assert voice.generate(tmp_path, story, lines_dir=lines)["provider"] == "lines"
+
+
+def test_explicit_lines_provider_requires_recordings(tmp_path):
+    with pytest.raises(StoryError, match="requires --lines-dir"):
+        voice.generate(tmp_path, {"beats": []}, provider="lines")
+
+
+def test_supplied_recordings_cannot_silently_override_an_explicit_provider(tmp_path, recorded):
+    story, lines = recorded
+    with pytest.raises(StoryError, match="requires --provider lines"):
+        voice.generate(tmp_path, story, lines_dir=lines, provider="elevenlabs")
+
+
+@pytest.mark.parametrize("error", [TTSUnavailableError, TTSGenerationError, RuntimeError])
+def test_provider_errors_never_reveal_keys(tmp_path, monkeypatch, capsys, error):
+    secret = "fake-key-must-stay-private"
+    monkeypatch.setenv("ELEVENLABS_API_KEY", secret)
+
+    def fail(request, output_path):
+        raise error("rejected " + secret)
+
+    monkeypatch.setattr(voice, "resolve_tts_provider", lambda name: SimpleNamespace(name="elevenlabs", synthesize=fail))
+    with pytest.raises(StoryError) as caught:
+        voice.generate(tmp_path, {"beats": [{"id": "hook", "lines": [{"text": "Hello."}]}]}, provider="elevenlabs")
+    assert secret not in str(caught.value)
+    assert "ELEVENLABS_API_KEY" in str(caught.value)
+    captured = capsys.readouterr()
+    assert secret not in captured.out + captured.err
+    assert not list(tmp_path.glob(".story-voice-*"))
+    assert not (tmp_path / "narration.wav").exists()
 
 
 def test_unsafe_beat_id_cannot_read_outside_lines_directory(tmp_path):

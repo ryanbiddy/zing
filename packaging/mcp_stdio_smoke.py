@@ -16,6 +16,10 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "story_new",
+    "story_check",
+    "story_build",
+    "story_status",
     "factory_new",
     "factory_run",
     "factory_status",

@@ -41,6 +41,9 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 #bar{position:absolute;left:0;top:0;width:1080px;z-index:20}
 #bar div{position:absolute;top:64px;font-family:Plex;font-weight:600;font-size:27px;background:var(--cream);color:var(--ink);border:3px solid var(--ink);border-radius:10px;padding:5px 14px}
 #chapter{position:absolute;left:50%;top:1750px;transform:translateX(-50%);z-index:20;max-width:960px;white-space:normal;text-align:center}
+#captions{position:absolute;z-index:21;display:flex;align-items:center;justify-content:center;padding:16px 48px;pointer-events:none}
+#captions .phrase{font-family:Cap;font-size:56px;line-height:1.15;white-space:nowrap;color:var(--cream);background:var(--ink);padding:12px 20px;text-align:center}
+#captions .current{color:var(--yellow)}
 #grain{position:absolute;left:0;top:0;width:1080px;height:1920px;z-index:30;pointer-events:none;mix-blend-mode:multiply;opacity:.2}
 .puppet{filter:drop-shadow(8px 8px 0 rgba(0,0,0,.26))}
 </style></head>
@@ -54,6 +57,8 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 <script>
 'use strict';
 const W = 1080, H = 1920, FLOOR = 1500, FPS12 = 12;
+const CAPTION_BAND = Object.freeze({x:0,y:1560,width:1080,height:160});
+window.captionBand = CAPTION_BAND;
 const INK = '#17161C', CREAM = '#FBF4E4', YELLOW = '#FFD21F', TOMATO = '#E8452C', TEAL = '#1F8A8A';
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, p) => a + (b - a) * p;
@@ -177,7 +182,9 @@ function Puppet(spec, cast, layer, heads) {
       <text x="0" y="-590" text-anchor="middle" font-family="Plex" font-weight="600" font-size="24" fill="${INK}" opacity=".6">no photo</text>`; }
   const poses = (spec.poses || []).slice().sort((a, b) => a.t - b.t);
   const moves = (spec.moves || []).slice().sort((a, b) => a.t - b.t);
-  return { update(t) {
+  return { captionBox() {
+    return root.getAttribute('visibility') === 'hidden' ? null : headG.getBoundingClientRect();
+  }, captionLabel: 'puppet head', update(t) {
     const tq = q12(t);
     if (spec.enterT != null && tq < spec.enterT) { root.setAttribute('visibility', 'hidden'); return; }
     root.setAttribute('visibility', 'visible');
@@ -222,7 +229,9 @@ function Card(c, panel, id) {
   const el = document.createElement('div'); el.className = 'card'; el.innerHTML = CARDS[c.kind](c);
   el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; if (c.z) el.style.zIndex = c.z; panel.appendChild(el);
   const rows = [...el.querySelectorAll('[data-row]')];
-  return { fit() {
+  return { captionBox() {
+    return el.style.visibility === 'hidden' ? null : el.firstElementChild.getBoundingClientRect();
+  }, captionLabel: 'card', fit() {
     // Keep the chosen size unless the actual font metrics would cross the frame.
     // The animation owns the outer transform; the content owns overflow scaling.
     const content = el.firstElementChild, w = Math.max(content.offsetWidth, content.scrollWidth), h = Math.max(content.offsetHeight, content.scrollHeight);
@@ -265,7 +274,49 @@ function Prop(p, layer, id) {
 }
 
 // ---------- build ----------
-let PARTS = [], CAM = [], CHAPTERS = [], DUR = 0;
+let PARTS = [], CAM = [], CHAPTERS = [], CAPTIONS = [], CAPTION_EL = null, DUR = 0;
+function captionAt(lines, t) {
+  const line = lines.find(l => l.start <= t && t < l.end);
+  if (!line) return null;
+  const words = line.text.trim().split(/\s+/);
+  const index = Math.min(words.length - 1, Math.floor((t - line.start) / (line.end - line.start) * words.length));
+  let start = 0;
+  while (start < words.length) {
+    let end = start + 1;
+    while (end < words.length && end - start < 4 && words.slice(start, end + 1).join(' ').length <= 28) end++;
+    if (index < end) return {words:words.slice(start, end), current:index - start};
+    start = end;
+  }
+  return null;
+}
+window.captionAt = captionAt;
+function buildCaptions(story, T) {
+  if (CAPTION_EL) CAPTION_EL.remove();
+  CAPTION_EL = null; CAPTIONS = [];
+  if (story.captions === false) return;
+  CAPTIONS = T.beats.flatMap(b => b.lines);
+  CAPTION_EL = document.createElement('div'); CAPTION_EL.id = 'captions';
+  Object.assign(CAPTION_EL.style, {left:CAPTION_BAND.x+'px', top:CAPTION_BAND.y+'px',
+    width:CAPTION_BAND.width+'px', height:CAPTION_BAND.height+'px'});
+  document.getElementById('stage').appendChild(CAPTION_EL);
+}
+window.buildCaptions = buildCaptions;
+function seekCaptions(t) {
+  if (!CAPTION_EL) return;
+  const phrase = captionAt(CAPTIONS, t);
+  CAPTION_EL.style.visibility = phrase ? 'visible' : 'hidden';
+  if (!phrase) { CAPTION_EL.replaceChildren(); return; }
+  CAPTION_EL.innerHTML = '<div class="phrase">' + phrase.words.map((word, i) =>
+    '<span' + (i === phrase.current ? ' class="current"' : '') + '>' + esc(word) + '</span>').join(' ') + '</div>';
+  const content = CAPTION_EL.firstElementChild;
+  content.style.transform = `scale(${Math.min(1, (CAPTION_BAND.width - 96) / content.scrollWidth)})`;
+  // Fail capture instead of covering a head or card, including moving ones.
+  for (const part of PARTS) if (part.captionBox) {
+    const box = part.captionBox();
+    if (box && box.right > 0 && box.left < W && box.bottom > CAPTION_BAND.y && box.top < CAPTION_BAND.y + CAPTION_BAND.height)
+      throw new Error(part.captionLabel + ' overlaps caption band y=1560..1720; move it above the band or set captions:false');
+  }
+}
 function cueTime(c, T) {
   if (typeof c === 'number' && Number.isFinite(c)) return c;
   if (typeof c !== 'string') throw new Error('bad cue ' + c);
@@ -301,6 +352,7 @@ async function build(story, T, base, vocabulary) {
       throw new Error('story vocabulary differs for ' + key);
   }
   PARTS = []; CAM = [];
+  buildCaptions(story, T);
   CHAPTERS = T.beats.map((b, i) => ({start: b.start, end: b.end, text: story.beats[i].chapter || ''}));
   DUR = T.duration;
   document.getElementById('barL').textContent = 'zing · ' + story.topic;
@@ -343,6 +395,7 @@ function seek(t) {
   document.getElementById('chapter').textContent = chapter ? chapter.text : '';
   document.getElementById('chapter').style.display = chapter && chapter.text ? '' : 'none';
   for (const p of PARTS) p.update(t);
+  seekCaptions(t);
 }
 window.build = build; window.seek = seek; window.cueTime = cueTime;
 </script>

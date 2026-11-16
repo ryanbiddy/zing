@@ -13,11 +13,11 @@ pytest.importorskip("mcp", reason='mcp SDK not installed (pip install "myzing[mc
 READ_ONLY = {
     "brief_questions", "factory_prompt", "factory_status", "get_frames", "get_profile",
     "get_prompt", "list_breakdowns", "list_presets", "list_profiles", "meme_check",
-    "meme_ideas", "meme_templates", "music_check", "zing_moments",
+    "meme_ideas", "meme_templates", "music_check", "zing_moments", "story_check", "story_status",
 }
 OPEN_WORLD = {
     "factory_run", "match_start", "meme_render", "setup_taste", "study_uoink_item",
-    "study_video", "zing_explain", "zing_studio_run",
+    "study_video", "zing_explain", "zing_studio_run", "story_build",
 }
 HINTS = {
     "readOnlyHint": "read_only_hint", "destructiveHint": "destructive_hint",

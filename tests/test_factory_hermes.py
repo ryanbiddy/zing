@@ -62,9 +62,9 @@ def test_skill_and_permissions_match_the_existing_mcp_surface():
                     if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "EXPECTED_TOOLS"
                                                         for t in n.targets))
     tools = asyncio.run(mcp_server.build_server().list_tools())
-    assert {t.name for t in tools} == expected and len(expected) == 44
+    assert {t.name for t in tools} == expected and len(expected) == 48
     read_only = {t.name for t in tools if t.annotations and t.annotations.read_only_hint is True}
-    assert len(read_only) == 14 and "14 marked read-only" in read("README.md")   # the README states the count
+    assert len(read_only) == 16 and "16 marked read-only" in read("README.md")   # the README states the count
     assert not read_only & {"zing_status", "get_breakdown", "get_render", "match_status", "zing_studio"}
     text = read("skills/zing/SKILL.md")
     assert text.startswith("---\nname: zing\ndescription: ")
@@ -77,7 +77,7 @@ def test_skill_and_permissions_match_the_existing_mcp_surface():
     assert {"factory_new", "factory_run", "factory_status", "factory_prompt", "factory_answer",
             "factory_clip", "factory_edit", "study_video", "zing_status", "render_edl", "get_render",
             "meme_render", "study_uoink_item", "push_to_uoink"} <= names
-    assert "44 tools" in read("README.md")
+    assert "48 tools" in read("README.md")
 
 
 def test_package_links_resolve_within_the_package():

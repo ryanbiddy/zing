@@ -267,7 +267,7 @@ def test_mcp_run_recovers_and_refuses_overrides_after_scouting(tmp_path, episode
 
 def test_mcp_run_exposes_optional_recovery_parameters():
     tools = asyncio.run(mcp_server.build_server().list_tools())
-    assert len(tools) == 44
+    assert len(tools) == 48
     schema = next(tool.input_schema for tool in tools if tool.name == "factory_run")
     assert schema["required"] == ["project"]
     assert schema["properties"]["no_sync_check"]["default"] is False

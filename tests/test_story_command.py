@@ -189,3 +189,125 @@ def test_story_voice_is_optional_and_data_ships_in_the_package():
     assert not any("kokoro" in item for item in project["project"]["dependencies"])
     data = project["tool"]["setuptools"]["package-data"]["myzing"]
     assert {"_data/story/*.html", "_data/story/*.cjs", "_data/story/*.json", "_data/story/prompts/*.md"} <= set(data)
+
+
+def test_new_has_only_the_source_placeholder_problem_and_build_refuses_it(tmp_path, capsys):
+    folder = tmp_path / "draft"
+    assert command.run(["new", str(folder), "--topic", "a paper moon"]) == 0
+    capsys.readouterr()
+    starter = json.loads((folder / "story.json").read_text(encoding="utf-8"))
+    assert all(not cast.get("photos") for cast in starter["cast"].values())
+    problems = contract.check(starter, folder)
+    assert len(problems) == 1 and "replace this source" in problems[0]
+    assert command.run(["build", str(folder)]) == 2
+    assert "replace this source" in capsys.readouterr().err
+    assert not (folder / "narration.wav").exists()
+    assert "zing story prompt" in (folder / "README-STORY.txt").read_text(encoding="utf-8")
+    starter["sources"] = [{"title": "Checked source", "url": "https://example.org/research"}]
+    assert contract.check(starter, folder) == []
+
+
+def test_new_does_not_overwrite_an_existing_story(tmp_path):
+    original = story_file(tmp_path)
+    with pytest.raises(StoryError, match="already exists"):
+        command.new(tmp_path, topic="changed")
+    assert json.loads((tmp_path / "story.json").read_text(encoding="utf-8")) == original
+
+
+def test_prompt_prints_the_bundled_prompt(capsys):
+    from myzing.story import data_path
+
+    assert command.run(["prompt"]) == 0
+    assert capsys.readouterr().out == data_path("prompts", "story.md").read_text(encoding="utf-8")
+
+
+def test_json_check_emits_only_structured_problems(tmp_path, capsys):
+    story = story_file(tmp_path)
+    story["topic"] = ""
+    story["sources"] = []
+    (tmp_path / "story.json").write_text(json.dumps(story), encoding="utf-8")
+    assert command.run(["check", str(tmp_path), "--json"]) == 1
+    output = capsys.readouterr()
+    assert output.err == ""
+    assert json.loads(output.out) == [
+        {"path": "topic", "message": "must be non-empty text"},
+        {"path": "sources", "message": "needs 1 or more entries"},
+    ]
+    story_file(tmp_path)
+    assert command.run(["check", str(tmp_path), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out) == []
+
+
+def test_json_check_unreadable_story_is_a_problem(tmp_path, capsys):
+    assert command.run(["check", str(tmp_path), "--json"]) == 1
+    problems = json.loads(capsys.readouterr().out)
+    assert problems[0]["path"] == "story.json"
+    assert "cannot read story.json" in problems[0]["message"]
+
+
+@pytest.mark.parametrize("action", ["render", "build"])
+def test_no_sfx_flag_reaches_renderer(tmp_path, monkeypatch, capsys, action):
+    from myzing.story import render
+
+    value = story_file(tmp_path)
+    lines = line_files(tmp_path, value)
+    seen = {}
+
+    def capture(directory, **kwargs):
+        seen.update(kwargs)
+        output = directory / "story.mp4"
+        output.write_bytes(b"fake rendered clip")
+        return output
+
+    monkeypatch.setattr(render, "render", capture)
+    args = [action, str(tmp_path), "--no-sfx"]
+    if action == "build":
+        args += ["--lines-dir", str(lines)]
+    assert command.run(args) == 0
+    capsys.readouterr()
+    assert seen["no_sfx"] is True
+
+
+def test_heads_sheet_cli(tmp_path, monkeypatch, capsys):
+    from myzing.story import heads
+
+    story_file(tmp_path)
+    calls = []
+    monkeypatch.setattr(heads, "generate", lambda directory, story, **kw: calls.append(kw) or [])
+    assert command.run(["heads", str(tmp_path), "--sheet"]) == 0
+    assert calls == [{"sheet": True}]
+    assert json.loads(capsys.readouterr().out)["sheet"].endswith("sheet.png")
+
+
+@pytest.mark.parametrize("provider", ["kokoro", "elevenlabs"])
+def test_voice_provider_flag_reaches_generate(tmp_path, monkeypatch, capsys, provider):
+    from myzing.story import voice
+
+    story_file(tmp_path)
+    seen = {}
+    monkeypatch.setattr(voice, "generate", lambda directory, story, **kwargs: seen.update(kwargs) or {})
+    assert command.run(["voice", str(tmp_path), "--provider", provider, "--voice", "test-voice"]) == 0
+    capsys.readouterr()
+    assert seen["provider"] == provider and seen["voice"] == "test-voice"
+
+
+def test_music_credit_is_in_generated_end_card_and_receipt(tmp_path):
+    from myzing.story.outro import prepare
+    from test_story_audio import tone
+
+    value = story_file(tmp_path)
+    tone(tmp_path / "tone.wav", duration=.1)
+    music = {"path": "tone.wav", "credit": "Test tone", "license": "CC0",
+             "source_url": "https://example.org/test-tone"}
+    value["music"] = music
+    (tmp_path / "story.json").write_text(json.dumps(value), encoding="utf-8")
+    timings = {"provider": "elevenlabs", "voice": "test", "duration": 3}
+    (tmp_path / "timings.json").write_text(json.dumps(timings), encoding="utf-8")
+    card = prepare(value, timings)["panels"][-1]["cards"][-1]
+    assert "music: Test tone · CC0" in card["lines"]
+    assert "narration is an AI voice" in card["lines"]
+    output = tmp_path / "story.mp4"
+    output.write_bytes(b"test output")
+    saved = json.loads(receipt.write(tmp_path, output).read_text(encoding="utf-8"))
+    assert saved["music"] == music
+    assert saved["voice"]["synthetic"] is True

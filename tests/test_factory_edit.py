@@ -204,7 +204,7 @@ def test_mcp_errors(ready):
 
 def test_mcp_schema_and_stdio(client, ready):
     tools = asyncio.run(mcp_server.build_server().list_tools())
-    assert len(tools) == 44
+    assert len(tools) == 48
     schema = next(t.model_dump(by_alias=True)["inputSchema"] for t in tools if t.name == "factory_edit")
     assert schema["required"] == ["project", "clip", "action"]
     assert schema["properties"]["action"]["enum"] == ["rate", "hook", "copy", "visual", "word", "render"]

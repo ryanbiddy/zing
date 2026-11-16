@@ -31,7 +31,7 @@ also get a guide.
 install links for the client's review flow. The command only prints the link.
 `zing serve-mcp --print-config [desktop|code]` keeps its existing output.
 
-Zing's MCP server gives any MCP client forty-four tools, plus the prompt
+Zing's MCP server gives any MCP client forty-eight tools, plus the prompt
 pack as slash commands:
 
 - **Start here:** `zing_studio` (stateless questions and a plan), `zing_studio_run` (confirmed a/b/d/f jobs with separate speech-download consent; poll or cancel by project). See [Studio](STUDIO.md).
@@ -44,6 +44,7 @@ pack as slash commands:
 - **Explain:** `zing_explain` (style card, reusable recipe and optional comparison; see [Explain](EXPLAIN.md))
 - **Moments:** `zing_moments` (Estimated transcript suggestions with must-keep JSON; see [Long interviews](MATCH.md#long-interviews)).
 - **Factory:** `factory_new`, `factory_run`, `factory_status`, `factory_prompt`, `factory_answer`, `factory_clip`, `factory_edit` (one long episode to a pack of social clips; the calling agent answers the judgment prompts and edits the clips; see [Clip factory](FACTORY.md))
+- **Stories:** `story_new`, `story_check`, `story_build`, `story_status` (topic to a starter file, JSON checks, background video builds and progress; the calling agent writes the story; see [Cutout stories](STORY.md))
 - **Match:** `match_start`, `match_status` (reference plus clips to resumable drafts and rendered match reports; see [Match](MATCH.md))
 - **Profile:** `build_profile`, `get_profile`, `list_profiles`,
   `list_presets`
@@ -63,7 +64,7 @@ if it drifts, CI fails.)
 
 ## Tool hints
 
-All 44 tools declare read-only, destructive, idempotent and open-world hints.
+All 48 tools declare read-only, destructive, idempotent and open-world hints.
 Hints cover every supported argument combination. Hosts decide whether to ask
 for approval.
 
@@ -106,6 +107,10 @@ for approval.
 | `setup_taste` | no | yes | yes |
 | `still_concepts` | no | no | no |
 | `still_render` | no | yes | no |
+| `story_new` | no | no | no |
+| `story_check` | yes | no | no |
+| `story_build` | no | yes | yes |
+| `story_status` | yes | no | no |
 | `study_uoink_item` | no | yes | yes |
 | `study_video` | no | yes | yes |
 | `zing_explain` | no | no | yes |
@@ -133,10 +138,24 @@ its MCP handler has no `offline` argument. `zing_explain` can download with
 The separate CLI's Claude judge reaches Anthropic but is not called by these
 MCP tools.
 
+`story_new(directory, topic)` creates a starter file without replacing an
+existing story. Replace its source placeholder and write the narration, then
+use `story_check(directory)` until `valid` is true. Its `problems` list contains
+objects with `path` and `message`. `story_build(directory)` runs in the
+background; poll `story_status(directory)` for video and receipt paths or a
+failure. Story status is read-only. A stopped server leaves an interrupted
+build, which `story_build` can start again.
+
+Story builds use local Kokoro, ElevenLabs or supplied WAV lines. ElevenLabs
+sends narration text to its service using the user's configured key, so
+`story_build` has an open-world hint. Story assets stay local and no video is
+posted. The build accepts provider, voice, speed, lines_dir, out,
+synthetic_voice and no_sfx options.
+
 The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
 launch commands still work. It accepts legacy initialization through
 `2025-11-25` and the stateless `2026-07-28` protocol. The current registry has
-44 tools and five prompts. STUDIO1 adds the guided front door; `match_start` gains an optional `studio_options` adapter argument. Existing arguments and defaults stay compatible. See [SDK 2 compatibility](MCP-SDK2.md)
+48 tools and five prompts. STUDIO1 adds the guided front door; `match_start` gains an optional `studio_options` adapter argument. Existing arguments and defaults stay compatible. See [SDK 2 compatibility](MCP-SDK2.md)
 for protocol details and the recorded SDK 1 baseline. Zing exposes no HTTP
 MCP endpoint.
 

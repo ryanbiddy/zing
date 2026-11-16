@@ -11,6 +11,7 @@ from pathlib import Path
 from myzing.factory.tools import FactoryError, ffmpeg, node_sidecar, run, sidecar_env
 
 from . import StoryError, data_path
+from .audio import mix
 from .contract import check_timings, load
 from .outro import prepare
 
@@ -57,7 +58,7 @@ def capture(data: dict, scratch: Path, frames: Path) -> None:
 
 
 def render(directory: Path, *, out: Path | None = None,
-           stills: str | list[float] | None = None) -> Path | list[Path]:
+           stills: str | list[float] | None = None, no_sfx: bool = False) -> Path | list[Path]:
     """Write a 1080 x 1920, 30 fps MP4, or sampled JPEGs in the story's stills folder."""
     directory = Path(directory).resolve()
     story = load(directory)
@@ -87,6 +88,7 @@ def render(directory: Path, *, out: Path | None = None,
         with tempfile.TemporaryDirectory(prefix=".story-render-", dir=scratch_root) as temporary:
             scratch = Path(temporary)
             frames = scratch / "frames"
+            audio_path = mix(directory, data["story"], timings, scratch, no_sfx=no_sfx) if samples is None else None
             capture(data, scratch, frames)
             if samples is not None:
                 target = directory / "stills"
@@ -99,7 +101,7 @@ def render(directory: Path, *, out: Path | None = None,
                 return images
             part = scratch / "story.mp4"
             run(encoder, "-v", "error", "-y", "-framerate", FPS, "-i", frames / "%05d.jpg",
-                "-i", directory / "narration.wav", "-map", "0:v", "-map", "1:a",
+                "-i", audio_path, "-map", "0:v", "-map", "1:a",
                 "-t", timings["duration"], "-c:v", "libx264", "-preset", "medium", "-crf", 20,
                 "-maxrate", "12M", "-bufsize", "24M", "-pix_fmt", "yuv420p", "-threads", 4,
                 "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", part,

@@ -134,7 +134,7 @@ def test_missing_face_detector_match_requests_an_explicit_box(tmp_path, photo, m
     pytest.importorskip("numpy")
     pytest.importorskip("cv2")
     photo.pop("face")
-    monkeypatch.setattr(heads, "_find_face", lambda image, cv2: None)
+    monkeypatch.setattr(heads, "_find_face", lambda image, cv2, **kwargs: None)
     with pytest.raises(StoryError, match="Add a face box"):
         heads.generate(tmp_path, {"cast": {"mira": {"photos": [photo]}}})
 
@@ -155,3 +155,150 @@ def test_rights_helper_handles_a_malformed_path_for_validator(photo, path):
     photo["path"] = path
     assert heads.photo_rights(photo) == "cleared"
     assert heads.photo_errors(photo) == ["photo requires path"]
+
+
+@pytest.mark.parametrize("side", ["original", "mirror"])
+def test_profile_fallback_checks_both_directions(monkeypatch, side):
+    np = pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    image = np.zeros((100, 200, 3), dtype=np.uint8)
+    image[:, 0] = 255
+    calls = []
+
+    class Detector:
+        def __init__(self, filename):
+            self.profile = filename.endswith("haarcascade_profileface.xml")
+
+        def empty(self):
+            return False
+
+        def detectMultiScale(self, gray, *args, **kwargs):
+            mirrored = bool(gray[0, -1] == 255)
+            calls.append((self.profile, mirrored))
+            if self.profile and mirrored == (side == "mirror"):
+                return [(20, 10, 30, 40)]
+            return []
+
+    monkeypatch.setattr(cv2, "CascadeClassifier", Detector)
+    detection = {}
+    found = heads._find_face(image, cv2, detection=detection)
+    assert calls == [(False, False), (True, False), (True, True)]
+    assert found == ((20, 10, 30, 40) if side == "original" else (150, 10, 30, 40))
+    assert detection == {"face_count": 1}
+
+
+def test_largest_detected_face_wins_and_is_reported(tmp_path, photo, monkeypatch, capsys):
+    pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    photo.pop("face")
+    calls = []
+
+    class Detector:
+        def __init__(self, filename):
+            calls.append(filename)
+
+        def empty(self):
+            return False
+
+        def detectMultiScale(self, *args, **kwargs):
+            return [(20, 30, 40, 50), (100, 100, 100, 110), (230, 100, 30, 35)]
+
+    monkeypatch.setattr(cv2, "CascadeClassifier", Detector)
+    records = heads.generate(tmp_path, {"cast": {"mira": {"photos": [photo]}}})
+    assert len(calls) == 1 and calls[0].endswith("haarcascade_frontalface_default.xml")
+    assert records[0]["face"] == [100, 100, 100, 110]
+    assert records[0]["face_count"] == 3 and records[0]["selection"] == "largest"
+    assert "found 3 faces; using the largest" in capsys.readouterr().err
+    assert (tmp_path / "heads/mira-0.png").is_file()
+
+
+def test_manual_face_box_bypasses_all_detectors(tmp_path, photo, monkeypatch, capsys):
+    pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    monkeypatch.setattr(cv2, "CascadeClassifier", lambda *args: pytest.fail("manual face must override detection"))
+    records = heads.generate(tmp_path, {"cast": {"mira": {"photos": [photo]}}})
+    assert "selection" not in records[0]
+    assert capsys.readouterr().err == ""
+
+
+def test_profile_detections_of_the_same_face_count_once(monkeypatch):
+    np = pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    calls = 0
+
+    class Detector:
+        def __init__(self, filename):
+            self.profile = filename.endswith("haarcascade_profileface.xml")
+
+        def empty(self):
+            return False
+
+        def detectMultiScale(self, *args, **kwargs):
+            nonlocal calls
+            if not self.profile:
+                return []
+            calls += 1
+            return [(20, 10, 30, 40)] if calls == 1 else [(150, 10, 30, 40)]
+
+    monkeypatch.setattr(cv2, "CascadeClassifier", Detector)
+    detection = {}
+    assert heads._find_face(np.zeros((100, 200, 3), dtype=np.uint8), cv2, detection=detection) == (20, 10, 30, 40)
+    assert detection["face_count"] == 1
+
+
+def test_sheet_includes_every_cut_head_on_checks_with_cast_ids(tmp_path, photo, monkeypatch):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
+    from PIL import ImageDraw
+
+    labels = []
+    draw_text = ImageDraw.ImageDraw.text
+
+    def record_text(self, xy, text, *args, **kwargs):
+        labels.append(text)
+        return draw_text(self, xy, text, *args, **kwargs)
+
+    monkeypatch.setattr(ImageDraw.ImageDraw, "text", record_text)
+    story = {"cast": {"mira": {"photos": [photo]}, "sol": {"photos": [photo, photo]}}}
+    records = heads.generate(tmp_path, story, sheet=True)
+    assert len(records) == 3
+    assert labels == ["mira / 0", "sol / 0", "sol / 1"]
+    width, height, rows = read_png_rgba(tmp_path / "heads/sheet.png")
+    assert (width, height) == (560, 680)
+    assert tuple(rows[0][0:4]) == (235, 235, 235, 255)
+    assert tuple(rows[0][80:84]) == (210, 210, 210, 255)
+    assert tuple(rows[170][140 * 4:140 * 4 + 4]) not in ((235, 235, 235, 255), (210, 210, 210, 255))
+    assert not list((tmp_path / "heads").glob("*.tmp"))
+
+
+def test_background_leak_is_retried_then_reported(tmp_path, photo, monkeypatch, capsys):
+    """A cut that fills the whole allowed area is a leak: retry tighter, then warn."""
+    pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    rooms = []
+    real = heads.cut_head
+
+    def watch(*args, **kwargs):
+        rooms.append(kwargs.get("room", 1.0))
+        return real(*args, **kwargs)
+
+    # A separator that keeps everything it was offered behaves like a photo
+    # whose wall matches the hair.
+    def keep_everything(image, mask, *args, **kwargs):
+        mask[:] = cv2.GC_PR_FGD
+
+    monkeypatch.setattr(cv2, "grabCut", keep_everything)
+    monkeypatch.setattr(heads, "cut_head", watch)
+    records = heads.generate(tmp_path, {"cast": {"mira": {"name": "Mira Vale", "photos": [photo]}}})
+    assert rooms[0] == 1.0 and len(rooms) > 1 and rooms == sorted(rooms, reverse=True)
+    assert min(rooms) >= heads.LEAK_MIN_ROOM
+    assert records[0]["warning"] == "background may have leaked into the cut"
+    assert "may have leaked" in capsys.readouterr().err
+    assert (tmp_path / "heads/mira-0.png").exists()
+
+
+def test_clean_cut_keeps_full_room(tmp_path, photo):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
+    records = heads.generate(tmp_path, {"cast": {"mira": {"name": "Mira Vale", "photos": [photo]}}})
+    assert "room" not in records[0] and "warning" not in records[0]
