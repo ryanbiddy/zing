@@ -39,7 +39,7 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `factory_edit` | Edit `project`, `clip` synchronously. `action="rate"` takes `verdict="post"`, `"edits"` or `"no"` and optional `why`. `"hook"` takes `text`. `"copy"` takes `field` and `text`. `"visual"` takes `request` and zero-based `index` from status. `"word"` takes `index` and `new`, or `at`, `old` and `new`. `"render"` takes `shape` and `pack`, defaulting to `9x16` and `zing`. Returns changes, fact checks, context flags, receipt and pending tasks. |
 | `story_new` | Create a starter story folder from `directory` and `topic`, with invented cast and a source placeholder that must be replaced before building. Existing files are kept. |
 | `story_check` | Read `directory/story.json`; return `valid` and a `problems` list of objects with `path` and `message`. No media work runs. |
-| `story_build` | Check, narrate, cut heads, render and write a receipt in the background. Accepts provider, voice, speed, lines_dir, out, synthetic_voice and no_sfx. ElevenLabs sends narration text to its service; Kokoro and supplied lines stay local. |
+| `story_build` | Check, narrate, cut heads, prepare images, render and write a receipt in the background. Accepts provider, voice, speed, lines_dir, out, synthetic_voice and no_sfx. ElevenLabs sends narration text to its service using the user's configured key; Kokoro and supplied lines stay local. |
 | `story_status` | Read draft, running, done, failed or interrupted state for a story directory. Done includes video and receipt paths. Failed returns `ok: false` with an error. |
 | `match_start` | Background reference-plus-clips workflow; brief/answers, seed, resume, and explicit URL consent. Local models only; returns a project path for polling. |
 | `match_status` | Actual progress, ready count, comparison, failures and logs. `cancel=true` stops this server's owned match worker and descendants. |
@@ -75,6 +75,14 @@ placeholder, then repeat `story_check` until valid. Call `story_build` and poll
 `story_status`. A repeated build while that directory is running returns
 already_running. After an interrupted build, start it again. Review the video
 and receipt before posting; Zing does not publish it.
+
+Story `check`, `heads`, `images` and `render` never use the network. `find`
+and `fetch` use the network for Wikimedia Commons only. `voice` and `build`
+use the network only when the chosen provider is an online one, so
+`story_build` has an open-world hint. Choose ElevenLabs with
+`provider="elevenlabs"`, the CLI's `--provider elevenlabs`, or
+`ZING_TTS_PROVIDER=elevenlabs`. Zing marks its timings synthetic and keeps
+the AI voice credit.
 
 `study_video(..., save_source_to_uoink=True)` asks Uoink to save an HTTP or
 HTTPS source before the study starts. The flag defaults to `False` and has

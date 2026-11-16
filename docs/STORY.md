@@ -3,7 +3,7 @@
 `zing story` turns a short script into a vertical video without source footage.
 A voice reads each beat while paper puppets, props and fact cards move across
 drawn sets. The camera slides between sets. The end card carries source and
-photo and music credits. Word captions make the narration readable with sound off.
+photo, image and music credits. Word captions make the narration readable with sound off.
 
 ## Make a story
 
@@ -27,6 +27,7 @@ After writing the story, run:
 zing story check ./story --json
 zing story voice ./story --voice af_heart --speed 1
 zing story heads ./story --sheet
+zing story images ./story --sheet
 zing story render ./story --stills 1,4,8
 zing story render ./story --out ./story/final.mp4
 ```
@@ -36,7 +37,8 @@ is a list of `{ "path": "topic", "message": "must be non-empty text" }`
 objects, or `[]` when the story passes. This includes missing or invalid JSON
 files, so an agent can use the same loop for every draft. `voice` writes
 `narration.wav` and `timings.json`. `heads` writes transparent PNG stickers into
-`heads/`. `--sheet` adds `heads/sheet.png`, with each cut head on a checker
+`heads/`. `images` prepares declared pictures in `images/`; its `--sheet`
+writes `images/sheet.png`. For heads, `--sheet` adds `heads/sheet.png`, with each cut head on a checker
 background and its cast ID and photo index. `render` writes a 1080x1920,
 30 fps MP4 with narration, captions and sound effects. `--stills`
 writes JPEGs for review instead of a video.
@@ -51,7 +53,7 @@ zing story build ./story --lines-dir ./recorded-lines --out ./story/final.mp4
 `build` also accepts `--provider`, `--voice`, `--speed`, `--synthetic-voice`
 and `--no-sfx`. The default video is `story.mp4`
 inside the story folder. The receipt records the voice provider and name,
-each photo's credit, license and source URL, any music rights, the sources,
+each photo's and image's credit, license and source URL, any music rights, the sources,
 output and duration.
 
 Render uses the factory's Node sidecar and FFmpeg discovery. Install Node.js
@@ -65,6 +67,11 @@ Story voice uses Zing's existing TTS providers, with one provider call per
 line. `--provider kokoro|elevenlabs|lines` selects one explicitly. Otherwise
 Zing uses `ZING_TTS_PROVIDER`, then local Kokoro. Supplying `--lines-dir`
 selects `lines`; pairing it with a synthetic provider is an error.
+
+`check`, `heads`, `images` and `render` never use the network. `find` and
+`fetch` use the network for Wikimedia Commons only. `voice` and `build`
+use the network only when the chosen provider is an online one. Kokoro
+and supplied lines stay local.
 
 Kokoro is optional and needs Python 3.11 to 3.13. Install kokoro-onnx in
 the environment that runs Zing. It is not part of any Zing extra:
@@ -87,10 +94,11 @@ settings. Set those in your environment, then run:
 zing story voice ./story --provider elevenlabs
 ```
 
+`ZING_TTS_PROVIDER=elevenlabs` also selects it for `voice` and `build`.
 `--voice` can pass an ElevenLabs voice ID. This provider sends each line's
 spoken text to ElevenLabs and may use paid quota. Story commands do not
-print provider keys or service response bodies. Every synthetic provider
-keeps the `narration is an AI voice` credit.
+print provider keys or service response bodies. Timings are marked synthetic,
+and every synthetic provider keeps the `narration is an AI voice` credit.
 
 You can supply recordings instead, with no speech model installed. The
 `lines` provider also works on Python 3.14:
@@ -127,6 +135,7 @@ hex colors such as `#FFD21F`.
 | `topic` | Required top-bar label, up to 60 characters. The bar reads `zing · <topic>`. |
 | `handle` | Optional right-hand label, up to 40 characters. Empty means no label. |
 | `cast` | Optional object keyed by cast ID. Omit it or use `{}` for no puppets. |
+| `images` | Optional object keyed by image ID, for licensed pictures used by image props. |
 | `beats` | Required ordered list of 4 to 14 narration beats. |
 | `panels` | Required ordered paper sets. The first starts at the first beat. |
 | `sources` | Required nonempty list of `{ "title": "Source title", "url": "https://..." }`. Titles are at most 100 characters. URLs must be HTTP or HTTPS. |
@@ -181,7 +190,7 @@ entry animation.
 
 Available props: `blob`, `dots`, `window`, `skyline`, `lamp`, `sink`, `plates`,
 `bubbles`, `crt`, `calendar`, `cube`, `chip`, `cup`, `pancakes`, `booth`,
-`table`, `garage`, `tree`, `cross`, `star`.
+`table`, `garage`, `tree`, `cross`, `star`, `image`.
 
 | Prop options | Meaning |
 |---|---|
@@ -196,6 +205,58 @@ Available props: `blob`, `dots`, `window`, `skyline`, `lamp`, `sink`, `plates`,
 | `booth`: `seat`, `seat2` | Bench and cushion colors. |
 | `table`: `leg`, `bench` | Front height and color. `front` always stays a layer flag. |
 | `star`: `fill` | Color. |
+| `image`: `image`, `w` | Image ID and picture width in pixels, from 80 to 1000. |
+
+### Pictures as props
+
+Use an image prop when the story needs a subject that the drawn props cannot
+show. Declare its rights once in `images`, then refer to its ID:
+
+```text
+"images": {
+  "elephant": {
+    "path": "images/elephant-source.jpg",
+    "credit": "The actual photographer's credit",
+    "license": "CC BY 4.0",
+    "source_url": "https://commons.wikimedia.org/wiki/File:Your_chosen_file.jpg",
+    "cut": "photo"
+  }
+}
+```
+
+The metadata above shows the fields, not a cleared asset. Use the downloaded
+file's actual author and license. Add a prop such as
+`{"prop":"image","image":"elephant","x":780,"y":1400,"w":360}`.
+Its origin is the bottom center. All normal prop fields work, including
+`at`, `until`, `anim`, `rot`, `scale` and `front`.
+
+`cut: "photo"` is the default: a paper photo with a white border, a shadow
+and tape. FFmpeg prepares it locally; OpenCV is not needed. `cut: "sticker"`
+uses OpenCV GrabCut with a center rectangle, then adds the same faceted
+white edge as heads. Optional `box: [x, y, width, height]` sets the subject
+rectangle in source-image pixels. The box must leave some background around
+it. Review `zing story images <dir> --sheet` after changing the cut or box.
+Sticker cuts need the same OpenCV and NumPy install as heads. Every path
+must stay inside the story folder; image rights follow the photo rules.
+
+### Find and fetch Commons pictures
+
+```sh
+zing story find "elephant" --limit 6
+zing story find "elephant" --limit 6 --json
+zing story fetch ./story "File:Your chosen file.jpg" --as image:elephant
+zing story fetch ./story "https://commons.wikimedia.org/wiki/File:Your_chosen_portrait.jpg" --as photo:mira
+```
+
+`find` lists each file's title, license, author credit, pixel dimensions,
+byte size and Commons page URL. Refused files stay in the list with a reason.
+`fetch` downloads just the selected file into `photos/` or `images/` and
+writes its rights into `story.json`. A photo target must name an existing
+cast member; an image target creates a new image ID. Downloads are limited
+to Commons hosts and the factory's file-size limits. Missing author or
+license metadata is a refusal, as are NC, ND and unknown licenses.
+Neither command guesses a credit. `find` and `fetch` use the network for
+Wikimedia Commons only.
 
 Actors have `who` (a cast ID), `x`, optional `y`, `scale`, `flip`, `pose`,
 `head`, `head_scale`, `enter`, `moves`, `poses` and `head_at`. `head_scale`
@@ -212,11 +273,30 @@ Poses: `idle`, `present`, `point`, `up`, `wave`, `think`, `shrug`, `cheer`,
 ### Cards and limits
 
 Cards have `kind`, `x`, `y`, `at`, and the text fields below. Optional common
-fields are `until`, `rot`, `anim`, `z`, `size`, `w`, `bg`, `color` and `from`.
+fields are `until`, `rot`, `anim`, `z`, `size`, `w`, `bg`, `color`, `from`
+and `over_head` (boolean, default false).
 `from` is the horizontal slide distance. Animations are `pop`, `drop`,
 `stamp` and `slide`. Card positions use the top-left corner and must be
 inside the frame: `0 <= x < 1080` and `0 <= y < 1920`. Review stills after changing size,
-rotation or placement; text limits cannot prevent overlap with other art.
+rotation or placement.
+
+A standing actor's head covers about y=650 to 1010; name tags go at y=560
+or higher. Allow more room for a tall cut, a larger `head_scale`, a changed
+actor `scale`, or a different actor `y`. Seated actors with the `table` pose
+often use a different `y`, so check those heads too. `check` compares card boxes
+with visible heads through each panel, including entrances, moves and cues.
+An error names the actor and suggests a card y that clears the head.
+The check judges where a card settles, not its trip in, and it lets a card
+clip the outer fifth of a head box (hair, the sticker edge). A card that
+reaches the face is an error.
+Before narration exists, timing checks place beats ten seconds apart and
+give each line one second as placeholders. When a valid `timings.json` is
+present, they use its actual times. Run `check` again after
+`voice`, especially when mixing numeric seconds with named cues.
+Use `over_head: true` only for a deliberate face-covering gag. A stamp
+animation gets no automatic exemption. Cards that cover more than 60 percent
+of another visible card's box are also errors. These checks still apply
+when captions are off. Review stills after fixing them.
 
 Scale runs from 0.1 to 5, rotation from -360 to 360 degrees, card size from
 16 to 300, width from 80 to 1000, and layer `z` from 0 to 10. Prop opacity
@@ -313,11 +393,18 @@ tries again with less room around the face. If it still leaks, the command
 prints a warning and records it in the head's result, and the sheet shows it.
 Set a tighter `face` box or pick another photo.
 
-Zing generates the credits from cast photo credits and licenses and the
-source titles. It adds an outro panel if none exists, or adds a credits card
-to your `from: "outro"` panel. Handwritten `credits` fields and credits cards
-are not accepted. Kokoro and ElevenLabs always add `narration is an AI voice`; there is no
-switch to hide it. Supplied line recordings use provider `lines` and do not
+Zing generates the credits from photo and image credits and licenses and the
+source titles. Matching photo and image credits appear once. It adds an
+outro panel if none exists, with the first cast member who has a photo waving.
+Credits use 34 px type when they fit in five or fewer lines, otherwise 27 px,
+and smaller type if needed to fit. On an empty stage the card is 900 px wide.
+With an actor on stage it is 560 px wide and takes the side the actor is not
+standing on, clear of heads. The default waving actor stands on the right.
+Your `from: "outro"` panel keeps its authored art; Zing finds a clear place
+for its generated credits, or reports that the panel needs more room.
+Handwritten `credits` fields and credits cards
+are not accepted. Kokoro and ElevenLabs always add
+`narration is an AI voice`; there is no switch to hide it. Supplied line recordings use provider `lines` and do not
 add that disclosure unless you pass `--synthetic-voice`. Pass it whenever the
 recordings came from any voice model.
 
@@ -353,8 +440,9 @@ Replace its source entry and story with facts from your own sources.
 The agent writing prompt ships at `_data/story/prompts/story.md` in the
 Python package and is printed by `zing story prompt`. Write the JSON, run
 `zing story check --json <dir>`, fix every problem, and repeat before making
-narration or stickers. A passing check verifies structure and declared
-rights. The agent still needs to verify facts, listen and inspect the art.
+narration or stickers. A passing check verifies structure, declared rights
+and estimated card/head clearance. The agent still needs to verify facts,
+listen and inspect the art.
 
 ## MCP tools
 

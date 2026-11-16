@@ -12,7 +12,7 @@ from myzing.factory.tools import FactoryError, ffmpeg, node_sidecar, run, sideca
 
 from . import StoryError, data_path
 from .audio import mix
-from .contract import check_timings, load
+from .contract import check_timings, load, local_photo
 from .outro import prepare
 
 FPS = 30
@@ -80,6 +80,13 @@ def render(directory: Path, *, out: Path | None = None,
         output.parent.mkdir(parents=True, exist_ok=True)
     data = {"story": prepare(story, timings), "timings": timings,
             "base": directory.as_uri() + "/", "vocabulary": json.loads(data_path("vocabulary.json").read_text(encoding="utf-8"))}
+    for ident, picture in data["story"].get("images", {}).items():
+        try:
+            prepared = local_photo(directory, picture["prepared"])
+        except StoryError as exc:
+            raise StoryError(f"image {ident}: {str(exc).replace('photo', 'image')}") from exc
+        if not prepared.is_file():
+            raise StoryError(f"Prepared image {ident} is missing. Run 'zing story images' first.")
     if samples is not None:
         data["stills"] = samples
     scratch_root = directory if samples is not None else output.parent

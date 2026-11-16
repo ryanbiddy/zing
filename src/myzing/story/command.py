@@ -55,13 +55,14 @@ def check_json(directory: Path) -> list[dict[str, str]]:
 def build(directory: Path, *, provider: str | None = None, voice: str | None = None, speed: float = 1.0,
           lines_dir: Path | None = None, out: Path | None = None, synthetic: bool = False,
           no_sfx: bool = False) -> dict:
-    from . import heads, receipt, render
+    from . import heads, images, receipt, render
     from .voice import generate
 
     directory = Path(directory)
     story = contract.load(directory)
     generate(directory, story, provider=provider, voice=voice, speed=speed, lines_dir=lines_dir, synthetic=synthetic)
     heads.generate(directory, story)
+    images.generate(directory, story)
     output = render.render(directory, out=out, **({"no_sfx": True} if no_sfx else {}))
     receipt_path = receipt.write(directory, output)
     return {"rendered": str(output), "receipt": str(receipt_path)}
@@ -83,12 +84,23 @@ def run(argv: list[str]) -> int:
     heads = commands.add_parser("heads", help="cut licensed cast photos into head stickers")
     heads.add_argument("directory", type=Path)
     heads.add_argument("--sheet", action="store_true", help="also write heads/sheet.png for review")
+    images = commands.add_parser("images", help="prepare licensed pictures as photos or stickers")
+    images.add_argument("directory", type=Path)
+    images.add_argument("--sheet", action="store_true", help="also write images/sheet.png for review")
+    find = commands.add_parser("find", help="search Wikimedia Commons for licensed pictures (uses the network)")
+    find.add_argument("query")
+    find.add_argument("--limit", type=int, default=10)
+    find.add_argument("--json", action="store_true", help="print candidate metadata as JSON")
+    fetch = commands.add_parser("fetch", help="download one Commons picture and save its rights (uses the network)")
+    fetch.add_argument("directory", type=Path)
+    fetch.add_argument("title_or_url", metavar="FILE")
+    fetch.add_argument("--as", dest="target", required=True, metavar="photo:CAST_ID|image:IMAGE_ID")
     render = commands.add_parser("render", help="render a 1080x1920 MP4 or review JPEGs")
     render.add_argument("directory", type=Path)
     render.add_argument("--out", type=Path, metavar="FILE", help="output video (default <dir>/story.mp4)")
     render.add_argument("--stills", type=_stills, metavar="t1,t2,...", help="write JPEGs at these seconds instead of a video")
     render.add_argument("--no-sfx", action="store_true", help="turn off synthesized sound effects")
-    build_parser = commands.add_parser("build", help="check, voice, heads, render and write a receipt")
+    build_parser = commands.add_parser("build", help="check, voice, heads, images, render and write a receipt")
     build_parser.add_argument("directory", type=Path)
     _voice_options(build_parser)
     build_parser.add_argument("--out", type=Path, metavar="FILE")
@@ -97,6 +109,20 @@ def run(argv: list[str]) -> int:
     try:
         if args.command == "prompt":
             print(data_path("prompts", "story.md").read_text(encoding="utf-8"), end="")
+            return 0
+        if args.command == "find":
+            from .commons import find
+            candidates = find(args.query, limit=args.limit)
+            if args.json:
+                print(json.dumps(candidates, indent=2, ensure_ascii=False))
+            else:
+                for item in candidates:
+                    status = "accepted" if item["accepted"] else "refused: " + item["reason"]
+                    print(f"{item['title']}\n  {item['license']} | {item['credit']}\n"
+                          f"  {item['width']}x{item['height']} px | {item['bytes']} bytes | {status}\n"
+                          f"  {item['source_url']}")
+                if not candidates:
+                    print("No Commons pictures found.")
             return 0
         directory = args.directory.expanduser()
         if args.command == "new":
@@ -122,6 +148,14 @@ def run(argv: list[str]) -> int:
             result = {"heads": generate(directory, contract.load(directory), **({"sheet": True} if args.sheet else {}))}
             if args.sheet:
                 result["sheet"] = str(directory / "heads" / "sheet.png")
+        elif args.command == "images":
+            from .images import generate
+            result = {"images": generate(directory, contract.load(directory), **({"sheet": True} if args.sheet else {}))}
+            if args.sheet:
+                result["sheet"] = str(directory / "images" / "sheet.png")
+        elif args.command == "fetch":
+            from .commons import fetch
+            result = fetch(directory, args.title_or_url, args.target)
         elif args.command == "render":
             from .render import render
             output = render(directory, out=args.out, stills=args.stills, **({"no_sfx": True} if args.no_sfx else {}))

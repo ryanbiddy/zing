@@ -22,6 +22,7 @@ until it passes. Then make narration and review stills. A passing check tests
 the file and its limits, not whether the reporting is true or the art looks good.
 JSON check returns a list of `{path, message}` objects, or `[]` when clear.
 Use `zing story heads <dir> --sheet` to review cut heads together.
+Use `zing story images <dir> --sheet` to review picture props.
 Then use `zing story render <dir> --stills 1,3,5` to inspect the layout,
 and `zing story build <dir>` for the video and receipt. Listen to the result
 and inspect the captions before handing it over for posting.
@@ -35,6 +36,7 @@ Top-level fields:
 - `topic`: required string, at most 60 characters. The top-left bar says `zing · <topic>`.
 - `handle`: optional string, at most 40 characters. Empty hides the right label.
 - `cast`: optional object keyed by unique cast IDs. Omit it or use `{}` for no actors.
+- `images`: optional object keyed by image IDs, each `{path, credit, license, source_url, cut}`. IDs follow the cast ID rule. `cut` is `photo` by default or `sticker`; optional `box: [x,y,width,height]` sets a sticker's subject rectangle in the source image.
 - `beats`: ordered list of 4 to 14 beats.
 - `panels`: ordered list of paper sets. The first starts at the first beat.
 - `sources`: at least one object with `title` (at most 100 characters) and an HTTP or HTTPS `url`.
@@ -51,10 +53,22 @@ Each cast member has `name` (at most 60 characters), optional colors `skin`,
 optional `photos`. A photo has `path`, `credit`, `license`, `source_url`, and
 optional `face: [x, y, width, height]`. `path` is at most 240 characters,
 `credit` 120, and `license` 100. Paths are local and relative to the
-story folder, and must stay inside it. List only photos the user has supplied
-with cleared or attribution rights. No NC, ND or editorial-only photos.
+story folder, and must stay inside it. Use supplied photos with cleared or
+attribution rights, or fetch a licensed Commons file. No NC, ND or editorial-only photos.
 Never invent a credit or license. A cast member with no photo gets a paper
 head with initials. Do not supply `heads`; `zing story heads` makes them.
+
+Show the subject of the story. If no drawn prop fits, use a licensed image:
+`zing story find "elephant" --limit 6 --json` lists Commons candidates,
+including refusals and their reasons. Choose a suitable accepted file, then
+`zing story fetch <dir> "File:Chosen file.jpg" --as image:elephant` downloads
+it and saves its actual rights in `images.elephant`. `--as photo:<cast-id>`
+adds a cast photo instead. Fetch refuses missing authors, missing licenses
+and non-Commons hosts. Never fill missing metadata with a guess.
+`check`, `heads`, `images` and `render` never use the network. `find` and
+`fetch` use the network for Wikimedia Commons only. `voice` and `build`
+use the network only when the chosen provider is an online one. Kokoro
+and supplied lines stay local. Review the source and the sheet.
 
 Each beat has a unique `id`, optional `chapter` (at most 40 characters),
 1 to 8 `lines`, and optional
@@ -94,7 +108,7 @@ when writing new files. Panel `from` is an exact beat ID, not a general cue.
 
 Props: `blob`, `dots`, `window`, `skyline`, `lamp`, `sink`, `plates`, `bubbles`,
 `crt`, `calendar`, `cube`, `chip`, `cup`, `pancakes`, `booth`, `table`,
-`garage`, `tree`, `cross`, `star`.
+`garage`, `tree`, `cross`, `star`, `image`.
 
 Every prop has `prop`, `x`, `y`. Optional fields are `scale`, `rot`, `at`,
 `until`, `anim`, `still`, `front`, `spin`. Coordinates use its base center.
@@ -114,6 +128,7 @@ Prop-specific fields:
 - `booth`: colors `seat`, `seat2`.
 - `table`: front height `leg`, front color `bench`. Do not put a color in `front`.
 - `star`: color `fill`.
+- `image`: an `image` ID from the top-level object and `w` in pixels, from 80 to 1000. Example: `{"prop":"image","image":"elephant","x":780,"y":1400,"w":360}`. `cut: "photo"` adds white paper, shadow and tape and needs only FFmpeg. `cut: "sticker"` uses OpenCV GrabCut, a center rectangle or the supplied box, and a faceted white edge. It needs the same OpenCV and NumPy install as heads. All normal prop timing, layer and transform fields work.
 
 Actors have `who` (a cast ID), `x`, optional `y`, `scale`, `flip`, `pose`,
 `head`, `head_scale`, `enter`, `moves`, `poses`, `head_at`. `head` is a zero-based photo
@@ -132,7 +147,8 @@ Poses: `idle`, `present`, `point`, `up`, `wave`, `think`, `shrug`, `cheer`,
 Every card has `kind`, `x`, `y`, `at` and the fields for its kind. Coordinates
 use its top-left corner and must be inside 1080x1920. Optional common fields:
 `until`, `rot`, `anim`, `z`, `size`, `w`, `bg`, `color`, `from` (horizontal
-slide distance). `anim` is `pop`, `drop`, `stamp` or `slide`.
+slide distance), `over_head` (boolean, default false).
+`anim` is `pop`, `drop`, `stamp` or `slide`.
 Scale runs from 0.1 to 5, rotation from -360 to 360 degrees, card size from
 16 to 300, width from 80 to 1000, and layer `z` from 0 to 10. Prop opacity
 runs from 0 to 1. Dot and stack counts run from 1 to 20; calendar text is
@@ -155,13 +171,28 @@ Character limits include spaces:
 
 Use short cards. Increasing type size or putting a card near an edge can
 still crop it, so inspect the JPEGs. Keep important facts above the puppets
-and away from the top bar. Keep all card boxes and puppet heads above the
+and away from the top bar. A standing actor's head covers about y=650 to
+1010; name tags go at y=560 or higher. Allow more room for tall cutouts,
+changed `scale` or `head_scale`, and actors at a different `y`, including
+seated `table` poses. `check` tests card/head overlap through visible time
+windows and moves, and suggests a y that clears the head. Fix every such
+error. Before voice exists, checks use placeholders: ten seconds per beat
+and one second per line. Run `check` again after `voice` so it uses the real
+`timings.json`, especially for numeric cues.
+Use `over_head: true` only for a deliberate gag. A stamp gets no
+automatic exemption. The check judges where a card settles and allows it to
+clip the outer fifth of a head box. More than 60 percent coverage of another visible
+card's box is also an error, even with captions off.
+Keep all card boxes and puppet heads above the
 caption safe band, x=0..1080 and y=1560..1720. `check` reserves room for
 wrapping, rotation and entry overshoot; capture also checks actual bounds.
 `captions: false` removes the strip and its clearance rules. The outro has
 no spoken captions, so its art can use that band.
 
-Zing adds an outro with photo credits and licenses and the source titles.
+Zing adds an outro with photo and image credits and licenses and source titles.
+Matching photo and image credits appear once. The default outro brings the
+first cast member with a photo on stage waving. Credits use larger type for
+five or fewer lines and sit beside any actor on the outro, clear of heads.
 You may supply your own `from: "outro"` panel, but Zing still adds its credits
 card. Do not write a credits card yourself. Kokoro and ElevenLabs always add
 `narration is an AI voice`; that line cannot be hidden. Supplied WAV lines
@@ -172,8 +203,10 @@ a voice model so the credit remains.
 provider. Otherwise Zing uses `ZING_TTS_PROVIDER`, then Kokoro; `--lines-dir`
 selects supplied recordings. Kokoro uses the existing model discovery and
 path overrides. ElevenLabs needs the user's configured key and voice ID,
-sends spoken text to its service, and can use paid quota. Never ask the
-user to paste a key into chat. One clip per line keeps cues tied to the audio.
+sends spoken text to its service, and can use paid quota. Zing marks its
+timings synthetic and keeps the AI voice credit. `ZING_TTS_PROVIDER=elevenlabs`
+also selects it for `voice` and `build`. Never ask the user to paste a key
+into chat. One clip per line keeps cues tied to the audio.
 
 MCP clients can call `story_new`, `story_check`, `story_build` and
 `story_status`. Build runs in the background; poll status for completion or

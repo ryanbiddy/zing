@@ -46,6 +46,7 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 #captions .current{color:var(--yellow)}
 #grain{position:absolute;left:0;top:0;width:1080px;height:1920px;z-index:30;pointer-events:none;mix-blend-mode:multiply;opacity:.2}
 .puppet{filter:drop-shadow(8px 8px 0 rgba(0,0,0,.26))}
+.image-prop{filter:drop-shadow(6px 7px 0 rgba(0,0,0,.22))}
 </style></head>
 <body>
 <div id="stage">
@@ -77,6 +78,15 @@ const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&
 // ---------- props: small paper drawings, origin at their base centre ----------
 const paper = 'stroke="' + CREAM + '" stroke-width="5" stroke-linejoin="round"';
 const PROPS = {
+  image: (o, images) => {
+    const im = images[o.image], w = o.w, href = esc(im.url).replace(/"/g, '&quot;');
+    if (im.cut === 'sticker') { const h = w * im.h / im.w;
+      return `<image class="image-prop" href="${href}" x="${-w / 2}" y="${-h}" width="${w}" height="${h}"/>`; }
+    const border = 12, iw = w - 2 * border, ih = iw * im.h / im.w, h = ih + 2 * border;
+    return `<g class="image-prop"><rect x="${-w / 2}" y="${-h}" width="${w}" height="${h}" fill="#fff"/>
+      <image href="${href}" x="${-iw / 2}" y="${-h + border}" width="${iw}" height="${ih}"/>
+      <rect x="${-Math.min(110, w * .4) / 2}" y="${-h - 13}" width="${Math.min(110, w * .4)}" height="32" fill="${YELLOW}" opacity=".8" transform="rotate(-5,0,${-h})"/></g>`;
+  },
   blob: o => `<circle r="${o.r || 200}" fill="${o.fill || TOMATO}"/>`,
   dots: o => { let s = ''; const n = o.n || 9, g = o.gap || 26;
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
@@ -152,6 +162,11 @@ function setBack(set) {
 // ---------- puppet ----------
 const POSES = { idle: [8, 8, 8, 8], present: [10, 8, 74, 16], point: [10, 8, 116, 4], up: [10, 8, 152, 8], wave: [10, 8, 150, 34],
   think: [14, 8, 38, -128], shrug: [48, 96, 48, 96], cheer: [152, 12, 152, 12], table: [24, -78, 24, -78], carry: [26, -96, 26, -96], hip: [34, -108, 10, 8] };
+// Compared with vocabulary.json by the page/Python geometry test.
+const HEAD_GEOMETRY = Object.freeze({width:300,max_height:400,pivot_y:-520,photo_bottom:.1,
+  default_y:1562,blank_bounds:[-122,-842,255,316],body_sway:.8,body_walk:3,head_sway:4,head_walk:4,
+  head_think:9,head_shrug:-8,idle_bob:3,walk_bob:16,enter_hop:120,enter_duration:.45,fps:12});
+window.headGeometry = HEAD_GEOMETRY;
 function Puppet(spec, cast, layer, heads) {
   const who = {jacket: INK, shirt: CREAM, legs: '#23232B', ...cast[spec.who]}, s = spec.scale || 1, skin = who.skin || '#D8A47A';
   const root = svgEl('g', { class: 'puppet' }, layer), body = svgEl('g', {}, root);
@@ -171,19 +186,23 @@ function Puppet(spec, cast, layer, heads) {
     f.innerHTML = `<circle cx="0" cy="122" r="28" fill="${skin}" ${edge}/><rect x="-23" y="-12" width="46" height="126" rx="23" fill="${who.jacket}" ${edge}/>`;
     return { up, f }; };
   const aL = arm(-1), aR = arm(1);
-  const headG = svgEl('g', {}, body);
-  const hw = 300 * (spec.head_scale || 1);
-  const imgs = (who.heads || []).map(src => { const im = heads[src], hh = hw * im.h / im.w;
-    return svgEl('image', { href: im.url, x: -hw / 2, y: -520 - hh + hw * .1, width: hw, height: hh, visibility: 'hidden' }, headG); });
+  const geometry = HEAD_GEOMETRY, headG = svgEl('g', {class:'puppet-head'}, body);
+  const hs = spec.head_scale || 1;
+  const headArt = svgEl('g', {transform:`translate(0,${geometry.pivot_y}) scale(${hs}) translate(0,${-geometry.pivot_y})`}, headG);
+  const imgs = (who.heads || []).map(src => { const im = heads[src];
+    const hw = Math.min(geometry.width, geometry.max_height * im.w / im.h), hh = hw * im.h / im.w;
+    return svgEl('image', { href: im.url, x: -hw / 2, y: geometry.pivot_y - hh + geometry.width * geometry.photo_bottom, width: hw, height: hh, visibility: 'hidden' }, headArt); });
   if (!imgs.length) { // no licensed photo: an honest blank paper head with initials
     const ini = who.name.trim().split(/\s+/).slice(0, 3).map(w => w[0]).join('');
-    headG.innerHTML = `<path d="M-118,-560 Q-140,-760 -40,-830 Q60,-870 122,-770 Q150,-660 104,-548 Q0,-500 -118,-560Z" fill="${CREAM}" stroke="${INK}" stroke-width="5" stroke-dasharray="16 12"/>
+    headArt.innerHTML = `<path d="M-118,-560 Q-140,-760 -40,-830 Q60,-870 122,-770 Q150,-660 104,-548 Q0,-500 -118,-560Z" fill="${CREAM}" stroke="${INK}" stroke-width="5" stroke-dasharray="16 12"/>
       <text x="0" y="-640" text-anchor="middle" font-family="Anton" font-size="120" fill="${INK}">${esc(ini)}</text>
       <text x="0" y="-590" text-anchor="middle" font-family="Plex" font-weight="600" font-size="24" fill="${INK}" opacity=".6">no photo</text>`; }
   const poses = (spec.poses || []).slice().sort((a, b) => a.t - b.t);
   const moves = (spec.moves || []).slice().sort((a, b) => a.t - b.t);
+  const headChanges = (spec.head_at || []).slice().sort((a, b) => a.t - b.t);
   return { captionBox() {
-    return root.getAttribute('visibility') === 'hidden' ? null : headG.getBoundingClientRect();
+    const visibleHead = imgs.find(im => im.getAttribute('visibility') === 'visible') || headG;
+    return root.getAttribute('visibility') === 'hidden' ? null : visibleHead.getBoundingClientRect();
   }, captionLabel: 'puppet head', update(t) {
     const tq = q12(t);
     if (spec.enterT != null && tq < spec.enterT) { root.setAttribute('visibility', 'hidden'); return; }
@@ -197,16 +216,16 @@ function Puppet(spec, cast, layer, heads) {
     // position: walk between x targets
     let x = spec.x, walking = 0;
     for (const m of moves) { const pp = clamp((tq - m.t) / m.dur); if (tq >= m.t) { x = lerp(m.from, m.to, pp); walking = pp < 1 ? 1 : 0; } else if (m === moves[0]) x = m.from; }
-    const step = walking ? Math.sin(tq * 13) : 0, hop = spec.enterT != null ? (1 - bounce((tq - spec.enterT) / .45)) * -120 : 0;
-    const sway = Math.sin(tq * 1.9 + spec.x) * 1.6, bob = walking ? -Math.abs(Math.sin(tq * 13)) * 16 : Math.sin(tq * 2.6 + spec.x) * 3;
-    root.setAttribute('transform', `translate(${x},${(spec.y ?? FLOOR + 62) + bob + hop}) scale(${(spec.flip ? -1 : 1) * s},${s})`);
-    body.setAttribute('transform', `rotate(${sway * .5 + (walking ? 3 : 0)})`);
+    const step = walking ? Math.sin(tq * 13) : 0, hop = spec.enterT != null ? (1 - bounce((tq - spec.enterT) / geometry.enter_duration)) * -geometry.enter_hop : 0;
+    const sway = Math.sin(tq * 1.9 + spec.x) * geometry.body_sway, bob = walking ? -Math.abs(Math.sin(tq * 13)) * geometry.walk_bob : Math.sin(tq * 2.6 + spec.x) * geometry.idle_bob;
+    root.setAttribute('transform', `translate(${x},${(spec.y ?? geometry.default_y) + bob + hop}) scale(${(spec.flip ? -1 : 1) * s},${s})`);
+    body.setAttribute('transform', `rotate(${sway + (walking ? geometry.body_walk : 0)})`);
     legL.setAttribute('transform', `rotate(${step * 24})`); legR.setAttribute('transform', `rotate(${-step * 24})`);
     aL.up.setAttribute('transform', `rotate(${a[0] + (walking ? -step * 22 : 0)})`); aL.f.setAttribute('transform', `rotate(${a[1]})`);
     aR.up.setAttribute('transform', `rotate(${-a[2] + (walking ? -step * 22 : 0)})`); aR.f.setAttribute('transform', `rotate(${-a[3]})`);
-    const tilt = Math.sin(tq * 2.3 + spec.x * .01) * 4 + (name === 'think' ? 9 : name === 'shrug' ? -8 : 0) + (walking ? step * 4 : 0);
-    headG.setAttribute('transform', `rotate(${tilt},0,-520)`);
-    let hi = spec.head || 0; for (const h of spec.head_at || []) if (tq >= h.t) hi = h.head;
+    const tilt = Math.sin(tq * 2.3 + spec.x * .01) * geometry.head_sway + (name === 'think' ? geometry.head_think : name === 'shrug' ? geometry.head_shrug : 0) + (walking ? step * geometry.head_walk : 0);
+    headG.setAttribute('transform', `rotate(${tilt},0,${geometry.pivot_y})`);
+    let hi = spec.head || 0; for (const h of headChanges) if (tq >= h.t) hi = h.head;
     imgs.forEach((im, i) => im.setAttribute('visibility', i === hi % imgs.length ? 'visible' : 'hidden'));
   } };
 }
@@ -221,7 +240,7 @@ const CARDS = {
   doc: c => `<div class="doc"><div class="h">${esc(c.k || '')}</div><div class="n">${esc(c.text)}</div><div class="l"></div><div class="l" style="width:70%"></div><div class="d">${esc(c.sub || '')}</div></div>`,
   stamp: c => `<div class="stamp">${esc(c.text)}</div>`,
   plaque: c => `<div class="plaque"><i style="left:14px;top:14px"></i><i style="right:14px;top:14px"></i><i style="left:14px;bottom:14px"></i><i style="right:14px;bottom:14px"></i><div class="t">${esc(c.text)}</div><div class="q">${esc(c.sub || '')}</div></div>`,
-  credits: c => `<div class="credits" style="width:${c.w || 900}px">${c.lines.map(l => `<span>${esc(l)}</span>`).join('<br>')}</div>`,
+  credits: c => `<div class="credits" style="width:${c.w || 900}px;font-size:${c.size || 27}px">${c.lines.map(l => `<span>${esc(l)}</span>`).join('<br>')}</div>`,
   list: c => `<div class="note" style="width:${c.w || 470}px">${c.k ? `<div class="k">${esc(c.k)}</div>` : ''}${c.rows.map((r, i) => `<div class="row" data-row="${i}"><span class="box"></span><span>${esc(r.text)}</span></div>`).join('')}</div>`,
 };
 window.storyVocabulary = {cards: Object.keys(CARDS), props: Object.keys(PROPS), poses: Object.keys(POSES)};
@@ -259,8 +278,8 @@ function Card(c, panel, id) {
     rows.forEach((r, i) => { const on = tq >= c.rows[i].t; r.style.opacity = on ? 1 : .22; r.querySelector('.box').textContent = on ? '✓' : ''; });
   } };
 }
-function Prop(p, layer, id) {
-  const g = svgEl('g', {}, layer), inner = svgEl('g', {}, g); inner.innerHTML = PROPS[p.prop](p);
+function Prop(p, layer, id, images) {
+  const g = svgEl('g', {}, layer), inner = svgEl('g', {}, g); inner.innerHTML = PROPS[p.prop](p, images);
   return { update(t) {
     const tq = q12(t);
     if ((p.t != null && tq < p.t) || (p.until != null && tq >= p.until)) { g.setAttribute('visibility', 'hidden'); return; }
@@ -361,20 +380,27 @@ async function build(story, T, base, vocabulary) {
   const heads = {}; const names = new Set(); Object.values(story.cast).forEach(c => (c.heads || []).forEach(h => names.add(h)));
   await Promise.all([...names].map(n => new Promise((res, rej) => { const im = new Image();
     im.onload = () => { heads[n] = { url: im.src, w: im.naturalWidth, h: im.naturalHeight }; res(); }; im.onerror = () => rej(new Error('head ' + n)); im.src = base + 'heads/' + n; })));
+  const images = {};
+  await Promise.all(Object.entries(story.images || {}).map(([id, picture]) => new Promise((res, rej) => {
+    const im = new Image();
+    im.onload = () => { images[id] = {url:im.src, w:im.naturalWidth, h:im.naturalHeight, cut:picture.cut || 'photo'}; res(); };
+    im.onerror = () => rej(new Error('Cannot load image ' + id + '. Run zing story images first.'));
+    im.src = base + picture.prepared;
+  })));
   const world = document.getElementById('world'); world.replaceChildren();
   const C = c => cueTime(c, T);
   story.panels.forEach((P, i) => {
     const panel = document.createElement('div'); panel.className = 'panel'; panel.style.left = i * W + 'px'; world.appendChild(panel);
     const back = svgEl('svg', { class: 'layer', viewBox: `0 0 ${W} ${H}` }, panel); back.innerHTML = setBack(P.set);
     const start = C(P.from), id0 = i * 100;
-    (P.props || []).filter(p => !p.front).forEach((p, j) => PARTS.push(Prop({ ...p, t: p.at != null ? C(p.at) : null, until: p.until != null ? C(p.until) : null }, back, id0 + j)));
+    (P.props || []).filter(p => !p.front).forEach((p, j) => PARTS.push(Prop({ ...p, t: p.at != null ? C(p.at) : null, until: p.until != null ? C(p.until) : null }, back, id0 + j, images)));
     const mid = svgEl('svg', { class: 'layer', viewBox: `0 0 ${W} ${H}` }, panel);
     (P.actors || []).forEach(a => PARTS.push(Puppet({ ...a,
       enterT: a.enter != null && a.enter !== 'walk' ? C(a.enter) : null,
       moves: (a.enter === 'walk' ? [{ t: start - .45, dur: .95, from: a.x - 430, to: a.x }] : []).concat((a.moves || []).map(m => ({ ...m, t: C(m.at) }))),
       poses: (a.poses || []).map(p => ({ t: C(p.at), pose: p.pose })), head_at: (a.head_at || []).map(h => ({ t: C(h.at), head: h.head })) }, story.cast, mid, heads)));
     const front = svgEl('svg', { class: 'layer', viewBox: `0 0 ${W} ${H}` }, panel);
-    (P.props || []).filter(p => p.front).forEach((p, j) => PARTS.push(Prop({ ...p, t: p.at != null ? C(p.at) : null, until: p.until != null ? C(p.until) : null }, front, id0 + 30 + j)));
+    (P.props || []).filter(p => p.front).forEach((p, j) => PARTS.push(Prop({ ...p, t: p.at != null ? C(p.at) : null, until: p.until != null ? C(p.until) : null }, front, id0 + 30 + j, images)));
     (P.cards || []).forEach((c, j) => PARTS.push(Card({ ...c, t: C(c.at), until: c.until != null ? C(c.until) : null,
       rows: (c.rows || []).map(r => ({ ...r, t: C(r.at) })) }, panel, id0 + 60 + j)));
     CAM.push(start);

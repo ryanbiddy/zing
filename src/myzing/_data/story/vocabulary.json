@@ -11,10 +11,17 @@
     "credits": {"line": 160},
     "list": {"row": 32, "k": 40, "rows": 5}
   },
-  "props": ["blob", "dots", "window", "skyline", "lamp", "sink", "plates", "bubbles", "crt", "calendar", "cube", "chip", "cup", "pancakes", "booth", "table", "garage", "tree", "cross", "star"],
+  "props": ["blob", "dots", "window", "skyline", "lamp", "sink", "plates", "bubbles", "crt", "calendar", "cube", "chip", "cup", "pancakes", "booth", "table", "garage", "tree", "cross", "star", "image"],
   "poses": ["idle", "present", "point", "up", "wave", "think", "shrug", "cheer", "table", "carry", "hip"],
   "wall_patterns": ["tiles", "stripes", "check"],
   "floor_patterns": ["check", "planks"],
   "animations": ["pop", "drop", "stamp", "slide"],
-  "prop_animations": ["pop", "drop"]
+  "prop_animations": ["pop", "drop"],
+  "head_geometry": {
+    "width": 300, "max_height": 400, "pivot_y": -520, "photo_bottom": 0.1,
+    "default_y": 1562, "blank_bounds": [-122, -842, 255, 316],
+    "body_sway": 0.8, "body_walk": 3, "head_sway": 4, "head_walk": 4,
+    "head_think": 9, "head_shrug": -8, "idle_bob": 3, "walk_bob": 16,
+    "enter_hop": 120, "enter_duration": 0.45, "fps": 12
+  }
 }

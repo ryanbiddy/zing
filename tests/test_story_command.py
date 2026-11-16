@@ -291,6 +291,90 @@ def test_voice_provider_flag_reaches_generate(tmp_path, monkeypatch, capsys, pro
     assert seen["provider"] == provider and seen["voice"] == "test-voice"
 
 
+@pytest.mark.parametrize("action", ["voice", "build"])
+@pytest.mark.parametrize("explicit", [True, False])
+def test_elevenlabs_reaches_voice_provider(tmp_path, monkeypatch, capsys, action, explicit):
+    from myzing import tts_providers
+    from myzing.render.tts import SynthesisResult
+    from myzing.story import render
+    from myzing.story.outro import credit_lines
+    from test_story_voice import write_wav
+
+    story = story_file(tmp_path)
+    calls = []
+
+    class FakeProvider:
+        name = "elevenlabs"
+
+        def synthesize(self, request, output_path):
+            calls.append(request.text)
+            write_wav(output_path, 250)
+            return SynthesisResult(output_path, self.name, "test-voice", 1000, .25)
+
+    def capture(directory, **kwargs):
+        output = directory / "story.mp4"
+        output.write_bytes(b"test render")
+        return output
+
+    monkeypatch.setattr(tts_providers, "_REGISTRY", {"elevenlabs": FakeProvider})
+    monkeypatch.setenv("ZING_TTS_PROVIDER", "kokoro" if explicit else "elevenlabs")
+    monkeypatch.setattr(render, "render", capture)
+    args = [action, str(tmp_path)] + (["--provider", "elevenlabs"] if explicit else [])
+    assert command.run(args) == 0
+    capsys.readouterr()
+    assert calls == [line["text"] for beat in story["beats"] for line in beat["lines"]]
+    timings = json.loads((tmp_path / "timings.json").read_text(encoding="utf-8"))
+    assert timings["provider"] == "elevenlabs" and timings["synthetic"] is True
+    assert "narration is an AI voice" in credit_lines(story, timings)
+
+
+def test_images_cli_and_build_prepare_declared_images(tmp_path, monkeypatch, capsys):
+    from myzing.story import images, render
+
+    value = story_file(tmp_path)
+    lines = line_files(tmp_path, value)
+    calls = []
+    monkeypatch.setattr(images, "generate", lambda directory, story, **kw: calls.append(kw) or [])
+    assert command.run(["images", str(tmp_path), "--sheet"]) == 0
+    assert json.loads(capsys.readouterr().out)["sheet"].endswith("sheet.png")
+
+    def capture(directory, **kwargs):
+        output = directory / "story.mp4"
+        output.write_bytes(b"test render")
+        return output
+
+    monkeypatch.setattr(render, "render", capture)
+    assert command.run(["build", str(tmp_path), "--lines-dir", str(lines)]) == 0
+    assert calls == [{"sheet": True}, {}]
+
+
+@pytest.mark.parametrize("as_json", [True, False])
+def test_find_cli_lists_candidates_and_refusals(monkeypatch, capsys, as_json):
+    from myzing.story import commons
+
+    result = [{"title": "File:Drawing.png", "license": "CC BY-NC 4.0", "credit": "Test artist",
+               "width": 900, "height": 600, "bytes": 12000, "accepted": False,
+               "reason": "NC licenses are refused", "source_url": "https://commons.wikimedia.org/wiki/File:Drawing.png"}]
+    monkeypatch.setattr(commons, "find", lambda query, limit: result if query == "drawing" and limit == 2 else [])
+    assert command.run(["find", "drawing", "--limit", "2"] + (["--json"] if as_json else [])) == 0
+    output = capsys.readouterr().out
+    if as_json:
+        assert json.loads(output) == result
+    else:
+        assert "refused: NC licenses are refused" in output and "900x600" in output
+        assert "Test artist" in output and result[0]["source_url"] in output
+
+
+def test_fetch_cli_passes_exact_title_and_target(tmp_path, monkeypatch, capsys):
+    from myzing.story import commons
+
+    seen = []
+    monkeypatch.setattr(commons, "fetch", lambda *args: seen.append(args) or {"target": args[2]})
+    assert command.run(["fetch", str(tmp_path), "File:Drawing.png", "--as", "image:drawing"]) == 0
+    assert seen == [(tmp_path, "File:Drawing.png", "image:drawing")]
+    assert json.loads(capsys.readouterr().out) == {"target": "image:drawing"}
+
+
 def test_music_credit_is_in_generated_end_card_and_receipt(tmp_path):
     from myzing.story.outro import prepare
     from test_story_audio import tone

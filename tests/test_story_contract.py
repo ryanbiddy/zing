@@ -9,7 +9,7 @@ import pytest
 from myzing.story import StoryError, data_path
 from myzing.story.contract import CARD_KINDS, POSES, PROPS, VOCABULARY, check, check_timings, cue_time, load
 from myzing.story.outro import credit_lines, prepare
-from test_factory_brand_kit import node
+from test_story_render import node_page_script
 
 
 def story():
@@ -188,14 +188,10 @@ def test_bad_cues_are_errors(cue):
         cue_time(cue, timings())
 
 
-def test_page_and_python_agree_on_vocabulary_and_cues():
-    page = data_path("cutout.html").read_text(encoding="utf-8")
-    script = page.split("<script>", 1)[1].rsplit("</script>", 1)[0]
-    program = "global.window={};\n" + script + "\nconsole.log(JSON.stringify({v:window.storyVocabulary,t:INPUT.cues.map(c=>cueTime(c,INPUT.timings))}));"
+def test_page_and_python_agree_on_vocabulary_and_cues(tmp_path):
+    program = "console.log(JSON.stringify({v:window.storyVocabulary,t:INPUT.cues.map(c=>cueTime(c,INPUT.timings))}));"
     program = program.replace("INPUT", json.dumps({"cues": [c for c, _ in CUES], "timings": timings()}))
-    result = node(program)
-    assert result.returncode == 0, result.stderr
-    got = json.loads(result.stdout)
+    got = node_page_script(program, tmp_path)
     assert set(got["v"]["cards"]) == set(CARD_KINDS)
     assert set(got["v"]["props"]) == set(PROPS)
     assert set(got["v"]["poses"]) == set(POSES)

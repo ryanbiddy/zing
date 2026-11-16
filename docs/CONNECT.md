@@ -146,11 +146,19 @@ background; poll `story_status(directory)` for video and receipt paths or a
 failure. Story status is read-only. A stopped server leaves an interrupted
 build, which `story_build` can start again.
 
-Story builds use local Kokoro, ElevenLabs or supplied WAV lines. ElevenLabs
-sends narration text to its service using the user's configured key, so
-`story_build` has an open-world hint. Story assets stay local and no video is
-posted. The build accepts provider, voice, speed, lines_dir, out,
+Story builds use Kokoro, ElevenLabs or supplied WAV lines, cut heads and
+prepare image props. ElevenLabs sends narration text to its service using
+the user's configured key, so `story_build` has an open-world hint. Zing
+marks its timings synthetic and keeps the AI voice credit. Kokoro and
+supplied lines stay local. Story assets stay local and no video is posted.
+The build accepts provider, voice, speed, lines_dir, out,
 synthetic_voice and no_sfx options.
+
+For story commands, `check`, `heads`, `images` and `render` never use the
+network. `find` and `fetch` use the network for Wikimedia Commons only.
+`voice` and `build` use the network only when the chosen provider is an
+online one. Choose ElevenLabs with `--provider elevenlabs` or
+`ZING_TTS_PROVIDER=elevenlabs`.
 
 The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
 launch commands still work. It accepts legacy initialization through

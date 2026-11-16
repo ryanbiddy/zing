@@ -11,7 +11,7 @@ from . import StoryError
 CREDIT_WRAP = 58
 
 
-def credit_lines(story: dict, timings: dict) -> list[str]:
+def credit_lines(story: dict, timings: dict, *, width: int = CREDIT_WRAP) -> list[str]:
     provider = timings.get("provider")
     if provider not in ("kokoro", "elevenlabs", "lines"):
         raise StoryError("Unknown narration provider; run zing story voice before rendering credits.")
@@ -30,7 +30,56 @@ def credit_lines(story: dict, timings: dict) -> list[str]:
             if key not in seen:
                 seen.add(key)
                 lines.append(f"photo: {photo['credit']} · {photo['license']}")
-    return [part for line in lines for part in wrap(line, width=CREDIT_WRAP, break_on_hyphens=False)]
+    for picture in story.get("images", {}).values():
+        key = (picture["credit"], picture["license"])
+        if key not in seen:
+            seen.add(key)
+            lines.append(f"image: {picture['credit']} · {picture['license']}")
+    return [part for line in lines for part in wrap(line, width=width, break_on_hyphens=False)]
+
+
+# Average glyph width of the credits face (IBM Plex Sans) as a share of its size.
+CREDIT_EM = .52
+
+
+def _credits_card(story: dict, timings: dict, panel: dict) -> dict:
+    """Fit all credits in the frame without covering an authored or waving head."""
+    from .layout import card_box, panel_overlaps
+
+    # Some callers only need credit copy and have not generated voice timings yet.
+    layout_times = {"beats": [], "outro_start": 0, "duration": story.get("outro", 3.2), **timings}
+    preferred_y = 500
+    # With someone on stage, the credits take the side they are not standing
+    # on, so the text never lies across a body. An empty stage gets the full width.
+    actors = [actor.get("x", 540) for actor in panel.get("actors", []) if isinstance(actor.get("x", 540), (int, float))]
+    if actors:
+        card_w = 560
+        card_x = 70 if sum(actors) / len(actors) > 540 else 1080 - 70 - card_w
+    else:
+        card_w, card_x = 900, 90
+    for size in (34, 27, 26, 24, 22, 20, 18, 16):
+        width = int((card_w - 24) / (size * CREDIT_EM))
+        lines = credit_lines(story, timings, width=width)
+        if size == 34 and len(lines) > 5:
+            continue
+        card = {"kind": "credits", "w": card_w, "x": card_x, "y": preferred_y,
+                "size": size, "z": 11, "at": "outro+0.3", "lines": lines}
+        # Try the usual location first, then the available space from top to bottom.
+        for y in dict.fromkeys([preferred_y, 1180, *range(170, 1841, 20)]):
+            card["y"] = y
+            x, top, w, h = card_box(card)
+            if top < 150 or top + h > 1860:
+                continue
+            candidate = {**panel, "cards": [card]}
+            if panel_overlaps(candidate, layout_times, end=layout_times["duration"], cast=story.get("cast", {})):
+                continue
+            occupied = [card_box(other) for other in panel.get("cards", [])]
+            if any(x < ox + ow and x + w > ox and top < oy + oh and top + h > oy
+                   for ox, oy, ow, oh in occupied):
+                continue
+            return card
+    raise StoryError("The outro has no clear space for its credits. Move its heads or cards, "
+                     "or shorten source titles and credits without removing attribution.")
 
 
 def prepare(story: dict, timings: dict) -> dict:
@@ -38,6 +87,9 @@ def prepare(story: dict, timings: dict) -> dict:
     result = deepcopy(story)
     result.setdefault("handle", "")
     result.setdefault("cast", {})
+    from .images import prepared_path
+    for ident, picture in result.get("images", {}).items():
+        picture["prepared"] = prepared_path(ident, picture)
     for panel in result["panels"]:
         panel.setdefault("set", {})
     for ident, member in result["cast"].items():
@@ -54,7 +106,11 @@ def prepare(story: dict, timings: dict) -> dict:
                             "bg": "#E8452C", "color": "#FBF4E4", "x": 560, "y": 1660,
                             "rot": 3, "at": "outro+0.4"}]}
         result["panels"].append(outro)
+        waving = next((ident for ident, member in result["cast"].items() if member.get("photos")), None)
+        if waving is not None:
+            # Stand to the right so the credits have the left side to themselves.
+            outro["actors"] = [{"who": waving, "x": 810, "pose": "wave"}]
+            outro["cards"][1].update(x=70, rot=-3)
     # User-authored outro art cannot disable the generated attribution layer.
-    outro.setdefault("cards", []).append({"kind": "credits", "w": 900, "x": 90, "y": 500,
-                                          "z": 11, "at": "outro+0.3", "lines": credit_lines(story, timings)})
+    outro.setdefault("cards", []).append(_credits_card(story, timings, outro))
     return result

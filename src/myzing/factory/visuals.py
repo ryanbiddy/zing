@@ -350,9 +350,19 @@ def score(c: dict, q: Query) -> float | None:
 
 # ----------------------------------------------------------------------------- polite HTTP
 class Http:
-    def __init__(self, min_interval: float = 0.3, project: Path | None = None):
+    def __init__(self, min_interval: float = 0.3, project: Path | None = None,
+                 *, allowed_hosts: frozenset[str] | None = None):
         self.min_interval, self._last, self.count = min_interval, 0.0, 0
         self.network = Network(project)
+        self.allowed_hosts = allowed_hosts
+
+    def _validate(self, url):
+        parsed = urllib.parse.urlsplit(url)
+        if self.allowed_hosts is not None and (
+                parsed.hostname not in self.allowed_hosts or parsed.username or parsed.password
+                or parsed.port not in (None, 80, 443)):
+            raise ValueError("refusing a URL outside the allowed hosts")
+        return _public_url(url)
 
     def _pace(self):
         wait = self.min_interval - (time.monotonic() - self._last)
@@ -366,7 +376,7 @@ class Http:
         self._pace()
         url = safe_url(url)
         return self.network.open(url, purpose, headers={"User-Agent": UA, "Accept": "*/*", **(headers or {})},
-                                 timeout=timeout, method=method, data=data, validate=_public_url)
+                                 timeout=timeout, method=method, data=data, validate=self._validate)
 
     def get_json(self, url, headers=None, timeout=20):
         with self.open(url, headers, timeout, purpose="visual search") as r:

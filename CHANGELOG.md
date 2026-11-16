@@ -4,7 +4,7 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #597
+Release candidate for Zing v1. These notes cover merged PRs #401 through #598
 on main, newest first.
 
 ### Changes since #452
@@ -16,7 +16,16 @@ on main, newest first.
   synthesized paper sounds and optional licensed music with voice ducking.
   Cut frontal or profile heads with a retry when background leaks into a cut,
   review a contact sheet, render MP4s or stills,
-  and keep source, photo, music and synthetic voice credits in the end card and receipt.
+  and keep source, photo, image, music and synthetic voice credits in the end card and receipt.
+  Check timed card/head overlaps and cards covering other cards. Find and fetch
+  licensed Commons pictures, then use them as taped photos or cutout image props.
+  Keep `check`, `heads`, `images` and `render` offline. `find` and `fetch`
+  use the network for Wikimedia Commons only. `voice` and `build` use the
+  network only when the chosen provider is an online one. Select ElevenLabs
+  with `--provider elevenlabs` or `ZING_TTS_PROVIDER=elevenlabs` to send
+  narration text with the user's configured key, mark timings synthetic
+  and keep the AI voice credit. Kokoro and supplied lines stay local.
+  Give the default outro a waving photo actor and larger credits that clear heads.
 - Make takeaway text larger, wrap short quotes and shorten list holds. Keep picture
   cards below headlines and reframe moving speakers by hard cut without a punch-in.
 - Add --rank jev. Before the scout reads a transcript, Jev scores every 40-90 second window for

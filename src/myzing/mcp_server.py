@@ -2647,7 +2647,7 @@ def build_server():
     )(h_story_check)
     tool(
         name="story_build",
-        description="Check, narrate, cut heads and render a local cutout story in the background, with captions, optional sound effects and licensed music. Returns started or already_running; poll story_status. Providers are kokoro, elevenlabs or supplied WAV lines. ElevenLabs sends narration text to its service using the user's configured key. No research model calls, downloads of story assets or publishing.",
+        description="Check, narrate, cut heads, prepare image props and render a local cutout story in the background, with captions, optional sound effects and licensed music. Returns started or already_running; poll story_status. Providers are kokoro, elevenlabs or supplied WAV lines. ElevenLabs sends narration text to its service using the user's configured key. No research model calls, downloads of story assets or publishing.",
     )(h_story_build)
     tool(
         name="story_status",
