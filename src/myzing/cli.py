@@ -14,6 +14,7 @@ import sys
 _COMMANDS: dict[str, tuple[str, str]] = {
     "from-uoink": ("myzing.handoff", "open a saved Uoink item in the clip factory"),
     "factory": ("myzing.factory.command", "turn a long episode into social clips with visuals, graphics and copy"),
+    "story": ("myzing.story.command", "make narrated paper-cutout stories from a local story.json"),
     "channels": ("myzing.channels.command", "run niche channels: sources, rights, queue and post kits"),
     "playbook": ("myzing.playbook.command", "compare worked and under-performing Shorts; local measurements and blind notes"),
     "moments": ("myzing.director.moments", "suggest interview moments from a cached study; no model calls"),
