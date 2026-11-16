@@ -127,7 +127,7 @@ def test_build_uses_generated_audio_then_writes_receipt(tmp_path, monkeypatch, c
     assert command.run(["build", str(tmp_path), "--lines-dir", str(lines), "--out", str(output)]) == 0
     result = json.loads(capsys.readouterr().out)
     saved = json.loads(Path(result["receipt"]).read_text(encoding="utf-8"))
-    assert saved == {"voice": {"provider": "lines", "name": None, "synthetic": False}, "photos": [],
+    assert saved == {"look": "cutout", "voice": {"provider": "lines", "name": None, "synthetic": False}, "photos": [],
                      "sources": story["sources"], "output": "final.mp4", "duration": 6.39}
 
 

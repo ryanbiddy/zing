@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import math
 import random
+import re
 import struct
 import sys
+import unicodedata
 import wave
 from array import array
 from pathlib import Path
@@ -20,8 +22,64 @@ SFX_LEVEL = 10 ** (-18 / 20)
 EFFECT_LENGTHS = {"whoosh": SLIDE_DURATION, "pop": .12, "stamp": .22}
 
 
+def _headline_tokens(text: str) -> list[str]:
+    value = unicodedata.normalize("NFKC", text).lower()
+    return "".join(char if unicodedata.category(char)[0] in "LN" else " " for char in value).split()
+
+
+def _mention(text: str, phrase: str, *, plural: bool = False) -> int | None:
+    """Match the page's normalized words and its optional one-letter plural."""
+    words, wanted = _headline_tokens(text), _headline_tokens(phrase)
+    if not wanted:
+        return None
+    for index in range(len(words) - len(wanted) + 1):
+        if all(word == part or plural and (word == part + "s" or part == word + "s")
+               for word, part in zip(words[index:index + len(wanted)], wanted)):
+            return index
+    return None
+
+
+def _headline_events(story: dict, timings: dict) -> list[dict]:
+    events = []
+    for index, beat in enumerate(timings["beats"]):
+        if index:
+            events.append({"kind": "whoosh", "at": beat["start"]})
+        people, picture = set(), None
+        for line in beat["lines"]:
+            text = line.get("text", "")
+            for ident, member in story.get("cast", {}).items():
+                name = member["name"].strip()
+                parts = name.split()
+                names = [name, *parts[:1], *parts[-1:]]
+                if ident not in people and any(_mention(text, name) is not None for name in names):
+                    people.add(ident)
+                    events.append({"kind": "pop", "at": line["start"]})
+            matches = []
+            for ident, image in story.get("images", {}).items():
+                keywords = image.get("keywords", [word for word in re.split("[-_]", ident) if len(word) >= 3])
+                positions = [position for word in keywords
+                             if (position := _mention(text, word.lower(), plural=True)) is not None]
+                if positions:
+                    matches.append((min(positions), ident))
+            if matches:
+                # Stable order agrees with the page when two image keywords share a position.
+                latest = sorted(matches, key=lambda item: item[0])[-1][1]
+                if latest != picture:
+                    events.append({"kind": "pop", "at": line["start"]})
+                    picture = latest
+    if timings.get("outro_start", timings["duration"]) < timings["duration"]:
+        start = timings["outro_start"]
+        events.append({"kind": "whoosh", "at": start})
+        if any(member.get("photos") for member in story.get("cast", {}).values()):
+            events.append({"kind": "pop", "at": start})
+    return sorted((event for event in events if 0 <= event["at"] < timings["duration"]),
+                  key=lambda event: event["at"])
+
+
 def effect_events(story: dict, timings: dict) -> list[dict]:
     """Resolve the same panel starts and item cues that the page uses."""
+    if story.get("look", "cutout") == "headline":
+        return _headline_events(story, timings)
     events = []
     panels = story["panels"]
     for index, panel in enumerate(panels):

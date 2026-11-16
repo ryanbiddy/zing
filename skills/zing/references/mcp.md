@@ -37,9 +37,9 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `factory_answer` | Save a validated JSON answer; then call `factory_run` again. |
 | `factory_clip` | Make a clip by hand: start and end seconds, a scout runner-up (`bench`), or new in and out points for an existing clip. The next `factory_run` cuts, plans and renders it. |
 | `factory_edit` | Edit `project`, `clip` synchronously. `action="rate"` takes `verdict="post"`, `"edits"` or `"no"` and optional `why`. `"hook"` takes `text`. `"copy"` takes `field` and `text`. `"visual"` takes `request` and zero-based `index` from status. `"word"` takes `index` and `new`, or `at`, `old` and `new`. `"render"` takes `shape` and `pack`, defaulting to `9x16` and `zing`. Returns changes, fact checks, context flags, receipt and pending tasks. |
-| `story_new` | Create a starter story folder from `directory` and `topic`, with invented cast and a source placeholder that must be replaced before building. Existing files are kept. |
-| `story_check` | Read `directory/story.json`; return `valid` and a `problems` list of objects with `path` and `message`. No media work runs. |
-| `story_build` | Check, narrate, cut heads, prepare images, render and write a receipt in the background. Accepts provider, voice, speed, lines_dir, out, synthetic_voice and no_sfx. ElevenLabs sends narration text to its service using the user's configured key; Kokoro and supplied lines stay local. |
+| `story_new` | Create a starter story folder from `directory`, `topic` and optional `look` (`cutout` by default, `headline`, `scrapbook` or `comic`). Panel looks have a source placeholder that must be replaced before building; headline has a valid fictional example with no panels. Existing files are kept. |
+| `story_check` | Read `directory/story.json`; return `valid`, `look`, `problems`, `warnings` and `notes`. Each message has `path` and `message`. No media work runs. |
+| `story_build` | Check, narrate, prepare cast portraits and any cut heads, prepare images, render and write a receipt in the background. Accepts provider, voice, speed, lines_dir, out, synthetic_voice, no_sfx and an optional look override, which does not rewrite the file. ElevenLabs sends narration text to its service using the user's configured key; Kokoro and supplied lines stay local. |
 | `story_status` | Read draft, running, done, failed or interrupted state for a story directory. Done includes video and receipt paths. Failed returns `ok: false` with an error. |
 | `match_start` | Background reference-plus-clips workflow; brief/answers, seed, resume, and explicit URL consent. Local models only; returns a project path for polling. |
 | `match_status` | Actual progress, ready count, comparison, failures and logs. `cancel=true` stops this server's owned match worker and descendants. |
@@ -69,9 +69,12 @@ For episode Shorts, call `zing_studio(path="g", answers=...)`. Its answers use
 and poll `factory_status` using the returned project. Pending prompts use
 `factory_prompt` and `factory_answer`.
 
-For cutout stories, call `story_new(directory, topic)`, read the bundled prompt
+For stories, call `story_new(directory, topic, look="cutout")` or choose
+`look="headline"`, `look="scrapbook"` or `look="comic"`, then read the bundled prompt
 with `zing story prompt`, and write the sourced story. Replace the source
-placeholder, then repeat `story_check` until valid. Call `story_build` and poll
+placeholder or fictional sample, then repeat `story_check` until valid.
+It reports the selected look; warnings and notes do not make the story invalid.
+Call `story_build` with an optional `look` override and poll
 `story_status`. A repeated build while that directory is running returns
 already_running. After an interrupted build, start it again. Review the video
 and receipt before posting; Zing does not publish it.

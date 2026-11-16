@@ -2108,13 +2108,16 @@ def mcp_sdk_defect() -> str | None:
     return None
 
 
-def h_story_new(directory: str, topic: str) -> dict[str, Any]:
+def h_story_new(directory: str, topic: str, look: Literal["cutout", "headline", "scrapbook", "comic"] = "cutout") -> dict[str, Any]:
     """Create a starter story for the calling agent to report and write."""
     from myzing.story import StoryError, command
 
     try:
-        result = command.new(Path(directory).expanduser(), topic=topic)
-        return _ok(**result, hint="Replace the source placeholder, write story.json, then call story_check(directory).")
+        result = command.new(Path(directory).expanduser(), topic=topic, look=look)
+        hint = ("Replace the fictional example with your sourced story, then call story_check(directory)."
+                if look == "headline" else
+                "Replace the source placeholder, write story.json, then call story_check(directory).")
+        return _ok(**result, hint=hint)
     except (StoryError, OSError, ValueError) as exc:
         return _err(str(exc))
 
@@ -2124,8 +2127,8 @@ def h_story_check(directory: str) -> dict[str, Any]:
     from myzing.story import StoryError, command
 
     try:
-        problems = command.check_json(Path(directory).expanduser())
-        return _ok(valid=not problems, problems=problems)
+        report = command.check_report(Path(directory).expanduser())
+        return _ok(valid=not report["problems"], **report)
     except (StoryError, OSError, ValueError) as exc:
         return _err(str(exc))
 
@@ -2133,7 +2136,7 @@ def h_story_check(directory: str) -> dict[str, Any]:
 def h_story_build(directory: str, provider: Literal["kokoro", "elevenlabs", "lines"] | None = None,
                   voice: str | None = None, speed: float = 1.0, lines_dir: str | None = None,
                   out: str | None = None, synthetic_voice: bool = False,
-                  no_sfx: bool = False) -> dict[str, Any]:
+                  no_sfx: bool = False, look: Literal["cutout", "headline", "scrapbook", "comic"] | None = None) -> dict[str, Any]:
     """Build a checked story in the background, then poll story_status."""
     from myzing.story import StoryError, jobs
 
@@ -2141,7 +2144,8 @@ def h_story_build(directory: str, provider: Literal["kokoro", "elevenlabs", "lin
         result = jobs.start(Path(directory), provider=provider, voice=voice, speed=speed,
                             lines_dir=Path(lines_dir).expanduser() if lines_dir is not None else None,
                             out=Path(out).expanduser() if out is not None else None,
-                            synthetic=synthetic_voice, no_sfx=no_sfx)
+                            synthetic=synthetic_voice, no_sfx=no_sfx,
+                            **({"look": look} if look is not None else {}))
         return _ok(**result, hint="Poll story_status(directory) for the video, receipt or failure.")
     except (StoryError, OSError, ValueError) as exc:
         return _err(str(exc))
@@ -2639,15 +2643,15 @@ def build_server():
 
     tool(
         name="story_new",
-        description="Create story.json and README-STORY.txt for a topic, with invented cast and a source placeholder. The calling agent supplies reporting and writes the story; Zing makes no model calls. Existing story files are never replaced.",
+        description="Create story.json and README-STORY.txt for a topic and optional look: cutout, headline, scrapbook or comic. Panel looks start with invented cast and a source placeholder; headline starts with a valid fictional example. The calling agent supplies reporting and writes the story; Zing makes no model calls. Existing story files are never replaced.",
     )(h_story_new)
     tool(
         name="story_check",
-        description="Check a local story.json and return valid plus problems as JSON objects with path and message. Source placeholders block building. No narration, image cutting or rendering runs.",
+        description="Check a local story.json and return its look, valid, problems, warnings and notes. Messages are JSON objects with path and message. Source placeholders block building. No narration, image cutting or rendering runs.",
     )(h_story_check)
     tool(
         name="story_build",
-        description="Check, narrate, cut heads, prepare image props and render a local cutout story in the background, with captions, optional sound effects and licensed music. Returns started or already_running; poll story_status. Providers are kokoro, elevenlabs or supplied WAV lines. ElevenLabs sends narration text to its service using the user's configured key. No research model calls, downloads of story assets or publishing.",
+        description="Check, narrate, prepare portraits and image props, and render a local story in the background. An optional look overrides story.json for this build. Cutout and comic cut heads; scrapbook uses taped portraits; headline uses large type. All support sound effects and licensed music. Returns started or already_running; poll story_status. Providers are kokoro, elevenlabs or supplied WAV lines. ElevenLabs sends narration text to its service using the user's configured key. No research model calls, downloads of story assets or publishing.",
     )(h_story_build)
     tool(
         name="story_status",

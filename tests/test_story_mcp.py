@@ -37,13 +37,15 @@ def test_check_returns_all_contract_problems(tmp_path):
     value.update(topic="", sources=[])
     (tmp_path / "story.json").write_text(json.dumps(value), encoding="utf-8")
     result = mcp_server.h_story_check(str(tmp_path))
-    assert result == {"ok": True, "valid": False, "problems": command.check_json(tmp_path)}
+    assert result == {"ok": True, "valid": False, "look": "cutout", "warnings": [], "notes": [],
+                      "problems": command.check_json(tmp_path)}
     assert {problem["path"] for problem in result["problems"]} >= {"topic", "sources"}
 
 
 def test_check_reports_a_valid_story(tmp_path):
     story_file(tmp_path)
-    assert mcp_server.h_story_check(str(tmp_path)) == {"ok": True, "valid": True, "problems": []}
+    assert mcp_server.h_story_check(str(tmp_path)) == {
+        "ok": True, "valid": True, "look": "cutout", "problems": [], "warnings": [], "notes": []}
 
 
 def test_build_rejects_placeholder_before_starting_a_worker(tmp_path, monkeypatch):
@@ -148,7 +150,7 @@ def test_story_tools_are_registered_with_expected_arguments_and_hints():
     schema = build.model_dump(by_alias=True)["inputSchema"]
     assert schema["required"] == ["directory"]
     assert set(schema["properties"]) == {
-        "directory", "provider", "voice", "speed", "lines_dir", "out", "synthetic_voice", "no_sfx",
+        "directory", "provider", "voice", "speed", "lines_dir", "out", "synthetic_voice", "no_sfx", "look",
     }
     assert build.annotations.open_world_hint is True
     assert build.annotations.destructive_hint is True

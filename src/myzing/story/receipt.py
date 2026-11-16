@@ -8,9 +8,9 @@ from . import StoryError
 from .contract import load
 
 
-def write(directory: Path, output: Path) -> Path:
+def write(directory: Path, output: Path, *, look: str | None = None) -> Path:
     directory, output = Path(directory), Path(output)
-    story = load(directory)
+    story = load(directory, look=look)
     timings = json.loads((directory / "timings.json").read_text(encoding="utf-8"))
     if not output.is_file():
         raise StoryError(f"cannot write a receipt: output file is missing: {output}")
@@ -23,7 +23,8 @@ def write(directory: Path, output: Path) -> Path:
          "credit": photo["credit"], "license": photo["license"], "source_url": photo["source_url"]}
         for who, member in story.get("cast", {}).items() for photo in member.get("photos", [])
     ]
-    result = {"voice": {"provider": timings["provider"], "name": timings.get("voice"),
+    result = {"look": story.get("look", "cutout"),
+              "voice": {"provider": timings["provider"], "name": timings.get("voice"),
                         "synthetic": timings["provider"] != "lines" or timings.get("synthetic") is True},
               "photos": photos, "sources": story["sources"], "output": file, "duration": timings["duration"]}
     if story.get("images"):

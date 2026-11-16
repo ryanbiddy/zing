@@ -17,6 +17,7 @@ CHAR_EM = .62
 # The headline face (Anton) is condensed: about 0.44 em a glyph in capitals.
 NARROW_EM = .5
 HEAD_GEOMETRY = VOCABULARY["head_geometry"]
+PICTURE_GEOMETRY = VOCABULARY["picture_geometry"]
 HEAD_MARGIN = 3
 # The head box is the whole cut with its sway. A settled card may clip this
 # much of each edge (hair, the sticker border) before it reaches the face.
@@ -127,10 +128,10 @@ def card_overlaps_captions(card: dict) -> bool:
     return top < CAPTION_BAND["y"] + CAPTION_BAND["height"] and top + height > CAPTION_BAND["y"]
 
 
-def head_overlaps_captions(actor: dict) -> bool:
+def head_overlaps_captions(actor: dict, *, look: str = "cutout") -> bool:
     if not isinstance(actor, dict):
         return False
-    _, top, _, height = head_box(actor)
+    _, top, _, height = picture_box(actor) if look == "scrapbook" else head_box(actor)
     return top < CAPTION_BAND["y"] + CAPTION_BAND["height"] and top + height > CAPTION_BAND["y"]
 
 
@@ -263,9 +264,75 @@ def head_box(actor: dict, t: float | None = None, *, timings: dict | None = None
     return _bounds(_transformed_head(actor, points, x, y + bob + hop, body, tilt))
 
 
+def picture_box(actor: dict, t: float | None = None, *, timings: dict | None = None,
+                panel_start: float = 0) -> tuple[float, float, float, float] | None:
+    """The scrapbook card in panel pixels, with its bottom-center pivot.
+
+    Tape and the hard shadow sit outside this box, as they do for text cards.
+    A missing time gives the resting pose envelope for the caption check.
+    """
+    geometry = PICTURE_GEOMETRY
+    x = _number(actor, "x", 0)
+    scale = _number(actor, "scale", 1)
+    # Scaled about the feet, as a puppet is, so the card lands where its head would.
+    y = (_number(actor, "y", geometry["default_y"])
+         - (geometry["default_y"] - geometry["top"] - geometry["height"]) * scale)
+    seed = sum((i + 1) * ord(char) for i, char in enumerate(str(actor.get("who", ""))))
+    resting = seed % (2 * geometry["tilt"] + 1) - geometry["tilt"]
+
+    def lean(name):
+        return geometry["pose_lean"] if name in ("point", "present") else -geometry["pose_lean"] if name == "think" else 0
+
+    def corners(angle, at_x=x, at_y=y):
+        angle = math.radians(angle)
+        cosine, sine = math.cos(angle), math.sin(angle)
+        return [(at_x + scale * (px * cosine - py * sine), at_y + scale * (px * sine + py * cosine))
+                for px in (-geometry["width"] / 2, geometry["width"] / 2) for py in (-geometry["height"], 0)]
+
+    name = actor.get("pose", "idle")
+    if t is None:
+        tilt = lean(name)
+        extent = geometry["boil"] + (geometry["pose_lean"] if name == "shrug" else 0)
+        return _bounds([point for i in range(33)
+                        for point in corners(resting + tilt - extent + 2 * extent * i / 32)])
+
+    times = timings or {"beats": [], "outro_start": panel_start}
+    tq = math.floor(t * geometry["fps"] + 1e-6) / geometry["fps"]
+    enter = actor.get("enter")
+    enter_time = cue_time(enter, times) if enter is not None and enter != "walk" else None
+    if enter_time is not None and tq < enter_time:
+        return None
+    previous, pose_at = name, panel_start
+    for pose in _changes(actor, "poses", times):
+        if tq >= pose["t"]:
+            previous, name, pose_at = name, pose["pose"], pose["t"]
+    progress = max(0, min(1, (tq - pose_at) / geometry["pose_duration"])) - 1
+    eased = 1 + 2.9 * progress ** 3 + 1.9 * progress ** 2
+    tilt = lean(previous) + (lean(name) - lean(previous)) * eased
+    if name == "shrug":
+        tilt += math.sin(max(0, min(1, (tq - pose_at) / geometry["rock_duration"])) * 2 * math.pi) * geometry["pose_lean"]
+    hop = (-geometry["hop"] * (1 - _bounce((tq - pose_at) / geometry["hop_duration"]))
+           if name in ("up", "cheer", "wave") else 0)
+    if enter_time is not None:
+        hop -= geometry["enter_hop"] * (1 - _bounce((tq - enter_time) / geometry["enter_duration"]))
+    moves = _changes(actor, "moves", times)
+    if enter == "walk":
+        moves = sorted([{"t": panel_start - .45, "dur": .95, "from": x - 430, "to": x}, *moves],
+                       key=lambda item: item["t"])
+    for index, move in enumerate(moves):
+        if tq >= move["t"]:
+            progress = max(0, min(1, (tq - move["t"]) / move["dur"]))
+            x = move["from"] + (move["to"] - move["from"]) * progress
+        elif index == 0:
+            x = move["from"]
+    noise = math.sin(seed * 127.1 + math.floor(tq * 6) * 311.7) * 43758.5453
+    boil = (noise - math.floor(noise) - .5) * 2 * geometry["boil"]
+    return _bounds(corners(resting + tilt + boil, x, y + hop))
+
+
 def actor_head_boxes(actor: dict, start: float, end: float, timings: dict, *, panel_start: float = 0,
-                     head_aspect=None, photo=True) -> list[tuple[float, float, float, float]]:
-    """All visible, on-screen head boxes during the half-open time window."""
+                     head_aspect=None, photo=True, look: str = "cutout") -> list[tuple[float, float, float, float]]:
+    """Visible head or picture boxes during the half-open time window."""
     fps = HEAD_GEOMETRY["fps"]
     first, last = math.floor(start * fps + 1e-6), math.ceil(end * fps - 1e-6)
     # At most one hour of frames is useful for a short story. Rejecting an
@@ -274,8 +341,9 @@ def actor_head_boxes(actor: dict, start: float, end: float, timings: dict, *, pa
         raise StoryError("layout timing range exceeds one hour; run zing story voice again")
     result = []
     for frame in range(first, last):
-        box = head_box(actor, frame / fps, timings=timings, panel_start=panel_start,
-                       head_aspect=head_aspect, photo=photo)
+        box = (picture_box(actor, frame / fps, timings=timings, panel_start=panel_start) if look == "scrapbook"
+               else head_box(actor, frame / fps, timings=timings, panel_start=panel_start,
+                             head_aspect=head_aspect, photo=photo))
         if box and boxes_overlap(box, (0, 0, 1080, 1920)):
             result.append(box)
     return result
@@ -300,7 +368,8 @@ def _aspects(member, ident, directory):
 
 
 def panel_overlaps(panel: dict, timings: dict, *, end: float | None = None,
-                   cast: dict | None = None, directory: Path | None = None) -> list[str]:
+                   cast: dict | None = None, directory: Path | None = None,
+                   look: str = "cutout") -> list[str]:
     """Report timed card/head and card/card collisions in one panel.
 
     Messages start at cards[j], so callers can prefix the authored panel path.
@@ -324,7 +393,7 @@ def panel_overlaps(panel: dict, timings: dict, *, end: float | None = None,
                 member = cast.get(actor["who"], {}) if cast is not None else None
                 photo = bool(member.get("photos") or member.get("heads")) if member is not None else True
                 candidates = actor_head_boxes(actor, a, b, timings, panel_start=start,
-                                              head_aspect=_aspects(member or {}, actor["who"], directory), photo=photo)
+                                              head_aspect=_aspects(member or {}, actor["who"], directory), photo=photo, look=look)
                 hits = [head for head in candidates if boxes_overlap(box, _face(head))]
                 if hits:
                     left = math.floor(min(h[0] for h in hits))
@@ -335,7 +404,8 @@ def panel_overlaps(panel: dict, timings: dict, *, end: float | None = None,
                     # ten pixels between the card's full box and every head.
                     clear_y = math.floor(min(h[1] for h in candidates) - (box[1] + box[3] - card["y"]) - 10)
                     advice = f"move the card above y={clear_y} or to the side" if clear_y >= 0 else "move the card to the side"
-                    problems.append(f"cards[{index}]: covers {actor['who']}'s head (about y={top}..{bottom} at x={left}..{right}); {advice}")
+                    subject = "picture" if look == "scrapbook" else "head"
+                    problems.append(f"cards[{index}]: covers {actor['who']}'s {subject} (about y={top}..{bottom} at x={left}..{right}); {advice}")
         for other in range(index):
             oa, ob = windows[other]
             if min(b, ob) <= max(a, oa):

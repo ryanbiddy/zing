@@ -71,7 +71,8 @@ def _credits_card(story: dict, timings: dict, panel: dict) -> dict:
             if top < 150 or top + h > 1860:
                 continue
             candidate = {**panel, "cards": [card]}
-            if panel_overlaps(candidate, layout_times, end=layout_times["duration"], cast=story.get("cast", {})):
+            if panel_overlaps(candidate, layout_times, end=layout_times["duration"], cast=story.get("cast", {}),
+                              look=story.get("look", "cutout")):
                 continue
             occupied = [card_box(other) for other in panel.get("cards", [])]
             if any(x < ox + ow and x + w > ox and top < oy + oh and top + h > oy
@@ -85,17 +86,32 @@ def _credits_card(story: dict, timings: dict, panel: dict) -> dict:
 def prepare(story: dict, timings: dict) -> dict:
     """Make renderer-only fields without changing the user's authored JSON."""
     result = deepcopy(story)
+    result.setdefault("look", "cutout")
     result.setdefault("handle", "")
     result.setdefault("cast", {})
     from .images import prepared_path
     for ident, picture in result.get("images", {}).items():
         picture["prepared"] = prepared_path(ident, picture)
-    for panel in result["panels"]:
-        panel.setdefault("set", {})
     for ident, member in result["cast"].items():
         member["heads"] = [f"{ident}-{i}.png" for i, _ in enumerate(member.get("photos", []))]
+        member["portraits"] = [f"{ident}-{i}-portrait.jpg" for i, _ in enumerate(member.get("photos", []))]
         for key, value in {"jacket": "#1F8A8A", "shirt": "#FBF4E4", "legs": "#17161C"}.items():
             member.setdefault(key, value)
+    if result["look"] == "headline":
+        result["panels"] = []
+        result["headline_outro_cast"] = next((ident for ident, member in result["cast"].items()
+                                               if member.get("photos")), None)
+        # Keep the full-width card above the fixed badge position.
+        max_height = 620 if result["headline_outro_cast"] is not None else 1100
+        for size in (34, 27, 26, 24, 22, 20, 18, 16):
+            lines = credit_lines(story, timings, width=int(876 / (size * CREDIT_EM)))
+            if (size != 34 or len(lines) <= 5) and len(lines) * size * 1.35 + 48 <= max_height:
+                result["headline_credits"] = lines
+                result["headline_credit_size"] = size
+                return result
+        raise StoryError("The headline credits do not fit. Shorten source titles and credits without removing attribution.")
+    for panel in result["panels"]:
+        panel.setdefault("set", {})
     outro = next((panel for panel in result["panels"] if panel["from"] == "outro"), None)
     if outro is None:
         outro = {"from": "outro", "set": {"wall": "#17161C", "floor": "#2B50D8", "floor_pattern": "planks"},

@@ -1,9 +1,9 @@
-# Cutout stories
+# Stories
 
 `zing story` turns a short script into a vertical video without source footage.
-A voice reads each beat while paper puppets, props and fact cards move across
-drawn sets. The camera slides between sets. The end card carries source and
-photo, image and music credits. Word captions make the narration readable with sound off.
+A voice reads each beat. Choose paper puppets, large words, taped photos or
+a comic page. All looks carry source, photo, image and music credits on the
+end card and make the narration readable with sound off.
 
 ## Make a story
 
@@ -14,7 +14,7 @@ zing story new ./story --topic "the cardboard moon"
 zing story prompt
 ```
 
-`new` writes `story.json` and `README-STORY.txt`. The cast is invented and has
+The default `new` writes `story.json` and `README-STORY.txt`. The cast is invented and has
 no photos. The draft meets the structure rules, but `check` flags its source
 placeholder with `replace this source`. Replace that source and the draft
 lines with reporting you have checked. `build` refuses the placeholder.
@@ -32,14 +32,17 @@ zing story render ./story --stills 1,4,8
 zing story render ./story --out ./story/final.mp4
 ```
 
-`check` prints every problem and exits 1 if it finds any. With `--json`, stdout
-is a list of `{ "path": "topic", "message": "must be non-empty text" }`
-objects, or `[]` when the story passes. This includes missing or invalid JSON
-files, so an agent can use the same loop for every draft. `voice` writes
-`narration.wav` and `timings.json`. `heads` writes transparent PNG stickers into
-`heads/`. `images` prepares declared pictures in `images/`; its `--sheet`
-writes `images/sheet.png`. For heads, `--sheet` adds `heads/sheet.png`, with each cut head on a checker
-background and its cast ID and photo index. `render` writes a 1080x1920,
+`check` prints every problem and exits 1 if it finds any. For `cutout` without
+a `--look` flag, `--json` keeps the list of `{ "path": "topic", "message":
+"must be non-empty text" }` objects, or `[]` when clear. For another look or an
+explicit `--look`, it returns an object with `look`, `problems`, `warnings`
+and `notes`. Each of the three lists uses the same path/message objects.
+Warnings and notes do not fail the check; plain output prints them too.
+`voice` writes `narration.wav` and `timings.json`. `heads` writes square
+portraits into `heads/`, plus transparent PNG head stickers for `cutout` and `comic`.
+`images` prepares declared pictures in `images/`; its `--sheet` writes
+`images/sheet.png`. For heads, `--sheet` adds `heads/sheet.png`, with portraits
+and any cut heads labelled by cast ID and photo index. `render` writes a 1080x1920,
 30 fps MP4 with narration, captions and sound effects. `--stills`
 writes JPEGs for review instead of a video.
 
@@ -50,9 +53,9 @@ zing story build ./story
 zing story build ./story --lines-dir ./recorded-lines --out ./story/final.mp4
 ```
 
-`build` also accepts `--provider`, `--voice`, `--speed`, `--synthetic-voice`
+`build` also accepts `--look`, `--provider`, `--voice`, `--speed`, `--synthetic-voice`
 and `--no-sfx`. The default video is `story.mp4`
-inside the story folder. The receipt records the voice provider and name,
+inside the story folder. The receipt records the look, voice provider and name,
 each photo's and image's credit, license and source URL, any music rights, the sources,
 output and duration.
 
@@ -60,6 +63,131 @@ Render uses the factory's Node sidecar and FFmpeg discovery. Install Node.js
 20 or newer, FFmpeg and Chrome or Edge, then run `zing factory setup` and
 `zing factory doctor`. Rendering uses bundled fonts and local files only.
 The same time always produces the same frame.
+
+## Looks
+
+Set `"look": "headline"` in `story.json`, or choose it for one run:
+
+```sh
+zing story new ./headline-story --topic "the cardboard moon" --look headline
+zing story check ./story --look headline --json
+zing story render ./story --look headline --stills 1,2,3
+zing story build ./story --look headline --lines-dir ./recorded-lines
+```
+
+`cutout` is the default when `look` is absent. `--look NAME` on `check`,
+`heads`, `render` and `build` overrides the file for that run without rewriting it.
+`new --look NAME` writes the choice into the starter. Unknown looks are errors;
+the current choices are `cutout`, `headline`, `scrapbook` and `comic`.
+
+| Look | What it needs | What it is good for |
+|---|---|---|
+| `cutout` | Panels; cut heads for cast photos | People doing things in places |
+| `headline` | Beats; portraits for cast photos; no panels or cut heads | Claims, numbers, quick explainers, or no good photo |
+| `scrapbook` | Panels; portraits for cast photos; no cut heads | Stories told through pictures and documents, or a face photo that is hard to cut |
+| `comic` | Panels; cut heads for cast photos | A sequence of events with a punchline |
+
+Photos are optional in every look. A cast member without one gets initials
+and a `no photo` label. Vary looks across a series.
+
+`cutout`, `scrapbook` and `comic` read the same directed `panels`: sets,
+props, actors and cards. Switch an existing layout with `--look scrapbook`
+or `--look comic`, then check it and review stills. The caption band stays
+in the same screen position. All three keep the 12 frames per second stepping.
+During the comic overview and both new looks' camera moves, art from the
+next panel may pass behind the caption for a moment; the caption keeps its
+own ink plate. Once a frame is centred, capture checks its screen boxes for
+caption clearance.
+
+When switching a portrait-only story to comic, prepare the cut heads first:
+
+```sh
+zing story heads ./story --look comic --sheet
+zing story render ./story --look comic --stills 1,2,3
+```
+
+`build --look comic` prepares those assets as part of the build.
+
+### Scrapbook
+
+The camera moves down a paper page. Each actor becomes a taped instant photo:
+a 250x310 white card, a 222x222 square portrait inset 14 px, and the cast name
+in 30 px Instrument Serif italic below it. The card is about the size of a
+puppet head, so a layout made for `cutout` stays clear of it. The portrait keeps its background.
+`heads` prepares portraits only for this look.
+
+The card is centred on the actor's `x`, with its top at y=720 for a standing
+actor. `scale` acts about the actor's feet and `y` adds the same offset, both as
+in `cutout`, so the card lands where the puppet's head would be. `flip` and `head_scale` do not change the photo card. `head` and
+`head_at` choose portraits from the same photo indices.
+
+Cards have a small stable tilt and paper wobble. Pointing and presenting lean,
+thinking leans the other way, shrugging rocks once, and raised arms, cheering
+and waving hop. A walking entrance slides in; a timed entrance drops in.
+The set's wall colour and pattern fill the sheet, with a torn strip of its
+floor colour from y=1500 down. Props and text cards keep their existing art.
+`check` uses picture-card bounds in place of puppet heads.
+
+### Comic
+
+Panels sit two across on an off-white page, with staggered rows, ink borders
+and gutters. Each frame contains the full cutout set, puppets, props and cards.
+Halftone dots and heavier grain give the page a printed texture.
+
+The opening holds the whole page for 0.45 seconds, then pushes into the first
+frame. Each frame settles at 0.9 scale, centred, with alternating tilts of
+-1.2 and +1.2 degrees. A move to the next frame pans and changes tilt together
+over 0.8 seconds. Future frames hold their starting state. The camera stays
+close for the end card.
+
+Chapters appear in a yellow caption box at the current frame's top left.
+The top chips and spoken captions stay full size in screen space. `check`
+uses the original panel coordinates; capture checks the visible screen boxes
+against the caption band. `heads` prepares cut heads for this look.
+
+### Headline
+
+`headline` reads the beats, cast, images and sources. It needs no layout.
+`panels` is optional and ignored, including a supplied outro panel; `check`
+reports a note when panels are present. `captions` is ignored too: the big
+type is the caption, so there is no caption band or caption clearance check.
+Panel and overlap checks do not apply. Script, source, rights and timing
+checks still do.
+
+Write short lines with one idea each. Put the number in the line: words with
+digits use the accent colour. Lines longer than 16 words get a warning;
+the existing 22-word limit still applies. Words appear at evenly spaced
+times across the line's audio and keep their place before they appear.
+The line stays until the next one starts.
+
+Each beat fills the frame with a flat colour. The cycle is `ink`, `yellow`,
+`tomato`, `cream`, `teal`, `blue`; a beat's `"color": "teal"` overrides its
+colour. The next block slides up, with motion stepped at 12 frames per
+second. The beat's chapter appears above the type with a two-digit number.
+The topic and handle stay at the top, and a bar tracks progress at the bottom.
+
+A cast member's full, first or last name in a line's `text` brings in a
+round portrait badge. Matches use whole words and ignore case; `say` does
+not trigger a badge. The badge stays through the beat. If two people are
+named, the later badge is larger and the earlier one shrinks beside it.
+A member without a photo gets initials and a `no photo` label.
+
+An image appears when a line contains one of its `keywords`, such as
+`"keywords": ["elephant", "elephants"]`. If keywords are absent, Zing splits
+the image ID on hyphens and underscores and uses words of at least three
+letters. A simple plural also matches: `elephant` matches `elephants`.
+Pictures keep their `photo` or `sticker` cut and stay through the beat.
+Zing sizes them to clear the badges.
+
+The generated end card uses the next colour, a `made with zing` sticker,
+a 900 px credits card and the first cast member's badge if they have a photo.
+It keeps the same source, media, music and AI voice credits as `cutout`.
+Sound effects follow beat changes and badge or picture arrivals.
+
+`new --look headline` writes a small fictional example with no panels that
+passes `check`. Replace its sample story and source before using it for
+reporting. The default `cutout` starter keeps its source placeholder, which
+must be replaced before a build.
 
 ## Voice setup
 
@@ -126,21 +254,22 @@ recorded to the nearest millisecond. `timings.json` has `duration`,
 
 Use UTF-8 JSON. Unknown fields are errors, so misspellings cannot silently
 change the film. All positions are pixels in a 1080x1920 frame. Colors are
-hex colors such as `#FFD21F`.
+hex colors such as `#FFD21F`, except the named palette colours on headline beats.
 
 | Top-level field | Meaning |
 |---|---|
 | `schema_version` | Optional, `1`. |
 | `slug` | Optional local story identifier. |
+| `look` | Optional `cutout` (default), `headline`, `scrapbook` or `comic`. |
 | `topic` | Required top-bar label, up to 60 characters. The bar reads `zing · <topic>`. |
 | `handle` | Optional right-hand label, up to 40 characters. Empty means no label. |
 | `cast` | Optional object keyed by cast ID. Omit it or use `{}` for no puppets. |
-| `images` | Optional object keyed by image ID, for licensed pictures used by image props. |
+| `images` | Optional object keyed by image ID, for licensed pictures. Optional `keywords` trigger them in `headline`. |
 | `beats` | Required ordered list of 4 to 14 narration beats. |
-| `panels` | Required ordered paper sets. The first starts at the first beat. |
+| `panels` | Required ordered paper sets for `cutout`, `scrapbook` and `comic`. The first starts at the first beat. Ignored by `headline`. |
 | `sources` | Required nonempty list of `{ "title": "Source title", "url": "https://..." }`. Titles are at most 100 characters. URLs must be HTTP or HTTPS. |
 | `outro` | Optional end-card duration in seconds, from 1 to 30. Default 3.2. |
-| `captions` | Optional boolean, default `true`. Shows timed spoken-word captions. |
+| `captions` | Optional boolean, default `true`. Shows the fixed caption band in panel looks. Ignored by `headline`. |
 | `sfx` | Optional boolean, default `true`. Adds synthesized paper sounds during render. |
 | `music` | Optional local music object with `path`, `credit`, `license`, `source_url`. |
 
@@ -150,20 +279,23 @@ colors, and optional `photos`. Each photo is an object with `path`, `credit`,
 `license`, `source_url`, and optional `face: [x, y, width, height]`. Photo paths
 are at most 240 characters, credits 120, and licenses 100. Paths are
 local files relative to the story folder and must stay inside it. A member
-without photos gets a blank paper head with initials. Head indices start at
-zero in the order of `photos`; the generated PNGs are outputs, not inputs.
+without photos gets initials on a paper head, photo card or portrait badge. Photo indices
+start at zero in the order of `photos`; generated heads and portraits are
+outputs, not inputs.
 
 A beat has `id`, optional `chapter` (at most 40 characters), 1 to 8 `lines`,
-and optional `tail` in seconds. Beat IDs, cast IDs and slugs start with a
+and optional `tail` in seconds. In `headline`, optional `color` chooses one
+of the palette names listed above. Beat IDs, cast IDs and slugs start with a
 lowercase letter and use lowercase letters, numbers, underscores and hyphens,
 up to 60 characters. `outro` is
 reserved. A line has required `text`, optional `say` for pronunciation, and
 optional `gap` in seconds. `say` changes the spoken words, while `text` remains
 the readable version in timings. Both text fields are at most 300 characters.
 Line gaps and beat tails must be finite, from 0 to 5 seconds.
-The page shows each nonempty `chapter` as a pill while that beat plays.
+Panel looks show each nonempty `chapter` while that beat plays: a bottom pill
+in `cutout` and `scrapbook`, or a yellow frame caption in `comic`.
 
-A panel has `from`, `set`, and optional `props`, `actors` and `cards` lists.
+A directed panel has `from`, `set`, and optional `props`, `actors` and `cards` lists.
 `from` is an exact beat ID, or `outro` for a custom end panel. It cannot be an
 offset or a line cue. Panels start in beat order and last until the next
 panel. One panel can cover several beats; every beat must have a panel.
@@ -321,12 +453,12 @@ is a second line. Keep cards shorter than the limits when possible.
 
 The script must have 4 to 14 beats, at most 22 words per line, and at most
 160 narration words in total. The limits apply to both readable text and
-spoken `say` text. Keep one idea per beat and put the main fact on a card
+spoken `say` text. Keep one idea per beat and, in panel looks, put the main fact on a card
 so the story makes sense with sound off.
 
 ### Caption band
 
-Captions use the bundled ZingCaption font, cream words on ink, with the
+The panel looks' caption band uses the bundled ZingCaption font, cream words on ink, with the
 current word in yellow. Up to four words appear at a time. Word time is
 spread evenly across each line's `start` and `end` in `timings.json`; this
 is an estimate, not forced alignment. Captions use `text`, while voice
@@ -334,7 +466,7 @@ providers receive `say` when present. Pauses and the outro have no captions.
 
 Reserve the full-width band **x=0..1080, y=1560..1720** in the 1080x1920
 frame. The visible phrase has 48 pixels of horizontal inset. The chapter
-pill stays below it. Keep cards and puppet heads above the band. `check`
+pill stays below it in `cutout` and `scrapbook`. Keep cards, photo cards and puppet heads above the band. `check`
 reports overlapping card boxes and low puppet heads. It reserves extra
 room for wrapping, rotation and entry animations, so it can reject a box
 that a browser would fit more tightly. Capture also checks measured card
@@ -347,6 +479,8 @@ captions have ended.
 
 Render synthesizes a soft paper whoosh for each camera slide, a small pop
 for arriving cards and props, and a thud for cards with `anim: "stamp"`.
+In `headline`, whooshes follow beat changes and pops follow badge and picture
+arrivals.
 The generator uses Python's standard library and a fixed seed. Effects sit
 about 18 dB below the narration's spoken-line RMS level; crowded entrances
 are capped to keep the combined hit quiet. `sfx: false` or `--no-sfx` on
@@ -375,7 +509,7 @@ The mix is temporary: `narration.wav` and `timings.json` stay unchanged.
 
 ### Credits and photo rights
 
-`heads` needs the factory image dependencies. Install
+Head cuts and automatic face detection need the factory image dependencies. Install
 `myzing[factory]==1.0.0rc1` in Zing's environment if they are missing.
 Every photo needs a credit, a license and a source URL. The rights check uses
 the factory's license rules and accepts only cleared or attribution licenses.
@@ -385,22 +519,36 @@ The cutter tries the frontal detector, then the profile detector on both
 the image and its mirror. If a detector finds several faces, the largest
 box wins and the command reports that choice. An explicit `face` box
 overrides detection. It helps with drawings, profiles and small faces that
-the cascades miss. Use `--sheet` to review all cuts before rendering.
+the cascades miss. Use `--sheet` to review all cuts and portraits before rendering.
+
+`heads` also makes `heads/<cast-id>-<index>-portrait.jpg`, a 600x600 square
+crop centred on the face and lifted a little to leave room for hair. The crop
+shifts or shrinks to stay inside the photo. It uses no mask or background
+removal. An explicit `photo.face` needs only Pillow for the portrait;
+automatic face detection needs OpenCV. Rights checks run before pixel work.
+For `headline` and `scrapbook`, `heads` makes only these portraits and never cuts a head.
+`cutout` and `comic` also need the transparent head stickers.
+
+When the face detector finds a tilted head, the cutter reads the tilt from the
+eye line and levels the photo before it cuts, so the head sits upright on the
+puppet. The head's result records the angle as `leveled`. A `face` box you
+supply is used as given, with no levelling.
 
 When a wall or shirt has the same colour as the hair, it can leak into the cut.
 The cutter notices a cut that presses against the edge of its allowed area and
 tries again with less room around the face. If it still leaks, the command
 prints a warning and records it in the head's result, and the sheet shows it.
-Set a tighter `face` box or pick another photo.
+Set a tighter `face` box or pick another photo. You can also render with
+`--look scrapbook` or `--look headline`, which use the photo as it is.
 
 Zing generates the credits from photo and image credits and licenses and the
 source titles. Matching photo and image credits appear once. It adds an
-outro panel if none exists, with the first cast member who has a photo waving.
+outro panel in each panel look if none exists, with the first cast member who has a photo waving.
 Credits use 34 px type when they fit in five or fewer lines, otherwise 27 px,
 and smaller type if needed to fit. On an empty stage the card is 900 px wide.
 With an actor on stage it is 560 px wide and takes the side the actor is not
 standing on, clear of heads. The default waving actor stands on the right.
-Your `from: "outro"` panel keeps its authored art; Zing finds a clear place
+In panel looks, your `from: "outro"` panel keeps its authored art; Zing finds a clear place
 for its generated credits, or reports that the panel needs more room.
 Handwritten `credits` fields and credits cards
 are not accepted. Kokoro and ElevenLabs always add
@@ -440,17 +588,17 @@ Replace its source entry and story with facts from your own sources.
 The agent writing prompt ships at `_data/story/prompts/story.md` in the
 Python package and is printed by `zing story prompt`. Write the JSON, run
 `zing story check --json <dir>`, fix every problem, and repeat before making
-narration or stickers. A passing check verifies structure, declared rights
-and estimated card/head clearance. The agent still needs to verify facts,
+narration or stickers. A passing check verifies structure and declared rights,
+plus estimated card/head or picture clearance for panel looks. The agent still needs to verify facts,
 listen and inspect the art.
 
 ## MCP tools
 
 | Tool | Result |
 |---|---|
-| `story_new(directory, topic)` | Starter story and README paths; existing files are kept. |
-| `story_check(directory)` | `valid` plus JSON `problems`, each with `path` and `message`. |
-| `story_build(directory, ...)` | Starts a background build after validation; returns `started` or `already_running`. Accepts provider, voice, speed, lines_dir, out, synthetic_voice and no_sfx. |
+| `story_new(directory, topic, look="cutout")` | Starter story and README paths; existing files are kept. Optional `look` selects the starter. |
+| `story_check(directory)` | `valid`, `look`, `problems`, `warnings` and `notes`. Each message has `path` and `message`. |
+| `story_build(directory, ...)` | Starts a background build after validation; returns `started` or `already_running`. Accepts provider, voice, speed, lines_dir, out, synthetic_voice, no_sfx and an optional look override. The override does not rewrite the file. |
 | `story_status(directory)` | Reports draft, running, done, failed or interrupted, with finished video and receipt paths or an error. |
 
 Poll `story_status` after a build. State is saved in `story-status.json`.

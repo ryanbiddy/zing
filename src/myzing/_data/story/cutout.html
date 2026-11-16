@@ -47,6 +47,31 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 #grain{position:absolute;left:0;top:0;width:1080px;height:1920px;z-index:30;pointer-events:none;mix-blend-mode:multiply;opacity:.2}
 .puppet{filter:drop-shadow(8px 8px 0 rgba(0,0,0,.26))}
 .image-prop{filter:drop-shadow(6px 7px 0 rgba(0,0,0,.22))}
+.headline-block{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden;will-change:transform}
+.headline-chapter{position:absolute;left:64px;top:190px;font-family:Cap;font-size:32px;line-height:1.15;letter-spacing:.04em;padding:12px 24px 10px;border-radius:60px;max-width:952px}
+.headline-type{position:absolute;left:64px;top:300px;width:952px;overflow:visible;font-family:Anton;line-height:.98;text-transform:uppercase}
+.headline-ghost{position:absolute;right:40px;top:1290px;font-family:Anton;font-size:560px;line-height:1;opacity:.09;letter-spacing:-.02em}
+.headline-word{position:absolute;white-space:nowrap;transform-origin:50% 50%}
+.headline-badge{position:absolute;transform-origin:50% 50%}
+.headline-face{width:100%;height:100%;border:12px solid var(--cream);border-radius:50%;background:var(--cream);box-shadow:9px 9px 0 rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--ink);font-family:Anton}
+.headline-face img{width:100%;height:100%;object-fit:cover}
+.headline-face small{font:600 24px Plex}
+.headline-name{position:absolute;left:50%;top:calc(100% + 14px);transform:translateX(-50%);width:max-content;max-width:100%;overflow-wrap:anywhere;font:700 28px/1.12 Plex;text-align:center;background:var(--cream);color:var(--ink);padding:8px 14px;box-shadow:5px 5px 0 rgba(0,0,0,.25)}
+.headline-picture{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:visible}
+#headline-progress{position:absolute;left:48px;top:1900px;height:10px;width:984px;z-index:20;transform-origin:0 50%}
+.look-headline #chapter{display:none}
+.picture-card{filter:drop-shadow(9px 9px 0 rgba(0,0,0,.3))}
+.picture-name{font-family:'Serif';font-style:italic;font-size:30px;fill:var(--ink)}
+.look-comic{background:#F4EEDF!important}
+.look-comic #world{transform-origin:0 0}
+.look-comic #chapter{display:none}
+.look-comic #grain{opacity:.3}
+.comic-page{position:absolute;left:0;top:0;background:#F4EEDF}
+.directed-viewport{position:absolute;left:0;top:0;width:1080px;height:1920px;overflow:hidden}
+.comic-frame{position:absolute;border:10px solid var(--ink);width:1100px;height:1940px;background:var(--ink)}
+.comic-frame>.panel{left:0;top:0}
+.comic-dots{position:absolute;inset:0;pointer-events:none;z-index:12;mix-blend-mode:multiply;opacity:.09;background-image:radial-gradient(var(--ink) 1.4px,transparent 1.6px);background-size:9px 9px}
+.comic-chapter{position:absolute;left:32px;top:112px;max-width:1016px;padding:12px 20px 10px;background:var(--yellow);border:5px solid var(--ink);font:48px/1.08 Anton;color:var(--ink);text-transform:uppercase;z-index:13;box-shadow:6px 6px 0 rgba(0,0,0,.25)}
 </style></head>
 <body>
 <div id="stage">
@@ -243,7 +268,21 @@ const CARDS = {
   credits: c => `<div class="credits" style="width:${c.w || 900}px;font-size:${c.size || 27}px">${c.lines.map(l => `<span>${esc(l)}</span>`).join('<br>')}</div>`,
   list: c => `<div class="note" style="width:${c.w || 470}px">${c.k ? `<div class="k">${esc(c.k)}</div>` : ''}${c.rows.map((r, i) => `<div class="row" data-row="${i}"><span class="box"></span><span>${esc(r.text)}</span></div>`).join('')}</div>`,
 };
-window.storyVocabulary = {cards: Object.keys(CARDS), props: Object.keys(PROPS), poses: Object.keys(POSES)};
+// Each look owns its stage, cast drawing, camera and caption treatment.
+const LOOKS = Object.freeze({
+  cutout: {background:'sets', cast:'puppets', camera:'horizontal', captions:'band', build:buildCutout, seek:seekCutout},
+  headline: {background:'blocks', cast:'portraits', camera:'vertical', captions:'type', build:buildHeadline, seek:seekHeadline},
+  scrapbook: {background:'paper', cast:'pictures', camera:'vertical', captions:'band', build:buildScrapbook, seek:seekScrapbook},
+  comic: {background:'frames', cast:'puppets', camera:'page', captions:'band', build:buildComic, seek:seekComic},
+});
+const HEADLINE_COLORS = Object.freeze({
+  ink:{background:INK,text:CREAM,accent:YELLOW}, yellow:{background:YELLOW,text:INK,accent:TOMATO},
+  tomato:{background:TOMATO,text:CREAM,accent:INK}, cream:{background:CREAM,text:INK,accent:TOMATO},
+  teal:{background:TEAL,text:CREAM,accent:YELLOW}, blue:{background:'#2B50D8',text:CREAM,accent:YELLOW},
+});
+window.storyLooks = LOOKS;
+window.storyVocabulary = {cards: Object.keys(CARDS), props: Object.keys(PROPS), poses: Object.keys(POSES),
+  looks:Object.keys(LOOKS), headline_colors:Object.keys(HEADLINE_COLORS)};
 function Card(c, panel, id) {
   const el = document.createElement('div'); el.className = 'card'; el.innerHTML = CARDS[c.kind](c);
   el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; if (c.z) el.style.zIndex = c.z; panel.appendChild(el);
@@ -364,7 +403,7 @@ function cueTime(c, T) {
   }
   throw new Error('unknown beat or bad cue ' + c);
 }
-async function build(story, T, base, vocabulary) {
+async function buildCutout(story, T, base, vocabulary) {
   if (vocabulary) for (const key of ['cards', 'props', 'poses']) {
     const expected = key === 'cards' ? Object.keys(vocabulary.cards) : vocabulary[key];
     if (JSON.stringify([...expected].sort()) !== JSON.stringify([...window.storyVocabulary[key]].sort()))
@@ -413,7 +452,7 @@ async function build(story, T, base, vocabulary) {
   seek(0);
   return true;
 }
-function seek(t) {
+function seekCutout(t) {
   let x = 0; // camera: slide to each panel around its start time
   for (let i = 1; i < CAM.length; i++) x += easeIO((t - (CAM[i] - .42)) / .8) * W;
   document.getElementById('world').style.transform = `translateX(${-x}px)`;
@@ -423,6 +462,488 @@ function seek(t) {
   for (const p of PARTS) p.update(t);
   seekCaptions(t);
 }
+// ---------- scrapbook: the actors are photographs on one long page ----------
+const PICTURE_GEOMETRY = Object.freeze({width:250,height:310,top:720,default_y:1562,
+  portrait_inset:14,portrait_size:222,tilt:4,boil:.45,pose_lean:5,hop:24,
+  enter_hop:120,enter_duration:.5,pose_duration:.34,rock_duration:.6,hop_duration:.5,fps:12});
+window.pictureGeometry = PICTURE_GEOMETRY;
+function Picture(spec, cast, layer, portraits) {
+  const who = cast[spec.who], geometry = PICTURE_GEOMETRY, scale = spec.scale || 1;
+  const seed = [...spec.who].reduce((value,char,i) => value + (i+1)*char.codePointAt(0),0);
+  const root = svgEl('g',{class:'picture-card','data-who':spec.who},layer);
+  const width = geometry.width, height = geometry.height, inset = geometry.portrait_inset;
+  const paper = svgEl('rect',{class:'picture-paper',x:-width/2,y:-height,width,height,fill:'#fff'},root);
+  const imgs = (who.portraits || []).map(name => svgEl('image',{href:portraits[name].url,
+    x:-width/2+inset,y:-height+inset,width:geometry.portrait_size,height:geometry.portrait_size,visibility:'hidden'},root));
+  if (!imgs.length) {
+    svgEl('rect',{x:-width/2+inset,y:-height+inset,width:geometry.portrait_size,height:geometry.portrait_size,fill:CREAM},root);
+    const initials = svgEl('text',{class:'picture-initials',x:0,y:-150,'text-anchor':'middle','font-family':'Anton','font-size':84,fill:INK},root);
+    initials.textContent = who.name.trim().split(/\s+/).slice(0,3).map(word=>word[0]).join('');
+    const missing = svgEl('text',{x:0,y:-116,'text-anchor':'middle','font-family':'Plex','font-size':22,fill:INK,opacity:.65},root);
+    missing.textContent = 'no photo';
+  }
+  const name = svgEl('text',{class:'picture-name',x:0,y:-27,'text-anchor':'middle'},root); name.textContent = who.name;
+  svgEl('rect',{class:'picture-tape',x:-65,y:-height-16,width:130,height:38,fill:YELLOW,opacity:.82,
+    transform:`rotate(-3,0,${-height})`},root);
+  const poses = (spec.poses || []).slice().sort((a,b)=>a.t-b.t), moves = (spec.moves || []).slice().sort((a,b)=>a.t-b.t);
+  const changes = (spec.head_at || []).slice().sort((a,b)=>a.t-b.t);
+  const lean = pose => ['point','present'].includes(pose) ? geometry.pose_lean : pose === 'think' ? -geometry.pose_lean : 0;
+  return {captionLabel:'picture card',captionBox() {
+    return root.getAttribute('visibility') === 'hidden' ? null : paper.getBoundingClientRect();
+  },fit() {
+    if (name.getComputedTextLength() > geometry.portrait_size) {
+      name.setAttribute('textLength',geometry.portrait_size); name.setAttribute('lengthAdjust','spacingAndGlyphs');
+    }
+  },update(t) {
+    const tq = q12(t);
+    if (spec.enterT != null && tq < spec.enterT) { root.setAttribute('visibility','hidden'); return; }
+    root.setAttribute('visibility','visible');
+    let x = spec.x, pose = spec.pose || 'idle', previous = pose, at = spec.start ?? 0;
+    for (const move of moves) {
+      if (tq >= move.t) x = lerp(move.from,move.to,clamp((tq-move.t)/move.dur));
+      else if (move === moves[0]) x = move.from;
+    }
+    for (const change of poses) if (tq >= change.t) { previous = pose; pose = change.pose; at = change.t; }
+    const poseTilt = lerp(lean(previous),lean(pose),backOut((tq-at)/geometry.pose_duration));
+    const rock = pose === 'shrug' ? Math.sin(clamp((tq-at)/geometry.rock_duration)*Math.PI*2)*geometry.pose_lean : 0;
+    const hop = ['up','cheer','wave'].includes(pose) ? -(1-bounce((tq-at)/geometry.hop_duration))*geometry.hop : 0;
+    const drop = spec.enterT != null ? -(1-bounce((tq-spec.enterT)/geometry.enter_duration))*geometry.enter_hop : 0;
+    const boil = (hash(seed,Math.floor(tq*6))-.5)*geometry.boil*2;
+    const tilt = seed % (2*geometry.tilt+1)-geometry.tilt+boil+poseTilt+rock;
+    // Scale about the feet, as a puppet does, so the card lands where its head would.
+    const y = (spec.y ?? geometry.default_y)-(geometry.default_y-geometry.top-height)*scale+hop+drop;
+    root.setAttribute('transform',`translate(${x},${y}) scale(${scale}) rotate(${tilt})`);
+    let head = spec.head || 0; for (const change of changes) if (tq >= change.t) head = change.head;
+    imgs.forEach((img,i)=>img.setAttribute('visibility',i === head % imgs.length ? 'visible' : 'hidden'));
+  }};
+}
+function scrapbookBack(set, id) {
+  let result = `<rect width="${W}" height="${H}" fill="${set.wall || '#333'}"/>`;
+  if (set.pattern === 'tiles') for (let y=0;y<H;y+=90) for (let x=(y/90%2)*45-45;x<W;x+=90)
+    result += `<rect x="${x+3}" y="${y+3}" width="84" height="84" rx="6" fill="rgba(255,255,255,${.05+hash(x,y)*.07})"/>`;
+  if (set.pattern === 'stripes') for (let x=0;x<W;x+=60)
+    result += `<rect x="${x}" width="30" height="${H}" fill="rgba(0,0,0,.045)"/>`;
+  if (set.pattern === 'check') for (let y=0;y<H;y+=64) for (let x=0;x<W;x+=64) if ((x/64+y/64)%2)
+    result += `<rect x="${x}" y="${y}" width="64" height="64" fill="rgba(255,255,255,.045)"/>`;
+  const edge = []; for (let x=0;x<=W;x+=24) edge.push(`${x},${FLOOR+(hash(x,id+71)-.5)*28}`);
+  return result+`<path class="scrapbook-floor torn-paper" d="M${edge.join(' L')} L${W},${H} L0,${H} Z" fill="${set.floor || '#222'}"/>`;
+}
+let DIRECTED = null, COMIC = null, SCRAPBOOK = null;
+// While the camera travels, art from the neighbouring panel crosses the caption
+// band for a moment. The caption has its own ink plate, so the art is left whole
+// and the band guard waits until the camera settles.
+function captionTravelClip(viewport,active) { viewport.style.clipPath = ''; }
+function directedCaptionBox(actual,panel,bandClipped) {
+  if (!actual) return null;
+  const clip = panel.getBoundingClientRect();
+  const left = Math.max(actual.left,clip.left), right = Math.min(actual.right,clip.right);
+  let top = Math.max(actual.top,clip.top), bottom = Math.min(actual.bottom,clip.bottom);
+  if (bandClipped) return null;
+  return right > left && bottom > top ? {left,top,right,bottom} : null;
+}
+async function buildDirectedLook(story,T,base,vocabulary,look) {
+  if (vocabulary) for (const key of ['cards','props','poses']) {
+    const expected = key === 'cards' ? Object.keys(vocabulary.cards) : vocabulary[key];
+    if (JSON.stringify([...expected].sort()) !== JSON.stringify([...window.storyVocabulary[key]].sort()))
+      throw new Error('story vocabulary differs for '+key);
+  }
+  PARTS = []; CAM = []; DIRECTED = []; COMIC = null; SCRAPBOOK = null;
+  buildCaptions(story,T); DUR = T.duration;
+  CHAPTERS = T.beats.map((beat,i)=>({start:beat.start,end:beat.end,text:story.beats[i].chapter || ''}));
+  document.getElementById('barL').textContent = 'zing · '+story.topic;
+  document.getElementById('barR').textContent = story.handle || '';
+  document.getElementById('barR').style.display = story.handle ? '' : 'none';
+  const media = {}, names = new Set(), key = look === 'scrapbook' ? 'portraits' : 'heads';
+  Object.values(story.cast).forEach(member=>(member[key] || []).forEach(name=>names.add(name)));
+  await Promise.all([...names].map(name=>new Promise((resolve,reject)=>{
+    const image = new Image();
+    image.onload = ()=>{ media[name] = {url:image.src,w:image.naturalWidth,h:image.naturalHeight}; resolve(); };
+    image.onerror = ()=>reject(new Error('Cannot load '+key+' '+name+'. Run zing story heads first.'));
+    image.src = base+'heads/'+name;
+  })));
+  const images = {};
+  await Promise.all(Object.entries(story.images || {}).map(([id,picture])=>new Promise((resolve,reject)=>{
+    const image = new Image();
+    image.onload = ()=>{ images[id] = {url:image.src,w:image.naturalWidth,h:image.naturalHeight,cut:picture.cut || 'photo'}; resolve(); };
+    image.onerror = ()=>reject(new Error('Cannot load image '+id+'. Run zing story images first.'));
+    image.src = base+picture.prepared;
+  })));
+  const world = document.getElementById('world'); world.replaceChildren();
+  world.style.transform = 'none';
+  const viewport = document.createElement('div'); viewport.className = 'directed-viewport '+look+'-viewport';
+  world.parentElement.insertBefore(viewport,world); viewport.appendChild(world);
+  let page = world;
+  if (look === 'comic') {
+    page = document.createElement('div'); page.className = 'comic-page'; world.appendChild(page);
+    COMIC = {page,viewport,frames:[],width:0,height:0};
+  } else SCRAPBOOK = {viewport,bandClipped:false};
+  const cue = value=>cueTime(value,T);
+  story.panels.forEach((spec,i)=>{
+    const start = cue(spec.from), id = i*100, parts = [];
+    const panel = document.createElement('div'); panel.className = 'panel';
+    const frame = {panel,start,parts,index:i}; DIRECTED.push(frame); CAM.push(start);
+    if (look === 'scrapbook') { panel.style.left = '0px'; panel.style.top = i*H+'px'; page.appendChild(panel); }
+    else {
+      const border = 10, gutter = 42, margin = 42, frameWidth = W+border*2, frameHeight = H+border*2;
+      const row = Math.floor(i/2), column = i%2, shift = row%2 ? frameWidth*.22 : 0;
+      const x = margin+column*(frameWidth+gutter)+shift, y = margin+row*(frameHeight+gutter);
+      const element = document.createElement('div'); element.className = 'comic-frame'; element.dataset.panel = String(i);
+      Object.assign(element.style,{left:x+'px',top:y+'px'}); element.appendChild(panel); page.appendChild(element);
+      Object.assign(frame,{element,x:x+frameWidth/2,y:y+frameHeight/2,tilt:i%2 ? 1.2 : -1.2});
+      COMIC.frames.push(frame); COMIC.width = Math.max(COMIC.width,x+frameWidth+margin); COMIC.height = y+frameHeight+margin;
+    }
+    const back = svgEl('svg',{class:'layer',viewBox:`0 0 ${W} ${H}`},panel);
+    back.innerHTML = look === 'scrapbook' ? scrapbookBack(spec.set,i) : setBack(spec.set);
+    (spec.props || []).filter(prop=>!prop.front).forEach((prop,j)=>parts.push(Prop({...prop,
+      t:prop.at != null ? cue(prop.at) : null,until:prop.until != null ? cue(prop.until) : null},back,id+j,images)));
+    const mid = svgEl('svg',{class:'layer',viewBox:`0 0 ${W} ${H}`},panel);
+    (spec.actors || []).forEach(actor=>{
+      const prepared = {...actor,start,enterT:actor.enter != null && actor.enter !== 'walk' ? cue(actor.enter) : null,
+        moves:(actor.enter === 'walk' ? [{t:start-.45,dur:.95,from:actor.x-430,to:actor.x}] : []).concat((actor.moves || []).map(move=>({...move,t:cue(move.at)}))),
+        poses:(actor.poses || []).map(pose=>({t:cue(pose.at),pose:pose.pose})),head_at:(actor.head_at || []).map(head=>({t:cue(head.at),head:head.head}))};
+      parts.push(look === 'scrapbook' ? Picture(prepared,story.cast,mid,media) : Puppet(prepared,story.cast,mid,media));
+    });
+    const front = svgEl('svg',{class:'layer',viewBox:`0 0 ${W} ${H}`},panel);
+    (spec.props || []).filter(prop=>prop.front).forEach((prop,j)=>parts.push(Prop({...prop,
+      t:prop.at != null ? cue(prop.at) : null,until:prop.until != null ? cue(prop.until) : null},front,id+30+j,images)));
+    (spec.cards || []).forEach((card,j)=>parts.push(Card({...card,t:cue(card.at),until:card.until != null ? cue(card.until) : null,
+      rows:(card.rows || []).map(row=>({...row,t:cue(row.at)}))},panel,id+60+j)));
+    if (look === 'comic') {
+      const dots = document.createElement('div'); dots.className = 'comic-dots'; panel.appendChild(dots);
+      const chapter = document.createElement('div'); chapter.className = 'comic-chapter'; panel.appendChild(chapter); frame.chapter = chapter;
+    }
+    for (const part of parts) if (part.captionBox) {
+      const box = part.captionBox.bind(part);
+      part.captionBox = ()=>{
+        if (look === 'comic' && (!COMIC || COMIC.index !== i)) return null;
+        return directedCaptionBox(box(),panel,(look === 'comic' ? COMIC : SCRAPBOOK).bandClipped);
+      };
+    }
+    PARTS.push(...parts);
+  });
+  if (COMIC) Object.assign(page.style,{width:COMIC.width+'px',height:COMIC.height+'px'});
+  await document.fonts.ready;
+  await Promise.all(['Anton','Plex','Serif','Cap'].map(font=>document.fonts.load(`40px "${font}"`)));
+  await document.fonts.load('italic 40px "Serif"');
+  for (const font of document.fonts) if (font.status !== 'loaded') throw new Error('bundled font did not load: '+font.family);
+  for (const part of PARTS) if (part.fit) part.fit();
+  seek(0); return true;
+}
+async function buildScrapbook(story,T,base,vocabulary) { return buildDirectedLook(story,T,base,vocabulary,'scrapbook'); }
+function seekScrapbook(t) {
+  const tq = q12(t); let y = 0, travel = false;
+  for (let i=1;i<CAM.length;i++) {
+    const progress = easeIO((tq-(CAM[i]-.42))/.8); y += progress*H;
+    if (progress > 0 && progress < 1) travel = true;
+  }
+  SCRAPBOOK.bandClipped = Boolean(travel && captionAt(CAPTIONS,tq));
+  captionTravelClip(SCRAPBOOK.viewport,SCRAPBOOK.bandClipped);
+  window.scrapbookState = {y,travel,bandClipped:SCRAPBOOK.bandClipped};
+  document.getElementById('world').style.transform = `translateY(${-y}px)`;
+  const chapter = CHAPTERS.find(beat=>beat.start <= tq && tq < beat.end), node = document.getElementById('chapter');
+  node.textContent = chapter ? chapter.text : ''; node.style.display = chapter && chapter.text ? '' : 'none';
+  for (const part of PARTS) part.update(tq);
+  seekCaptions(tq);
+}
+// ---------- comic: the camera follows frames across a printed page ----------
+async function buildComic(story,T,base,vocabulary) { return buildDirectedLook(story,T,base,vocabulary,'comic'); }
+function comicAt(t) {
+  if (!COMIC) return null;
+  const tq = q12(t), frames = COMIC.frames, first = frames[0];
+  const intro = easeIO((tq-.45)/.8), fit = Math.min((W-64)/COMIC.width,(H-96)/COMIC.height);
+  let x = lerp(COMIC.width/2,first.x,intro), y = lerp(COMIC.height/2,first.y,intro);
+  let scale = lerp(fit,.9,intro), tilt = lerp(0,first.tilt,intro), index = 0, travel = intro > 0 && intro < 1;
+  for (let i=1;i<frames.length;i++) {
+    // The page overview holds even when a very short story has an early cut.
+    const progress = easeIO((tq-(frames[i].start-.42))/.8)*intro;
+    x += (frames[i].x-frames[i-1].x)*progress; y += (frames[i].y-frames[i-1].y)*progress;
+    tilt += (frames[i].tilt-frames[i-1].tilt)*progress;
+    if (progress > 0 && progress < 1) travel = true;
+    if (tq >= frames[i].start) index = i;
+  }
+  return {x,y,scale,tilt,index,overview:tq <= .45,travel};
+}
+window.comicAt = comicAt;
+function seekComic(t) {
+  if (!COMIC) return;
+  const tq = q12(t), state = comicAt(tq); COMIC.index = state.index;
+  // The overview and passing frames can put art behind the fixed caption band.
+  // Reserve that strip while speech is on screen. Once a frame is centred,
+  // the normal real-screen caption guard rejects an overlapping layout.
+  COMIC.bandClipped = Boolean((state.overview || state.travel) && captionAt(CAPTIONS,tq));
+  captionTravelClip(COMIC.viewport,COMIC.bandClipped);
+  state.bandClipped = COMIC.bandClipped;
+  document.getElementById('world').style.transform = `translate(${W/2}px,${H/2}px) rotate(${state.tilt}deg) scale(${state.scale}) translate(${-state.x}px,${-state.y}px)`;
+  document.getElementById('chapter').style.display = 'none';
+  const chapter = CHAPTERS.find(beat=>beat.start <= tq && tq < beat.end);
+  for (const frame of DIRECTED) {
+    // Unreached frames preview their own opening pose, independent of seek order.
+    const at = tq < frame.start ? frame.start : tq;
+    for (const part of frame.parts) part.update(at);
+    frame.chapter.textContent = chapter && frame.index === state.index ? chapter.text : '';
+    frame.chapter.style.display = frame.chapter.textContent ? '' : 'none';
+  }
+  window.comicState = state;
+  seekCaptions(tq);
+}
+// ---------- headline: the line is the picture ----------
+let CURRENT_LOOK = 'cutout', HEADLINE = null;
+const headlineTokens = value => String(value || '').normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+function headlineMatch(text, phrase, plural = false) {
+  const words = headlineTokens(text), wanted = headlineTokens(phrase);
+  if (!wanted.length) return -1;
+  return words.findIndex((_, i) => wanted.every((part, j) => {
+    const word = words[i + j];
+    return word === part || (plural && (word === part + 's' || part === word + 's'));
+  }));
+}
+function headlineMentions(story, lines) {
+  const badges = [], pictures = [];
+  for (const line of lines) {
+    const people = Object.entries(story.cast || {}).map(([id, member]) => {
+      const name = member.name.trim().split(/\s+/), aliases = [member.name, name[0], name[name.length - 1]];
+      const positions = aliases.map(alias => headlineMatch(line.text, alias)).filter(i => i >= 0);
+      return {id, at:line.start, position:positions.length ? Math.min(...positions) : -1};
+    }).filter(match => match.position >= 0).sort((a, b) => a.position - b.position);
+    badges.push(...people);
+    const found = Object.entries(story.images || {}).map(([id, picture]) => {
+      const keywords = picture.keywords || id.split(/[-_]/).filter(word => word.length >= 3);
+      const positions = keywords.map(word => headlineMatch(line.text, word, true)).filter(i => i >= 0);
+      return {id, at:line.start, position:positions.length ? Math.min(...positions) : -1};
+    }).filter(match => match.position >= 0).sort((a, b) => a.position - b.position);
+    if (found.length) pictures.push(found[found.length-1]);
+  }
+  return {badges, pictures};
+}
+function headlineFit(text, areaHeight, measure) {
+  const words = text.trim().toUpperCase().split(/\s+/), sizes = [];
+  for (let size = 336; size >= 96; size -= 6) sizes.push(size);
+  if (sizes[sizes.length - 1] !== 96) sizes.push(96);
+  for (const size of sizes) {
+    const gap = measure(' ', size), positions = []; let x = 0, row = 0;
+    for (const word of words) {
+      const width = measure(word, size);
+      if (x && x + width > 952) { row++; x = 0; }
+      positions.push({text:word, x, y:row * size * .98, width, height:size * .98});
+      x += width + gap;
+    }
+    const width = Math.max(...positions.map(word => word.x + word.width)), height = (row + 1) * size * .98;
+    if ((width <= 952 && height <= areaHeight) || size === 96) {
+      // An unusually long unbroken word still stays within the reserved area.
+      const scale = Math.min(1, 952 / width, areaHeight / height);
+      return {size, scale, height:height * scale, width:width * scale, words:positions};
+    }
+  }
+}
+function headlineBox(x, y, width, height) { return {x,y,width,height,left:x,top:y,right:x+width,bottom:y+height}; }
+function headlinePictureBox(image, width) {
+  const height = image.cut === 'sticker' ? width * image.h / image.w : (width - 24) * image.h / image.w + 24;
+  // Include the existing prop's tape and hard shadow when reserving its space.
+  const top = -height - (image.cut === 'sticker' ? 0 : 18), angle = -3 * Math.PI / 180;
+  const points = [[-width/2,top],[width/2,top],[-width/2,0],[width/2,0]].map(([x,y]) =>
+    [300 + x*Math.cos(angle)-y*Math.sin(angle), 1560 + x*Math.sin(angle)+y*Math.cos(angle)]);
+  const left = Math.min(...points.map(p=>p[0])), right = Math.max(...points.map(p=>p[0])) + 8;
+  const y = Math.min(...points.map(p=>p[1])), bottom = Math.max(...points.map(p=>p[1])) + 8;
+  return headlineBox(left,y,right-left,bottom-y);
+}
+function headlineFrame(beat, t) {
+  const tq = q12(t), fitLine = [...beat.lines].reverse().find(line => line.start <= tq);
+  const latest = [];
+  for (const event of beat.mentions.badges) if (event.at <= tq) {
+    const prior = latest.findIndex(item => item.id === event.id);
+    const firstAt = prior >= 0 ? latest[prior].at : event.at;
+    if (prior >= 0) latest.splice(prior, 1);
+    latest.push({...event,at:firstAt});
+  }
+  const badges = latest.slice(-2).map((event, i, items) => {
+    const small = items.length > 1 && i === 0, size = small ? 220 : 400, x = small ? 520 : 790, y = small ? 1470 : 1400;
+    return {...event, small, box:headlineBox(x-size/2,y-size/2,size,size), scale:lerp(.8,1,clamp((tq-event.at)*FPS12/2))};
+  });
+  let event = null;
+  for (const match of beat.mentions.pictures) if (match.at <= tq && (!event || event.id !== match.id)) event = match;
+  let picture = null;
+  if (event) {
+    const image = HEADLINE.images[event.id]; let width = 460, box = headlinePictureBox(image,width);
+    const fits = b => b.top >= 1200 && b.left >= 48 && badges.every(badge => b.right + 24 <= badge.box.left || b.bottom + 24 <= badge.box.top);
+    if (!fits(box)) {
+      let low = image.cut === 'sticker' ? 0 : 24, high = width;
+      for (let step = 0; step < 32; step++) { const middle = (low+high)/2; if (fits(headlinePictureBox(image,middle))) low = middle; else high = middle; }
+      width = low; box = headlinePictureBox(image,width);
+    }
+    picture = {...event, width, box, scale:lerp(.8,1,clamp((tq-event.at)*FPS12/2))};
+  }
+  const words = fitLine ? fitLine.fit.words.map((word,i,all) => {
+    const at = fitLine.start + (fitLine.end-fitLine.start)*i/all.length, visible = tq >= at;
+    return {...word, at, visible, color:/\d/.test(word.text) ? beat.colors.accent : beat.colors.text,
+      scale:visible ? lerp(1.2,1,clamp((tq-at)*FPS12/2)) : 1,
+      box:headlineBox(64+word.x*fitLine.fit.scale,300+word.y*fitLine.fit.scale,word.width*fitLine.fit.scale,word.height*fitLine.fit.scale)};
+  }) : [];
+  return {colorName:beat.colorName, color:beat.colors.background, accent:beat.colors.accent, beatIndex:beat.index,
+    line:fitLine ? fitLine.text : null, fontSize:fitLine ? fitLine.fit.size : null,
+    effectiveFontSize:fitLine ? fitLine.fit.size*fitLine.fit.scale : null, typeScale:fitLine ? fitLine.fit.scale : 1,
+    visibleWords:words.filter(word=>word.visible).map(word=>word.text), words, badges, picture,
+    boxes:{type:fitLine ? headlineBox(64,300,fitLine.fit.width,fitLine.fit.height) : null,
+      typeArea:headlineBox(64,300,952,beat.areaHeight), badge:badges.length ? badges[badges.length-1].box : null,
+      badges:badges.map(b=>b.box), picture:picture ? picture.box : null}, fitLine};
+}
+function headlineAt(t) {
+  if (!HEADLINE) return null;
+  const tq = q12(t); let index = 0;
+  for (let i = 1; i < HEADLINE.beats.length; i++) if (tq >= HEADLINE.beats[i].start) index = i;
+  const frame = headlineFrame(HEADLINE.beats[index], tq);
+  const {fitLine, ...state} = frame;
+  return {...state, progress:clamp(tq / DUR)};
+}
+function headlineBadge(member, portraits, parent) {
+  const root = document.createElement('div'); root.className = 'headline-badge';
+  const face = document.createElement('div'); face.className = 'headline-face';
+  const portrait = (member.portraits || [])[0];
+  if (portrait) {
+    const image = document.createElement('img'); image.src = portraits[portrait].url; image.alt = ''; face.appendChild(image);
+  } else {
+    const initials = member.name.trim().split(/\s+/).slice(0,3).map(word=>word[0]).join('');
+    face.innerHTML = esc(initials) + '<small>no photo</small>';
+  }
+  const tag = document.createElement('div'); tag.className = 'headline-name'; tag.textContent = member.name;
+  root.appendChild(face); root.appendChild(tag); parent.appendChild(root);
+  return {root,face,tag};
+}
+async function buildHeadline(story, T, base) {
+  PARTS = []; CAM = []; CAPTIONS = [];
+  if (CAPTION_EL) CAPTION_EL.remove(); CAPTION_EL = null;
+  document.getElementById('chapter').style.display = 'none';
+  document.getElementById('barL').textContent = 'zing · ' + story.topic;
+  document.getElementById('barR').textContent = story.handle || '';
+  document.getElementById('barR').style.display = story.handle ? '' : 'none';
+  const world = document.getElementById('world'); world.replaceChildren(); world.style.transform = 'none';
+  const portraits = {}, images = {};
+  const loadImage = (url, description) => new Promise((resolve,reject) => {
+    const image = new Image(); image.onload = () => resolve({url:image.src,w:image.naturalWidth,h:image.naturalHeight});
+    image.onerror = () => reject(new Error('Cannot load ' + description + '.')); image.src = url;
+  });
+  const names = new Set(Object.values(story.cast || {}).flatMap(member=>member.portraits || []));
+  await Promise.all([...names].map(async name => { portraits[name] = await loadImage(base+'heads/'+name,'portrait '+name); }));
+  await Promise.all(Object.entries(story.images || {}).map(async ([id,picture]) => {
+    images[id] = {...await loadImage(base+picture.prepared,'image '+id),cut:picture.cut || 'photo'};
+  }));
+  await document.fonts.ready;
+  await Promise.all(['Anton','Plex','Serif','Cap'].map(font=>document.fonts.load(`40px ${font}`)));
+  await document.fonts.load('italic 40px Serif');
+  for (const font of document.fonts) if (font.status !== 'loaded') throw new Error('bundled font did not load: ' + font.family);
+  const context = document.createElement('canvas').getContext('2d');
+  const measure = (word,size) => { context.font = `${size}px Anton`; return context.measureText(word).width; };
+  const palette = Object.keys(HEADLINE_COLORS);
+  const beats = T.beats.map((timed,index) => {
+    const source = story.beats[index], lines = timed.lines.map((line,i)=>({...line,text:source.lines[i].text}));
+    const mentions = headlineMentions(story,lines), areaHeight = mentions.badges.length || mentions.pictures.length ? 880 : 1200;
+    return {index,start:timed.start,chapter:source.chapter || '',colorName:source.color || palette[index % palette.length],
+      lines:lines.map(line=>({...line,fit:headlineFit(line.text,areaHeight,measure)})),mentions,areaHeight};
+  });
+  const outroCast = story.headline_outro_cast ?? Object.keys(story.cast || {}).find(id=>(story.cast[id].portraits || []).length);
+  beats.push({index:beats.length,start:T.outro_start,chapter:'',colorName:palette[beats.length % palette.length],
+    lines:[],mentions:{badges:outroCast ? [{id:outroCast,at:T.outro_start}] : [],pictures:[]},areaHeight:880,outro:true});
+  for (const beat of beats) {
+    beat.colors = HEADLINE_COLORS[beat.colorName];
+    const block = document.createElement('div'); block.className = 'headline-block'; block.style.background = beat.colors.background; world.appendChild(block); beat.block = block;
+    if (!beat.outro) { // a faint beat number fills the foot of the block
+      const ghost = document.createElement('div'); ghost.className = 'headline-ghost';
+      ghost.textContent = String(beat.index+1).padStart(2,'0'); ghost.style.color = beat.colors.text; block.appendChild(ghost);
+    }
+    if (beat.chapter) {
+      const chapter = document.createElement('div'); chapter.className = 'headline-chapter';
+      chapter.textContent = String(beat.index+1).padStart(2,'0') + '  ' + beat.chapter.toUpperCase();
+      Object.assign(chapter.style,{background:beat.colors.accent,color:beat.colors.accent === INK ? CREAM : INK}); block.appendChild(chapter);
+    }
+    for (const line of beat.lines) {
+      const type = document.createElement('div'); type.className = 'headline-type'; type.style.height = beat.areaHeight+'px';
+      const inner = document.createElement('div'); Object.assign(inner.style,{transform:`scale(${line.fit.scale})`,transformOrigin:'0 0'}); type.appendChild(inner);
+      line.nodes = line.fit.words.map(word => {
+        const span = document.createElement('span'); span.className = 'headline-word'; span.textContent = word.text;
+        Object.assign(span.style,{left:word.x+'px',top:word.y+'px',fontSize:line.fit.size+'px',lineHeight:'.98',visibility:'hidden',
+          color:/\d/.test(word.text) ? beat.colors.accent : beat.colors.text,transform:'scale(1)'}); inner.appendChild(span); return span;
+      });
+      block.appendChild(type); line.element = type;
+    }
+    beat.badgeNodes = {};
+    for (const event of beat.mentions.badges) if (!beat.badgeNodes[event.id]) beat.badgeNodes[event.id] = headlineBadge(story.cast[event.id],portraits,block);
+    beat.pictureLayer = svgEl('svg',{class:'headline-picture',viewBox:`0 0 ${W} ${H}`},block);
+    beat.pictureGroup = svgEl('g',{},beat.pictureLayer);
+    if (beat.outro) {
+      const sticker = document.createElement('div'); sticker.className = 'sticker'; sticker.textContent = 'made with zing';
+      Object.assign(sticker.style,{position:'absolute',left:'90px',top:'210px',fontSize:'90px',background:beat.colors.accent,
+        color:beat.colors.accent === INK ? CREAM : INK,transform:'rotate(-3deg)'}); block.appendChild(sticker);
+      const credits = document.createElement('div'); credits.className = 'credits';
+      Object.assign(credits.style,{position:'absolute',left:'90px',top:'500px',width:'900px',fontSize:(story.headline_credit_size || 34)+'px'});
+      credits.innerHTML = (story.headline_credits || []).map(line=>'<span>'+esc(line)+'</span>').join('<br>'); block.appendChild(credits);
+      // The full-width card stays above the badge even with a long source list.
+      const height = credits.scrollHeight, available = outroCast ? 650 : 1300;
+      if (height > available) { credits.style.transformOrigin = '0 0'; credits.style.transform = `scaleY(${available/height})`; }
+      beat.credits = credits;
+    }
+  }
+  const progress = document.createElement('div'); progress.id = 'headline-progress'; document.getElementById('stage').appendChild(progress);
+  DUR = T.duration; HEADLINE = {beats,images,progress}; seekHeadline(0); return true;
+}
+function drawHeadlineFrame(beat,t) {
+  const frame = headlineFrame(beat,t);
+  for (const line of beat.lines) {
+    line.element.style.display = line === frame.fitLine ? '' : 'none';
+    if (line !== frame.fitLine) line.nodes.forEach(span => { span.style.visibility = 'hidden'; span.style.transform = 'scale(1)'; });
+  }
+  if (frame.fitLine) frame.fitLine.nodes.forEach((span,i) => {
+    const word = frame.words[i]; span.style.visibility = word.visible ? 'visible' : 'hidden';
+    span.style.color = word.color; span.style.transform = `scale(${word.scale})`;
+  });
+  for (const [id,node] of Object.entries(beat.badgeNodes)) {
+    const badge = frame.badges.find(item=>item.id === id); node.root.style.visibility = badge ? 'visible' : 'hidden';
+    if (!badge) continue;
+    Object.assign(node.root.style,{left:badge.box.left+'px',top:badge.box.top+'px',width:badge.box.width+'px',height:badge.box.height+'px',
+      transform:`scale(${badge.scale})`,zIndex:badge.small ? '1' : '2'});
+    node.face.style.fontSize = (badge.small ? 66 : 130)+'px'; node.tag.style.fontSize = (badge.small ? 20 : 28)+'px';
+    node.tag.style.maxWidth = (badge.small ? 170 : 340)+'px';
+  }
+  beat.pictureLayer.style.visibility = frame.picture ? 'visible' : 'hidden';
+  if (frame.picture) {
+    const picture = frame.picture;
+    if (beat.pictureKey !== picture.id+':'+picture.width) {
+      beat.pictureGroup.innerHTML = PROPS.image({image:picture.id,w:picture.width},HEADLINE.images);
+      beat.pictureKey = picture.id+':'+picture.width;
+    }
+    beat.pictureGroup.setAttribute('transform',`translate(300,1560) rotate(-3) scale(${picture.scale})`);
+  }
+  return frame;
+}
+function seekHeadline(t) {
+  if (!HEADLINE) return;
+  const tq = q12(t), state = headlineAt(tq), index = state.beatIndex;
+  const current = HEADLINE.beats[index], p = index ? easeIO((tq-current.start)/.3) : 1;
+  HEADLINE.beats.forEach((beat,i) => {
+    const active = i === index || (i === index-1 && p < 1); beat.block.style.display = active ? '' : 'none';
+    if (!active) return;
+    beat.block.style.transform = `translateY(${i === index ? H*(1-p) : -H*p}px)`;
+    drawHeadlineFrame(beat,i === index ? tq : current.start-1/FPS12);
+  });
+  HEADLINE.progress.style.background = current.colors.accent;
+  HEADLINE.progress.style.transform = `scaleX(${state.progress})`;
+  window.headlineState = state;
+}
+async function build(story,T,base,vocabulary) {
+  const look = story.look || 'cutout';
+  if (!Object.prototype.hasOwnProperty.call(LOOKS,look)) throw new Error('Unknown story look '+look+'. Valid looks: '+Object.keys(LOOKS).join(', '));
+  if (vocabulary) for (const key of ['looks','headline_colors']) {
+    if (vocabulary[key] && JSON.stringify([...vocabulary[key]].sort()) !== JSON.stringify([...window.storyVocabulary[key]].sort()))
+      throw new Error('story vocabulary differs for '+key);
+  }
+  CURRENT_LOOK = look; HEADLINE = null; window.headlineState = null;
+  const viewport = document.querySelector('.directed-viewport');
+  if (viewport) { viewport.parentElement.insertBefore(document.getElementById('world'),viewport); viewport.remove(); }
+  COMIC = null; DIRECTED = null; SCRAPBOOK = null; window.comicState = null; window.scrapbookState = null;
+  const progress = document.getElementById('headline-progress'); if (progress) progress.remove();
+  document.getElementById('stage').className = 'look-'+look;
+  return LOOKS[look].build(story,T,base,vocabulary);
+}
+function seek(t) { return LOOKS[CURRENT_LOOK].seek(t); }
+window.headlineAt = headlineAt; window.headlineMatch = headlineMatch;
 window.build = build; window.seek = seek; window.cueTime = cueTime;
 </script>
 </body></html>

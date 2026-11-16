@@ -13,6 +13,7 @@ VOCABULARY = json.loads(data_path("vocabulary.json").read_text(encoding="utf-8")
 CARD_KINDS = tuple(VOCABULARY["cards"])
 PROPS = tuple(VOCABULARY["props"])
 POSES = tuple(VOCABULARY["poses"])
+LOOKS = tuple(VOCABULARY["looks"])
 ID = re.compile(r"[a-z][a-z0-9_-]{0,59}\Z")
 NUMBER = r"(?:\d+(?:\.\d*)?|\.\d+)"
 CUE_SUFFIX = re.compile(rf"(?::(\d+))?(?::({NUMBER}))?(?::?([+-]{NUMBER}))?\Z")
@@ -92,7 +93,8 @@ def local_photo(directory: Path, name: str) -> Path:
     return target
 
 
-def check(story, directory: Path | None = None, *, timings: dict | None = None) -> list[str]:
+def check(story, directory: Path | None = None, *, timings: dict | None = None,
+          look: str | None = None) -> list[str]:
     """Collect all independent problems, including malformed nested objects."""
     errors: list[str] = []
     provided_timings = timings
@@ -134,7 +136,9 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None) 
         if not isinstance(value, str) or value not in choices:
             err(where, f"unknown value {value!r}; choose from {', '.join(choices)}")
 
-    s = obj(story, "story", "schema_version slug topic handle cast beats panels sources outro captions sfx music images")
+    s = obj(story, "story", "schema_version slug topic handle cast beats panels sources outro captions sfx music images look")
+    chosen_look = look if look is not None else s.get("look", "cutout")
+    choice(chosen_look, LOOKS, "look")
     for flag in ("captions", "sfx"):
         if flag in s and type(s[flag]) is not bool:
             err(flag, "must be a boolean")
@@ -222,7 +226,10 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None) 
         where = f"images.{ident}"
         if not isinstance(ident, str) or not ID.fullmatch(ident):
             err(where, "use a lowercase ID (letters, digits, - and _)")
-        image = obj(raw, where, "path credit license source_url cut box")
+        image = obj(raw, where, "path credit license source_url cut box keywords")
+        if "keywords" in image:
+            for index, keyword in enumerate(seq(image["keywords"], where + ".keywords", 1)):
+                text(keyword, where + f".keywords[{index}]", 60)
         for key, limit in (("path", 240), ("credit", 120), ("license", 100)):
             text(image.get(key), where + "." + key, limit)
         from .images import image_errors
@@ -240,7 +247,9 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None) 
     ids, timed, words, spoken = [], [], 0, 0
     for i, raw in enumerate(beats):
         where = f"beats[{i}]"
-        beat = obj(raw, where, "id chapter lines tail")
+        beat = obj(raw, where, "id chapter lines tail color")
+        if "color" in beat:
+            choice(beat["color"], VOCABULARY["headline_colors"], where + ".color")
         ident = beat.get("id")
         if not isinstance(ident, str) or not ID.fullmatch(ident) or ident == "outro":
             err(where + ".id", "use a lowercase ID; outro is reserved")
@@ -269,6 +278,8 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None) 
                       "lines": [{"start": i * 10 + j, "end": i * 10 + j + 1} for j in range(len(lines))]})
     if words > 160 or spoken > 160:
         err("beats", "whole narration is at most 160 words (text and spoken say each count)")
+    if chosen_look == "headline":
+        return errors
     timings = {"beats": timed, "outro_start": len(beats) * 10,
                "duration": len(beats) * 10 + (s.get("outro", 3.2) if finite(s.get("outro", 3.2)) else 3.2)}
 
@@ -356,8 +367,9 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None) 
                 err(awhere + ".flip", "must be a boolean")
             if s.get("captions") is not False and start != "outro":
                 from .layout import head_overlaps_captions
-                if head_overlaps_captions(actor):
-                    err(awhere, "puppet head overlaps the caption band at y=1560..1720; move it up or increase scale")
+                if head_overlaps_captions(actor, look=chosen_look):
+                    subject = "picture card" if chosen_look == "scrapbook" else "puppet head"
+                    err(awhere, f"{subject} overlaps the caption band at y=1560..1720; move it up or increase scale")
             member = cast.get(who, {}) if isinstance(who, str) else {}
             photos = member.get("photos", []) if isinstance(member, dict) else []
             count = len(photos) if isinstance(photos, list) else 0
@@ -435,21 +447,44 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None) 
                    if index + 1 < len(s["panels"]) else timings["duration"])
             try:
                 errors.extend(f"panels[{index}].{problem}" for problem in
-                              panel_overlaps(panel, timings, end=end, cast=cast, directory=directory))
+                              panel_overlaps(panel, timings, end=end, cast=cast, directory=directory, look=chosen_look))
             except StoryError as exc:
                 err(f"panels[{index}]", str(exc))
     return errors
 
 
-def load(directory: Path) -> dict:
+def messages(story, *, look: str | None = None) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Return advice separately from errors so it cannot block a valid story."""
+    warnings, notes = [], []
+    if not isinstance(story, dict) or (look if look is not None else story.get("look", "cutout")) != "headline":
+        return warnings, notes
+    if "panels" in story:
+        notes.append({"path": "panels", "message": "headline ignores panels; it lays out each beat itself"})
+        panels = story["panels"]
+        if isinstance(panels, list) and any(isinstance(panel, dict) and panel.get("from") == "outro" for panel in panels):
+            notes.append({"path": "panels", "message": "headline ignores the supplied outro panel; credits are generated"})
+    beats = story.get("beats", [])
+    for i, beat in enumerate(beats if isinstance(beats, list) else []):
+        lines = beat.get("lines", []) if isinstance(beat, dict) else []
+        for j, line in enumerate(lines if isinstance(lines, list) else []):
+            value = line.get("text") if isinstance(line, dict) else None
+            if isinstance(value, str) and len(value.split()) > 16:
+                warnings.append({"path": f"beats[{i}].lines[{j}].text",
+                                 "message": "more than 16 words makes headline type small; use a shorter line"})
+    return warnings, notes
+
+
+def load(directory: Path, *, look: str | None = None) -> dict:
     path = Path(directory) / "story.json"
     try:
         story = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise StoryError(f"Cannot read story.json: {exc}") from exc
-    errors = check(story, Path(directory))
+    errors = check(story, Path(directory), look=look)
     if errors:
         raise StoryError("\n".join(errors))
+    if look is not None:
+        story["look"] = look
     return story
 
 
