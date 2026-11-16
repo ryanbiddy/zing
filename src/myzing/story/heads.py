@@ -5,6 +5,7 @@ import importlib
 import math
 import re
 import sys
+import tempfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -206,6 +207,12 @@ def cut_head(source: Path, output: Path, *, face=None, detection: dict | None = 
         raise StoryError(f"No head pixels remain in {Path(source).name}. Check its face box.")
     x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
     head, alpha = roi[y0:y1, x0:x1], foreground[y0:y1, x0:x1]
+    canvas = _paper_sticker(head, alpha, cv2, np)
+    return _write_sticker(canvas, output, cv2)
+
+
+def _paper_sticker(head, alpha, cv2, np):
+    """Give heads and image cutouts the same faceted white paper edge."""
     scale = HEAD_SIZE / max(head.shape[:2])
     head = cv2.resize(head, None, fx=scale, fy=scale,
                       interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC)
@@ -227,20 +234,29 @@ def cut_head(source: Path, output: Path, *, face=None, detection: dict | None = 
     rgb = np.full((*matte.shape, 3), 250, np.float32)
     rgb[pad:pad + hh, pad:pad + hw] = head
     canvas[..., :3] = (rgb * blend + 250 * (1 - blend)).astype(np.uint8)
+    return canvas
+
+
+def _write_sticker(canvas, output: Path, cv2) -> Path:
+    temporary = None
     try:
         encoded, content = cv2.imencode(".png", canvas)
         if not encoded:
             raise StoryError("OpenCV could not encode the head PNG.")
         output.parent.mkdir(parents=True, exist_ok=True)
-        temporary = output.with_suffix(".png.tmp")
-        temporary.write_bytes(content.tobytes())
+        with tempfile.NamedTemporaryFile(dir=output.parent, prefix=".sticker-", suffix=".png", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(content.tobytes())
         temporary.replace(output)
     except OSError as exc:
         raise StoryError(f"Cannot write head sticker {output.name}: {exc}") from exc
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return output
 
 
-def _write_sheet(directory: Path, records: list[dict]) -> Path:
+def _write_sheet(directory: Path, records: list[dict], *, folder: str = "heads") -> Path:
     """Put each cutout on checks with its cast ID, including all photo variants."""
     try:
         image_api = importlib.import_module("PIL.Image")
@@ -263,11 +279,11 @@ def _write_sheet(directory: Path, records: list[dict]) -> Path:
         font = fonts.truetype(str(data_path("..", "fonts", "ZingCaption-800.ttf")), 24)
         for index, record in enumerate(records):
             x, y = (index % columns) * cell_w, (index // columns) * cell_h
-            with image_api.open(directory / record["head"]) as opened:
+            with image_api.open(directory / record.get("head", record.get("image"))) as opened:
                 head = opened.convert("RGBA")
             head.thumbnail((cell_w - 32, cell_h - 70))
             sheet.alpha_composite(head, (x + (cell_w - head.width) // 2, y + 12 + (cell_h - 70 - head.height) // 2))
-            label = f"{record['cast_id']} / {record['index']}"
+            label = f"{record['cast_id']} / {record['index']}" if "cast_id" in record else record["image_id"]
             label_width = pen.textbbox((0, 0), label, font=font)[2]
             if label_width > cell_w - 16:
                 label_font = fonts.truetype(str(data_path("..", "fonts", "ZingCaption-800.ttf")),
@@ -278,18 +294,21 @@ def _write_sheet(directory: Path, records: list[dict]) -> Path:
             pen.text((x + cell_w // 2, y + cell_h - 24), label, font=label_font,
                      fill=(23, 22, 28, 255), anchor="mm")
         if not records:
-            pen.text((cell_w // 2, cell_h // 2), "No photo heads", font=font,
+            pen.text((cell_w // 2, cell_h // 2), "No photo heads" if folder == "heads" else "No images", font=font,
                      fill=(23, 22, 28, 255), anchor="mm")
-        output = directory / "heads" / "sheet.png"
+        output = directory / folder / "sheet.png"
         output.parent.mkdir(parents=True, exist_ok=True)
-        temporary = output.with_suffix(".png.tmp")
+        temporary = None
         try:
-            sheet.save(temporary, format="PNG")
+            with tempfile.NamedTemporaryFile(dir=output.parent, prefix=".sheet-", suffix=".png", delete=False) as stream:
+                temporary = Path(stream.name)
+                sheet.save(stream, format="PNG")
             temporary.replace(output)
         finally:
-            temporary.unlink(missing_ok=True)
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
     except OSError as exc:
-        raise StoryError("Cannot write heads/sheet.png. Check the head images and output folder.") from exc
+        raise StoryError(f"Cannot write {folder}/sheet.png. Check the images and output folder.") from exc
     return output
 
 

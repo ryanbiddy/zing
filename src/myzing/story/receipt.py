@@ -26,6 +26,15 @@ def write(directory: Path, output: Path) -> Path:
     result = {"voice": {"provider": timings["provider"], "name": timings.get("voice"),
                         "synthetic": timings["provider"] != "lines" or timings.get("synthetic") is True},
               "photos": photos, "sources": story["sources"], "output": file, "duration": timings["duration"]}
+    if story.get("images"):
+        from .images import prepared_path
+
+        result["images"] = [
+            {"image_id": image_id, "path": picture["path"], "image": prepared_path(image_id, picture),
+             "cut": picture.get("cut", "photo"), "credit": picture["credit"],
+             "license": picture["license"], "source_url": picture["source_url"]}
+            for image_id, picture in story["images"].items()
+        ]
     if story.get("music"):
         result["music"] = dict(story["music"])
     path = directory / "story-receipt.json"

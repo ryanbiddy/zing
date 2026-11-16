@@ -92,9 +92,10 @@ def local_photo(directory: Path, name: str) -> Path:
     return target
 
 
-def check(story, directory: Path | None = None) -> list[str]:
+def check(story, directory: Path | None = None, *, timings: dict | None = None) -> list[str]:
     """Collect all independent problems, including malformed nested objects."""
     errors: list[str] = []
+    provided_timings = timings
 
     def err(where, message):
         errors.append(f"{where}: {message}")
@@ -133,7 +134,7 @@ def check(story, directory: Path | None = None) -> list[str]:
         if not isinstance(value, str) or value not in choices:
             err(where, f"unknown value {value!r}; choose from {', '.join(choices)}")
 
-    s = obj(story, "story", "schema_version slug topic handle cast beats panels sources outro captions sfx music")
+    s = obj(story, "story", "schema_version slug topic handle cast beats panels sources outro captions sfx music images")
     for flag in ("captions", "sfx"):
         if flag in s and type(s[flag]) is not bool:
             err(flag, "must be a boolean")
@@ -213,6 +214,28 @@ def check(story, directory: Path | None = None) -> list[str]:
                 for j, value in enumerate(face):
                     num(value, pwhere + f".face[{j}]", 0 if j < 2 else 1, 100000)
 
+    images = s.get("images", {})
+    if not isinstance(images, dict):
+        err("images", "must be an object keyed by image ID")
+        images = {}
+    for ident, raw in images.items():
+        where = f"images.{ident}"
+        if not isinstance(ident, str) or not ID.fullmatch(ident):
+            err(where, "use a lowercase ID (letters, digits, - and _)")
+        image = obj(raw, where, "path credit license source_url cut box")
+        for key, limit in (("path", 240), ("credit", 120), ("license", 100)):
+            text(image.get(key), where + "." + key, limit)
+        from .images import image_errors
+        for problem in image_errors(image):
+            err(where, problem)
+        if isinstance(image.get("path"), str):
+            try:
+                path = local_photo(directory or Path.cwd(), image["path"])
+                if directory is not None and not path.is_file():
+                    err(where + ".path", "image file is missing")
+            except StoryError as exc:
+                err(where + ".path", str(exc).replace("photo", "image"))
+
     beats = seq(s.get("beats"), "beats", 4, 14)
     ids, timed, words, spoken = [], [], 0, 0
     for i, raw in enumerate(beats):
@@ -246,7 +269,8 @@ def check(story, directory: Path | None = None) -> list[str]:
                       "lines": [{"start": i * 10 + j, "end": i * 10 + j + 1} for j in range(len(lines))]})
     if words > 160 or spoken > 160:
         err("beats", "whole narration is at most 160 words (text and spoken say each count)")
-    timings = {"beats": timed, "outro_start": len(beats) * 10}
+    timings = {"beats": timed, "outro_start": len(beats) * 10,
+               "duration": len(beats) * 10 + (s.get("outro", 3.2) if finite(s.get("outro", 3.2)) else 3.2)}
 
     def cue(value, where):
         try:
@@ -295,7 +319,7 @@ def check(story, directory: Path | None = None) -> list[str]:
                 choice(setting[key], VOCABULARY[choices], where + ".set." + key)
         for j, raw_prop in enumerate(seq(panel.get("props", []), where + ".props")):
             pwhere = f"{where}.props[{j}]"
-            prop = obj(raw_prop, pwhere, "prop x y r fill still n round opacity scale at until anim front rot gap dot night lit drop text stroke seat seat2 leg bench spin")
+            prop = obj(raw_prop, pwhere, "prop x y r fill still n round opacity scale at until anim front rot gap dot night lit drop text stroke seat seat2 leg bench spin image w")
             choice(prop.get("prop"), PROPS, pwhere + ".prop")
             common(prop, pwhere, animations="prop_animations")
             for key in ("still", "round", "front", "night"):
@@ -307,6 +331,12 @@ def check(story, directory: Path | None = None) -> list[str]:
                     num(prop[key], pwhere + "." + key, lo, hi)
             if "text" in prop:
                 text(prop["text"], pwhere + ".text", 8)
+            if prop.get("prop") == "image":
+                if not isinstance(prop.get("image"), str) or prop["image"] not in images:
+                    err(pwhere + ".image", f"unknown image ID {prop.get('image')!r}; add it to images")
+                num(prop.get("w"), pwhere + ".w", 80, 1000)
+            elif "image" in prop:
+                err(pwhere + ".image", "only image props use an image ID")
         for j, raw_actor in enumerate(seq(panel.get("actors", []), where + ".actors")):
             awhere = f"{where}.actors[{j}]"
             actor = obj(raw_actor, awhere, "who x y scale pose poses moves enter head head_at head_scale flip")
@@ -353,8 +383,10 @@ def check(story, directory: Path | None = None) -> list[str]:
                             num(change.get(field), cwhere + "." + field, -1080, 2160)
         for j, raw_card in enumerate(seq(panel.get("cards", []), where + ".cards")):
             cwhere = f"{where}.cards[{j}]"
-            card = obj(raw_card, cwhere, "kind text sub k rows x y w size bg color rot at until anim z from")
+            card = obj(raw_card, cwhere, "kind text sub k rows x y w size bg color rot at until anim z from over_head")
             common(card, cwhere)
+            if "over_head" in card and type(card["over_head"]) is not bool:
+                err(cwhere + ".over_head", "must be a boolean")
             for field, edge in (("x", 1080), ("y", 1920)):
                 if finite(card.get(field)) and card[field] == edge:
                     err(cwhere + "." + field, f"must be less than {edge}, inside the frame")
@@ -386,6 +418,26 @@ def check(story, directory: Path | None = None) -> list[str]:
                     err(cwhere, "card box overlaps the caption band at y=1560..1720; move it above the band")
     if beats and (not starts or starts[0] != 0):
         err("panels", "the first panel must start at the first beat so every beat is covered")
+    if not errors:
+        # Structure checks use placeholder times to validate cue syntax. Once
+        # voice exists, layout must use exactly the times the page will use.
+        actual = provided_timings
+        if actual is None and directory is not None:
+            try:
+                actual = json.loads((Path(directory) / "timings.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+        if actual is not None and not check_timings(s, actual):
+            timings = actual
+        from .layout import panel_overlaps
+        for index, panel in enumerate(s["panels"]):
+            end = (cue_time(s["panels"][index + 1]["from"], timings)
+                   if index + 1 < len(s["panels"]) else timings["duration"])
+            try:
+                errors.extend(f"panels[{index}].{problem}" for problem in
+                              panel_overlaps(panel, timings, end=end, cast=cast, directory=directory))
+            except StoryError as exc:
+                err(f"panels[{index}]", str(exc))
     return errors
 
 
