@@ -14,7 +14,7 @@ changed the meaning. Zing opens a review page on your machine. Nothing is posted
 
 It can also match your clips to a reference video's style and make memes from
 your photos. Measurement and rendering run on your machine; your AI supplies the
-judgment through the CLI or **44 MCP tools**. No Zing API key needed. Needs
+judgment through the CLI or **48 MCP tools**. No Zing API key needed. Needs
 Python, FFmpeg and, for the factory, Node.js 20+.
 
 ## Start here: zing studio
@@ -166,7 +166,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Keep speech complete | [Continuity and ASR repair](https://github.com/ryanbiddy/zing/blob/main/docs/CONTINUITY.md): clause boundaries, source order, bounded timing estimates, text roles and separate render/style status. |
 | Improve vertical drafts | [CLIPQ2](https://github.com/ryanbiddy/zing/blob/main/docs/CLIPQ2.md): close-shot gates, sampled caption bands, display-only stutter cleanup, and NASA re-plan instructions. |
 | Choose and place music | [Music advice and editing](https://github.com/ryanbiddy/zing/blob/main/docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
-| Connect an AI or Uoink | [Connect](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md): 44 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Connect an AI or Uoink | [Connect](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md): 48 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](https://github.com/ryanbiddy/zing/blob/main/docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Check installed capabilities | [Doctor](https://github.com/ryanbiddy/zing/blob/main/docs/DOCTOR.md): optional runtimes, verified models and remedies. |
 | Install, develop and test | [Developer guide](https://github.com/ryanbiddy/zing/blob/main/docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |

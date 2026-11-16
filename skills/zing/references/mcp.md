@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 44 tools. Inspect the connected client's tool schemas for
+The current server has 48 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -37,6 +37,10 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `factory_answer` | Save a validated JSON answer; then call `factory_run` again. |
 | `factory_clip` | Make a clip by hand: start and end seconds, a scout runner-up (`bench`), or new in and out points for an existing clip. The next `factory_run` cuts, plans and renders it. |
 | `factory_edit` | Edit `project`, `clip` synchronously. `action="rate"` takes `verdict="post"`, `"edits"` or `"no"` and optional `why`. `"hook"` takes `text`. `"copy"` takes `field` and `text`. `"visual"` takes `request` and zero-based `index` from status. `"word"` takes `index` and `new`, or `at`, `old` and `new`. `"render"` takes `shape` and `pack`, defaulting to `9x16` and `zing`. Returns changes, fact checks, context flags, receipt and pending tasks. |
+| `story_new` | Create a starter story folder from `directory` and `topic`, with invented cast and a source placeholder that must be replaced before building. Existing files are kept. |
+| `story_check` | Read `directory/story.json`; return `valid` and a `problems` list of objects with `path` and `message`. No media work runs. |
+| `story_build` | Check, narrate, cut heads, render and write a receipt in the background. Accepts provider, voice, speed, lines_dir, out, synthetic_voice and no_sfx. ElevenLabs sends narration text to its service; Kokoro and supplied lines stay local. |
+| `story_status` | Read draft, running, done, failed or interrupted state for a story directory. Done includes video and receipt paths. Failed returns `ok: false` with an error. |
 | `match_start` | Background reference-plus-clips workflow; brief/answers, seed, resume, and explicit URL consent. Local models only; returns a project path for polling. |
 | `match_status` | Actual progress, ready count, comparison, failures and logs. `cancel=true` stops this server's owned match worker and descendants. |
 | `build_profile` | Aggregate studied sources with coverage and unjudged-source warnings. |
@@ -64,6 +68,13 @@ For episode Shorts, call `zing_studio(path="g", answers=...)`. Its answers use
 `project`. Confirm the plan with `zing_studio_run`, then call `factory_run`
 and poll `factory_status` using the returned project. Pending prompts use
 `factory_prompt` and `factory_answer`.
+
+For cutout stories, call `story_new(directory, topic)`, read the bundled prompt
+with `zing story prompt`, and write the sourced story. Replace the source
+placeholder, then repeat `story_check` until valid. Call `story_build` and poll
+`story_status`. A repeated build while that directory is running returns
+already_running. After an interrupted build, start it again. Review the video
+and receipt before posting; Zing does not publish it.
 
 `study_video(..., save_source_to_uoink=True)` asks Uoink to save an HTTP or
 HTTPS source before the study starts. The flag defaults to `False` and has

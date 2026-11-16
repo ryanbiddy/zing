@@ -2108,6 +2108,58 @@ def mcp_sdk_defect() -> str | None:
     return None
 
 
+def h_story_new(directory: str, topic: str) -> dict[str, Any]:
+    """Create a starter story for the calling agent to report and write."""
+    from myzing.story import StoryError, command
+
+    try:
+        result = command.new(Path(directory).expanduser(), topic=topic)
+        return _ok(**result, hint="Replace the source placeholder, write story.json, then call story_check(directory).")
+    except (StoryError, OSError, ValueError) as exc:
+        return _err(str(exc))
+
+
+def h_story_check(directory: str) -> dict[str, Any]:
+    """Return every story problem as a path and a message, with no media work."""
+    from myzing.story import StoryError, command
+
+    try:
+        problems = command.check_json(Path(directory).expanduser())
+        return _ok(valid=not problems, problems=problems)
+    except (StoryError, OSError, ValueError) as exc:
+        return _err(str(exc))
+
+
+def h_story_build(directory: str, provider: Literal["kokoro", "elevenlabs", "lines"] | None = None,
+                  voice: str | None = None, speed: float = 1.0, lines_dir: str | None = None,
+                  out: str | None = None, synthetic_voice: bool = False,
+                  no_sfx: bool = False) -> dict[str, Any]:
+    """Build a checked story in the background, then poll story_status."""
+    from myzing.story import StoryError, jobs
+
+    try:
+        result = jobs.start(Path(directory), provider=provider, voice=voice, speed=speed,
+                            lines_dir=Path(lines_dir).expanduser() if lines_dir is not None else None,
+                            out=Path(out).expanduser() if out is not None else None,
+                            synthetic=synthetic_voice, no_sfx=no_sfx)
+        return _ok(**result, hint="Poll story_status(directory) for the video, receipt or failure.")
+    except (StoryError, OSError, ValueError) as exc:
+        return _err(str(exc))
+
+
+def h_story_status(directory: str) -> dict[str, Any]:
+    """Read build state and finished paths without starting a build."""
+    from myzing.story import StoryError, jobs
+
+    try:
+        result = jobs.status(Path(directory))
+        if result.get("state") == "failed":
+            return {**result, **_err(result.get("error") or "Story build failed.")}
+        return _ok(**result)
+    except (StoryError, OSError, ValueError) as exc:
+        return _err(str(exc))
+
+
 def _tool_annotations():
     from mcp.types import ToolAnnotations
 
@@ -2186,6 +2238,14 @@ def _tool_annotations():
                                           idempotent_hint=True, open_world_hint=False),
         "still_render": ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                         idempotent_hint=True, open_world_hint=False),
+        "story_new": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                      idempotent_hint=False, open_world_hint=False),
+        "story_check": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                        idempotent_hint=True, open_world_hint=False),
+        "story_build": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                        idempotent_hint=False, open_world_hint=True),
+        "story_status": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                         idempotent_hint=True, open_world_hint=False),
         "study_uoink_item": ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                             idempotent_hint=False, open_world_hint=True),  # kept media can fall back to a URL
         "study_video": ToolAnnotations(read_only_hint=False, destructive_hint=True,
@@ -2576,6 +2636,23 @@ def build_server():
         description="Save the JSON answer to a pending factory task (validated; a malformed answer is rejected with the reason). Then call factory_run to continue.",
     )(h_factory_answer)
     tool(name="factory_edit", description=h_factory_edit.__doc__)(h_factory_edit)
+
+    tool(
+        name="story_new",
+        description="Create story.json and README-STORY.txt for a topic, with invented cast and a source placeholder. The calling agent supplies reporting and writes the story; Zing makes no model calls. Existing story files are never replaced.",
+    )(h_story_new)
+    tool(
+        name="story_check",
+        description="Check a local story.json and return valid plus problems as JSON objects with path and message. Source placeholders block building. No narration, image cutting or rendering runs.",
+    )(h_story_check)
+    tool(
+        name="story_build",
+        description="Check, narrate, cut heads and render a local cutout story in the background, with captions, optional sound effects and licensed music. Returns started or already_running; poll story_status. Providers are kokoro, elevenlabs or supplied WAV lines. ElevenLabs sends narration text to its service using the user's configured key. No research model calls, downloads of story assets or publishing.",
+    )(h_story_build)
+    tool(
+        name="story_status",
+        description="Read a story build's draft, running, done, failed or interrupted state, plus finished video and receipt paths. Failed builds return ok=false and an error. Interrupted builds can be started again with story_build.",
+    )(h_story_status)
 
     for prompt_name in available_prompts():
         def _make(nm: str):

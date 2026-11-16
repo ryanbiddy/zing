@@ -2,7 +2,14 @@
 
 Write `story.json` for the user's topic. Aim for about eight beats that a voice
 can read in under a minute. The video has paper sets, cutout puppets, props,
-fact cards, a chapter pill and a generated credit card. There is no footage.
+fact cards, word captions, a chapter pill and a generated credit card.
+There is no footage. Zing makes no research or writing model calls.
+
+Start with `zing story new <dir> --topic "..."` if the folder does not exist.
+It writes a valid draft structure with an invented cast and no photos.
+Replace every draft line and the source marked `Replace this source`.
+The placeholder blocks build. Never turn a draft's invented details into
+claims about real people.
 
 Read the sources first. Use only facts supported by a source in `sources`.
 Never invent quotes. If sources disagree on a detail, leave it out or state
@@ -10,9 +17,14 @@ the uncertainty in plain words. Do not guess. Put a hook in the first line,
 one idea in each beat, and a kicker in the last. Cards must carry the facts
 for someone watching with sound off. Use plain words and no em dashes.
 
-Write the story, run `zing story check <dir>`, fix every problem, and repeat
+Write the story, run `zing story check <dir> --json`, fix every problem, and repeat
 until it passes. Then make narration and review stills. A passing check tests
 the file and its limits, not whether the reporting is true or the art looks good.
+JSON check returns a list of `{path, message}` objects, or `[]` when clear.
+Use `zing story heads <dir> --sheet` to review cut heads together.
+Then use `zing story render <dir> --stills 1,3,5` to inspect the layout,
+and `zing story build <dir>` for the video and receipt. Listen to the result
+and inspect the captions before handing it over for posting.
 
 ## JSON contract
 
@@ -27,6 +39,9 @@ Top-level fields:
 - `panels`: ordered list of paper sets. The first starts at the first beat.
 - `sources`: at least one object with `title` (at most 100 characters) and an HTTP or HTTPS `url`.
 - `outro`: end-card seconds, 1 to 30, default 3.2.
+- `captions`: boolean, default true. Reserve x=0..1080, y=1560..1720 for the caption strip.
+- `sfx`: boolean, default true. Synthesized whooshes, pops and stamp thuds stay below the voice. `--no-sfx` on render or build also turns them off.
+- `music`: optional `{path, credit, license, source_url}` for a supplied local file inside the story folder. Use the photo rights rules: no NC, ND, unknown or editorial-only licenses. Never invent music rights. Music loops or trims to length, fades at both ends and ducks under speech. Its credit goes on the end card and receipt. No music ships with Zing.
 
 Do not add unused fields such as `title`, `credits` or a beat's `set`.
 Unknown fields are errors. Colors use hex notation such as `#FFD21F`.
@@ -47,7 +62,12 @@ Each beat has a unique `id`, optional `chapter` (at most 40 characters),
 optional `say` for pronunciation, and optional `gap` in seconds (default 0.16).
 Both versions of a line must be at most 22 words; both narration totals must
 be at most 160 words. Each text field is also at most 300 characters.
-`say` changes speech only. Gaps and tails run from 0 to 5 seconds.
+`say` reaches every synthetic voice provider and changes speech only. Use it
+to spell out an awkward name or date; keep `text` readable for captions.
+Captions show up to four words at a time, in the bundled ZingCaption font,
+with the current word in yellow. Words divide each line's audio time evenly,
+so inspect and listen rather than assuming forced alignment.
+Gaps and tails run from 0 to 5 seconds.
 The page makes a chapter pill from each nonempty `chapter` during its beat.
 
 A panel has `from`, `set`, and optional lists `props`, `actors`, `cards`.
@@ -135,10 +155,26 @@ Character limits include spaces:
 
 Use short cards. Increasing type size or putting a card near an edge can
 still crop it, so inspect the JPEGs. Keep important facts above the puppets
-and away from the top bar.
+and away from the top bar. Keep all card boxes and puppet heads above the
+caption safe band, x=0..1080 and y=1560..1720. `check` reserves room for
+wrapping, rotation and entry overshoot; capture also checks actual bounds.
+`captions: false` removes the strip and its clearance rules. The outro has
+no spoken captions, so its art can use that band.
 
 Zing adds an outro with photo credits and licenses and the source titles.
 You may supply your own `from: "outro"` panel, but Zing still adds its credits
-card. Do not write a credits card yourself. Kokoro always adds
+card. Do not write a credits card yourself. Kokoro and ElevenLabs always add
 `narration is an AI voice`; that line cannot be hidden. Supplied WAV lines
-use provider `lines` and do not add that line.
+use provider `lines`; pass `--synthetic-voice` if those recordings came from
+a voice model so the credit remains.
+
+`zing story voice <dir> --provider kokoro|elevenlabs|lines` selects a voice
+provider. Otherwise Zing uses `ZING_TTS_PROVIDER`, then Kokoro; `--lines-dir`
+selects supplied recordings. Kokoro uses the existing model discovery and
+path overrides. ElevenLabs needs the user's configured key and voice ID,
+sends spoken text to its service, and can use paid quota. Never ask the
+user to paste a key into chat. One clip per line keeps cues tied to the audio.
+
+MCP clients can call `story_new`, `story_check`, `story_build` and
+`story_status`. Build runs in the background; poll status for completion or
+errors. None of these commands or tools posts the video.

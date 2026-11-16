@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib
 import math
 import re
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -14,6 +15,12 @@ WORK_SIZE = 640
 HAIR_ROOM = 0.62
 SIDE_ROOM = 0.38
 CHIN_ROOM = 0.16
+# A real head sits inside the allowed area. When the cut presses against this
+# share of the area's upper edge, background leaked in, so the cut is retried
+# with less room around the face.
+LEAK_EDGE_SHARE = 0.10
+LEAK_ROOM_STEP = 0.78
+LEAK_MIN_ROOM = 0.55
 
 
 def photo_rights(photo: dict) -> str:
@@ -68,19 +75,41 @@ def _image_tools():
         raise StoryError("Head cutouts need OpenCV and NumPy. Install 'myzing[factory]' and retry.") from exc
 
 
-def _find_face(image, cv2):
+def _find_face(image, cv2, *, detection: dict | None = None):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    for name in ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml"):
+
+    def detect(name, pixels):
         cascade = cv2.CascadeClassifier(str(Path(cv2.data.haarcascades) / name))
         if cascade.empty():
-            continue
-        found = cascade.detectMultiScale(gray, 1.1, 6, minSize=(max(8, gray.shape[1] // 12),) * 2)
-        if len(found):
-            return max(found, key=lambda box: int(box[2]) * int(box[3]))
-    return None
+            return []
+        return [tuple(int(value) for value in box) for box in
+                cascade.detectMultiScale(pixels, 1.1, 6, minSize=(max(8, gray.shape[1] // 12),) * 2)]
+
+    found = detect("haarcascade_frontalface_default.xml", gray)
+    if not found:
+        found = detect("haarcascade_profileface.xml", gray)
+        mirrored = detect("haarcascade_profileface.xml", cv2.flip(gray, 1))
+        found.extend((gray.shape[1] - x - w, y, w, h) for x, y, w, h in mirrored)
+        # A face found in both directions counts once. Keep the larger box.
+        unique = []
+        for box in sorted(found, key=lambda item: item[2] * item[3], reverse=True):
+            x, y, w, h = box
+            duplicate = False
+            for ox, oy, ow, oh in unique:
+                overlap = max(0, min(x + w, ox + ow) - max(x, ox)) * max(0, min(y + h, oy + oh) - max(y, oy))
+                if overlap / (w * h + ow * oh - overlap) > .5:
+                    duplicate = True
+                    break
+            if not duplicate:
+                unique.append(box)
+        found = unique
+    if detection is not None:
+        detection["face_count"] = len(found)
+    return max(found, key=lambda box: box[2] * box[3]) if found else None
 
 
-def cut_head(source: Path, output: Path, *, face=None) -> Path:
+def cut_head(source: Path, output: Path, *, face=None, detection: dict | None = None,
+             room: float = 1.0) -> Path:
     """Cut the face, retain hair, and add a faceted white paper edge."""
     cv2, np = _image_tools()
     try:
@@ -90,7 +119,13 @@ def cut_head(source: Path, output: Path, *, face=None) -> Path:
     if image is None:
         raise StoryError(f"Cannot read photo {Path(source).name}.")
     if face is None:
-        face = _find_face(image, cv2)
+        details = {}
+        face = _find_face(image, cv2, detection=details)
+        if details.get("face_count", 0) > 1:
+            print(f"{Path(source).name}: found {details['face_count']} faces; using the largest. "
+                  "Set photo.face to choose another.", file=sys.stderr)
+            if detection is not None:
+                detection.update(face_count=details["face_count"], face=list(face), selection="largest")
     if face is None:
         raise StoryError(f"No face found in {Path(source).name}. Add a face box [x, y, width, height] to its photo.")
     if (len(face) != 4 or any(isinstance(v, bool) or not isinstance(v, (int, float, np.number))
@@ -101,8 +136,8 @@ def cut_head(source: Path, output: Path, *, face=None) -> Path:
     if x < 0 or y < 0 or w < 2 or h < 2 or x + w > width or y + h > height:
         raise StoryError(f"Face box for {Path(source).name} must fit inside its {width}x{height} image.")
 
-    hx0, hx1 = x - SIDE_ROOM * w, x + w + SIDE_ROOM * w
-    hy0, hy1 = y - HAIR_ROOM * h, y + h + CHIN_ROOM * h
+    hx0, hx1 = x - SIDE_ROOM * room * w, x + w + SIDE_ROOM * room * w
+    hy0, hy1 = y - HAIR_ROOM * room * h, y + h + CHIN_ROOM * h
     margin = 0.35 * w
     rx0, ry0 = int(max(0, hx0 - margin)), int(max(0, hy0 - margin))
     rx1, ry1 = int(min(width, hx1 + margin)), int(min(height, hy1 + margin))
@@ -141,6 +176,18 @@ def cut_head(source: Path, output: Path, *, face=None) -> Path:
                 (int(w * 0.47 * scale), int(h * (0.42 + CHIN_ROOM) * scale)), 0, 0, 180, 255, -1)
     limit[jaw_start:, :] = 0
     foreground = cv2.bitwise_and(foreground, cv2.bitwise_or(limit, jaw))
+    edge = cv2.bitwise_and(limit, cv2.bitwise_not(cv2.erode(limit, np.ones((5, 5), np.uint8))))
+    edge[center[1]:, :] = 0
+    pressed = cv2.countNonZero(cv2.bitwise_and(edge, foreground)) / max(1, cv2.countNonZero(edge))
+    if pressed > LEAK_EDGE_SHARE:
+        if room * LEAK_ROOM_STEP >= LEAK_MIN_ROOM:
+            return cut_head(source, output, face=face, detection=detection, room=room * LEAK_ROOM_STEP)
+        print(f"{Path(source).name}: the background may have leaked into this cut. Check heads/sheet.png "
+              "(zing story heads --sheet), then set a tighter photo.face or use another photo.", file=sys.stderr)
+        if detection is not None:
+            detection["warning"] = "background may have leaked into the cut"
+    if detection is not None and room != 1.0:
+        detection["room"] = round(room, 2)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(foreground)
     if count <= 1:
         raise StoryError(f"No head pixels remain in {Path(source).name}. Check its face box.")
@@ -193,7 +240,60 @@ def cut_head(source: Path, output: Path, *, face=None) -> Path:
     return output
 
 
-def generate(directory: Path, story: dict) -> list[dict]:
+def _write_sheet(directory: Path, records: list[dict]) -> Path:
+    """Put each cutout on checks with its cast ID, including all photo variants."""
+    try:
+        image_api = importlib.import_module("PIL.Image")
+        drawing = importlib.import_module("PIL.ImageDraw")
+        fonts = importlib.import_module("PIL.ImageFont")
+    except (ImportError, OSError) as exc:
+        raise StoryError("Head contact sheets need Pillow. Install 'myzing[factory]' and retry.") from exc
+    from . import data_path
+
+    columns = min(4, max(1, math.ceil(math.sqrt(len(records)))))
+    rows = max(1, math.ceil(len(records) / columns))
+    cell_w, cell_h = 280, 340
+    sheet = image_api.new("RGBA", (columns * cell_w, rows * cell_h), (235, 235, 235, 255))
+    pen = drawing.Draw(sheet)
+    for y in range(0, sheet.height, 20):
+        for x in range(0, sheet.width, 20):
+            if (x // 20 + y // 20) % 2:
+                pen.rectangle((x, y, x + 19, y + 19), fill=(210, 210, 210, 255))
+    try:
+        font = fonts.truetype(str(data_path("..", "fonts", "ZingCaption-800.ttf")), 24)
+        for index, record in enumerate(records):
+            x, y = (index % columns) * cell_w, (index // columns) * cell_h
+            with image_api.open(directory / record["head"]) as opened:
+                head = opened.convert("RGBA")
+            head.thumbnail((cell_w - 32, cell_h - 70))
+            sheet.alpha_composite(head, (x + (cell_w - head.width) // 2, y + 12 + (cell_h - 70 - head.height) // 2))
+            label = f"{record['cast_id']} / {record['index']}"
+            label_width = pen.textbbox((0, 0), label, font=font)[2]
+            if label_width > cell_w - 16:
+                label_font = fonts.truetype(str(data_path("..", "fonts", "ZingCaption-800.ttf")),
+                                            max(8, int(24 * (cell_w - 16) / label_width)))
+            else:
+                label_font = font
+            pen.rectangle((x, y + cell_h - 46, x + cell_w - 1, y + cell_h - 1), fill=(251, 244, 228, 255))
+            pen.text((x + cell_w // 2, y + cell_h - 24), label, font=label_font,
+                     fill=(23, 22, 28, 255), anchor="mm")
+        if not records:
+            pen.text((cell_w // 2, cell_h // 2), "No photo heads", font=font,
+                     fill=(23, 22, 28, 255), anchor="mm")
+        output = directory / "heads" / "sheet.png"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        temporary = output.with_suffix(".png.tmp")
+        try:
+            sheet.save(temporary, format="PNG")
+            temporary.replace(output)
+        finally:
+            temporary.unlink(missing_ok=True)
+    except OSError as exc:
+        raise StoryError("Cannot write heads/sheet.png. Check the head images and output folder.") from exc
+    return output
+
+
+def generate(directory: Path, story: dict, *, sheet: bool = False) -> list[dict]:
     """Write heads/<cast-id>-<index>.png after checking every photo's rights."""
     from .contract import local_photo
 
@@ -214,8 +314,11 @@ def generate(directory: Path, story: dict) -> list[dict]:
     for cast_id, index, photo in jobs:
         source = local_photo(directory, photo["path"])
         head = f"heads/{cast_id}-{index}.png"
-        cut_head(source, directory / head, face=photo.get("face"))
+        detection = {}
+        cut_head(source, directory / head, face=photo.get("face"), detection=detection)
         result.append({"cast_id": cast_id, "index": index, "path": photo["path"], "head": head,
                        "credit": photo["credit"], "license": photo["license"],
-                       "source_url": photo["source_url"], "rights": photo_rights(photo)})
+                       "source_url": photo["source_url"], "rights": photo_rights(photo), **detection})
+    if sheet:
+        _write_sheet(directory, result)
     return result

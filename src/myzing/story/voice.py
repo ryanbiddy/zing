@@ -1,14 +1,15 @@
 """Line-by-line narration with sample-counted pauses and cue times."""
 from __future__ import annotations
 
-import importlib
 import json
 import math
-import os
 import re
-import sys
+import tempfile
 import wave
 from pathlib import Path
+
+from myzing.render.tts import DEFAULT_VOICE, SynthesisRequest, TTSUnavailableError
+from myzing.tts_providers import resolve_tts_provider
 
 from . import StoryError
 
@@ -18,8 +19,9 @@ BEAT_GAP = 0.3
 OUTRO_GAP = 3.2
 KOKORO_SETUP = (
     "Install kokoro-onnx on Python 3.11-3.13 (pip install kokoro-onnx; it is not part of any Zing extra). "
-    "Set ZING_KOKORO_MODEL to the Kokoro .onnx model file and "
-    "ZING_KOKORO_VOICES to the voices .bin file. Both files must already be on disk."
+    "Place kokoro-v1.0.onnx and voices-v1.0.bin in ZING_KOKORO_HOME, or set "
+    "ZING_KOKORO_MODEL and ZING_KOKORO_VOICES to override those files. "
+    "Both files must already be on disk."
 )
 
 
@@ -45,67 +47,61 @@ def _read_line(path: Path) -> tuple[bytes, tuple[int, int, int]]:
     return frames, fmt
 
 
-def _kokoro(voice: str, speed: float):
-    if sys.version_info >= (3, 14):
-        raise StoryError(f"Kokoro does not support Python 3.14 or newer. Use --lines-dir or Python 3.11-3.13. {KOKORO_SETUP}")
-    try:
-        module = importlib.import_module("kokoro_onnx")
-        np = importlib.import_module("numpy")
-    except (ImportError, OSError) as exc:
-        raise StoryError(f"Kokoro is unavailable. {KOKORO_SETUP}") from exc
-    model, voices = os.environ.get("ZING_KOKORO_MODEL"), os.environ.get("ZING_KOKORO_VOICES")
-    if not model or not voices or not Path(model).expanduser().is_file() or not Path(voices).expanduser().is_file():
-        raise StoryError(f"Kokoro model files are missing. {KOKORO_SETUP}")
-    try:
-        engine = module.Kokoro(str(Path(model).expanduser()), str(Path(voices).expanduser()))
-    except Exception as exc:
-        raise StoryError(f"Cannot open the Kokoro model and voices files. {KOKORO_SETUP}") from exc
-
-    def synthesize(line: dict, label: str):
-        try:
-            samples, rate = engine.create(line.get("say", line["text"]), voice=voice, speed=speed, lang="en-us")
-            samples = np.asarray(samples, dtype=np.float32)
-            if samples.ndim != 1 or not np.isfinite(samples).all() or not isinstance(rate, int) or rate <= 0:
-                raise ValueError("invalid samples or sample rate")
-            loud = np.flatnonzero(np.abs(samples) > 0.01)
-            if not len(loud):
-                raise ValueError("the voice returned only silence")
-            # Keep the prototype's small breaths around each spoken line.
-            samples = samples[max(0, loud[0] - int(rate * 0.025)):loud[-1] + int(rate * 0.075)]
-            return samples, (rate, 1, 2)
-        except Exception as exc:
-            raise StoryError(f"Kokoro could not narrate {label}. Check the voice name and model files: {exc}") from exc
-
-    return synthesize, np
-
-
-def generate(directory: Path, story: dict, *, voice: str = "af_heart", speed: float = 1.0,
+def generate(directory: Path, story: dict, *, provider: str | None = None,
+             voice: str | None = None, speed: float = 1.0,
              lines_dir: Path | None = None, synthetic: bool = False) -> dict:
     """Write narration.wav and timings.json; supplied WAVs retain their exact audio."""
     speed = _seconds(speed, "speed")
     if speed == 0:
         raise StoryError("speed must be greater than zero.")
-    provider = "lines" if lines_dir is not None else "kokoro"
-    synthesize, np = (None, None) if lines_dir is not None else _kokoro(voice, speed)
+    chosen = provider.strip().lower() if provider is not None else None
+    if lines_dir is not None:
+        if chosen not in (None, "lines"):
+            raise StoryError("--lines-dir requires --provider lines; omit --lines-dir to synthesize speech.")
+        chosen = "lines"
+    if chosen == "lines" and lines_dir is None:
+        raise StoryError("--provider lines requires --lines-dir with one WAV per line.")
+    engine, used_voice = None, None
+    if chosen != "lines":
+        try:
+            engine = resolve_tts_provider(chosen)
+        except TTSUnavailableError:
+            raise StoryError("Cannot select the narration provider. Use kokoro, elevenlabs or lines; "
+                             "check ZING_TTS_PROVIDER if --provider is omitted.") from None
+        chosen = "kokoro" if engine.name == "kokoro-onnx" else engine.name
+        used_voice = voice if voice is not None else DEFAULT_VOICE
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
     clips, fmt = [], None
-    for beat in story["beats"]:
-        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", beat["id"]):
-            raise StoryError("Beat ids must start with a letter and use only letters, numbers, '_' or '-'.")
-        for index, line in enumerate(beat["lines"]):
-            label = f"{beat['id']}-{index}"
-            data, current = (_read_line(Path(lines_dir) / f"{label}.wav") if lines_dir is not None
-                             else synthesize(line, label))
-            if fmt is not None and current != fmt:
-                raise StoryError(f"{label}: all line WAVs must use the same sample rate, channel count and bit depth.")
-            fmt = current
-            clips.append(data)
+    with tempfile.TemporaryDirectory(prefix=".story-voice-", dir=directory) as temporary:
+        for beat in story["beats"]:
+            if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", beat["id"]):
+                raise StoryError("Beat ids must start with a letter and use only letters, numbers, '_' or '-'.")
+            for index, line in enumerate(beat["lines"]):
+                label = f"{beat['id']}-{index}"
+                if engine is None:
+                    line_path = Path(lines_dir) / f"{label}.wav"
+                else:
+                    line_path = Path(temporary) / f"{label}.wav"
+                    request = SynthesisRequest(text=line.get("say", line["text"]),
+                                               voice=voice if voice is not None else DEFAULT_VOICE,
+                                               speed=speed)
+                    try:
+                        result = engine.synthesize(request, line_path)
+                    except Exception:
+                        # Provider errors can contain HTTP response bodies. Never echo them or keys.
+                        setup = (KOKORO_SETUP if chosen == "kokoro" else
+                                 "Check ELEVENLABS_API_KEY, ZING_ELEVENLABS_VOICE, the voice ID and service access.")
+                        raise StoryError(f"{chosen} could not narrate {label}. {setup}") from None
+                    used_voice = result.voice
+                data, current = _read_line(line_path)
+                if fmt is not None and current != fmt:
+                    raise StoryError(f"{label}: all line WAVs must use the same sample rate, channel count and bit depth.")
+                fmt = current
+                clips.append(data)
     if fmt is None:
         raise StoryError("The story has no lines to narrate.")
     rate, channels, width = fmt
-    if np is not None:
-        peak = max(float(np.max(np.abs(clip))) for clip in clips)
-        clips = [(clip * (0.89 / peak) * 32767).astype("<i2").tobytes() for clip in clips]
-
     frame_size = channels * width
     silence = bytes([128]) * frame_size if width == 1 else bytes(frame_size)
     chunks, beats, cursor, clip_index = [], [], 0, 0
@@ -135,10 +131,8 @@ def generate(directory: Path, story: dict, *, voice: str = "af_heart", speed: fl
     outro_start = timestamp()
     pause(story.get("outro", OUTRO_GAP), "outro")
     timings = {"duration": timestamp(), "outro_start": outro_start, "beats": beats,
-               "provider": provider, "voice": voice if provider == "kokoro" else None,
-               "synthetic": provider == "kokoro" or bool(synthetic)}
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
+               "provider": chosen, "voice": used_voice,
+               "synthetic": chosen != "lines" or bool(synthetic)}
     wav_tmp, json_tmp = directory / "narration.wav.tmp", directory / "timings.json.tmp"
     try:
         with wave.open(str(wav_tmp), "wb") as audio:

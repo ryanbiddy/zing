@@ -34,7 +34,7 @@ Zing is a Python package with no app to list.
 | Name | Zing |
 | Repository | https://github.com/ryanbiddy/zing |
 | Website | https://myzing.app |
-| Short description | Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools. Release candidate. |
+| Short description | Local clipping factory. Episodes become Shorts with receipts. 48 MCP tools. Release candidate. |
 | Tags | video-editing, ffmpeg, captions, shorts, local-first, python, release-candidate |
 | Logo | The 400x400 PNG from the Charge Z brand handoff (not in this repository yet) |
 | Install line | `pipx install "myzing[all]==1.0.0rc1"` or `uv tool install "myzing[all]==1.0.0rc1"`, then `zing serve-mcp`. |
@@ -50,7 +50,7 @@ Long description
 > context check asks whether the cut changes the meaning. A review page brings
 > the clips and checks together. Nothing is posted.
 >
-> Zing 1.0.0rc1 is a release candidate with 44 MCP tools. Install with
+> Zing 1.0.0rc1 is a release candidate with 48 MCP tools. Install with
 > `pipx install "myzing[all]==1.0.0rc1"` or `uv tool install "myzing[all]==1.0.0rc1"`.
 > Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge. Run
 > `zing factory setup` to install the Node sidecar.
@@ -174,7 +174,7 @@ Destination: https://cursor.directory
 
 Short description
 
-> Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools.
+> Local clipping factory. Episodes become Shorts with receipts. 48 MCP tools.
 > Release candidate.
 
 Long description
@@ -182,7 +182,7 @@ Long description
 > Zing turns a long episode into a pack of Shorts locally. Each receipt lists
 > what the clip adds with sources and licenses. A separate context check asks
 > whether the cut changes the meaning. Review the clips and checks on a review
-> page. Nothing is posted. Version 1.0.0rc1 is a release candidate with 44 MCP tools.
+> page. Nothing is posted. Version 1.0.0rc1 is a release candidate with 48 MCP tools.
 > Install with `pipx install "myzing[all]==1.0.0rc1"`, then run `zing factory setup`.
 > Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge.
 > Works with Uoink to reuse saved media. Uoink is optional.
@@ -202,7 +202,7 @@ Repository: `https://github.com/ryanbiddy/zing`.
 
 Short description
 
-> Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools.
+> Local clipping factory. Episodes become Shorts with receipts. 48 MCP tools.
 > Release candidate.
 
 Long description
@@ -211,7 +211,7 @@ Long description
 > lists what the clip adds with sources and licenses. A separate context check
 > asks whether the cut changes the meaning. The review page shows the clips
 > and checks. Nothing is posted. Version 1.0.0rc1 is a release candidate with
-> 44 MCP tools. Install with `pipx install "myzing[all]==1.0.0rc1"`, then run
+> 48 MCP tools. Install with `pipx install "myzing[all]==1.0.0rc1"`, then run
 > `zing factory setup`. Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge.
 > Works with Uoink to reuse saved media. Uoink is optional.
 
@@ -230,7 +230,7 @@ Description
 > Zing turns a long episode into a pack of Shorts locally. Each receipt lists
 > what the clip adds with sources and licenses. A separate context check asks
 > whether the cut changes the meaning. Inspect the clips on a review page.
-> Nothing is posted. Version 1.0.0rc1 is a release candidate with 44 MCP tools.
+> Nothing is posted. Version 1.0.0rc1 is a release candidate with 48 MCP tools.
 > Install with `pipx install "myzing[all]==1.0.0rc1"`, then run `zing factory setup`.
 > Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge.
 > Works with Uoink to reuse saved media. Uoink is optional.
@@ -261,7 +261,7 @@ Paste-ready body
 > receipt lists what the clip adds with sources and licenses. A separate context
 > check asks whether the cut changes the meaning. Inspect the clips and checks
 > on a review page. Nothing is posted. Zing 1.0.0rc1 is a release candidate with
-> 44 MCP tools.
+> 48 MCP tools.
 >
 > Install with `pipx install "myzing[all]==1.0.0rc1"` and start `zing serve-mcp`.
 > Needs Python 3.11+, FFmpeg, Node.js 20+ and Chrome or Edge. Run
@@ -283,7 +283,7 @@ registry. After `io.github.ryanbiddy/zing` is published there, ask in
 
 > Hi! Could `io.github.ryanbiddy/zing` be onboarded to the GitHub MCP Registry?
 > It's published in the official MCP Registry. Zing 1.0.0rc1 is a release candidate
-> with 44 MCP tools. Its local clipping factory turns a long episode into a pack
+> with 48 MCP tools. Its local clipping factory turns a long episode into a pack
 > of Shorts. Each receipt lists what the clip adds with sources and licenses.
 > A separate context check asks whether the cut changes the meaning. The clips
 > come with a review page. Nothing is posted.
@@ -301,7 +301,7 @@ Destination: https://mcp.so (web form; find its submit page). Paste:
 
 - **Name:** Zing
 - **URL:** https://github.com/ryanbiddy/zing
-- **Short description:** Local clipping factory. Episodes become Shorts with receipts. 44 MCP tools. Release candidate.
+- **Short description:** Local clipping factory. Episodes become Shorts with receipts. 48 MCP tools. Release candidate.
 - **Description:** Use the long description above.
 - **Transport:** stdio
 - **Tags:** video-editing, ffmpeg, captions, shorts, local-first, python, release-candidate
@@ -312,7 +312,8 @@ Status: **NOT SUBMITTED**
 
 The package is `plugins/hermes-zing` in this repository. It passed
 `hermes plugins validate` in an isolated Hermes 0.23 home, and Hermes connected
-to Zing and registered all 44 tools. The catalog entry is one file,
+to Zing and registered the full surface in that check (tool count: 44).
+The catalog entry is one file,
 `plugin-catalog/zing.yaml`, in a PR to
 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent). The
 repository owner opens it (catalog rule 5). Pin `sha` to the full commit that
@@ -338,7 +339,7 @@ Destination: https://github.com/punkpeye/awesome-mcp-servers
 Category: Multimedia Process. Proposed entry:
 
 ```markdown
-- [ryanbiddy/zing](https://github.com/ryanbiddy/zing) 🐍 🏠 - Release candidate with 44 MCP tools. A long episode becomes a pack of Shorts locally. Each receipt lists what the clip adds with sources and licenses. A separate context check tests whether the cut changes meaning. Includes a review page. Nothing is posted. Install `pipx install "myzing[all]==1.0.0rc1"` and run `zing factory setup`. Needs Python, FFmpeg, Node.js 20+ and Chrome or Edge.
+- [ryanbiddy/zing](https://github.com/ryanbiddy/zing) 🐍 🏠 - Release candidate with 48 MCP tools. A long episode becomes a pack of Shorts locally. Each receipt lists what the clip adds with sources and licenses. A separate context check tests whether the cut changes meaning. Includes a review page. Nothing is posted. Install `pipx install "myzing[all]==1.0.0rc1"` and run `zing factory setup`. Needs Python, FFmpeg, Node.js 20+ and Chrome or Edge.
 ```
 
 Add OS emoji only for platforms tested on release day. The maintainer asked

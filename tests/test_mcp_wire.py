@@ -57,7 +57,8 @@ def assert_wire(actual, expected):
         actual["result"]["tools"] = [without_protect(t) for t in actual["result"]["tools"]
                                      if t["name"] not in {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments",
                                                          "factory_new", "factory_run", "factory_status", "factory_prompt",
-                                                         "factory_answer", "factory_clip", "factory_edit"}]
+                                                         "factory_answer", "factory_clip", "factory_edit",
+                                                         "story_new", "story_check", "story_build", "story_status"}]
         for tool in actual["result"]["tools"]:
             # Tool hints are new metadata; test_mcp_annotations.py pins their values.
             hints = tool.pop("annotations")
@@ -125,7 +126,8 @@ def test_sdk1_fixture_provenance():
     assert len(tools) == 32
     assert {tool["name"] for tool in tools} == EXPECTED_TOOLS - {"music_check", "zing_explain", "zing_studio", "zing_studio_run", "zing_moments",
                                                                  "factory_new", "factory_run", "factory_status", "factory_prompt", "factory_answer",
-                                                                 "factory_clip", "factory_edit"}
+                                                                 "factory_clip", "factory_edit",
+                                                                 "story_new", "story_check", "story_build", "story_status"}
     assert len(GOLDEN[3]["response"]["result"]["prompts"]) == 5
 
 
