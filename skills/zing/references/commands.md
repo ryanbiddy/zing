@@ -48,6 +48,7 @@ Node 20+, the sidecar or a browser is missing or unusable.
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
 | `zing factory` | `setup` (install the pinned Node sidecar), `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (lists `desk` (the default), `editorial` and `newsroom` looks with still cameras and a fixed caption band, plus `zing`, `newsdesk`, `swiss`, `headline`, `documentary` and `launch`; pick one with `--pack`; `--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
 | `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. YouTube uploads and owner analytics need a connection. Publishing defaults to off. |
+| `zing story` | Build a narrated paper-cutout video from a local `story.json`: `check`, `voice`, `heads`, `render`, `build`. No source footage, downloads or publishing. |
 | `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
@@ -71,6 +72,33 @@ Node 20+, the sidecar or a browser is missing or unusable.
 | `zing serve-mcp` | Local stdio server; `--print-config` prints client setup. |
 | `zing from-uoink` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
 | `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
+
+## Cutout stories
+
+```sh
+zing story check ./story
+zing story voice ./story --voice af_heart --speed 1
+zing story voice ./story --lines-dir ./recorded-lines
+zing story heads ./story
+zing story render ./story --stills 1,4,8
+zing story render ./story --out ./story/final.mp4
+zing story build ./story --lines-dir ./recorded-lines
+```
+
+`story.json` holds 4 to 14 beats, cast, paper sets, props, cards and source
+links. Each line is at most 22 words; narration totals at most 160 words.
+The writing prompt is bundled at `_data/story/prompts/story.md`. Write,
+check, fix and repeat before generating media. Read the full contract in
+[Cutout stories](https://github.com/ryanbiddy/zing/blob/main/docs/STORY.md).
+
+Kokoro needs `kokoro-onnx` installed separately and local files named by
+`ZING_KOKORO_MODEL` and `ZING_KOKORO_VOICES`. Supplied recordings need no voice
+model: name PCM WAVs `<beat-id>-<line-index>.wav`, starting at zero.
+Rendering uses the factory sidecar, FFmpeg and the existing bundled fonts.
+Every cast photo needs a credit, a cleared or attribution license, and a
+source URL. No NC or ND photos. Missing photos use paper heads with initials.
+`build` writes a receipt; the end card always lists source and photo credits
+and discloses Kokoro narration as an AI voice. These commands are CLI only.
 
 ## Episode Shorts in studio
 

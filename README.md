@@ -268,3 +268,4 @@ plans use cuts; sparse OCR, font substitutions, sampled face detection and color
 distribution comparisons remain approximations that need review.
 
 Screen recordings: [Screen-demo planning and cursor privacy](https://github.com/ryanbiddy/zing/blob/main/docs/SCREEN-DEMO.md).
+Narrated cutout stories with no source footage: [Cutout stories](https://github.com/ryanbiddy/zing/blob/main/docs/STORY.md).

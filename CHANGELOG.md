@@ -4,11 +4,14 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #592
+Release candidate for Zing v1. These notes cover merged PRs #401 through #596
 on main, newest first.
 
 ### Changes since #452
 
+- Add `zing story` to turn a sourced script into a narrated paper-cutout video.
+  Check the story, use local Kokoro or supplied WAV lines, cut licensed head photos,
+  render MP4s or review stills, and keep source and photo credits in an end card and receipt.
 - Make takeaway text larger, wrap short quotes and shorten list holds. Keep picture
   cards below headlines and reframe moving speakers by hard cut without a punch-in.
 - Add --rank jev. Before the scout reads a transcript, Jev scores every 40-90 second window for

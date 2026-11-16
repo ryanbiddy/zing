@@ -1,0 +1,20 @@
+{
+  "cards": {
+    "sticker": {"text": 32},
+    "pill": {"text": 32},
+    "tag": {"text": 32, "sub": 48},
+    "note": {"text": 90, "k": 40},
+    "sign": {"text": 32, "sub": 40},
+    "doc": {"text": 32, "k": 48, "sub": 40},
+    "stamp": {"text": 24},
+    "plaque": {"text": 48, "sub": 120},
+    "credits": {"line": 160},
+    "list": {"row": 32, "k": 40, "rows": 5}
+  },
+  "props": ["blob", "dots", "window", "skyline", "lamp", "sink", "plates", "bubbles", "crt", "calendar", "cube", "chip", "cup", "pancakes", "booth", "table", "garage", "tree", "cross", "star"],
+  "poses": ["idle", "present", "point", "up", "wave", "think", "shrug", "cheer", "table", "carry", "hip"],
+  "wall_patterns": ["tiles", "stripes", "check"],
+  "floor_patterns": ["check", "planks"],
+  "animations": ["pop", "drop", "stamp", "slide"],
+  "prop_animations": ["pop", "drop"]
+}
