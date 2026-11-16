@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import copy
 import json
-import re
 
 import pytest
 
@@ -191,7 +190,7 @@ def test_bad_cues_are_errors(cue):
 
 def test_page_and_python_agree_on_vocabulary_and_cues():
     page = data_path("cutout.html").read_text(encoding="utf-8")
-    script = re.search(r"<script>(.*?)</script>", page, re.S).group(1)
+    script = page.split("<script>", 1)[1].rsplit("</script>", 1)[0]
     program = "global.window={};\n" + script + "\nconsole.log(JSON.stringify({v:window.storyVocabulary,t:INPUT.cues.map(c=>cueTime(c,INPUT.timings))}));"
     program = program.replace("INPUT", json.dumps({"cues": [c for c, _ in CUES], "timings": timings()}))
     result = node(program)

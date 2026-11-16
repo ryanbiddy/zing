@@ -66,6 +66,8 @@ def photo(tmp_path):
 
 
 def test_explicit_box_produces_transparent_corners_and_opaque_center(tmp_path, photo):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
     story = {"cast": {"mira": {"name": "Mira Vale", "photos": [photo]}, "sol": {"name": "Sol Reed"}}}
     records = heads.generate(tmp_path, story)
     output = tmp_path / "heads/mira-0.png"
@@ -121,12 +123,16 @@ def test_bad_face_box_has_a_plain_error(tmp_path, photo, face):
 
 
 def test_out_of_bounds_face_is_refused(tmp_path, photo):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
     photo["face"] = [200, 200, 150, 150]
     with pytest.raises(StoryError, match="must fit inside"):
         heads.generate(tmp_path, {"cast": {"mira": {"photos": [photo]}}})
 
 
 def test_missing_face_detector_match_requests_an_explicit_box(tmp_path, photo, monkeypatch):
+    pytest.importorskip("numpy")
+    pytest.importorskip("cv2")
     photo.pop("face")
     monkeypatch.setattr(heads, "_find_face", lambda image, cv2: None)
     with pytest.raises(StoryError, match="Add a face box"):
