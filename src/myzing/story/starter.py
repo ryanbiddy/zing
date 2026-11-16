@@ -1,4 +1,4 @@
-"""Create an editable draft with a source placeholder that blocks rendering."""
+"""Create a cutout draft or a valid fictional headline example."""
 from __future__ import annotations
 
 import json
@@ -8,7 +8,7 @@ from . import StoryError
 from .contract import PLACEHOLDER_SOURCE_URL, check
 
 
-def new(directory: Path, *, topic: str) -> dict:
+def new(directory: Path, *, topic: str, look: str = "cutout") -> dict:
     directory = Path(directory)
     story = {
         "schema_version": 1, "topic": topic, "captions": True, "sfx": True,
@@ -24,6 +24,22 @@ def new(directory: Path, *, topic: str) -> dict:
                     "actors": [{"who": "mira", "x": 320, "pose": "present"}],
                     "cards": [{"kind": "note", "text": "Replace this draft", "x": 80, "y": 220, "at": "hook"}]}],
     }
+    if look != "cutout":
+        story["look"] = look
+    if look == "headline":
+        story.pop("panels")
+        story.pop("captions")
+        story["images"] = {}
+        story["sources"] = [{"title": "Fictional counting example", "url": "https://example.org/story"}]
+        story["beats"] = [
+            {"id": ident, "chapter": chapter, "lines": [{"text": text}]}
+            for ident, chapter, text in (
+                ("hook", "PAPER STARS", "Mira Paper made 3 stars."),
+                ("problem", "ONE MORE", "She folded 1 more."),
+                ("turn", "THE COUNT", "Now she had 4 stars."),
+                ("end", "THE END", "All 4 fit on a string."),
+            )
+        ]
     errors = [error for error in check(story) if not error.startswith("sources[0]: replace this source")]
     if errors:
         raise StoryError("\n".join(errors))
@@ -46,6 +62,23 @@ From this folder, run:
 To use recordings, add --lines-dir ./lines to voice or build.
 Keep cards and puppet heads clear of the caption band, y=1560..1720.
 Build refuses the source placeholder. Review stills and listen before posting.
+"""
+    if look == "headline":
+        readme = """This is a fictional counting example, with an invented cast and no photos.
+It passes check so you can try the look with local line recordings.
+Replace the example and its source with facts you have checked before posting.
+
+From this folder, run:
+  zing story prompt
+  zing story check . --json
+  zing story voice . --lines-dir ./lines
+  zing story heads . --sheet
+  zing story render . --stills 1,2,3
+  zing story build . --lines-dir ./lines
+
+Headline reads beats, cast names in lines and image keywords. It ignores panels
+and captions. Keep lines short, give each one an idea, and write numbers as digits.
+Review stills and listen before posting.
 """
     with targets[0].open("x", encoding="utf-8") as stream:
         stream.write(json.dumps(story, indent=2, ensure_ascii=False) + "\n")

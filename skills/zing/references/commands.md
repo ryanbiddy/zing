@@ -48,7 +48,7 @@ Node 20+, the sidecar or a browser is missing or unusable.
 | `zing study` | Measure a URL/local video; `--raw` adds raw-footage evidence; `--transitions` enables v6. |
 | `zing factory` | `setup` (install the pinned Node sidecar), `new` a project from a local episode (+ optional SRT/VTT), `run` it (host judge writes prompts; `--judge claude` asks Claude Code's CLI and logs cost), `status`, `answer`, `redo` (including `clipNN-context` to repeat a context check), `clip` (a stretch by start and end, or a scout runner-up) and `trim` (new in and out points), `render`, `review`, `approval` (local guest approval HTML with `--out FILE`), `serve` (local review dashboard: rate, see context flags, make clips from the transcript, trim), `learn-style` (a pack from a clip you like, checked against a sample render), `fetch-depth` (optional depth model that moves photos; `--no-parallax` keeps them flat), `fetch-cutout` (`--cutout` stands the speaker in front of pictures), `fetch-upscale` (sharper small photos), `packs` (lists `desk` (the default), `editorial` and `newsroom` looks with still cameras and a fixed caption band, plus `zing`, `newsdesk`, `swiss`, `headline`, `documentary` and `launch`; pick one with `--pack`; `--check NAME` checks local font and logo files and font families; exits 1 on errors), `doctor`. Nothing is posted. |
 | `zing channels` | Watch sources, advance local projects, check approval, queue clips and make post kits and digests. YouTube uploads and owner analytics need a connection. Publishing defaults to off. |
-| `zing story` | Start and build a narrated paper-cutout video: `new`, `prompt`, `check`, `voice`, `heads`, `images`, `find`, `fetch`, `render`, `build`. No source footage or publishing. |
+| `zing story` | Start and build a narrated video with `cutout`, `headline`, `scrapbook` or `comic`: `new`, `prompt`, `check`, `voice`, `heads`, `images`, `find`, `fetch`, `render`, `build`. `new`, `check`, `heads`, `render` and `build` accept `--look NAME`. No source footage or publishing. |
 | `zing playbook` | Scout niches and view growth from public metadata. List/import contrasting Shorts, measure local media, request blind Gemini notes, and distill patterns. Video fetching requires `measure --download`; `notes` sends public URLs using `GEMINI_API_KEY`. CLI only; no automatic publication. |
 | `zing fonts` | List/fetch the pinned font library or rank candidates from saved caption geometry; matching stays offline. |
 | `zing project` | Init, scan, status, find-reference, resolve-reference and study-reference; verified local reuse without web fallback. |
@@ -73,10 +73,11 @@ Node 20+, the sidecar or a browser is missing or unusable.
 | `zing from-uoink` | Open a saved Uoink item in a factory project. Probe support, reuse its project and serve the review page until idle. |
 | `zing connect` | List agent apps or print a config with `zing connect CLIENT`. `--json` includes location, notes and sources. `--deeplink` prints a Cursor or VS Code install link. Nothing is written. |
 
-## Cutout stories
+## Stories
 
 ```sh
 zing story new ./story --topic "a paper moon"
+zing story new ./headline-story --topic "a paper moon" --look headline
 zing story prompt
 zing story check ./story --json
 zing story voice ./story --provider kokoro --voice af_heart --speed 1
@@ -88,15 +89,46 @@ zing story images ./story --sheet
 zing story render ./story --stills 1,4,8
 zing story render ./story --out ./story/final.mp4
 zing story build ./story --lines-dir ./recorded-lines
+zing story build ./story --look headline --lines-dir ./recorded-lines
 ```
 
-`story.json` holds 4 to 14 beats, cast, paper sets, props, cards and source
-links. Each line is at most 22 words; narration totals at most 160 words.
-`new` creates a starter and README-STORY.txt. Replace its source placeholder
-before building. `prompt` prints the bundled writing instructions. Write,
-check, fix and repeat before generating media. `check --json` prints a list
-of objects with `path` and `message`. Read the full contract in
-[Cutout stories](https://github.com/ryanbiddy/zing/blob/main/docs/STORY.md).
+`story.json` holds 4 to 14 beats, cast and source links, plus pictures and
+look-specific fields. Each line is at most 22 words; narration totals at most
+160 words. `new` creates a starter and README-STORY.txt. The default `cutout`
+starter has a source placeholder that must be replaced before building.
+The `headline` starter is a valid fictional example with no panels. Replace
+its sample lines and source for reporting. `prompt` prints the bundled
+writing instructions. Write, check, fix and repeat before generating media.
+
+`cutout` is the default `look`. Use `headline` for claims, numbers, quick
+explainers and stories with no good photo. Use `cutout` for people doing
+things in places, with paper sets, props and cards. Use `scrapbook` for pictures
+and documents, or when a face photo is hard to cut. Use `comic` for events
+with a punchline. Vary looks across a series.
+`new --look NAME` writes the choice; `check`, `heads`, `render` and `build` accept the
+same flag as an override for that run without changing the file.
+When switching from portraits to comic, run `heads --look comic --sheet`
+before `render --look comic`. `build --look comic` prepares the cuts too.
+
+`scrapbook` and `comic` reuse the same directed panels as `cutout`.
+Scrapbook uses taped portraits and moves down a paper page. Its checks reserve
+the photo card's box instead of the puppet head. Comic puts cutout scenes in
+bordered frames on one page; the camera opens wide, then travels from frame
+to frame at 0.9 scale. Its chapters sit in yellow frame captions. The top
+chips and spoken captions stay full size in screen space.
+
+`headline` reads beats, cast names in line `text`, image `keywords` and
+sources. Short lines work best; more than 16 words gets a warning. Digits
+take the accent colour. Names trigger portrait badges; keywords trigger
+pictures. `panels`, including custom outros, and `captions` are ignored.
+`check` notes ignored panels and skips panel, overlap and caption-band checks.
+It still checks scripts, sources, rights and timing.
+
+For `cutout` without `--look`, `check --json` keeps its list of path/message
+objects. For another look or an explicit `--look`, it returns `look`, `problems`,
+`warnings` and `notes`, with path/message objects in each list. Only problems
+fail the check. Read the full contract in
+[Stories](https://github.com/ryanbiddy/zing/blob/main/docs/STORY.md).
 
 Voice uses Zing's provider choice by default, or `--provider kokoro`,
 `--provider elevenlabs` or `--provider lines`. `--lines-dir` selects lines.
@@ -110,8 +142,13 @@ starting at zero. `say` changes pronunciation while cards and captions keep
 the line's `text`.
 Rendering uses the factory sidecar, FFmpeg and the existing bundled fonts.
 Every cast photo needs a credit, a cleared or attribution license, and a
-source URL. No NC or ND photos. Missing photos use paper heads with initials.
-`heads --sheet` writes heads/sheet.png for cutout review. Captions show small
+source URL. No NC or ND photos. Missing photos use initials on a paper head or
+badge or taped card. `heads` makes 600x600 portraits for every cast photo and also cuts heads
+for `cutout` and `comic`. `headline` and `scrapbook` need portraits only.
+An explicit `photo.face` lets Pillow make a portrait without
+OpenCV. `heads --sheet` writes heads/sheet.png for portrait and cutout review.
+If a head cut warns about a leaking background, render with `--look scrapbook`
+or `--look headline`, which use the photo as it is. In panel looks, captions show small
 groups of words with the current word in yellow; `captions: false` hides them.
 Keep cards and heads clear of the fixed caption band given in the contract.
 Standing heads cover about y=650 to 1010; put name tags at y=560 or higher.
@@ -127,17 +164,20 @@ adds a cast photo. Missing authors or licenses are refused.
 `fetch` use the network for Wikimedia Commons only. `voice` and `build`
 use the network only when the chosen provider is an online one. Kokoro
 and supplied lines stay local.
-Sound effects follow camera slides and card or prop arrivals. Set `sfx: false`
+Sound effects follow camera slides and card or prop arrivals in panel looks,
+or beat changes and badge or picture arrivals in `headline`. Set `sfx: false`
 or pass `--no-sfx` to render or build to disable them. Optional music has a
 local path, credit, license and source_url, under the photo rights rules.
 No music ships with Zing.
 
-`build` writes a receipt; the end card lists source, photo, image and music credits
+`build` writes a receipt with the look used; the end card lists source, photo, image and music credits
 and discloses every synthetic provider as an AI voice. For supplied synthetic
 lines, pass `--synthetic-voice`. MCP mirrors the workflow through `story_new`,
 `story_check`, `story_build` and `story_status`; builds run in the background.
-The default outro adds a waving photo actor and larger credits when there
-are few lines. Generated credits clear heads in custom outros too.
+The default panel-look outro adds a waving photo actor and larger credits when
+there are few lines. Generated credits clear heads in custom outros too.
+The `headline` outro has a 900 px credits card and the first cast member's
+badge if they have a photo.
 
 ## Episode Shorts in studio
 

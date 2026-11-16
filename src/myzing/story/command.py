@@ -1,4 +1,4 @@
-"""`zing story`: make a narrated paper-cutout video from a local story file."""
+"""`zing story`: make a narrated video from a local story file."""
 from __future__ import annotations
 
 import argparse
@@ -32,19 +32,19 @@ def _voice_options(parser: argparse.ArgumentParser) -> None:
                         help="the supplied recordings are a synthetic voice; keeps the AI voice credit")
 
 
-def check(directory: Path) -> list[str]:
+def check(directory: Path, *, look: str | None = None) -> list[str]:
     """Report every contract error without requiring optional media packages."""
     path = Path(directory) / "story.json"
     try:
         story = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         return [f"cannot read story.json: {exc}"]
-    return contract.check(story, directory=Path(directory))
+    return contract.check(story, directory=Path(directory), look=look)
 
 
-def check_json(directory: Path) -> list[dict[str, str]]:
+def check_json(directory: Path, *, look: str | None = None) -> list[dict[str, str]]:
     result = []
-    for error in check(directory):
+    for error in check(directory, look=look):
         path, separator, message = error.partition(": ")
         if path == "cannot read story.json" or not separator:
             path, message = "story.json", error
@@ -52,19 +52,31 @@ def check_json(directory: Path) -> list[dict[str, str]]:
     return result
 
 
+def check_report(directory: Path, *, look: str | None = None) -> dict:
+    """Include the selected look and advice without changing the error list API."""
+    try:
+        story = json.loads((Path(directory) / "story.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        story = {}
+    chosen = look if look is not None else story.get("look", "cutout") if isinstance(story, dict) else "cutout"
+    warnings, notes = contract.messages(story, look=look)
+    return {"look": chosen, "problems": check_json(directory, look=look), "warnings": warnings, "notes": notes}
+
+
 def build(directory: Path, *, provider: str | None = None, voice: str | None = None, speed: float = 1.0,
           lines_dir: Path | None = None, out: Path | None = None, synthetic: bool = False,
-          no_sfx: bool = False) -> dict:
+          no_sfx: bool = False, look: str | None = None) -> dict:
     from . import heads, images, receipt, render
     from .voice import generate
 
     directory = Path(directory)
-    story = contract.load(directory)
+    story = contract.load(directory, look=look)
     generate(directory, story, provider=provider, voice=voice, speed=speed, lines_dir=lines_dir, synthetic=synthetic)
     heads.generate(directory, story)
     images.generate(directory, story)
-    output = render.render(directory, out=out, **({"no_sfx": True} if no_sfx else {}))
-    receipt_path = receipt.write(directory, output)
+    options = {**({"no_sfx": True} if no_sfx else {}), **({"look": look} if look is not None else {})}
+    output = render.render(directory, out=out, **options)
+    receipt_path = receipt.write(directory, output, look=look)
     return {"rendered": str(output), "receipt": str(receipt_path)}
 
 
@@ -74,16 +86,19 @@ def run(argv: list[str]) -> int:
     new_parser = commands.add_parser("new", help="create a draft for an agent to write")
     new_parser.add_argument("directory", type=Path)
     new_parser.add_argument("--topic", required=True)
+    new_parser.add_argument("--look", choices=contract.LOOKS, default="cutout", help="story look (default: cutout)")
     commands.add_parser("prompt", help="print the bundled story writing prompt")
     check_parser = commands.add_parser("check", help="print every story.json problem")
     check_parser.add_argument("directory", type=Path)
-    check_parser.add_argument("--json", action="store_true", help="print a JSON list of path/message problems")
+    check_parser.add_argument("--json", action="store_true", help="print JSON problems and look advice")
+    check_parser.add_argument("--look", metavar="NAME", help="override the story look for this check")
     voice = commands.add_parser("voice", help="write narration.wav and exact line timings")
     voice.add_argument("directory", type=Path)
     _voice_options(voice)
-    heads = commands.add_parser("heads", help="cut licensed cast photos into head stickers")
+    heads = commands.add_parser("heads", help="prepare cast portraits and the look's head stickers")
     heads.add_argument("directory", type=Path)
     heads.add_argument("--sheet", action="store_true", help="also write heads/sheet.png for review")
+    heads.add_argument("--look", metavar="NAME", help="prepare cast assets for this look without changing the story")
     images = commands.add_parser("images", help="prepare licensed pictures as photos or stickers")
     images.add_argument("directory", type=Path)
     images.add_argument("--sheet", action="store_true", help="also write images/sheet.png for review")
@@ -100,11 +115,13 @@ def run(argv: list[str]) -> int:
     render.add_argument("--out", type=Path, metavar="FILE", help="output video (default <dir>/story.mp4)")
     render.add_argument("--stills", type=_stills, metavar="t1,t2,...", help="write JPEGs at these seconds instead of a video")
     render.add_argument("--no-sfx", action="store_true", help="turn off synthesized sound effects")
+    render.add_argument("--look", metavar="NAME", help="override the story look for this render")
     build_parser = commands.add_parser("build", help="check, voice, heads, images, render and write a receipt")
     build_parser.add_argument("directory", type=Path)
     _voice_options(build_parser)
     build_parser.add_argument("--out", type=Path, metavar="FILE")
     build_parser.add_argument("--no-sfx", action="store_true", help="turn off synthesized sound effects")
+    build_parser.add_argument("--look", metavar="NAME", help="override the story look for this build")
     args = parser.parse_args(argv)
     try:
         if args.command == "prompt":
@@ -126,18 +143,23 @@ def run(argv: list[str]) -> int:
             return 0
         directory = args.directory.expanduser()
         if args.command == "new":
-            result = new(directory, topic=args.topic)
+            result = new(directory, topic=args.topic, look=args.look)
         elif args.command == "check":
+            report = check_report(directory, look=args.look)
+            problems = report["problems"]
             if args.json:
-                problems = check_json(directory)
-                print(json.dumps(problems, indent=2, ensure_ascii=False))
+                # Existing cutout consumers read a bare problem list.
+                result = report if args.look is not None or report["look"] != "cutout" else problems
+                print(json.dumps(result, indent=2, ensure_ascii=False))
                 return 1 if problems else 0
-            problems = check(directory)
+            for channel in ("warnings", "notes"):
+                for item in report[channel]:
+                    print(f"zing story {channel[:-1]}: {item['path']}: {item['message']}", file=sys.stderr)
             if problems:
                 for problem in problems:
-                    print(f"zing story: {problem}", file=sys.stderr)
+                    print(f"zing story: {problem['path']}: {problem['message']}", file=sys.stderr)
                 return 1
-            result = {"ok": True, "story": str(directory / "story.json")}
+            result = {"ok": True, "story": str(directory / "story.json"), "look": report["look"]}
         elif args.command == "voice":
             from .voice import generate
             result = generate(directory, contract.load(directory), provider=args.provider, voice=args.voice, speed=args.speed,
@@ -145,7 +167,7 @@ def run(argv: list[str]) -> int:
                               synthetic=args.synthetic_voice)
         elif args.command == "heads":
             from .heads import generate
-            result = {"heads": generate(directory, contract.load(directory), **({"sheet": True} if args.sheet else {}))}
+            result = {"heads": generate(directory, contract.load(directory, look=args.look), **({"sheet": True} if args.sheet else {}))}
             if args.sheet:
                 result["sheet"] = str(directory / "heads" / "sheet.png")
         elif args.command == "images":
@@ -158,12 +180,14 @@ def run(argv: list[str]) -> int:
             result = fetch(directory, args.title_or_url, args.target)
         elif args.command == "render":
             from .render import render
-            output = render(directory, out=args.out, stills=args.stills, **({"no_sfx": True} if args.no_sfx else {}))
+            options = {**({"no_sfx": True} if args.no_sfx else {}),
+                       **({"look": args.look} if args.look is not None else {})}
+            output = render(directory, out=args.out, stills=args.stills, **options)
             result = {"stills": [str(path) for path in output]} if isinstance(output, list) else {"rendered": str(output)}
         else:
             result = build(directory, provider=args.provider, voice=args.voice, speed=args.speed,
                            lines_dir=args.lines_dir.expanduser() if args.lines_dir else None, out=args.out,
-                           synthetic=args.synthetic_voice, no_sfx=args.no_sfx)
+                           synthetic=args.synthetic_voice, no_sfx=args.no_sfx, look=args.look)
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0
     except subprocess.SubprocessError as exc:

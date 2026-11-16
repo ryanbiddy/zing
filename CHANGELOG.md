@@ -4,7 +4,7 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #598
+Release candidate for Zing v1. These notes cover merged PRs #401 through #599
 on main, newest first.
 
 ### Changes since #452
@@ -26,6 +26,18 @@ on main, newest first.
   narration text with the user's configured key, mark timings synthetic
   and keep the AI voice credit. Kokoro and supplied lines stay local.
   Give the default outro a waving photo actor and larger credits that clear heads.
+  Add a `look` choice, with `cutout` as the default and `headline` for large
+  timed words on colour blocks. Headline needs no panels, brings in portrait
+  badges and keyword pictures, and keeps a full-width credits card. Generate
+  square face portraits without head cuts. Choose the look in a starter or
+  override it for check, render and build; record the choice in the receipt.
+  Add `scrapbook` for taped portraits on a scrolling paper page, without head
+  cuts, and `comic` for a camera that travels between ink-bordered frames.
+  Both reuse cutout's directed panels, props and cards. Check scrapbook photo
+  bounds and keep comic captions full size in screen space.
+  Let `heads --look NAME` prepare cast assets for a render override.
+  Level a tilted face from its eye line before cutting the head, so the cut
+  and the jaw line sit square on it.
 - Make takeaway text larger, wrap short quotes and shorten list holds. Keep picture
   cards below headlines and reframe moving speakers by hard cut without a punch-in.
 - Add --rank jev. Before the scout reads a transcript, Jev scores every 40-90 second window for

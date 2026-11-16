@@ -47,7 +47,7 @@ def start(directory: Path, **options) -> dict:
     with _LOCK:
         if str(directory) in _JOBS:
             return {"directory": str(directory), "status": "already_running"}
-        problems = check_json(directory)
+        problems = check_json(directory, look=options.get("look"))
         if problems:
             raise StoryError("\n".join(f"{problem['path']}: {problem['message']}" for problem in problems))
         _write(directory, {"state": "running"})

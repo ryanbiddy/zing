@@ -1,4 +1,6 @@
 {
+  "looks": ["cutout", "headline", "scrapbook", "comic"],
+  "headline_colors": ["ink", "yellow", "tomato", "cream", "teal", "blue"],
   "cards": {
     "sticker": {"text": 32},
     "pill": {"text": 32},
@@ -17,6 +19,12 @@
   "floor_patterns": ["check", "planks"],
   "animations": ["pop", "drop", "stamp", "slide"],
   "prop_animations": ["pop", "drop"],
+  "picture_geometry": {
+    "width": 250, "height": 310, "top": 720, "default_y": 1562,
+    "portrait_inset": 14, "portrait_size": 222, "tilt": 4, "boil": 0.45,
+    "pose_lean": 5, "hop": 24, "enter_hop": 120, "enter_duration": 0.5,
+    "pose_duration": 0.34, "rock_duration": 0.6, "hop_duration": 0.5, "fps": 12
+  },
   "head_geometry": {
     "width": 300, "max_height": 400, "pivot_y": -520, "photo_bottom": 0.1,
     "default_y": 1562, "blank_bounds": [-122, -842, 255, 316],

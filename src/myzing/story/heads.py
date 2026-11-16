@@ -22,6 +22,10 @@ CHIN_ROOM = 0.16
 LEAK_EDGE_SHARE = 0.10
 LEAK_ROOM_STEP = 0.78
 LEAK_MIN_ROOM = 0.55
+# Level the photo when the eyes sit this many degrees off level. Smaller is noise,
+# larger is a wrong eye pair.
+TILT_MIN = 4.0
+TILT_MAX = 35.0
 
 
 def photo_rights(photo: dict) -> str:
@@ -109,8 +113,39 @@ def _find_face(image, cv2, *, detection: dict | None = None):
     return max(found, key=lambda box: box[2] * box[3]) if found else None
 
 
+def _eye_tilt(image, face, cv2) -> float:
+    """Degrees to turn the photo so the eyes sit level. Zero when unsure."""
+    x, y, w, h = face
+    gray = cv2.cvtColor(image[y:y + int(h * .62), x:x + w], cv2.COLOR_BGR2GRAY)
+    cascade = cv2.CascadeClassifier(str(Path(cv2.data.haarcascades) / "haarcascade_eye.xml"))
+    if cascade.empty():
+        return 0.0
+    eyes = [tuple(int(v) for v in box) for box in
+            cascade.detectMultiScale(gray, 1.1, 6, minSize=(max(6, w // 9),) * 2)]
+    best = None
+    for i, (ax, ay, aw, ah) in enumerate(eyes):
+        for bx, by, bw, bh in eyes[i + 1:]:
+            dx, dy = (bx + bw / 2) - (ax + aw / 2), (by + bh / 2) - (ay + ah / 2)
+            if dx < 0:
+                dx, dy = -dx, -dy
+            # Two eyes: similar size, a believable distance apart, one each side of the middle.
+            if not (.28 * w <= dx <= .62 * w) or min(aw, bw) / max(aw, bw) < .6:
+                continue
+            if (ax + aw / 2 - w / 2) * (bx + bw / 2 - w / 2) >= 0:
+                continue
+            angle = math.degrees(math.atan2(dy, dx))
+            # An impossible angle is a wrong pair; it must not hide a real one.
+            if abs(angle) > TILT_MAX:
+                continue
+            if best is None or aw * bw > best[0]:
+                best = (aw * bw, angle)
+    if best is None or abs(best[1]) < TILT_MIN:
+        return 0.0
+    return best[1]
+
+
 def cut_head(source: Path, output: Path, *, face=None, detection: dict | None = None,
-             room: float = 1.0) -> Path:
+             room: float = 1.0, tilt: float | None = None) -> Path:
     """Cut the face, retain hair, and add a faceted white paper edge."""
     cv2, np = _image_tools()
     try:
@@ -119,6 +154,7 @@ def cut_head(source: Path, output: Path, *, face=None, detection: dict | None = 
         raise StoryError(f"Cannot read photo {Path(source).name}.") from exc
     if image is None:
         raise StoryError(f"Cannot read photo {Path(source).name}.")
+    manual = face is not None
     if face is None:
         details = {}
         face = _find_face(image, cv2, detection=details)
@@ -136,6 +172,16 @@ def cut_head(source: Path, output: Path, *, face=None, detection: dict | None = 
     height, width = image.shape[:2]
     if x < 0 or y < 0 or w < 2 or h < 2 or x + w > width or y + h > height:
         raise StoryError(f"Face box for {Path(source).name} must fit inside its {width}x{height} image.")
+    if tilt is None:
+        # A face box the author supplied is taken as given, with no detector run.
+        tilt = 0.0 if manual else _eye_tilt(image, (x, y, w, h), cv2)
+    if tilt:
+        # Level a tilted head first, so the allowed area and the jaw line sit square on it.
+        turn = cv2.getRotationMatrix2D((x + w / 2, y + h / 2), tilt, 1.0)
+        image = cv2.warpAffine(image, turn, (width, height), flags=cv2.INTER_CUBIC,
+                               borderMode=cv2.BORDER_REPLICATE)
+        if detection is not None:
+            detection["leveled"] = round(tilt, 1)
 
     hx0, hx1 = x - SIDE_ROOM * room * w, x + w + SIDE_ROOM * room * w
     hy0, hy1 = y - HAIR_ROOM * room * h, y + h + CHIN_ROOM * h
@@ -182,7 +228,7 @@ def cut_head(source: Path, output: Path, *, face=None, detection: dict | None = 
     pressed = cv2.countNonZero(cv2.bitwise_and(edge, foreground)) / max(1, cv2.countNonZero(edge))
     if pressed > LEAK_EDGE_SHARE:
         if room * LEAK_ROOM_STEP >= LEAK_MIN_ROOM:
-            return cut_head(source, output, face=face, detection=detection, room=room * LEAK_ROOM_STEP)
+            return cut_head(source, output, face=face, detection=detection, room=room * LEAK_ROOM_STEP, tilt=tilt)
         print(f"{Path(source).name}: the background may have leaked into this cut. Check heads/sheet.png "
               "(zing story heads --sheet), then set a tighter photo.face or use another photo.", file=sys.stderr)
         if detection is not None:
@@ -279,10 +325,20 @@ def _write_sheet(directory: Path, records: list[dict], *, folder: str = "heads")
         font = fonts.truetype(str(data_path("..", "fonts", "ZingCaption-800.ttf")), 24)
         for index, record in enumerate(records):
             x, y = (index % columns) * cell_w, (index // columns) * cell_h
-            with image_api.open(directory / record.get("head", record.get("image"))) as opened:
+            with image_api.open(directory / record.get("head", record.get("portrait", record.get("image")))) as opened:
                 head = opened.convert("RGBA")
             head.thumbnail((cell_w - 32, cell_h - 70))
             sheet.alpha_composite(head, (x + (cell_w - head.width) // 2, y + 12 + (cell_h - 70 - head.height) // 2))
+            if "head" in record and "cast_id" in record:
+                portrait_path = directory / "heads" / f"{record['cast_id']}-{record['index']}-portrait.jpg"
+                if portrait_path.is_file():
+                    with image_api.open(portrait_path) as opened:
+                        portrait = opened.convert("RGBA")
+                    portrait.thumbnail((104, 104))
+                    px, py = x + cell_w - portrait.width - 12, y + cell_h - portrait.height - 58
+                    pen.rectangle((px - 4, py - 4, px + portrait.width + 3, py + portrait.height + 3),
+                                  fill=(251, 244, 228, 255))
+                    sheet.alpha_composite(portrait, (px, py))
             label = f"{record['cast_id']} / {record['index']}" if "cast_id" in record else record["image_id"]
             label_width = pen.textbbox((0, 0), label, font=font)[2]
             if label_width > cell_w - 16:
@@ -313,8 +369,9 @@ def _write_sheet(directory: Path, records: list[dict], *, folder: str = "heads")
 
 
 def generate(directory: Path, story: dict, *, sheet: bool = False) -> list[dict]:
-    """Write heads/<cast-id>-<index>.png after checking every photo's rights."""
+    """Write portraits and the selected look's stickers after checking rights."""
     from .contract import local_photo
+    from .portraits import crop_portrait
 
     jobs, errors = [], []
     directory = Path(directory)
@@ -334,8 +391,17 @@ def generate(directory: Path, story: dict, *, sheet: bool = False) -> list[dict]
         source = local_photo(directory, photo["path"])
         head = f"heads/{cast_id}-{index}.png"
         detection = {}
-        cut_head(source, directory / head, face=photo.get("face"), detection=detection)
-        result.append({"cast_id": cast_id, "index": index, "path": photo["path"], "head": head,
+        uses_heads = story.get("look", "cutout") in ("cutout", "comic")
+        if uses_heads:
+            cut_head(source, directory / head, face=photo.get("face"), detection=detection)
+            if detection.get("warning") == "background may have leaked into the cut":
+                print("You can also render with --look scrapbook or --look headline, "
+                      "which use the photo as it is.", file=sys.stderr)
+        portrait = f"heads/{cast_id}-{index}-portrait.jpg"
+        crop_portrait(source, directory / portrait, face=photo.get("face", detection.get("face")),
+                      detection=detection)
+        result.append({"cast_id": cast_id, "index": index, "path": photo["path"],
+                       **({"head": head} if uses_heads else {"portrait": portrait}),
                        "credit": photo["credit"], "license": photo["license"],
                        "source_url": photo["source_url"], "rights": photo_rights(photo), **detection})
     if sheet:

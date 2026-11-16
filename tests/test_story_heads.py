@@ -205,7 +205,10 @@ def test_largest_detected_face_wins_and_is_reported(tmp_path, photo, monkeypatch
 
     monkeypatch.setattr(cv2, "CascadeClassifier", Detector)
     records = heads.generate(tmp_path, {"cast": {"mira": {"photos": [photo]}}})
-    assert len(calls) == 1 and calls[0].endswith("haarcascade_frontalface_default.xml")
+    # One face detector, then the eye detector that checks whether the head is tilted.
+    assert calls[0].endswith("haarcascade_frontalface_default.xml")
+    assert [name.rsplit("_", 1)[-1] for name in calls[1:]] == ["eye.xml"]
+    assert "leveled" not in records[0]
     assert records[0]["face"] == [100, 100, 100, 110]
     assert records[0]["face_count"] == 3 and records[0]["selection"] == "largest"
     assert "found 3 faces; using the largest" in capsys.readouterr().err
@@ -302,3 +305,45 @@ def test_clean_cut_keeps_full_room(tmp_path, photo):
     pytest.importorskip("cv2")
     records = heads.generate(tmp_path, {"cast": {"mira": {"name": "Mira Vale", "photos": [photo]}}})
     assert "room" not in records[0] and "warning" not in records[0]
+
+
+class _Eyes:
+    """Stands in for OpenCV's eye detector with boxes chosen by the test."""
+    boxes: list = []
+
+    def __init__(self, filename):
+        self.filename = filename
+
+    def empty(self):
+        return False
+
+    def detectMultiScale(self, *args, **kwargs):
+        return list(self.boxes) if self.filename.endswith("haarcascade_eye.xml") else [(100, 100, 100, 110)]
+
+
+@pytest.mark.parametrize("boxes,expected", [
+    ([(15, 30, 20, 20), (62, 20, 20, 20)], -12.0),     # right eye higher: turn the photo back
+    ([(15, 30, 20, 20), (62, 31, 20, 20)], 0.0),       # nearly level: leave it alone
+    ([(10, 30, 20, 20), (28, 10, 20, 20)], 0.0),       # both on one side: not a pair of eyes
+    ([(15, 30, 20, 20), (62, 20, 8, 8)], 0.0),         # sizes too different
+    ([(15, 30, 20, 20)], 0.0),
+    ([(15, 40, 20, 20), (55, 0, 30, 30), (62, 30, 20, 20)], -12.0),  # a false third box does not hide the pair
+])
+def test_eye_tilt_only_trusts_a_believable_pair(monkeypatch, boxes, expected):
+    np = pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    monkeypatch.setattr(_Eyes, "boxes", boxes)
+    monkeypatch.setattr(cv2, "CascadeClassifier", _Eyes)
+    tilt = heads._eye_tilt(np.zeros((320, 300, 3), np.uint8), (100, 100, 100, 110), cv2)
+    assert tilt == pytest.approx(expected, abs=.5)
+
+
+def test_tilted_head_is_leveled_before_the_cut(tmp_path, photo, monkeypatch):
+    pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    photo.pop("face")
+    monkeypatch.setattr(_Eyes, "boxes", [(15, 30, 20, 20), (62, 20, 20, 20)])
+    monkeypatch.setattr(cv2, "CascadeClassifier", _Eyes)
+    records = heads.generate(tmp_path, {"cast": {"mira": {"name": "Mira Vale", "photos": [photo]}}})
+    assert records[0]["leveled"] == pytest.approx(-12.0, abs=.5)
+    assert (tmp_path / "heads/mira-0.png").is_file()

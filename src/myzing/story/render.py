@@ -1,4 +1,4 @@
-"""Capture the local cutout page and mux its frames with narration."""
+"""Capture the local story page and mux its frames with narration."""
 from __future__ import annotations
 
 import json
@@ -58,10 +58,11 @@ def capture(data: dict, scratch: Path, frames: Path) -> None:
 
 
 def render(directory: Path, *, out: Path | None = None,
-           stills: str | list[float] | None = None, no_sfx: bool = False) -> Path | list[Path]:
+           stills: str | list[float] | None = None, no_sfx: bool = False,
+           look: str | None = None) -> Path | list[Path]:
     """Write a 1080 x 1920, 30 fps MP4, or sampled JPEGs in the story's stills folder."""
     directory = Path(directory).resolve()
-    story = load(directory)
+    story = load(directory, look=look)
     timings = _timings(directory, story)
     samples = _samples(stills, timings["duration"])
     output = Path(out).resolve() if out is not None else directory / "story.mp4"
