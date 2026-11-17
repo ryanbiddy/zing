@@ -214,7 +214,8 @@ def test_real_original_hdr_is_rejected_before_cache_creation(tmp_path):
     pytest.importorskip("numpy")
     directory, original = _real_clip(tmp_path)
     hdr = tmp_path / "original-hdr.mp4"
-    color._run(color.ffmpeg(), "-v", "error", "-nostdin", "-i", original, "-c:v", "copy",
+    color._run(color.ffmpeg(), "-v", "error", "-nostdin", "-i", original, "-c:v", "libx264",
+               "-vf", "setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc",
                "-color_trc", "smpte2084", "-color_primaries", "bt2020", "-colorspace", "bt2020nc", hdr)
     (directory / "words.json").write_text(json.dumps({"source": str(hdr)}), encoding="utf-8")
     assert color._probe_metadata(hdr)["color_transfer"] == "smpte2084"
