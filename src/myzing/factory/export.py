@@ -103,14 +103,21 @@ def compare(out: Path, reference: Path, samples: list[int], fps: int) -> list[di
     return results
 
 
-def export(clipdir: Path, shape: str = "9x16", pack: str = "desk", *, out: Path | None = None) -> dict:
+def export(clipdir: Path, shape: str = "9x16", pack: str = "desk", *, out: Path | None = None,
+           color_look: str | None = None, color_strength: float | None = None,
+           color_exposure: float | None = None, color_temperature: float | None = None,
+           color_tint: float | None = None) -> dict:
     if shape not in render.SHAPES:
         raise FactoryError(f"unknown shape {shape!r}; choose from {', '.join(render.SHAPES)}")
     started = time.monotonic()
     d = Path(clipdir).resolve()
     out = Path(out).resolve() if out else d / f"export-{shape}"
+    color_overrides = {k: v for k, v in {
+        "color_look": color_look, "color_strength": color_strength, "color_exposure": color_exposure,
+        "color_temperature": color_temperature, "color_tint": color_tint,
+    }.items() if v is not None}
+    data = render.scene_data(d, shape, pack, **color_overrides)
     out.mkdir(parents=True, exist_ok=True)
-    data = render.scene_data(d, shape, pack)
     fps, scale = data["fps"], data.get("scale", 1)
     width, height = data["W"] * scale, data["H"] * scale
     frames = int(data["duration"] * fps + .5)
@@ -145,6 +152,10 @@ def export(clipdir: Path, shape: str = "9x16", pack: str = "desk", *, out: Path 
         "Import captions.srt or words.srt to style new captions; the overlay also contains the rendered captions.\n",
         encoding="utf-8")
     files = ["speaker.mp4", "overlay.mov", "captions.srt", "words.srt", "audio.wav", "timeline.xml", "README.txt"]
+    if "color" in data:
+        (out / "color.json").write_text(json.dumps(data["color"], indent=2), encoding="utf-8")
+        files.append("color.json")
     return {"exported": str(out), "shape": shape, "pack": pack, "frames": frames, "fps": fps,
+            **({"color": data["color"]} if "color" in data else {}),
             "duration": duration, "comparison": checks, "bytes": {f: (out / f).stat().st_size for f in files},
             "seconds": round(time.monotonic() - started, 3)}

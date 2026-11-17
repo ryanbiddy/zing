@@ -1873,7 +1873,10 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                   uhd: bool = False, offline: bool = False, visuals: str | None = None,
                   rights: Literal["own", "licensed", "permission", "unknown"] = "unknown",
                   brief: str | None = None, no_sync_check: bool = False,
-                  rank: Literal["jev"] | None = None) -> dict[str, Any]:
+                  rank: Literal["jev"] | None = None,
+                  color_look: Literal["source", "cinematic-cool"] | None = None,
+                  color_strength: float | None = None, color_exposure: float | None = None,
+                  color_temperature: float | None = None, color_tint: float | None = None) -> dict[str, Any]:
     """Create a factory project from a local episode file and an optional caption file.
 
     mode "launch" assembles launch films from a long demo or interview (landscape first, the launch pack); brand_name,
@@ -1890,6 +1893,9 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
     rights labels the source and never blocks a clip. brief is a JSON campaign file checked before render.
     Supplied transcripts are checked with up to five speech probes before scouting. offset supplies the shift in
     seconds and skips that check, including offset=0. no_sync_check skips it without shifting the transcript.
+    color_look saves a footage preset before captions and graphics: source preserves original footage (the default),
+    cinematic-cool uses color_strength 0..1 (default .5), optional color_exposure -1..1 stops and
+    color_temperature/color_tint -.25...25. A strength of 0 retains only those explicit corrections.
     """
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
@@ -1903,7 +1909,10 @@ def h_factory_new(project: str, media: str, transcript: str | None = None, offse
                                brief=Path(brief).expanduser() if brief is not None else None,
                                **{k: v for k, v in {"moments": moments if moments != 8 or mode != "launch" else None,
                                                     "shapes": shapes, "pack": pack, "brand": brand, "focus": focus,
-                                                    "show": show, "vocab": vocab, "news": news, "rank": rank}.items() if v is not None})
+                                                    "show": show, "vocab": vocab, "news": news, "rank": rank,
+                                                    "color_look": color_look, "color_strength": color_strength,
+                                                    "color_exposure": color_exposure, "color_temperature": color_temperature,
+                                                    "color_tint": color_tint}.items() if v is not None})
         return _ok(**result, hint="Call factory_run(project), then poll factory_status(project).")
     except (FactoryError, ValueError, OSError) as exc:
         return _err(str(exc))
@@ -1925,23 +1934,38 @@ def _run_factory(root: Path) -> None:
             _FACTORY_JOBS.pop(str(root), None)
 
 
-def h_factory_run(project: str, no_sync_check: bool = False, offset: float | None = None) -> dict[str, Any]:
+def h_factory_run(project: str, no_sync_check: bool = False, offset: float | None = None,
+                  color_look: Literal["source", "cinematic-cool"] | None = None,
+                  color_strength: float | None = None, color_exposure: float | None = None,
+                  color_temperature: float | None = None, color_tint: float | None = None) -> dict[str, Any]:
     """Advance the project in the background until it finishes or needs answers.
 
     Before scouting, no_sync_check skips transcript checks and offset sets a known shift in seconds.
+    Optional color settings persist for this project and invalidate older grades on the next render.
+    color_look is source or cinematic-cool; color_strength is 0..1, color_exposure -1..1 stops, and
+    color_temperature/color_tint -.25...25. Omitted values keep the saved settings. Source restores original footage.
     """
     from myzing.factory import pipeline
     from myzing.factory.tools import FactoryError
     root = Path(project).expanduser().resolve()
     if not (root / "factory.json").is_file():
         return _err(f"{root} is not a factory project; create one with factory_new")
+    color_settings = {key: value for key, value in {"color_look": color_look, "color_strength": color_strength,
+                      "color_exposure": color_exposure, "color_temperature": color_temperature,
+                      "color_tint": color_tint}.items() if value is not None}
     with _JOBS_LOCK:
         if str(root) in _FACTORY_JOBS:
+            if color_settings:
+                return _err("Wait for the factory run to finish before changing color settings.")
             if no_sync_check or offset is not None:
                 return _err("Wait for the factory run to finish before changing transcript sync.")
             return _ok(project=str(root), status="already_running", hint="Poll factory_status(project).")
         try:
+            if color_settings:
+                pipeline.color.normalize({**pipeline._read(root / "factory.json", {}), **color_settings})
             pipeline.configure_sync(root, no_sync_check=no_sync_check, offset=offset)
+            if color_settings:
+                pipeline.configure_color(root, **color_settings)
         except (FactoryError, ValueError, OSError) as exc:
             return _err(str(exc))
         thread = threading.Thread(target=_run_factory, args=(root,), name=f"zing-factory-{root.name}", daemon=True)
@@ -2036,7 +2060,10 @@ def h_factory_edit(project: str, clip: str, action: Literal["rate", "hook", "cop
                    verdict: Literal["post", "edits", "no"] | None = None, why: str = "",
                    text: str | None = None, field: str | None = None, request: str | None = None,
                    index: int | None = None, at: float | None = None, old: str | None = None, new: str | None = None,
-                   shape: str = "9x16", pack: str = "desk") -> dict[str, Any]:
+                   shape: str = "9x16", pack: str = "desk",
+                   color_look: Literal["source", "cinematic-cool"] | None = None,
+                   color_strength: float | None = None, color_exposure: float | None = None,
+                   color_temperature: float | None = None, color_tint: float | None = None) -> dict[str, Any]:
     """Edit clipNN synchronously. Choose one action.
 
     rate needs verdict post|edits|no and optional why. hook needs text (up to 120 characters).
@@ -2045,6 +2072,8 @@ def h_factory_edit(project: str, clip: str, action: Literal["rate", "hook", "cop
     word needs index and new, or at plus old and new. index is zero-based in clipNN/words.json;
     at is seconds in the edited clip, matched to the current word. Timings stay unchanged.
     render takes shape 9x16|4x5|1x1|16x9 and pack (defaults 9x16 and desk).
+    Render color options override saved project values for this output only: color_look source|cinematic-cool,
+    color_strength 0..1, color_exposure -1..1 stops, color_temperature/color_tint -.25...25.
     Hook, visual and word edits re-render the project's shapes. Hook and word edits refresh fact and
     context checks. Returns changes, fact_check, context_flags, receipt and pending tasks.
     For pending context, use factory_prompt, factory_answer, then factory_run to finish the check.
@@ -2057,7 +2086,10 @@ def h_factory_edit(project: str, clip: str, action: Literal["rate", "hook", "cop
             if str(root) in _FACTORY_JOBS:
                 return _err("a factory run is in progress for this project; wait for factory_status to show it finished")
         result = edit.apply(root, clip, action, verdict=verdict, why=why, text=text, field=field,
-                            request=request, index=index, at=at, old=old, new=new, shape=shape, pack=pack)
+                            request=request, index=index, at=at, old=old, new=new, shape=shape, pack=pack,
+                            **{key: value for key, value in {"color_look": color_look, "color_strength": color_strength,
+                               "color_exposure": color_exposure, "color_temperature": color_temperature,
+                               "color_tint": color_tint}.items() if value is not None})
         return _ok(action=action, **result)
     except subprocess.SubprocessError as exc:
         detail = getattr(exc, "stderr", None) or str(exc)
@@ -2616,11 +2648,11 @@ def build_server():
 
     tool(
         name="factory_new",
-        description="Start a clip-factory project from a local episode video and an optional SRT/VTT/word-JSON transcript (without one, Zing transcribes locally). Settings: moments (clips to make), mode context|fun (visual style), shapes (9x16, 1x1, 16x9), pack (style pack), public (only cleared/attribution visuals). vocab supplies exact spellings for transcription and captions. No downloads of the episode, no uploads, nothing posted.",
+        description="Start a clip-factory project from a local episode video and an optional SRT/VTT/word-JSON transcript (without one, Zing transcribes locally). Settings: moments (clips to make), mode context|fun (visual style), shapes (9x16, 1x1, 16x9), pack (style pack), public (only cleared/attribution visuals). color_look source|cinematic-cool and color_strength 0..1 set the footage grade before captions; optional color_exposure (-1..1 stops), color_temperature and color_tint (-.25...25) adjust it. Source preserves original footage. vocab supplies exact spellings for transcription and captions. No downloads of the episode, no uploads, nothing posted.",
     )(h_factory_new)
     tool(
         name="factory_run",
-        description="Advance a factory project in the background: transcribe, cut moments, find visuals (public archives and the named company's own site; stock libraries only with the user's keys), fact-check graphics against the spoken words, render each shape and build a local review page. Zing makes no model calls: when a judgment is needed (scout, per-clip plan and copy, per-clip visual pick) the run stops and factory_status lists it. Resumable.",
+        description="Advance a factory project in the background: transcribe, cut moments, find visuals (public archives and the named company's own site; stock libraries only with the user's keys), fact-check graphics against the spoken words, render each shape and build a local review page. Optional color_look, color_strength, color_exposure, color_temperature and color_tint save the project's footage grade before starting and invalidate older grades. Zing makes no model calls: when a judgment is needed (scout, per-clip plan and copy, per-clip visual pick) the run stops and factory_status lists it. Resumable.",
     )(h_factory_run)
     tool(
         name="factory_status",

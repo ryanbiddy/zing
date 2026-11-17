@@ -85,6 +85,14 @@ the error and exits with code 0. Retry with `zing channels brief streamer-lesson
 
 ## Start a channel
 
+Save a footage look for future episodes with
+`zing channels color CHANNEL --color-look cinematic-cool --color-strength 0.5`.
+With no color options, the command shows the channel's saved settings.
+`--color-look source` restores the source frames and the style pack's usual treatment. These defaults live in the
+channel's `factory` settings and apply when a new project is created; existing
+projects keep their settings. Use `zing factory color PROJECT` to change those.
+See [footage color](FACTORY.md#footage-color) for exposure and white balance.
+
 ```sh
 zing channels new gridiron-lore --name "Gridiron Lore" \
   --niche "NFL players telling stories from podcasts" \

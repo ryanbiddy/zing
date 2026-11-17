@@ -803,6 +803,73 @@ example `zing factory export talk/clip01 --shape 9x16 --pack editorial`. `desk` 
 All three also render at 16:9 with the same band rules. None uses a glow, a gradient field or
 uppercase running captions.
 
+### Footage color
+
+`cinematic-cool` adds blue-green shadows, deeper contrast and restrained warm
+highlights. It is an original procedural look, with reduced tinting of warm hues.
+Start at strength `0.5` and judge the faces in the finished clip.
+
+Save the look for an existing project, then render its clips:
+
+```sh
+zing factory color talk --color-look cinematic-cool --color-strength 0.5
+zing factory run talk
+```
+
+Run `zing factory color talk` without options to see the saved controls. New
+projects and folder batches accept the same options. Channel defaults carry into
+new projects:
+
+```sh
+zing channels color my-show --color-look cinematic-cool --color-strength 0.5
+zing factory new talk --media episode.mp4 --color-look cinematic-cool
+```
+
+Try a different strength on one clip without changing the project:
+
+```sh
+zing factory render talk/clip01 --color-look cinematic-cool --color-strength 0.7
+zing factory export talk/clip01 --color-look cinematic-cool --color-strength 0.7
+```
+
+| Control | Range | Default |
+|---|---|---|
+| `--color-look` | `source`, `cinematic-cool` | `source` |
+| `--color-strength` | 0 to 1 | 0.5 |
+| `--color-exposure` | -1 to 1 EV | 0 |
+| `--color-temperature` | -0.25 to 0.25; positive warms | 0 |
+| `--color-tint` | -0.25 to 0.25; positive adds magenta | 0 |
+
+Exposure and white balance are manual corrections applied before the creative
+look. They are not camera-profile detection or automatic shot matching.
+Strength zero removes the creative look but keeps explicit corrections.
+`--color-look source` bypasses all five controls and restores the original frames.
+Reset a saved project with `zing factory color talk --color-look source`.
+
+The grade runs on source footage before Zing adds captions, cards and logos.
+Added photos, screenshots and graphics keep their existing treatment. Text or
+logos already burned into the source video are graded along with it. An explicit
+footage look replaces a style pack's old speaker color filter; layout effects,
+such as an editorial takeaway's monochrome treatment, still apply.
+
+Original video and extracted frames stay unchanged. Graded frames are cached
+separately by frame content, controls and recipe version, and reused across
+shapes. Render data records the settings and color-space warnings. Layered
+exports include `color.json`; the grade is baked into the speaker layer.
+Each distinct set of controls keeps its own copy of the frames in the clip's
+`color-cache` folder. Old copies are not removed for you; delete the folder to
+free the space, and the next render rebuilds what it needs.
+
+Color grading needs the factory or color extra and FFmpeg. It supports SDR
+Rec.709 inputs. Tagged LOG/HDR needs an explicit conversion before use; missing
+tags produce a disclosed SDR assumption. A preset cannot recover another
+creator's exact LUT or lighting. See [color matching](color.md) for making a
+separate reference-matched LUT.
+
+MCP clients can set these five fields through `factory_new`, persist them through
+`factory_run`, or override them for `factory_edit(action="render")`. Changing a
+saved grade causes the next factory run to re-render affected clips.
+
 ### Brand kit
 
 Save a user pack as `factory/packs/acme.json` in your workspace. Put its font and

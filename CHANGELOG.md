@@ -4,7 +4,7 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #599
+Release candidate for Zing v1. These notes cover merged PRs #401 through #600
 on main, newest first.
 
 ### Changes since #452
@@ -38,6 +38,10 @@ on main, newest first.
   Let `heads --look NAME` prepare cast assets for a render override.
   Level a tilted face from its eye line before cutting the head, so the cut
   and the jaw line sit square on it.
+- Add a cinematic-cool footage preset with strength, exposure and white-balance
+  controls. Save it per project or channel, or override it for one render or
+  layered export. Grading precedes Zing's captions and graphics, keeps original
+  frames, and reuses a separate frame cache across output shapes.
 - Make takeaway text larger, wrap short quotes and shorten list holds. Keep picture
   cards below headlines and reframe moving speakers by hard cut without a punch-in.
 - Add --rank jev. Before the scout reads a transcript, Jev scores every 40-90 second window for
