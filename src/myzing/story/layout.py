@@ -46,6 +46,25 @@ def _lines(value, width: float, em: float, *, narrow: bool = False) -> int:
     return count
 
 
+def credits_height(card: dict) -> float:
+    """Estimate the tallest credits column at the page's 1.5 line height."""
+    size, width = _number(card, "size", 27), _number(card, "w", 900)
+    columns = 2 if card.get("columns") == 2 else 1
+    width = (width - 24 * (columns - 1)) / columns - 24
+    lines = card.get("lines", [])
+    footer_height = size * 1.5 if card.get("omitted", 0) else 0
+    if footer_height:
+        lines = lines[:-1]
+    rows = max(1, math.ceil(len(lines) / columns))
+    # Each span has 12 px padding on either side; long unbroken credits
+    # wrap too because the page uses overflow-wrap:anywhere.
+    heights = [sum(max(1, _lines(line, width, size),
+                       math.ceil(len(str(line)) * size * CHAR_EM / width))
+                   * size * 1.5 for line in lines[start:start + rows])
+               for start in range(0, len(lines), rows)]
+    return 6 + max(heights, default=0) + footer_height
+
+
 def card_box(card: dict, *, resting: bool = False) -> tuple[float, float, float, float]:
     """Bound the authored box, including wrapping, rotation and entry overshoot.
 
@@ -62,11 +81,7 @@ def card_box(card: dict, *, resting: bool = False) -> tuple[float, float, float,
     if kind == "credits":
         size = _number(card, "size", 27)
         w = _number(card, "w", 900)
-        # Each span has 12 px padding on either side; long unbroken credits
-        # wrap too because the page uses overflow-wrap:anywhere.
-        h = 6 + sum(max(1, _lines(line, w - 24, size),
-                        math.ceil(len(str(line)) * size * CHAR_EM / (w - 24)))
-                    * size * 1.5 for line in card.get("lines", []))
+        h = credits_height(card)
     elif kind == "note":
         w = _number(card, "w", 520)
         heading = _lines(card.get("k", ""), w - 68, 32.4) * 38 + (8 if card.get("k") else 0)

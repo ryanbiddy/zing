@@ -11,15 +11,17 @@ from . import StoryError
 CREDIT_WRAP = 58
 
 
-def credit_lines(story: dict, timings: dict, *, width: int = CREDIT_WRAP) -> list[str]:
+def credit_lines(story: dict, timings: dict, *, width: int = CREDIT_WRAP,
+                 omitted: int = 0) -> list[str]:
     provider = timings.get("provider")
     if provider not in ("kokoro", "elevenlabs", "lines"):
         raise StoryError("Unknown narration provider; run zing story voice before rendering credits.")
     # Supplied recordings can be synthetic too; only a declared human read drops the line.
     lines = ["narration is an AI voice"] if provider != "lines" or timings.get("synthetic") is True else []
     # One wrapped line for all sources keeps a long source list off the puppets.
-    titles = [source["title"] for source in story["sources"]]
-    lines.append(("sources: " if len(titles) > 1 else "source: ") + " · ".join(titles))
+    titles = [source["title"] for source in story["sources"][:len(story["sources"]) - omitted]]
+    if titles:
+        lines.append(("sources: " if len(titles) > 1 else "source: ") + " · ".join(titles))
     if story.get("music"):
         music = story["music"]
         lines.append(f"music: {music['credit']} · {music['license']}")
@@ -35,16 +37,35 @@ def credit_lines(story: dict, timings: dict, *, width: int = CREDIT_WRAP) -> lis
         if key not in seen:
             seen.add(key)
             lines.append(f"image: {picture['credit']} · {picture['license']}")
-    return [part for line in lines for part in wrap(line, width=width, break_on_hyphens=False)]
+    wrapped = [part for line in lines for part in wrap(line, width=width, break_on_hyphens=False)]
+    if omitted:
+        # This footer spans both columns, so it keeps one full-width line.
+        wrapped.append(f"+ {omitted} more in the receipt")
+    return wrapped
 
 
 # Average glyph width of the credits face (IBM Plex Sans) as a share of its size.
 CREDIT_EM = .52
 
 
+def _credit_options(story: dict, timings: dict, card_width: int) -> list[dict]:
+    """Try smaller type, two columns, then fewer whole source entries."""
+    choices = [(size, 1, 0) for size in (34, 27, 26, 24, 22)]
+    choices.extend((22, 2, omitted) for omitted in range(len(story["sources"]) + 1))
+    options = []
+    for size, columns, omitted in choices:
+        column_width = (card_width - 24 * (columns - 1)) / columns
+        width = max(1, int((column_width - 24) / (size * CREDIT_EM)))
+        lines = credit_lines(story, timings, width=width, omitted=omitted)
+        if size == 34 and len(lines) > 5:
+            continue
+        options.append({"size": size, "columns": columns, "lines": lines, "omitted": omitted})
+    return options
+
+
 def _credits_card(story: dict, timings: dict, panel: dict) -> dict:
-    """Fit all credits in the frame without covering an authored or waving head."""
-    from .layout import card_box, panel_overlaps
+    """Fit credits without covering a head or dropping media attribution."""
+    from .layout import card_box, credits_height, panel_overlaps
 
     # Some callers only need credit copy and have not generated voice timings yet.
     layout_times = {"beats": [], "outro_start": 0, "duration": story.get("outro", 3.2), **timings}
@@ -57,13 +78,10 @@ def _credits_card(story: dict, timings: dict, panel: dict) -> dict:
         card_x = 70 if sum(actors) / len(actors) > 540 else 1080 - 70 - card_w
     else:
         card_w, card_x = 900, 90
-    for size in (34, 27, 26, 24, 22, 20, 18, 16):
-        width = int((card_w - 24) / (size * CREDIT_EM))
-        lines = credit_lines(story, timings, width=width)
-        if size == 34 and len(lines) > 5:
-            continue
+    options = _credit_options(story, timings, card_w)
+    for option in options:
         card = {"kind": "credits", "w": card_w, "x": card_x, "y": preferred_y,
-                "size": size, "z": 11, "at": "outro+0.3", "lines": lines}
+                "z": 11, "at": "outro+0.3", **option}
         # Try the usual location first, then the available space from top to bottom.
         for y in dict.fromkeys([preferred_y, 1180, *range(170, 1841, 20)]):
             card["y"] = y
@@ -78,6 +96,10 @@ def _credits_card(story: dict, timings: dict, panel: dict) -> dict:
             if any(x < ox + ow and x + w > ox and top < oy + oh and top + h > oy
                    for ox, oy, ow, oh in occupied):
                 continue
+            card["credit_height"] = credits_height(card)
+            # Reserve a clear region with conservative estimates. The page
+            # keeps the first option whose measured lines fit that region.
+            card["credit_options"] = options
             return card
     raise StoryError("The outro has no clear space for its credits. Move its heads or cards, "
                      "or shorten source titles and credits without removing attribution.")
@@ -102,12 +124,17 @@ def prepare(story: dict, timings: dict) -> dict:
         result["headline_outro_cast"] = next((ident for ident, member in result["cast"].items()
                                                if member.get("photos")), None)
         # Keep the full-width card above the fixed badge position.
-        max_height = 620 if result["headline_outro_cast"] is not None else 1100
-        for size in (34, 27, 26, 24, 22, 20, 18, 16):
-            lines = credit_lines(story, timings, width=int(876 / (size * CREDIT_EM)))
-            if (size != 34 or len(lines) <= 5) and len(lines) * size * 1.35 + 48 <= max_height:
-                result["headline_credits"] = lines
-                result["headline_credit_size"] = size
+        from .layout import credits_height
+        max_height = 650 if result["headline_outro_cast"] is not None else 1300
+        options = _credit_options(story, timings, 900)
+        for option in options:
+            if credits_height({"w": 900, **option}) <= max_height:
+                result["headline_credits"] = option["lines"]
+                result["headline_credit_size"] = option["size"]
+                result["headline_credit_columns"] = option["columns"]
+                result["headline_credit_omitted"] = option["omitted"]
+                result["headline_credit_height"] = max_height
+                result["headline_credit_options"] = options
                 return result
         raise StoryError("The headline credits do not fit. Shorten source titles and credits without removing attribution.")
     for panel in result["panels"]:
