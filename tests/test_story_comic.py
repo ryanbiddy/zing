@@ -11,6 +11,47 @@ from test_story_contract import story, timings
 from test_story_scrapbook import page_story, run_story_page
 
 
+@pytest.mark.parametrize("panel_count", [1, 2, 5])
+def test_comic_overview_centres_page_with_even_margins(tmp_path, browser_tools, panel_count):
+    data = page_story(tmp_path, "comic")
+    if panel_count == 5:
+        data["story"]["panels"].append({"from": "outro", "set": {}})
+    else:
+        data["story"]["panels"] = data["story"]["panels"][:panel_count]
+    got = run_story_page(tmp_path, data, """
+      await window.build(d.story,d.timings,d.base,d.vocabulary);
+      const page=document.querySelector('.comic-page'),frames=[...document.querySelectorAll('.comic-frame')];
+      const world=document.getElementById('world');
+      const sample=(t,index)=>{window.seek(t);const m=new DOMMatrix(getComputedStyle(world).transform);
+        return {page:rect(page),frame:rect(frames[index]),state:window.comicAt(t),
+          matrix:{a:m.a,b:m.b,c:m.c,d:m.d,e:m.e,f:m.f}};};
+      const opening=[0,.4,.5,.75,1,1.25,1.5].map(t=>sample(t,0));
+      const rest=frames.map((frame,index)=>sample(index*3+1.5,index));
+      return {opening,rest,repeated:sample(0,0)};
+""")
+    overview = got["opening"][0]["page"]
+    assert overview["left"] >= 40 - .05 and overview["right"] <= 1040 + .05
+    assert overview["top"] >= 40 - .05 and overview["bottom"] <= 1880 + .05
+    assert (overview["left"] + overview["right"]) / 2 == pytest.approx(540, abs=2)
+    assert (overview["top"] + overview["bottom"]) / 2 == pytest.approx(960, abs=2)
+    assert got["opening"][0] == got["opening"][1] == got["repeated"]
+    scales = [frame["state"]["scale"] for frame in got["opening"]]
+    assert scales == sorted(scales) and scales[0] < scales[-1]
+    assert scales[-1] == pytest.approx(.9)
+    for index, frame in enumerate(got["rest"]):
+        box, matrix = frame["frame"], frame["matrix"]
+        assert (box["left"] + box["right"]) / 2 == pytest.approx(540, abs=.05)
+        assert (box["top"] + box["bottom"]) / 2 == pytest.approx(960, abs=.05)
+        assert math.hypot(matrix["a"], matrix["b"]) == pytest.approx(.9, abs=.00001)
+        assert math.degrees(math.atan2(matrix["b"], matrix["a"])) == pytest.approx(
+            1.2 if index % 2 else -1.2, abs=.0001)
+    if panel_count == 1:
+        for sample in got["opening"]:
+            box = sample["frame"]
+            assert (box["left"] + box["right"]) / 2 == pytest.approx(540, abs=.05)
+            assert (box["top"] + box["bottom"]) / 2 == pytest.approx(960, abs=.05)
+
+
 def test_comic_page_frames_camera_and_print_finish(tmp_path, browser_tools):
     data = page_story(tmp_path, "comic")
     data["story"]["panels"].append({"from": "outro", "set": {"wall": "#FFD21F", "floor": "#17161C"},

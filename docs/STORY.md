@@ -134,8 +134,9 @@ Panels sit two across on an off-white page, with staggered rows, ink borders
 and gutters. Each frame contains the full cutout set, puppets, props and cards.
 Halftone dots and heavier grain give the page a printed texture.
 
-The opening holds the whole page for 0.45 seconds, then pushes into the first
-frame. Each frame settles at 0.9 scale, centred, with alternating tilts of
+The opening holds the whole page for 0.45 seconds, centred both ways with
+at least 40 px of margin on every side, then pushes into the first frame.
+This also applies to a single-panel page. Each frame settles at 0.9 scale, centred, with alternating tilts of
 -1.2 and +1.2 degrees. A move to the next frame pans and changes tilt together
 over 0.8 seconds. Future frames hold their starting state. The camera stays
 close for the end card.
@@ -183,6 +184,13 @@ The generated end card uses the next colour, a `made with zing` sticker,
 a 900 px credits card and the first cast member's badge if they have a photo.
 It keeps the same source, media, music and AI voice credits as `cutout`.
 Sound effects follow beat changes and badge or picture arrivals.
+
+Every look fits long end-card credits by reducing the font size in steps to
+22 px, then using two columns. If the list still does not fit, it removes
+sources from the end of the list and adds `+ N more in the receipt`.
+Visible lines stay whole. AI voice, photo, image and music credits stay on
+screen, and the receipt keeps every source and credit. Short lists keep
+their usual size and position. Credits are never stretched or squashed.
 
 `new --look headline` writes a small fictional example with no panels that
 passes `check`. Replace its sample story and source before using it for

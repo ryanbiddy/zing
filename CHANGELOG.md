@@ -10,6 +10,7 @@ on main, newest first.
 ### Changes since #452
 
 - Add `zing story` to turn a sourced script into a narrated paper-cutout video.
+  Centre the comic opening with even margins and fit long credits without squashing type.
   Start a draft from a topic, use JSON checks and the bundled writing prompt, and
   build through the CLI or four story MCP tools. Reuse Kokoro, ElevenLabs or
   supplied WAV lines with per-line pronunciation. Add timed word captions,

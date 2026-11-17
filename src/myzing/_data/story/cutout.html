@@ -283,6 +283,28 @@ const HEADLINE_COLORS = Object.freeze({
 window.storyLooks = LOOKS;
 window.storyVocabulary = {cards: Object.keys(CARDS), props: Object.keys(PROPS), poses: Object.keys(POSES),
   looks:Object.keys(LOOKS), headline_colors:Object.keys(HEADLINE_COLORS)};
+function fitCredits(content, options, available) {
+  // Python supplies the same ordered choices used by its clearance checks.
+  // Measure the bundled font before accepting a choice; never squeeze letters.
+  for (const option of options) {
+    if (option.size < 22) continue;
+    const columns = option.columns || 1, lines = option.omitted ? option.lines.slice(0,-1) : option.lines;
+    const rows = Math.ceil(lines.length / columns);
+    Object.assign(content.style,{fontSize:option.size+'px',height:'',transform:'none',
+      padding:option.size < 27 ? '3px 0' : '',
+      display:columns === 2 ? 'grid' : '',gridTemplateColumns:columns === 2 ? 'repeat(2,minmax(0,1fr))' : '',
+      columnGap:columns === 2 ? '24px' : '',rowGap:'0px'});
+    const markup = lines=>lines.map(line=>'<span>'+esc(line)+'</span>').join('<br>');
+    content.innerHTML = columns === 1 ? markup(lines) :
+      [lines.slice(0,rows),lines.slice(rows)].map(column=>'<div>'+markup(column)+'</div>').join('');
+    if (option.omitted) content.innerHTML += '<div style="grid-column:1 / -1">'+markup(option.lines.slice(-1))+'</div>';
+    if (content.scrollHeight <= available && content.scrollWidth <= content.offsetWidth) {
+      content.dataset.columns = String(columns); content.dataset.omitted = String(option.omitted || 0);
+      return;
+    }
+  }
+  throw new Error('The credits do not fit at 22 px. Make more room for the end card attribution.');
+}
 function Card(c, panel, id) {
   const el = document.createElement('div'); el.className = 'card'; el.innerHTML = CARDS[c.kind](c);
   el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; if (c.z) el.style.zIndex = c.z; panel.appendChild(el);
@@ -290,6 +312,8 @@ function Card(c, panel, id) {
   return { captionBox() {
     return el.style.visibility === 'hidden' ? null : el.firstElementChild.getBoundingClientRect();
   }, captionLabel: 'card', fit() {
+    if (c.kind === 'credits') fitCredits(el.firstElementChild,c.credit_options ||
+      [{size:Math.max(22,c.size || 27),columns:c.columns || 1,lines:c.lines}],c.credit_height || H-c.y-28);
     // Keep the chosen size unless the actual font metrics would cross the frame.
     // The animation owns the outer transform; the content owns overflow scaling.
     const content = el.firstElementChild, w = Math.max(content.offsetWidth, content.scrollWidth), h = Math.max(content.offsetHeight, content.scrollHeight);
@@ -297,7 +321,7 @@ function Card(c, panel, id) {
     const rw = Math.abs(Math.cos(angle)) * w + Math.abs(Math.sin(angle)) * h;
     const rh = Math.abs(Math.sin(angle)) * w + Math.abs(Math.cos(angle)) * h;
     const margin = 12, x = clamp(c.x, margin, W - margin - 1), y = clamp(c.y, margin, H - margin - 1);
-    const scale = Math.min(1, (W - margin - x) / rw, (H - margin - y) / rh);
+    const scale = c.kind === 'credits' ? 1 : Math.min(1, (W - margin - x) / rw, (H - margin - y) / rh);
     content.style.width = w + 'px'; content.style.height = h + 'px';
     content.style.transformOrigin = '0 0'; content.style.transform = `scale(${scale})`;
     el.style.width = w * scale + 'px'; el.style.height = h * scale + 'px';
@@ -650,7 +674,8 @@ async function buildComic(story,T,base,vocabulary) { return buildDirectedLook(st
 function comicAt(t) {
   if (!COMIC) return null;
   const tq = q12(t), frames = COMIC.frames, first = frames[0];
-  const intro = easeIO((tq-.45)/.8), fit = Math.min((W-64)/COMIC.width,(H-96)/COMIC.height);
+  const margin = 40, intro = easeIO((tq-.45)/.8);
+  const fit = Math.min((W-2*margin)/COMIC.width,(H-2*margin)/COMIC.height);
   let x = lerp(COMIC.width/2,first.x,intro), y = lerp(COMIC.height/2,first.y,intro);
   let scale = lerp(fit,.9,intro), tilt = lerp(0,first.tilt,intro), index = 0, travel = intro > 0 && intro < 1;
   for (let i=1;i<frames.length;i++) {
@@ -874,10 +899,10 @@ async function buildHeadline(story, T, base) {
         color:beat.colors.accent === INK ? CREAM : INK,transform:'rotate(-3deg)'}); block.appendChild(sticker);
       const credits = document.createElement('div'); credits.className = 'credits';
       Object.assign(credits.style,{position:'absolute',left:'90px',top:'500px',width:'900px',fontSize:(story.headline_credit_size || 34)+'px'});
-      credits.innerHTML = (story.headline_credits || []).map(line=>'<span>'+esc(line)+'</span>').join('<br>'); block.appendChild(credits);
-      // The full-width card stays above the badge even with a long source list.
-      const height = credits.scrollHeight, available = outroCast ? 650 : 1300;
-      if (height > available) { credits.style.transformOrigin = '0 0'; credits.style.transform = `scaleY(${available/height})`; }
+      block.appendChild(credits);
+      fitCredits(credits,story.headline_credit_options || [{size:Math.max(22,story.headline_credit_size || 34),
+        columns:story.headline_credit_columns || 1,lines:story.headline_credits || []}],
+        story.headline_credit_height || (outroCast ? 650 : 1300));
       beat.credits = credits;
     }
   }
