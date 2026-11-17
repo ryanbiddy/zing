@@ -1066,7 +1066,9 @@ window.seek = async function(t) {
 
   // look: the grade on footage and photos; each cut comes into focus; the grain moves every frame
   const soft = LOOK.transition === 'blur' && shot.idx > 0 ? 14*(1 - easeOut(lin(tin, 0, .5))) : 0;
-  for (const el of [top, spk]) el.style.filter = `${LOOK.grade}${soft ? ` blur(${soft.toFixed(2)}px)` : ''}`
+  // An explicit footage look replaces the pack's speaker grade. Added visuals retain their pack treatment.
+  const footageLook = D.color?.settings?.color_look;
+  for (const el of [top, spk]) el.style.filter = `${el === spk && footageLook && footageLook !== 'source' ? '' : LOOK.grade}${soft ? ` blur(${soft.toFixed(2)}px)` : ''}`
     + (el === spk && G.front ? ' drop-shadow(0 18px 40px rgba(0,0,0,.55))' : '') || 'none';   // a cutout casts a soft shadow
   gfx.style.filter = soft ? `blur(${soft.toFixed(2)}px)` : 'none';
   $('vig').style.display = LOOK.vignette ? 'block' : 'none';

@@ -13,6 +13,7 @@ from pathlib import Path
 
 def run(argv: list[str]) -> int:
     from . import brief, digest, kit, learn, outcomes, publish, queue, registry, scorecard, setup, tick, watch, youtube
+    from myzing.factory.command import _color_arguments, _color_values
     parser = argparse.ArgumentParser(prog="zing channels")
     commands = parser.add_subparsers(dest="command", required=True)
     new = commands.add_parser("new", help="create a channel")
@@ -21,6 +22,10 @@ def run(argv: list[str]) -> int:
     new.add_argument("--niche", required=True)
     for key in ("network-name", "network-line", "network-url", "pack", "mode"):
         new.add_argument("--" + key)
+    _color_arguments(new)
+    color = commands.add_parser("color", help="show or save the channel's default footage color settings")
+    color.add_argument("slug")
+    _color_arguments(color)
     start = commands.add_parser("setup", help="choose a watch list and make the first brief")
     start.add_argument("slug")
     start.add_argument("--niche", help="channel niche, defaulting to the selected scan niche with --from-scan")
@@ -98,7 +103,16 @@ def run(argv: list[str]) -> int:
         if args.command == "new":
             network = {k: getattr(args, "network_" + k) for k in ("name", "line", "url") if getattr(args, "network_" + k) is not None}
             factory = {k: getattr(args, k) for k in ("pack", "mode") if getattr(args, k) is not None}
+            factory.update(_color_values(args))
             result = registry.create(args.name, args.niche, args.slug, network=network, factory=factory)
+        elif args.command == "color":
+            from myzing.factory.color import normalize
+            data = registry.load(args.slug)
+            settings = normalize({**data["factory"], **_color_values(args)})
+            if _color_values(args):
+                data["factory"].update(settings)
+                registry.save(data)
+            result = {"channel": args.slug, "color": settings}
         elif args.command == "setup":
             if args.niche is None and args.from_scan is None and args.scan_niche is None:
                 start.error("the following arguments are required: --niche")

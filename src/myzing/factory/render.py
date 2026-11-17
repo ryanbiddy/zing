@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path, PureWindowsPath
 
-from . import campaign, cutout, depth, tools, upscale
+from . import campaign, color, cutout, depth, tools, upscale
 from .tools import FactoryError, data_path, ffmpeg, ffprobe, node_sidecar, run, sidecar_env
 
 SHAPES = {"9x16": (1080, 1920), "4x5": (1080, 1350), "1x1": (1080, 1080), "16x9": (1920, 1080)}
@@ -283,13 +283,21 @@ def picture_crop(files: list[Path]) -> list[int] | None:
 
 
 def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False, parallax: bool | None = None,
-               front: bool | None = None, sharpen: bool | None = None) -> dict:
+               front: bool | None = None, sharpen: bool | None = None, *, color_look: str | None = None,
+               color_strength: float | None = None, color_exposure: float | None = None,
+               color_temperature: float | None = None, color_tint: float | None = None) -> dict:
     """Everything the scene needs. parallax: move photos through their depth (None: when the depth model is installed).
     sharpen: upscale small photos first (None: the project's upscale setting, when the upscaler is installed).
 
     front: stand the speaker, cut out, in front of each split shot's picture (None: the project's cutout setting, when
     the cutout model is installed). Shots stay split when the speaker can't be lifted cleanly.
     """
+    cfg_file = d.parent / "factory.json"
+    cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.is_file() else {}
+    color_settings = color.normalize({**cfg, **{k: v for k, v in {
+        "color_look": color_look, "color_strength": color_strength, "color_exposure": color_exposure,
+        "color_temperature": color_temperature, "color_tint": color_tint,
+    }.items() if v is not None}})
     theme, assets, errors = pack_data(pack)
     if errors:
         raise FactoryError(f"style pack {pack if isinstance(pack, str) else pack.get('name', 'trial')!r} failed checks\n"
@@ -315,8 +323,7 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
             cam["cams"] = [*cams[:-2], {**cams[-2], "to": max(duration, cams[-2]["to"])}]
     overlay = campaign.disclosure(brief)
     check_brief(d, {"duration": duration, "disclosure": overlay})
-    cfg_file = d.parent / "factory.json"
-    cfg = json.loads(cfg_file.read_text(encoding="utf-8")) if cfg_file.is_file() else {}
+    footage = color.prepare(d, color_settings)
     uhd = scale(cfg) == 2
     if parallax is None:                       # the project's setting, then whether the weights are installed
         parallax = cfg.get("parallax", True) and depth.ready()
@@ -381,7 +388,8 @@ def scene_data(d: Path, shape: str, pack: str | dict, speaker_only: bool = False
     source = d.parent / "source.json"
     W, H = SHAPES[shape]
     return {"fps": 30, **({"scale": 2} if uhd else {}),
-            "words": words["words"], "frames": cam["frames"], "framesDir": (d / "frames").resolve().as_uri(),
+            "words": words["words"], "frames": cam["frames"], "framesDir": Path(footage["frames_dir"]).as_uri(),
+            "color": footage["color"],
             "srcSize": cam["size"], "cams": cam["cams"], "burnTop": cam.get("burn_top"), "shots": shots, "quotes": moments,
             **({"overlays": cam["overlays"]} if cam.get("overlays") else {}),
             **({"mattesDir": lifted["dir"].resolve().as_uri()} if lifted else {}),
@@ -465,13 +473,19 @@ def audio_filter(data: dict) -> str:
 
 def render(clipdir: Path, shape: str = "9x16", pack: str | dict = "desk", *, out: Path | None = None,
            speaker_only: bool = False, parallax: bool | None = None, front: bool | None = None,
-           sharpen: bool | None = None) -> Path:
+           sharpen: bool | None = None, color_look: str | None = None, color_strength: float | None = None,
+           color_exposure: float | None = None, color_temperature: float | None = None,
+           color_tint: float | None = None) -> Path:
     """Render a clip in a shape and pack (a name, or a pack dict being tried out) to clip[-shape][-pack].mp4."""
     if shape not in SHAPES:
         raise FactoryError(f"unknown shape {shape!r}; choose from {', '.join(SHAPES)}")
     d = Path(clipdir).resolve()
     tag = suffix(shape, pack if isinstance(pack, str) else "trial")
-    data = scene_data(d, shape, pack, speaker_only, parallax, front, sharpen)
+    color_overrides = {k: v for k, v in {
+        "color_look": color_look, "color_strength": color_strength, "color_exposure": color_exposure,
+        "color_temperature": color_temperature, "color_tint": color_tint,
+    }.items() if v is not None}
+    data = scene_data(d, shape, pack, speaker_only, parallax, front, sharpen, **color_overrides)
     check_brief(d, data)
     out = Path(out).resolve() if out else d / f"clip{tag}.mp4"
     # a trial render (out given) keeps its scratch files beside the trial, not in the clip folder

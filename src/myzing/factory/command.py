@@ -32,7 +32,22 @@ def _time(value: str) -> float:
         raise argparse.ArgumentTypeError(f"not a time: {value!r} (use seconds or m:ss)") from None
 
 
+def _color_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--color-look", choices=("source", "cinematic-cool"),
+                        help="footage color preset; source restores the original (default: saved project setting)")
+    parser.add_argument("--color-strength", type=float, metavar="0..1",
+                        help="creative grade strength (default .5); 0 keeps only exposure and white-balance corrections")
+    parser.add_argument("--color-exposure", type=float, metavar="EV", help="exposure correction from -1 to 1 stops")
+    parser.add_argument("--color-temperature", type=float, metavar="VALUE", help="warm/cool correction from -.25 to .25")
+    parser.add_argument("--color-tint", type=float, metavar="VALUE", help="green/magenta correction from -.25 to .25")
+
+
+def _color_values(args: argparse.Namespace) -> dict:
+    return {key: value for key, value in vars(args).items() if key.startswith("color_") and value is not None}
+
+
 def _new_settings(new: argparse.ArgumentParser) -> None:
+    _color_arguments(new)
     new.add_argument("--transcript", type=Path, help="SRT, VTT or word JSON; without one the episode is transcribed")
     new.add_argument("--vocab", action="append", default=[], metavar="TERM,TERM",
                      help="names and terms to spell exactly; repeat or separate with commas")
@@ -81,6 +96,7 @@ def _settings(args: argparse.Namespace) -> dict:
                 vocab=[term for group in (args.vocab or []) for term in group.split(",")],
                 mode=args.mode or "context", public=args.public, parallax=args.parallax, cutout=args.cutout,
                 upscale=args.upscale, uhd=args.uhd, offline=args.offline, visuals=args.visuals,
+                **_color_values(args),
                 **{k: v for k, v in {"shapes": args.shapes, "pack": args.pack, "moments": args.moments,
                                      "focus": args.focus, "show": args.show, "rank": args.rank}.items() if v is not None},
                 **({"brand": {k: v for k, v in {"name": args.brand_name, "url": args.brand_url,
@@ -162,6 +178,10 @@ def run(argv: list[str]) -> int:
     action.add_argument("--render", metavar="SHAPE", help="re-render 9x16, 4x5, 1x1 or 16x9")
     edit.add_argument("--why", help="reason for --rate")
     edit.add_argument("--pack", help="style pack for --render (default desk)")
+    _color_arguments(edit)
+    color = commands.add_parser("color", help="show or save the project's footage color settings")
+    color.add_argument("project", type=Path)
+    _color_arguments(color)
     redo = commands.add_parser("redo", help="forget one judgment so the next run asks again")
     redo.add_argument("project", type=Path)
     redo.add_argument("task", help="scout, jev, or clipNN-plan / clipNN-pick / clipNN-copy / clipNN-context")
@@ -169,6 +189,7 @@ def run(argv: list[str]) -> int:
     ren.add_argument("clip", type=Path)
     ren.add_argument("--shape", default="9x16")
     ren.add_argument("--pack", default="desk")
+    _color_arguments(ren)
     ren.add_argument("--4k", dest="uhd", action="store_true", help="save 4K output as the project's render setting")
     ren.add_argument("--no-parallax", dest="parallax", action="store_const", const=False, default=None,
                      help="keep photos flat for this render")
@@ -181,6 +202,7 @@ def run(argv: list[str]) -> int:
     exp.add_argument("--shape", default="9x16", choices=("9x16", "4x5", "1x1", "16x9"), help="frame shape (default 9x16)")
     exp.add_argument("--pack", default="desk", help="style pack (default desk)")
     exp.add_argument("--out", type=Path, help="output folder (default <clipdir>/export-<shape>)")
+    _color_arguments(exp)
     commands.add_parser("review", help="rebuild the local review page").add_argument("project", type=Path)
     approval = commands.add_parser("approval", help="write a local guest approval page")
     approval.add_argument("project", type=Path)
@@ -257,6 +279,8 @@ def run(argv: list[str]) -> int:
                 raise ValueError("--why needs --rate")
             if args.pack is not None and args.render is None:
                 raise ValueError("--pack needs --render")
+            if _color_values(args) and args.render is None:
+                raise ValueError("color options need --render; use 'zing factory color PROJECT' to save settings")
             if args.rate is not None:
                 result = edit.apply(args.project, args.clip, "rate", verdict=args.rate, why=args.why or "")
             elif args.hook is not None:
@@ -268,21 +292,24 @@ def run(argv: list[str]) -> int:
             elif args.word is not None:
                 result = edit.word(args.project, args.clip, int(args.word[0]), args.word[1])
             else:
-                result = edit.rerender(args.project, args.clip, args.render, args.pack or "desk")
+                result = edit.rerender(args.project, args.clip, args.render, args.pack or "desk", **_color_values(args))
+        elif args.command == "color":
+            result = {"color": pipeline.configure_color(args.project, **_color_values(args))}
         elif args.command == "redo":
             pipeline.redo(args.project, args.task)
             result = {"task": args.task, "forgotten": True}
         elif args.command == "render":
-            from . import render
+            from . import color, render
+            path = args.clip.parent / "factory.json"
+            cfg = pipeline._read(path, {})
+            color.normalize({**cfg, **_color_values(args)})
             if args.uhd:
-                path = args.clip.parent / "factory.json"
-                cfg = pipeline._read(path)
-                if cfg is None:
+                if not path.is_file():
                     raise ValueError(f"{args.clip.parent} is not a factory project")
                 pipeline._write(path, {**cfg, "uhd": True})
             render.warn_uhd(args.clip.parent, say=lambda m: print(m, file=sys.stderr, flush=True))
             result = {"rendered": str(render.render(args.clip, args.shape, args.pack, parallax=args.parallax, front=args.front,
-                                                            sharpen=args.sharpen))}
+                                                            sharpen=args.sharpen, **_color_values(args)))}
         elif args.command == "review":
             from .review import build
             result = {"review": str(build(args.project))}
@@ -291,7 +318,7 @@ def run(argv: list[str]) -> int:
             result = {"approval": str(build(args.project, args.out))}
         elif args.command == "export":
             from .export import export
-            result = export(args.clipdir, args.shape, args.pack, out=args.out)
+            result = export(args.clipdir, args.shape, args.pack, out=args.out, **_color_values(args))
         elif args.command == "learn-style":
             from .learn import learn
             result = learn(args.reference, args.name, args.sample, rounds=args.rounds, base=args.base,

@@ -5,7 +5,7 @@ import math
 import re
 from pathlib import Path
 
-from . import pick, pipeline, plan, render
+from . import color, pick, pipeline, plan, render
 from .judge import Judge, NeedsAnswer
 from .pipeline import _read, _write
 from .tools import FactoryError
@@ -162,15 +162,19 @@ def _check_render(project: Path, clip: str, shape: str, pack: str) -> Path:
     return d
 
 
-def rerender(project: Path, clip: str, shape: str = "9x16", pack: str = "desk") -> dict:
+def rerender(project: Path, clip: str, shape: str = "9x16", pack: str = "desk", **color_settings) -> dict:
     d = _check_render(project, clip, shape, pack)
-    return _result(d, shape=shape, pack=pack, rendered=str(render.render(d, shape, pack)))
+    color.normalize({**_read(d.parent / "factory.json", {}), **color_settings})
+    return _result(d, shape=shape, pack=pack, rendered=str(render.render(d, shape, pack, **color_settings)))
 
 
 def apply(project: Path, clip: str, action: str, **values) -> dict:
     project = Path(project).resolve()
     if not (project / "factory.json").is_file():
         raise FactoryError(f"{project} is not a factory project")
+    color_settings = {key: value for key, value in values.items() if key.startswith("color_") and value is not None}
+    if color_settings and action != "render":
+        raise FactoryError("color options need the render action")
     if action == "rate":
         verdict, why = values.get("verdict"), values.get("why", "")
         if verdict not in ("post", "edits", "no"):
@@ -189,5 +193,5 @@ def apply(project: Path, clip: str, action: str, **values) -> dict:
     if action == "word":
         return word(project, clip, values.get("index"), values.get("new"), at=values.get("at"), old=values.get("old"))
     if action == "render":
-        return rerender(project, clip, values.get("shape", "9x16"), values.get("pack", "desk"))
+        return rerender(project, clip, values.get("shape", "9x16"), values.get("pack", "desk"), **color_settings)
     raise FactoryError("action must be rate, hook, copy, visual, word or render")

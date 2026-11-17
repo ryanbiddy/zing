@@ -150,7 +150,8 @@ def validate(data: dict) -> dict:
         value = data.get(key, copy.deepcopy(default))
         if isinstance(default, dict):
             fields = {"network": {"name", "line", "url"}, "handles": HANDLES,
-                      "factory": {"pack", "mode", "shapes", "moments", "focus", "vocab", "brief"}}.get(key, default)
+                      "factory": {"pack", "mode", "shapes", "moments", "focus", "vocab", "brief",
+                                  "color_look", "color_strength", "color_exposure", "color_temperature", "color_tint"}}.get(key, default)
             _fields(value, fields, key)
             value = {**copy.deepcopy(default), **value}
         data[key] = value
@@ -180,6 +181,13 @@ def validate(data: dict) -> dict:
     for key, value in data["handles"].items():
         _text(value, f"handles.{key}")
     factory = data["factory"]
+    from myzing.factory import color
+    try:
+        checked_color = color.normalize(factory)
+    except FactoryError as exc:
+        raise ChannelError(f"factory.{exc}") from exc
+    for key in checked_color.keys() & factory.keys():
+        factory[key] = checked_color[key]
     pack = factory.get("pack", pipeline.SETTINGS["pack"])
     _text(pack, "factory.pack", required=True)
     try:

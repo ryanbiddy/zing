@@ -1,5 +1,10 @@
 # Local SDR color matching
 
+For a saved factory footage preset, use
+`zing factory color PROJECT --color-look cinematic-cool --color-strength 0.5`.
+It applies before captions and graphics and is separate from reference matching.
+See [factory footage color](FACTORY.md#footage-color).
+
 Match a clip toward a reference's measured palette and tone:
 
 ```sh
@@ -264,7 +269,7 @@ uv run --frozen pytest -ra
 Set `ZING_REQUIRE_FFMPEG=1`, then run:
 
 ```sh
-uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 463
+uv run --frozen pytest -q -m ffmpeg --expected-ffmpeg-tests 465
 ```
 
 The original synthetic RGB chart is graded with teal-orange at strength 0.87.

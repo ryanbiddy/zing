@@ -13,7 +13,7 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import campaign, context, cut, jev, network, pick, plan, postcopy, render, review, scout, source, transcript_sync, visuals
+from . import campaign, color, context, cut, jev, network, pick, plan, postcopy, render, review, scout, source, transcript_sync, visuals
 from .judge import Judge, NeedsAnswer
 from .tools import FactoryError
 
@@ -21,7 +21,9 @@ MODES = ("context", "fun", "documentary", "launch")
 SETTINGS = {"moments": 8, "mode": "context", "shapes": ["9x16", "1x1"], "pack": "desk", "public": False, "parallax": True,
             "cutout": False, "upscale": True, "uhd": False, "brand": None, "focus": None, "show": None, "vocab": [],
             "news": None, "offline": False, "visuals": None, "rights": "unknown", "channel": None, "source": None,
-            "uoink_ref": None, "no_sync_check": False, "rank": None}
+            "uoink_ref": None, "no_sync_check": False, "rank": None,
+            "color_look": "source", "color_strength": .5, "color_exposure": 0.0,
+            "color_temperature": 0.0, "color_tint": 0.0}
 BENCH = 8                                           # the scout also lists up to this many runners-up to make by hand
 TASTE = 12                                          # past Post/No calls the scout learns from
 HAND = (3.0, 180.0)                                 # a clip picked by hand: shortest and longest, in seconds
@@ -71,6 +73,7 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
     unknown = set(settings) - set(SETTINGS)
     if unknown:
         raise FactoryError(f"unknown settings: {', '.join(sorted(unknown))}")
+    settings.update(color.normalize(settings))
     if not isinstance(settings.get("offline", False), bool):
         raise FactoryError("offline must be true or false")
     if settings.get("rank") not in (None, "jev"):
@@ -137,6 +140,48 @@ def init(project: Path, media: Path, *, transcript: Path | None = None, offset: 
             _shift_transcript(project, media, offset)
     _write(project / "factory.json", {**SETTINGS, **settings, "created": datetime.now(timezone.utc).isoformat(timespec="seconds")})
     return status(project)
+
+
+def configure_color(project: Path, **settings) -> dict:
+    """Read or atomically save validated project color settings; clips re-render on the next run."""
+    path = Path(project).resolve() / "factory.json"
+    cfg = _read(path)
+    if not isinstance(cfg, dict):
+        raise FactoryError(f"{path.parent} is not a factory project")
+    unknown = set(settings) - {key for key in SETTINGS if key.startswith("color_")}
+    if unknown:
+        raise FactoryError(f"unknown color settings: {', '.join(sorted(unknown))}")
+    checked = color.normalize({**cfg, **settings})
+    if settings:
+        _write(path, {**cfg, **checked})
+    return checked
+
+
+def _color_current(saved: dict, cfg: dict) -> bool:
+    """A source render needs no look version; a baked grade must match its recipe."""
+    wanted = color.normalize(cfg)
+
+    def active(settings):
+        return settings["color_look"] != "source" and (settings["color_strength"] > 0 or any(
+            settings[key] for key in ("color_exposure", "color_temperature", "color_tint")))
+
+    if "color" not in saved:             # pre-color outputs also used the pack's original CSS grade
+        return wanted["color_look"] == "source"
+    metadata = saved["color"]
+    if not isinstance(metadata, dict) or not isinstance(metadata.get("settings"), dict):
+        return False
+    try:
+        actual = color.normalize(metadata["settings"])
+    except (FactoryError, ValueError, TypeError):
+        return False
+    if type(metadata.get("active")) is not bool or metadata["active"] != active(actual):
+        return False
+    if not active(wanted):
+        # Choosing a preset suppresses the legacy pack's CSS grade, even at zero strength.
+        return not metadata["active"] and actual["color_look"] == wanted["color_look"]
+    return (actual == wanted and metadata["active"]
+            and type(metadata.get("version")) is int and metadata["version"] == color.VERSION
+            and type(metadata.get("look_version")) is int and metadata["look_version"] == color.LOOK_VERSION)
 
 
 def _transcript(project: Path, media: Path, say, vocab: list[str] | None = None) -> list[dict]:
@@ -563,6 +608,7 @@ def _clip(project: Path, i: int, m: dict, judge: Judge, media: Path, cfg: dict, 
         if (not out.is_file() or out.stat().st_mtime < final_path.stat().st_mtime
                 or (data_file.is_file() and data_file.stat().st_mtime_ns > out.stat().st_mtime_ns)
                 or saved.get("scale", 1) != render.scale(cfg)
+                or not _color_current(saved, cfg)
                 or saved.get("disclosure") != campaign.disclosure(brief)
                 or any(saved.get(k) != brand.get(k) for k in ("theme", "fonts", "logo"))):
             say(f"{task}: rendering {shape} ({cfg['pack']})")
