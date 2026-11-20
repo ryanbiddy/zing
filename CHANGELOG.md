@@ -9,6 +9,10 @@ on main, newest first.
 
 ### Changes since #452
 
+- Frame tight close-ups in 9:16 desk and editorial clips so captions sit below the speaker.
+- Use larger type on list cards when the items fit.
+- Add the `pop` pack. Each new caption line pops into place in Lilita One capitals.
+- Keep the first word of a `headline` story inside the frame when it pops in.
 - Add `zing story` to turn a sourced script into a narrated paper-cutout video.
   Centre the comic opening with even margins and fit long credits without squashing type.
   Start a draft from a topic, use JSON checks and the bundled writing prompt, and

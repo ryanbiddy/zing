@@ -65,7 +65,7 @@ def assemble(clip, shape="9x16", pack="desk", **settings):
 
 
 @pytest.mark.parametrize("shape", render.SHAPES)
-@pytest.mark.parametrize("pack", ["desk", "editorial", "newsroom"])
+@pytest.mark.parametrize("pack", ["desk", "editorial", "newsroom", "pop"])
 def test_color_changes_only_the_footage_input_in_every_delivery(clip, prepared, shape, pack):
     files = [p for p in clip.rglob("*") if p.is_file()]
     before_files = {p: p.read_bytes() for p in files}

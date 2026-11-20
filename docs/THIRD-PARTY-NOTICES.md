@@ -1,5 +1,13 @@
 # Third-party dependencies and assets
 
+## Factory pop captions
+
+Zing bundles Lilita One Regular under the SIL Open Font License 1.1.
+Copyright (c) 2011 Juan Montoreano, with Reserved Font Name Lilita.
+The font and its license come from [Google Fonts](https://github.com/google/fonts/tree/main/ofl/lilitaone).
+The bundle includes the [full license](../src/myzing/_data/fonts/LilitaOne-OFL.txt)
+and [source URLs and SHA-256 hashes for both files](../src/myzing/_data/fonts/sources.json).
+
 ## Factory depth parallax (November 2026)
 
 `zing factory fetch-depth --yes` downloads Depth Anything V2 Small through Zing's
@@ -163,8 +171,8 @@ Montserrat, Poppins, Inter, Roboto, Open Sans, Archivo Black and Bangers are
 OFL-1.1. Luckiest Guy and Permanent Marker are Apache-2.0; see their pinned
 [Luckiest Guy license](https://github.com/google/fonts/blob/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/luckiestguy/LICENSE.txt)
 and [Permanent Marker license](https://github.com/google/fonts/blob/45e3d5269e4a17d823f6d84470bc084dc5ae46f6/apache/permanentmarker/LICENSE.txt).
-Only the existing Anton and IBM Plex Sans files remain bundled. Other fonts
-and their license texts are downloaded together on explicit `zing fonts fetch`.
+Of these font candidates, Zing bundles Anton and IBM Plex Sans. Running
+`zing fonts fetch` downloads other candidates with their license texts.
 
 ## R9 rendering and full-suite validation
 

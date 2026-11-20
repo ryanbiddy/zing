@@ -65,7 +65,7 @@ to run. See [the test record](tests/PRIVATE-FIXTURES.md).
 
 ## Fonts, models and other components
 
-Bundled Anton and IBM Plex Sans fonts retain OFL-1.1 terms in
+Bundled fonts, including Anton, IBM Plex Sans and Lilita One, retain OFL-1.1 terms in
 [src/myzing/_data/fonts/](src/myzing/_data/fonts/). The
 [component notices](docs/THIRD-PARTY-NOTICES.md) and
 [HyperFrames notices](tools/hyperframes-sidecar/NOTICES.md) record the

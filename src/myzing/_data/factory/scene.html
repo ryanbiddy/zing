@@ -8,6 +8,7 @@
 @font-face{font-family:ZingCaption;font-weight:700;src:url(../fonts/ZingCaption-700.ttf)}
 @font-face{font-family:ZingCaption;font-weight:800 900;src:url(../fonts/ZingCaption-800.ttf)}
 @font-face{font-family:Anton;src:url(../fonts/Anton-Regular.ttf)}
+@font-face{font-family:'Lilita One';src:url(../fonts/LilitaOne-Regular.ttf)}
 @font-face{font-family:'IBM Plex Sans';font-weight:100 900;src:url(../fonts/IBMPlexSans.ttf)}
 @font-face{font-family:'Instrument Serif';src:url(../fonts/InstrumentSerif-Regular.ttf)}
 @font-face{font-family:'Instrument Serif';font-style:italic;src:url(../fonts/InstrumentSerif-Italic.ttf)}
@@ -141,7 +142,7 @@ html[data-aspect="9x16"] #label .n,html[data-aspect="9x16"] #label .r{white-spac
 <script>
 const D = window.DATA, FPS = D.fps, W = D.words;
 const TH0 = D.theme || {}, CAP_DEFAULT = TH0.cap_bg == null;
-const STILL = TH0.motion === 'still', BAND = TH0.captions === 'band', STYLE = TH0.look;
+const STILL = TH0.motion === 'still', BAND = TH0.captions === 'band', POP = TH0.captions === 'pop', STYLE = TH0.look;
 if (STYLE) document.documentElement.dataset.look = STYLE;
 if (BAND) document.documentElement.dataset.captions = 'band';
 const CAP_SHORT = CAP_DEFAULT || TH0.cap_side === 'short';   // size by the short side, so 16x9 is not 1.8x bigger
@@ -189,6 +190,7 @@ if ((D.quotes || []).length) document.fonts.load(`${TH0.quote_weight || 400} 40p
 if (KIN) { document.fonts.load(`40px ${JSON.stringify(TH0.cap_font)}`); document.fonts.load(`italic 40px ${JSON.stringify(TH0.cap_font)}`); }
 if (TH0.pill_font || TH0.hook_font) document.fonts.load(`italic ${TH0.hook_weight || 400} 40px ${JSON.stringify(TH0.pill_font || TH0.hook_font)}`);
 document.fonts.load(`${TH0.cap_weight || 900} 40px ${JSON.stringify(TH0.cap_font || (CAP_DEFAULT ? 'ZingCaption' : 'Inter'))}`);
+if (POP) document.fonts.load(`${TH0.cap_weight || 400} 40px ${JSON.stringify(TH0.cap_font || 'Lilita One')}`);
 if (STYLE) for (const font of ['700 40px ZingCaption','800 40px ZingCaption','700 40px "IBM Plex Sans"',
   '400 40px "IBM Plex Sans"','400 40px "Instrument Serif"','italic 400 40px "Instrument Serif"']) document.fonts.load(font);
 // caption timing and position; y (center as a fraction of the height) applies where the speaker fills the frame
@@ -498,8 +500,9 @@ function fitCaption(box, gi) {
 function geometry(layout) {
   if (STYLE) {
     const strip = STYLE === 'newsroom' && ASPECT !== '16x9';
-    const box = strip ? {x:0, y:600*SH9/1920, w:SW, h:608*SH9/1920} : {x:0,y:0,w:SW,h:SH9};
-    return {spk:box, ...(layout === 'split' ? {top:box} : layout === 'graphic' ? {gfx:box} : {}),
+    const full = {x:0,y:0,w:SW,h:SH9}, box = strip ? {x:0, y:600*SH9/1920, w:SW, h:608*SH9/1920} : full;
+    const spk = strip ? box : tightBox() || full;   // a framed clip keeps its pictures in the frame too; graphics take the whole card
+    return {spk, ...(layout === 'split' ? {top:spk} : layout === 'graphic' ? {gfx:box} : {}),
       cap:ASPECT === '16x9' ? SH9*975/1080 : SH9*1480/1920, hook:'none'};
   }
   if (layout === 'quote') return {spk: {x:0, y:0, w:SW, h:STAGE_H}, hook: PANEL ? 'panel' : 'none'};   // the speaker, full stage
@@ -634,7 +637,7 @@ function placeLogo(hookOn, hook) {
 }
 
 function captionState(t) {
-  if (BAND) prepareBand();
+  if (POP) preparePop(); else if (BAND) prepareBand();
   const shot = shotAt(t);
   const Q = (D.quotes || []).find(q => t >= q.from && t < q.to);
   const layout = Q ? 'quote' : shot.layout;   // solo | split | graphic, or a quote moment over whatever shot is up
@@ -646,16 +649,18 @@ function captionState(t) {
   return {shot, Q, layout, G, gi, show, visible};
 }
 window.captionCues = function() {
-  if (BAND) prepareBand();
+  if (POP) preparePop(); else if (BAND) prepareBand();
   const cues = [], n = Math.round(D.duration * FPS);
   let last = null;
   for (let f=0;f<n;f++) {
-    const t = f/FPS, {Q, gi, visible} = captionState(t);
-    const id = Q ? `q${Q.a}` : visible ? `g${gi}` : null;
+    const t = f/FPS, {Q, gi, visible, layout} = captionState(t);
+    const pop = POP && !Q ? popState(t) : null;
+    const id = Q ? `q${Q.a}` : pop ? pop.visible && layout !== 'graphic' ? `p${pop.active.from}` : null : visible ? `g${gi}` : null;
     if (id === null) { last = null; continue; }
     if (last && last.id === id) { last.to = (f+1)/FPS; continue; }
     const ids = Q ? Array.from({length: Q.b-Q.a+1}, (_, k) => Q.a+k) : groups[gi];
-    let text = ids.map(j => Q && j !== Q.b ? W[j].w : W[j].w.replace(/[,;:]$/, '')).join(' ');
+    let text = pop ? pop.active.text   // the newest line, as the screen shows it
+      : ids.map(j => Q && j !== Q.b ? W[j].w : W[j].w.replace(/[,;:]$/, '')).join(' ');
     if (Q ? TH0.quote_upper !== false : !KIN && TH0.cap_upper !== false) text = text.toUpperCase();
     last = {id, from: t, to: (f+1)/FPS, text}; cues.push(last);
   }
@@ -741,9 +746,33 @@ function faceSpan(cam, box) {   // screen rows of the face and the picture's low
   bandSpans.set(cam, got);
   return got;
 }
+// A face that fills the frame leaves no chest for captions: its chin sits below the lowest caption line.
+// Such a clip is framed instead. The speaker plays in a shorter box and the captions sit on the ground under it,
+// in one place for the whole clip.
+let tight;
+function tightBox() {
+  if (tight !== undefined) return tight;
+  tight = null;
+  if (ASPECT !== '9x16' || !STYLE || STYLE === 'newsroom') return tight;
+  const full = {x:0,y:0,w:SW,h:SH9}, k = SH9/1920;
+  const room = POP ? 12*k+popSpec().lead*2 : bandSpec().size*2.1;   // what the captions need under a chin
+  let faces = 0, close = 0;
+  for (const cam of D.cams || []) {
+    if (cam.mode !== 'face' || !cam.fh || cam.tile) continue;
+    let seen = 0;   // a face behind a full card frames nothing
+    for (const shot of D.shots || []) if (shot.layout !== 'graphic') seen += Math.max(0, Math.min(cam.to, shot.to)-Math.max(cam.from, shot.from));
+    if (!(D.shots || []).length) seen = cam.to-cam.from;
+    faces += seen;
+    if (faceSpan(cam, full).chin+room > 1500*k) close += seen;   // the captions would cover the chin
+  }
+  bandSpans.clear();
+  if (close > 0 && close >= faces*(POP ? .1 : .25)) tight = {x:0, y:Math.round(180*k), w:SW, h:Math.round(1150*k)};
+  return tight;
+}
 function captionBand(t=0) {
   if (ASPECT === '16x9') return SH9*975/1080;
   if (STYLE === 'newsroom') return SH9*1258/1920;
+  if (tightBox()) return tight.y+tight.h+30*SH9/1920;
   if (bandY == null) {
     const box = geometry('solo').spk, size = bandSpec().size, k = SH9/1920;
     let chin = 1150*k-size*2.1;
@@ -770,11 +799,67 @@ function drawBand(t, visible=true) {
   const left = TH0.cap_align === 'left' || ['editorial','newsroom'].includes(STYLE), news = STYLE === 'newsroom' && ASPECT !== '16x9';
   cap.style.left = (left ? ASPECT === '16x9' ? SW*.1 : (TH0.cap_x || (STYLE === 'editorial' ? 96 : 72))*SW/1080 : (SW-spec.width)/2)+'px';
   cap.style.right = 'auto'; cap.style.width = spec.width+'px'; cap.style.top = captionBand(t)+'px';
-  cap.style.transform = news ? 'none' : 'translateY(-100%)';
+  const under = news || !!tightBox();   // these captions hang from their top line
+  cap.style.transform = under ? 'none' : 'translateY(-100%)';
   box.style.fontSize = size+'px'; box.style.background = 'transparent'; box.style.padding = '0';
-  const x = left ? 0 : spec.width/2, y = news ? size*.76 : h-(lay.lines.length-1)*lead;
+  const x = left ? 0 : spec.width/2, y = under ? size*.76 : h-(lay.lines.length-1)*lead;
   box.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${spec.width}" height="${h}" style="overflow:visible;display:block">`
     + lay.lines.map((s,i) => `<text x="${x}" y="${y+i*lead}" text-anchor="${left ? 'start' : 'middle'}" fill="#FFFFFF" font-family="ZingCaption" font-size="${size}" font-weight="${TH0.cap_weight || 800}" style="paint-order:stroke fill;stroke:${TH0.cap_stroke || 'none'};stroke-width:${(TH0.cap_stroke_w || 0)*spec.scale};text-shadow:${TH0.cap_shadow || 'none'}">${esc(s)}</text>`).join('')+'</svg>';
+}
+// Pop captions: short lines in capitals, two to a page, in one place for the whole clip. A line lands with a small
+// pop in the accent colour and turns white when the next line arrives under it.
+let popPages, popTop;
+const popWord = j => W[j].w.toUpperCase().replace(/^(?:(?![-+.]?\d)[^\p{L}\p{N}$#@])+|[^\p{L}\p{N}%+#]+$/gu, '').replace(/’/g, "'");
+function popSpec() {
+  const wide = ASPECT === '16x9', scale = wide ? SH9/1080 : Math.min(SW/1080, SH9/1920);
+  const size = (TH0.cap_size || 80)*scale;
+  return {wide, scale, size, lead:size*1.1, width:Math.min(SW*.9, (TH0.cap_width || 940)*scale),
+    family:TH0.cap_font || 'Lilita One', weight:TH0.cap_weight || 400};
+}
+function preparePop() {
+  if (popPages) return;
+  const lines = captionGroups(W, {words:CAP.words, chars:CAP.chars}).map(ids => ({ids,
+    text:ids.map(popWord).filter(Boolean).join(' '), from:W[ids[0]].os, to:W[ids[ids.length-1]].oe})).filter(l => l.text);
+  groups = lines.map(l => l.ids);
+  popPages = [];
+  for (let i=0; i<lines.length;) {
+    const a = lines[i], b = lines[i+1], pair = b && b.from-a.to < .8;   // a pause starts a new page
+    popPages.push(pair ? [a, b] : [a]); i += pair ? 2 : 1;
+  }
+  const {wide, scale, lead} = popSpec(), k = SH9/1920;
+  if (wide) popTop = SH9*.93-lead*2;
+  else if (tightBox()) popTop = tight.y+tight.h+24*k;
+  else {   // on the chest: under the lowest chin of the clip, never over a face
+    let chin = 0;
+    for (const cam of D.cams || []) if (cam.mode === 'face') chin = Math.max(chin, faceSpan(cam, geometry('solo').spk).chin);
+    popTop = clamp(chin+12*k, 1000*k, 1500*k-lead*2);
+  }
+}
+function popState(t) {   // the page on screen at t, the lines of it that have landed, and the newest of them
+  preparePop();
+  let pi = -1;
+  for (let i=0; i<popPages.length; i++) if (popPages[i][0].from <= t) pi = i;
+  const page = popPages[pi], next = popPages[pi+1], end = page && page[page.length-1].to;
+  const until = page ? next && next[0].from-end < 1.5 ? next[0].from : end+.5 : 0;
+  const shown = page ? page.filter(l => l.from <= t) : [];
+  return {page, shown, active:shown[shown.length-1], visible:!!page && t < until};
+}
+function drawPop(t, visible=true) {
+  const cap = $('cap'), box = cap.firstChild, {scale, size, lead, width, family, weight} = popSpec();
+  const {page, shown, active, visible:up} = popState(t);
+  cap.style.opacity = visible && up ? 1 : 0;
+  if (!page) return;
+  cap.style.left = '0'; cap.style.right = 'auto'; cap.style.width = SW+'px'; cap.style.top = popTop+'px'; cap.style.transform = 'none';
+  box.style.fontSize = size+'px'; box.style.background = 'transparent'; box.style.padding = '0';
+  const stroke = (TH0.cap_stroke_w ?? 10)*scale;
+  box.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${SW}" height="${lead*2}" style="overflow:visible;display:block;filter:drop-shadow(0 ${4*scale}px ${5*scale}px rgba(0,0,0,.6))">`
+    + shown.map(line => {
+      const i = page.indexOf(line), wide = textWidth(line.text, size, family, weight), fs = Math.min(size, size*width/Math.max(1, wide));
+      const y = size*.82+i*lead, cy = y-fs*.35, on = line === active;
+      const from = Math.min(CAP.pop_from, Math.max(1, (SW-stroke-16*scale)/Math.max(1, wide*fs/size)));
+      const s = on ? mix(from, 1, easeOut(lin(t, line.from, line.from+CAP.pop_ms/1000))) : 1;
+      return `<text x="${SW/2}" y="${y}" text-anchor="middle" transform="translate(${SW/2} ${cy}) scale(${s}) translate(${-SW/2} ${-cy})" fill="${on ? TH0.cap_on || '#FFD23F' : TH0.cap_ink || '#FFFFFF'}" font-family="${esc(family)}" font-size="${fs}" font-weight="${weight}" style="paint-order:stroke fill;stroke:${TH0.cap_stroke || '#000000'};stroke-width:${stroke};stroke-linejoin:round">${esc(line.text)}</text>`;
+    }).join('')+'</svg>';
 }
 function headlineText() { return (D.hookHtml || '').replace(/<[^>]*>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/\*/g,''); }
 function balanced(text, size, width, family, weight, italic=false) {
@@ -879,13 +964,23 @@ function drawTakeaway(g, end=false) {
       }
     }
   } else if (['list','funnel','title'].includes(g.kind)) {
-    const family = news ? 'IBM Plex Sans' : 'ZingCaption', size = 64*s, lead = size*1.12, funnel = g.kind === 'funnel';
+    const family = news ? 'IBM Plex Sans' : 'ZingCaption', funnel = g.kind === 'funnel', title = g.title || '';
     const rows = g.kind === 'list' ? g.items.map(r => r.text) : funnel ? g.rows.map(r => r.label || '') : [String(g.text || '').replace(/\*/g,'')];
-    const left = (g.kind === 'list' ? 168 : 72)*sx, width = SW-72*sx-left;
-    const lines = rows.map(r => wrapped(r,size,width,family,700,false,1,Math.max(1,r.split(/\s+/).length)));
-    const heights = lines.map(ls => ls.length*lead+(funnel ? 108*s : 0)+32*s), title = g.title || '';
-    let y = Math.max(300*sy,(SH9-heights.reduce((a,b) => a+b,0)-(title ? 88*s : 0))/2);
-    if (title) { ink += svgText(title,72*sx,y+44*s,44*s,family,700); y += 88*s; }
+    // a list is read on a phone: the largest type at which every item still fits on two lines and the card in the frame
+    let size = 64*s, lead, left, lines, heights, head;
+    const sizes = g.kind === 'list' ? [96, 88, 80, 72, 64, 56, 48] : [64];
+    for (const px of sizes) {
+      size = px*s; lead = size*1.12; head = g.kind === 'list' ? Math.max(44*s, size*.62) : 44*s;
+      left = g.kind === 'list' ? 72*sx+size*1.6 : 72*sx;
+      const width = SW-72*sx-left;
+      if (title) head = Math.max(Math.min(head, 44*s), Math.min(head, head*(SW-144*sx)/Math.max(1, textWidth(title,head,family,700))));
+      lines = rows.map(r => wrapped(r,size,width,family,700,false,1,Math.max(1,r.split(/\s+/).length)));
+      heights = lines.map(ls => ls.length*lead+(funnel ? 108*s : 0)+size*.5);
+      if (px === sizes[sizes.length-1] || lines.every(ls => ls.length && ls.length <= 2)
+          && heights.reduce((a,b) => a+b,0)+(title ? head*2 : 0) <= SH9*(wide ? .72 : .56)) break;
+    }
+    let y = Math.max(wide ? 0 : 300*sy,(SH9-heights.reduce((a,b) => a+b,0)-(title ? head*2 : 0))/2);
+    if (title) { ink += svgText(title,72*sx,y+head,head,family,700,'#FFFFFF','start','opacity=".8"'); y += head*2; }
     const nums = (g.rows || []).map(r => r.value), scale = Math.min(...nums)>0 ? Math.log : v => v;
     const lo = scale(Math.min(...nums)), hi = scale(Math.max(...nums));
     lines.forEach((ls,i) => {
@@ -897,7 +992,7 @@ function drawTakeaway(g, end=false) {
       }
       if (g.kind === 'list') ink += svgText(`${i+1}.`,72*sx,y+size*.76,size,family,700,'#FFD23F');
       ink += ls.map((l,j) => svgText(l,left,y+size*.76+j*lead,size,family,700)).join('');
-      y += ls.length*lead+32*s;
+      y += ls.length*lead+size*.5;
     });
   } else {
     if (news) { ink += `<rect x="${strip.x}" y="${strip.y}" width="${strip.w}" height="${strip.h}" fill="#FFD23F"/>`; y = strip.y+330*sy; }
@@ -945,8 +1040,8 @@ async function seekLook(t) {
   if (shot.layout === 'split' && D.visuals[shot.visual] && t>=3 && !card) {
     const v = D.visuals[shot.visual], flat = !news && v.card;
     let b = G.top;
-    if (flat) { const h = Math.min(900*v.h/v.w, 800)*s;
-      const y = Math.max(330*SH9/1920,t<headlineUntil() ? headlineLayout().bottom+24*s : 0);
+    if (flat) { const y = Math.max(330*SH9/1920,t<headlineUntil() ? headlineLayout().bottom+24*s : 0);
+      const h = Math.min(Math.min(900*v.h/v.w, 800)*s, tightBox() ? tight.y+tight.h-64*s-y : Infinity);
       b = {x:90*SW/1080,y,w:900*SW/1080,h}; }
     place(top,b); top.style.border = STYLE === 'editorial' && flat ? `${2*s}px solid #F2F0EB` : '0';
     place($('topWin'),{x:0,y:0,w:b.w,h:b.h});
@@ -977,7 +1072,7 @@ async function seekLook(t) {
   scrim.style.zIndex = shot.layout === 'split' && D.visuals[shot.visual] && t>=3 && !card && !picture ? 3 : '';   // over a full-bleed photo too
   const rule = $('rule'); place(rule,news && !wide ? {x:0,y:1208*SH9/1920,w:SW,h:4*s} : null); rule.style.background = '#FFD23F';
   drawHeadline(t,card || graphic && !end,end);
-  drawBand(t,!graphic);
+  (POP ? drawPop : drawBand)(t,!graphic);
   const lab = $('label'), name = shot.label;
   lab.style.display = name?.name && name.role && t-shot.from<3 && !card && !end && t>=headlineUntil() ? 'block' : 'none';
   if (name?.name && name.role) { lab.querySelector('.n').textContent = name.name; lab.querySelector('.r').textContent = name.role;

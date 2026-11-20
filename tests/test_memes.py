@@ -251,8 +251,11 @@ def test_prompt_and_fonts_ship_with_provenance(monkeypatch):
     assert all(s in prompt for s in ("70", "110", "meme_check", "meme_render", "wildcard"))
     data = Path(__file__).resolve().parents[1] / "src/myzing/_data"
     assert (data / "prompts/meme-writer.md").read_bytes() == (data.parents[2] / "prompts/meme-writer.md").read_bytes()
-    for record in json.loads((data / "fonts/sources.json").read_text()):
+    sources = json.loads((data / "fonts/sources.json").read_text())
+    assert {"LilitaOne-Regular.ttf", "LilitaOne-OFL.txt"} <= {r["file"] for r in sources}
+    for record in sources:
         assert hashlib.sha256((data / "fonts" / record["file"]).read_bytes()).hexdigest() == record["sha256"]
     assert "SIL OPEN FONT LICENSE" in (data / "fonts/Anton-OFL.txt").read_text()
     assert "SIL OPEN FONT LICENSE" in (data / "fonts/IBMPlexSans-OFL.txt").read_text(encoding="utf-8")
     assert "SIL OPEN FONT LICENSE" in (data / "fonts/InstrumentSerif-OFL.txt").read_text(encoding="utf-8")
+    assert "SIL OPEN FONT LICENSE" in (data / "fonts/LilitaOne-OFL.txt").read_text(encoding="utf-8")

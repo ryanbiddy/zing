@@ -51,7 +51,7 @@ html,body{width:1080px;height:1920px;overflow:hidden;background:#000}
 .headline-chapter{position:absolute;left:64px;top:190px;font-family:Cap;font-size:32px;line-height:1.15;letter-spacing:.04em;padding:12px 24px 10px;border-radius:60px;max-width:952px}
 .headline-type{position:absolute;left:64px;top:300px;width:952px;overflow:visible;font-family:Anton;line-height:.98;text-transform:uppercase}
 .headline-ghost{position:absolute;right:40px;top:1290px;font-family:Anton;font-size:560px;line-height:1;opacity:.09;letter-spacing:-.02em}
-.headline-word{position:absolute;white-space:nowrap;transform-origin:50% 50%}
+.headline-word{position:absolute;white-space:nowrap;transform-origin:0 50%}
 .headline-badge{position:absolute;transform-origin:50% 50%}
 .headline-face{width:100%;height:100%;border:12px solid var(--cream);border-radius:50%;background:var(--cream);box-shadow:9px 9px 0 rgba(0,0,0,.3);overflow:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--ink);font-family:Anton}
 .headline-face img{width:100%;height:100%;object-fit:cover}
@@ -799,9 +799,11 @@ function headlineFrame(beat, t) {
   }
   const words = fitLine ? fitLine.fit.words.map((word,i,all) => {
     const at = fitLine.start + (fitLine.end-fitLine.start)*i/all.length, visible = tq >= at;
+    const box = headlineBox(64+word.x*fitLine.fit.scale,300+word.y*fitLine.fit.scale,word.width*fitLine.fit.scale,word.height*fitLine.fit.scale);
+    // a word lands large and settles, growing from its left edge: it never runs into the word before it or off the frame
+    const pop = Math.min(1.2, Math.max(1, (W-24-box.left)/box.width));
     return {...word, at, visible, color:/\d/.test(word.text) ? beat.colors.accent : beat.colors.text,
-      scale:visible ? lerp(1.2,1,clamp((tq-at)*FPS12/2)) : 1,
-      box:headlineBox(64+word.x*fitLine.fit.scale,300+word.y*fitLine.fit.scale,word.width*fitLine.fit.scale,word.height*fitLine.fit.scale)};
+      scale:visible ? lerp(pop,1,clamp((tq-at)*FPS12/2)) : 1, box};
   }) : [];
   return {colorName:beat.colorName, color:beat.colors.background, accent:beat.colors.accent, beatIndex:beat.index,
     line:fitLine ? fitLine.text : null, fontSize:fitLine ? fitLine.fit.size : null,

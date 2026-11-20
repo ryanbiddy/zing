@@ -133,7 +133,7 @@ def test_lint_rejects_unknown_families(field):
     fields = {"panel": {"font": "Missing Face"}} if field == "panel.font" else {field: "Missing Face"}
     pack(**fields)
     assert render.check_pack("acme") == [f"{field} uses unknown font family 'Missing Face'"]
-    for face in ("Inter", "Anton", "IBM Plex Sans", "Instrument Serif"):
+    for face in ("Inter", "Anton", "IBM Plex Sans", "Instrument Serif", "Lilita One"):
         pack(**({"panel": {"font": face}} if field == "panel.font" else {field: face}))
         assert render.check_pack("acme") == []
 
