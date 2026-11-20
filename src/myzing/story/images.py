@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import math
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 
 from myzing.factory.tools import FactoryError, ffmpeg, run
 
-from . import StoryError, heads
+from . import StoryError, heads, prepared
 
 
 def _valid_box(box) -> bool:
@@ -46,10 +47,15 @@ def _photo(source: Path, output: Path) -> Path:
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".image-", dir=output.parent) as scratch:
             temporary = Path(scratch) / "picture.png"
-            run(encoder, "-v", "error", "-y", "-protocol_whitelist", "file,pipe", "-i", source,
+            input_name = source.resolve()
+            if "%" in str(input_name):
+                # Keep FFmpeg's format detection, but give image2 a literal basename.
+                input_name = "source" + source.suffix.replace("%", "_")
+                shutil.copyfile(source, Path(scratch) / input_name)
+            run(encoder, "-v", "error", "-y", "-protocol_whitelist", "file,pipe", "-i", input_name,
                 "-frames:v", 1, "-vf", "scale=w='min(1600,iw)':h='min(1600,ih)':force_original_aspect_ratio=decrease",
-                "-threads", 1, "-f", "image2", "-c:v", "png", temporary,
-                capture_output=True, timeout=60)
+                "-threads", 1, "-f", "image2", "-c:v", "png", temporary.name,
+                cwd=scratch, capture_output=True, timeout=60)
             temporary.replace(output)
     except FactoryError as exc:
         raise StoryError(str(exc)) from exc
@@ -123,10 +129,11 @@ def generate(directory: Path, story: dict, *, sheet: bool = False) -> list[dict]
             continue
         try:
             source = local_photo(directory, image["path"])
-            output = local_photo(directory, prepared_path(image_id, image))
+            name = prepared_path(image_id, image)
+            outputs = prepared.targets(directory, name)
             if not source.is_file():
                 raise StoryError("image file is missing")
-            jobs.append((image_id, image, source, output))
+            jobs.append((image_id, image, source, outputs))
         except StoryError as exc:
             errors.append(f"image {image_id}: {str(exc).replace('photo', 'image')}")
     if errors:
@@ -135,20 +142,21 @@ def generate(directory: Path, story: dict, *, sheet: bool = False) -> list[dict]
     for member in story.get("cast", {}).values():
         for photo in member.get("photos", []):
             sources.add(local_photo(directory, photo["path"]))
-    for image_id, _, _, output in jobs:
-        if output in sources:
+    for image_id, _, _, outputs in jobs:
+        if sources.intersection(outputs):
             errors.append(f"image {image_id}: prepared file would replace an original picture; rename the original and update its path")
     if sheet and local_photo(directory, "images/sheet.png") in sources:
         errors.append("images/sheet.png is an original picture; rename it and update its path before making a sheet")
     if errors:
         raise StoryError("\n".join(errors))
     result = []
-    for image_id, image, source, output in jobs:
+    for image_id, image, source, _ in jobs:
         cut = image.get("cut", "photo")
-        if cut == "sticker":
-            cut_sticker(source, output, box=image.get("box"))
-        else:
-            _photo(source, output)
+        with prepared.writing(directory, prepared_path(image_id, image), prepared.source_record(source, image)) as output:
+            if cut == "sticker":
+                cut_sticker(source, output, box=image.get("box"))
+            else:
+                _photo(source, output)
         result.append({"image_id": image_id, "path": image["path"], "image": prepared_path(image_id, image),
                        "cut": cut, "credit": image["credit"], "license": image["license"],
                        "source_url": image["source_url"], "rights": heads.photo_rights(image)})

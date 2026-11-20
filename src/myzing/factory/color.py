@@ -49,10 +49,9 @@ def normalize(settings: dict) -> dict:
     return result
 
 
-def _active(settings: dict) -> bool:
-    return settings["color_look"] != "source" and (
-        settings["color_strength"] > 0 or any(settings[key] for key in (
-            "color_exposure", "color_temperature", "color_tint")))
+def active(settings: dict) -> bool:
+    return ((settings["color_look"] != "source" and settings["color_strength"] > 0)
+            or any(settings[key] for key in ("color_exposure", "color_temperature", "color_tint")))
 
 
 def _digest(path: Path) -> str:
@@ -153,7 +152,7 @@ def _cube(settings: dict):
     temperature, tint = settings["color_temperature"], settings["color_tint"]
     gains = np.exp2([temperature + tint / 2, -tint / 2, -temperature + tint / 2])
     x = np.clip(encode(linearize(rgb) * (2 ** settings["color_exposure"]) * gains), 0, 1)
-    strength = settings["color_strength"]
+    strength = settings["color_strength"] if settings["color_look"] == "cinematic-cool" else 0
     if strength:
         parameters = LookParameters(contrast=1.18, saturation=1.04, gamma=1.02,
                                     shadows=[-0.05, 0.012, 0.045], highlights=[0.025, 0.008, -0.007])
@@ -185,7 +184,8 @@ def _cube(settings: dict):
         headroom = np.clip(np.minimum(source_luma / 0.08, (1 - source_luma) / 0.10), 0, 1)
         graded = x + headroom[:, None] * (graded - x)
         x = np.clip(x + strength * (1 - 0.8 * warm[:, None]) * (graded - x), 0, 1)
-    return Cube(33, x.tolist(), "Zing cinematic-cool original procedural look")
+    title = "Zing manual corrections" if settings["color_look"] == "source" else "Zing cinematic-cool original procedural look"
+    return Cube(33, x.tolist(), title)
 
 
 def _valid_cache(target: Path, identity: dict, names: list[str]) -> dict | None:
@@ -219,7 +219,7 @@ def prepare(directory: Path, settings: dict) -> dict:
     settings = normalize(settings)
     directory = Path(directory).resolve()
     source = directory / "frames"
-    color = {"version": VERSION, "active": _active(settings), "settings": settings, "warnings": []}
+    color = {"version": VERSION, "active": active(settings), "settings": settings, "warnings": []}
     if not color["active"]:
         return {"frames_dir": str(source), "color": color}
     from myzing.color import ColorError, require_numpy
@@ -253,7 +253,7 @@ def prepare(directory: Path, settings: dict) -> dict:
                        "scale=out_color_matrix=bt601:out_range=pc,format=yuvj444p")
             command = [ffmpeg(), "-v", "error", "-nostdin", "-xerror", "-n", "-threads", "2",
                        "-filter_threads", "1", "-protocol_whitelist", "file,pipe", "-framerate", "30",
-                       "-start_number", "1", "-i", str(source / "%05d.jpg"), "-an", "-sn", "-vf", filters,
+                       "-start_number", "1", "-i", "../../frames/%05d.jpg", "-an", "-sn", "-vf", filters,
                        "-frames:v", str(len(inputs)), "-fps_mode", "passthrough", "-threads", "2",
                        "-q:v", "2", "-start_number", "1", "frames/%05d.jpg"]
             # Only controlled LUT/output basenames enter the filtergraph.
@@ -283,14 +283,14 @@ def prepare(directory: Path, settings: dict) -> dict:
                 target.rename(cache / f".invalid-{key}-{uuid.uuid4().hex[:8]}")
             try:
                 staging.rename(target)
-            except FileExistsError:
+            except OSError:
                 cached = _valid_cache(target, identity, names)
                 if cached is None:
-                    raise FactoryError("Color cache changed during rendering; retry this clip.") from None
+                    raise
                 color = cached
             return {"frames_dir": str(target / "frames"), "color": color}
         finally:
             if staging.exists():
-                shutil.rmtree(staging)
+                shutil.rmtree(staging, ignore_errors=True)
     except (ColorError, OSError, ValueError, TypeError, KeyError) as exc:
         raise FactoryError(f"Cannot prepare footage color: {exc}") from exc

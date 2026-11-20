@@ -17,7 +17,7 @@ def credit_lines(story: dict, timings: dict, *, width: int = CREDIT_WRAP,
     if provider not in ("kokoro", "elevenlabs", "lines"):
         raise StoryError("Unknown narration provider; run zing story voice before rendering credits.")
     # Supplied recordings can be synthetic too; only a declared human read drops the line.
-    lines = ["narration is an AI voice"] if provider != "lines" or timings.get("synthetic") is True else []
+    lines = ["narration is an AI voice"] if provider != "lines" or timings.get("synthetic") is not False else []
     # One wrapped line for all sources keeps a long source list off the puppets.
     titles = [source["title"] for source in story["sources"][:len(story["sources"]) - omitted]]
     if titles:

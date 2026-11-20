@@ -10,9 +10,9 @@ from pathlib import Path
 
 from myzing.factory.tools import FactoryError, ffmpeg, node_sidecar, run, sidecar_env
 
-from . import StoryError, data_path
+from . import StoryError, data_path, prepared
 from .audio import mix
-from .contract import check_timings, load, local_photo
+from .contract import check, check_timings, load
 from .outro import prepare
 
 FPS = 30
@@ -62,7 +62,7 @@ def render(directory: Path, *, out: Path | None = None,
            look: str | None = None) -> Path | list[Path]:
     """Write a 1080 x 1920, 30 fps MP4, or sampled JPEGs in the story's stills folder."""
     directory = Path(directory).resolve()
-    story = load(directory, look=look)
+    story = load(directory, look=look, check_layout=False)
     timings = _timings(directory, story)
     samples = _samples(stills, timings["duration"])
     output = Path(out).resolve() if out is not None else directory / "story.mp4"
@@ -81,19 +81,24 @@ def render(directory: Path, *, out: Path | None = None,
         output.parent.mkdir(parents=True, exist_ok=True)
     data = {"story": prepare(story, timings), "timings": timings,
             "base": directory.as_uri() + "/", "vocabulary": json.loads(data_path("vocabulary.json").read_text(encoding="utf-8"))}
+    key = "heads" if data["story"]["look"] in ("cutout", "comic") else "portraits"
+    for ident, member in data["story"]["cast"].items():
+        for photo, name in zip(member.get("photos", []), member[key]):
+            prepared.verify(directory, "heads/" + name, photo, f"cast photo {ident} ({name})", "heads")
     for ident, picture in data["story"].get("images", {}).items():
         try:
-            prepared = local_photo(directory, picture["prepared"])
+            prepared.verify(directory, picture["prepared"], picture, f"image {ident}", "images")
         except StoryError as exc:
             raise StoryError(f"image {ident}: {str(exc).replace('photo', 'image')}") from exc
-        if not prepared.is_file():
-            raise StoryError(f"Prepared image {ident} is missing. Run 'zing story images' first.")
+    problems = check(story, directory, timings=timings)
+    if problems:
+        raise StoryError("\n".join(problems))
     if samples is not None:
         data["stills"] = samples
     scratch_root = directory if samples is not None else output.parent
     try:
         encoder = ffmpeg() if samples is None else None
-        with tempfile.TemporaryDirectory(prefix=".story-render-", dir=scratch_root) as temporary:
+        with tempfile.TemporaryDirectory(prefix=".story-render-", dir=scratch_root, ignore_cleanup_errors=True) as temporary:
             scratch = Path(temporary)
             frames = scratch / "frames"
             audio_path = mix(directory, data["story"], timings, scratch, no_sfx=no_sfx) if samples is None else None
@@ -108,12 +113,12 @@ def render(directory: Path, *, out: Path | None = None,
                     images.append(image)
                 return images
             part = scratch / "story.mp4"
-            run(encoder, "-v", "error", "-y", "-framerate", FPS, "-i", frames / "%05d.jpg",
+            run(encoder, "-v", "error", "-y", "-framerate", FPS, "-i", "frames/%05d.jpg",
                 "-i", audio_path, "-map", "0:v", "-map", "1:a",
                 "-t", timings["duration"], "-c:v", "libx264", "-preset", "medium", "-crf", 20,
                 "-maxrate", "12M", "-bufsize", "24M", "-pix_fmt", "yuv420p", "-threads", 4,
                 "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", part,
-                capture_output=True)
+                cwd=scratch, capture_output=True)
             part.replace(output)
     except FactoryError as exc:
         raise StoryError(str(exc)) from exc

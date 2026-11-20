@@ -94,7 +94,7 @@ def local_photo(directory: Path, name: str) -> Path:
 
 
 def check(story, directory: Path | None = None, *, timings: dict | None = None,
-          look: str | None = None) -> list[str]:
+          look: str | None = None, check_layout: bool = True) -> list[str]:
     """Collect all independent problems, including malformed nested objects."""
     errors: list[str] = []
     provided_timings = timings
@@ -367,7 +367,7 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None,
                 err(awhere + ".flip", "must be a boolean")
             if s.get("captions") is not False and start != "outro":
                 from .layout import head_overlaps_captions
-                if head_overlaps_captions(actor, look=chosen_look):
+                if head_overlaps_captions(actor, look=chosen_look, panel_index=i):
                     subject = "picture card" if chosen_look == "scrapbook" else "puppet head"
                     err(awhere, f"{subject} overlaps the caption band at y=1560..1720; move it up or increase scale")
             member = cast.get(who, {}) if isinstance(who, str) else {}
@@ -426,11 +426,11 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None,
                 err(cwhere + ".rows", "only list cards have rows")
             if s.get("captions") is not False and start != "outro":
                 from .layout import card_overlaps_captions
-                if card_overlaps_captions(card):
+                if card_overlaps_captions(card, look=chosen_look, panel_index=i):
                     err(cwhere, "card box overlaps the caption band at y=1560..1720; move it above the band")
     if beats and (not starts or starts[0] != 0):
         err("panels", "the first panel must start at the first beat so every beat is covered")
-    if not errors:
+    if not errors and check_layout:
         # Structure checks use placeholder times to validate cue syntax. Once
         # voice exists, layout must use exactly the times the page will use.
         actual = provided_timings
@@ -439,10 +439,26 @@ def check(story, directory: Path | None = None, *, timings: dict | None = None,
                 actual = json.loads((Path(directory) / "timings.json").read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 pass
-        if actual is not None and not check_timings(s, actual):
+        measured = actual is not None and not check_timings(s, actual)
+        if measured:
             timings = actual
-        from .layout import panel_overlaps
+        from .layout import card_overlaps_captions, head_overlaps_captions, panel_overlaps
         for index, panel in enumerate(s["panels"]):
+            if chosen_look == "cutout" and panel["from"] == "outro" and s.get("captions") is not False:
+                # The incoming panel is already on screen during the last .42s.
+                stop = timings["outro_start"]
+                speech = [(max(stop - .42, line["start"]), line["end"]) for beat in timings["beats"]
+                          for line in beat["lines"] if line["end"] > stop - .42] if measured else [(stop - .42, stop)]
+                for group, checker, label in (("cards", card_overlaps_captions, "card box"),
+                                               ("actors", head_overlaps_captions, "puppet head")):
+                    for j, part in enumerate(panel.get(group, [])):
+                        enter = part.get("at", part.get("enter"))
+                        a = cue_time(enter, timings) if enter not in (None, "walk") else 0
+                        b = cue_time(part["until"], timings) if "until" in part else stop
+                        # Art updates on the page's 12 fps clock while cutout captions use real time.
+                        b = math.ceil(b * 12 - 1e-6) / 12 if "until" in part else stop
+                        if any(max(a, start) < min(b, end) for start, end in speech) and checker(part):
+                            err(f"panels[{index}].{group}[{j}]", f"{label} overlaps the caption band during the slide into the outro")
             end = (cue_time(s["panels"][index + 1]["from"], timings)
                    if index + 1 < len(s["panels"]) else timings["duration"])
             try:
@@ -474,13 +490,13 @@ def messages(story, *, look: str | None = None) -> tuple[list[dict[str, str]], l
     return warnings, notes
 
 
-def load(directory: Path, *, look: str | None = None) -> dict:
+def load(directory: Path, *, look: str | None = None, check_layout: bool = True) -> dict:
     path = Path(directory) / "story.json"
     try:
         story = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise StoryError(f"Cannot read story.json: {exc}") from exc
-    errors = check(story, Path(directory), look=look)
+    errors = check(story, Path(directory), look=look, check_layout=check_layout)
     if errors:
         raise StoryError("\n".join(errors))
     if look is not None:
@@ -497,6 +513,8 @@ def check_timings(story: dict, timings) -> list[str]:
         errors.append("timings.provider must be kokoro, elevenlabs or lines; run zing story voice")
     if timings.get("provider") in ("kokoro", "elevenlabs") and not isinstance(timings.get("voice"), str):
         errors.append("timings.voice must name the synthetic voice")
+    if timings.get("provider") == "lines" and type(timings.get("synthetic")) is not bool:
+        errors.append("timings.synthetic must be true or false for supplied lines; run zing story voice")
     duration, outro = timings.get("duration"), timings.get("outro_start")
     if not finite(duration) or not finite(outro) or not 0 < outro < duration:
         errors.append("timings need finite duration > outro_start > 0")

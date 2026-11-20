@@ -263,7 +263,7 @@ def test_resume_replaces_malformed_color_metadata(rendered_project, metadata):
 
 def test_historical_source_render_stays_current_without_color_metadata(rendered_project, monkeypatch):
     root, calls, run, change_metadata = rendered_project
-    pipeline.configure_color(root, color_look="source", color_strength=.2, color_exposure=.5)
+    pipeline.configure_color(root, color_look="source", color_strength=.2)
     run()
     assert len(calls) == 2
     change_metadata("missing")

@@ -271,7 +271,10 @@ def _paper_sticker(head, alpha, cv2, np):
     matte = cv2.GaussianBlur(matte, (5, 5), 0)
     border = cv2.dilate(cv2.threshold(matte, 127, 255, cv2.THRESH_BINARY)[1],
                         cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * border_size + 1,) * 2))
-    contour = max(cv2.findContours(border, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0], key=cv2.contourArea)
+    contours = cv2.findContours(border, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
+    if not contours:
+        raise StoryError("The cutout subject is too thin. Choose a larger subject or adjust its box.")
+    contour = max(contours, key=cv2.contourArea)
     contour = cv2.approxPolyDP(contour, HEAD_SIZE * 0.006, True)
     border = np.zeros_like(border)
     cv2.fillPoly(border, [contour], 255, lineType=cv2.LINE_AA)
@@ -370,11 +373,15 @@ def _write_sheet(directory: Path, records: list[dict], *, folder: str = "heads")
 
 def generate(directory: Path, story: dict, *, sheet: bool = False) -> list[dict]:
     """Write portraits and the selected look's stickers after checking rights."""
+    from . import prepared
     from .contract import local_photo
     from .portraits import crop_portrait
 
     jobs, errors = [], []
     directory = Path(directory)
+    uses_heads = story.get("look", "cutout") in ("cutout", "comic")
+    sources = {local_photo(directory, image["path"]) for image in story.get("images", {}).values()}
+    outputs = {local_photo(directory, "heads/sheet.png")} if sheet else set()
     for cast_id, member in story.get("cast", {}).items():
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", cast_id):
             errors.append(f"cast id {cast_id!r} must start with a letter and use letters, numbers, '_' or '-'")
@@ -383,23 +390,31 @@ def generate(directory: Path, story: dict, *, sheet: bool = False) -> list[dict]
             problems = photo_errors(photo)
             errors.extend(f"{cast_id} photo {index}: {problem}" for problem in problems)
             if not problems:
-                jobs.append((cast_id, index, photo))
+                source = local_photo(directory, photo["path"])
+                if not source.is_file():
+                    errors.append(f"{cast_id} photo {index}: photo file is missing")
+                sources.add(source)
+                head = f"heads/{cast_id}-{index}.png"
+                portrait = f"heads/{cast_id}-{index}-portrait.jpg"
+                for name in (head, portrait) if uses_heads else (portrait,):
+                    outputs.update(prepared.targets(directory, name))
+                jobs.append((cast_id, index, photo, source, head, portrait))
+    for collision in sorted(sources & outputs):
+        errors.append(f"{collision.name} would replace an original picture; rename the original and update its path")
     if errors:
         raise StoryError("\n".join(errors))
     result = []
-    for cast_id, index, photo in jobs:
-        source = local_photo(directory, photo["path"])
-        head = f"heads/{cast_id}-{index}.png"
+    for cast_id, index, photo, source, head, portrait in jobs:
+        record = prepared.source_record(source, photo)
         detection = {}
-        uses_heads = story.get("look", "cutout") in ("cutout", "comic")
         if uses_heads:
-            cut_head(source, directory / head, face=photo.get("face"), detection=detection)
+            with prepared.writing(directory, head, record) as output:
+                cut_head(source, output, face=photo.get("face"), detection=detection)
             if detection.get("warning") == "background may have leaked into the cut":
                 print("You can also render with --look scrapbook or --look headline, "
                       "which use the photo as it is.", file=sys.stderr)
-        portrait = f"heads/{cast_id}-{index}-portrait.jpg"
-        crop_portrait(source, directory / portrait, face=photo.get("face", detection.get("face")),
-                      detection=detection)
+        with prepared.writing(directory, portrait, record) as output:
+            crop_portrait(source, output, face=photo.get("face", detection.get("face")), detection=detection)
         result.append({"cast_id": cast_id, "index": index, "path": photo["path"],
                        **({"head": head} if uses_heads else {"portrait": portrait}),
                        "credit": photo["credit"], "license": photo["license"],

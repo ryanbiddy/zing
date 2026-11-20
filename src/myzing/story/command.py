@@ -70,7 +70,7 @@ def build(directory: Path, *, provider: str | None = None, voice: str | None = N
     from .voice import generate
 
     directory = Path(directory)
-    story = contract.load(directory, look=look)
+    story = contract.load(directory, look=look, check_layout=False)
     generate(directory, story, provider=provider, voice=voice, speed=speed, lines_dir=lines_dir, synthetic=synthetic)
     heads.generate(directory, story)
     images.generate(directory, story)
@@ -94,6 +94,7 @@ def run(argv: list[str]) -> int:
     check_parser.add_argument("--look", metavar="NAME", help="override the story look for this check")
     voice = commands.add_parser("voice", help="write narration.wav and exact line timings")
     voice.add_argument("directory", type=Path)
+    voice.add_argument("--look", choices=contract.LOOKS, help="use this look when checking the story")
     _voice_options(voice)
     heads = commands.add_parser("heads", help="prepare cast portraits and the look's head stickers")
     heads.add_argument("directory", type=Path)
@@ -101,6 +102,7 @@ def run(argv: list[str]) -> int:
     heads.add_argument("--look", metavar="NAME", help="prepare cast assets for this look without changing the story")
     images = commands.add_parser("images", help="prepare licensed pictures as photos or stickers")
     images.add_argument("directory", type=Path)
+    images.add_argument("--look", choices=contract.LOOKS, help="use this look when checking the story")
     images.add_argument("--sheet", action="store_true", help="also write images/sheet.png for review")
     find = commands.add_parser("find", help="search Wikimedia Commons for licensed pictures (uses the network)")
     find.add_argument("query")
@@ -162,7 +164,8 @@ def run(argv: list[str]) -> int:
             result = {"ok": True, "story": str(directory / "story.json"), "look": report["look"]}
         elif args.command == "voice":
             from .voice import generate
-            result = generate(directory, contract.load(directory), provider=args.provider, voice=args.voice, speed=args.speed,
+            result = generate(directory, contract.load(directory, look=args.look, check_layout=False),
+                              provider=args.provider, voice=args.voice, speed=args.speed,
                               lines_dir=args.lines_dir.expanduser() if args.lines_dir else None,
                               synthetic=args.synthetic_voice)
         elif args.command == "heads":
@@ -172,7 +175,7 @@ def run(argv: list[str]) -> int:
                 result["sheet"] = str(directory / "heads" / "sheet.png")
         elif args.command == "images":
             from .images import generate
-            result = {"images": generate(directory, contract.load(directory), **({"sheet": True} if args.sheet else {}))}
+            result = {"images": generate(directory, contract.load(directory, look=args.look), **({"sheet": True} if args.sheet else {}))}
             if args.sheet:
                 result["sheet"] = str(directory / "images" / "sheet.png")
         elif args.command == "fetch":
