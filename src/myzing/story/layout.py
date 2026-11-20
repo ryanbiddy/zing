@@ -6,7 +6,7 @@ import struct
 from pathlib import Path
 
 from . import StoryError
-from .contract import CAPTION_BAND, VOCABULARY, cue_time, finite
+from .contract import CAPTION_BAND, VOCABULARY, cue_time, finite, local_photo
 
 
 # Average glyph advance as a share of the font size. The bundled faces run
@@ -136,18 +136,29 @@ def card_box(card: dict, *, resting: bool = False) -> tuple[float, float, float,
     return x, top, rw, y + rh + extra - top
 
 
-def card_overlaps_captions(card: dict) -> bool:
+def _in_caption_band(box, look, panel_index):
+    x, top, width, height = box
+    bottom = top + height
+    if look == "comic":
+        # comicAt centres each settled frame with alternating tilt and 0.9 scale.
+        angle = math.radians(1.2 if panel_index % 2 else -1.2)
+        ys = [960 + .9 * ((px - 540) * math.sin(angle) + (py - 960) * math.cos(angle))
+              for px in (x, x + width) for py in (top, bottom)]
+        top, bottom = min(ys), max(ys)
+    return top < CAPTION_BAND["y"] + CAPTION_BAND["height"] and bottom > CAPTION_BAND["y"]
+
+
+def card_overlaps_captions(card: dict, *, look: str = "cutout", panel_index: int = 0) -> bool:
     if not isinstance(card, dict) or not finite(card.get("y")):
         return False
-    _, top, _, height = card_box(card)
-    return top < CAPTION_BAND["y"] + CAPTION_BAND["height"] and top + height > CAPTION_BAND["y"]
+    return _in_caption_band(card_box(card), look, panel_index)
 
 
-def head_overlaps_captions(actor: dict, *, look: str = "cutout") -> bool:
+def head_overlaps_captions(actor: dict, *, look: str = "cutout", panel_index: int = 0) -> bool:
     if not isinstance(actor, dict):
         return False
-    _, top, _, height = picture_box(actor) if look == "scrapbook" else head_box(actor)
-    return top < CAPTION_BAND["y"] + CAPTION_BAND["height"] and top + height > CAPTION_BAND["y"]
+    box = picture_box(actor) if look == "scrapbook" else head_box(actor)
+    return _in_caption_band(box, look, panel_index)
 
 
 def _face(head):
@@ -372,7 +383,7 @@ def _aspects(member, ident, directory):
         try:
             # Prepared heads are PNGs. Reading their header keeps check free of
             # image-library imports and does not decode the source photograph.
-            with (Path(directory) / "heads" / f"{ident}-{index}.png").open("rb") as stream:
+            with local_photo(Path(directory), f"heads/{ident}-{index}.png").open("rb") as stream:
                 header = stream.read(24)
             width, height = struct.unpack(">II", header[16:24])
             aspect = height / width if header[:8] == b"\x89PNG\r\n\x1a\n" and width and height else None

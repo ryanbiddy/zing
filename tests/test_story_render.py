@@ -28,7 +28,7 @@ def story_folder(tmp_path: Path) -> Path:
                     "cards": [{"kind": "sticker", "text": "PAPER BIRD", "x": 70, "y": 190,
                                "size": 120, "at": 0}]}],
     }
-    timings = {"duration": 1.5, "outro_start": .5, "provider": "lines", "voice": None, "beats": []}
+    timings = {"duration": 1.5, "outro_start": .5, "provider": "lines", "voice": None, "synthetic": False, "beats": []}
     for i, beat in enumerate(story["beats"]):
         start, end = round(.1 + i * .1, 3), round(.2 + i * .1, 3)
         timings["beats"].append({"id": beat["id"], "start": start, "end": end,

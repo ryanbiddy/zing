@@ -29,7 +29,7 @@ def story():
 
 
 def timings():
-    return {"duration": 12, "outro_start": 10, "provider": "lines", "voice": None,
+    return {"duration": 12, "outro_start": 10, "provider": "lines", "voice": None, "synthetic": False,
             "beats": [{"id": beat["id"], "start": i * 2 + .35, "end": i * 2 + 2.35,
                        "lines": [{"text": beat["lines"][0]["text"], "start": i * 2 + .35, "end": i * 2 + 1.35}]}
                       for i, beat in enumerate(story()["beats"])]}
@@ -263,7 +263,7 @@ def test_music_local_path_and_required_metadata():
 def test_many_sources_share_one_wrapped_credit_line():
     many = story()
     many["sources"] = [{"title": f"Outlet number {i}", "url": f"https://example.org/{i}"} for i in range(6)]
-    lines = credit_lines(many, {"provider": "lines"})
+    lines = credit_lines(many, {"provider": "lines", "synthetic": False})
     assert lines[0].startswith("sources: Outlet number 0 · Outlet number 1")
     assert all(len(line) <= 58 for line in lines)
     assert sum("Outlet number" in line for line in lines) < 6

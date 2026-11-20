@@ -161,12 +161,8 @@ def _color_current(saved: dict, cfg: dict) -> bool:
     """A source render needs no look version; a baked grade must match its recipe."""
     wanted = color.normalize(cfg)
 
-    def active(settings):
-        return settings["color_look"] != "source" and (settings["color_strength"] > 0 or any(
-            settings[key] for key in ("color_exposure", "color_temperature", "color_tint")))
-
     if "color" not in saved:             # pre-color outputs also used the pack's original CSS grade
-        return wanted["color_look"] == "source"
+        return wanted["color_look"] == "source" and not color.active(wanted)
     metadata = saved["color"]
     if not isinstance(metadata, dict) or not isinstance(metadata.get("settings"), dict):
         return False
@@ -174,9 +170,9 @@ def _color_current(saved: dict, cfg: dict) -> bool:
         actual = color.normalize(metadata["settings"])
     except (FactoryError, ValueError, TypeError):
         return False
-    if type(metadata.get("active")) is not bool or metadata["active"] != active(actual):
+    if type(metadata.get("active")) is not bool or metadata["active"] != color.active(actual):
         return False
-    if not active(wanted):
+    if not color.active(wanted):
         # Choosing a preset suppresses the legacy pack's CSS grade, even at zero strength.
         return not metadata["active"] and actual["color_look"] == wanted["color_look"]
     return (actual == wanted and metadata["active"]

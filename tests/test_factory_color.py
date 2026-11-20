@@ -20,9 +20,11 @@ import json, sys
 from pathlib import Path
 from myzing.factory.color import normalize, prepare
 directory = Path(sys.argv[1])
-result = prepare(directory, {'color_look': 'source', 'color_exposure': 1})
+result = prepare(directory, {'color_look': 'source', 'color_strength': 1})
 assert result['frames_dir'] == str(directory.resolve() / 'frames')
-assert result['color']['settings']['color_exposure'] == 1
+assert result['color']['settings']['color_strength'] == 1
+assert result['color']['settings']['color_exposure'] == 0
+assert normalize({'color_exposure': 1})['color_exposure'] == 1
 assert result['color']['active'] is False
 assert 'numpy' not in sys.modules
 assert not directory.exists()

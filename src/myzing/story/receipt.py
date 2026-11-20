@@ -25,7 +25,7 @@ def write(directory: Path, output: Path, *, look: str | None = None) -> Path:
     ]
     result = {"look": story.get("look", "cutout"),
               "voice": {"provider": timings["provider"], "name": timings.get("voice"),
-                        "synthetic": timings["provider"] != "lines" or timings.get("synthetic") is True},
+                        "synthetic": timings["provider"] != "lines" or timings.get("synthetic") is not False},
               "photos": photos, "sources": story["sources"], "output": file, "duration": timings["duration"]}
     if story.get("images"):
         from .images import prepared_path

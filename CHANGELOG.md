@@ -4,11 +4,19 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #602
+Release candidate for Zing v1. These notes cover merged PRs #401 through #603
 on main, newest first.
 
 ### Changes since #452
 
+- Check comic story heads and cards against the captions after the camera tilts and zooms, and outro art that slides in while a caption is up.
+- Tell you to rerun `zing story heads` or `zing story images` when a prepared picture no longer matches its source or crop.
+- Apply factory exposure, temperature and tint when the colour look is `source`.
+- Let `zing story voice` and `build` measure the narration before checking whether timed cards collide.
+- Accept `--look` on `zing story voice` and `zing story images`.
+- Keep the AI voice credit on supplied recordings unless they are declared a human read.
+- Stop `zing story heads` from overwriting an original picture, and handle folders with `%` in their name.
+- Keep a finished story render and its build status when Windows is slow to release files.
 - Frame tight close-ups in 9:16 desk and editorial clips so captions sit below the speaker.
 - Use larger type on list cards when the items fit.
 - Add the `pop` pack. Each new caption line pops into place in Lilita One capitals.

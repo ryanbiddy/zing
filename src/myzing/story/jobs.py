@@ -5,18 +5,19 @@ import json
 import threading
 from pathlib import Path
 
+from myzing.storage import _write_atomic
+
 from . import StoryError
 
 _JOBS: dict[str, threading.Thread] = {}
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()
 STATUS_FILE = "story-status.json"
 
 
 def _write(directory: Path, result: dict) -> None:
     path = directory / STATUS_FILE
-    temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    temporary.replace(path)
+    with _LOCK:
+        _write_atomic(path, json.dumps(result, indent=2, ensure_ascii=False) + "\n")
 
 
 def _run(directory: Path, options: dict) -> None:
@@ -41,15 +42,13 @@ def _run(directory: Path, options: dict) -> None:
 
 def start(directory: Path, **options) -> dict:
     """Reject contract errors before starting one worker per story directory."""
-    from .command import check_json
+    from .contract import load
 
     directory = Path(directory).expanduser().resolve()
     with _LOCK:
         if str(directory) in _JOBS:
             return {"directory": str(directory), "status": "already_running"}
-        problems = check_json(directory, look=options.get("look"))
-        if problems:
-            raise StoryError("\n".join(f"{problem['path']}: {problem['message']}" for problem in problems))
+        load(directory, look=options.get("look"), check_layout=False)
         _write(directory, {"state": "running"})
         thread = threading.Thread(target=_run, args=(directory, options),
                                   name=f"zing-story-{directory.name}", daemon=True)
