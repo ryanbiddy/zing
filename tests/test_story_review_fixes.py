@@ -215,7 +215,7 @@ def test_only_declared_human_lines_drop_ai_credit(tmp_path, flag):
     assert json.loads(result.read_text(encoding="utf-8"))["voice"]["synthetic"] is True
 
 
-@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs FFmpeg")
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="FFmpeg not installed")
 @pytest.mark.parametrize("directory,name,orientation", [
     ("plain", "phone.jpg", 6), ("plain", "phone.jpg", 8),
     ("100% done", "50%20off.jpg", 1), ("take%03d", "take%03d.jpg", 1),
@@ -237,7 +237,7 @@ def test_prepare_literal_phone_photo(tmp_path, directory, name, orientation):
         assert (red > blue) == (orientation != 8)
 
 
-@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs FFmpeg")
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="FFmpeg not installed")
 def test_story_encodes_in_percent_folder(tmp_path, monkeypatch):
     Image = pytest.importorskip("PIL.Image")
     folder = tmp_path / "100% done"

@@ -30,7 +30,7 @@ def test_source_corrections_grade_and_invalidate_old_render(fake_clip, control):
     assert not np.allclose(apply_cube(swatches, cube), swatches)
 
 
-@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="needs FFmpeg and ffprobe")
+@pytest.mark.skipif(not shutil.which("ffmpeg") or not shutil.which("ffprobe"), reason="real-media test needs ffmpeg and ffprobe")
 def test_grade_in_percent_folder(tmp_path):
     pytest.importorskip("numpy")
     folder, _ = _real_clip(tmp_path)
