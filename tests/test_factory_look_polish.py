@@ -59,7 +59,8 @@ def test_list_items_fill_width_at_readable_size(look, graphic):
     lines = text_nodes(got)
     items = [el for el in lines if el.text != graphic.get("title")]
     assert items
-    assert all(60 <= float(el.attrib["font-size"]) <= 70 for el in items)
+    expected_size = 80 if graphic["kind"] == "list" else 64
+    assert all(float(el.attrib["font-size"]) == expected_size for el in items)
     for el in items:
         x, size = float(el.attrib["x"]), float(el.attrib["font-size"])
         assert 72 <= x and x + len(el.text) * size * .5 <= 1008

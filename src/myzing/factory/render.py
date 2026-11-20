@@ -146,10 +146,12 @@ def pack_data(pack: str | dict) -> tuple[dict, dict, list[str]]:
                 errors.append(f"{key} cannot reference resources; use the pack's fonts and logo")
 
     css(pack)
-    for key, choices in (("motion", ("still",)), ("captions", ("band",)),
+    for key, choices in (("motion", ("still",)), ("captions", ("band", "pop")),
                          ("look", ("desk", "editorial", "newsroom"))):
         if key in pack and pack[key] not in choices:
             errors.append(f"{key} must be {' or '.join(choices)}")
+    if pack.get("captions") == "pop" and "look" not in pack:
+        errors.append("captions pop needs a look: desk, editorial or newsroom")
     pos, height = pack.get("logo_pos", "top-right"), pack.get("logo_h", 72)
     if pos not in ("top-left", "top-right", "bottom-right"):
         errors.append("logo_pos must be top-left, top-right or bottom-right")

@@ -31,7 +31,7 @@ def audit(wheel: Path, sdist: Path | None = None) -> dict:
         assert all(n.startswith("myzing/") or ".dist-info/" in n for n in names)
         assert not any(part in {"tests", "handoff", "zing-workspace", "__pycache__"}
                        for name in names for part in Path(name).parts)
-        for font in ("Anton", "IBMPlexSans", "ZingCaption"):
+        for font in ("Anton", "IBMPlexSans", "ZingCaption", "LilitaOne"):
             assert f"myzing/_data/fonts/{font}-OFL.txt" in names
         assert "myzing/_data/docs/OPENCV-ZOO-LICENSES.md" in names
     if sdist:

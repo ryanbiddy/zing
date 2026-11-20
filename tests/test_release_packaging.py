@@ -70,12 +70,13 @@ def test_wheel_audit_rejects_missing_data_and_private_files(tmp_path):
 
     write()
     assert audit(wheel)["ok"]
-    license_name = "myzing/_data/fonts/Anton-OFL.txt"
-    data = files.pop(license_name)
-    write()
-    with pytest.raises(AssertionError, match="Missing runtime file"):
-        audit(wheel)
-    files[license_name] = data
+    for font in ("Anton", "LilitaOne"):
+        license_name = f"myzing/_data/fonts/{font}-OFL.txt"
+        data = files.pop(license_name)
+        write()
+        with pytest.raises(AssertionError, match="Missing runtime file"):
+            audit(wheel)
+        files[license_name] = data
     files["zing-workspace/private.json"] = b"{}"
     write()
     with pytest.raises(AssertionError):

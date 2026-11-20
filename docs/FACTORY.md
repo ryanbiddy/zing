@@ -757,7 +757,7 @@ GIPHY, KLIPY and Tenor are not used: their terms forbid baking clips into video.
 
 ## Style packs
 
-`--pack desk | editorial | newsroom | zing | newsdesk | swiss | headline | documentary | launch` sets colors, caption treatment and source tag
+`--pack desk | editorial | newsroom | pop | zing | newsdesk | swiss | headline | documentary | launch` sets colors, caption treatment and source tag
 (`zing factory packs`). A pack is one JSON file in `myzing/_data/factory/themes/`.
 `desk` is the default for podcast runs. `launch` stays the default for launch films.
 `zing` uses 78px heavy white capitals per 1080px of the frame's short side, a dark outline and a soft shadow.
@@ -789,8 +789,11 @@ example `zing factory export talk/clip01 --shape 9x16 --pack editorial`. `desk` 
 - Counter and quote graphics become still takeaway cards. They hold at least 1.2 seconds,
   never start in the first 3 seconds, and there are at most two per clip.
   Quotes wrap into 2–4 balanced lines at 80–104 px on a 1080×1920 frame. Quotes over 12 words
-  are left out, or over 10 words in editorial. List, funnel and title cards use 64 px item
-  text with 72 px outer margins. Their hold is capped at one second beyond the read time,
+  are left out, or over 10 words in editorial. List cards start at 96 px and step down
+  by 8 px to fit the card and keep each item to two lines, down to 48 px. A long
+  title shrinks to fit the width.
+  Funnel and title cards use 64 px.
+  All three have 72 px outer margins. Their hold is capped at one second beyond the read time,
   which is the greater of 1.2 seconds or 0.35 seconds per word plus 0.5 seconds.
 - Screenshots and low-resolution photos become a flat card with "Source: domain" under it.
   Sharp photos and footage go full-bleed. Cutaways never start in the first 3 seconds.
@@ -802,6 +805,17 @@ example `zing factory export talk/clip01 --shape 9x16 --pack editorial`. `desk` 
 `newsroom` puts the whole source frame in a 16:9 strip on a dark field with a yellow rule.
 All three also render at 16:9 with the same band rules. None uses a glow, a gradient field or
 uppercase running captions.
+
+In 9:16, desk and editorial frame the speaker for the whole clip if close-ups leave too
+little room under the chin for at least a quarter of the time faces are on screen
+(a tenth with pop captions, which never move). At 1080×1920,
+the picture runs from y 180 to 1330 and the caption band starts 30 px below it.
+
+`--pack pop` uses the desk layout with captions in Lilita One capitals, up to three
+words per line. Each new line pops into place in the accent color. The first line turns
+white when the second appears, then the next pair starts in the same spot. In 9:16 the
+pack aims to place captions below the lowest chin or the framed picture. In 16:9 they
+sit in the lower third. A custom pack with `"captions": "pop"` also needs a `look`.
 
 ### Footage color
 
@@ -892,7 +906,7 @@ logo files in `factory/packs/acme/`.
 
 Font files can be `.ttf`, `.otf`, `.woff` or `.woff2`. Use the family in
 `cap_font`, `hook_font` (or `pill_font`), `gfx_font`, `quote_font` or `panel.font`.
-The bundled families are Inter, Anton, IBM Plex Sans and Instrument Serif.
+The bundled families are Inter, Anton, IBM Plex Sans, Instrument Serif and Lilita One.
 Font weight defaults to 400 and style to `normal`.
 
 Logos can be `.svg` or `.png`. Choose `top-left`, `top-right` or `bottom-right`.

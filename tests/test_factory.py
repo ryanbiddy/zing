@@ -353,7 +353,7 @@ def test_host_run_asks_plan_and_copy_together(tmp_path, monkeypatch):
 
 # ---------------------------------------------------------------- render + review
 def test_style_packs():
-    assert {"zing", "newsdesk", "swiss"} <= set(render.themes())
+    assert {"zing", "newsdesk", "swiss", "pop"} <= set(render.themes())
     assert render.theme("swiss")["cap_upper"] is False
     with pytest.raises(FactoryError):
         render.theme("../zing")
