@@ -4,7 +4,7 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #602
+Release candidate for Zing v1. These notes cover merged PRs #401 through #603
 on main, newest first.
 
 ### Changes since #452
