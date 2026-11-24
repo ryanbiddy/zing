@@ -2140,6 +2140,42 @@ def mcp_sdk_defect() -> str | None:
     return None
 
 
+def h_cover_new(directory: str, frame: str | None = None, video: str | None = None,
+                at: float | None = None, style: Literal["clipping", "plate", "number", "quote"] | None = None) -> dict[str, Any]:
+    """Create cover.json from a local PNG, JPEG, WebP or a video and timestamp in seconds. Returns paths and face placement."""
+    from myzing.cover import cover_directory
+    from myzing.cover.starter import new
+
+    try:
+        return _ok(**new(cover_directory(directory), frame=frame, video=video, at=at, style=style))
+    except (TypeError, ValueError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        return _err(str(exc))
+
+
+def h_cover_check(directory: str) -> dict[str, Any]:
+    """Check a local cover.json and return every field problem and resolution warning."""
+    from myzing.cover import cover_directory
+    from myzing.cover.contract import load
+
+    try:
+        _, report = load(cover_directory(directory))
+        return _ok(**report)
+    except (ValueError, OSError, RuntimeError) as exc:
+        return _err(str(exc))
+
+
+def h_cover_render(directory: str, style: str = "all", size: str = "all", scale: int = 1,
+                   format: Literal["jpg", "png"] = "jpg") -> dict[str, Any]:
+    """Render local covers. Choose comma-separated styles and sizes or all. Returns image, sheet and receipt paths."""
+    from myzing.cover import cover_directory
+    from myzing.cover.render import render
+
+    try:
+        return _ok(**render(cover_directory(directory), style=style, size=size, scale=scale, format=format))
+    except (ValueError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        return _err(str(exc))
+
+
 def h_story_new(directory: str, topic: str, look: Literal["cutout", "headline", "scrapbook", "comic"] = "cutout") -> dict[str, Any]:
     """Create a starter story for the calling agent to report and write."""
     from myzing.story import StoryError, command
@@ -2273,6 +2309,12 @@ def _tool_annotations():
         "still_concepts": ToolAnnotations(read_only_hint=False, destructive_hint=False,
                                           idempotent_hint=True, open_world_hint=False),
         "still_render": ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                        idempotent_hint=True, open_world_hint=False),
+        "cover_new": ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                     idempotent_hint=False, open_world_hint=False),
+        "cover_check": ToolAnnotations(read_only_hint=True, destructive_hint=False,
+                                       idempotent_hint=True, open_world_hint=False),
+        "cover_render": ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                         idempotent_hint=True, open_world_hint=False),
         "story_new": ToolAnnotations(read_only_hint=False, destructive_hint=False,
                                       idempotent_hint=False, open_world_hint=False),
@@ -2672,6 +2714,10 @@ def build_server():
         description="Save the JSON answer to a pending factory task (validated; a malformed answer is rejected with the reason). Then call factory_run to continue.",
     )(h_factory_answer)
     tool(name="factory_edit", description=h_factory_edit.__doc__)(h_factory_edit)
+
+    tool(name="cover_new", description=h_cover_new.__doc__)(h_cover_new)
+    tool(name="cover_check", description=h_cover_check.__doc__)(h_cover_check)
+    tool(name="cover_render", description=h_cover_render.__doc__)(h_cover_render)
 
     tool(
         name="story_new",

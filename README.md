@@ -14,7 +14,7 @@ changed the meaning. Zing opens a review page on your machine. Nothing is posted
 
 It can also match your clips to a reference video's style and make memes from
 your photos. Measurement and rendering run on your machine; your AI supplies the
-judgment through the CLI or **48 MCP tools**. No Zing API key needed. Needs
+judgment through the CLI or **51 MCP tools**. No Zing API key needed. Needs
 Python, FFmpeg and, for the factory, Node.js 20+.
 
 ## Start here: zing studio
@@ -154,6 +154,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Detect people and pets | [Vision models](https://github.com/ryanbiddy/zing/blob/main/docs/VIS1.md): optional OpenCV DNN models, explicit downloads, class evidence and fallback limits. |
 | Understand audio | [Audio](https://github.com/ryanbiddy/zing/blob/main/docs/AUDIO.md): beats where supported, attacks, role candidates and loudness; no automatic mix changes. |
 | Verify a cut in one image | [Timeline inspection](https://github.com/ryanbiddy/zing/blob/main/docs/INSPECT.md): frames, waveform, planned cuts and available timed text. |
+| Make a thumbnail or cover | Draw type over a chosen video frame with `zing cover`. [Cover styles and sizes](https://github.com/ryanbiddy/zing/blob/main/docs/COVER.md) |
 | Make memes | [Memes](https://github.com/ryanbiddy/zing/blob/main/docs/MEMES.md): photo folder + topic to concepts, a contact sheet, and selected stills (`zing still`); template metadata, text checks, and animated memes (`zing meme render-video`). |
 | Turn a long episode into clips | [Clip factory](https://github.com/ryanbiddy/zing/blob/main/docs/FACTORY.md): `zing factory` scouts moments, cuts them, finds visuals, draws graphics only from spoken facts, renders 9:16/1:1/16:9 in a style pack and writes post copy; your agent or Claude Code makes the judgment calls. Nothing is posted. |
 | Run a niche channel | [Channels](https://github.com/ryanbiddy/zing/blob/main/docs/CHANNELS.md) keeps source grants, factory defaults, approval gates, a local queue and post kits for you to upload. |
@@ -166,7 +167,7 @@ folder; no Zing plugin marketplace or skill-install command is shipped here.
 | Keep speech complete | [Continuity and ASR repair](https://github.com/ryanbiddy/zing/blob/main/docs/CONTINUITY.md): clause boundaries, source order, bounded timing estimates, text roles and separate render/style status. |
 | Improve vertical drafts | [CLIPQ2](https://github.com/ryanbiddy/zing/blob/main/docs/CLIPQ2.md): close-shot gates, sampled caption bands, display-only stutter cleanup, and NASA re-plan instructions. |
 | Choose and place music | [Music advice and editing](https://github.com/ryanbiddy/zing/blob/main/docs/MUSIC.md): local track checks, beat-aware cuts, drop alignment and measured speech ducking. |
-| Connect an AI or Uoink | [Connect](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md): 48 MCP tools, prompt pack, local stdio and optional suite integration. |
+| Connect an AI or Uoink | [Connect](https://github.com/ryanbiddy/zing/blob/main/docs/CONNECT.md): 51 MCP tools, prompt pack, local stdio and optional suite integration. |
 | Check MCP compatibility | [MCP SDK 2](https://github.com/ryanbiddy/zing/blob/main/docs/MCP-SDK2.md): legacy and modern stdio, wire fixtures and regeneration. |
 | Check installed capabilities | [Doctor](https://github.com/ryanbiddy/zing/blob/main/docs/DOCTOR.md): optional runtimes, verified models and remedies. |
 | Install, develop and test | [Developer guide](https://github.com/ryanbiddy/zing/blob/main/docs/DEVELOPER-GUIDE.md): setup, rendering paths and tests. |

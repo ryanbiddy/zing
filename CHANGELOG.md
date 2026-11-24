@@ -4,10 +4,13 @@
 
 ## 1.0.0rc1
 
-Release candidate for Zing v1. These notes cover merged PRs #401 through #603
+Release candidate for Zing v1. These notes cover merged PRs #401 through #604
 on main, newest first.
 
 ### Changes since #452
+
+- Render thumbnails and covers from a local video frame with `zing cover`. Choose from four styles and four sizes. Each set includes a contact sheet and a receipt with the source, rights and text.
+- Create, check and render cover files through the `cover_new`, `cover_check` and `cover_render` MCP tools.
 
 - Check comic story heads and cards against the captions after the camera tilts and zooms, and outro art that slides in while a caption is up.
 - Tell you to rerun `zing story heads` or `zing story images` when a prepared picture no longer matches its source or crop.

@@ -1,6 +1,6 @@
 # MCP surface
 
-The current server has 48 tools. Inspect the connected client's tool schemas for
+The current server has 51 tools. Inspect the connected client's tool schemas for
 arguments and defaults; a client may prefix these names. Do not replace real
 tool calls with invented CLI commands. `zing serve-mcp --print-config` prints
 absolute interpreter paths for setup; launch the server on the media's machine.
@@ -37,6 +37,9 @@ client's SDK to supply them. There is no HTTP MCP endpoint.
 | `factory_answer` | Save a validated JSON answer; then call `factory_run` again. |
 | `factory_clip` | Make a clip by hand: start and end seconds, a scout runner-up (`bench`), or new in and out points for an existing clip. The next `factory_run` cuts, plans and renders it. |
 | `factory_edit` | Edit `project`, `clip` synchronously. `action="rate"` takes `verdict="post"`, `"edits"` or `"no"` and optional `why`. `"hook"` takes `text`. `"copy"` takes `field` and `text`. `"visual"` takes `request` and zero-based `index` from status. `"word"` takes `index` and `new`, or `at`, `old` and `new`. `"render"` takes `shape` and `pack`, defaulting to `9x16` and `zing`. Returns changes, fact checks, context flags, receipt and pending tasks. |
+| `cover_new` | Copy a frame or extract one at a timestamp and write a starter cover.json. |
+| `cover_check` | Return field problems and resolution warnings. |
+| `cover_render` | Render the requested styles and sizes. Returns paths to the covers, sheet and receipt. |
 | `story_new` | Create a starter story folder from `directory`, `topic` and optional `look` (`cutout` by default, `headline`, `scrapbook` or `comic`). Panel looks have a source placeholder that must be replaced before building; headline has a valid fictional example with no panels. Existing files are kept. |
 | `story_check` | Read `directory/story.json`; return `valid`, `look`, `problems`, `warnings` and `notes`. Each message has `path` and `message`. No media work runs. |
 | `story_build` | Check, narrate, prepare cast portraits and any cut heads, prepare images, render and write a receipt in the background. Accepts provider, voice, speed, lines_dir, out, synthetic_voice, no_sfx and an optional look override, which does not rewrite the file. ElevenLabs sends narration text to its service using the user's configured key; Kokoro and supplied lines stay local. |

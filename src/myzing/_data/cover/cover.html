@@ -1,0 +1,283 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src file:; font-src file:; base-uri 'none'; form-action 'none'">
+<style>
+  @font-face { font-family: "Anton"; src: url("../fonts/Anton-Regular.ttf"); }
+  @font-face { font-family: "Instrument Serif"; src: url("../fonts/InstrumentSerif-Regular.ttf"); }
+  @font-face { font-family: "Zing Caption"; font-weight: 800; src: url("../fonts/ZingCaption-800.ttf"); }
+  @font-face { font-family: "Plex"; src: url("../fonts/IBMPlexSans.ttf"); }
+  html, body { margin: 0; padding: 0; background: #000; }
+  #stage { position: relative; overflow: hidden; }
+  #stage * { box-sizing: border-box; }
+  .photo { position: absolute; background-repeat: no-repeat; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<svg width="0" height="0" style="position:absolute">
+  <filter id="grain" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.25  0 0 0 0 0.22  0 0 0 0 0.18  0 0 0 0.55 -0.12"/>
+  </filter>
+  <filter id="fibre" x="0" y="0" width="100%" height="100%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035 0.6" numOctaves="2" seed="3"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.3  0 0 0 0 0.27  0 0 0 0 0.2  0 0 0 0.35 -0.1"/>
+  </filter>
+</svg>
+<script>
+"use strict";
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const el = (tag, css, text) => { const e = document.createElement(tag); if (css) e.style.cssText = css; if (text != null) e.textContent = text; return e; };
+const pic = css => { const e = el("div", css); e.className = "photo"; return e; };
+const aspectKey = (W, H) => { const r = W / H; return r > 1.4 ? "wide" : r > 0.9 ? "square" : r > 0.7 ? "portrait" : "tall"; };
+
+// The check and the capture use the same crop in CSS pixels.
+function photo(spec) {
+  const {w, h, x, y} = spec.placement;
+  return `background-image:url("${spec.frame.src}");background-size:${w}px ${h}px;background-position:${x}px ${y}px;`;
+}
+
+const regions = new Map();
+function field(node, name, min, maxW = Infinity, maxH = Infinity) {
+  regions.set(node, {name, min, maxW, maxH});
+  return node;
+}
+
+function fit(node, maxW, maxH, start) {
+  let size = start; node.style.fontSize = size + "px";
+  for (let i = 0; i < 60 && (node.scrollWidth > maxW || node.scrollHeight > maxH); i++) { size *= 0.95; node.style.fontSize = size + "px"; }
+  return size;
+}
+function fitWidth(node, target, maxSize) {
+  node.style.fontSize = "100px"; const w = node.getBoundingClientRect().width;
+  const size = Math.min(maxSize, 100 * target / w); node.style.fontSize = size + "px"; return size;
+}
+
+/* ---------- clipping: a trusted name on a page, torn open on the person ---------- */
+function tornEdge(r, x0, x1, y, amp, step) {
+  const pts = []; let drift = 0, v = 0;
+  for (let x = x0; x <= x1 + step; x += step) {
+    v += (r() - 0.5) * amp * 0.5; v *= 0.82; drift += v; drift *= 0.93;
+    const spike = r() < 0.12 ? (r() - 0.5) * amp * 1.6 : 0;
+    pts.push([x + (r() - 0.5) * step * 0.6, y + drift + (r() - 0.5) * amp * 0.35 + spike]);
+  }
+  return pts;
+}
+function holePath(top, bot, inset) {
+  const t = top.map(([x, y], i) => [x, y + inset * (0.6 + 0.8 * Math.abs(Math.sin(i * 1.7)))]);
+  const b = bot.map(([x, y], i) => [x, y - inset * (0.6 + 0.8 * Math.abs(Math.sin(i * 2.3)))]);
+  const x0 = t[0][0] + inset * 1.5;
+  const all = [[x0, (t[0][1] + b[0][1]) / 2], ...t.filter(p => p[0] > x0), ...b.filter(p => p[0] > x0).reverse()];
+  return "M" + all.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join("L") + "Z";
+}
+function clipping(spec, W, H, stage) {
+  const k = aspectKey(W, H), c = spec.clipping, r = rng(spec.seed ?? 11);
+  const L = {
+    wide:     { pad: .045, mastTop: .035, mastH: .27, mastW: .91, kick: .043, cols: 4, body: .0188, head: 0 },
+    square:   { pad: .05,  mastTop: .04,  mastH: .2,  mastW: .9,  kick: .034, cols: 3, body: .0155, head: .07 },
+    portrait: { pad: .05,  mastTop: .04,  mastH: .17, mastW: .9,  kick: .029, cols: 3, body: .0135, head: .062 },
+    tall:     { pad: .06,  mastTop: .085, mastH: .13, mastW: .88, kick: .021, cols: 2, body: .0118, head: .05 },
+  }[k];
+  const pad = W * L.pad, hy0 = H * spec.placement.tear[0], hy1 = H * spec.placement.tear[1], hh = hy1 - hy0, hx0 = W * spec.placement.tear[2];
+  stage.style.background = "#0c0c0e";
+  // the person, behind the page
+  const fx = hx0 + (W - hx0) * 0.47;
+  stage.append(pic(`left:0;top:0;width:${W}px;height:${H}px;${photo(spec)}filter:contrast(1.08) saturate(.92) brightness(.97);`));
+  stage.append(el("div", `position:absolute;left:0;top:${hy0 - hh * .2}px;width:${W}px;height:${hh * 1.4}px;background:radial-gradient(ellipse at ${fx}px 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,.5) 100%);`));
+  // torn edges
+  const step = W / 150, amp = hh * 0.055;
+  const top = tornEdge(r, hx0 - step, W + step * 2, hy0, amp, step), bot = tornEdge(r, hx0 - step, W + step * 2, hy1, amp, step);
+  const fibreHole = holePath(top, bot, 0), printHole = holePath(top, bot, hh * 0.035);
+  const wrap = el("div", `position:absolute;inset:0;filter:drop-shadow(0 ${hh * .035}px ${hh * .05}px rgba(0,0,0,.6));`);
+  wrap.append(el("div", `position:absolute;inset:0;background:#fdfbf6;clip-path:path(evenodd, 'M0 0H${W}V${H}H0Z ${fibreHole}');`));
+  stage.append(wrap);
+  const page = el("div", `position:absolute;inset:0;background:#f0eadc;clip-path:path(evenodd, 'M0 0H${W}V${H}H0Z ${printHole}');`);
+  stage.append(page);
+  // masthead
+  const mast = el("div", `position:absolute;left:0;top:${H * L.mastTop}px;width:${W}px;text-align:center;white-space:nowrap;font-family:"Instrument Serif",serif;color:${c.accent || "#8c1d2c"};line-height:.86;letter-spacing:.02em;`);
+  const mspan = el("span", "display:inline-block;", c.masthead.toUpperCase()); mast.append(mspan); page.append(mast);
+  const mSize = fitWidth(mspan, W * L.mastW, H * L.mastH * 1.12);
+  field(mspan, "masthead", 64, W * L.mastW + 1, H * L.mastH * 1.3);
+  const mastBottom = H * L.mastTop + mSize * 0.9;
+  page.append(el("div", `position:absolute;left:${pad}px;right:${pad}px;top:${mastBottom}px;border-top:${Math.max(2, H * .003)}px solid #26221d;border-bottom:1px solid #26221d;height:${H * .008}px;`));
+  const kick = el("div", `position:absolute;left:${pad}px;width:${W - pad * 2}px;top:${mastBottom + H * .018}px;text-align:center;font-family:"Instrument Serif",serif;color:#1d1a17;line-height:1.05;`, c.kicker);
+  const kickerTop = mastBottom + H * .018;
+  const articleBottom = hy0 + hh * .12;
+  // Leave the article its top margin and at least .03H for the dateline.
+  const kickerHeight = Math.min(H * L.kick * 2.3, hy0 - kickerTop,
+    Math.floor(articleBottom - kickerTop - H * (.016 + .03)) - 1);
+  page.append(kick); fit(kick, W - pad * 2, kickerHeight, H * L.kick);
+  field(kick, "kicker", 24, W - pad * 2, kickerHeight);
+  const kickBottom = mastBottom + H * .018 + kick.getBoundingClientRect().height;
+  const bodyCss = `font-family:"Instrument Serif",serif;color:#35302a;font-size:${H * L.body}px;line-height:1.22;text-align:justify;column-count:${L.cols};column-gap:${W * .028}px;overflow:hidden;`;
+  const words = c.body.trim().split(/\s+/);
+  // Trim the repeated transcript at the final whole word that fits the columns.
+  function columns(from, y, height, dateline) {
+    if (height <= 0) throw Error("clipping.body: shorten the headline to leave room for the article.");
+    const box = el("div", `position:absolute;left:${pad}px;width:${W-pad*2}px;top:${y}px;height:${height}px;${bodyCss}`);
+    page.append(box);
+    if (dateline) {
+      const date = el("span", 'font-family:Plex,sans-serif;font-size:.62em;letter-spacing:.14em;color:#1d1a17;', c.dateline.toUpperCase());
+      box.append(date, "\u00a0\u00a0");
+      field(date, "dateline", 10);
+    }
+    const body = document.createTextNode("");
+    box.append(body);
+    const passage = words.slice(from % words.length).concat(words);
+    const text = count => Array.from({length:count}, (_,i) => passage[i % passage.length]).join(" ");
+    let lo = 0, hi = passage.length;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      body.data = text(mid);
+      if (box.scrollWidth > box.clientWidth + 1 || box.scrollHeight > box.clientHeight + 1) hi = mid - 1;
+      else lo = mid;
+    }
+    if (!lo) throw Error("clipping.body: use words short enough to fit a newspaper column.");
+    body.data = text(lo);
+    field(box, "body", 14, W - 2 * pad, height);
+  }
+  // text above the tear
+  const aTop = kickBottom + H * .016, aH = hy0 - aTop + hh * .12;
+  if (aH <= H * .03) throw Error("clipping.kicker: shorten this field to leave room for the dateline.");
+  columns(0, aTop, aH, true);
+  // headline and text below the tear
+  let bTop = hy1 + hh * .1;
+  if (L.head && c.headline) {
+    const head = el("div", `position:absolute;left:${pad}px;width:${W - pad * 2}px;top:${bTop}px;font-family:"Instrument Serif",serif;color:#161412;line-height:.98;letter-spacing:-.01em;`, c.headline);
+    page.append(head); fit(head, W - pad * 2, H * L.head * 3.2, H * L.head);
+    field(head, "headline", 36, W - pad * 2, H * L.head * 3.2);
+    bTop += head.getBoundingClientRect().height + H * .02;
+    page.append(el("div", `position:absolute;left:${pad}px;right:${pad}px;top:${bTop - H * .009}px;border-top:1px solid #26221d;`));
+  }
+  columns(131, bTop, H - bTop - pad * .5, false);
+  if (c.credit) {
+    const credit = el("div", `position:absolute;right:${pad}px;bottom:${pad * .28}px;font-family:Plex,sans-serif;font-size:${Math.max(11, H * .011)}px;letter-spacing:.06em;color:#6d655a;background:#f0eadc;padding:0 0 0 ${W * .01}px;`, c.credit);
+    page.append(field(credit, "credit", 11, W - pad * 2, H * .032));
+  }
+  // paper texture and light
+  page.append(el("div", "position:absolute;inset:0;filter:url(#grain);opacity:.5;mix-blend-mode:multiply;background:#fff;"));
+  page.append(el("div", "position:absolute;inset:0;filter:url(#fibre);opacity:.35;mix-blend-mode:multiply;background:#fff;"));
+  page.append(el("div", `position:absolute;inset:0;background:radial-gradient(ellipse at 28% 18%, rgba(255,255,255,.3), rgba(255,255,255,0) 45%), radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 55%, rgba(40,28,10,.3) 100%);`));
+  // the strip of paper rolled back at the start of the tear
+  const cw = hh * .3, ch = hh * 1.16, cx = hx0 - cw * .55, cyy = hy0 - hh * .1;
+  const curl = el("div", `position:absolute;left:${cx}px;top:${cyy}px;width:${cw}px;height:${ch}px;transform:rotate(${-3 - r() * 3}deg);border-radius:${cw * .5}px / ${ch * .035}px;
+    background:linear-gradient(90deg,#b9b09d 0%,#e9e3d4 16%,#fffdf8 38%,#f1ebdd 58%,#cfc6b3 82%,#9e9583 100%);
+    box-shadow:${cw * .22}px ${ch * .05}px ${cw * .35}px rgba(0,0,0,.5), inset 0 0 ${cw * .1}px rgba(120,105,80,.35);`);
+  curl.append(el("div", `position:absolute;left:${cw * .2}px;top:${-ch * .012}px;width:${cw * .6}px;height:${ch * .05}px;border-radius:50%;background:radial-gradient(ellipse,#8f8674 0%,#c9c0ad 60%,#e9e3d4 100%);`));
+  curl.id = "tear";
+  stage.append(curl);
+}
+
+/* ---------- plate: two stacked plates of type over the real frame ---------- */
+function plate(spec, W, H, stage) {
+  const k = aspectKey(W, H), c = spec.plate, wide = k === "wide";
+  stage.style.background = "#101114";
+  const tall = k === "tall", by0 = tall ? H * .27 : 0, bh = H - by0;
+  stage.append(pic(`left:0;top:${by0}px;width:${W}px;height:${bh}px;${photo(spec)}filter:contrast(1.06) saturate(1.05);`));
+  if (tall) stage.append(el("div", `position:absolute;left:0;top:${by0 - 2}px;width:${W}px;height:${H * .12}px;background:linear-gradient(180deg,#101114 0%,rgba(16,17,20,0) 100%);`));
+  stage.append(el("div", `position:absolute;inset:0;background:${wide ? "linear-gradient(90deg, rgba(8,10,16,.82) 0%, rgba(8,10,16,.55) 36%, rgba(8,10,16,0) 62%)" : (tall ? "linear-gradient(180deg, rgba(8,10,16,0) 70%, rgba(8,10,16,.45) 100%)" : "linear-gradient(180deg, rgba(8,10,16,.8) 0%, rgba(8,10,16,.25) 34%, rgba(8,10,16,0) 50%, rgba(8,10,16,.35) 100%)")};`));
+  const boxW = wide ? W * .56 : W * .88, left = wide ? W * .045 : W * .06, topY = wide ? H * .2 : H * (tall ? .085 : .07);
+  const box = el("div", `position:absolute;left:${left}px;top:${topY}px;width:${boxW}px;transform:rotate(-2.2deg);transform-origin:left top;font-family:"Zing Caption",sans-serif;font-weight:800;line-height:1;letter-spacing:-.015em;text-transform:uppercase;`);
+  const mk = (t, bg, fg) => { const d = el("div", "margin-bottom:-.02em;"); const s = el("span", `display:inline-block;white-space:nowrap;background:${bg};color:${fg};padding:.1em .22em .12em;`, t); d.append(s); box.append(d); return s; };
+  const a = mk(c.top, "#0d0e11", "#fff"), b = mk(c.bottom, "#FFD23F", "#0d0e11");
+  stage.append(box);
+  const cap = wide ? H * .2 : H * (tall ? .085 : .11);
+  for (const s of [a, b]) { s.style.fontSize = "100px"; s.style.fontSize = Math.min(cap, 100 * boxW / s.getBoundingClientRect().width * .985) + "px"; }
+  field(a, "top", 52, boxW, cap * 1.25);
+  field(b, "bottom", 52, boxW, cap * 1.25);
+  if (c.tag) stage.append(field(el("div", `position:absolute;left:${left}px;bottom:${H * .05}px;font-family:Plex,sans-serif;font-size:${Math.max(14, Math.min(W, H) * .026)}px;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:rgba(13,14,17,.82);padding:.45em .7em;`, c.tag), "tag", 20, W - left * 2, H * .09));
+}
+
+/* ---------- number: the one figure the clip turns on ---------- */
+function number(spec, W, H, stage) {
+  const k = aspectKey(W, H), c = spec.number, wide = k === "wide";
+  stage.style.background = "#0d0e11";
+  const pw = wide ? W * .44 : W * .84, ph = wide ? H * .8 : H * (k === "tall" ? .4 : .42);
+  const px = wide ? W * .52 : W * .08, py = wide ? H * .1 : H - ph - H * (k === "tall" ? .12 : .06);
+  const frame = el("div", `position:absolute;left:${px}px;top:${py}px;width:${pw}px;height:${ph}px;transform:rotate(2.2deg);border:${Math.min(W, H) * .012}px solid #fff;box-shadow:0 ${H * .02}px ${H * .05}px rgba(0,0,0,.6);overflow:hidden;background:#222;`);
+  frame.append(pic(`left:0;top:0;width:100%;height:100%;${photo(spec)}`));
+  stage.append(frame);
+  const left = W * (wide ? .05 : .08), boxW = wide ? W * .45 : W * .84, top = wide ? H * .09 : H * (k === "tall" ? .11 : .05);
+  const num = el("div", `position:absolute;left:${left}px;top:${top}px;font-family:Anton,sans-serif;color:#FFD23F;line-height:.9;white-space:nowrap;`, c.figure);
+  stage.append(num);
+  const nSize = fitWidth(num, boxW, wide ? H * .56 : (py - top) * .62);
+  field(num, "figure", 96, boxW + 2);
+  const unitTop = top + nSize * .93;
+  const lab = el("div", `position:absolute;left:${left}px;top:${unitTop}px;width:${boxW}px;font-family:"Zing Caption",sans-serif;font-weight:800;color:#fff;line-height:1.02;letter-spacing:-.01em;text-transform:uppercase;`, c.label);
+  const labelHeight = (wide ? H * (c.tag ? .89 : .92) : py - H * .02) - unitTop;
+  stage.append(lab); fit(lab, boxW, labelHeight, nSize * .3);
+  field(lab, "label", 40, boxW, labelHeight);
+  if (c.tag && (wide || k === "tall")) stage.append(field(el("div", `position:absolute;left:${left}px;bottom:${H * .045}px;font-family:Plex,sans-serif;font-size:${Math.max(13, Math.min(W, H) * .022)}px;letter-spacing:.1em;text-transform:uppercase;color:#9aa0ab;`, c.tag), "tag", 20, W - left * 2, H * .08));
+}
+
+/* ---------- quote: the line, set like a pull quote, with the speaker as a print ---------- */
+function quote(spec, W, H, stage) {
+  const k = aspectKey(W, H), c = spec.quote, wide = k === "wide";
+  stage.style.background = "#f3efe6";
+  stage.append(el("div", "position:absolute;inset:0;filter:url(#grain);opacity:.4;mix-blend-mode:multiply;background:#fff;"));
+  const pw = wide ? W * .3 : W * .66, ph = wide ? H * .62 : pw * (k === "tall" ? .9 : k === "square" ? .5 : .62);
+  const px = wide ? W * .655 : W * .27, py = wide ? H * .16 : H - ph - H * (k === "tall" ? .13 : .07);
+  const print = el("div", `position:absolute;left:${px}px;top:${py}px;width:${pw}px;height:${ph}px;transform:rotate(3deg);background:#fff;padding:${pw * .035}px;box-shadow:0 ${H * .012}px ${H * .035}px rgba(40,30,10,.35);`);
+  const inner = el("div", "position:relative;width:100%;height:100%;overflow:hidden;");
+  inner.append(pic(`left:0;top:0;width:100%;height:100%;${photo(spec)}`));
+  print.append(inner);
+  print.append(el("div", `position:absolute;left:${pw * .3}px;top:${-pw * .05}px;width:${pw * .4}px;height:${pw * .1}px;background:rgba(255,210,63,.82);transform:rotate(-4deg);box-shadow:0 1px 3px rgba(0,0,0,.2);`));
+  stage.append(print);
+  const left = W * (wide ? .055 : .08), boxW = wide ? W * .56 : W * .84, top = H * (wide ? .12 : k === "tall" ? .1 : .06);
+  const boxH = wide ? H * .64 : py - top - H * (k === "tall" ? .12 : .15);
+  const q = el("div", `position:absolute;left:${left}px;top:${top}px;width:${boxW}px;font-family:"Instrument Serif",serif;color:#161412;line-height:1.0;letter-spacing:-.012em;`);
+  const mark = c.text.indexOf(c.highlight);
+  q.append("“" + c.text.slice(0, mark), el("span", "background:linear-gradient(transparent 12%, #FFD23F 12%, #FFD23F 92%, transparent 92%);padding:0 .08em;", c.highlight), c.text.slice(mark + c.highlight.length) + "”");
+  stage.append(q); fit(q, boxW, boxH, wide ? H * .17 : H * .095);
+  field(q, "text", 42, boxW, boxH);
+  const by = el("div", `position:absolute;left:${left}px;${wide ? `bottom:${H * .09}px` : `top:${py - H * (k === "tall" ? .095 : .12)}px`};width:${boxW}px;font-family:Plex,sans-serif;font-size:${Math.max(14, Math.min(W, H) * .027)}px;letter-spacing:.07em;text-transform:uppercase;color:#4a443c;line-height:1.35;`);
+  c.by.forEach((line, i) => { if (i) by.append(el("br")); by.append(line); });
+  stage.append(field(by, "by", 20, boxW, wide ? H * .15 : H * (k === "tall" ? .095 : .12)));
+}
+
+const STYLES = { clipping, plate, number, quote };
+window.build = async (spec, style, W, H) => {
+  const stage = document.getElementById("stage");
+  regions.clear();
+  stage.replaceChildren();
+  stage.style.cssText = `position:relative;overflow:hidden;width:${W}px;height:${H}px;`;
+  await document.fonts.ready;
+  await Promise.all(["Anton", "Instrument Serif", "Zing Caption", "Plex"].map(f => document.fonts.load(`800 40px "${f}"`)));
+  const frame = new Image();
+  frame.src = spec.frame.src;
+  try {
+    await frame.decode();
+  } catch {
+    throw Error("frame.src: supply a readable still image.");
+  }
+  if (frame.naturalWidth !== spec.frame.w || frame.naturalHeight !== spec.frame.h) {
+    throw Error("frame: correct w and h to match the displayed image.");
+  }
+  STYLES[style](spec, W, H, stage);
+  const boxes = [];
+  for (const [node, {name, min, maxW, maxH}] of regions) {
+    const rect = node.getBoundingClientRect(), css = getComputedStyle(node);
+    const fontSize = parseFloat(css.fontSize);
+    const width = Math.max(node.offsetWidth, node.scrollWidth);
+    const height = Math.max(node.offsetHeight, node.scrollHeight);
+    if (fontSize < min) {
+      throw Error(`${style}.${name}: shorten this field. Its ${fontSize.toFixed(1)}px type falls below the ${min}px minimum.`);
+    }
+    if (width > maxW + 1 || height > maxH + 1 || rect.left < -1 || rect.right > W + 1 ||
+        rect.top < -1 || rect.bottom > H + 1) {
+      throw Error(`${style}.${name}: shorten this field to fit its region on the ${aspectKey(W, H)} cover.`);
+    }
+    let text = node.innerText;
+    if (css.textTransform === "uppercase") text = text.toUpperCase();
+    boxes.push({field:name, text, fontSize, font:css.fontFamily.split(",")[0].replaceAll('"', ""),
+                x:rect.x, y:rect.y, width:rect.width, height:rect.height});
+  }
+  return {boxes, highlight:style === "quote" ? spec.quote.highlight : undefined,
+          tear:style === "clipping" ? document.getElementById("tear").getBoundingClientRect().toJSON() : undefined};
+
+};
+</script>
+</body>
+</html>
