@@ -49,7 +49,7 @@ from PIL import Image, ImageDraw, ImageFont
 from . import tools
 from .network import Network
 from .plan import visual_id
-from .tools import FactoryError, run
+from .tools import KEY_NAMES, FactoryError, run
 
 FFPROBE = shutil.which("ffprobe") or "ffprobe"
 FFMPEG = shutil.which("ffmpeg") or "ffmpeg"
@@ -60,7 +60,6 @@ VID_CAP = 120 << 20
 JSON_CAP = 15 << 20
 EXCERPT_S = 20  # long videos become a 20 s excerpt from ~15% in (skips slates; the renderer uses <= 20 s)
 KINDS = ("photo", "video", "logo", "gif", "screenshot")
-KEY_NAMES = ("PEXELS_API_KEY", "PIXABAY_API_KEY", "EXA_API_KEY")
 SOURCES = "nasa|commons|wikidata|openverse|pexels|pixabay|loc|ia|exa|screenshot|scroll|ogimage|ogvideo|local"
 OUR_FILE = re.compile(rf"^({SOURCES})_[0-9a-f]{{8}}(\.pick)?\.(jpg|jpeg|png|webp|mp4|mov|webm)(\.part)?$")
 LOCAL = {".png", ".jpg", ".jpeg", ".webp", ".mp4", ".mov", ".webm"}

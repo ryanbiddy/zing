@@ -56,7 +56,7 @@ Trusted Publishing with GitHub OIDC. No PyPI token is stored.
    Fresh installs check `mcp,render,memes` and `all` outside the checkout,
    with empty model caches and product networking blocked. They exercise
    help, doctor, prompts, presets, an image studio run and an MCP exchange
-   that lists 48 MCP tools and calls `zing_status`. The
+   that lists 51 MCP tools and calls `zing_status`. The
    [stdio check's tool list](../packaging/mcp_stdio_smoke.py) defines that count.
    Dependency installation still needs a package index. Reports retain
    commands, errors and tracebacks. Review any

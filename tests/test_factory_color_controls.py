@@ -319,7 +319,7 @@ def test_mcp_run_saves_color_and_refuses_changes_during_running_job(tmp_path, me
 def test_mcp_color_fields_are_optional_without_adding_tools():
     pytest.importorskip("mcp")
     tools = asyncio.run(mcp_server.build_server().list_tools())
-    assert len(tools) == 48
+    assert len(tools) == 51
     for name in ("factory_new", "factory_run", "factory_edit"):
         schema = next(t.model_dump(by_alias=True)["inputSchema"] for t in tools if t.name == name)
         assert {"color_look", "color_strength", "color_exposure", "color_temperature", "color_tint"} <= schema["properties"].keys()

@@ -21,6 +21,9 @@ DATA = resources.files("myzing") / "_data" / "factory"
 _processes = ContextVar("factory_processes", default=None)
 
 
+KEY_NAMES = ("PEXELS_API_KEY", "PIXABAY_API_KEY", "EXA_API_KEY")
+
+
 class FactoryError(RuntimeError):
     """An actionable factory failure."""
 
@@ -162,7 +165,6 @@ def node_sidecar() -> tuple[str, Path]:
 
 def sidecar_env(tmp: Path | None = None) -> dict[str, str]:
     """The sidecar's environment: the browser path, and never the stock-library keys."""
-    from .visuals import KEY_NAMES
     env = {k: v for k, v in os.environ.items() if k not in KEY_NAMES}
     env["ZING_BROWSER_PATH"] = browser()
     if tmp:

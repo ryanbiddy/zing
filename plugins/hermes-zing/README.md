@@ -3,7 +3,7 @@
 Turn a local episode into short clips, study a reference video, render drafts
 and make memes through Hermes. This portable Agent Plugins v1 package starts
 your installed `zing serve-mcp` command over stdio and adds one skill. It exposes
-Zing's existing 48 tools. It contains JSON, Markdown and a license, with no code
+Zing's existing 51 tools. It contains JSON, Markdown and a license, with no code
 or runtime installer.
 
 It pairs with the Uoink plugin for saved references and local breakdown notes.
@@ -54,8 +54,8 @@ version probe for this executable.
 ## Permissions and long calls
 
 The server is `untrusted` because it writes files and starts jobs. Hermes gates
-calls without `readOnlyHint: true`. All 48 Zing tools now declare hints, with
-16 marked read-only, including `factory_status`, `factory_prompt`, `get_prompt`
+calls without `readOnlyHint: true`. All 51 Zing tools now declare hints, with
+17 marked read-only, including `factory_status`, `factory_prompt`, `get_prompt`
 and the list tools. Those calls can run without an approval prompt under this
 rule. `zing_status`, `get_breakdown`, `get_render` and `match_status` remain gated
 because they can update stale job state. `zing_studio` writes temporary preview

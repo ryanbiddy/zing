@@ -16,6 +16,9 @@ import threading
 
 
 EXPECTED_TOOLS = {
+    "cover_new",
+    "cover_check",
+    "cover_render",
     "story_new",
     "story_check",
     "story_build",

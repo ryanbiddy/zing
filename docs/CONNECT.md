@@ -31,7 +31,7 @@ also get a guide.
 install links for the client's review flow. The command only prints the link.
 `zing serve-mcp --print-config [desktop|code]` keeps its existing output.
 
-Zing's MCP server gives any MCP client forty-eight tools, plus the prompt
+Zing's MCP server gives any MCP client fifty-one tools, plus the prompt
 pack as slash commands:
 
 - **Start here:** `zing_studio` (stateless questions and a plan), `zing_studio_run` (confirmed a/b/d/f jobs with separate speech-download consent; poll or cancel by project). See [Studio](STUDIO.md).
@@ -44,6 +44,7 @@ pack as slash commands:
 - **Explain:** `zing_explain` (style card, reusable recipe and optional comparison; see [Explain](EXPLAIN.md))
 - **Moments:** `zing_moments` (Estimated transcript suggestions with must-keep JSON; see [Long interviews](MATCH.md#long-interviews)).
 - **Factory:** `factory_new`, `factory_run`, `factory_status`, `factory_prompt`, `factory_answer`, `factory_clip`, `factory_edit` (one long episode to a pack of social clips; the calling agent answers the judgment prompts and edits the clips; see [Clip factory](FACTORY.md))
+- Make covers with `cover_new`, `cover_check` and `cover_render`. They return paths and metadata for a local video frame. [Cover guide](COVER.md)
 - **Stories:** `story_new`, `story_check`, `story_build`, `story_status` (topic to a starter file, JSON checks, background video builds and progress; the calling agent writes the story; see [Cutout stories](STORY.md))
 - **Match:** `match_start`, `match_status` (reference plus clips to resumable drafts and rendered match reports; see [Match](MATCH.md))
 - **Profile:** `build_profile`, `get_profile`, `list_profiles`,
@@ -64,7 +65,7 @@ if it drifts, CI fails.)
 
 ## Tool hints
 
-All 48 tools declare read-only, destructive, idempotent and open-world hints.
+All 51 tools declare read-only, destructive, idempotent and open-world hints.
 Hints cover every supported argument combination. Hosts decide whether to ask
 for approval.
 
@@ -73,6 +74,9 @@ for approval.
 | `brief_questions` | yes | no | no |
 | `brief_save` | no | yes | no |
 | `build_profile` | no | yes | no |
+| `cover_check` | yes | no | no |
+| `cover_new` | no | no | no |
+| `cover_render` | no | yes | no |
 | `export_otio` | no | yes | no |
 | `factory_answer` | no | yes | no |
 | `factory_clip` | no | yes | no |
@@ -163,7 +167,7 @@ online one. Choose ElevenLabs with `--provider elevenlabs` or
 The server uses the official Python MCP SDK 2.3+ over stdio. Existing client
 launch commands still work. It accepts legacy initialization through
 `2025-11-25` and the stateless `2026-07-28` protocol. The current registry has
-48 tools and five prompts. STUDIO1 adds the guided front door; `match_start` gains an optional `studio_options` adapter argument. Existing arguments and defaults stay compatible. See [SDK 2 compatibility](MCP-SDK2.md)
+51 tools and five prompts. STUDIO1 adds the guided front door; `match_start` gains an optional `studio_options` adapter argument. Existing arguments and defaults stay compatible. See [SDK 2 compatibility](MCP-SDK2.md)
 for protocol details and the recorded SDK 1 baseline. Zing exposes no HTTP
 MCP endpoint.
 
